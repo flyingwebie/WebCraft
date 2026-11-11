@@ -898,16 +898,9 @@ function SourcePanels({
 								if (selection?.kind !== "node" || node?.type !== "element") return t("coEditing.status.readOnly");
 								return apply(replaceAt(tree, selection.path, { ...node, classes }), selection, message);
 							}}
-							onDesignChanged={({ made, renamed }) => {
-								if (made || renamed)
-									setCatalogue((before) => ({
-										...before,
-										classes: made
-											? [...before.classes, { id: made.id, name: made.name, generated: false, styles: "" }]
-											: before.classes.map((each) =>
-													each.id === renamed?.id ? { ...each, name: renamed.name, generated: false } : each,
-												),
-									}));
+							refreshCatalogue={async () => {
+								// The same refresh as the Inspector's: through the source's owner, in request order.
+								await reload();
 								bridge.refresh();
 							}}
 						/>,

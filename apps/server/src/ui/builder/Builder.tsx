@@ -1126,22 +1126,9 @@ export function Builder({
 										? replace(selection.path, { ...selectedNode, classes }, message)
 										: t("coEditing.status.readOnly")
 								}
-								onDesignChanged={({ made, renamed }) => {
-									if (made || renamed)
-										patchOpened((before) => ({
-											...before,
-											catalogue: {
-												...before.catalogue,
-												classes: made
-													? [
-															...before.catalogue.classes,
-															{ id: made.id, name: made.name, generated: false, styles: "" },
-														]
-													: before.catalogue.classes.map((each) =>
-															each.id === renamed?.id ? { ...each, name: renamed.name, generated: false } : each,
-														),
-											},
-										}));
+								refreshCatalogue={async () => {
+									// The same refresh as the Inspector's: the Builder's own ordered catalogue read.
+									await readOpened();
 									setDesignVersion((count) => count + 1);
 								}}
 							/>

@@ -90,8 +90,11 @@ export type CssPanelProps = {
 	editable: boolean;
 	/** Changes the element's class list through its current shared document; answers why not, if it can't. */
 	onClasses(classIds: string[], announcement: string): string | undefined;
-	/** A Class was made or renamed, or CSS saved, in the Design system's Draft. */
-	onDesignChanged?(change: { made?: { id: string; name: string }; renamed?: { id: string; name: string } }): void;
+	/**
+	 * Reads the canvas's Class catalogue again, through its source's owner, after the panel made,
+	 * renamed or restyled a Class: the panel never hands the canvas a Class copy of its own.
+	 */
+	refreshCatalogue(): Promise<void>;
 	/** Changes whenever the Design system's Draft changed elsewhere: the panel reads it again. */
 	designVersion?: number;
 };
@@ -292,7 +295,7 @@ export function CssPanel({
 	catalogue,
 	editable,
 	onClasses,
-	onDesignChanged,
+	refreshCatalogue,
 	designVersion = 0,
 }: CssPanelProps) {
 	const t = useT();
@@ -300,7 +303,6 @@ export function CssPanel({
 	const [announcement, announce] = useAnnouncement();
 	const [data, setData] = useState<CssData | null>(null);
 	const [known, setKnown] = useState<ReadonlyMap<string, CssClass>>(new Map());
-	const [made, setMade] = useState<ReadonlyMap<string, string>>(new Map());
 	const [picked, setPicked] = useState<{ element: string | null; tab: string } | null>(null);
 	const [view, setView] = useState<View>("all");
 	const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({});
@@ -315,6 +317,8 @@ export function CssPanel({
 		null,
 	);
 	const lastClass = useRef<string | null>(null);
+	const latest = useRef({ element, onClasses });
+	latest.current = { element, onClasses };
 	const readRun = useRef(0);
 	const area = useRef<HTMLTextAreaElement>(null);
 	const tabRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -325,13 +329,11 @@ export function CssPanel({
 	const classIds = element?.classes ?? [];
 	const nameOf = (classId: string) =>
 		known.get(classId)?.name ??
-		made.get(classId) ??
 		catalogue.classes.find((each) => each.id === classId)?.name ??
 		catalogue.utilities.find((each) => each.id === classId)?.name ??
 		classId;
 	const isClass = (classId: string) =>
-		!classId.startsWith(UTILITY) &&
-		(known.has(classId) || made.has(classId) || catalogue.classes.some((each) => each.id === classId));
+		!classId.startsWith(UTILITY) && (known.has(classId) || catalogue.classes.some((each) => each.id === classId));
 	const classTabs = classIds.filter(isClass);
 	const utilities = classIds.filter((classId) => classId.startsWith(UTILITY));
 	const classKey = classIds.join(" ");
@@ -460,10 +462,14 @@ export function CssPanel({
 		} else {
 			try {
 				const created = await port.createClass(name);
-				setMade((before) => new Map(before).set(created.id, created.name));
-				onDesignChanged?.({ made: created });
-				const problem = onClasses([...classIds, created.id], t("builder.css.created", { name }));
-				if (problem) return setAddProblem(problem);
+				await refreshCatalogue();
+				// Added to the element's class list as it is now, never to the one read before the request.
+				const now = latest.current;
+				if (now.element?.id !== elementId) return announce(t("builder.css.created", { name }));
+				if (!now.element.classes.includes(created.id)) {
+					const problem = now.onClasses([...now.element.classes, created.id], t("builder.css.created", { name }));
+					if (problem) return setAddProblem(problem);
+				}
 				lastClass.current = created.id;
 				setPicked({ element: elementId, tab: created.id });
 				announce(t("builder.css.created", { name }));
@@ -496,7 +502,7 @@ export function CssPanel({
 			setConflict(null);
 			await read();
 			announce(t("builder.css.saved", { name: label }));
-			onDesignChanged?.({});
+			await refreshCatalogue();
 			if (wasGenerated && chosen) setRenaming({ classId: chosen.id, name: chosen.name });
 		} catch (failure) {
 			const refused = failure as { code?: string; data?: { version?: string; problems?: Problem[] } };
@@ -527,7 +533,7 @@ export function CssPanel({
 		try {
 			if (name && name !== known.get(renaming.classId)?.name) {
 				await port.renameClass(renaming.classId, name);
-				onDesignChanged?.({ renamed: { id: renaming.classId, name } });
+				await refreshCatalogue();
 				await read();
 				announce(t("builder.css.renamed", { name: `.${name}` }));
 			}
