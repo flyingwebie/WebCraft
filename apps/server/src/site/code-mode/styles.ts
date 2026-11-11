@@ -17,7 +17,10 @@ export const CODE_STYLES = `
 .outline.insert { background:#4ade80; border:0; }
 .line.hovered { outline:1px solid #a1a1aa; background:#27272a; }
 .editor-panels [data-hovered] { outline:1px solid #a1a1aa; }
-.line.insertion-context { position: absolute; inset: auto 0 0 3rem; z-index: 2; margin: 0; padding: 0.5rem; background: #17251e; color: #bbf7d0; white-space: pre-wrap; font: 12px/20px ui-monospace, monospace; }
+.source-context { position: absolute; inset: auto 0 0 3rem; z-index: 2; margin: 0; padding: 0.5rem; max-height: 6rem; overflow: auto; pointer-events: none; white-space: pre-wrap; font: 12px/20px ui-monospace, monospace; }
+.insertion-context { background: #17251e; color: #bbf7d0; }
+.hover-context { background: #27272a; color: #e4e4e7; }
+.source-context .line { width: auto; }
 .insert-line { box-shadow:inset 0 -2px #4ade80; }
 :host { all: initial; }
 *, *::before, *::after { box-sizing: border-box; }
