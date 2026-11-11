@@ -321,16 +321,7 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 		if (ownedComponents.has(row.id)) continue;
 		const script = componentScripts.get(row.id);
 		const draft = structure({ kind: "component", id: row.id }, row, row.name);
-		add(
-			script
-				? {
-						...draft,
-						status: row.published === null ? "new" : "changed",
-						version: draftVersion({ component: row.draft, script: script.version }),
-					}
-				: draft,
-			row,
-		);
+		add(script ? { ...draft, version: draftVersion({ component: row.draft, script: script.version }) } : draft, row);
 	}
 	const changedLoops = await scope.select(loops, sql`${loops.draft} is distinct from ${loops.published}`, {
 		orderBy: [loops.name],
@@ -346,8 +337,12 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 	}
 	for (const row of popupRows) {
 		const state = await popupStructureState(scope, row);
-		if (!sameJson(state.draft, state.published))
-			add(structure({ kind: "popup", id: row.id }, { ...row, ...state }, row.name), row);
+		// A Popup publishes its Component, and so its Component script: a change to it alone is the Popup's too.
+		const script = componentScripts.get(row.componentId);
+		if (!sameJson(state.draft, state.published) || script?.changed) {
+			const draft = structure({ kind: "popup", id: row.id }, { ...row, ...state }, row.name);
+			add(script ? { ...draft, version: draftVersion({ popup: state.draft, script: script.version }) } : draft, row);
+		}
 		if (!sameJson(row.contentDraft, row.contentPublished))
 			add(
 				{

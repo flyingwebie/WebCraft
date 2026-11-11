@@ -157,11 +157,12 @@ export async function saveComponentScriptFromPanel(
 ): Promise<CodeComponentScript> {
 	const { componentId, version, ...change } = input;
 	const script = await saveComponentScript(scope, componentId, change, { basedOn: version });
+	const { component, usage } = await getComponent(scope, componentId, deps.sources);
 	return {
 		componentId,
-		name: (await getComponent(scope, componentId, deps.sources)).component.name,
+		name: component.name,
 		editable: true,
-		pages: (await getComponent(scope, componentId, deps.sources)).usage.pages,
+		pages: usage.pages,
 		...codeComponentScript(script),
 		libraries: (await listLibraries(scope)).map((library) => ({ id: library.id, name: library.name })),
 	};

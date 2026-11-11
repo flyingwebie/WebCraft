@@ -48,7 +48,7 @@ import { isUuid } from "../ids.ts";
 import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 import { publishedArchives } from "./archives.ts";
-import { componentScriptStates } from "./component-scripts.ts";
+import { componentScriptStates, retireComponentScript } from "./component-scripts.ts";
 import { type ComponentVersion, EMPTY_TREE, storedComponentVersion } from "./component-versions.ts";
 import {
 	ComponentFromModuleError,
@@ -500,6 +500,8 @@ export async function deleteComponent(
 		const request = { action: "component.delete", target: row.id, preview: { name: row.name } };
 		if (confirmation === undefined) return { deleted: false, confirmation: await askConfirmation(tx, request) };
 		await useConfirmation(tx, confirmation, request);
+		// Its Component script goes with it; pages loaded before still find its published file for 30 days.
+		await retireComponentScript(tx, row.id);
 		await tx.delete(components, eq(components.id, row.id));
 		await tx.audit("component.delete", { componentId: row.id, name: row.name });
 		return { deleted: true };

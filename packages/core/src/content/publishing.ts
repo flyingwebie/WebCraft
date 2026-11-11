@@ -19,7 +19,7 @@ import { indexPublishedEntry } from "../search/indexing.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
 import { archiveAt, checkArchiveAddressFree, publishedArchives } from "./archives.ts";
-import { publishComponentScript } from "./component-scripts.ts";
+import { type ComponentScriptVersion, publishComponentScript, readFrozenComponentScript } from "./component-scripts.ts";
 import { storedComponentVersion } from "./component-versions.ts";
 import {
 	type ComponentSources,
@@ -252,7 +252,7 @@ async function publishItem(
 		case "popup": {
 			const row = await popupRow(scope, item.id);
 			const frozen = version as { settings: unknown; component: unknown } | undefined;
-			await publishComponent(scope, row.componentId, sources, frozen?.component);
+			await publishComponent(scope, row.componentId, sources, frozen?.component, readFrozenComponentScript(frozen));
 			await saveRevision(scope, { kind: "component", id: row.componentId });
 			await announcePublished(scope, { kind: "component", id: row.componentId });
 			if (!frozen) await leaveScheduledPublishes(scope, [{ kind: "component", id: row.componentId }]);
@@ -503,6 +503,8 @@ async function publishComponent(
 	componentId: string,
 	sources: ComponentSources,
 	version: unknown,
+	/** A Scheduled publish's frozen Component script (see `publishComponentScript`); its Draft otherwise. */
+	script: ComponentScriptVersion | null | undefined = readFrozenComponentScript(version),
 ): Promise<Published> {
 	const row = await lockComponent(scope, componentId, sources);
 	const draft = storedComponentVersion(version ?? row.draft);
@@ -544,7 +546,7 @@ async function publishComponent(
 		});
 	}
 	// Its Component script, when it has one, is published with it.
-	await publishComponentScript(scope, row.id);
+	await publishComponentScript(scope, row.id, script);
 	await scope.audit("component.publish", { componentId: row.id, name: row.name });
 	return { kind: "component", id: row.id, publishedAt: now, pathChanges: [] };
 }

@@ -24,6 +24,7 @@ import { isUniqueViolation } from "../db-errors.ts";
 import { SCRIPT_PATH } from "../design-system/stylesheet.ts";
 import { CODE_MODE_SCRIPT_PATH } from "../edit-mode/paths.ts";
 import { noteDraftChange } from "../history/checkpoints.ts";
+import { saveRevision } from "../history/copies.ts";
 import { isUuid } from "../ids.ts";
 import { personIdOf } from "../permissions/can.ts";
 import { LibraryNotFoundError } from "../site-scripts/errors.ts";
@@ -269,33 +270,88 @@ export async function saveComponentScriptDraft(
 /**
  * Publishes a Component's script with its Component (called by `publish`, which checks
  * `structure.edit` and clears the page cache): its Draft, code and settings, becomes what visitors
- * run. Nothing happens when the Component has no script or it is published as it is. The file a
- * publish replaces is still served for 30 days.
+ * run; or `frozen`, the version a Scheduled publish froze with its Component (`null`: it had none
+ * then, so nothing of a later script is published). Nothing happens when the Component has no script
+ * or that version is published already. The file a publish replaces is still served for 30 days.
  */
-export async function publishComponentScript(scope: SiteScope, componentId: string): Promise<void> {
+export async function publishComponentScript(
+	scope: SiteScope,
+	componentId: string,
+	frozen?: ComponentScriptVersion | null,
+): Promise<void> {
+	if (frozen === null) return;
 	const [row] = await scope.db
 		.select()
 		.from(scripts)
 		.where(scope.where(scripts, whereComponent(componentId)))
 		.for("update");
-	if (!row || !componentScriptChanged(row)) return;
+	if (!row) return;
+	const next = frozen ?? draftOf(row);
+	const published = publishedOf(row);
+	if (published === null ? !next.code.trim() : sameVersion(next, published)) return;
+	const hash = contentHash(next.code);
 	const now = scope.now();
-	if (row.published !== null && row.publishedHash && row.publishedHash !== row.draftHash) {
+	if (row.published !== null && row.publishedHash && row.publishedHash !== hash) {
 		await retireScriptFiles(scope, [{ hash: row.publishedHash, code: row.published }]);
 	}
+	// A Library removed since a Scheduled publish froze the script is left out.
+	const libraryIds = next.libraryIds.length
+		? (await scope.select(libraries, inArray(libraries.id, next.libraryIds))).map((library) => library.id)
+		: [];
 	await scope.update(
 		scripts,
 		{
-			published: row.draft,
-			publishedHash: row.draftHash,
-			publishedConsentCategory: readCategory(row.consentCategory),
-			publishedLibraryIds: row.libraryIds ?? [],
+			published: next.code,
+			publishedHash: hash,
+			publishedConsentCategory: next.consentCategory,
+			publishedLibraryIds: next.libraryIds.filter((id) => libraryIds.includes(id)),
 			publishedAt: row.publishedAt ?? now,
 			lastPublishedAt: now,
 		},
 		eq(scripts.id, row.id),
 	);
 	await scope.audit("script.publish", { scriptId: row.id, kind: "component", componentId });
+	// Like its Component, it keeps a Revision of what each publish made live (unless Revisions are off).
+	await saveRevision(scope, { kind: "script", id: row.id });
+}
+
+/**
+ * A Component script's Draft as a Scheduled publish freezes it with its Component (null: the
+ * Component has no script), and reads it back from the frozen version (undefined: one frozen before
+ * Component scripts were frozen, which publishes the script's Draft as it is then).
+ */
+export async function frozenComponentScript(
+	scope: Pick<SiteScope, "first">,
+	componentId: string,
+): Promise<ComponentScriptVersion | null> {
+	const row = isUuid(componentId) ? await scope.first(scripts, whereComponent(componentId)) : undefined;
+	return row ? draftOf(row) : null;
+}
+
+export function readFrozenComponentScript(version: unknown): ComponentScriptVersion | null | undefined {
+	if (!version || typeof version !== "object" || !("script" in version)) return undefined;
+	const script = (version as { script: unknown }).script;
+	if (script === null) return null;
+	const { code, consentCategory, libraryIds } = (script ?? {}) as Partial<Record<string, unknown>>;
+	if (typeof code !== "string") return undefined;
+	return {
+		code,
+		consentCategory: readCategory(typeof consentCategory === "string" ? consentCategory : null),
+		libraryIds: Array.isArray(libraryIds)
+			? libraryIds.filter((id): id is string => typeof id === "string" && isUuid(id))
+			: [],
+	};
+}
+
+/**
+ * Keeps a Component's published script file served for 30 days (`retired_script_files`) before its
+ * Component is deleted, which removes the script: pages loaded before still find it, as after a publish.
+ */
+export async function retireComponentScript(scope: SiteScope, componentId: string): Promise<void> {
+	const row = await scope.first(scripts, whereComponent(componentId));
+	if (row?.published != null && row.publishedHash) {
+		await retireScriptFiles(scope, [{ hash: row.publishedHash, code: row.published }]);
+	}
 }
 
 /** A Component script a page may load, with the Libraries it declares. */
