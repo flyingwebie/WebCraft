@@ -288,6 +288,8 @@ export function codeMode(config: CodeModeConfig): void {
 				schedulePreview();
 			},
 			previewCss(change: { target: CssTarget; text: string } | null) {
+				// The page renders again only when what it should show changes.
+				if (encode(change) === encode(pendingCss)) return;
 				pendingCss = change;
 				schedulePreview();
 			},
