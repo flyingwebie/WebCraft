@@ -14,7 +14,7 @@ import type { Logger } from "../log.ts";
 import { can, personIdOf, type Resource } from "../permissions/can.ts";
 import type { Access, DataLayer, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
-import { copyDocument, readDocument, sameValue } from "./document.ts";
+import { changeDocument, copyDocument, readDocument, sameValue } from "./document.ts";
 import { editPermission, isLiveKind, readPermission, saveLiveChange } from "./items.ts";
 import { lockItem } from "./locks.ts";
 import {
@@ -39,6 +39,7 @@ import {
 	recordChange,
 	writingFromDocument,
 } from "./store.ts";
+import { documentView } from "./view.ts";
 
 /**
  * Co-editing in the web process (ADR 0025): the shared documents people have open here, their
@@ -591,6 +592,8 @@ export function createCoEditing(deps: CoEditingDeps): CoEditing {
 			return refuse(connection, seq, { code: "FORBIDDEN", message: "You may only read this Draft." });
 		}
 		let changeId = 0;
+		let accepted = update;
+		let derived: Uint8Array | undefined;
 		try {
 			const scope = await deps.data.site(access, live.siteId, editPermission(live.item));
 			// A deadlock or a serialization failure means only that this ran into another transaction,
@@ -604,21 +607,34 @@ export function createCoEditing(deps: CoEditingDeps): CoEditing {
 						await catchUpIn(tx, live);
 						const trial = copyDocument(live.doc);
 						try {
+							accepted = update;
+							derived = undefined;
 							Y.applyUpdate(trial, update);
 							if (trial.store.pendingStructs || trial.store.pendingDs) throw new MissingChangesError();
 							const before = readDocument(live.doc);
 							const after = readDocument(trial);
 							if (!sameValue(before, after)) {
-								await writingFromDocument(() => saveLiveChange(tx, live.item, before, after, deps.components));
+								await writingFromDocument(tx, live.item, () =>
+									saveLiveChange(tx, live.item, before, after, deps.components),
+								);
 							}
+							const stored = (await itemState(tx, live.item)).draft;
+							// Tree saves derive declaration ids, retained values/contracts and binding projections.
+							// Keep the authored update's own echo suppressed; send only the derived delta back.
+							const canonical = documentView(live.item.kind, stored);
+							if ((live.item.kind === "component" || live.item.kind === "template") && !sameValue(after, canonical)) {
+								const vector = Y.encodeStateVector(trial);
+								changeDocument(trial, canonical);
+								derived = Y.encodeStateAsUpdate(trial, vector);
+								accepted = Y.mergeUpdates([update, derived]);
+							}
+							changeId = await recordChange(tx, row, accepted, stored, {
+								personId: personIdOf(access.actor),
+								via: access.via,
+							});
 						} finally {
 							trial.destroy();
 						}
-						const stored = (await itemState(tx, live.item)).draft;
-						changeId = await recordChange(tx, row, update, stored, {
-							personId: personIdOf(access.actor),
-							via: access.via,
-						});
 					});
 					break;
 				} catch (error) {
@@ -648,10 +664,11 @@ export function createCoEditing(deps: CoEditingDeps): CoEditing {
 			return refuse(connection, seq, refusal);
 		}
 		const vector = Y.encodeStateVector(live.doc);
-		Y.applyUpdate(live.doc, update, connection);
+		Y.applyUpdate(live.doc, accepted, connection);
 		live.through = Math.max(live.through, changeId);
 		const passed = Y.encodeStateAsUpdate(live.doc, vector);
 		for (const other of live.connections) if (other !== connection) sendFrame(other, "changed", passed);
+		if (derived) sendFrame(connection, "changed", derived);
 		send(connection, { type: "saved", seq });
 	};
 

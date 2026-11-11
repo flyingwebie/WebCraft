@@ -457,7 +457,7 @@ export function Builder({
 					target,
 					tree: read.tree,
 					styles: read.styles,
-					...propsChange(doc),
+					...(read.props ? { props: read.props } : {}),
 				});
 				if (!current) return;
 				setPreview(shown);
@@ -536,7 +536,7 @@ export function Builder({
 			} else {
 				if (markup !== markupBase) {
 					const read = await api.builder.read({ siteId, target, markup, ...propsChange(doc) });
-					apply({ ...doc, tree: read.tree, styles: read.styles }, null, t("builder.view.toVisual"));
+					apply({ ...doc, tree: read.tree, styles: read.styles, props: read.props }, null, t("builder.view.toVisual"));
 				} else {
 					announce(t("builder.view.toVisual"));
 				}

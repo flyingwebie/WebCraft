@@ -4,6 +4,7 @@ import {
 	bodyReadingTime,
 	bodyToc,
 	bodyValue,
+	mappedBindingPath,
 	type PropArgument,
 	richText,
 	storedBlocks,
@@ -377,7 +378,12 @@ export function placementValues(
 		const prop = head === "props" ? props.find((candidate) => candidate.key === key) : undefined;
 		if (!prop) return undefined;
 		const argument = given.get(key);
-		if (argument?.kind === "bound") return outer([argument.path, ...rest].join("."));
+		if (argument?.kind === "bound") {
+			if (argument.binding?.missing?.some((p) => rest.join(".") === p || rest.join(".").startsWith(`${p}.`)))
+				return undefined;
+			const suffix = argument.binding ? mappedBindingPath(rest.join("."), argument.binding.paths) : rest.join(".");
+			return outer(suffix ? `${argument.path}.${suffix}` : argument.path);
+		}
 		const json = argument ? sources.read(prop, argument.text) : (prop.default as Json);
 		return resolveNames(
 			fieldValue(prop, json, { site: sources.site, related: relatedOf(prop, sources.related) }),

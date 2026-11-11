@@ -1,4 +1,6 @@
 import type pg from "pg";
+import { storedComponentVersion } from "../content/component-versions.ts";
+import { retainedContract } from "../content/prop-migrations.ts";
 import { literal, quoted } from "./tables.ts";
 
 /** Current Drafts and live versions use today's Structure; history uses Structure from that time. */
@@ -7,7 +9,7 @@ export type ReferenceVersion = { kind: "draft" | "published"; at?: string };
 /** Reads one bounded piece of the original Structure, before any identities have changed. */
 export type ReferenceLookup = {
 	row(table: string, id: string | null, path: string[]): Promise<unknown>;
-	prop(componentId: string, path: string[], version: ReferenceVersion): Promise<unknown>;
+	prop(componentId: string, path: string[], version: ReferenceVersion, retainedId?: string): Promise<unknown>;
 };
 
 /** Both the export's scoped snapshot and the import's staged original rows obey the same lookup. */
@@ -31,17 +33,13 @@ export function createReferenceLookup(
 			);
 			return result.rows[0]?.value;
 		},
-		async prop(componentId, path, version) {
-			// Prefer the declaration that existed when this copy was written. If retention removed
-			// it, use surviving Structure as restoring that copy on the source Site would.
-			const fields = path.map((_, index) => `f${index}`);
-			const joins = fields.map(
-				(field, index) =>
-					`CROSS JOIN LATERAL jsonb_array_elements(COALESCE(${index === 0 ? "content->'props'" : `${fields[index - 1]}.value->'fields'`}, '[]'::jsonb)) ${field}(value)`,
-			);
-			const matches = fields.map((field, index) => `${field}.value->>'key' = ${parameter(index + 4)}`);
-			const result = await client.query<{ value: unknown }>(
-				`WITH versions AS (
+		async prop(componentId, path, version, retainedId) {
+			// Select the source contract by time, then resolve names through its live identities.
+			// Only unmarked legacy values inherit baseline types. Marked values retain their own old contracts.
+			// Both callers own a transaction and traverse Props sequentially. Keep the ordered
+			// search in that snapshot, fetching one contract at a time, including fallbacks.
+			await client.query(
+				`DECLARE site_prop_contracts NO SCROLL CURSOR FOR WITH versions AS (
  SELECT row->'draft' AS content, row->>'updated_at' AS at, 'draft' AS kind, 0 AS priority
  FROM (${rows("public.components")}) source WHERE row->>'id' = ${parameter(1)}
  UNION ALL
@@ -54,20 +52,36 @@ export function createReferenceLookup(
  SELECT row->'content', row->>'changed_at', 'draft', 1
  FROM (${rows("public.checkpoints")}) source WHERE row->>'item_kind' = 'component' AND row->>'item_id' = ${parameter(1)}
  ), candidates AS (
- SELECT ${fields.at(-1)}.value, priority, kind, at::timestamptz AS at,
+ SELECT content, priority, kind, at::timestamptz AS at,
  (${parameter(3)}::timestamptz IS NOT NULL AND at::timestamptz <= ${parameter(3)}::timestamptz) AS historical
- FROM versions ${joins.join(" ")} WHERE ${matches.join(" AND ")}
- )
- SELECT value FROM candidates
+ FROM versions WHERE content IS NOT NULL
+ ) SELECT jsonb_build_object('props', content->'props', 'propBaseline', content->'propBaseline', 'propValueVersion', content->'propValueVersion') AS content FROM candidates
  ORDER BY CASE WHEN ${parameter(2)} = 'published' AND kind <> 'published' THEN 1 ELSE 0 END,
  CASE WHEN historical THEN 0 ELSE 1 END,
  CASE WHEN historical THEN 0 ELSE priority END,
  CASE WHEN historical AND ${parameter(2)} = 'draft' THEN 0 WHEN kind = ${parameter(2)} THEN 0 ELSE 1 END,
- at DESC NULLS LAST, CASE WHEN kind = ${parameter(2)} THEN 0 ELSE 1 END
- LIMIT 1`,
-				[...scope, componentId, version.kind, version.at ?? null, ...path],
+ at DESC NULLS LAST, CASE WHEN kind = ${parameter(2)} THEN 0 ELSE 1 END`,
+				[...scope, componentId, version.kind, version.at ?? null],
 			);
-			return result.rows[0]?.value;
+			try {
+				for (;;) {
+					const result = await client.query<{ content: unknown }>("FETCH 1 FROM site_prop_contracts");
+					const row = result.rows[0];
+					if (!row) return undefined;
+					const contract = storedComponentVersion(row.content);
+					let fields = retainedContract(contract.props, contract.propBaseline, contract.propValueVersion !== 1);
+					let found: (typeof fields)[number] | undefined;
+					for (const [index, key] of path.entries()) {
+						found = fields.find((field) =>
+							retainedId && index === path.length - 1 ? field.id === retainedId : field.key === key,
+						);
+						fields = found && "fields" in found ? found.fields : [];
+					}
+					if (found) return found;
+				}
+			} finally {
+				await client.query("CLOSE site_prop_contracts");
+			}
 		},
 	};
 }

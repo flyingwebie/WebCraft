@@ -29,6 +29,7 @@ import { getGlobals } from "../content/globals.ts";
 import { draftVersion } from "../content/json.ts";
 import { listLoops } from "../content/loops.ts";
 import { getPostType } from "../content/post-types.ts";
+import { printPropDeclarations } from "../content/prop-markup.ts";
 import { RELATED_BUILT_INS } from "../content/render-values.ts";
 import { getEntryTemplate, getSiteTemplate } from "../content/templates.ts";
 import { classCatalogue } from "../design-system/classes.ts";
@@ -267,13 +268,17 @@ export async function openSource(
 	return {
 		source: { kind: source.kind, id: source.id, name: source.name, editable: source.editable },
 		ref: writeCodeRef(ref),
-		markup: printTemplateMarkup(source.tree, {
-			className: classes.nameOf,
-			componentName: catalogue.nameOf,
-			formKey: catalogue.forms.keyOf,
-			popupKey: catalogue.popups.keyOf,
-			filterName: catalogue.filters.nameOf,
-		}),
+		markup:
+			(source.kind === "component" && source.id
+				? printPropDeclarations(catalogue.version(source.id)?.props ?? [])
+				: "") +
+			printTemplateMarkup(source.tree, {
+				className: classes.nameOf,
+				componentName: catalogue.nameOf,
+				formKey: catalogue.forms.keyOf,
+				popupKey: catalogue.popups.keyOf,
+				filterName: catalogue.filters.nameOf,
+			}),
 		version: source.draft === null ? null : draftVersion(source.draft),
 		element: found ? { id: idOf(found.node), tag: tagOf(found.node) } : null,
 		breadcrumb: steps.map((step, index) => ({
