@@ -39,7 +39,7 @@ test("a script-only change to a Popup's Component shows in Publish all as the Po
 	const { popup } = await api.popups.create({ siteId, name: "Offer", key: "offer" });
 	await api.components.saveMarkup({ siteId, componentId: popup.componentId, markup: "<p>Offer</p>" });
 	await api.popups.publish({ siteId, popupId: popup.id });
-	const structure = (drafts: { item: { kind: string } }[]) =>
+	const structure = (drafts: { item: { kind: string; id?: string } }[]) =>
 		drafts.filter((draft) => draft.item.kind !== "popupContent");
 	expect(structure((await api.publishing.drafts({ siteId })).drafts)).toEqual([]);
 
