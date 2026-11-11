@@ -2,6 +2,7 @@ import type { HoldEmbed } from "./body/blocks.ts";
 import { renderBody, renderToc } from "./body/body.ts";
 import { bodyChecks } from "./body/checks.ts";
 import { commandForNode } from "./commands.ts";
+import { COMPONENT_ROOT_ATTRIBUTE } from "./component-scripts.ts";
 import { blockPlacement, COMPONENT_LIMITS, type PlacementNode, type PropArgument } from "./components.ts";
 import { escapeAttribute, escapeText, safeAttributeValue, safeUrl, URL_ATTRIBUTES } from "./escape.ts";
 import type { RenderTime } from "./expressions.ts";
@@ -182,7 +183,18 @@ export type PlacementRenderer = (
 	componentId: string,
 	props: ReadonlyMap<string, PropArgument>,
 	outer: ValueReader,
-) => { tree: ElementTree; values: ValueReader } | undefined;
+) =>
+	| {
+			tree: ElementTree;
+			values: ValueReader;
+			/**
+			 * Attributes for the Placement's root (its first element), when its Component has a script
+			 * on the page: `data-wc-component` with the Component's id and its exposed Props as `data-`
+			 * attributes (`componentRootAttributes`).
+			 */
+			root?: readonly (readonly [string, string])[];
+	  }
+	| undefined;
 
 /**
  * How deep the render is in Components and in Loops, how many nodes Components have shown on the
@@ -533,7 +545,28 @@ function renderPlacement(node: PlacementNode, options: RenderOptions, state: Ren
 		paths: options.codeSource ? nodePaths(shown.tree) : undefined,
 	});
 	if (html.trim()) options.shownComponents?.add(node.component);
-	return html;
+	return shown.root ? withRootAttributes(html, shown.root) : html;
+}
+
+/**
+ * A Placement's HTML with `attributes` on its root, its first element. Text is escaped, so the first
+ * `<` and a letter starts it. The root of a Component placed first thing inside another is both
+ * Placements' root: it gets both ids in one `data-wc-component` list, and the outer Placement's
+ * exposed Props only where the inner one wrote none of the same name. A Placement showing no element
+ * has no root.
+ */
+function withRootAttributes(html: string, attributes: readonly (readonly [string, string])[]): string {
+	const start = /<([a-z][a-z0-9-]*)\b([^>]*)>/.exec(html);
+	if (!start) return html;
+	let tag = start[2] ?? "";
+	for (const [name, value] of attributes) {
+		const present = new RegExp(`\\s${name}="([^"]*)"`).exec(tag);
+		if (!present) tag += ` ${name}="${escapeAttribute(value)}"`;
+		else if (name === COMPONENT_ROOT_ATTRIBUTE)
+			tag = tag.replace(present[0], ` ${name}="${present[1]} ${escapeAttribute(value)}"`);
+	}
+	const at = start.index;
+	return `${html.slice(0, at)}<${start[1]}${tag}>${html.slice(at + start[0].length)}`;
 }
 
 /**

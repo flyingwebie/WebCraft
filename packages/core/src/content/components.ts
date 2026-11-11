@@ -48,6 +48,7 @@ import { isUuid } from "../ids.ts";
 import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 import { publishedArchives } from "./archives.ts";
+import { componentScriptStates, retireComponentScript } from "./component-scripts.ts";
 import { type ComponentVersion, EMPTY_TREE, storedComponentVersion } from "./component-versions.ts";
 import {
 	ComponentFromModuleError,
@@ -232,7 +233,8 @@ export async function listComponents(
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
 ): Promise<(Component & { usage: ComponentUsage })[]> {
 	const rows = await scope.select(components, undefined, { orderBy: [asc(components.name)] });
-	const own = rows.map(toComponent);
+	const scripts = await componentScriptStates(scope);
+	const own = rows.map((row) => withScriptStatus(toComponent(row), scripts.get(row.id)));
 	const fromModules = (await sources.moduleComponentsAt(scope)).map((component) =>
 		moduleComponent(scope.site.id, component),
 	);
@@ -498,6 +500,8 @@ export async function deleteComponent(
 		const request = { action: "component.delete", target: row.id, preview: { name: row.name } };
 		if (confirmation === undefined) return { deleted: false, confirmation: await askConfirmation(tx, request) };
 		await useConfirmation(tx, confirmation, request);
+		// Its Component script goes with it; pages loaded before still find its published file for 30 days.
+		await retireComponentScript(tx, row.id);
 		await tx.delete(components, eq(components.id, row.id));
 		await tx.audit("component.delete", { componentId: row.id, name: row.name });
 		return { deleted: true };
@@ -596,7 +600,7 @@ async function findComponent(scope: SiteScope, componentId: string, sources: Com
 	if (isUuid(componentId)) {
 		const row = await scope.first(components, eq(components.id, componentId));
 		if (!row) throw new ComponentNotFoundError();
-		return toComponent(row);
+		return withScriptStatus(toComponent(row), (await componentScriptStates(scope, [row.id])).get(row.id));
 	}
 	const found = (await sources.moduleComponentsAt(scope)).find((component) => component.id === componentId);
 	if (!found) throw new ComponentNotFoundError();
@@ -1172,6 +1176,11 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 
 // ---------------------------------------------------------------------------------------------------
 // Rows
+
+/** A published Component whose Component script changed since is changed too: they are published together. */
+function withScriptStatus(component: Component, script: { changed: boolean } | undefined): Component {
+	return component.status === "published" && script?.changed ? { ...component, status: "changed" } : component;
+}
 
 export function toComponent(row: ComponentRow): Component {
 	return {

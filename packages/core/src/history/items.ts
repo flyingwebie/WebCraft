@@ -50,16 +50,16 @@ export type HistoryItemSummary = {
 	id?: string;
 	/**
 	 * What it is called: an Entry's title (in the Default language, from its Draft), a Component's,
-	 * Loop's, Filter's or Form's name, a page script's Entry's title. Null for the rest, which the admin
-	 * names itself.
+	 * Loop's, Filter's or Form's name, a page script's Entry's title, a Component script's Component's
+	 * name. Null for the rest, which the admin names itself.
 	 */
 	name: string | null;
 	/** The Post Type: an Entry's, or an Entry or Archive template's. */
 	postType: { id: string; name: string } | null;
 	/** A Template's kind (`site`, `entry`, `archive`, `search`); null for anything else. */
 	templateKind: string | null;
-	/** A script's kind (`site`, `page`); null for anything else. */
-	scriptKind: "site" | "page" | null;
+	/** A script's kind (`site`, `page`, `component` for a Component script); null for anything else. */
+	scriptKind: "site" | "page" | "component" | null;
 };
 
 /** What history reads of an item as it is now. */
@@ -231,6 +231,17 @@ export async function itemState(scope: ItemReader, item: HistoryItem): Promise<I
 		case "script": {
 			const row = known ? await scope.first(scripts, eq(scripts.id, known)) : undefined;
 			if (!row) throw new ScriptNotFoundError();
+			// A Component script is named after its Component; a page script after its Entry.
+			if (row.kind === "component") {
+				const component = row.componentId
+					? await scope.first(components, eq(components.id, row.componentId))
+					: undefined;
+				return {
+					...base,
+					...rowState(row),
+					summary: summary(item, component?.name ?? null, { scriptKind: "component" }),
+				};
+			}
 			const page = row.entryId ? await scope.first(entries, eq(entries.id, row.entryId)) : undefined;
 			return {
 				...base,

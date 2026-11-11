@@ -14,6 +14,7 @@ import {
 	BUILT_IN_SITE_TEMPLATE,
 	builtInNotFoundPage,
 	builtInSearchTemplate,
+	componentRootAttributes,
 	type EditModePage,
 	ELEMENT_TREE_VERSION,
 	type ElementTree,
@@ -24,6 +25,7 @@ import {
 	loopNamesIn,
 	mediaReferencesIn,
 	type PageAlternate,
+	type PageLibrary,
 	type PageSearch,
 	type PageToRender,
 	type PlacementRenderer,
@@ -50,6 +52,7 @@ import { type CdnKey, isCdnKey } from "../cdns/registry.ts";
 import type { InstallConfig } from "../config.ts";
 import { pageConsent } from "../consent/banner.ts";
 import { archiveAt, archiveParts, publishedArchives } from "../content/archives.ts";
+import { type ComponentScriptOnPage, componentLoaderFile, siteComponentScripts } from "../content/component-scripts.ts";
 import {
 	type ComponentSources,
 	type ComponentVersion,
@@ -851,11 +854,13 @@ export function createSitePages(options: {
 			const ofModule = (await moduleScripts(host.site)).find((script) => script.name === name);
 			if (ofModule) return ofModule.code;
 			const scope = data.visitors(host.site);
-			const published = await scriptFile(scope, name, "published");
+			const published =
+				(await scriptFile(scope, name, "published")) ?? (await componentLoaderFile(scope, name, "published"));
 			if (published !== null) return published;
-			// The Staging address's pages run the Drafts of the Site script and page scripts.
+			// The Staging address's pages run the Drafts of the Site script, page scripts and Component scripts.
 			if (showsDrafts(host)) {
-				const draft = await scriptFile(data.staging(host.site), name, "draft");
+				const staging = data.staging(host.site);
+				const draft = (await scriptFile(staging, name, "draft")) ?? (await componentLoaderFile(staging, name, "draft"));
 				if (draft !== null) return draft;
 			}
 			const hash = /^([0-9a-f]{16})\.js$/.exec(name)?.[1];
@@ -1983,10 +1988,17 @@ async function renderSitePage(
 	};
 	const moduleScripts = editing ? [] : await view.moduleScripts(host.site);
 
+	// Safe mode runs none of the Site's own scripts; outside scripts never run in Edit mode at all.
+	const ownScripts = !editing?.safe;
+	const componentScripts = ownScripts
+		? await siteComponentScripts(scope, view.structure, view.staging ? SCRIPT_PATH : undefined)
+		: [];
+	const scripted = new Set(componentScripts.map((script) => script.componentId));
 	const baseTrees = [page.content, siteTemplate, bodyPlacements];
 	const initialPlaced = await pageComponents(scope, baseTrees, view.sources, site, languages, {
 		which: view.structure,
 		replace: previewed?.kind === "component" ? { id: previewed.id, version: previewed.version } : undefined,
+		scripted,
 	});
 	const attachedIds = new Set(
 		[...baseTrees, ...initialPlaced.trees].flatMap((tree) => (tree ? popupsPlacedIn(tree) : [])),
@@ -2014,7 +2026,7 @@ async function renderSitePage(
 			view.sources,
 			site,
 			languages,
-			{ which: view.structure },
+			{ which: view.structure, scripted },
 		);
 		const before = attachedIds.size;
 		for (const tree of placed.trees) for (const id of popupsPlacedIn(tree)) attachedIds.add(id);
@@ -2115,8 +2127,6 @@ async function renderSitePage(
 			if (!expiresAt || instant < expiresAt) expiresAt = instant;
 		},
 	};
-	// Safe mode runs none of the Site's own scripts; outside scripts never run in Edit mode at all.
-	const ownScripts = !editing?.safe;
 	const formHtml: string[] = [];
 	const document: PageToRender = {
 		checkMarkup: view.checkMarkup,
@@ -2140,10 +2150,11 @@ async function renderSitePage(
 		className: styles.className,
 		media: (id) => shown.get(id),
 		styles: { stylesheet: styles.stylesheet.href, darkMode: styles.designSystem.darkMode },
-		libraries: ownScripts ? await pageLibraries(scope) : [],
+		libraries: ownScripts ? withComponentLibraries(await pageLibraries(scope), componentScripts) : [],
 		scripts: ownScripts
 			? await pageScripts(scope, options.entry?.id ?? null, view.structure, view.staging ? SCRIPT_PATH : undefined)
 			: [],
+		componentScripts,
 		outsideScripts: await pageOutsideScripts(scope),
 		// Like outside scripts, Modules' Site scripts never run in Edit mode.
 		moduleScripts: editing
@@ -2203,6 +2214,23 @@ async function renderSitePage(
 		forms: forms.shown,
 		filters: filterState,
 	};
+}
+
+/**
+ * The Site's Libraries as a page may load them: one that Component scripts declare loads only with
+ * those Components' scripts (`PageLibrary.components`); every other one on every page, as before.
+ */
+function withComponentLibraries(
+	libraries: readonly (PageLibrary & { id: string })[],
+	scripts: readonly ComponentScriptOnPage[],
+): PageLibrary[] {
+	return libraries.map((library) => {
+		const components = scripts
+			.filter((script) => script.libraryIds.includes(library.id))
+			.map((script) => script.componentId);
+		const { id: _, ...shown } = library;
+		return components.length > 0 ? { ...shown, components } : shown;
+	});
 }
 
 /**
@@ -2290,7 +2318,12 @@ export async function pageComponents(
 	sources: ComponentSources,
 	site: Parts,
 	languages: { language: string; defaultLanguage: string },
-	shown: { which: "published" | "draft"; replace?: { id: string; version: ComponentVersion } },
+	shown: {
+		which: "published" | "draft";
+		replace?: { id: string; version: ComponentVersion };
+		/** The Components with a script on the page: their Placements' roots are tagged for it. */
+		scripted?: ReadonlySet<string>;
+	},
 	/** The Content API limits Relationship Props to its exposed Post Types and Fields. */
 	exposedPostTypes?: readonly PostType[],
 ): Promise<{ trees: ElementTree[]; render: PlacementRenderer }> {
@@ -2309,9 +2342,13 @@ export async function pageComponents(
 		render: (componentId, props, outer) => {
 			const version = used.get(componentId);
 			if (!version) return undefined;
+			const values = placementValues(version.props, props, outer, { site, related, read: propValue });
 			return {
 				tree: version.tree,
-				values: placementValues(version.props, props, outer, { site, related, read: propValue }),
+				values,
+				...(shown.scripted?.has(componentId)
+					? { root: componentRootAttributes(componentId, version.props, values) }
+					: {}),
 			};
 		},
 	};
