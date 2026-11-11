@@ -57,6 +57,18 @@ export type LivePanelBridge = {
 	): void;
 };
 
+/** Panels follow the shared document when connected; an HTTP refresh supplies only its catalogue. */
+function currentDraft(source: PanelSource, shared?: SharedDraft): Pick<Opened, "tree" | "props"> {
+	const draft = shared?.draft();
+	if (!draft) return { tree: source.opened.tree, props: source.opened.props };
+	return source.opened.component
+		? {
+				tree: (draft as unknown as { tree: ElementTree }).tree,
+				props: (draft as unknown as { props: Opened["props"] }).props,
+			}
+		: { tree: draft as unknown as ElementTree, props: null };
+}
+
 /** Save one-off styles against the version of the tree being printed, never a later version. */
 async function saveOneOffStyles(
 	bridge: LivePanelBridge,
@@ -159,16 +171,21 @@ function LivePanels({
 	const paint = useCallback(
 		(ref: string, tree: ElementTree) => {
 			const source = sourcesRef.current[ref];
-			const id = source?.opened.component?.id ?? source?.opened.template?.id;
+			if (!source) return;
+			const id = source.opened.component?.id ?? source.opened.template?.id;
 			const key = id ?? ref;
 			const run = (paintRuns.current.get(key) ?? 0) + 1;
 			paintRuns.current.set(key, run);
-			const draft = source?.opened.component ? connections.current.get(source.opened.component.id)?.draft() : null;
-			const props = (draft as { props?: Opened["props"] } | null)?.props ?? source?.opened.props;
+			const { props } = currentDraft(source, connections.current.get(id ?? ref));
 			bridge
 				.call<{ markup: string }>("code/editorMarkup", { ref, draft: { tree, ...(props ? { props } : {}) } })
 				.then(({ markup }) => {
 					if (typing.current || paintRuns.current.get(key) !== run) return;
+					const sourceNow = sourcesRef.current[ref];
+					if (!sourceNow) return;
+					const currentId = sourceNow.opened.component?.id ?? sourceNow.opened.template?.id;
+					const current = currentDraft(sourceNow, connections.current.get(currentId ?? ref));
+					if (!sameValue(tree, current.tree) || !sameValue(props, current.props)) return;
 					const refs = id
 						? Object.values(sourcesRef.current)
 								.filter((each) => (each.opened.component?.id ?? each.opened.template?.id) === id)
@@ -870,7 +887,7 @@ function SourcePanels({
 									await saveOneOffStyles(bridge, source.ref, { [id]: declarations }, id);
 									const fresh = await bridge.call<PanelSource>("code/editor", { ref: source.ref });
 									setCatalogue(fresh.opened.catalogue);
-									onTree(fresh.opened.tree);
+									onTree(currentDraft(source, shared).tree);
 									announce(declarations ? t("builder.style.oneOffApplied") : t("builder.style.oneOffRemoved"));
 								} catch (failure) {
 									announce(t(errorMessage(failure)));
@@ -906,15 +923,21 @@ function SourcePanels({
 					props={source.opened.props}
 					onMade={(made) => {
 						const next = replaceAt(tree, fixed, { type: "value", path: made.path });
+						const message = t("builder.fixedText.made", { binding: `{{ ${made.path} }}` });
 						if (made.props) {
-							shared?.change((current) => ({
+							const changed = shared?.change((current) => ({
 								...(current as Record<string, Json>),
 								props: made.props as unknown as Json,
 								tree: next as unknown as Json,
 							}));
+							if (!changed) {
+								announce(t(`coEditing.status.${shared?.status ?? "connecting"}`));
+								return;
+							}
 							setTree(next);
 							onTree(next);
-						} else apply(next);
+							announce(message);
+						} else if (apply(next, selection, message)) return;
 						setCatalogue((before) => ({
 							...before,
 							values: [

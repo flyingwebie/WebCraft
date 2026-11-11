@@ -284,6 +284,62 @@ test("Placements keep their own Props beside the Component's inline tree and mar
 	await expectNoAxeViolations(page, "Placement and Component elements");
 });
 
+for (const theme of THEMES) {
+	test(`making fixed text a Prop announces the conversion on the live canvas (${theme})`, async () => {
+		const local = install.install;
+		const { api } = await local.superadmin();
+		const workspace = await local.createWorkspace("Fixed text announcement");
+		const { id: siteId } = await local.createSite(workspace.id, {
+			name: "Fixed text announcement",
+			slug: "fixed-text-announcement",
+		});
+		const staff = (await local.createStaff({ workspaces: [workspace.id] })).account;
+		const { component } = await api.components.create({ siteId, name: "Notice" });
+		await api.components.saveMarkup({
+			siteId,
+			componentId: component.id,
+			markup: '<aside data-wc-id="notice"><p data-wc-id="message">Closed on Sundays</p></aside>',
+		});
+		await api.components.publish({ siteId, componentId: component.id });
+		await api.templates.saveSiteTemplateMarkup({
+			siteId,
+			markup: '<header><Notice data-wc-id="notice-placement" /></header><main>{{@outlet}}</main>',
+		});
+		const page = await install.newPage(theme);
+		page.setDefaultTimeout(10000);
+		await install.signIn(page, staff);
+		await page.goto(install.adminUrl(`/sites/${siteId}`));
+		await page.getByRole("button", { name: "Edit on site" }).click();
+		await page.waitForURL((url) => url.hostname.startsWith("fixed-text-announcement"));
+		await page.getByRole("button", { name: "Code", exact: true }).click();
+		const tree = page.getByRole("tree", { name: "Layers" });
+		await tree.waitFor();
+		await page.locator('p[data-wc-code$="#message"]').click();
+		await page.getByLabel("Layer label", { exact: true }).fill("Message holder");
+		await page.getByLabel("Layer label", { exact: true }).press("Enter");
+		await tree.getByRole("treeitem", { name: /Message holder/ }).waitFor();
+		const status = page.getByRole("status").filter({ hasText: "Renamed Message holder." });
+		await status.waitFor();
+		await tree.getByRole("treeitem", { name: /^“Closed on Sundays”/ }).click();
+		await page.getByRole("button", { name: "Make it a Prop", exact: true }).click();
+		const dialog = page.getByRole("dialog", { name: "Make it a Prop" });
+		await dialog.getByRole("textbox", { name: "Label", exact: true }).fill("Message");
+		const announcement = await nextAnnouncement(status);
+		await dialog.getByRole("button", { name: "Make it a Prop", exact: true }).click();
+		await dialog.waitFor({ state: "hidden" });
+		expect(await announcement.heard).toBe("The text now reads {{ props.message }}.");
+		let saved = await api.components.getMarkup({ siteId, componentId: component.id });
+		for (let attempt = 0; attempt < 40 && !saved.markup.draft.includes("{{ props.message }}"); attempt++) {
+			await page.waitForTimeout(100);
+			saved = await api.components.getMarkup({ siteId, componentId: component.id });
+		}
+		expect(saved.markup.draft).toContain("{{ props.message }}");
+		expect(saved.component.draft.props).toEqual([
+			expect.objectContaining({ key: "message", default: "Closed on Sundays" }),
+		]);
+	});
+}
+
 test("the same Component's HTML updates through each Placement", async () => {
 	const local = install.install;
 	const { api } = await local.superadmin();
