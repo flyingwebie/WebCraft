@@ -361,7 +361,7 @@ function Settings({
 				<div className="grid gap-4">
 					<p className="text-muted-foreground text-sm">{t("builder.inspector.placement")}</p>
 					{(component?.props ?? []).map((prop) => {
-						const given = node.props.find((each) => each.name === prop.key);
+						const given = node.props.find((each) => each.name === prop.key && !each.retained);
 						return (
 							<CommitInput
 								key={prop.key}
@@ -371,7 +371,7 @@ function Settings({
 								onCommit={(text) => {
 									const read = readParts(text);
 									if ("problem" in read) return read.problem;
-									const rest = node.props.filter((each) => each.name !== prop.key);
+									const rest = node.props.filter((each) => each.name !== prop.key || each.retained);
 									const props = text === "" && !prop.required ? rest : [...rest, { name: prop.key, value: read.parts }];
 									return replace({ ...node, props });
 								}}

@@ -246,7 +246,9 @@ test("Placements keep their own Props beside the Component's inline tree and mar
 		.click();
 	await page.getByRole("textbox", { name: "HTML of Quote · Component" }).waitFor();
 	await page.locator(".outline.selected").waitFor();
-	expect(await page.locator(".language-markup .line.marked").allTextContents()).toEqual([
+	const marked = await page.locator(".language-markup .line.marked").allTextContents();
+	expect(marked.slice(0, 3)).toEqual(["{{@props}}", expect.stringContaining("quote: text required"), "{{/props}}"]);
+	expect(marked.slice(3)).toEqual([
 		'<blockquote data-wc-id="quotation">{{ props.quote }}</blockquote>',
 		'<p data-wc-id="credit">Credit</p>',
 	]);

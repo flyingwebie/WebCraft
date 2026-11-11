@@ -40,6 +40,74 @@ async function editorPage(theme: (typeof THEMES)[number], canvas: "live" | "prev
 
 for (const theme of THEMES) {
 	for (const canvas of ["preview", "live"] as const) {
+		test(`the ${canvas} Inspector edits current Props while preserving retained values (${theme})`, async () => {
+			const local = install.install;
+			const { api } = await local.superadmin();
+			const workspace = await local.createWorkspace("Retained Props editor");
+			const { id: siteId } = await local.createSite(workspace.id, {
+				name: "Retained Props editor",
+				slug: "retained-props-editor",
+			});
+			const staff = (await local.createStaff({ workspaces: [workspace.id] })).account;
+			const { component } = await api.components.create({
+				siteId,
+				name: "Notice",
+				props: [
+					{ key: "value", label: "Value", type: "text" },
+					{ key: "other", label: "Other", type: "text" },
+				],
+			});
+			const target = { siteId, componentId: component.id };
+			const original = await api.components.saveMarkup({ ...target, markup: "<p>{{ props.value }}</p>" });
+			await api.components.publish(target);
+			await api.templates.saveSiteTemplateMarkup({
+				siteId,
+				markup:
+					'<header><Notice data-wc-id="notice" value="Old text" other="Before" /></header><main>{{@outlet}}</main>',
+			});
+			await api.components.saveDraft({
+				...target,
+				props: original.component.draft.props.map((prop) =>
+					prop.key === "value" ? { id: prop.id, key: prop.key, label: prop.label, type: "number" as const } : prop,
+				),
+			});
+			const page = await install.newPage(theme);
+			page.setDefaultTimeout(10000);
+			await install.signIn(page, staff);
+			if (canvas === "preview") await page.goto(install.adminUrl(`/builder/${siteId}/site-template`));
+			else {
+				await page.goto(install.adminUrl(`/sites/${siteId}`));
+				await page.getByRole("button", { name: "Edit on site" }).click();
+				await page.waitForURL((url) => url.hostname.startsWith("retained-props-editor"));
+				await page.getByRole("button", { name: "Code", exact: true }).click();
+			}
+			await page.waitForLoadState("networkidle");
+			await page
+				.getByRole("tree", { name: "Layers" })
+				.getByRole("treeitem", { name: /^Notice/ })
+				.click();
+			const value = page.getByRole("textbox", { name: "Value", exact: true });
+			expect(await value.inputValue()).toBe("");
+			await page.getByRole("textbox", { name: "Other", exact: true }).fill("After");
+			await page.getByRole("textbox", { name: "Other", exact: true }).press("Enter");
+			await value.fill("42");
+			await value.press("Enter");
+			let stored = "";
+			for (let attempt = 0; attempt < 100; attempt++) {
+				stored = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+				if (stored.includes('value="42"') && stored.includes('other="After"')) break;
+				await page.waitForTimeout(50);
+			}
+			expect(stored).toContain('value="42"');
+			expect(stored).toContain('other="After"');
+			expect(stored).toContain("data-wc-retained");
+			expect(stored).toContain("Old text");
+			await api.components.saveMarkup({ ...target, markup: original.markup });
+			const restored = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+			expect(restored).toContain('value="Old text"');
+			expect(restored).toContain('other="After"');
+		});
+
 		test(`a delayed Class refresh preserves newer declarations on the ${canvas} canvas (${theme})`, async () => {
 			const { api, siteId, original, page, tree } = await editorPage(theme, canvas);
 			const peer = await api.designSystem.createClass({ siteId, name: "peer-class", styles: "color: red;" });
