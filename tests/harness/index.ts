@@ -312,7 +312,18 @@ export type TestInstall = {
 		 * together share a queue's jobs as two workers do.
 		 */
 		batchSize?: number;
+		/**
+		 * How many rounds the drain goes through at most: 1 runs only the jobs due when it starts,
+		 * leaving the jobs they enqueue waiting. Unless given, it goes on until nothing is due.
+		 */
+		rounds?: number;
 	}): Promise<DrainReport>;
+	/**
+	 * A worker takes the due jobs with these names and stops for good while running them (killed,
+	 * out of memory): the jobs stay taken and never finish, and nothing they would have written is
+	 * written. Answers how many it took.
+	 */
+	crashJobs(options: { only: readonly string[] }): Promise<number>;
 	/**
 	 * Every secret of the Install, encrypted under its Master key: set, use and describe them, for
 	 * the Install, a Workspace or a Site (`{ owner: { kind: "site", workspaceId, siteId }, name }`).
@@ -697,7 +708,13 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			// The 404 log's misses wait in the web process for a few seconds; the drain hands them over first.
 			await services.modules.flushMisses();
 			await sendDueSchedules(boss, services.jobs, clock, schedulesCheckedAt, options.healthChecks === true);
-			return drainJobs(boss, services, drainOptions.only, drainOptions.batchSize);
+			return drainJobs(boss, services, drainOptions.only, drainOptions.batchSize, drainOptions.rounds);
+		},
+		crashJobs: async ({ only }) => {
+			if (!boss) throw new Error(`An Install with an ${started} database has no job queue.`);
+			let taken = 0;
+			for (const name of only) taken += (await boss.fetch(name, { batchSize: 100 })).length;
+			return taken;
 		},
 		get secrets() {
 			return secrets;
@@ -854,10 +871,12 @@ async function drainJobs(
 	services: InstallServices,
 	only?: readonly string[],
 	batchSize = 100,
+	rounds?: number,
 ): Promise<DrainReport> {
 	const report: DrainReport = { completed: [], failed: [] };
 	const jobs = only ? coreJobs.filter((job) => only.includes(job.name)) : coreJobs;
 	for (let round = 0; round < MAX_DRAIN_ROUNDS; round++) {
+		if (rounds !== undefined && round >= rounds) return report;
 		let ran = 0;
 		for (const job of jobs) {
 			for (const item of await boss.fetch(job.name, { batchSize })) {
