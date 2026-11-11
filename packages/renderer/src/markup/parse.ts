@@ -11,7 +11,6 @@
  * tree it answers is canonical and has passed the same checks as any stored tree.
  */
 import { decodeHTML, decodeHTMLAttribute } from "entities";
-
 import {
 	commandNamed,
 	filtersWithoutTheirLoop,
@@ -36,6 +35,8 @@ import { readFormat } from "../formatters.ts";
 import { canonicalLanguage, languageTagMessage, type Translations } from "../languages.ts";
 import { type LoopCatalogue, rootScope, type ValueScope } from "../loops.ts";
 import { mediaReference } from "../media.ts";
+import { BINDINGS_ATTRIBUTE, readBindingsJson, readMetadataJson, readPropBinding } from "../prop-bindings.ts";
+import { CONTRACTS_ATTRIBUTE, RETAINED_ATTRIBUTE, RETAINED_MAX_LENGTH } from "../prop-retention.ts";
 import {
 	type Attribute,
 	type AttributePart,
@@ -420,6 +421,8 @@ class MarkupParser {
 		const owner = TEMPLATE_COMMANDS.find((command) => command.branches.includes(keyword));
 		if (!owner) {
 			const word = keyword.split(/\s/)[0] ?? keyword;
+			if (word === "props")
+				this.stop(offset, "A {{@props}} block is allowed only once, at the top of a Component’s markup.");
 			this.stop(
 				offset,
 				`There is no Template command {{@${word}}}: use ${TEMPLATE_COMMANDS.map((command) => `{{@${command.name}}}`).join(", ")}.`,
@@ -824,7 +827,26 @@ class MarkupParser {
 		let id: string | undefined;
 		const props: PropValue[] = [];
 		const given = new Set<string>();
+		let bindings: WrittenAttribute | undefined;
+		let retained: WrittenAttribute | undefined;
+		let contracts: WrittenAttribute | undefined;
+		const hasContracts = written.some((a) => a.name === CONTRACTS_ATTRIBUTE);
 		for (const attribute of written) {
+			if (attribute.name === CONTRACTS_ATTRIBUTE) {
+				if (contracts) this.problem(attribute.offset, `${CONTRACTS_ATTRIBUTE} is given twice.`);
+				contracts = attribute;
+				continue;
+			}
+			if (attribute.name === RETAINED_ATTRIBUTE) {
+				if (retained) this.problem(attribute.offset, `${RETAINED_ATTRIBUTE} is given twice.`);
+				retained = attribute;
+				continue;
+			}
+			if (attribute.name === BINDINGS_ATTRIBUTE) {
+				if (bindings) this.problem(attribute.offset, `${BINDINGS_ATTRIBUTE} is given twice.`);
+				bindings = attribute;
+				continue;
+			}
 			if (attribute.name === ID_ATTRIBUTE) {
 				if (attribute.bound || !isElementId(attribute.text)) {
 					this.problem(attribute.valueOffset, `${ID_ATTRIBUTE} is 1 to 64 letters, digits, dashes and underscores.`);
@@ -840,7 +862,7 @@ class MarkupParser {
 			}
 			given.add(key);
 			const prop = found.props.find((candidate) => candidate.key === key);
-			if (!prop) {
+			if (!prop && !hasContracts) {
 				const near = found.props.find((candidate) => candidate.key.toLowerCase() === key.toLowerCase());
 				this.problem(
 					attribute.offset,
@@ -850,8 +872,8 @@ class MarkupParser {
 				);
 				continue;
 			}
-			if (!attribute.bound) {
-				const refused = prop.check(attribute.text);
+			if (!attribute.bound && !hasContracts) {
+				const refused = prop?.check(attribute.text);
 				if (refused) {
 					this.problem(attribute.valueOffset, `${key}: ${refused}`);
 					continue;
@@ -859,8 +881,61 @@ class MarkupParser {
 			}
 			props.push({ name: key, value: canonicalNodes(attribute.parts) });
 		}
+		if (retained || contracts) {
+			try {
+				if (contracts) {
+					if (contracts.bound) throw new Error("Source contracts are literal JSON.");
+					const entries = readMetadataJson(contracts.text, RETAINED_MAX_LENGTH);
+					if (!entries || typeof entries !== "object" || Array.isArray(entries) || Object.keys(entries).length > 256)
+						throw new Error("Source contracts are an object of at most 256 Prop names.");
+					for (const [name, contract] of Object.entries(entries)) {
+						const value = props.find((p) => p.name === name);
+						if (!value) throw new Error(`Source contract names ${name}, which this Placement does not give.`);
+						value.contract = contract as Record<string, unknown>;
+					}
+				}
+				if (retained?.bound) throw new Error("Retained values are literal JSON.");
+				const values = retained ? readMetadataJson(retained.text, RETAINED_MAX_LENGTH) : [];
+				if (!Array.isArray(values) || values.length > 256 || values.some((p) => !p?.retained))
+					throw new Error("Retained Props need declaration identities, at most 256 values.");
+				const checked = parseElementTree(
+					{
+						version: 1,
+						nodes: [{ type: "component", id: "retained-check", component: found.id, props: [...props, ...values] }],
+					},
+					{ components: catalogue },
+				);
+				const placement = checked.nodes[0];
+				if (placement?.type === "component") props.splice(0, props.length, ...placement.props);
+			} catch (error) {
+				const metadata = contracts ?? retained;
+				this.problem(metadata?.valueOffset ?? offset, `${metadata?.name}: ${(error as Error).message}`);
+			}
+		}
+		if (bindings) {
+			try {
+				if (bindings.bound) throw new Error("Binding metadata is literal JSON, not a bound value.");
+				for (const [key, input] of Object.entries(readBindingsJson(bindings.text))) {
+					const value = props.find((prop) => prop.name === key);
+					if (!value) throw new Error(`Binding metadata names ${key}, which this Placement does not give.`);
+					const info =
+						value.contract && found.contractInfo
+							? found.contractInfo(value.contract, String(value.contract.id))
+							: found.props.find((p) => p.key === key);
+					const metadata = readPropBinding(input, value.value, info?.bindingPaths);
+					if ("problem" in metadata) throw new Error(`${key}: ${metadata.problem}`);
+					if (metadata.binding) value.binding = metadata.binding;
+				}
+			} catch (error) {
+				this.problem(bindings.valueOffset, `${BINDINGS_ATTRIBUTE}: ${(error as Error).message}`);
+			}
+		}
 		for (const prop of found.props) {
-			if (prop.required && !given.has(prop.key)) {
+			if (
+				prop.required &&
+				!given.has(prop.key) &&
+				!props.some((value) => prop.id !== undefined && (value.retained === prop.id || value.contract?.id === prop.id))
+			) {
 				this.problem(offset, `${found.name} needs ${prop.key}: the Prop is required.`);
 			}
 		}

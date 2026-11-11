@@ -1,7 +1,7 @@
 import { components, entries, gonePaths, popups, publishedSlugs, templates } from "@webcraft/db/schema";
 import { parseElementTree } from "@webcraft/renderer";
 import { and, eq } from "drizzle-orm";
-import { announcePublished } from "../co-editing/store.ts";
+import { announcePublished, mirrorDraftChange } from "../co-editing/store.ts";
 import { publishConsentText } from "../consent/text.ts";
 import { isSerializationFailure, isUniqueViolation } from "../db-errors.ts";
 import { classCatalogue } from "../design-system/classes.ts";
@@ -42,6 +42,7 @@ import type { FieldDefinition } from "./field-types.ts";
 import { type Findings, findingsInEveryLanguage, type Languages, linksIn } from "./field-values.ts";
 import { publishGlobals } from "./globals.ts";
 import { itemPermission } from "./item-permission.ts";
+import { sameJson } from "./json.ts";
 import { checkPathOutsidePrefixes } from "./language-paths.ts";
 import { languagePath, type SiteLanguages, siteLanguages } from "./languages.ts";
 import { publishLoop } from "./loops.ts";
@@ -59,6 +60,7 @@ import {
 	publishedPageTree,
 } from "./pages.ts";
 import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
+import { migratePropPlacements } from "./prop-migrations.ts";
 import { checkReferences, saveLinks } from "./relationships.ts";
 import { reviewsOnPublish } from "./review-items.ts";
 import { leaveScheduledPublishes } from "./scheduled-items.ts";
@@ -509,6 +511,14 @@ async function publishComponent(
 		...componentTreeRules(draft.props, await readContext(scope, "published"), catalogue),
 		classIds: ids,
 	});
+	await migratePropPlacements(
+		scope,
+		row.id,
+		storedComponentVersion(row.draft),
+		draft,
+		"publish",
+		row.published === null ? null : storedComponentVersion(row.published),
+	);
 	// Every copy changes: each must still fit where it is placed and published.
 	await checkPublishedPlacements(scope, row.id, { props: draft.props, tree }, sources);
 	// Its generated Classes go live with it, as a Template's do.
@@ -516,9 +526,22 @@ async function publishComponent(
 	const now = scope.now();
 	await scope.update(
 		components,
-		{ published: { props: draft.props, tree }, publishedAt: row.publishedAt ?? now, lastPublishedAt: now },
+		{
+			...(sameJson(storedComponentVersion(row.draft).props, draft.props)
+				? { draft: { props: draft.props, tree: storedComponentVersion(row.draft).tree, propValueVersion: 1 } }
+				: {}),
+			published: { props: draft.props, tree, propValueVersion: 1 },
+			publishedAt: row.publishedAt ?? now,
+			lastPublishedAt: now,
+		},
 		eq(components.id, row.id),
 	);
+	if (sameJson(storedComponentVersion(row.draft).props, draft.props)) {
+		await mirrorDraftChange(scope, { kind: "component", id: row.id }, row.draft, {
+			props: draft.props,
+			tree: storedComponentVersion(row.draft).tree,
+		});
+	}
 	await scope.audit("component.publish", { componentId: row.id, name: row.name });
 	return { kind: "component", id: row.id, publishedAt: now, pathChanges: [] };
 }

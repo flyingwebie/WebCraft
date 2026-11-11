@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, TEST_PASSWORD, type TestInstall } from "../harness/index.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
-import { exportedArchive, importArchive } from "../harness/site-transfer.ts";
+import { exportedArchive, importArchive, rewritten } from "../harness/site-transfer.ts";
 import { goLive } from "../harness/staging.ts";
 import { publishEverything } from "./support.ts";
 
@@ -249,4 +249,92 @@ test("published Template history does not use an obsolete Draft type after revis
 	const newUrl = (await admin.api.media.get({ siteId: destination, mediaId: copiedMedia?.id ?? "" })).media.url;
 	const html = await main(destination);
 	expect(html).toContain(`src="${newUrl}"`);
+});
+
+test("transfer searches past newer missing contracts without remapping historical literal text", async () => {
+	let { admin, workspaceId, siteId, postType } = await setup("contract-fallback");
+	await admin.api.install.history.update({ revisionDays: 1, revisionsKept: 1, checkpointDays: 1 });
+	const { entry } = await admin.api.entries.create({ siteId, postTypeId: postType.id, title: "Linked" });
+	const { component } = await admin.api.components.create({ siteId, name: "HistoricalCard" });
+	const target = { siteId, componentId: component.id };
+	const original = await admin.api.components.saveMarkup({
+		...target,
+		markup:
+			'{{@props}}\nreference: relationship postTypes=["pages"] id="historical:reference"\nwords: text id="historical:words"\norphan: text\n{{/props}}\n<p>Original</p>',
+	});
+	await admin.api.components.publish(target);
+	const { template } = await admin.api.templates.saveEntryTemplateMarkup({
+		siteId,
+		postTypeId: postType.id,
+		markup: `<HistoricalCard reference="${entry.id}" words="${entry.id}" orphan="No remaining declaration" />`,
+	});
+	await admin.api.templates.publish({ siteId, templateId: template.id });
+	await install.clock.advance(60_000);
+	await admin.api.components.saveMarkup({ ...target, markup: "{{@props}}\n{{/props}}\n<p>Removed</p>" });
+	await admin.api.components.publish(target);
+	await install.clock.advance(2 * 24 * 60 * 60 * 1000);
+	expect((await install.drainJobs()).failed).toEqual([]);
+	admin = await install.superadmin();
+	// The Template Revision outlives its original Component contracts. A later matching
+	// contract is still useful, but many more recent Revisions/Checkpoints lack these Props.
+	await install.clock.advance(1000);
+	await admin.api.components.saveDraft({ ...target, props: original.component.draft.props.slice(0, 2) });
+	await admin.api.components.publish(target);
+	for (let index = 0; index < 12; index++) {
+		await install.clock.advance(1000);
+		await admin.api.components.saveMarkup({
+			...target,
+			markup: `{{@props}}\n{{/props}}\n<p>Later ${index}</p>`,
+		});
+		await admin.api.history.leave({ siteId, item: { kind: "component", id: component.id } });
+		await admin.api.components.publish(target);
+	}
+	const sourceHistory = await admin.api.history.list({ siteId, item: { kind: "component", id: component.id } });
+	expect(sourceHistory.copies.length).toBeGreaterThan(20);
+	await admin.api.session.confirmIdentity({ password: TEST_PASSWORD });
+	// Legacy copies have no self-contained contracts. Keep exercising the bounded historical
+	// lookup even though new copies now capture those contracts when they are created.
+	const archive = rewritten(await exportedArchive(install, admin, siteId), {
+		rows: (table, rows) => {
+			if (table !== "public.revisions") return rows;
+			return rows.map((row) => {
+				if (row.item_kind !== "template") return row;
+				const content = structuredClone(row.content) as { nodes: { props: { contract?: unknown }[] }[] };
+				for (const node of content.nodes) for (const prop of node.props) delete prop.contract;
+				return { ...row, content };
+			});
+		},
+	});
+	const imported = await importArchive(install, admin, workspaceId, archive, {
+		name: "Fallback copy",
+		slug: "fallback-copy",
+		partBytes: 1024,
+	});
+	expect(imported.status).toBe("done");
+	const destination = imported.site?.id ?? "";
+	const type = (await admin.api.postTypes.list({ siteId: destination })).postTypes.find((p) => p.key === "pages");
+	const holder = { siteId: destination, postTypeId: type?.id ?? "" };
+	const [linked] = (await admin.api.entries.list(holder)).entries;
+	expect(linked?.id).not.toBe(entry.id);
+	const copiedTemplate = (await admin.api.templates.getEntryTemplate(holder)).template;
+	const item = { kind: "template" as const, id: copiedTemplate?.id ?? "" };
+	const history = await admin.api.history.list({ siteId: destination, item });
+	// Select the source Revision, not import's last-live recovery copy (timestamps may tie).
+	const revision = history.copies.find((c) => c.type === "revision" && c.by?.via?.kind !== "command");
+	const restored = await admin.api.history.get({
+		siteId: destination,
+		item,
+		copy: { type: "revision", id: revision?.id ?? "" },
+	});
+	expect(restored.content).toMatchObject({
+		nodes: [
+			{
+				props: [
+					{ name: "reference", value: [{ type: "text", text: linked?.id }] },
+					{ name: "words", value: [{ type: "text", text: entry.id }] },
+					{ name: "orphan", value: [{ type: "text", text: "No remaining declaration" }] },
+				],
+			},
+		],
+	});
 });

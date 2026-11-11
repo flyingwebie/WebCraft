@@ -14,6 +14,8 @@ import { z } from "zod";
  */
 export const fieldInput: z.ZodType<FieldInput, FieldInput> = z.lazy(() =>
 	z.object({
+		id: z.string().max(100).optional(),
+		exposed: z.boolean().optional(),
 		key: z.string().max(100),
 		label: z.string().max(FIELD_LABEL_MAX_LENGTH * 2),
 		type: z.enum(FIELD_TYPES),

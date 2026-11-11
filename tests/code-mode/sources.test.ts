@@ -174,7 +174,9 @@ describe("opening the Template an element comes from", () => {
 
 		expect(opened.source).toEqual({ kind: "component", id: site.badgeId, name: "Badge", editable: true });
 		expect(opened.ref).toBe("content/placed/badged");
-		expect(opened.markup).toBe('<span class="badge" data-wc-id="badge">{{ props.text }}</span>');
+		expect(opened.markup.split("{{/props}}\n")[1]).toBe(
+			'<span class="badge" data-wc-id="badge">{{ props.text }}</span>',
+		);
 		expect(opened.path).toEqual([{ id: "badge", label: "span.badge" }]);
 		// Each step out opens the Template or Component placing it, at the Placement.
 		expect(opened.breadcrumb).toEqual([

@@ -227,6 +227,6 @@ describe("in a Component", () => {
 
 		const { markup: stored } = await staff.api.components.saveMarkup({ siteId, componentId: component.id, markup });
 
-		expect(withoutIds(stored)).toBe(markup);
+		expect(withoutIds(stored.split("{{/props}}\n")[1] ?? "")).toBe(markup);
 	});
 });

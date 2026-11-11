@@ -1,4 +1,16 @@
+import {
+	type AttributePart,
+	RETAINED_KEY,
+	readMetadataJson,
+	readPropBinding,
+	retainedPropProblem,
+	retainedPropsProblem,
+	retainedValueIdentity,
+	retainedValues,
+} from "@webcraft/renderer";
 import type { FieldDefinition } from "../content/field-types.ts";
+import { readRetainedContract } from "../content/prop-contracts.ts";
+import { readPropJson, readPropText } from "../content/props.ts";
 import { POPUP_FIELDS } from "../popups/index.ts";
 import { ArchiveRefusedError } from "./format.ts";
 import type { ReferenceLookup, ReferenceVersion } from "./lookup.ts";
@@ -109,8 +121,8 @@ export function createRowRemapper(
 				`The Module Component ${componentId} has stored Props but no source declaration. Restore its source Module version before transferring this Site.`,
 				{ componentId },
 			);
-		const definition = async (path: string[]): Promise<Row> => {
-			if (UUID.test(componentId)) return record(await lookup.prop(componentId, path, context));
+		const definition = async (path: string[], retainedId?: string): Promise<Row> => {
+			if (UUID.test(componentId)) return record(await lookup.prop(componentId, path, context, retainedId));
 			let fields: unknown = moduleProps.get(componentId);
 			let field: Row = {};
 			for (const key of path) {
@@ -125,11 +137,41 @@ export function createRowRemapper(
 			}
 			return field;
 		};
+		const retainedDefinition = (input: unknown, id: string): Row => {
+			try {
+				return record(readRetainedContract(input, id));
+			} catch (error) {
+				throw new ArchiveRefusedError("damaged", (error as Error).message);
+			}
+		};
 		const jsonValue = async (value: unknown, field: Row, path: string[]): Promise<unknown> => {
 			if (field.type !== "group" && field.type !== "repeater") return fieldValue(value, field, context);
 			for (const row of field.type === "group" ? [value] : list(value)) {
 				const object = record(row);
 				for (const key of Object.keys(object)) {
+					if (key === RETAINED_KEY) {
+						let values: ReturnType<typeof retainedValues>;
+						try {
+							values = retainedValues(object[key]);
+						} catch (error) {
+							throw new ArchiveRefusedError("damaged", (error as Error).message);
+						}
+						for (const held of values) {
+							const nested = held.contract
+								? retainedDefinition(held.contract, held.id)
+								: list(field.fields)
+										.map(record)
+										.find((f) => f.id === held.id);
+							if (!nested)
+								throw new ArchiveRefusedError("damaged", "A retained value has no source declaration identity.");
+							const checked = readPropJson(nested as FieldDefinition, held.value);
+							if ("problem" in checked)
+								throw new ArchiveRefusedError("damaged", `Invalid retained value: ${checked.problem}`);
+							held.value = await jsonValue(held.value, nested, [...path, held.name]);
+							if (held.contract) await definitions([held.contract], context);
+						}
+						continue;
+					}
 					const nestedPath = [...path, key];
 					const nested =
 						list(field.fields)
@@ -149,8 +191,9 @@ export function createRowRemapper(
 			if (!["group", "repeater", "link"].includes(String(field.type))) return value;
 			let parsed: unknown;
 			try {
-				parsed = JSON.parse(value);
+				parsed = value.includes(RETAINED_KEY) ? readMetadataJson(value) : JSON.parse(value);
 			} catch {
+				if (value.includes(RETAINED_KEY)) throw new ArchiveRefusedError("damaged", "Invalid retained JSON values.");
 				return value;
 			}
 			const before = JSON.stringify(parsed);
@@ -158,12 +201,58 @@ export function createRowRemapper(
 			// Keep literal JSON and its formatting intact when no typed reference changed.
 			return before === after ? value : after;
 		};
+		const retentionProblem = retainedPropsProblem(list(values));
+		if (retentionProblem) throw new ArchiveRefusedError("damaged", retentionProblem);
+		const retainedIds = new Set<string>();
 		for (const prop of list(values)) {
 			const item = record(prop);
+			if (item.retained !== undefined) {
+				const problem = retainedPropProblem(item);
+				if (problem) throw new ArchiveRefusedError("damaged", problem);
+				const id = retainedValueIdentity(String(item.retained), item.contract as Record<string, unknown> | undefined);
+				if (retainedIds.has(id) || retainedIds.size >= 256)
+					throw new ArchiveRefusedError("damaged", "Retained declarations are distinct, at most 256 Props.");
+				retainedIds.add(id);
+			}
 			if (typeof item.name !== "string") continue;
 			const path = [item.name];
-			const field = await definition(path);
+			let field = await definition(path, typeof item.retained === "string" ? item.retained : undefined);
+			if (item.contract !== undefined) {
+				const identity = item.retained ?? record(item.contract).id;
+				if (typeof identity !== "string")
+					throw new ArchiveRefusedError("damaged", "A Prop source contract needs its declaration identity.");
+				field = retainedDefinition(item.contract, identity);
+			}
+			if (item.retained !== undefined && (!tree || !field.id || item.retained !== field.id))
+				throw new ArchiveRefusedError("damaged", "A retained Prop has no source declaration identity.");
 			if (tree) {
+				if (item.retained !== undefined) {
+					const parts = list(item.value).map(record);
+					if (parts.every((part) => part.type === "text")) {
+						const languages = new Set(["", ...parts.flatMap((part) => Object.keys(record(part.translations)))]);
+						for (const language of languages) {
+							const text = parts.map((part) => record(part.translations)[language] ?? part.text).join("");
+							const checked = readPropText(field as FieldDefinition, text);
+							if ("problem" in checked)
+								throw new ArchiveRefusedError("damaged", `Invalid retained Prop: ${checked.problem}`);
+						}
+					}
+				}
+				if (item.binding !== undefined) {
+					const paths = (fields: unknown, prefix = ""): string[] =>
+						list(fields).flatMap((field) => {
+							const own = record(field);
+							const key = prefix + own.key;
+							return [key, ...paths(own.fields, `${key}.`)];
+						});
+					const checked = readPropBinding(
+						item.binding,
+						list(item.value) as AttributePart[],
+						field.type === "group" || field.type === "repeater" ? paths(field.fields) : undefined,
+					);
+					if ("problem" in checked)
+						throw new ArchiveRefusedError("damaged", `Invalid Prop binding metadata: ${checked.problem}`);
+				}
 				for (const part of list(item.value)) {
 					const text = record(part);
 					if (text.type !== "text") continue;
@@ -173,6 +262,7 @@ export function createRowRemapper(
 						translations[language] = await fixed(translations[language], field, path);
 				}
 			} else item.value = await fixed(item.value, field, path);
+			if (item.contract) await definitions([item.contract], context);
 		}
 	}
 	async function body(value: unknown, context: ReferenceVersion) {
@@ -335,6 +425,7 @@ export function createRowRemapper(
 		} else if (kind === "template") await tree(content, context);
 		else if (kind === "component") {
 			await definitions(content.props, context);
+			await definitions(content.propBaseline, context);
 			await tree(content.tree, context);
 			css(content.css);
 		} else if (kind === "loop") {
