@@ -245,9 +245,11 @@ export async function bringIn(
 ): Promise<boolean> {
 	const { doc } = await documentOf(scope, row);
 	const vector = Y.encodeStateVector(doc);
-	const next = mergeChange(documentView(item.kind, before), documentView(item.kind, after), readDocument(doc));
+	const current = readDocument(doc);
+	const next = mergeChange(documentView(item.kind, before), documentView(item.kind, after), current);
 	changeDocument(doc, next);
-	const changed = !sameBytes(vector, Y.encodeStateVector(doc));
+	// Deletions change the delete set without advancing the Yjs state vector.
+	const changed = !sameJson(current, next);
 	if (changed) {
 		await recordChange(scope, row, Y.encodeStateAsUpdate(doc, vector), after, author);
 	} else if (!sameJson(row.draft, after)) {
@@ -255,8 +257,4 @@ export async function bringIn(
 	}
 	doc.destroy();
 	return changed;
-}
-
-function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
-	return a.length === b.length && a.every((byte, index) => byte === b[index]);
 }

@@ -45,7 +45,9 @@ export function Inspector({
 	onOneOff,
 	onCatalogue,
 	onMakeEditable,
+	onEditComponent,
 }: {
+	onEditComponent?(): void;
 	siteId: string;
 	tree: ElementTree;
 	selection: Selection | null;
@@ -114,7 +116,14 @@ export function Inspector({
 			<h2 id="inspector-heading" className="border-b px-3 py-2 text-sm font-semibold">
 				{node ? layerName(t, node, catalogue).name : t("builder.inspector.heading")}
 			</h2>
-			<div className="min-h-0 flex-1 overflow-auto p-3">{body}</div>
+			<div className="min-h-0 flex-1 overflow-auto p-3">
+				{body}
+				{node?.type === "component" && onEditComponent ? (
+					<Button type="button" onClick={onEditComponent}>
+						{t("builder.inspector.editComponent")}
+					</Button>
+				) : null}
+			</div>
 		</div>
 	);
 }

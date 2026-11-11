@@ -4199,6 +4199,7 @@
 		}
 	},
 	"builder": {
+		"historyChanged": "Un altro editor ha modificato questa Bozza. I passaggi Annulla precedenti sono stati rimossi per conservare le sue modifiche.",
 		"backToTemplates": "Template",
 		"backToComponents": "Componenti",
 		"kinds": {
@@ -4299,7 +4300,13 @@
 			"form": "Form",
 			"pagination": "Paginazione",
 			"filter": "Filtro",
-			"popup": "Popup"
+			"popup": "Popup",
+			"onPages": "su {count} pagine",
+			"pageLayout": "Layout di pagina · {name}",
+			"pageTemplate": "Template di pagina · Principale",
+			"componentSource": "Componente · {name}",
+			"hidePlacement": "Nascondi posizionamento",
+			"showPlacement": "Mostra posizionamento"
 		},
 		"moves": {
 			"moved": "Spostato {name}: {where}.",
@@ -4474,7 +4481,8 @@
 			"removeElse": "Rimuovi Altrimenti",
 			"loopSource": "Elenca",
 			"addEmpty": "Aggiungi cosa mostrare quando non ci sono elementi",
-			"removeEmpty": "Rimuovi cosa mostrare quando non ci sono elementi"
+			"removeEmpty": "Rimuovi cosa mostrare quando non ci sono elementi",
+			"editComponent": "Modifica il Componente"
 		},
 		"commands": {
 			"outlet": "Contenuto della pagina",
@@ -4576,6 +4584,16 @@
 			"reload": "Ricarica la sua",
 			"overwrite": "Salva la mia sopra",
 			"close": "Chiudi"
+		},
+		"toolbar": {
+			"heading": "Titolo",
+			"paragraph": "Paragrafo",
+			"image": "Immagine",
+			"loop": "Loop",
+			"component": "Componente",
+			"more": "Altro",
+			"inside": "Dentro",
+			"after": "Dopo"
 		}
 	},
 	"siteEmail": {

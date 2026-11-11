@@ -18,6 +18,7 @@ const CANVAS_CSS = `
 [data-wc-builder-placeholder]{display:block;box-sizing:border-box;margin:.5rem 0;padding:1rem;border:2px dashed #a1a1aa;border-radius:.375rem;background:#f4f4f5;color:#3f3f46;font:500 14px/1.4 system-ui,sans-serif;text-align:center}
 [data-wc-builder-placeholder=themeToggle],[data-wc-builder-placeholder=consentSettings]{display:inline-block;margin:0;padding:.25rem .5rem}
 *{cursor:default}
+[data-wc-hidden-placement]:not([data-wc-hidden-placement] *){opacity:.45}
 `;
 
 /** What the canvas outlines: an element of the tree, or a Placement (every element its Component shows). */

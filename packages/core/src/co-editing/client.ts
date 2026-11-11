@@ -1,6 +1,6 @@
 import * as Y from "yjs";
 
-import { changeDocument, type Json, mergeChange, readDocument } from "./document.ts";
+import { changeDocument, copyDocument, type Json, mergeChange, readDocument } from "./document.ts";
 import {
 	decodeFrame,
 	type EditorMessage,
@@ -60,6 +60,8 @@ export type DraftClient = {
 	 * sends it with the next batch. Ignored, answering false, while the editor is read-only.
 	 */
 	change(next: Json | ((current: Json) => Json)): boolean;
+	/** Holds the starting document while an editor parses input asynchronously. Its patch merges with intervening edits. */
+	prepare(): { before: Json; apply(next: Json): boolean; cancel(): void } | null;
 	/** Says where the person is in it (a value's key, an element's id), or nowhere (null). */
 	place(at: string | null): void;
 	/** Sends what is waiting now, without waiting for the batch. */
@@ -303,14 +305,41 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 		offlineTimer = setTimeout(() => setStatus(settled()), left + 10);
 	};
 
+	const canEdit = () => !ended && !closedForGood && mayEdit && synced && settled() !== "readOnly" && !resetting;
 	return {
 		draft: () => readDocument(doc),
 		change(next) {
-			if (ended || closedForGood || !mayEdit || !synced || settled() === "readOnly" || resetting) return false;
+			if (!canEdit()) return false;
 			const value = typeof next === "function" ? next(readDocument(doc)) : next;
 			changeDocument(doc, value);
 			options.onChange?.(readDocument(doc), "local");
 			return true;
+		},
+		prepare() {
+			if (!canEdit()) return null;
+			const original = doc;
+			const pending = copyDocument(doc);
+			const vector = Y.encodeStateVector(pending);
+			let used = false;
+			const cancel = () => {
+				used = true;
+				pending.destroy();
+			};
+			return {
+				before: readDocument(pending),
+				cancel,
+				apply(next) {
+					if (used || doc !== original || !canEdit()) {
+						cancel();
+						return false;
+					}
+					changeDocument(pending, next);
+					Y.applyUpdate(doc, Y.encodeStateAsUpdate(pending, vector));
+					cancel();
+					options.onChange?.(readDocument(doc), "local");
+					return true;
+				},
+			};
 		},
 		place(at) {
 			place = at;

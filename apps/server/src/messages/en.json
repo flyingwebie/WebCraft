@@ -4199,6 +4199,7 @@
 		}
 	},
 	"builder": {
+		"historyChanged": "Another editor changed this Draft. Earlier Undo steps were cleared to keep their changes.",
 		"backToTemplates": "Templates",
 		"backToComponents": "Components",
 		"kinds": {
@@ -4299,7 +4300,13 @@
 			"form": "Form",
 			"pagination": "Pagination",
 			"filter": "Filter",
-			"popup": "Popup"
+			"popup": "Popup",
+			"onPages": "on {count} pages",
+			"pageLayout": "Page layout · {name}",
+			"pageTemplate": "Page template · Main",
+			"componentSource": "Component · {name}",
+			"hidePlacement": "Hide placement",
+			"showPlacement": "Show placement"
 		},
 		"moves": {
 			"moved": "Moved {name}: {where}.",
@@ -4474,7 +4481,8 @@
 			"removeElse": "Remove Else",
 			"loopSource": "Lists",
 			"addEmpty": "Add what shows when there are no items",
-			"removeEmpty": "Remove what shows when there are no items"
+			"removeEmpty": "Remove what shows when there are no items",
+			"editComponent": "Edit the Component"
 		},
 		"commands": {
 			"outlet": "Page content",
@@ -4576,6 +4584,16 @@
 			"reload": "Reload theirs",
 			"overwrite": "Save mine over it",
 			"close": "Close"
+		},
+		"toolbar": {
+			"heading": "Heading",
+			"paragraph": "Paragraph",
+			"image": "Image",
+			"loop": "Loop",
+			"component": "Component",
+			"more": "More",
+			"inside": "Inside",
+			"after": "After"
 		}
 	},
 	"siteEmail": {

@@ -9,7 +9,9 @@
  */
 import type { MarkupNotice, QualityCheck } from "@webcraft/renderer";
 
+import { type BuilderDraft, type BuilderOpened, type BuilderTarget, createBuilder } from "../builder/index.ts";
 import type { ComponentSources } from "../content/components.ts";
+import { getEntry } from "../content/entries.ts";
 import type { ScriptKind } from "../content/scripts.ts";
 import { draftStyles } from "../design-system/stylesheet.ts";
 import { EditPathInvalidError } from "../edit-mode/errors.ts";
@@ -21,7 +23,7 @@ import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
 import { type CodeClass, type CodeCss, type CssTarget, makeClass, readCss, saveCss } from "./css.ts";
 import { type MarkupChange, previewMarkup, type SavedMarkup, saveMarkup } from "./markup.ts";
 import { type CodeScript, type CodeScripts, draftScript, readScripts, saveScript } from "./scripts.ts";
-import { type OpenedSource, openSource, readCodeRef, type SourceDeps } from "./sources.ts";
+import { type OpenedSource, openSource, readCodeRef, resolveSource, type SourceDeps } from "./sources.ts";
 
 export type { CodeClass, CodeCss, CssTarget, TokenKind } from "./css.ts";
 export { CodeSourceNotFoundError } from "./errors.ts";
@@ -38,6 +40,30 @@ export type CodePreviewPage = {
 };
 
 export type CodeMode = {
+	editor(
+		scope: SiteScope,
+		host: SiteHost,
+		input: { path: string; ref: string | null },
+	): Promise<{
+		opened: BuilderOpened;
+		target: BuilderTarget;
+		ref: string;
+		siteId: string;
+		editable: boolean;
+		name: string | null;
+		pageLayout: { id: string; title: string } | null;
+		contentAvailable: boolean;
+	}>;
+	editorMarkup(
+		scope: SiteScope,
+		host: SiteHost,
+		input: { path: string; ref: string | null; draft: BuilderDraft },
+	): Promise<{ markup: string }>;
+	editorRead(
+		scope: SiteScope,
+		host: SiteHost,
+		input: { path: string; ref: string | null; markup: string },
+	): ReturnType<ReturnType<typeof createBuilder>["read"]>;
 	/**
 	 * Opens the Site of an Edit mode session for Code mode: with `structure.edit`, checked again now.
 	 * Throws `PermissionDeniedError` for someone who may not change the Site's Structure.
@@ -109,8 +135,62 @@ export function createCodeMode(options: {
 }): CodeMode {
 	const { data, pages } = options;
 	const deps: SourceDeps = { sources: options.sources, pageContent: (host, path) => pages.pageContent(host, path) };
+	const builder = createBuilder({ sources: options.sources });
+	const editorSource = async (scope: SiteScope, host: SiteHost, input: { path: string; ref: string | null }) => {
+		const opened = await (input.ref === null
+			? pages.pageContent(host, input.path).then((content) =>
+					openSource(scope, deps, host, input.path, {
+						root: content.templatePostTypeId && !content.notFound ? "content" : "site",
+						placements: [],
+						element: null,
+					}),
+				)
+			: openSource(scope, deps, host, input.path, readCodeRef(input.ref)));
+		const { source, catalogue } = await resolveSource(scope, deps, host, input.path, readCodeRef(opened.ref));
+		const target: BuilderTarget =
+			source.kind === "component"
+				? { kind: "component", componentId: source.id ?? "" }
+				: source.kind === "entryTemplate"
+					? { kind: "entryTemplate", postTypeId: source.postTypeId ?? "" }
+					: { kind: "siteTemplate" };
+		return { target, ref: opened.ref, source, catalogue, usage: opened.usage };
+	};
 	const access = (session: EditSession) => data.site(session.access, session.scope.site.id, "structure.edit");
 	return {
+		async editor(scope, host, input) {
+			const { target, ref, source, catalogue, usage } = await editorSource(scope, host, input);
+			const opened = await builder.open(scope, source.editable ? target : { kind: "siteTemplate" });
+			const content = ref === "site" ? await pages.pageContent(host, input.path) : null;
+			const page =
+				content?.entryId && !content.templatePostTypeId && !content.notFound
+					? await getEntry(scope, content.entryId, content.language)
+					: null;
+			return {
+				target,
+				ref,
+				siteId: scope.site.id,
+				editable: source.editable,
+				name: source.name,
+				contentAvailable: !!content?.templatePostTypeId && !content.notFound,
+				pageLayout: page ? { id: page.id, title: page.draft.title } : null,
+				opened: source.editable
+					? { ...opened, tree: source.tree }
+					: {
+							...opened,
+							template: null,
+							component: null,
+							tree: source.tree,
+							props: source.id ? (catalogue.version(source.id)?.props ?? null) : null,
+							usage,
+						},
+			};
+		},
+		async editorMarkup(scope, host, input) {
+			return builder.markup(scope, (await editorSource(scope, host, input)).target, input.draft);
+		},
+		async editorRead(scope, host, input) {
+			return builder.read(scope, (await editorSource(scope, host, input)).target, { markup: input.markup });
+		},
 		access,
 		async openIfAllowed(session) {
 			try {

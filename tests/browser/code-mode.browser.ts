@@ -1,10 +1,10 @@
 // Code mode in a real browser (ADR 0016): Staff press Code in the editing bar, and the page shows
 // the Drafts of the Site's Structure with HTML, CSS and JS panels below it. The panels pass the
 // accessibility checks in light and dark, suggestions are chosen and the panels reached from the
-// keyboard alone, the page previews markup as it is typed (saving only on Save), selecting an
+// keyboard alone, valid markup reaches the shared Draft as it is typed, selecting an
 // element opens its Component with the breadcrumb and where it is used, a changed script runs only
-// on Run with its errors in the console, and a save over someone else's gets the conflict prompt.
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+// on Run with its errors in the console, and other editors' saved changes arrive live.
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { Cookie, Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
@@ -18,6 +18,17 @@ let postTypeId: string;
 const slug = "bakery";
 const path = "/blog/fresh-bread";
 const ENTRY_TEMPLATE = '<article><Hero heading="{{ title }}" /><p class="intro">{{ subtitle }}</p></article>';
+
+const openedPages: Page[] = [];
+async function testPage(theme: "light" | "dark") {
+	const page = await install.newPage(theme);
+	page.setDefaultTimeout(10000);
+	openedPages.push(page);
+	return page;
+}
+afterEach(async () => {
+	await Promise.all(openedPages.splice(0).map((page) => page.close()));
+});
 
 beforeAll(async () => {
 	install = await startBrowserInstall();
@@ -74,6 +85,14 @@ beforeAll(async () => {
 	await api.entries.publish({ siteId, entryId: post.id });
 });
 
+beforeEach(async () => {
+	await (await install.install.superadmin()).api.templates.saveEntryTemplateMarkup({
+		siteId,
+		postTypeId,
+		markup: ENTRY_TEMPLATE,
+	});
+});
+
 afterAll(async () => {
 	await install.close();
 });
@@ -83,7 +102,7 @@ let cookies: Cookie[] | undefined;
 
 /** A page in Code mode: the first time through "Edit on site" in the admin, then Code in the editing bar. */
 async function codeModePage(theme: Theme): Promise<Page> {
-	const page = await install.newPage(theme);
+	const page = await testPage(theme);
 	if (cookies) {
 		await page.context().addCookies(cookies);
 		await page.goto(install.siteUrl(slug, path));
@@ -99,6 +118,10 @@ async function codeModePage(theme: Theme): Promise<Page> {
 	}
 	await page.getByRole("textbox", { name: "HTML of Blog posts · Entry template" }).waitFor();
 	await page.getByRole("textbox", { name: /^JS: / }).waitFor();
+	await page
+		.getByRole("textbox", { name: /^HTML of / })
+		.and(page.locator(":not([readonly])"))
+		.waitFor();
 	return page;
 }
 
@@ -193,7 +216,7 @@ describe("the keyboard alone", () => {
 });
 
 describe("previewing and saving", () => {
-	test("the page previews the markup as it is typed; the Draft changes only on Save", async () => {
+	test("valid markup reaches the page and Draft as it is typed", async () => {
 		const page = await codeModePage("light");
 		const html = page.getByRole("textbox", { name: /^HTML of / });
 		const typed = (await html.inputValue()).replace("</article>", "<p>Typed in Code mode</p></article>");
@@ -201,7 +224,7 @@ describe("previewing and saving", () => {
 		await html.fill(typed);
 
 		await page.locator("main p", { hasText: "Typed in Code mode" }).waitFor();
-		expect(await draftMarkup()).not.toContain("Typed in Code mode");
+		await page.getByRole("treeitem", { name: /Typed in Code mode/ }).waitFor();
 
 		await page.getByRole("region", { name: "HTML" }).getByRole("button", { name: "Save", exact: true }).click();
 		await page.getByText("Saved to Draft · Blog posts · Entry template").first().waitFor();
@@ -246,7 +269,7 @@ describe("previewing and saving", () => {
 		expect(await page.getByRole("button", { name: "Display: flex" }).getAttribute("aria-pressed")).toBe("true");
 	});
 
-	test("a save over someone else's asks whether to reload theirs or overwrite it", async () => {
+	test("another editor's saved changes arrive before the next local HTML edit", async () => {
 		const page = await codeModePage("light");
 		const html = page.getByRole("textbox", { name: /^HTML of / });
 		await (await install.install.superadmin()).api.templates.saveEntryTemplateMarkup({
@@ -254,27 +277,12 @@ describe("previewing and saving", () => {
 			postTypeId,
 			markup: ENTRY_TEMPLATE.replace("</article>", "<p>Theirs</p></article>"),
 		});
+		await page.locator("main p", { hasText: "Theirs" }).waitFor();
 		await html.fill((await html.inputValue()).replace("</article>", "<p>Mine</p></article>"));
-		const save = page.getByRole("region", { name: "HTML" }).getByRole("button", { name: "Save", exact: true });
-
-		await save.click();
-		const prompt = page.getByRole("alertdialog", { name: "Someone else saved this" });
-		await prompt.waitFor();
-		await expectNoAxeViolations(page, "Code mode › conflict prompt");
-		await page.keyboard.press("Escape");
-		await prompt.waitFor({ state: "hidden" });
-		expect(await focused(page)).toBe("Save");
-
-		await save.click();
-		await prompt.getByRole("button", { name: "Overwrite with mine" }).click();
+		await page.getByRole("region", { name: "HTML" }).getByRole("button", { name: "Save", exact: true }).click();
 		await page.getByText("Saved to Draft · Blog posts · Entry template").first().waitFor();
 		expect(await draftMarkup()).toContain("Mine");
-		expect(await draftMarkup()).not.toContain("Theirs");
-		await (await install.install.superadmin()).api.templates.saveEntryTemplateMarkup({
-			siteId,
-			postTypeId,
-			markup: ENTRY_TEMPLATE,
-		});
+		expect(await draftMarkup()).toContain("Theirs");
 	});
 });
 

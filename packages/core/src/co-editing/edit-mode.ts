@@ -10,3 +10,6 @@ type Page = {
 
 const page = globalThis as unknown as Page;
 page.document.dispatchEvent(new page.CustomEvent(drafts.DRAFTS_LOADED_EVENT, { detail: drafts }));
+
+// The React panels import this same browser module, so each page loads Yjs only once.
+export * from "./browser.ts";

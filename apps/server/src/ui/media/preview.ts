@@ -10,11 +10,11 @@ export function previewPath(siteId: string, url: string): string {
 }
 
 /** The image to show for a file: its smallest WebP width that is at least `width`, or the original. */
-export function imagePreview(siteId: string, item: MediaItem, width: number): string | null {
+export function imagePreview(siteId: string, item: MediaItem, width: number, site = false): string | null {
 	if (item.kind !== "image" || !item.url) return null;
 	const webp = item.variants.filter((variant) => variant.format === "webp");
 	const fitting = webp.find((variant) => variant.width >= width) ?? webp.at(-1);
-	return previewPath(siteId, fitting?.url ?? item.url);
+	return site ? (fitting?.url ?? item.url) : previewPath(siteId, fitting?.url ?? item.url);
 }
 
 /** A file size as people read it: `840 B`, `12.4 KB`, `1.8 MB`, `4.2 GB`. */

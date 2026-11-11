@@ -2,7 +2,9 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { cn } from "cn";
 import { XIcon } from "lucide-react";
-import type * as React from "react";
+import * as React from "react";
+
+export const DialogContainer = React.createContext<HTMLElement | undefined>(undefined);
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
 	return <DialogPrimitive.Root data-slot="dialog" {...props} />;
@@ -45,7 +47,7 @@ function DialogContent({
 	showCloseButton?: boolean;
 }) {
 	return (
-		<DialogPortal>
+		<DialogPortal container={React.useContext(DialogContainer)}>
 			<DialogOverlay />
 			<DialogPrimitive.Popup
 				data-slot="dialog-content"

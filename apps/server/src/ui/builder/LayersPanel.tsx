@@ -5,16 +5,22 @@ import { Input } from "@webcraft/ui/components/input.tsx";
 import {
 	ArrowDownIcon,
 	ArrowUpIcon,
+	BracesIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
 	ClipboardPasteIcon,
+	ComponentIcon,
 	CopyIcon,
 	CopyPlusIcon,
 	CornerDownRightIcon,
 	CornerUpLeftIcon,
+	EyeIcon,
+	EyeOffIcon,
+	GitBranchIcon,
 	type LucideIcon,
 	PencilIcon,
 	PlusIcon,
+	RepeatIcon,
 	ScissorsIcon,
 	Trash2Icon,
 } from "lucide-react";
@@ -35,9 +41,10 @@ import {
 } from "./tree.ts";
 
 /** One row of the Layers panel: a node, or a later list of a Condition or Loop (its Else, its Empty). */
-export type LayerRow =
+export type LayerRow = { source?: string; catalogue?: Catalogue; divider?: string; pages?: number; count?: number } & (
 	| { kind: "node"; key: string; path: NodePath; depth: number; node: TreeNode; expandable: boolean; expanded: boolean }
-	| { kind: "list"; key: string; list: ListRef; owner: TreeNode; depth: number; expandable: false; expanded: false };
+	| { kind: "list"; key: string; list: ListRef; owner: TreeNode; depth: number; expandable: boolean; expanded: boolean }
+);
 
 /** The rows the Layers panel shows: every node but formatting, in order, inside what is open. */
 export function layerRows(tree: ElementTree, collapsed: ReadonlySet<string>): LayerRow[] {
@@ -71,6 +78,44 @@ export function layerRows(tree: ElementTree, collapsed: ReadonlySet<string>): La
 		});
 	};
 	visit(tree.nodes, [], 1);
+	return rows;
+}
+
+export type LayerSource = {
+	ref: string;
+	tree: ElementTree;
+	catalogue: Catalogue;
+	label: string;
+	pages?: number;
+	counts?: Record<string, number>;
+};
+
+function forestRows(sources: readonly LayerSource[], collapsed: ReadonlySet<string>): LayerRow[] {
+	const rows: LayerRow[] = [];
+	const visit = (source: LayerSource, depth: number) => {
+		const ownCollapsed = new Set(
+			[...collapsed].filter((key) => key.startsWith(`${source.ref}:`)).map((key) => key.slice(source.ref.length + 1)),
+		);
+		const own = layerRows(source.tree, ownCollapsed);
+		own.forEach((row, index) => {
+			const placement = row.kind === "node" && row.node.type === "component" ? row.node : null;
+			const nested = placement ? sources.find((each) => each.ref === `${source.ref}/${placement.id}`) : undefined;
+			const key = `${source.ref}:${row.key}`;
+			const expanded = nested ? !collapsed.has(key) : row.expanded;
+			rows.push({
+				...row,
+				key,
+				depth: row.depth + depth,
+				source: source.ref,
+				catalogue: source.catalogue,
+				count: row.kind === "node" ? source.counts?.[`${source.ref}:${pathKey(row.path)}`] : undefined,
+				...(index === 0 ? { divider: source.label } : {}),
+				...(nested ? { expandable: true, expanded, pages: nested.pages } : {}),
+			});
+			if (nested && expanded) visit(nested, row.depth + depth);
+		});
+	};
+	for (const source of sources.filter((each) => !each.ref.includes("/"))) visit(source, 0);
 	return rows;
 }
 
@@ -134,9 +179,23 @@ export function LayersPanel({
 	onDrop,
 	onInsert,
 	focusRequest,
+	forest,
+	activeSource,
+	onSourceSelect,
+	onHover,
+	hovered,
+	counts,
+	onHidden,
 }: {
 	/** Changes when the selected row should take focus (after a click on the canvas). */
 	focusRequest: number;
+	forest?: readonly LayerSource[];
+	activeSource?: string;
+	onSourceSelect?(source: string, selection: Selection): void;
+	onHover?(source: string | undefined, selection: Selection | null): void;
+	hovered?: string | null;
+	counts?: Record<string, number>;
+	onHidden?(path: NodePath, hidden: boolean, source?: string): void;
 	tree: ElementTree;
 	catalogue: Catalogue;
 	selection: Selection | null;
@@ -154,7 +213,7 @@ export function LayersPanel({
 	onInsert(): void;
 }) {
 	const t = useT();
-	const rows = layerRows(tree, collapsed);
+	const rows = forest ? forestRows(forest, collapsed) : layerRows(tree, collapsed);
 	const list = useRef<HTMLDivElement>(null);
 	const afterRender = useAfterRender();
 	const [renaming, setRenaming] = useState<string | null>(null);
@@ -163,10 +222,16 @@ export function LayersPanel({
 	const [over, setOver] = useState<{ key: string; position: DropPosition } | null>(null);
 	const selectedKey =
 		selection?.kind === "node"
-			? rows.find((row) => row.kind === "node" && pathKey(row.path) === pathKey(selection.path))?.key
+			? rows.find(
+					(row) =>
+						row.kind === "node" &&
+						(!activeSource || row.source === activeSource) &&
+						pathKey(row.path) === pathKey(selection.path),
+				)?.key
 			: rows.find(
 					(row) =>
 						row.kind === "list" &&
+						(!activeSource || row.source === activeSource) &&
 						selection?.kind === "list" &&
 						pathKey(row.list.owner ?? []) === pathKey(selection.list.owner ?? []) &&
 						row.list.list === selection.list.list,
@@ -181,13 +246,18 @@ export function LayersPanel({
 		const element = list.current;
 		const asked = focusRequest !== handledRequest.current;
 		handledRequest.current = focusRequest;
-		if (!element || renaming || (!asked && !element.contains(document.activeElement))) return;
+		const active = (element?.getRootNode() as Document | ShadowRoot | undefined)?.activeElement;
+		if (!element || renaming || (!asked && !element.contains(active ?? null))) return;
 		const row = element.querySelector<HTMLElement>(`[data-row-key="${CSS.escape(focusKey ?? "")}"]`);
-		if (row && row !== document.activeElement) row.focus();
+		if (row && row !== active) row.focus();
 	}, [focusKey, renaming, focusRequest]);
 
-	const select = (row: LayerRow) =>
-		onSelect(row.kind === "node" ? { kind: "node", path: row.path } : { kind: "list", list: row.list });
+	const select = (row: LayerRow) => {
+		const selection: Selection =
+			row.kind === "node" ? { kind: "node", path: row.path } : { kind: "list", list: row.list };
+		if (row.source && row.source !== activeSource && onSourceSelect) onSourceSelect(row.source, selection);
+		else onSelect(selection);
+	};
 
 	const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
 		if (renaming) return;
@@ -306,7 +376,7 @@ export function LayersPanel({
 		if (row.kind !== "node") return {};
 		return {
 			onDragOver(event: DragEvent<HTMLElement>) {
-				if (!dragging) return;
+				if (!dragging || (row.source && row.source !== activeSource)) return;
 				event.preventDefault();
 				const box = event.currentTarget.getBoundingClientRect();
 				const y = (event.clientY - box.top) / Math.max(box.height, 1);
@@ -318,7 +388,7 @@ export function LayersPanel({
 			},
 			onDrop(event: DragEvent<HTMLElement>) {
 				event.preventDefault();
-				if (dragging && over) onDrop(dragging, row.path, over.position);
+				if (dragging && over && (!row.source || row.source === activeSource)) onDrop(dragging, row.path, over.position);
 				setDragging(null);
 				setOver(null);
 			},
@@ -370,96 +440,152 @@ export function LayersPanel({
 						onKeyDown={onKeyDown}
 						className="grid gap-px"
 					>
+						{forest
+							?.filter((source) => source.tree.nodes.length === 0)
+							.map((source) => (
+								<div key={source.ref} className="layer-divider" role="presentation">
+									{source.label}
+								</div>
+							))}
 						{rows.map((row) => {
 							const selected = row.key === selectedKey;
 							const named =
 								row.kind === "node"
-									? layerName(t, row.node, catalogue)
+									? layerName(t, row.node, row.catalogue ?? catalogue)
 									: { name: listName(t, row.owner, row.list.list), detail: null, kind: "list" };
 							const fixed = row.kind === "node" && isFixedText(row.node);
 							const drop = over?.key === row.key ? over.position : undefined;
 							return (
-								<div
-									key={row.key}
-									role="treeitem"
-									aria-level={row.depth}
-									aria-selected={selected}
-									aria-expanded={row.expandable ? row.expanded : undefined}
-									data-grabbed={selected && grabbed ? true : undefined}
-									tabIndex={row.key === focusKey ? 0 : -1}
-									data-row-key={row.key}
-									data-drop={drop}
-									draggable={row.kind === "node" && renaming !== row.key}
-									onDragStart={(event) => {
-										if (row.kind !== "node") return;
-										event.dataTransfer.effectAllowed = "move";
-										event.dataTransfer.setData("text/plain", row.key);
-										setDragging(row.path);
-										select(row);
-									}}
-									onDragEnd={() => {
-										setDragging(null);
-										setOver(null);
-									}}
-									{...dropProps(row)}
-									onClick={() => select(row)}
-									// The tree hears the keys for every row (one tab stop, arrow keys).
-									onKeyDown={() => {}}
-									onFocus={(event) => {
-										if (event.target === event.currentTarget && !selected) select(row);
-									}}
-									className={`${INDENT[Math.min(row.depth, INDENT.length - 1)]} focus-visible:ring-ring/50 aria-selected:bg-accent aria-selected:text-accent-foreground hover:bg-muted data-[drop=after]:border-b-primary data-[drop=before]:border-t-primary data-[drop=inside]:ring-primary data-[grabbed=true]:ring-primary flex min-w-0 cursor-default items-center gap-1 rounded-md border-y-2 border-transparent py-1 pe-2 text-sm outline-none focus-visible:ring-3 data-[drop=inside]:ring-2 data-[grabbed=true]:ring-2`}
-								>
-									{row.expandable ? (
-										<span
-											aria-hidden="true"
-											className="text-muted-foreground flex size-4 shrink-0 items-center"
-											onClick={(event) => {
-												event.stopPropagation();
-												onToggle(row.key, !row.expanded);
-											}}
-										>
-											{row.expanded ? (
-												<ChevronDownIcon className="size-3.5" />
-											) : (
-												<ChevronRightIcon className="size-3.5 rtl:rotate-180" />
-											)}
-										</span>
-									) : (
-										<span aria-hidden="true" className="size-4 shrink-0" />
-									)}
-									{renaming === row.key && row.kind === "node" && row.node.type === "element" ? (
-										<RenameInput
-											initial={row.node.label ?? ""}
-											tag={row.node.tag}
-											onDone={(label) => {
-												setRenaming(null);
-												if (label !== undefined && row.kind === "node") onRename(row.path, label);
-												afterRender(() =>
-													list.current?.querySelector<HTMLElement>(`[data-row-key="${CSS.escape(row.key)}"]`)?.focus(),
-												);
-											}}
-										/>
-									) : (
-										<>
+								<div role="none" key={row.key}>
+									{row.divider ? (
+										<div className="layer-divider" role="presentation">
+											{row.divider}
+										</div>
+									) : null}
+									<div
+										role="treeitem"
+										aria-level={row.depth}
+										aria-selected={selected}
+										aria-expanded={row.expandable ? row.expanded : undefined}
+										data-grabbed={selected && grabbed ? true : undefined}
+										tabIndex={row.key === focusKey ? 0 : -1}
+										data-row-key={row.key}
+										data-hidden={(row.kind === "node" && row.node.type === "component" && row.node.hidden) || undefined}
+										data-hovered={hovered === row.key || undefined}
+										onMouseEnter={() =>
+											onHover?.(
+												row.source,
+												row.kind === "node" ? { kind: "node", path: row.path } : { kind: "list", list: row.list },
+											)
+										}
+										onMouseLeave={() => onHover?.(row.source, null)}
+										data-drop={drop}
+										draggable={row.kind === "node" && renaming !== row.key}
+										onDragStart={(event) => {
+											if (row.kind !== "node") return;
+											event.dataTransfer.effectAllowed = "move";
+											event.dataTransfer.setData("text/plain", row.key);
+											setDragging(row.path);
+											select(row);
+										}}
+										onDragEnd={() => {
+											setDragging(null);
+											setOver(null);
+										}}
+										{...dropProps(row)}
+										onClick={() => select(row)}
+										// The tree hears the keys for every row (one tab stop, arrow keys).
+										onKeyDown={() => {}}
+										onFocus={(event) => {
+											if (event.target === event.currentTarget && !selected) select(row);
+										}}
+										className={`${INDENT[Math.min(row.depth, INDENT.length - 1)]} focus-visible:ring-ring/50 aria-selected:bg-accent aria-selected:text-accent-foreground hover:bg-muted data-[drop=after]:border-b-primary data-[drop=before]:border-t-primary data-[drop=inside]:ring-primary data-[grabbed=true]:ring-primary flex min-w-0 cursor-default items-center gap-1 rounded-md border-y-2 border-transparent py-1 pe-2 text-sm outline-none focus-visible:ring-3 data-[drop=inside]:ring-2 data-[grabbed=true]:ring-2`}
+									>
+										{row.expandable ? (
 											<span
-												className={`truncate ${named.kind === "value" ? "font-mono text-xs" : ""} ${named.kind === "list" ? "text-muted-foreground italic" : ""}`}
+												aria-hidden="true"
+												className="text-muted-foreground flex size-4 shrink-0 items-center"
+												onClick={(event) => {
+													event.stopPropagation();
+													onToggle(row.key, !row.expanded);
+												}}
 											>
-												{named.name}
+												{row.expanded ? (
+													<ChevronDownIcon className="size-3.5" />
+												) : (
+													<ChevronRightIcon className="size-3.5 rtl:rotate-180" />
+												)}
 											</span>
-											{named.detail ? (
-												<span className="text-muted-foreground truncate text-xs">{named.detail}</span>
-											) : null}
-											{fixed ? (
-												<Badge
-													variant="outline"
-													className="ms-auto shrink-0 border-amber-600 text-amber-800 dark:border-amber-400 dark:text-amber-200"
+										) : (
+											<span aria-hidden="true" className="size-4 shrink-0" />
+										)}
+										{renaming === row.key && row.kind === "node" && row.node.type === "element" ? (
+											<RenameInput
+												initial={row.node.label ?? ""}
+												tag={row.node.tag}
+												onDone={(label) => {
+													setRenaming(null);
+													if (label !== undefined && row.kind === "node") onRename(row.path, label);
+													afterRender(() =>
+														list.current
+															?.querySelector<HTMLElement>(`[data-row-key="${CSS.escape(row.key)}"]`)
+															?.focus(),
+													);
+												}}
+											/>
+										) : (
+											<>
+												<span
+													className={`truncate ${named.kind === "value" ? "font-mono text-xs" : ""} ${named.kind === "list" ? "text-muted-foreground italic" : ""}`}
 												>
-													{t("builder.fixedText.badge")}
-												</Badge>
-											) : null}
-										</>
-									)}
+													{row.kind === "node" && row.node.type === "component" ? (
+														<ComponentIcon aria-hidden="true" />
+													) : row.kind === "node" && row.node.type === "loop" ? (
+														<RepeatIcon aria-hidden="true" />
+													) : row.kind === "node" && row.node.type === "condition" ? (
+														<GitBranchIcon aria-hidden="true" />
+													) : row.kind === "node" && row.node.type === "value" ? (
+														<BracesIcon aria-hidden="true" />
+													) : null}
+													{named.name}
+													{row.kind === "node" &&
+													row.node.type === "loop" &&
+													(row.count ?? counts?.[`b:${pathKey(row.path)}`]) !== undefined
+														? ` ×${row.count ?? counts?.[`b:${pathKey(row.path)}`]}`
+														: ""}
+												</span>
+												{row.kind === "node" && row.node.type === "component" && onHidden ? (
+													<button
+														type="button"
+														aria-label={t(
+															row.node.hidden ? "builder.layers.showPlacement" : "builder.layers.hidePlacement",
+														)}
+														onKeyDown={(event) => event.stopPropagation()}
+														onClick={(event) => {
+															event.stopPropagation();
+															if (row.node.type === "component") onHidden(row.path, !row.node.hidden, row.source);
+														}}
+													>
+														{row.node.hidden ? <EyeOffIcon aria-hidden="true" /> : <EyeIcon aria-hidden="true" />}
+													</button>
+												) : null}
+												{row.pages && row.pages > 1 ? (
+													<span className="text-xs">{t("builder.layers.onPages", { count: row.pages })}</span>
+												) : null}
+												{named.detail ? (
+													<span className="text-muted-foreground truncate text-xs">{named.detail}</span>
+												) : null}
+												{fixed ? (
+													<Badge
+														variant="outline"
+														className="ms-auto shrink-0 border-amber-600 text-amber-800 dark:border-amber-400 dark:text-amber-200"
+													>
+														{t("builder.fixedText.badge")}
+													</Badge>
+												) : null}
+											</>
+										)}
+									</div>
 								</div>
 							);
 						})}

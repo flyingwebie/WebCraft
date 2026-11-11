@@ -994,7 +994,7 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 		ancestors: readonly string[],
 	): PlacementNode | undefined => {
 		for (const key of Object.keys(raw)) {
-			if (!["type", "id", "component", "props"].includes(key)) problem(`${at}.${key}`, PLACEMENT_INTERNALS);
+			if (!["type", "id", "component", "props", "hidden"].includes(key)) problem(`${at}.${key}`, PLACEMENT_INTERNALS);
 		}
 		const id = parseId(raw.id, `${at}.id`);
 		if (typeof raw.component !== "string") {
@@ -1051,7 +1051,11 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 				problem(`${at}.props`, `${found.name} needs ${prop.key}: the Prop is required.`);
 			}
 		}
-		return id === undefined ? undefined : { type: "component", id, component: found.id, props };
+		if (raw.hidden !== undefined && typeof raw.hidden !== "boolean")
+			problem(`${at}.hidden`, "Hidden placement is true or false.");
+		return id === undefined
+			? undefined
+			: { type: "component", id, component: found.id, props, ...(raw.hidden === true ? { hidden: true } : {}) };
 	};
 
 	const { version, nodes } = (input ?? {}) as { version?: unknown; nodes?: unknown };

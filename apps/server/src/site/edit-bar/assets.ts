@@ -1,5 +1,7 @@
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { compile, optimize } from "@tailwindcss/node";
+import { Scanner } from "@tailwindcss/oxide";
 
 import { type CodeModeConfig, codeMode } from "../code-mode/code.ts";
 import { CODE_STYLES } from "../code-mode/styles.ts";
@@ -58,8 +60,9 @@ async function makeAssets(): Promise<EditBarAssets> {
 	const parts = `{ images: ${imageTools.toString()}, loops: ${loopTools.toString()}, details: ${pageDetailsPanel.toString()} }`;
 	const source = `(${editingBar.toString()})(${JSON.stringify(config)}, ${parts});\n`;
 	const script = await asset("bar", "js", source, "text/javascript; charset=utf-8");
-	const codeStyles = await asset("code", "css", CODE_STYLES, "text/css; charset=utf-8");
-	const codeConfig: CodeModeConfig = { styles: codeStyles.path };
+	const codeStyles = await asset("code", "css", `${await panelsStyles()}\n${CODE_STYLES}`, "text/css; charset=utf-8");
+	const panels = await asset("panels", "js", await panelsModule(drafts.path), "text/javascript; charset=utf-8");
+	const codeConfig: CodeModeConfig = { styles: codeStyles.path, panels: panels.path };
 	const codeSource = `(${codeMode.toString()})(${JSON.stringify(codeConfig)});\n`;
 	const codeScript = await asset("code", "js", codeSource, "text/javascript; charset=utf-8");
 	return {
@@ -71,7 +74,7 @@ async function makeAssets(): Promise<EditBarAssets> {
 		drafts,
 		body,
 		byName: new Map(
-			[script, pageStyles, barStyles, codeScript, codeStyles, drafts, body].map((file) => [file.name, file]),
+			[script, pageStyles, barStyles, codeScript, codeStyles, drafts, body, panels].map((file) => [file.name, file]),
 		),
 	};
 }
@@ -109,4 +112,43 @@ async function asset(stem: string, extension: string, body: string, contentType:
 	const hash = Buffer.from(digest).toString("hex").slice(0, 16);
 	const name = `${stem}-${hash}.${extension}`;
 	return { name, path: `${EDIT_ASSETS_PATH}${name}`, body, contentType };
+}
+
+async function panelsModule(draftsPath: string): Promise<string> {
+	const entry = Bun.resolveSync("@webcraft/server/editor/live-panels", dirname(fileURLToPath(import.meta.url)));
+	const built = await Bun.build({
+		entrypoints: [entry],
+		target: "browser",
+		format: "esm",
+		minify: true,
+		define: { "process.env.NODE_ENV": JSON.stringify("production") },
+		plugins: [
+			{
+				name: "shared-draft-module",
+				setup(build) {
+					build.onResolve({ filter: /^@webcraft\/core\/draft-document$/ }, () => ({
+						path: draftsPath,
+						external: true,
+					}));
+				},
+			},
+		],
+	});
+	const [output] = built.outputs;
+	if (!built.success || !output) throw new Error(`The editor panels couldn't be built: ${built.logs.join("; ")}`);
+	return output.text();
+}
+
+/** The same theme and utilities as the Builder, isolated inside Code mode's shadow root. */
+async function panelsStyles(): Promise<string> {
+	const base = dirname(fileURLToPath(import.meta.url));
+	const theme = Bun.resolveSync("@webcraft/ui/globals.css", base);
+	const entry = Bun.resolveSync("@webcraft/server/editor/live-panels", base);
+	// The Site editor uses the system font; font files belong to the admin's asset pipeline.
+	const css = (await Bun.file(theme).text()).replace('@import "@fontsource-variable/inter";', "");
+	const compiled = await compile(css, { base: dirname(theme), onDependency() {} });
+	const scanner = new Scanner({
+		sources: [...compiled.sources, { base: dirname(dirname(entry)), pattern: "**/*.{ts,tsx}", negated: false }],
+	});
+	return optimize(compiled.build(scanner.scan()), { minify: true }).code;
 }

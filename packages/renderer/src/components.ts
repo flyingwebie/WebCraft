@@ -30,6 +30,8 @@ export type PlacementNode = {
 	component: string;
 	/** Its Prop values, in order: fixed text and values read where it is placed. */
 	props: PropValue[];
+	/** Hidden placement: kept in the Draft, omitted from visitor output. */
+	hidden?: boolean;
 };
 
 /** One Prop's value in a Placement, written as an attribute: fixed text and values joined together. */

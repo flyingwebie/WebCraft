@@ -1,5 +1,5 @@
 /** What Code mode's script is given when it is made: the address of its own stylesheet. */
-export type CodeModeConfig = { styles: string };
+export type CodeModeConfig = { styles: string; panels: string };
 
 /**
  * Code mode's panels (ADR 0016): WebCraft's own script on a page in Code mode, loaded only there (a
@@ -86,6 +86,10 @@ export function codeMode(config: CodeModeConfig): void {
 	};
 	type Panel = "html" | "css" | "js";
 
+	let inspectorRef: string | undefined;
+	let panelsAdapter:
+		| { select(ref: string | null): void; hover(ref: string | null): void; refresh(): void; save(): Promise<boolean> }
+		| undefined;
 	const win = window;
 	const doc = document;
 	// Kept now, before any Site script runs (this script runs before them, after the editing bar's).
@@ -310,6 +314,10 @@ export function codeMode(config: CodeModeConfig): void {
 	let selectedBox: HTMLElement;
 	let selectedLabel: HTMLElement;
 	let hoverBox: HTMLElement;
+	let hoveredRef: string | null = null;
+	const panelReady = new Map<string, boolean>();
+	let showInsertion: (() => void) | null = null;
+	let insertBox: HTMLElement;
 	let dialog: HTMLElement;
 	let listbox: HTMLElement;
 	let toggleButton: HTMLButtonElement;
@@ -422,6 +430,77 @@ export function codeMode(config: CodeModeConfig): void {
 		build();
 		for (const line of pending.splice(0)) logLine("error", line);
 		await Promise.all([open(null), loadCss(null), loadScripts()]);
+		const module = await import(config.panels);
+		panelsAdapter = module.mount({
+			root,
+			language: (state.data as { adminLanguage?: string }).adminLanguage === "it" ? "it" : "en",
+			async call(action: string, body: object) {
+				const response = await call(action, { path, ...body });
+				if (!response.ok) throw Object.assign(new Error(response.code), { code: response.code, data: response.data });
+				return response.data;
+			},
+			select: (ref: string, inspect?: string) => {
+				inspectorRef = inspect;
+				void select(ref, true);
+			},
+			changed(ref: string, markup: string) {
+				if (opened?.ref === ref) {
+					html.set(markup, true);
+					savedMarkup = markup;
+					if (selectedRef?.startsWith(`${ref}#`)) revealElement(selectedRef.slice(ref.length + 1));
+					setDirty("html");
+				}
+				schedulePreview();
+			},
+			refresh() {
+				schedulePreview();
+				if (!cssDirty()) void loadCss(selectedRef ?? opened?.ref ?? null);
+			},
+			ready(ref: string, editable: boolean) {
+				panelReady.set(ref, editable);
+				if (opened?.ref === ref) editorReady();
+			},
+			insertPreview(
+				ref: string | null,
+				where: string,
+				context?: { ref: string; markup: string; offset: number; label: string },
+			) {
+				showInsertion = () => {
+					root.querySelector(".insertion-context")?.remove();
+					for (const line of root.querySelectorAll(".insert-line")) line.classList.remove("insert-line");
+					const elements = [...doc.querySelectorAll("[data-wc-code]")];
+					const target = ref
+						? (elements.findLast((element) => element.getAttribute("data-wc-code") === ref) ??
+							pageElementFor(ref) ??
+							doc.querySelector("main"))
+						: null;
+					insertBox.hidden = !target;
+					if (!target || !ref || !context) {
+						insertBox.removeAttribute("data-insert-preview");
+						return;
+					}
+					const box = target.getBoundingClientRect();
+					insertBox.style.left = `${box.left}px`;
+					insertBox.style.top = `${box.bottom - (where === "inside" ? 4 : 0)}px`;
+					insertBox.style.width = `${box.width}px`;
+					insertBox.style.height = "2px";
+					insertBox.setAttribute("data-insert-preview", where);
+					const at = Math.max(0, context.offset - (where === "after" ? 1 : 0));
+					if (context.ref === opened?.ref && context.markup === html.get()) {
+						html.root.querySelectorAll(".line")[lineOf(context.markup, at) - 1]?.classList.add("insert-line");
+					} else {
+						// A Placement keeps its Component open; show its owning Template's insertion point alongside it.
+						const line = context.markup.split("\n")[lineOf(context.markup, at) - 1] ?? "";
+						html.root.append(
+							el("pre", { class: "insertion-context insert-line", "aria-live": "polite" }, `${context.label}\n${line}`),
+						);
+					}
+				};
+				showInsertion();
+			},
+			hover: setHover,
+		});
+		panelsAdapter?.select(selectedRef ?? opened?.ref ?? null);
 		openAskedScript();
 		await preview();
 	}
@@ -568,10 +647,11 @@ export function codeMode(config: CodeModeConfig): void {
 		selectedLabel = el("span", { class: "outline-label" });
 		selectedBox = el("div", { class: "outline selected", "aria-hidden": "true", hidden: "" }, selectedLabel);
 		hoverBox = el("div", { class: "outline hover", "aria-hidden": "true", hidden: "" });
+		insertBox = el("div", { class: "outline insert", "aria-hidden": "true", hidden: "" });
 		dialog = el("div", { class: "dialog-backdrop", hidden: "" });
 		// The suggestions and the prompts float above everything, but belong to Code mode's region.
 		shell.append(listbox, dialog);
-		root.append(el("link", { rel: "stylesheet", href: config.styles }), selectedBox, hoverBox, shell);
+		root.append(el("link", { rel: "stylesheet", href: config.styles }), selectedBox, hoverBox, insertBox, shell);
 		doc.body.append(host);
 		doc.documentElement.classList.add("wc-code");
 		try {
@@ -600,12 +680,12 @@ export function codeMode(config: CodeModeConfig): void {
 			true,
 		);
 		doc.addEventListener("mouseover", (event) => {
+			if (event.composedPath().includes(host)) return;
 			const target = pageElement(event);
-			if (target) outline(hoverBox, target);
-			else hoverBox.hidden = true;
+			setHover(target?.getAttribute("data-wc-code") ?? null);
 		});
 		doc.addEventListener("mouseleave", () => {
-			hoverBox.hidden = true;
+			setHover(null);
 		});
 		const reposition = () => {
 			const target = selectedRef ? pageElementFor(selectedRef) : null;
@@ -820,7 +900,7 @@ export function codeMode(config: CodeModeConfig): void {
 				"section",
 				{ class: "console", "aria-labelledby": consoleHeading },
 				el("div", { class: "console-head" }, el("h3", { id: consoleHeading }, word("console")), clear),
-				el("div", { class: "console-log", role: "log", "aria-labelledby": consoleHeading }, consoleList),
+				el("div", { class: "console-log", tabindex: "0", role: "log", "aria-labelledby": consoleHeading }, consoleList),
 				el("p", { class: "console-empty" }, word("consoleEmpty")),
 			),
 		);
@@ -877,11 +957,34 @@ export function codeMode(config: CodeModeConfig): void {
 		return null;
 	}
 
+	function setHover(ref: string | null): void {
+		hoveredRef = ref;
+		const target = ref ? pageElementFor(ref) : null;
+		if (target) {
+			outline(hoverBox, target);
+			hoverBox.dataset.hoverRef = ref ?? "";
+		} else {
+			hoverBox.hidden = true;
+			delete hoverBox.dataset.hoverRef;
+		}
+		for (const line of html.root.querySelectorAll(".hovered")) line.classList.remove("hovered");
+		if (ref && opened?.ref === ref.split("#")[0]) {
+			const at = html.get().indexOf(`data-wc-id="${ref.split("#")[1]}"`);
+			if (at >= 0) html.root.querySelectorAll(".line")[lineOf(html.get(), at) - 1]?.classList.add("hovered");
+		}
+		panelsAdapter?.hover(ref);
+	}
+
 	function pageElementFor(ref: string): Element | null {
 		for (const candidate of doc.querySelectorAll("[data-wc-code]")) {
 			if (candidate.getAttribute("data-wc-code") === ref) return candidate;
 		}
-		return null;
+		const placed = ref.replace("#", "/");
+		return (
+			[...doc.querySelectorAll("[data-wc-code]")].find((element) =>
+				element.getAttribute("data-wc-code")?.startsWith(`${placed}#`),
+			) ?? null
+		);
 	}
 
 	function outline(box: HTMLElement, target: Element, label?: string): void {
@@ -906,6 +1009,7 @@ export function codeMode(config: CodeModeConfig): void {
 		if (bar) bar.after(...rest);
 		else host.before(...rest);
 		if (skip) doc.body.prepend(skip);
+		panelsAdapter?.refresh();
 		const target = selectedRef ? pageElementFor(selectedRef) : null;
 		if (target) outline(selectedBox, target);
 		else selectedBox.hidden = true;
@@ -932,7 +1036,8 @@ export function codeMode(config: CodeModeConfig): void {
 	// ---------------------------------------------------------------------------------------------
 	// Selecting: the HTML panel
 
-	async function select(ref: string): Promise<void> {
+	async function select(ref: string, fromPanels = false): Promise<void> {
+		if (!fromPanels) inspectorRef = undefined;
 		if (!ref) return;
 		const sourceRef = ref.split("#")[0] ?? "";
 		if (opened && sourceRef !== opened.ref && html.get() !== savedMarkup) {
@@ -946,7 +1051,10 @@ export function codeMode(config: CodeModeConfig): void {
 			await preview();
 			return;
 		}
-		await Promise.all([open(ref), cssDirty() ? Promise.resolve() : loadCss(ref)]);
+		await Promise.all([
+			open(ref, sourceRef === opened?.ref && htmlDirty()),
+			cssDirty() ? Promise.resolve() : loadCss(ref),
+		]);
 	}
 
 	function currentName(): string {
@@ -969,9 +1077,7 @@ export function codeMode(config: CodeModeConfig): void {
 			showProblems("html", []);
 			setDirty("html");
 		}
-		html.readOnly(!fresh.source.editable);
-		htmlSave.disabled = !fresh.source.editable;
-		htmlFormat.disabled = !fresh.source.editable;
+		editorReady();
 		htmlTitle.textContent = sourceName(fresh.source.kind, fresh.source.name);
 		html.area.setAttribute("aria-label", word("htmlOf", { name: currentName() }));
 		renderBreadcrumb();
@@ -984,6 +1090,17 @@ export function codeMode(config: CodeModeConfig): void {
 		if (fresh.element) revealElement(fresh.element.id);
 		else html.mark(null);
 		if (!fresh.source.editable) setStatusText(word("readOnly", { name: currentName() }));
+		html.area.dataset.editorRef = fresh.ref;
+		if (!sameSource) html.area.dispatchEvent(new Event("editor-source"));
+		panelsAdapter?.select(inspectorRef ?? selectedRef ?? fresh.ref);
+	}
+
+	function editorReady(): void {
+		const editable = !!opened?.source.editable && panelReady.get(opened.ref) === true;
+		html.root.setAttribute("aria-busy", String(!!opened?.source.editable && !editable));
+		html.readOnly(!editable);
+		htmlSave.disabled = !editable;
+		htmlFormat.disabled = !editable;
 	}
 
 	function revealElement(elementId: string): void {
@@ -1052,7 +1169,9 @@ export function codeMode(config: CodeModeConfig): void {
 		if (!elementId) return;
 		const ref = `${opened.ref}#${elementId}`;
 		if (ref === selectedRef) return;
+		inspectorRef = undefined;
 		selectedRef = ref;
+		panelsAdapter?.select(ref);
 		html.mark(lineOf(html.get(), html.get().lastIndexOf("<", html.get().indexOf(`data-wc-id="${elementId}"`))));
 		const target = pageElementFor(ref);
 		if (target) {
@@ -1134,6 +1253,18 @@ export function codeMode(config: CodeModeConfig): void {
 		if (busy.has(htmlSave)) return;
 		busy.add(htmlSave);
 		setStatusText(word("saving"));
+		if (panelsAdapter) {
+			const saved = await panelsAdapter.save();
+			busy.delete(htmlSave);
+			if (saved) {
+				setDirty("html");
+				showProblems("html", []);
+				savedNote = word("savedName", { name: currentName() });
+				setStatusText(savedNote);
+				announce(savedNote);
+			} else await preview();
+			return;
+		}
 		const markup = html.get();
 		const answer = await call("code/save", {
 			path,
@@ -1999,6 +2130,33 @@ export function codeMode(config: CodeModeConfig): void {
 			"aria-autocomplete": "list",
 			"data-gramm": "false",
 		});
+		if (options.language === "markup") {
+			area.addEventListener("mousemove", (event) => {
+				const rect = area.getBoundingClientRect();
+				const style = win.getComputedStyle(area);
+				const line = Math.max(
+					0,
+					Math.floor(
+						(event.clientY - rect.top + area.scrollTop - Number.parseFloat(style.paddingTop)) /
+							(Number.parseFloat(style.lineHeight) || 20),
+					),
+				);
+				const column = Math.max(
+					0,
+					Math.floor(
+						(event.clientX - rect.left + area.scrollLeft - Number.parseFloat(style.paddingLeft)) /
+							measureChar(style.font),
+					),
+				);
+				const lines = area.value.split("\n");
+				const offset =
+					lines.slice(0, line).reduce((sum, text) => sum + text.length + 1, 0) +
+					Math.min(column, lines[line]?.length ?? 0);
+				const id = elementAt(area.value, offset);
+				setHover(id && opened ? `${opened.ref}#${id}` : null);
+			});
+			area.addEventListener("mouseleave", () => setHover(null));
+		}
 		const surface = el("div", { class: "surface" }, highlightLayer, caretLine, area);
 		const rootElement = el("div", { class: `editor language-${options.language}` }, gutter, surface);
 		let problemLines = new Set<number>();
@@ -2007,10 +2165,20 @@ export function codeMode(config: CodeModeConfig): void {
 		const paint = () => {
 			const text = area.value;
 			const lines = highlight(options.language, text);
+			const hoverAt =
+				options.language === "markup" && hoveredRef && opened?.ref === hoveredRef.split("#")[0]
+					? text.indexOf(`data-wc-id="${hoveredRef.split("#")[1]}"`)
+					: -1;
+			const hoverLine = hoverAt < 0 ? null : lineOf(text, hoverAt);
 			code.innerHTML = lines
 				.map((line, index) => {
 					const number = index + 1;
-					const classes = ["line", problemLines.has(number) ? "has-problem" : "", marked === number ? "marked" : ""];
+					const classes = [
+						"line",
+						problemLines.has(number) ? "has-problem" : "",
+						marked === number ? "marked" : "",
+						hoverLine === number ? "hovered" : "",
+					];
 					return `<span class="${classes.join(" ").trim()}">${line || " "}</span>`;
 				})
 				.join("");
@@ -2025,6 +2193,7 @@ export function codeMode(config: CodeModeConfig): void {
 				}),
 			);
 			sync();
+			if (options.language === "markup") showInsertion?.();
 		};
 		const sync = () => {
 			highlightLayer.scrollTop = area.scrollTop;

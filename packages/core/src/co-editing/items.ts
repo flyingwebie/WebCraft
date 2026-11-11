@@ -29,6 +29,7 @@ import { type Json, sameValue } from "./document.ts";
 export const LIVE_KINDS = [
 	"entry",
 	"globals",
+	"designSystem",
 	"template",
 	"component",
 	"popup",

@@ -27,7 +27,7 @@ export default defineConfig({
 					// @webcraft/db finds its migration files next to its own source, so the production
 					// bundle loads it (and its schema) from there at run time instead of copying it into
 					// dist/server. Drizzle stays outside too, so the bundle and @webcraft/db share one copy.
-					external: [/^@webcraft\/db(\/|$)/, /^drizzle-orm(\/|$)/],
+					external: [/^@webcraft\/db(\/|$)/, /^drizzle-orm(\/|$)/, /^@tailwindcss\/(node|oxide)$/],
 				},
 			},
 		},

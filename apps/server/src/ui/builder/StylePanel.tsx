@@ -4,9 +4,9 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "@webcraft/ui/co
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { Textarea } from "@webcraft/ui/components/textarea.tsx";
 import { ArrowDownIcon, ArrowUpIcon, PencilIcon, XIcon } from "lucide-react";
-import { type FormEvent, useEffect, useId, useState } from "react";
+import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
-import { getApi } from "../api.ts";
+import { useEditorApi } from "../builder/editor-api.tsx";
 import { cssOf, type Declaration, declarationsOf, PROPERTIES } from "../design-system/declarations.ts";
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
@@ -40,6 +40,7 @@ export function StylePanel({
 	onCatalogue(classes: Catalogue["classes"]): void;
 }) {
 	const t = useT();
+	const getApi = useEditorApi();
 	const id = useId();
 	const [adding, setAdding] = useState("");
 	const [addProblem, setAddProblem] = useState<string | null>(null);
@@ -268,6 +269,7 @@ function ClassEditor({
 	onSaved(classes: Catalogue["classes"]): void;
 }) {
 	const t = useT();
+	const getApi = useEditorApi();
 	const id = useId();
 	const found = catalogue.classes.find((each) => each.id === classId);
 	const [rows, setRows] = useState<Declaration[]>(() => [
@@ -277,8 +279,16 @@ function ClassEditor({
 	const [problem, setProblem] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
 	const name = found?.name ?? "";
+	const edit = useRef(0);
+	const savedEdit = useRef(0);
+	useEffect(() => {
+		// Follow a co-editor's saved styles while retaining unfinished local declarations.
+		if (edit.current === savedEdit.current)
+			setRows([...declarationsOf(found?.styles ?? ""), { property: "", value: "" }]);
+	}, [found?.styles]);
 
 	const change = (index: number, part: keyof Declaration, value: string) => {
+		edit.current++;
 		setRows((before) => {
 			const next = before.map((row, at) => (at === index ? { ...row, [part]: value } : row));
 			const last = next.at(-1);
@@ -290,9 +300,11 @@ function ClassEditor({
 		event.preventDefault();
 		setProblem(null);
 		setBusy(true);
+		const revision = edit.current;
 		try {
 			const api = await getApi();
 			const saved = await api.designSystem.updateClass({ siteId, classId, styles: cssOf(rows) });
+			savedEdit.current = revision;
 			onSaved(
 				saved.designSystem.draft.classes.map((each) => ({
 					id: each.id,

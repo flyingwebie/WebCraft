@@ -9,6 +9,7 @@
  * it and moves step over it, but it stays where it is, so switching to Template markup shows the
  * markup as it was typed.
  */
+
 import {
 	commandForNode,
 	type ElementNode,
@@ -22,6 +23,7 @@ import {
 	textPlacementProblem,
 	VOID_ELEMENTS,
 } from "@webcraft/renderer/builder";
+import type { Selection } from "./model.ts";
 
 /**
  * Where a node is: its index in the tree's top-level nodes, then, for each level down, which of its
@@ -46,6 +48,23 @@ export function placeOf(path: NodePath): Place {
 	const index = path.at(-1) ?? 0;
 	if (path.length === 1) return { owner: null, list: 0, index };
 	return { owner: path.slice(0, -2), list: path.at(-2) ?? 0, index };
+}
+
+/** One destination rule for toolbar insertion, row actions and either canvas's drops. */
+export function placeBy(tree: ElementTree, path: NodePath, position: DropPosition): Place {
+	const node = nodeAt(tree, path);
+	if (position === "inside" && node && canHoldChildren(node))
+		return { owner: path, list: 0, index: childLists(node)[0]?.length ?? 0 };
+	const place = placeOf(path);
+	return position === "before" ? place : { ...place, index: place.index + 1 };
+}
+
+export function insertionPlace(tree: ElementTree, selection: Selection | null, position: DropPosition): Place {
+	return selection?.kind === "node"
+		? placeBy(tree, selection.path, position)
+		: selection?.kind === "list"
+			? { ...selection.list, index: listAt(tree, selection.list).length }
+			: { owner: null, list: 0, index: tree.nodes.length };
 }
 
 /** The path of the node at `index` in a list. */

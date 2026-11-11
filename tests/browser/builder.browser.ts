@@ -4,7 +4,7 @@
 // keyboard is checked by what is saved: moving up, down, into the layer before and out, picking up
 // and putting down, cut, copy, paste, duplicate, delete and rename, each announced. Dragging on the
 // canvas, the Template markup view, the style panel and "Make it a Field" too.
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
@@ -26,6 +26,17 @@ const ENTRY_TEMPLATE =
 	'<ul data-wc-id="list"><li data-wc-id="one">One</li><li data-wc-id="two">Two</li><li data-wc-id="three">Three</li></ul>' +
 	'<section data-wc-id="box"></section></article>';
 
+const openedPages: Page[] = [];
+async function testPage(theme: "light" | "dark") {
+	const page = await install.newPage(theme);
+	page.setDefaultTimeout(10000);
+	openedPages.push(page);
+	return page;
+}
+afterEach(async () => {
+	await Promise.all(openedPages.splice(0).map((page) => page.close()));
+});
+
 beforeAll(async () => {
 	install = await startBrowserInstall();
 	const local = install.install;
@@ -46,6 +57,8 @@ beforeAll(async () => {
 	await resetTemplate();
 });
 
+beforeEach(resetTemplate);
+
 afterAll(async () => {
 	await install.close();
 });
@@ -65,7 +78,7 @@ async function draftMarkup(): Promise<string> {
 
 /** The builder open on the Entry template, its canvas showing the Entry saved last. */
 async function builderPage(theme: "light" | "dark" = "light"): Promise<Page> {
-	const page = await install.newPage(theme);
+	const page = await testPage(theme);
 	await install.signIn(page, staff);
 	await page.goto(install.adminUrl(`/builder/${siteId}/entry-template/${postTypeId}`));
 	await page.getByRole("tree", { name: "Layers" }).waitFor();
@@ -434,7 +447,7 @@ test("in the Site template, fixed text becomes a Global in one step; text longer
 		siteId,
 		markup: `<main data-wc-id="m">{{@outlet}}</main><footer data-wc-id="f"><p data-wc-id="hours">Open daily</p><p data-wc-id="terms">${terms}</p></footer>`,
 	});
-	const page = await install.newPage("light");
+	const page = await testPage("light");
 	await install.signIn(page, staff);
 	await page.goto(install.adminUrl(`/builder/${siteId}/site-template`));
 	await page.frameLocator("iframe[title^='Canvas']").getByText("Open daily").waitFor();
@@ -492,7 +505,7 @@ test("a Component: its fixed text becomes a Prop, saved with it, the text as its
 		componentId: component.id,
 		markup: '<aside data-wc-id="n"><p data-wc-id="m">Closed on Sundays</p></aside>',
 	});
-	const page = await install.newPage("light");
+	const page = await testPage("light");
 	await install.signIn(page, staff);
 	await page.goto(install.adminUrl(`/builder/${siteId}/component/${component.id}`));
 	await page.frameLocator("iframe[title^='Canvas']").getByText("Closed on Sundays").waitFor();

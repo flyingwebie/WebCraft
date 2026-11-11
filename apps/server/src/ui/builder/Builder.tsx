@@ -1,5 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { FieldInput } from "@webcraft/core";
+import type { Json } from "@webcraft/core/draft-document";
 import { type ElementTree, hasText, type TreeNode } from "@webcraft/renderer/builder";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button, buttonVariants } from "@webcraft/ui/components/button.tsx";
@@ -28,13 +29,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { getApi } from "../api.ts";
 import { Checks } from "../Checks.tsx";
+import { type SharedDraft, useSharedDraft } from "../co-editing/shared-draft.ts";
 import { StatusBadge } from "../content/DraftParts.tsx";
 import { Announcer } from "../content/reorder.tsx";
 import { errorCode, errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
 import { Canvas, type CanvasTarget, type CanvasWidth } from "./Canvas.tsx";
+import { loopCounts } from "./canvas-metadata.ts";
 import { FixedTextDialog, type MadeEditable } from "./FixedTextDialog.tsx";
 import { InsertDialog, type InsertWhere } from "./InsertDialog.tsx";
+import { InsertToolbar } from "./InsertToolbar.tsx";
 import { Inspector } from "./Inspector.tsx";
 import { type DropPosition, type LayerAction, LayersPanel, rowKey } from "./LayersPanel.tsx";
 import { type MarkupProblem, MarkupView } from "./MarkupView.tsx";
@@ -54,6 +58,7 @@ import {
 	childLists,
 	copiedIds,
 	insertAt,
+	insertionPlace,
 	isFixedText,
 	isFormatting,
 	listAt,
@@ -71,6 +76,7 @@ import {
 	type Refused,
 	removeAt,
 	replaceAt,
+	placeBy as sharedPlaceBy,
 	treeProblem,
 	withNewIds,
 } from "./tree.ts";
@@ -90,7 +96,7 @@ function docOf(opened: Opened): BuilderDoc {
  * to the admin, the name, where its Draft stands, the Visual and Template markup views, the canvas's
  * width and light/dark preview, fixed text shown or not, undo and redo, Save and Publish), then the
  * Layers panel, the canvas and the selected layer's settings and styles. The builder and the Template
- * markup view are two views of one Draft: both save through the same markup save.
+ * markup view edit the same shared Draft as Code mode.
  */
 export function Builder({
 	siteId,
@@ -139,6 +145,7 @@ export function Builder({
 	const [showChecks, setShowChecks] = useState(false);
 	const [announcement, setAnnouncement] = useState({ text: "", count: 0 });
 	const [insertOpen, setInsertOpen] = useState(false);
+	const [quickInsert, setQuickInsert] = useState<string | null>(null);
 	const [insertWhere, setInsertWhere] = useState<InsertWhere>("inside");
 	const [fixedTextAt, setFixedTextAt] = useState<NodePath | null>(null);
 	const [conflict, setConflict] = useState<{ version: string | null } | null>(null);
@@ -151,6 +158,9 @@ export function Builder({
 	const fixedTextTrigger = useRef<HTMLElement | null>(null);
 	const docRef = useRef(doc);
 	docRef.current = doc;
+	const markupPending = useRef<ReturnType<SharedDraft["prepare"]>>(null);
+	const viewRef = useRef(view);
+	viewRef.current = view;
 
 	const catalogue = opened.catalogue;
 	const allows = useMemo(
@@ -158,7 +168,7 @@ export function Builder({
 		[catalogue],
 	);
 	const title = targetTitle(t, opened, target);
-	const dirty = JSON.stringify(doc) !== saved || (view === "markup" && markup !== markupBase);
+
 	const status = opened.template?.status ?? opened.component?.status ?? null;
 	const fixedTextAction = target.kind === "component" ? "prop" : target.kind === "entryTemplate" ? "field" : "global";
 	/** A Component's Props, sent only when the builder changed them (else the Draft's stay as they are). */
@@ -171,6 +181,115 @@ export function Builder({
 	const announce = useCallback((text: string) => {
 		setAnnouncement((before) => ({ text, count: before.count + 1 }));
 	}, []);
+	useSharedDraft({
+		path: `/api/drafts/${siteId}/designSystem`,
+		onRemote() {
+			setDesignVersion((count) => count + 1);
+			void getApi()
+				.then((api) => api.builder.open({ siteId, target }))
+				.then(setOpened)
+				.catch((failure) => setProblems(treeProblemsOf(failure, t(errorMessage(failure)))));
+		},
+	});
+	const documentId = opened.component?.id ?? opened.template?.id;
+	const shared = useSharedDraft({
+		path: documentId ? `/api/drafts/${siteId}/${opened.component ? "component" : "template"}/${documentId}` : null,
+		onRemote(value) {
+			const component = target.kind === "component" ? (value as { tree: Json; props: Json }) : null;
+			const next: BuilderDoc = {
+				...docRef.current,
+				tree: (component ? component.tree : value) as unknown as ElementTree,
+				props: component ? (component.props as unknown as FieldInput[]) : null,
+			};
+			if (JSON.stringify(next) === JSON.stringify(docRef.current)) return;
+			// Old snapshots cannot safely undo another person's work. The tab-wide history (#138)
+			// replaces these local Builder steps; until then discard inapplicable snapshots.
+			if (history.current.past.length) announce(t("builder.historyChanged"));
+			history.current = { past: [], future: [] };
+			setGrab(null);
+			docRef.current = next;
+			setDoc(next);
+			if (viewRef.current === "markup" && !markupPending.current) {
+				void getApi()
+					.then((api) =>
+						api.builder.markup({
+							siteId,
+							target,
+							tree: next.tree,
+							styles: next.styles,
+							...(next.props ? { props: next.props } : {}),
+						}),
+					)
+					.then((printed) => {
+						if (docRef.current === next && !markupPending.current) {
+							setMarkup(printed.markup);
+							setMarkupBase(printed.markup);
+						}
+					})
+					.catch((failure) => setMarkupProblems(markupProblemsOf(failure, t(errorMessage(failure)))));
+			}
+			if (!Object.keys(next.styles).length) setSaved(JSON.stringify(next));
+		},
+		onRefused(refusal) {
+			setProblems(treeProblemsOf(refusal, t(errorMessage(refusal))));
+		},
+		onSettled: async () => {
+			try {
+				setOpened(await (await getApi()).builder.open({ siteId, target }));
+			} catch (failure) {
+				setProblems(treeProblemsOf(failure, t(errorMessage(failure))));
+			}
+		},
+	});
+	const dirty =
+		(documentId ? shared.status === "saving" || Object.keys(doc.styles).length > 0 : JSON.stringify(doc) !== saved) ||
+		(view === "markup" && markup !== markupBase);
+
+	const writeShared = useCallback(
+		(next: BuilderDoc) => {
+			if (!documentId) return true;
+			return shared.change((current) =>
+				target.kind === "component"
+					? {
+							...(current as Record<string, Json>),
+							tree: next.tree as unknown as Json,
+							props: next.props as unknown as Json,
+						}
+					: (next.tree as unknown as Json),
+			);
+		},
+		[documentId, shared.change, target.kind],
+	);
+	const acceptMarkup = useCallback(
+		(read: { tree: ElementTree; styles: Record<string, string>; props?: FieldInput[] | null }): BuilderDoc | null => {
+			let next: BuilderDoc = { tree: read.tree, styles: read.styles, props: read.props ?? docRef.current.props };
+			if (documentId) {
+				const pending = markupPending.current ?? shared.prepare();
+				if (!pending) return null;
+				const value =
+					target.kind === "component"
+						? {
+								...(pending.before as Record<string, Json>),
+								tree: next.tree as unknown as Json,
+								props: next.props as unknown as Json,
+							}
+						: (next.tree as unknown as Json);
+				markupPending.current = null;
+				if (!pending.apply(value)) return null;
+				const merged = shared.draft();
+				next = {
+					...next,
+					tree: (target.kind === "component" ? (merged as { tree: Json }).tree : merged) as unknown as ElementTree,
+					props: target.kind === "component" ? (merged as unknown as { props: FieldInput[] }).props : null,
+				};
+			}
+			docRef.current = next;
+			setDoc(next);
+			return next;
+		},
+		[documentId, shared.prepare, shared.draft, target.kind],
+	);
+	useEffect(() => () => markupPending.current?.cancel(), []);
 
 	// ---------------------------------------------------------------------------------------------
 	// Changing the Draft
@@ -183,17 +302,22 @@ export function Builder({
 				announce(problem.message);
 				return problem.message;
 			}
+			if (!writeShared(next)) {
+				announce(t(`coEditing.status.${shared.status}`));
+				return t(`coEditing.status.${shared.status}`);
+			}
 			history.current = {
 				past: [...history.current.past.slice(-HISTORY + 1), docRef.current],
 				future: [],
 			};
 			setHistoryVersion((count) => count + 1);
 			setDoc(next);
+			docRef.current = next;
 			setSelection(select);
 			announce(message);
 			return undefined;
 		},
-		[allows, announce],
+		[allows, announce, writeShared, shared.status, t],
 	);
 
 	const nameAt = (tree: ElementTree, path: NodePath) => {
@@ -224,15 +348,8 @@ export function Builder({
 		);
 	};
 
-	/** Where something goes beside or inside a layer. */
-	const placeBy = (path: NodePath, position: DropPosition | InsertWhere): Place => {
-		const node = nodeAt(doc.tree, path);
-		const place = placeOf(path);
-		if (position === "inside" && node && canHoldChildren(node)) {
-			return { owner: path, list: 0, index: childLists(node)[0]?.length ?? 0 };
-		}
-		return position === "before" ? place : { ...place, index: place.index + 1 };
-	};
+	const placeBy = (path: NodePath, position: DropPosition | InsertWhere): Place =>
+		sharedPlaceBy(doc.tree, path, position);
 
 	const act = (action: LayerAction) => {
 		if (action === "paste") return paste();
@@ -327,6 +444,7 @@ export function Builder({
 			setGrab(null);
 			announce(t("builder.moves.dropped", { name, where: whereIs(doc.tree, selection.path) }));
 		} else if (grab) {
+			if (!writeShared(grab.doc)) return;
 			history.current = { past: grab.past, future: [] };
 			setHistoryVersion((count) => count + 1);
 			setDoc(grab.doc);
@@ -353,29 +471,26 @@ export function Builder({
 		const { past, future } = history.current;
 		const previous = past.at(-1);
 		if (!previous) return;
+		if (!writeShared(previous)) return;
 		history.current = { past: past.slice(0, -1), future: [docRef.current, ...future] };
 		setHistoryVersion((count) => count + 1);
 		setDoc(previous);
 		announce(t("builder.undone"));
-	}, [announce, t]);
+	}, [announce, t, writeShared]);
 
 	const redo = useCallback(() => {
 		const { past, future } = history.current;
 		const next = future[0];
 		if (!next) return;
+		if (!writeShared(next)) return;
 		history.current = { past: [...past, docRef.current], future: future.slice(1) };
 		setHistoryVersion((count) => count + 1);
 		setDoc(next);
 		announce(t("builder.redone"));
-	}, [announce, t]);
+	}, [announce, t, writeShared]);
 
 	const insert = (nodes: TreeNode[]): string | undefined => {
-		const place: Place =
-			selection?.kind === "node"
-				? placeBy(selection.path, insertWhere)
-				: selection?.kind === "list"
-					? { ...selection.list, index: listAt(doc.tree, selection.list).length }
-					: { owner: null, list: 0, index: doc.tree.nodes.length };
+		const place = insertionPlace(doc.tree, selection, insertWhere);
 		const made = insertAt(doc.tree, place, nodes);
 		const name = nameAt(made.tree, made.path);
 		return apply(
@@ -452,12 +567,18 @@ export function Builder({
 			try {
 				const api = await getApi();
 				const read = await api.builder.read({ siteId, target, markup, ...propsChange(doc) });
+				if (!current) return;
+				if (markupPending.current || (!documentId && markup !== markupBase)) {
+					if (!acceptMarkup(read)) return;
+					setMarkupBase(markup);
+				}
+				const props = (read as typeof read & { props?: FieldInput[] | null }).props ?? doc.props;
 				const shown = await api.builder.preview({
 					siteId,
 					target,
 					tree: read.tree,
 					styles: read.styles,
-					...propsChange(doc),
+					...(props ? { props } : {}),
 				});
 				if (!current) return;
 				setPreview(shown);
@@ -470,7 +591,7 @@ export function Builder({
 			current = false;
 			clearTimeout(handle);
 		};
-	}, [markup, view, siteId, target, doc, t, propsChange]);
+	}, [markup, markupBase, documentId, view, siteId, target, doc, t, propsChange, acceptMarkup]);
 
 	const placeholderWords = useCallback(
 		(kind: string, name: string | null) => {
@@ -536,7 +657,7 @@ export function Builder({
 			} else {
 				if (markup !== markupBase) {
 					const read = await api.builder.read({ siteId, target, markup, ...propsChange(doc) });
-					apply({ ...doc, tree: read.tree, styles: read.styles }, null, t("builder.view.toVisual"));
+					if (!acceptMarkup(read)) return;
 				} else {
 					announce(t("builder.view.toVisual"));
 				}
@@ -554,25 +675,37 @@ export function Builder({
 	/** Saves the Draft; answers the builder reopened on what was saved, or null when it wasn't. */
 	const save = async (over?: { version: string | null }): Promise<Opened | null> => {
 		setBusy("save");
-		const started = docRef.current;
+		let started = docRef.current;
 		try {
 			const api = await getApi();
-			const text =
-				view === "markup"
-					? markup
-					: (
-							await api.builder.markup({
-								siteId,
-								target,
-								tree: started.tree,
-								styles: started.styles,
-								...propsChange(started),
-							})
-						).markup;
+			if (view === "markup" && (markupPending.current || markup !== markupBase)) {
+				const read = await api.builder.read({ siteId, target, markup, ...propsChange(started) });
+				const next = acceptMarkup(read);
+				if (!next) return null;
+				started = next;
+				setMarkupBase(markup);
+			}
+			if (documentId && !(await shared.flush())) return null;
+			const latest = documentId ? await api.builder.open({ siteId, target }) : opened;
+			if (documentId && Object.keys(started.styles).length === 0) {
+				setOpened(latest);
+				setSaved(JSON.stringify(docOf(latest)));
+				announce(t("builder.saved", { name: title }));
+				return latest;
+			}
+			const text = (
+				await api.builder.markup({
+					siteId,
+					target,
+					tree: started.tree,
+					styles: started.styles,
+					...propsChange(started),
+				})
+			).markup;
 			const stored = await saveDraft(api, siteId, target, {
 				markup: text,
 				props: propsChange(started).props ?? null,
-				basedOn: over ? over.version : opened.version,
+				basedOn: over ? over.version : latest.version,
 			});
 			const fresh = await api.builder.open({ siteId, target });
 			setOpened(fresh);
@@ -583,6 +716,11 @@ export function Builder({
 				setSaved(JSON.stringify(next));
 				setSelection((before) => (before?.kind === "node" && !nodeAt(next.tree, before.path) ? null : before));
 			} else {
+				if (JSON.stringify(docRef.current.styles) === JSON.stringify(started.styles)) {
+					const next = { ...docRef.current, styles: {} };
+					docRef.current = next;
+					setDoc(next);
+				}
 				setSaved(JSON.stringify(docOf(fresh)));
 			}
 			if (view === "markup") {
@@ -610,6 +748,13 @@ export function Builder({
 			setBusy(null);
 		}
 	};
+	const saveNow = useRef(save);
+	saveNow.current = save;
+	useEffect(() => {
+		if (!Object.keys(doc.styles).length && (documentId || !dirty)) return;
+		const timer = setTimeout(() => void saveNow.current(), 400);
+		return () => clearTimeout(timer);
+	}, [doc.styles, documentId, dirty]);
 
 	const publish = async () => {
 		let current: Opened | null = opened;
@@ -693,6 +838,7 @@ export function Builder({
 	}, []);
 
 	const openInsert = () => {
+		setQuickInsert(null);
 		const node = selection?.kind === "node" ? nodeAt(doc.tree, selection.path) : undefined;
 		setInsertWhere(node && canHoldChildren(node) ? "inside" : "after");
 		setInsertOpen(true);
@@ -832,7 +978,7 @@ export function Builder({
 						size="sm"
 						variant="outline"
 						aria-keyshortcuts="Control+S"
-						disabled={busy !== null || !dirty}
+						disabled={busy !== null || (!dirty && shared.status === "saved") || (!!documentId && !shared.writable)}
 						onClick={() => void save()}
 					>
 						{busy === "save" ? t("builder.saving") : t("builder.save")}
@@ -854,7 +1000,22 @@ export function Builder({
 			>
 				{view === "visual" ? (
 					<section aria-labelledby="layers-heading" className="flex min-h-0 flex-col border-e">
+						<InsertToolbar
+							where={insertWhere}
+							canInside={!!selectedNode && canHoldChildren(selectedNode)}
+							onWhere={setInsertWhere}
+							onPick={(item, button) => {
+								setQuickInsert(item);
+								insertTrigger.current = button;
+								setInsertOpen(true);
+							}}
+						/>
 						<LayersPanel
+							counts={preview ? loopCounts(new DOMParser().parseFromString(preview.html, "text/html")) : undefined}
+							onHidden={(path, hidden) => {
+								const node = nodeAt(doc.tree, path);
+								if (node?.type === "component") replace(path, { ...node, hidden }, t("builder.inspector.changed"));
+							}}
 							tree={doc.tree}
 							catalogue={catalogue}
 							selection={selection}
@@ -892,7 +1053,14 @@ export function Builder({
 					</section>
 				) : (
 					<section aria-label={t("builder.markup.label")} className="flex min-h-0 flex-col border-e">
-						<MarkupView value={markup} onChange={setMarkup} problems={markupProblems} />
+						<MarkupView
+							value={markup}
+							onChange={(text) => {
+								markupPending.current ??= shared.prepare();
+								setMarkup(text);
+							}}
+							problems={markupProblems}
+						/>
 					</section>
 				)}
 				<section aria-label={t("builder.canvas.label")} className="bg-muted flex min-h-[24rem] flex-col">
@@ -1035,6 +1203,7 @@ export function Builder({
 				<Announcer message={`${announcement.text}${announcement.count % 2 === 0 ? "" : " "}`} />
 			</main>
 			<InsertDialog
+				quick={quickInsert}
 				open={insertOpen}
 				onOpenChange={setInsertOpen}
 				finalFocus={insertTrigger}

@@ -21,10 +21,11 @@ html.wc-edit-on [data-wc-field]:focus {
 html.wc-edit-on [data-wc-field][data-wc-invalid] { outline: 2px solid #b91c1c; }
 webcraft-code-mode { display: block !important; }
 html.wc-code { scroll-padding-bottom: calc(42vh + 1rem); }
-html.wc-code body { padding-bottom: calc(42vh + 1rem); }
+html.wc-code body { padding-bottom: calc(42vh + 1rem); margin-inline:16rem 18rem !important; }
 html.wc-code.wc-code-collapsed { scroll-padding-bottom: 6rem; }
 html.wc-code.wc-code-collapsed body { padding-bottom: 6rem; }
 html.wc-code [data-wc-code] { cursor: pointer; }
+html [data-wc-hidden-placement]:not([data-wc-hidden-placement] *) { opacity:.45; }
 .wc-outside-scripts {
 	margin: 2rem auto; max-width: 48rem; padding: 0.75rem 1rem;
 	border: 1px dashed #71717a; border-radius: 0.75rem;
@@ -511,4 +512,6 @@ dialog::backdrop { background: rgba(9, 9, 11, 0.5); }
 @media (prefers-reduced-motion: no-preference) {
 	.segment, .control, .tool, .publish { transition: background-color 120ms ease; }
 }
+
+
 `;

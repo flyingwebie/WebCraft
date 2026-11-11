@@ -199,6 +199,7 @@ export async function renderPreview(
 		component: placed.render,
 		time: { now: scope.now(), changesAt: () => {} },
 		codeSource: CANVAS_SOURCE,
+		showHiddenPlacements: true,
 	};
 	const html = renderTree(input.tree, options);
 	// A Component's unfilled Props are unknown here; actual Placements and Entry samples use their real values.

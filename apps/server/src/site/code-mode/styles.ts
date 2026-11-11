@@ -5,6 +5,20 @@
  * the editing bar's page stylesheet (`PAGE_STYLES`).
  */
 export const CODE_STYLES = `
+/* Only canvas placement differs; controls use the Builder's compiled theme and utilities. */
+.editor-panels { --radius: 0.625rem; --focus:#fb923c; font:13px/1.4 system-ui; color:var(--foreground); }
+.editor-panels .editor-left, .editor-panels .editor-right { position:fixed; top:3.5rem; bottom:0; z-index:2147482990; background:#121214; overflow:auto; border:1px solid #2a2a30; }
+.editor-left { left:0; width:16rem; } .editor-right { right:0; width:18rem; }
+.editor-panels > aside > fieldset { min-width:0; border:0; padding:0; margin:0; }
+.editor-panels [role=treeitem][data-hidden] { opacity:.6; }
+.editor-panels .layer-divider { padding:8px; color:#a1a1aa; border-top:1px solid #52525b; }
+.editor-panels [data-slot=dialog-overlay] { z-index:2147483000; }
+.editor-panels [data-slot=dialog-content] { z-index:2147483001; max-height:80vh; overflow:auto; }
+.outline.insert { background:#4ade80; border:0; }
+.line.hovered { outline:1px solid #a1a1aa; background:#27272a; }
+.editor-panels [data-hovered] { outline:1px solid #a1a1aa; }
+.line.insertion-context { position: absolute; inset: auto 0 0 3rem; z-index: 2; margin: 0; padding: 0.5rem; background: #17251e; color: #bbf7d0; white-space: pre-wrap; font: 12px/20px ui-monospace, monospace; }
+.insert-line { box-shadow:inset 0 -2px #4ade80; }
 :host { all: initial; }
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -31,13 +45,14 @@ export const CODE_STYLES = `
 	overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
 }
 button, select, textarea { font: inherit; color: inherit; }
-button { cursor: pointer; border: 0; background: none; }
+:where(.code-mode, .suggest, .dialog-backdrop) button { cursor: pointer; border: 0; background: none; }
 button:disabled, select:disabled { cursor: default; opacity: 0.6; }
+.code-mode button:disabled, .code-mode select:disabled { opacity:1; color:var(--muted); background:var(--panel-raised); }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 svg { flex: none; }
 
 .code-mode {
-	position: fixed; inset-inline: 0; inset-block-end: 0; z-index: 2147482990;
+	position: fixed; inset-inline: 16rem 18rem; inset-block-end: 0; z-index: 2147482990;
 	height: 42vh; min-height: 16rem;
 	display: flex; flex-direction: column;
 	background: var(--panel); border-top: 1px solid var(--line);
@@ -168,7 +183,7 @@ svg { flex: none; }
 .statusline p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .outline { position: fixed; z-index: 2147482980; pointer-events: none; border-radius: 2px; }
-.outline.hover { outline: 1px dashed #818cf8; outline-offset: 2px; }
+.outline.hover { outline: 1px solid #a1a1aa; outline-offset: 2px; }
 .outline.selected { outline: 2px solid #6366f1; outline-offset: 2px; }
 .outline-label {
 	position: absolute; inset-block-end: calc(100% + 2px); inset-inline-start: -2px; white-space: nowrap;

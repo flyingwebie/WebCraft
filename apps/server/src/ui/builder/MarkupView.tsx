@@ -10,7 +10,7 @@ export type MarkupProblem = { line: number; column: number; message: string };
 /**
  * The Template markup view (ADR 0017): the same Draft as the builder, as text. Switching to it prints
  * the tree; switching back reads the text into the tree, with every problem's line and column (a
- * button moves the caret there). Nothing is saved until Save, and nothing is reformatted: markup
+ * button moves the caret there). Valid changes reach the shared Draft; markup is not reformatted: text
  * typed with its own line breaks comes back exactly as typed.
  */
 export function MarkupView({

@@ -191,6 +191,6 @@ function protocolsOf(request: Request): string[] {
 function itemOf(parts: readonly string[]): HistoryItem | null {
 	const [kind = "", id, ...more] = parts;
 	if (more.length > 0 || !isLiveKind(kind)) return null;
-	if (kind === "globals") return id === undefined || id === "" ? { kind } : null;
+	if (kind === "globals" || kind === "designSystem") return id === undefined || id === "" ? { kind } : null;
 	return id && isUuid(id) ? { kind, id } : null;
 }

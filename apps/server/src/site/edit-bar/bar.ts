@@ -1872,18 +1872,9 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		];
 		const items = [...new Set(shown)].filter((item) => item === "globals" || item.startsWith("entry:"));
 		if (items.length === 0) return;
-		doc.addEventListener(
-			"webcraft:drafts",
-			(event) => {
-				const module = (event as CustomEvent<DraftsModule>).detail;
-				for (const item of items) openDraft(module, item);
-			},
-			{ once: true },
-		);
-		const script = doc.createElement("script");
-		script.type = "module";
-		script.src = config.drafts;
-		doc.head.append(script);
+		void import(config.drafts).then((module: DraftsModule) => {
+			for (const item of items) openDraft(module, item);
+		});
 	}
 
 	function openDraft(module: DraftsModule, item: string): void {

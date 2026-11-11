@@ -290,6 +290,7 @@ export function createCoEditing(deps: CoEditingDeps): CoEditing {
 			.where(scope.where(draftDocuments, eq(draftDocuments.id, live.id)));
 		if (!row) return;
 		const vector = Y.encodeStateVector(live.doc);
+		const previous = live.through;
 		let after = live.through;
 		if (row.stateThrough > live.through) {
 			Y.applyUpdate(live.doc, row.state, "server");
@@ -297,7 +298,8 @@ export function createCoEditing(deps: CoEditingDeps): CoEditing {
 		}
 		live.through = await applyChanges(scope, live.doc, live.id, after, "server");
 		const update = Y.encodeStateAsUpdate(live.doc, vector);
-		if (!sameBytes(vector, Y.encodeStateVector(live.doc))) {
+		// A recorded deletion must reach peers even when its state vector is unchanged.
+		if (live.through > previous || row.stateThrough > previous) {
 			for (const connection of live.connections) sendFrame(connection, "changed", update);
 		}
 	};
@@ -745,8 +747,4 @@ export function createCoEditing(deps: CoEditingDeps): CoEditing {
 			if (open) await (await open.catch(() => null))?.close();
 		},
 	};
-}
-
-function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
-	return a.length === b.length && a.every((byte, index) => byte === b[index]);
 }

@@ -822,9 +822,16 @@ class MarkupParser {
 		);
 		if (boundary) this.problem(offset, boundary);
 		let id: string | undefined;
+		let hidden = false;
 		const props: PropValue[] = [];
 		const given = new Set<string>();
 		for (const attribute of written) {
+			if (attribute.name === "data-wc-hidden") {
+				if (attribute.bound || !["", "true", "false"].includes(attribute.text))
+					this.problem(attribute.valueOffset, "data-wc-hidden is true or false.");
+				hidden = attribute.text !== "false";
+				continue;
+			}
 			if (attribute.name === ID_ATTRIBUTE) {
 				if (attribute.bound || !isElementId(attribute.text)) {
 					this.problem(attribute.valueOffset, `${ID_ATTRIBUTE} is 1 to 64 letters, digits, dashes and underscores.`);
@@ -864,7 +871,13 @@ class MarkupParser {
 				this.problem(offset, `${found.name} needs ${prop.key}: the Prop is required.`);
 			}
 		}
-		return { type: "component", id: this.elementId(id, offset), component: found.id, props };
+		return {
+			type: "component",
+			id: this.elementId(id, offset),
+			component: found.id,
+			props,
+			...(hidden ? { hidden: true } : {}),
+		};
 	}
 
 	private expectEndTag(end: End, tag: string, name: string, offset: number): void {

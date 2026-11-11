@@ -23,7 +23,7 @@ import type { TestBrowser, TestInstall } from "./index.ts";
 /** An item as Co-editing names it. */
 export type DraftItem =
 	| { kind: "entry" | "template" | "component" | "popup" | "popupContent"; id: string }
-	| { kind: "globals" };
+	| { kind: "globals" | "designSystem" };
 
 /** One editor with a Draft open. */
 export type TestEditor = {

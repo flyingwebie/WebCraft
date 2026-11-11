@@ -7,8 +7,8 @@ import type { BuilderTarget } from "./model.ts";
  * Saves the builder's Draft (ADR 0017): Template markup, through the same saves as Code mode, the CLI
  * and AI clients, based on the version the builder opened (`CHANGED_MEANWHILE` when someone saved it
  * since), with a Component's Props. One-off styles in the markup become generated Classes there. The
- * one place the builder writes its Draft: Co-editing (ADR 0025) replaces it with changes to the
- * Draft's shared document.
+ * shared document handles tree and Prop edits; this path creates a first Draft and materializes
+ * pending inline styles as Classes through the canonical saver.
  */
 export async function saveDraft(
 	api: ApiClient,

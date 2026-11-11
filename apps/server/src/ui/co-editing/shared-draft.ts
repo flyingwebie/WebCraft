@@ -27,10 +27,13 @@ export type SharedDraft = {
 	participants: Participant[];
 	/** Whether the person may change it. */
 	editable: boolean;
+	/** Permission plus a loaded document and an editing connection state. */
+	writable: boolean;
 	/** The Draft as this editor's copy holds it now. */
 	draft(): DocumentJson;
 	/** Changes the Draft: a function of what it holds, answering the new Draft. False while it can't be changed. */
 	change(next: (current: DocumentJson) => DocumentJson): boolean;
+	prepare: DraftClient["prepare"];
 	/** Says where the person is (a value's key), or nowhere. */
 	place(at: string | null): void;
 	/** Sends what is waiting and waits until it is saved: false when it can't be (offline, refused). */
@@ -45,7 +48,8 @@ const FINAL_CLOSES = new Set([4401, 4403]);
 
 export function useSharedDraft(options: {
 	/** The socket's path on the admin host, such as `/api/drafts/<site id>/entry/<entry id>`. */
-	path: string;
+	path: string | null;
+	token?: string;
 	/** Someone else's change arrived (or the Draft started again from the server's): show it. */
 	onRemote(draft: DocumentJson): void;
 	/** A moment after changes were saved (anyone's): read what the server worked out (problems, status). */
@@ -55,12 +59,14 @@ export function useSharedDraft(options: {
 }): SharedDraft {
 	const [status, setStatus] = useState<DraftStatus>("connecting");
 	const [participants, setParticipants] = useState<Participant[]>([]);
-	const [editable, setEditable] = useState(true);
+	const [editable, setEditable] = useState(false);
 	const client = useRef<DraftClient | null>(null);
 	const handlers = useRef(options);
 	handlers.current = options;
 
 	useEffect(() => {
+		const path = options.path;
+		if (!path) return;
 		let stopped = false;
 		let socket: WebSocket | null = null;
 		let attempt = 0;
@@ -96,9 +102,12 @@ export function useSharedDraft(options: {
 
 		const open = () => {
 			if (stopped) return;
-			const url = new URL(options.path, window.location.href);
+			const url = new URL(path, window.location.href);
 			url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-			const opened = new WebSocket(url, [DRAFTS_PROTOCOL]);
+			const opened = new WebSocket(url, [
+				DRAFTS_PROTOCOL,
+				...(options.token ? [`webcraft-edit-token.${options.token}`] : []),
+			]);
 			opened.binaryType = "arraybuffer";
 			socket = opened;
 			let ends: ReturnType<DraftClient["connect"]> | null = null;
@@ -137,7 +146,7 @@ export function useSharedDraft(options: {
 			socket?.close();
 			client.current = null;
 		};
-	}, [options.path]);
+	}, [options.path, options.token]);
 
 	const change = useCallback((next: (current: DocumentJson) => DocumentJson) => {
 		const draft = client.current;
@@ -158,6 +167,8 @@ export function useSharedDraft(options: {
 		return false;
 	}, []);
 	const read = useCallback(() => client.current?.draft() ?? null, []);
+	const prepare = useCallback(() => client.current?.prepare() ?? null, []);
 
-	return { status, participants, editable, draft: read, change, place, flush };
+	const writable = editable && (status === "saved" || status === "saving" || status === "offline");
+	return { status, participants, editable, writable, draft: read, change, prepare, place, flush };
 }

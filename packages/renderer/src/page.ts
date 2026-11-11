@@ -384,6 +384,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		editLoop: editMode && !editMode.code ? (name) => editMode.loop?.(name) : undefined,
 		markBodyBlocks: Boolean(editMode && !editMode.code),
 		codeSource: editMode?.code || page.checkMarkup ? "content" : undefined,
+		showHiddenPlacements: Boolean(editMode),
 	});
 	let linked = false;
 	const footer = () => {
@@ -421,6 +422,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		editLoop: editMode && !editMode.code ? (name) => editMode.loop?.(name) : undefined,
 		markBodyBlocks: Boolean(editMode && !editMode.code),
 		codeSource: editMode?.code || page.checkMarkup ? "site" : undefined,
+		showHiddenPlacements: Boolean(editMode),
 	});
 	if (page.footerLink && !linked) body += `<footer>${footer()}</footer>`;
 

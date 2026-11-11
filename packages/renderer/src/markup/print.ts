@@ -102,7 +102,7 @@ function printNode(node: TreeNode, options: PrintMarkupOptions): string {
 				props += prop.value.length === 0 ? ` ${prop.name}` : ` ${prop.name}="${prop.value.map(printPart).join("")}"`;
 			}
 			const name = options.componentName?.(node.component) ?? node.component;
-			return `<${name}${props} ${ID_ATTRIBUTE}="${markupText(node.id, true)}" />`;
+			return `<${name}${props}${node.hidden ? ' data-wc-hidden="true"' : ""} ${ID_ATTRIBUTE}="${markupText(node.id, true)}" />`;
 		}
 	}
 	const command = commandForNode(node.type);

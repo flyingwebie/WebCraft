@@ -20,6 +20,7 @@ import { type ImagePriority, type MediaReader, mediaReference, renderMediaImage 
 import { cleanRichText } from "./rich-text.ts";
 import {
 	type Attribute,
+	childListsOf,
 	type ElementNode,
 	type ElementTree,
 	type FilterNode,
@@ -147,6 +148,8 @@ export type RenderOptions = {
 	 * Component it comes from. Absent for the pages visitors get, which carry no such attributes.
 	 */
 	codeSource?: string;
+	/** Hidden Placements remain visible to editors, including the Builder's preview canvas. */
+	showHiddenPlacements?: boolean;
 	/**
 	 * Edit mode's body editor (#79): marks each Block of a body with HTML comments, so the editor finds
 	 * what each shows (`RenderBodyOptions.markBlocks`). Absent for the pages visitors get.
@@ -185,7 +188,28 @@ export type PlacementRenderer = (
  * How deep the render is in Components and in Loops, how many nodes Components have shown on the
  * page so far, and how many Loop items.
  */
-type RenderState = { depth: number; loops: number; budget: { nodes: number }; items: { count: number } };
+type RenderState = {
+	depth: number;
+	loops: number;
+	budget: { nodes: number };
+	items: { count: number };
+	paths?: WeakMap<TreeNode, string>;
+};
+
+/** Paths shared by the renderer and Layers tree; commands have no element id of their own. */
+function nodePaths(tree: ElementTree): WeakMap<TreeNode, string> {
+	const paths = new WeakMap<TreeNode, string>();
+	const visit = (nodes: readonly TreeNode[], prefix: number[]) =>
+		nodes.forEach((node, index) => {
+			const path = [...prefix, index];
+			paths.set(node, path.join("."));
+			childListsOf(node).forEach((children, list) => {
+				visit(children, [...path, list]);
+			});
+		});
+	visit(tree.nodes, []);
+	return paths;
+}
 
 /**
  * Renders a tree's nodes as HTML. Every value is escaped for where it lands (text, an attribute, a
@@ -196,7 +220,13 @@ export function renderTree(tree: ElementTree, options: RenderOptions): string {
 	return renderNodes(
 		tree.nodes,
 		{ ...options, values: withLoopStats(options.values, options) },
-		{ depth: 0, loops: 0, budget: { nodes: 0 }, items: options.loopItemsShown ?? { count: 0 } },
+		{
+			depth: 0,
+			loops: 0,
+			budget: { nodes: 0 },
+			items: options.loopItemsShown ?? { count: 0 },
+			paths: options.codeSource ? nodePaths(tree) : undefined,
+		},
 	);
 }
 
@@ -324,8 +354,12 @@ function renderLoop(node: LoopNode, options: RenderOptions, state: RenderState):
 	const items = all.slice(0, Math.max(0, LOOP_LIMITS.items - state.items.count));
 	state.items.count += items.length;
 	const mark = run ? options.editLoop?.(node.source) : undefined;
-	const marked = (html: string) =>
-		mark ? `<!--wc-loop ${mark.map(markToken).join(" ")}-->${html}<!--/wc-loop-->` : html;
+	const marked = (html: string) => {
+		const code = options.codeSource
+			? `<!--wc-code-loop ${options.codeSource}:${state.paths?.get(node)} ${items.length}-->`
+			: "";
+		return code + (mark ? `<!--wc-loop ${mark.map(markToken).join(" ")}-->${html}<!--/wc-loop-->` : html);
+	};
 	if (items.length === 0) return marked(node.empty ? renderNodes(node.empty, options, state) : "");
 	const inner: RenderState = { ...state, loops: state.loops + 1 };
 	let html = "";
@@ -441,6 +475,7 @@ function paginationHtml(run: LoopRun | undefined, options: RenderOptions, filter
  * through them: past either, Placements render nothing.
  */
 function renderPlacement(node: PlacementNode, options: RenderOptions, state: RenderState): string {
+	if (node.hidden && !options.showHiddenPlacements) return "";
 	if (!options.component || state.depth >= COMPONENT_LIMITS.depth) return "";
 	if (state.budget.nodes > COMPONENT_LIMITS.expandedNodes) return "";
 	const props = new Map<string, PropArgument>();
@@ -462,11 +497,19 @@ function renderPlacement(node: PlacementNode, options: RenderOptions, state: Ren
 		...options,
 		values: withLoopStats(shown.values, options),
 		checkComponent: node.component,
+		extraAttributes: (element) => [
+			...(options.extraAttributes?.(element) ?? []),
+			...(node.hidden ? [["data-wc-hidden-placement", "true"] as const] : []),
+		],
 		outlet: undefined,
 		editRegion: undefined,
 		codeSource: options.codeSource === undefined ? undefined : `${options.codeSource}/${node.id}`,
 	};
-	const html = renderNodes(shown.tree.nodes, inner, { ...state, depth: state.depth + 1 });
+	const html = renderNodes(shown.tree.nodes, inner, {
+		...state,
+		depth: state.depth + 1,
+		paths: options.codeSource ? nodePaths(shown.tree) : undefined,
+	});
 	if (html.trim()) options.shownComponents?.add(node.component);
 	return html;
 }

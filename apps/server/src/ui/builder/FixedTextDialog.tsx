@@ -16,7 +16,7 @@ import { Label } from "@webcraft/ui/components/label.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { type FormEvent, type RefObject, useId, useState } from "react";
 
-import { getApi } from "../api.ts";
+import { useEditorApi } from "../builder/editor-api.tsx";
 import { draftsOf, freeKey, inputsOf, keyFromLabel, newField } from "../content/field-drafts.ts";
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
@@ -61,6 +61,7 @@ export function FixedTextDialog({
 	onMade(made: MadeEditable): void;
 }) {
 	const t = useT();
+	const getApi = useEditorApi();
 	const id = useId();
 	const [mode, setMode] = useState<"new" | "existing">("new");
 	const [label, setLabel] = useState("");

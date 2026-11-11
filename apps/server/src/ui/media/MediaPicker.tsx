@@ -1,4 +1,3 @@
-import { Link } from "@tanstack/react-router";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import {
@@ -12,9 +11,9 @@ import {
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@webcraft/ui/components/input-group.tsx";
 import { Label } from "@webcraft/ui/components/label.tsx";
 import { ImagesIcon, LoaderIcon, SearchIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 
-import { getApi } from "../api.ts";
+import { EditorEnvironment, useEditorApi } from "../builder/editor-api.tsx";
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { formatBytes, imagePreview, KIND_ICONS, type MediaItem } from "./preview.ts";
@@ -50,9 +49,10 @@ export function MediaPicker({
 	onChange(next: { id: string; item: MediaItem } | null): void;
 }) {
 	const t = useT();
+	const environment = useContext(EditorEnvironment);
 	const [open, setOpen] = useState(false);
 	const chooseButton = useRef<HTMLButtonElement>(null);
-	const preview = item ? imagePreview(siteId, item, 320) : null;
+	const preview = item ? imagePreview(siteId, item, 320, environment.siteMedia) : null;
 	const Icon = item ? KIND_ICONS[item.kind] : ImagesIcon;
 	return (
 		<div
@@ -142,6 +142,8 @@ function MediaChooser({
 	onChoose(item: MediaItem): void;
 }) {
 	const t = useT();
+	const environment = useContext(EditorEnvironment);
+	const getApi = useEditorApi();
 	const [query, setQuery] = useState("");
 	const [items, setItems] = useState<MediaItem[] | null>(null);
 	const [error, setError] = useState<MessageKey | null>(null);
@@ -168,7 +170,7 @@ function MediaChooser({
 			cancelled = true;
 			clearTimeout(timer);
 		};
-	}, [open, query, siteId]);
+	}, [open, query, siteId, getApi]);
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -209,7 +211,7 @@ function MediaChooser({
 					) : (
 						<ul aria-label={t("media.listLabel")} className="grid grid-cols-[repeat(auto-fill,minmax(8rem,1fr))] gap-3">
 							{items.map((item) => {
-								const image = imagePreview(siteId, item, 320);
+								const image = imagePreview(siteId, item, 320, environment.siteMedia);
 								const Icon = KIND_ICONS[item.kind];
 								const chosen = item.id === current;
 								return (
@@ -241,13 +243,12 @@ function MediaChooser({
 					)}
 				</div>
 				<DialogFooter>
-					<Link
-						to="/sites/$siteId/media"
-						params={{ siteId }}
+					<a
+						href={`${environment.adminOrigin}/sites/${siteId}/media`}
 						className="focus-visible:ring-ring/50 me-auto rounded-sm text-sm underline underline-offset-4 outline-none focus-visible:ring-3"
 					>
 						{t("content.media.openLibrary")}
-					</Link>
+					</a>
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>

@@ -12,7 +12,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "@webcraft/ui/co
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { Label } from "@webcraft/ui/components/label.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
-import { type FormEvent, type KeyboardEvent, type RefObject, useId, useState } from "react";
+import { type FormEvent, type KeyboardEvent, type RefObject, useEffect, useId, useRef, useState } from "react";
 
 import type { MessageKey } from "../i18n.tsx";
 import { useT } from "../i18n.tsx";
@@ -61,7 +61,9 @@ export function InsertDialog({
 	hasSelection,
 	onWhere,
 	onInsert,
+	quick,
 }: {
+	quick?: string | null;
 	open: boolean;
 	onOpenChange(open: boolean): void;
 	finalFocus: RefObject<HTMLElement | null>;
@@ -269,7 +271,9 @@ export function InsertDialog({
 	const needle = query.trim().toLowerCase();
 	const shown = needle
 		? items.filter((item) => `${item.label} ${item.hint} ${item.id}`.toLowerCase().includes(needle))
-		: items;
+		: quick === "components"
+			? items.filter((item) => item.group === "components")
+			: items;
 	const current = shown[Math.min(active, shown.length - 1)];
 
 	const close = () => {
@@ -288,10 +292,31 @@ export function InsertDialog({
 		close();
 	};
 	const choose = (item: Item) => {
+		if (item.componentId) {
+			const component = catalogue.components.find((each) => each.id === item.componentId);
+			if (component && !component.props.some((prop) => prop.required)) {
+				insert(withNewIds(tree, [{ type: "component", id: "new", component: component.id, props: [] }]));
+				return;
+			}
+		}
 		setProblem(null);
 		if (item.build) insert(item.build());
 		else setStep(item);
 	};
+
+	const chosenQuick = useRef(false);
+	const quickItem = quick ? items.find((item) => item.id === quick) : undefined;
+	// A quick choice uses this very same insert list and its questions.
+	useEffect(() => {
+		if (!open) {
+			chosenQuick.current = false;
+			return;
+		}
+		if (chosenQuick.current || !quick) return;
+		chosenQuick.current = true;
+		const item = items.find((each) => each.id === quick);
+		if (item) choose(item);
+	});
 
 	const keyDown = (event: KeyboardEvent<HTMLInputElement>) => {
 		if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -309,6 +334,8 @@ export function InsertDialog({
 		}
 	};
 
+	// Choices needing no input don't open a modal, even for a single frame.
+	if (quickItem?.build && !problem) return null;
 	return (
 		<Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
 			<DialogContent closeLabel={t("builder.insert.close")} finalFocus={finalFocus} className="sm:max-w-lg">

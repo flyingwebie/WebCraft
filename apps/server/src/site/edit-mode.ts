@@ -7,6 +7,7 @@ import {
 	EDIT_MODE_PATH,
 	type EditSession,
 	editModePolicy,
+	type FieldInput,
 	type InstallServices,
 	isAdminLanguage,
 	MEDIA_TEXT_MAX_LENGTH,
@@ -109,6 +110,105 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 	 * Opens what an element comes from (by the reference the page tags it with): its Template or
 	 * Component as Template markup, for Code mode's HTML panel.
 	 */
+	"code/editor": async (services, session, body, _request, host) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, {
+			...(await services.codeMode.editor(scope, host, parse(codeSource, body))),
+			adminOrigin: services.config.adminOrigin,
+		});
+	},
+	"code/editorService": async (services, session, body) => {
+		const scope = await services.codeMode.access(session);
+		const { method, input } = parse(
+			z.object({
+				method: z.enum([
+					"classes.create",
+					"classes.update",
+					"media.list",
+					"globals.get",
+					"globals.setFields",
+					"postTypes.get",
+					"postTypes.update",
+				]),
+				input: z.unknown(),
+			}),
+			body,
+		);
+		switch (method) {
+			case "classes.create":
+				return json(
+					200,
+					await services.designSystem.createClass(scope, parse(z.object({ name: z.string().max(200) }), input)),
+				);
+			case "classes.update": {
+				const change = parse(z.object({ classId: designId, styles: z.string().max(CSS_MAX_LENGTH) }), input);
+				return json(200, await services.designSystem.updateClass(scope, change.classId, { styles: change.styles }));
+			}
+			case "media.list":
+				return json(
+					200,
+					await services.media.list(
+						scope,
+						parse(
+							z.object({ search: z.string().max(200).optional(), limit: z.number().int().min(1).max(100).optional() }),
+							input,
+						),
+					),
+				);
+			case "globals.get":
+				return json(200, { globals: await services.globals.get(scope) });
+			case "globals.setFields": {
+				const { fields } = parse(z.object({ fields: z.array(z.unknown()).max(200) }), input);
+				return json(200, { globals: await services.globals.setFields(scope, fields as FieldInput[]) });
+			}
+			case "postTypes.get": {
+				const { postTypeId } = parse(z.object({ postTypeId: z.uuid() }), input);
+				return json(200, { postType: await services.postTypes.get(scope, postTypeId) });
+			}
+			case "postTypes.update": {
+				const { postTypeId, fields } = parse(
+					z.object({ postTypeId: z.uuid(), fields: z.array(z.unknown()).max(200) }),
+					input,
+				);
+				return json(200, {
+					postType: await services.postTypes.update(scope, postTypeId, { fields: fields as FieldInput[] }),
+				});
+			}
+		}
+	},
+
+	"code/editorMarkup": async (services, session, body, _request, host) => {
+		const scope = await services.codeMode.access(session);
+		return json(
+			200,
+			await services.codeMode.editorMarkup(
+				scope,
+				host,
+				parse(
+					codeSource.extend({
+						draft: z.object({
+							tree: z.unknown(),
+							props: z.array(z.custom<FieldInput>()).optional(),
+							styles: z.record(z.string().max(64), z.string().max(CSS_MAX_LENGTH)).optional(),
+						}),
+					}),
+					body,
+				),
+			),
+		);
+	},
+	"code/editorRead": async (services, session, body, _request, host) => {
+		const scope = await services.codeMode.access(session);
+		return json(
+			200,
+			await services.codeMode.editorRead(
+				scope,
+				host,
+				parse(codeSource.extend({ markup: z.string().max(MARKUP_MAX_LENGTH) }), body),
+			),
+		);
+	},
+
 	"code/open": async (services, session, body, _request, host) => {
 		const scope = await services.codeMode.access(session);
 		return json(200, await services.codeMode.open(scope, host, parse(codeSource, body)));
@@ -244,7 +344,7 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 		const state = await services.editMode.pageState(session, host, parse(pagePath, body).path);
 		const chosen = state.person.adminLanguage;
 		const language = chosen && isAdminLanguage(chosen) ? chosen : (await services.settings.read()).defaultAdminLanguage;
-		return json(200, { ...state, words: BAR_WORDS[language] });
+		return json(200, { ...state, adminLanguage: language, words: BAR_WORDS[language] });
 	},
 	/** Undoes one of the page's changes. */
 	undo: async (services, session, body, _request, host) =>
