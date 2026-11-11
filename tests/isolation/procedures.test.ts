@@ -2455,18 +2455,23 @@ describe("Site export and import", () => {
 	);
 });
 
+// Site-wide Checks render all content; their positive leg must not inherit earlier procedures' fixtures.
+const checksIsolation = workspaceIsolation(() => install);
+
 describe("Checks and Accessibility statement", () => {
-	isolation.refuses("checks.list", (api, { siteId }) => api.checks.list({ siteId }), { as: ["staff", "author"] });
-	isolation.refuses(
+	checksIsolation.refuses("checks.list", (api, { siteId }) => api.checks.list({ siteId }), { as: ["staff", "author"] });
+	checksIsolation.refuses(
 		"checks.entry",
 		async (api, target) => api.checks.entry({ siteId: target.siteId, entryId: (await contentIn(target)).entryId }),
 		{ as: ["staff", "author"] },
 	);
-	isolation.refuses("accessibilityStatement.get", (api, { siteId }) => api.accessibilityStatement.get({ siteId }));
-	isolation.refuses("accessibilityStatement.setEnabled", (api, { siteId }) =>
+	checksIsolation.refuses("accessibilityStatement.get", (api, { siteId }) =>
+		api.accessibilityStatement.get({ siteId }),
+	);
+	checksIsolation.refuses("accessibilityStatement.setEnabled", (api, { siteId }) =>
 		api.accessibilityStatement.setEnabled({ siteId, enabled: true }),
 	);
-	isolation.refuses("accessibilityStatement.generate", (api, { siteId }) =>
+	checksIsolation.refuses("accessibilityStatement.generate", (api, { siteId }) =>
 		api.accessibilityStatement.generate({
 			siteId,
 			organisation: "Example Council",
@@ -2498,7 +2503,8 @@ test("every procedure that takes a Workspace or a Site has an isolation test abo
 	for (const module of TEST_MODULES) scoped.push(...moduleProcedureNames(module));
 
 	expect(scoped.length).toBeGreaterThan(0);
-	expect(scoped.filter((procedure) => !isolation.covered.has(procedure))).toEqual([]);
+	const covered = new Set([...isolation.covered, ...checksIsolation.covered]);
+	expect(scoped.filter((procedure) => !covered.has(procedure))).toEqual([]);
 });
 
 /** A Module's procedures as the Management API names them: `m.sample.notes.list`. */
