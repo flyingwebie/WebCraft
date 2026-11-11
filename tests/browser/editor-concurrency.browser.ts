@@ -39,6 +39,125 @@ async function editorPage(theme: (typeof THEMES)[number], canvas: "live" | "prev
 }
 
 for (const theme of THEMES) {
+	for (const canvas of ["preview", "live"] as const) {
+		test(`creating a Class preserves peer Classes and labels on the ${canvas} canvas (${theme})`, async () => {
+			const { api, siteId, original, page, tree } = await editorPage(theme, canvas);
+			await api.designSystem.createClass({ siteId, name: "peer-class", styles: "font-weight: 600;" });
+			await tree.getByRole("treeitem", { name: /^Before/ }).click();
+			await page.getByRole("tab", { name: "Style", exact: true }).click();
+			await page.getByRole("combobox", { name: "Add a Class" }).fill("local-class");
+			await page.waitForLoadState("networkidle");
+			const captured = Promise.withResolvers<void>();
+			const release = Promise.withResolvers<void>();
+			await page.route(/\/(designSystem\/createClass|code\/editorService)$/, async (route) => {
+				if (canvas === "live" && route.request().postDataJSON().method !== "classes.create") return route.continue();
+				const response = await route.fetch();
+				captured.resolve();
+				await release.promise;
+				await route.fulfill({ response });
+			});
+			try {
+				await page.getByRole("button", { name: "Add", exact: true }).click();
+				await captured.promise;
+				await api.templates.saveSiteTemplateMarkup({
+					siteId,
+					markup: original
+						.replace('data-wc-id="header"', 'data-wc-id="header" data-wc-label="Peer header"')
+						.replace("<p ", '<p class="peer-class" '),
+				});
+				await tree.getByRole("treeitem", { name: /^Peer header/ }).waitFor();
+				release.resolve();
+				let stored = "";
+				for (let attempt = 0; attempt < 100; attempt++) {
+					stored = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+					if (stored.includes("local-class")) break;
+					await page.waitForTimeout(50);
+				}
+				expect(stored).toContain("local-class");
+				expect(stored).toContain("peer-class");
+				expect(stored).toContain('data-wc-label="Peer header"');
+			} finally {
+				release.resolve();
+			}
+		});
+
+		test(`fixed-text conversion preserves text changed by a peer on the ${canvas} canvas (${theme})`, async () => {
+			const { api, siteId, original, page, tree } = await editorPage(theme, canvas);
+			await tree.getByRole("treeitem", { name: /^“Original text”/ }).click();
+			await page.getByRole("button", { name: "Make it a Global", exact: true }).click();
+			const dialog = page.getByRole("dialog", { name: "Make it a Global" });
+			await dialog.getByRole("textbox", { name: "Label", exact: true }).fill("Welcome");
+			const captured = Promise.withResolvers<void>();
+			const release = Promise.withResolvers<void>();
+			await page.route(/\/(globals\/setFields|code\/editorService)$/, async (route) => {
+				if (canvas === "live" && route.request().postDataJSON().method !== "globals.setFields") return route.continue();
+				const response = await route.fetch();
+				captured.resolve();
+				await release.promise;
+				await route.fulfill({ response });
+			});
+			try {
+				await dialog.getByRole("button", { name: "Make it a Global", exact: true }).click();
+				await captured.promise;
+				await api.templates.saveSiteTemplateMarkup({ siteId, markup: original.replace("Original text", "Peer text") });
+				await page.getByRole("treeitem", { name: /^“Peer text”/, includeHidden: true }).waitFor();
+				release.resolve();
+				await dialog
+					.getByText("The selected text changed. Select it again to make it editable.", { exact: true })
+					.waitFor();
+				const stored = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+				expect(stored).toContain("Peer text");
+				expect(stored).not.toContain("{{ site.welcome }}");
+			} finally {
+				release.resolve();
+			}
+		});
+
+		test(`fixed-text conversion follows its element and preserves peer edits on the ${canvas} canvas (${theme})`, async () => {
+			const { api, siteId, original, page, tree } = await editorPage(theme, canvas);
+			await tree.getByRole("treeitem", { name: /^“Original text”/ }).click();
+			await page.getByRole("button", { name: "Make it a Global", exact: true }).click();
+			const dialog = page.getByRole("dialog", { name: "Make it a Global" });
+			await dialog.getByRole("textbox", { name: "Label", exact: true }).fill("Welcome");
+			const captured = Promise.withResolvers<void>();
+			const release = Promise.withResolvers<void>();
+			await page.route(/\/(globals\/setFields|code\/editorService)$/, async (route) => {
+				if (canvas === "live" && route.request().postDataJSON().method !== "globals.setFields") return route.continue();
+				const response = await route.fetch();
+				captured.resolve();
+				await release.promise;
+				await route.fulfill({ response });
+			});
+			try {
+				await dialog.getByRole("button", { name: "Make it a Global", exact: true }).click();
+				await captured.promise;
+				await api.templates.saveSiteTemplateMarkup({
+					siteId,
+					markup: original
+						.replace('data-wc-id="header"', 'data-wc-id="header" data-wc-label="Peer header"')
+						.replace("<p ", '<section data-wc-id="peer-group"><p ')
+						.replace("</p>", "</p></section>"),
+				});
+				await page.getByRole("treeitem", { name: /^Peer header/, includeHidden: true }).waitFor();
+				release.resolve();
+				await dialog.waitFor({ state: "hidden" });
+				let stored = "";
+				for (let attempt = 0; attempt < 100; attempt++) {
+					stored = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+					if (stored.includes("{{ site.welcome }}")) break;
+					await page.waitForTimeout(50);
+				}
+				expect(stored).toContain("{{ site.welcome }}");
+				expect(stored).toContain('data-wc-label="Peer header"');
+				expect(stored).toContain(
+					'<section data-wc-id="peer-group"><p data-wc-label="Before" data-wc-id="greeting">{{ site.welcome }}</p></section>',
+				);
+			} finally {
+				release.resolve();
+			}
+		});
+	}
+
 	test(`cancelling a live keyboard move keeps the moved layer selected (${theme})`, async () => {
 		const { api, siteId, original, page, tree } = await editorPage(theme, "live");
 		await api.templates.saveSiteTemplateMarkup({
@@ -765,4 +884,73 @@ for (const { input, canvas } of [
 			}
 		});
 	}
+}
+
+for (const delayed of [false, true]) {
+	test(`keeps a peer rename through repeated markup edits${delayed ? " while printing is delayed" : ""}`, async () => {
+		const { api, siteId, page } = await editorPage("light", "preview");
+		const { postType } = await api.postTypes.create({
+			siteId,
+			name: "Articles",
+			urlPattern: "/articles/{slug}",
+			fields: [],
+		});
+		const postTypeId = postType.id;
+		await api.entries.create({ siteId, postTypeId, title: "Fresh bread", fields: {} });
+		await api.templates.saveEntryTemplateMarkup({
+			siteId,
+			postTypeId,
+			markup:
+				'<article data-wc-label="Post" data-wc-id="post"><h1 data-wc-id="title">{{ title }}</h1><p data-wc-id="lead">Fresh from the oven</p></article>',
+		});
+		await page.goto(install.adminUrl(`/builder/${siteId}/entry-template/${postTypeId}`));
+		await page.frameLocator("iframe[title^='Canvas']").getByText("Fresh bread").waitFor();
+		const draftMarkup = async () =>
+			(await api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).markup?.draft ?? "";
+		await page.getByRole("button", { name: "Template markup", exact: true }).click();
+		const markup = page.getByRole("textbox", { name: "Template markup", exact: true });
+		const original = await markup.inputValue();
+		await markup.fill(`${original}<aside`);
+		await markup.and(page.locator('[aria-invalid="true"]')).waitFor();
+		const received = page.waitForResponse(
+			async (response) => response.url().includes("/builder/open") && (await response.text()).includes("Remote"),
+		);
+		await api.templates.saveEntryTemplateMarkup({
+			siteId,
+			postTypeId,
+			markup: original.replace('data-wc-label="Post"', 'data-wc-label="Remote"'),
+		});
+		await received;
+		const printing = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		if (delayed)
+			await page.route("**/api/rpc/builder/markup", async (route) => {
+				printing.resolve();
+				await release.promise;
+				await route.continue();
+			});
+		await markup.fill(original.replace("Fresh from the oven", "First local text"));
+		if (delayed) {
+			await printing.promise;
+			await markup.fill((await markup.inputValue()).replace("First local text", "Second local text"));
+			for (let attempt = 0; attempt < 80; attempt++) {
+				if ((await draftMarkup()).includes("Second local text")) break;
+				await new Promise((resolve) => setTimeout(resolve, 50));
+			}
+			expect(await draftMarkup()).toContain("Second local text");
+			release.resolve();
+		}
+		await page.waitForFunction(() =>
+			document.querySelector<HTMLTextAreaElement>("textarea")?.value.includes('data-wc-label="Remote"'),
+		);
+		if (!delayed) {
+			expect(await markup.inputValue()).toContain("First local text");
+			await markup.fill((await markup.inputValue()).replace("First local text", "Second local text"));
+		}
+		await page.frameLocator("iframe[title^='Canvas']").getByText("Second local text", { exact: true }).waitFor();
+		await page.keyboard.press("ControlOrMeta+s");
+		await page.getByRole("button", { name: "Save", exact: true }).and(page.locator("[disabled]")).waitFor();
+		expect(await draftMarkup()).toContain('data-wc-label="Remote"');
+		expect(await draftMarkup()).toContain("Second local text");
+	});
 }

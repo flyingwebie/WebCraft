@@ -10,6 +10,7 @@ import { AdminIntl, useT } from "../i18n.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
 import { type EditorApi, EditorApiContext, EditorEnvironment } from "./editor-api.tsx";
 import { FixedTextDialog } from "./FixedTextDialog.tsx";
+import { type FixedTextLocation, rememberFixedText, resolveFixedText } from "./fixed-text.ts";
 import { InsertDialog, type InsertWhere } from "./InsertDialog.tsx";
 import { InsertToolbar } from "./InsertToolbar.tsx";
 import { Inspector } from "./Inspector.tsx";
@@ -673,7 +674,7 @@ function SourcePanels({
 	const sourceId = source.opened.component?.id ?? source.opened.template?.id ?? source.ref;
 	const grabCurrent = grabbed?.source === sourceId && grabbed.remoteRevision === remoteRevision;
 	const [catalogue, setCatalogue] = useState(source.opened.catalogue);
-	const [fixed, setFixed] = useState<NodePath | null>(null);
+	const [fixed, setFixed] = useState<{ location: FixedTextLocation; source: string } | null>(null);
 	const fixedTrigger = useRef<HTMLElement | null>(null);
 	const fixedAction =
 		source.target.kind === "component" ? "prop" : source.target.kind === "entryTemplate" ? "field" : "global";
@@ -949,7 +950,8 @@ function SourcePanels({
 						}}
 						onMakeEditable={(path, trigger) => {
 							fixedTrigger.current = trigger;
-							setFixed(path);
+							const location = rememberFixedText(currentDraft(source, shared).tree, path);
+							if (location) setFixed({ location, source: sourceId });
 						}}
 					/>
 				</fieldset>
@@ -963,15 +965,15 @@ function SourcePanels({
 					}}
 					finalFocus={fixedTrigger}
 					target={fixedAction}
-					text={(() => {
-						const node = nodeAt(tree, fixed);
-						return node?.type === "text" ? node.text : "";
-					})()}
+					text={fixed.location.text}
 					siteId={source.siteId}
 					postTypeId={"postTypeId" in source.target ? source.target.postTypeId : null}
 					props={source.opened.props}
 					onMade={(made) => {
-						const next = replaceAt(tree, fixed, { type: "value", path: made.path });
+						const current = currentDraft(source, shared).tree;
+						const path = fixed.source === sourceId && resolveFixedText(current, fixed.location);
+						if (!path) return t("builder.fixedText.changed");
+						const next = replaceAt(current, path, { type: "value", path: made.path });
 						const message = t("builder.fixedText.made", { binding: `{{ ${made.path} }}` });
 						if (made.props) {
 							const changed = shared?.change((current) => ({
@@ -980,13 +982,19 @@ function SourcePanels({
 								tree: next as unknown as Json,
 							}));
 							if (!changed) {
-								announce(t(`coEditing.status.${shared?.status ?? "connecting"}`));
-								return;
+								const problem = t(`coEditing.status.${shared?.status ?? "connecting"}`);
+								announce(problem);
+								return problem;
 							}
 							setTree(next);
+							setSelection({ kind: "node", path });
+							selectedId.current = null;
 							onTree(next);
 							announce(message);
-						} else if (apply(next, selection, message)) return;
+						} else {
+							const refused = apply(next, { kind: "node", path }, message);
+							if (refused) return refused;
+						}
 						setCatalogue((before) => ({
 							...before,
 							values: [

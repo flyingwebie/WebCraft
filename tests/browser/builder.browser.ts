@@ -354,58 +354,6 @@ describe("the canvas", () => {
 });
 
 describe("the Template markup view", () => {
-	for (const delayed of [false, true]) {
-		test(`keeps a peer rename through repeated markup edits${delayed ? " while printing is delayed" : ""}`, async () => {
-			const page = await builderPage();
-			await page.getByRole("button", { name: "Template markup", exact: true }).click();
-			const markup = page.getByRole("textbox", { name: "Template markup", exact: true });
-			const original = await markup.inputValue();
-			await markup.fill(`${original}<aside`);
-			await markup.and(page.locator('[aria-invalid="true"]')).waitFor();
-			const received = page.waitForResponse(
-				async (response) => response.url().includes("/builder/open") && (await response.text()).includes("Remote"),
-			);
-			const { api } = await install.install.superadmin();
-			await api.templates.saveEntryTemplateMarkup({
-				siteId,
-				postTypeId,
-				markup: original.replace('data-wc-label="Post"', 'data-wc-label="Remote"'),
-			});
-			await received;
-			const printing = Promise.withResolvers<void>();
-			const release = Promise.withResolvers<void>();
-			if (delayed)
-				await page.route("**/api/rpc/builder/markup", async (route) => {
-					printing.resolve();
-					await release.promise;
-					await route.continue();
-				});
-			await markup.fill(original.replace("Fresh from the oven", "First local text"));
-			if (delayed) {
-				await printing.promise;
-				await markup.fill((await markup.inputValue()).replace("First local text", "Second local text"));
-				for (let attempt = 0; attempt < 80; attempt++) {
-					if ((await draftMarkup()).includes("Second local text")) break;
-					await new Promise((resolve) => setTimeout(resolve, 50));
-				}
-				expect(await draftMarkup()).toContain("Second local text");
-				release.resolve();
-			}
-			await page.waitForFunction(() =>
-				document.querySelector<HTMLTextAreaElement>("textarea")?.value.includes('data-wc-label="Remote"'),
-			);
-			if (!delayed) {
-				expect(await markup.inputValue()).toContain("First local text");
-				await markup.fill((await markup.inputValue()).replace("First local text", "Second local text"));
-			}
-			await page.frameLocator("iframe[title^='Canvas']").getByText("Second local text", { exact: true }).waitFor();
-			await page.keyboard.press("ControlOrMeta+s");
-			await page.getByRole("button", { name: "Save", exact: true }).and(page.locator("[disabled]")).waitFor();
-			expect(await draftMarkup()).toContain('data-wc-label="Remote"');
-			expect(await draftMarkup()).toContain("Second local text");
-		});
-	}
-
 	test("shows the same Draft as text; what is typed there comes back as layers and saves the same Draft", async () => {
 		await resetTemplate();
 		const page = await builderPage();

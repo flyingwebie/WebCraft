@@ -50,6 +50,15 @@ export function StylePanel({
 	const [applyingOneOff, setApplyingOneOff] = useState(false);
 	const oneOffEdit = useRef(0);
 	const appliedOneOffEdit = useRef(0);
+	const current = useRef({ catalogue, classIds, onClasses, onCatalogue });
+	current.current = { catalogue, classIds, onClasses, onCatalogue };
+	const mounted = useRef(true);
+	useEffect(() => {
+		mounted.current = true;
+		return () => {
+			mounted.current = false;
+		};
+	}, []);
 	useEffect(() => {
 		if (oneOffEdit.current === appliedOneOffEdit.current) {
 			setOneOffText(oneOff);
@@ -92,15 +101,23 @@ export function StylePanel({
 		try {
 			const api = await getApi();
 			const made = await api.designSystem.createClass({ siteId, name });
-			onCatalogue(
-				made.designSystem.draft.classes.map((each) => ({
-					id: each.id,
-					name: each.name,
-					generated: each.generated,
-					styles: each.styles,
-				})),
-			);
-			onClasses([...named, made.class.id, ...generated], t("builder.style.created", { name }));
+			if (!mounted.current) return;
+			// Attach the new Class to the current element without restoring an old tree or Class list.
+			const latest = current.current;
+			const classes = latest.catalogue.classes.some((each) => each.id === made.class.id)
+				? latest.catalogue.classes
+				: [...latest.catalogue.classes, made.class];
+			latest.onCatalogue(classes);
+			const generatedIds = new Set(classes.filter((each) => each.generated).map((each) => each.id));
+			if (!latest.classIds.includes(made.class.id))
+				latest.onClasses(
+					[
+						...latest.classIds.filter((id) => !generatedIds.has(id)),
+						made.class.id,
+						...latest.classIds.filter((id) => generatedIds.has(id)),
+					],
+					t("builder.style.created", { name }),
+				);
 			setAdding("");
 			setEditing(made.class.id);
 		} catch (failure) {

@@ -4571,6 +4571,7 @@
 			"keyTaken": "Questa chiave è già usata.",
 			"chooseExisting": "Scegline uno.",
 			"made": "Il testo ora legge {binding}.",
+			"changed": "Il testo selezionato è cambiato. Selezionalo di nuovo per renderlo modificabile.",
 			"cancel": "Annulla",
 			"close": "Chiudi"
 		},
