@@ -16,7 +16,7 @@ import { commandForNode } from "../commands.ts";
 import { writeFormat } from "../formatters.ts";
 import { stableJson } from "../json.ts";
 import { BINDINGS_ATTRIBUTE } from "../prop-bindings.ts";
-import { RETAINED_ATTRIBUTE } from "../prop-retention.ts";
+import { CONTRACTS_ATTRIBUTE, RETAINED_ATTRIBUTE } from "../prop-retention.ts";
 import {
 	type Attribute,
 	type AttributePart,
@@ -118,6 +118,11 @@ function printNode(node: TreeNode, options: PrintMarkupOptions): string {
 					]),
 			);
 			if (Object.keys(bindings).length) props += ` ${BINDINGS_ATTRIBUTE}="${markupText(stableJson(bindings), true)}"`;
+			const contracts = Object.fromEntries(
+				node.props.filter((p) => p.contract && !p.retained).map((p) => [p.name, p.contract]),
+			);
+			if (Object.keys(contracts).length)
+				props += ` ${CONTRACTS_ATTRIBUTE}="${markupText(stableJson(contracts), true)}"`;
 			const retained = node.props.filter((p) => p.retained);
 			if (retained.length) props += ` ${RETAINED_ATTRIBUTE}="${markupText(stableJson(retained), true)}"`;
 			const name = options.componentName?.(node.component) ?? node.component;

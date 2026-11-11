@@ -220,6 +220,12 @@ test("reusing a removed Prop key as text preserves current literals and historic
 		siteId: destination,
 		postTypeId: copiedType?.id ?? "",
 	});
+	const copiedHistory = await admin.api.history.list({
+		siteId: destination,
+		item: { kind: "template", id: copyTemplate.template?.id ?? "" },
+	});
+	// Two source Revisions and the explicit publish above; source-contract metadata adds no copy.
+	expect(copiedHistory.copies.filter((copy) => copy.type === "revision")).toHaveLength(3);
 	for (const item of [
 		{ kind: "component" as const, id: copyComponent?.id ?? "" },
 		{ kind: "template" as const, id: copyTemplate.template?.id ?? "" },

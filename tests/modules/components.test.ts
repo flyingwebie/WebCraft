@@ -96,7 +96,7 @@ describe("a Module's Component", () => {
 			staff.api.templates.saveEntryTemplateMarkup({
 				siteId,
 				postTypeId: postType.id,
-				markup: '<NoteCard />\n<NoteCard body="Hi" tone="shouty" />',
+				markup: '<NoteCard tone="calm" />\n<NoteCard body="Hi" tone="shouty" />',
 			}),
 		).rejects.toMatchObject({
 			code: "TEMPLATE_MARKUP_INVALID",
@@ -107,6 +107,23 @@ describe("a Module's Component", () => {
 				],
 			},
 		});
+		await expect(
+			staff.api.templates.saveEntryTemplate({
+				siteId,
+				postTypeId: postType.id,
+				tree: {
+					version: 1,
+					nodes: [
+						{
+							type: "component",
+							id: "missing-body",
+							component: "sample:NoteCard",
+							props: [{ name: "tone", value: [{ type: "text", text: "calm" }] }],
+						},
+					],
+				},
+			}),
+		).rejects.toMatchObject({ code: "TEMPLATE_INVALID" });
 	});
 
 	test("can be placed only on Sites where the Module runs, and shows nothing where it was switched off", async () => {

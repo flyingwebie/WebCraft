@@ -1,5 +1,7 @@
 import { checkpoints, postTypes, revisions } from "@webcraft/db/schema";
 import { and, desc, eq, isNull, type SQL, sql } from "drizzle-orm";
+import { lockComponents } from "../content/components.ts";
+import { snapshotPropContracts } from "../content/prop-migrations.ts";
 
 import { isUuid } from "../ids.ts";
 import { personIdOf } from "../permissions/can.ts";
@@ -78,12 +80,13 @@ export async function revisionsState(scope: SiteScope, state: Pick<ItemState, "p
  * publishes all come through `publishItems`, which calls it for each item.
  */
 export async function saveRevision(scope: SiteScope, item: HistoryItem): Promise<void> {
+	if (["template", "component", "popup"].includes(item.kind)) await lockComponents(scope);
 	const state = await itemState(scope, item);
 	if (state.published === null || !(await revisionsState(scope, state)).on) return;
 	await scope.insert(revisions, {
 		itemKind: item.kind,
 		itemId: itemIdOf(item),
-		content: state.published,
+		content: await snapshotPropContracts(scope, item.kind, state.published, "published"),
 		publishedAt: scope.now(),
 		publishedBy: personIdOf(scope.access.actor),
 		via: scope.access.via,

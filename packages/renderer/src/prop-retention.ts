@@ -6,6 +6,7 @@ import { isValuePath, textProblem } from "./tree.ts";
 
 /** Identity-tagged values whose old names are now occupied by another declaration. */
 export const RETAINED_MAX_LENGTH = 16_777_216;
+export const CONTRACTS_ATTRIBUTE = "data-wc-contracts";
 export const RETAINED_ATTRIBUTE = "data-wc-retained";
 /** Kept inside its Group/Repeater row, so moving a row also moves its retained values. */
 export const RETAINED_KEY = "$wc-retained";
@@ -115,6 +116,11 @@ export function retainedValueIdentity(id: string, contract?: Record<string, unkn
 
 /** Bound the combined list too, including metadata recovered from an existing Placement. */
 export function retainedPropsProblem(values: readonly unknown[]): string | undefined {
+	const contracts = values
+		.filter((value) => value && typeof value === "object" && "contract" in value && !("retained" in value))
+		.map((value) => (value as { contract: unknown }).contract);
+	if (contracts.length > 256 || JSON.stringify(contracts).length > RETAINED_MAX_LENGTH)
+		return "Prop source contracts exceed the 256-value or 16 MiB metadata limit.";
 	const held = values.filter((value) => value && typeof value === "object" && "retained" in value);
 	if (held.length > 256 || JSON.stringify(held).length > RETAINED_MAX_LENGTH)
 		return "Retained Props exceed the 256-value or 16 MiB metadata limit.";
