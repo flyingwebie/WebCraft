@@ -152,6 +152,30 @@ export async function saveComponentScript(
 	return saveComponentScriptDraft(scope, componentId, input, base);
 }
 
+/**
+ * Where each Component script of the Site stands, by Component: whether its Draft differs from what
+ * is published (`componentScriptChanged`) and its Draft's version. A Component whose script changed is
+ * a Draft to publish, as when its own Draft changed.
+ */
+export async function componentScriptStates(
+	scope: Pick<VisitorScope, "select">,
+	componentIds?: readonly string[],
+): Promise<Map<string, { changed: boolean; version: string }>> {
+	if (componentIds?.length === 0) return new Map();
+	const rows = await scope.select(
+		scripts,
+		componentIds
+			? (and(eq(scripts.kind, "component"), inArray(scripts.componentId, [...componentIds])) as SQL)
+			: eq(scripts.kind, "component"),
+	);
+	return new Map(
+		rows.map((row) => [
+			row.componentId as string,
+			{ changed: componentScriptChanged(row), version: versionOf(draftOf(row)) },
+		]),
+	);
+}
+
 /** A Component's script; null while it has none. Open the Site with `structure.edit`. */
 export async function getComponentScript(
 	scope: Pick<SiteScope, "first">,

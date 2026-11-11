@@ -12,7 +12,7 @@
 
 import { entries, scripts } from "@webcraft/db/schema";
 import { contentHash, type PageScript, SCRIPT_PATH } from "@webcraft/renderer";
-import { and, eq, isNull, type SQL } from "drizzle-orm";
+import { and, eq, isNull, ne, type SQL } from "drizzle-orm";
 import { clientNameOf } from "../audit.ts";
 
 import { isUniqueViolation } from "../db-errors.ts";
@@ -28,7 +28,7 @@ import type { SaveBase } from "./json.ts";
 /** The longest script, in characters. */
 export const SCRIPT_MAX_LENGTH = 200_000;
 
-/** The Site script (every page) or a page script (one Entry's page). */
+/** The Site script (every page) or a page script (one Entry's page). Component scripts are apart (`component-scripts.ts`). */
 export type ScriptKind = "site" | "page";
 
 /** A script, as the content store hands it out. */
@@ -140,9 +140,12 @@ export async function saveScriptDraft(
 	}
 }
 
+/** The Site script and page scripts: Component scripts go with their Components (`component-scripts.ts`). */
+const NOT_COMPONENT = ne(scripts.kind, "component");
+
 /** A script of the Site by its id; `ScriptNotFoundError` when there is none. */
 export async function scriptById(scope: Pick<SiteScope, "first">, scriptId: string): Promise<Script> {
-	const row = isUuid(scriptId) ? await scope.first(scripts, eq(scripts.id, scriptId)) : undefined;
+	const row = isUuid(scriptId) ? await scope.first(scripts, and(eq(scripts.id, scriptId), NOT_COMPONENT)) : undefined;
 	if (!row) throw new ScriptNotFoundError();
 	return toScript(row);
 }
@@ -153,7 +156,7 @@ export async function lockScript(scope: SiteScope, scriptId: string): Promise<Sc
 		? await scope.db
 				.select()
 				.from(scripts)
-				.where(scope.where(scripts, eq(scripts.id, scriptId)))
+				.where(scope.where(scripts, and(eq(scripts.id, scriptId), NOT_COMPONENT) as SQL))
 				.for("update")
 		: [];
 	if (!row) throw new ScriptNotFoundError();

@@ -13,12 +13,13 @@ import {
 	templates,
 } from "@webcraft/db/schema";
 import { defaultDesignSystem, type ElementTree, placementsIn, readDesignSystem } from "@webcraft/renderer";
-import { inArray, sql } from "drizzle-orm";
+import { eq, inArray, or, sql } from "drizzle-orm";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { CONSENT_TEXT_FIELDS } from "../consent/text.ts";
 import { can } from "../permissions/can.ts";
 import { popupStructureState } from "../popups/index.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
+import { componentScriptStates } from "./component-scripts.ts";
 import { storedComponentVersion } from "./component-versions.ts";
 import { type ComponentSources, NO_MODULE_COMPONENTS } from "./components.ts";
 import { draftAddresses } from "./draft-paths.ts";
@@ -306,14 +307,30 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 	}
 	const popupRows = await scope.select(popups);
 	const ownedComponents = new Set(popupRows.map((row) => row.componentId));
+	// A Component is a Draft to publish when its own Draft or its Component script's changed.
+	const componentScripts = await componentScriptStates(scope);
 	const changedComponents = await scope.select(
 		components,
-		sql`${components.draft} is distinct from ${components.published}`,
+		or(
+			sql`${components.draft} is distinct from ${components.published}`,
+			...[...componentScripts].flatMap(([id, script]) => (script.changed ? [eq(components.id, id)] : [])),
+		),
 		{ orderBy: [components.name] },
 	);
 	for (const row of changedComponents) {
 		if (ownedComponents.has(row.id)) continue;
-		add(structure({ kind: "component", id: row.id }, row, row.name), row);
+		const script = componentScripts.get(row.id);
+		const draft = structure({ kind: "component", id: row.id }, row, row.name);
+		add(
+			script
+				? {
+						...draft,
+						status: row.published === null ? "new" : "changed",
+						version: draftVersion({ component: row.draft, script: script.version }),
+					}
+				: draft,
+			row,
+		);
 	}
 	const changedLoops = await scope.select(loops, sql`${loops.draft} is distinct from ${loops.published}`, {
 		orderBy: [loops.name],
@@ -374,7 +391,8 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 	}
 	const changedScripts = await scope.select(
 		scripts,
-		sql`${scripts.draftHash} is distinct from ${scripts.publishedHash} and not (${scripts.published} is null and btrim(${scripts.draft}) = '')`,
+		// Component scripts are published with their Components, above.
+		sql`${scripts.kind} <> 'component' and ${scripts.draftHash} is distinct from ${scripts.publishedHash} and not (${scripts.published} is null and btrim(${scripts.draft}) = '')`,
 	);
 	const pageTitles = await entryTitles(
 		scope,

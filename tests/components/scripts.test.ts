@@ -408,3 +408,38 @@ describe("Libraries a Component script declares", () => {
 		).rejects.toMatchObject({ code: "LIBRARY_NOT_FOUND" });
 	});
 });
+
+describe("publishing with its Component", () => {
+	test("a changed script makes its Component a Draft to publish; Publish all publishes them together", async () => {
+		const site = await bakery();
+		const { siteId, componentId } = site;
+		await staff.api.components.saveScriptDraft({ siteId, componentId, code: "export default () => {};" });
+		await staff.api.components.publish({ siteId, componentId });
+		expect((await staff.api.publishing.drafts({ siteId })).drafts.map((draft) => draft.item)).toEqual([]);
+
+		await staff.api.components.saveScriptDraft({ siteId, componentId, code: "export default () => { /* new */ };" });
+
+		expect((await staff.api.components.get({ siteId, componentId })).component.status).toBe("changed");
+		const { drafts } = await staff.api.publishing.drafts({ siteId });
+		expect(drafts.map((draft) => [draft.item, draft.name])).toEqual([[{ kind: "component", id: componentId }, "Card"]]);
+		const preview = await staff.api.publishing.publishAll({ siteId, items: [{ kind: "component", id: componentId }] });
+		await staff.api.publishing.publishAll({
+			siteId,
+			items: [{ kind: "component", id: componentId }],
+			confirmation: (preview as { confirmation?: { id: string } }).confirmation?.id,
+		});
+
+		const { script } = await staff.api.components.getScript({ siteId, componentId });
+		expect(script).toMatchObject({ status: "published", published: { code: "export default () => { /* new */ };" } });
+		expect((await staff.api.components.get({ siteId, componentId })).component.status).toBe("published");
+		// It is never published on its own.
+		await expect(staff.api.scripts.publish({ siteId, scriptId: script?.id as string })).rejects.toMatchObject({
+			code: "SCRIPT_NOT_FOUND",
+		});
+		// A script never published and still empty is nothing to publish.
+		const { component: empty } = await staff.api.components.create({ siteId, name: "Empty" });
+		await staff.api.components.publish({ siteId, componentId: empty.id });
+		await staff.api.components.saveScriptDraft({ siteId, componentId: empty.id, code: "  " });
+		expect((await staff.api.publishing.drafts({ siteId })).drafts).toEqual([]);
+	});
+});
