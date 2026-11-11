@@ -239,3 +239,27 @@ test("visit frequency counts keyboard activity and expires only after inactivity
 	await shown(page);
 	await page.close();
 });
+
+test("a consent service that fails still lets Popups show", async () => {
+	const url = await scene([{ trigger: { kind: "load" } }]);
+	for (const failure of ["reject", "throw"] as const) {
+		const page = await install.newPage("light");
+		// An outside consent service (or the Site's own code) whose consent object can't answer.
+		await page.addInitScript((how) => {
+			const consent = {
+				mode: "outside",
+				answered: false,
+				has: () => false,
+				whenAnswered: () => {
+					if (how === "throw") throw new Error("The consent service is broken.");
+					return Promise.reject(new Error("The consent service failed."));
+				},
+			};
+			Object.defineProperty(window, "webcraft", { value: { consent }, writable: true, configurable: true });
+		}, failure);
+		await page.goto(url);
+		await shown(page);
+		expect(pageErrors(page)).toEqual([]);
+		await page.close();
+	}
+});
