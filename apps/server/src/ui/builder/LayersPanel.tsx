@@ -300,6 +300,11 @@ export function LayersPanel({
 			return;
 		}
 		if (mod && !event.altKey) {
+			if (event.key.toLowerCase() === "i") {
+				handled();
+				onInsert();
+				return;
+			}
 			const action = { x: "cut", c: "copy", v: "paste", d: "duplicate" }[event.key.toLowerCase()] as
 				| LayerAction
 				| undefined;
@@ -427,6 +432,20 @@ export function LayersPanel({
 						</Button>
 					);
 				})}
+				{selectedRow?.kind === "node" && selectedRow.node.type === "component" && onHidden ? (
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon-sm"
+						aria-label={t(selectedRow.node.hidden ? "builder.layers.showPlacement" : "builder.layers.hidePlacement")}
+						onClick={() => {
+							if (selectedRow.node.type === "component")
+								onHidden(selectedRow.path, !selectedRow.node.hidden, selectedRow.source);
+						}}
+					>
+						{selectedRow.node.hidden ? <EyeOffIcon aria-hidden="true" /> : <EyeIcon aria-hidden="true" />}
+					</Button>
+				) : null}
 			</fieldset>
 			<div className="min-h-0 flex-1 overflow-auto p-2">
 				{rows.length === 0 ? (
@@ -557,6 +576,7 @@ export function LayersPanel({
 												{row.kind === "node" && row.node.type === "component" && onHidden ? (
 													<button
 														type="button"
+														tabIndex={-1}
 														aria-label={t(
 															row.node.hidden ? "builder.layers.showPlacement" : "builder.layers.hidePlacement",
 														)}

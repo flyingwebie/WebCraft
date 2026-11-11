@@ -111,7 +111,7 @@ test("Placements keep their own Props beside the Component's inline tree and mar
 	await api.components.saveMarkup({
 		siteId,
 		componentId: component.id,
-		markup: '<blockquote data-wc-id="quotation">{{ props.quote }}</blockquote>',
+		markup: '<blockquote data-wc-id="quotation">{{ props.quote }}</blockquote>\n<p data-wc-id="credit">Credit</p>',
 	});
 	await api.components.publish({ siteId, componentId: component.id });
 	await api.templates.saveSiteTemplateMarkup({
@@ -132,6 +132,28 @@ test("Placements keep their own Props beside the Component's inline tree and mar
 		.filter({ hasText: /^Quote/ })
 		.click();
 	await page.getByRole("textbox", { name: "HTML of Quote · Component" }).waitFor();
+	await page.locator(".outline.selected").waitFor();
+	expect(await page.locator(".language-markup .line.marked").allTextContents()).toEqual([
+		'<blockquote data-wc-id="quotation">{{ props.quote }}</blockquote>',
+		'<p data-wc-id="credit">Credit</p>',
+	]);
+	const selected = await page.locator(".outline.selected").boundingBox();
+	const quotation = await page.locator("blockquote[data-wc-code]").boundingBox();
+	const credit = await page.locator('p[data-wc-code$="#credit"]').boundingBox();
+	expect(selected?.y).toBeCloseTo(quotation?.y ?? 0, 0);
+	expect((selected?.y ?? 0) + (selected?.height ?? 0)).toBeCloseTo((credit?.y ?? 0) + (credit?.height ?? 0), 0);
+	await page.getByRole("button", { name: "After", exact: true }).click();
+	await page.getByRole("button", { name: "Paragraph", exact: true }).focus();
+	const marker = page.locator('[data-insert-preview="after"]');
+	await marker.waitFor();
+	expect((await marker.boundingBox())?.y).toBeCloseTo((credit?.y ?? 0) + (credit?.height ?? 0), 0);
+	await page.getByRole("button", { name: "Paragraph", exact: true }).press("Enter");
+	await page.locator("header > p", { hasText: "Paragraph" }).waitFor();
+	expect(await page.locator("header > p").allTextContents()).toEqual(["Credit", "Paragraph"]);
+	await tree
+		.getByRole("treeitem")
+		.filter({ hasText: /^Quote/ })
+		.click();
 	await page.getByLabel("Quotation (required)", { exact: true }).fill("This Placement only");
 	await page.getByLabel("Quotation (required)", { exact: true }).press("Enter");
 	await page.locator("blockquote", { hasText: "This Placement only" }).waitFor();
@@ -139,6 +161,30 @@ test("Placements keep their own Props beside the Component's inline tree and mar
 		'quote="This Placement only"',
 	);
 	expect((await api.components.getMarkup({ siteId, componentId: component.id })).markup.draft).toContain("props.quote");
+	const placement = tree.getByRole("treeitem").filter({ hasText: /^Quote/ });
+	await placement.focus();
+	await placement.press("Tab");
+	expect(
+		await tree.evaluate((element) =>
+			element.contains(
+				element.getRootNode() instanceof ShadowRoot
+					? (element.getRootNode() as ShadowRoot).activeElement
+					: document.activeElement,
+			),
+		),
+	).toBe(false);
+	await placement.focus();
+	await placement.press("Shift+Tab");
+	const visibility = page.getByRole("group", { name: "Selected layer", exact: true });
+	expect(
+		await visibility
+			.getByRole("button", { name: "Hide placement", exact: true })
+			.evaluate((element) => element.matches(":focus")),
+	).toBe(true);
+	await page.keyboard.press("Enter");
+	await page.locator("blockquote[data-wc-hidden-placement]").waitFor();
+	await visibility.getByRole("button", { name: "Show placement", exact: true }).press("Enter");
+	await page.locator("blockquote:not([data-wc-hidden-placement])").waitFor();
 	await page.getByRole("button", { name: "Edit the Component", exact: true }).click();
 	await page.getByLabel("Layer label", { exact: true }).waitFor();
 	expect(await tree.getByRole("button", { name: "Hide placement", exact: true }).count()).toBe(1);
@@ -317,13 +363,73 @@ test("Loops show their rendered count and use the shared keyboard actions", asyn
 	await page.waitForFunction(() => document.querySelectorAll("header p").length === 4);
 	await page.keyboard.press("Delete");
 	await page.waitForFunction(() => document.querySelectorAll("header p").length === 2);
-	await page.getByRole("button", { name: "More", exact: true }).click();
+	await tree.getByRole("treeitem", { name: /Day name/ }).focus();
+	await page.keyboard.press("ControlOrMeta+i");
 	await page.getByRole("dialog").waitFor();
 	await expectNoAxeViolations(page, "Shared Insert dialog on the live page");
 	await page.keyboard.press("Escape");
 	await page.getByRole("dialog").waitFor({ state: "hidden" });
 	expect((await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft).toContain('data-wc-label="Day name"');
 });
+
+for (const canvas of ["live", "preview"] as const) {
+	test(`pastes layers into Else and Empty branches on the ${canvas} canvas`, async () => {
+		const local = install.install;
+		const { api } = await local.superadmin();
+		const workspace = await local.createWorkspace("Branch paste");
+		const { id: siteId } = await local.createSite(workspace.id, { name: "Branch paste", slug: "branch-paste" });
+		const staff = (await local.createStaff({ workspaces: [workspace.id] })).account;
+		const { loop } = await api.loops.create({
+			siteId,
+			name: "days",
+			source: "items",
+			fields: [{ key: "day", label: "Day", type: "text" }],
+		});
+		await api.loops.publish({ siteId, loopId: loop.id });
+		await api.templates.saveSiteTemplateMarkup({
+			siteId,
+			markup:
+				'<header data-wc-id="header"><p data-wc-id="source" data-wc-label="Copy source">Copied value</p>{{@if site.language == "it"}}<span>Italian</span>{{@else}}{{/if}}{{@loop days as item}}<span>{{ item.day }}</span>{{@empty}}{{/loop}}</header><main>{{@outlet}}</main>',
+		});
+		const page = await install.newPage("light");
+		page.setDefaultTimeout(10000);
+		await install.signIn(page, staff);
+		const ready =
+			canvas === "preview" ? page.waitForResponse((response) => response.url().includes("/builder/open")) : null;
+		if (canvas === "live") {
+			await page.goto(install.adminUrl(`/sites/${siteId}`));
+			await page.getByRole("button", { name: "Edit on site" }).click();
+			await page.waitForURL((url) => url.hostname.startsWith("branch-paste"));
+			await page.getByRole("button", { name: "Code", exact: true }).click();
+		} else {
+			await page.goto(install.adminUrl(`/builder/${siteId}/site-template`));
+			await ready;
+		}
+		const tree = page.getByRole("tree", { name: "Layers" });
+		await tree.getByRole("treeitem", { name: /^Copy source/ }).click();
+		await page.keyboard.press("ControlOrMeta+c");
+		await tree.getByRole("treeitem", { name: "Else", exact: true }).click();
+		await page.keyboard.press("ControlOrMeta+v");
+		await tree
+			.getByRole("treeitem", { name: /^Copy source/ })
+			.nth(1)
+			.waitFor();
+		await tree.getByRole("treeitem", { name: "When there are no items", exact: true }).click();
+		await page.keyboard.press("ControlOrMeta+v");
+		await tree
+			.getByRole("treeitem", { name: /^Copy source/ })
+			.nth(2)
+			.waitFor();
+		for (let attempt = 0; attempt < 80; attempt++) {
+			const text = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+			if ((text.match(/Copied value/g) ?? []).length === 3) break;
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		}
+		const saved = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft;
+		expect(saved).toMatch(/\{\{@else\}\}\s*<p[^>]*>Copied value<\/p>\s*\{\{\/if\}\}/);
+		expect(saved).toMatch(/\{\{@empty\}\}\s*<p[^>]*>Copied value<\/p>\s*\{\{\/loop\}\}/);
+	});
+}
 
 test("the built-in Page template becomes a shared Draft on its first insertion", async () => {
 	const local = install.install;

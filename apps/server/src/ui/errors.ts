@@ -7,6 +7,10 @@ import type { MessageKey } from "./i18n.tsx";
 export function errorMessage(error: unknown): MessageKey {
 	const { code, data } = (error ?? {}) as { code?: unknown; data?: { problem?: unknown } };
 	switch (code) {
+		case "CODE_SOURCE_NOT_FOUND":
+		case "COMPONENT_FROM_MODULE":
+		case "EDIT_MODE_ENDED":
+			return `editBar.codeMode.errors.${code}`;
 		case "TWO_FACTOR_CODE_INVALID":
 		case "SIGN_IN_EXPIRED":
 		case "AUTHENTICATOR_EXISTS":

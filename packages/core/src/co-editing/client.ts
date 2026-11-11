@@ -60,8 +60,8 @@ export type DraftClient = {
 	 * sends it with the next batch. Ignored, answering false, while the editor is read-only.
 	 */
 	change(next: Json | ((current: Json) => Json)): boolean;
-	/** Holds the starting document while an editor parses input asynchronously. Its patch merges with intervening edits. */
-	prepare(): { before: Json; apply(next: Json): boolean; cancel(): void } | null;
+	/** Holds an editor's document while it parses input. Keeping it after apply lets further input use the same view until the editor displays the merged document; cancel releases it. */
+	prepare(): { before: Json; apply(next: Json, options?: { keep: boolean }): boolean; cancel(): void } | null;
 	/** Says where the person is in it (a value's key, an element's id), or nowhere (null). */
 	place(at: string | null): void;
 	/** Sends what is waiting now, without waiting for the batch. */
@@ -319,7 +319,6 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 			if (!canEdit()) return null;
 			const original = doc;
 			const pending = copyDocument(doc);
-			const vector = Y.encodeStateVector(pending);
 			let used = false;
 			const cancel = () => {
 				used = true;
@@ -328,14 +327,15 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 			return {
 				before: readDocument(pending),
 				cancel,
-				apply(next) {
+				apply(next, applyOptions) {
 					if (used || doc !== original || !canEdit()) {
 						cancel();
 						return false;
 					}
+					const vector = Y.encodeStateVector(pending);
 					changeDocument(pending, next);
 					Y.applyUpdate(doc, Y.encodeStateAsUpdate(pending, vector));
-					cancel();
+					if (!applyOptions?.keep) cancel();
 					options.onChange?.(readDocument(doc), "local");
 					return true;
 				},

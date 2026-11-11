@@ -41,6 +41,7 @@ import { InsertDialog, type InsertWhere } from "./InsertDialog.tsx";
 import { InsertToolbar } from "./InsertToolbar.tsx";
 import { Inspector } from "./Inspector.tsx";
 import { type DropPosition, type LayerAction, LayersPanel, rowKey } from "./LayersPanel.tsx";
+import { type LayerClipboard, layerLocation, runLayerAction } from "./layer-actions.ts";
 import { type MarkupProblem, MarkupView } from "./MarkupView.tsx";
 import {
 	type BuilderDoc,
@@ -56,29 +57,19 @@ import {
 	type Changed,
 	canHoldChildren,
 	childLists,
-	copiedIds,
 	insertAt,
 	insertionPlace,
 	isFixedText,
-	isFormatting,
-	listAt,
-	moveDown,
-	moveIntoPrevious,
-	moveOut,
 	moveTo,
-	moveUp,
 	type NodePath,
 	nodeAt,
 	type Place,
 	pathOfFilter,
 	pathOfId,
-	placeOf,
 	type Refused,
-	removeAt,
 	replaceAt,
 	placeBy as sharedPlaceBy,
 	treeProblem,
-	withNewIds,
 } from "./tree.ts";
 
 /** The most steps undo goes back. */
@@ -153,12 +144,16 @@ export function Builder({
 	const [designVersion, setDesignVersion] = useState(0);
 	const [focusLayers, setFocusLayers] = useState(0);
 	/** What Cut and Copy took: the layers, and the unsaved one-off styles of the elements in them. */
-	const clipboard = useRef<{ nodes: TreeNode[]; styles: Record<string, string> } | null>(null);
+	const clipboard = useRef<LayerClipboard | null>(null);
 	const insertTrigger = useRef<HTMLButtonElement | null>(null);
 	const fixedTextTrigger = useRef<HTMLElement | null>(null);
 	const docRef = useRef(doc);
 	docRef.current = doc;
 	const markupPending = useRef<ReturnType<SharedDraft["prepare"]>>(null);
+	const markupVersion = useRef(0);
+	const appliedMarkupVersion = useRef(0);
+	const markupRef = useRef(markup);
+	markupRef.current = markup;
 	const viewRef = useRef(view);
 	viewRef.current = view;
 
@@ -202,32 +197,15 @@ export function Builder({
 				props: component ? (component.props as unknown as FieldInput[]) : null,
 			};
 			if (JSON.stringify(next) === JSON.stringify(docRef.current)) return;
-			// Old snapshots cannot safely undo another person's work. The tab-wide history (#138)
+			// Old snapshots cannot safely undo another person's work. The tab-wide history (#136)
 			// replaces these local Builder steps; until then discard inapplicable snapshots.
 			if (history.current.past.length) announce(t("builder.historyChanged"));
 			history.current = { past: [], future: [] };
 			setGrab(null);
 			docRef.current = next;
 			setDoc(next);
-			if (viewRef.current === "markup" && !markupPending.current) {
-				void getApi()
-					.then((api) =>
-						api.builder.markup({
-							siteId,
-							target,
-							tree: next.tree,
-							styles: next.styles,
-							...(next.props ? { props: next.props } : {}),
-						}),
-					)
-					.then((printed) => {
-						if (docRef.current === next && !markupPending.current) {
-							setMarkup(printed.markup);
-							setMarkupBase(printed.markup);
-						}
-					})
-					.catch((failure) => setMarkupProblems(markupProblemsOf(failure, t(errorMessage(failure)))));
-			}
+			if (viewRef.current === "markup" && markupVersion.current === appliedMarkupVersion.current)
+				void refreshMarkup(next);
 			if (!Object.keys(next.styles).length) setSaved(JSON.stringify(next));
 		},
 		onRefused(refusal) {
@@ -241,6 +219,29 @@ export function Builder({
 			}
 		},
 	});
+	const refreshMarkup = useCallback(
+		async (next: BuilderDoc) => {
+			const version = markupVersion.current;
+			try {
+				const printed = await (await getApi()).builder.markup({
+					siteId,
+					target,
+					tree: next.tree,
+					styles: next.styles,
+					...(next.props ? { props: next.props } : {}),
+				});
+				if (docRef.current !== next || markupVersion.current !== version || viewRef.current !== "markup") return;
+				markupPending.current?.cancel();
+				markupPending.current = shared.prepare();
+				markupRef.current = printed.markup;
+				setMarkup(printed.markup);
+				setMarkupBase(printed.markup);
+			} catch (failure) {
+				if (markupVersion.current === version) setMarkupProblems(markupProblemsOf(failure, t(errorMessage(failure))));
+			}
+		},
+		[siteId, target, t, shared.prepare],
+	);
 	const dirty =
 		(documentId ? shared.status === "saving" || Object.keys(doc.styles).length > 0 : JSON.stringify(doc) !== saved) ||
 		(view === "markup" && markup !== markupBase);
@@ -261,7 +262,11 @@ export function Builder({
 		[documentId, shared.change, target.kind],
 	);
 	const acceptMarkup = useCallback(
-		(read: { tree: ElementTree; styles: Record<string, string>; props?: FieldInput[] | null }): BuilderDoc | null => {
+		(
+			read: { tree: ElementTree; styles: Record<string, string>; props?: FieldInput[] | null },
+			text: string,
+		): BuilderDoc | null => {
+			if (markupRef.current !== text) return null;
 			let next: BuilderDoc = { tree: read.tree, styles: read.styles, props: read.props ?? docRef.current.props };
 			if (documentId) {
 				const pending = markupPending.current ?? shared.prepare();
@@ -274,8 +279,11 @@ export function Builder({
 								props: next.props as unknown as Json,
 							}
 						: (next.tree as unknown as Json);
-				markupPending.current = null;
-				if (!pending.apply(value)) return null;
+				if (!pending.apply(value, { keep: true })) {
+					markupPending.current = null;
+					return null;
+				}
+				markupPending.current = pending;
 				const merged = shared.draft();
 				next = {
 					...next,
@@ -285,9 +293,12 @@ export function Builder({
 			}
 			docRef.current = next;
 			setDoc(next);
+			appliedMarkupVersion.current = markupVersion.current;
+			setMarkupBase(text);
+			void refreshMarkup(next);
 			return next;
 		},
-		[documentId, shared.prepare, shared.draft, target.kind],
+		[documentId, shared.prepare, shared.draft, target.kind, refreshMarkup],
 	);
 	useEffect(() => () => markupPending.current?.cancel(), []);
 
@@ -325,16 +336,7 @@ export function Builder({
 		return node ? layerName(t, node, catalogue).name : "";
 	};
 
-	/** Where a layer is now, in words: "2 of 4 in section · Hero". */
-	const whereIs = (tree: ElementTree, path: NodePath) => {
-		const place = placeOf(path);
-		const siblings = listAt(tree, place)
-			.map((node, index) => ({ node, index }))
-			.filter(({ node }) => !isFormatting(node));
-		const position = siblings.findIndex(({ index }) => index === place.index) + 1;
-		const owner = place.owner ? nameAt(tree, place.owner) : t("builder.moves.top");
-		return t("builder.moves.where", { position, count: siblings.length, owner });
-	};
+	const whereIs = (tree: ElementTree, path: NodePath) => layerLocation(t, tree, path, catalogue);
 
 	const applyMove = (result: Changed | Refused, name: string) => {
 		if ("refused" in result) {
@@ -352,86 +354,11 @@ export function Builder({
 		sharedPlaceBy(doc.tree, path, position);
 
 	const act = (action: LayerAction) => {
-		if (action === "paste") return paste();
-		if (selection?.kind !== "node") return;
-		const { path } = selection;
-		const node = nodeAt(doc.tree, path);
-		if (!node) return;
-		const name = layerName(t, node, catalogue).name;
-		switch (action) {
-			case "moveUp":
-				return applyMove(moveUp(doc.tree, path), name);
-			case "moveDown":
-				return applyMove(moveDown(doc.tree, path), name);
-			case "moveIn":
-				return applyMove(moveIntoPrevious(doc.tree, path), name);
-			case "moveOut":
-				return applyMove(moveOut(doc.tree, path), name);
-			case "copy":
-				clipboard.current = { nodes: [node], styles: doc.styles };
-				announce(t("builder.moves.copied", { name }));
-				return;
-			case "cut":
-			case "delete": {
-				if (action === "cut") clipboard.current = { nodes: [node], styles: doc.styles };
-				const tree = removeAt(doc.tree, path);
-				const place = placeOf(path);
-				const siblings = listAt(tree, place);
-				const next =
-					siblings.findIndex((each, index) => index >= place.index && !isFormatting(each)) >= 0
-						? {
-								kind: "node" as const,
-								path: [
-									...path.slice(0, -1),
-									siblings.findIndex((each, index) => index >= place.index && !isFormatting(each)),
-								],
-							}
-						: place.owner
-							? { kind: "node" as const, path: place.owner }
-							: null;
-				const styles = { ...doc.styles };
-				if (node.type === "element") delete styles[node.id];
-				apply(
-					{ ...doc, tree, styles },
-					next,
-					t(action === "cut" ? "builder.moves.cut" : "builder.moves.deleted", { name }),
-				);
-				return;
-			}
-			case "duplicate": {
-				const copies = withNewIds(doc.tree, [node]);
-				const made = insertAt(doc.tree, placeBy(path, "after"), copies);
-				apply(
-					{ ...doc, tree: made.tree, styles: withCopiedStyles(doc.styles, [node], copies, doc.styles) },
-					{ kind: "node", path: made.path },
-					t("builder.moves.duplicated", { name, where: whereIs(made.tree, made.path) }),
-				);
-				return;
-			}
-			case "rename":
-				announce(t("builder.layers.renameElementsOnly"));
-				return;
-		}
-	};
-
-	const paste = () => {
-		const copied = clipboard.current;
-		if (!copied || !selection) {
-			announce(t("builder.moves.nothingToPaste"));
-			return;
-		}
-		const nodes = withNewIds(doc.tree, copied.nodes);
-		const place: Place =
-			selection.kind === "list"
-				? { ...selection.list, index: listAt(doc.tree, selection.list).length }
-				: placeBy(selection.path, "after");
-		const made = insertAt(doc.tree, place, nodes);
-		const name = nameAt(made.tree, made.path);
-		apply(
-			{ ...doc, tree: made.tree, styles: withCopiedStyles(doc.styles, copied.nodes, nodes, copied.styles) },
-			{ kind: "node", path: made.path },
-			t("builder.moves.pasted", { name, where: whereIs(made.tree, made.path) }),
-		);
+		const result = runLayerAction(action, { doc, selection, clipboard: clipboard.current, catalogue }, t);
+		if (!result) return;
+		if (result.clipboard) clipboard.current = result.clipboard;
+		if (result.change) apply(result.change.doc, result.change.selection, result.message);
+		else announce(result.message);
 	};
 
 	const grabChange = (change: "pick" | "drop" | "cancel") => {
@@ -568,16 +495,18 @@ export function Builder({
 				const api = await getApi();
 				const read = await api.builder.read({ siteId, target, markup, ...propsChange(doc) });
 				if (!current) return;
-				if (markupPending.current || (!documentId && markup !== markupBase)) {
-					if (!acceptMarkup(read)) return;
-					setMarkupBase(markup);
+				let next = docRef.current;
+				if (markup !== markupBase) {
+					const accepted = acceptMarkup(read, markup);
+					if (!accepted) return;
+					next = accepted;
 				}
-				const props = (read as typeof read & { props?: FieldInput[] | null }).props ?? doc.props;
+				const props = next.props;
 				const shown = await api.builder.preview({
 					siteId,
 					target,
-					tree: read.tree,
-					styles: read.styles,
+					tree: next.tree,
+					styles: next.styles,
 					...(props ? { props } : {}),
 				});
 				if (!current) return;
@@ -591,7 +520,7 @@ export function Builder({
 			current = false;
 			clearTimeout(handle);
 		};
-	}, [markup, markupBase, documentId, view, siteId, target, doc, t, propsChange, acceptMarkup]);
+	}, [markup, markupBase, view, siteId, target, doc, t, propsChange, acceptMarkup]);
 
 	const placeholderWords = useCallback(
 		(kind: string, name: string | null) => {
@@ -642,6 +571,8 @@ export function Builder({
 		try {
 			const api = await getApi();
 			if (next === "markup") {
+				markupPending.current?.cancel();
+				markupPending.current = shared.prepare();
 				const printed = await api.builder.markup({
 					siteId,
 					target,
@@ -653,11 +584,14 @@ export function Builder({
 				setMarkupBase(printed.markup);
 				setMarkupProblems([]);
 				setView("markup");
+				viewRef.current = "markup";
+				appliedMarkupVersion.current = markupVersion.current;
+				void refreshMarkup(docRef.current);
 				announce(t("builder.view.toMarkup"));
 			} else {
 				if (markup !== markupBase) {
 					const read = await api.builder.read({ siteId, target, markup, ...propsChange(doc) });
-					if (!acceptMarkup(read)) return;
+					if (!acceptMarkup(read, markup)) return;
 				} else {
 					announce(t("builder.view.toVisual"));
 				}
@@ -678,12 +612,11 @@ export function Builder({
 		let started = docRef.current;
 		try {
 			const api = await getApi();
-			if (view === "markup" && (markupPending.current || markup !== markupBase)) {
+			if (view === "markup" && markup !== markupBase) {
 				const read = await api.builder.read({ siteId, target, markup, ...propsChange(started) });
-				const next = acceptMarkup(read);
+				const next = acceptMarkup(read, markup);
 				if (!next) return null;
 				started = next;
-				setMarkupBase(markup);
 			}
 			if (documentId && !(await shared.flush())) return null;
 			const latest = documentId ? await api.builder.open({ siteId, target }) : opened;
@@ -1056,6 +989,8 @@ export function Builder({
 						<MarkupView
 							value={markup}
 							onChange={(text) => {
+								markupVersion.current++;
+								markupRef.current = text;
 								markupPending.current ??= shared.prepare();
 								setMarkup(text);
 							}}
@@ -1252,21 +1187,6 @@ export function Builder({
 			</Dialog>
 		</div>
 	);
-}
-
-/** One-off styles with those of copied elements given to their copies too. */
-function withCopiedStyles(
-	styles: Record<string, string>,
-	originals: readonly TreeNode[],
-	copies: readonly TreeNode[],
-	from: Record<string, string>,
-): Record<string, string> {
-	const next = { ...styles };
-	for (const [original, copy] of copiedIds(originals, copies)) {
-		const style = from[original];
-		if (style) next[copy] = style;
-	}
-	return next;
 }
 
 /** The problems of a tree the server refused, else one problem in the admin's words. */

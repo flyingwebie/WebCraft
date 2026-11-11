@@ -13,25 +13,20 @@ import { InsertDialog, type InsertWhere } from "./InsertDialog.tsx";
 import { InsertToolbar } from "./InsertToolbar.tsx";
 import { Inspector } from "./Inspector.tsx";
 import { type LayerAction, type LayerSource, LayersPanel } from "./LayersPanel.tsx";
+import { type LayerClipboard, runLayerAction } from "./layer-actions.ts";
 import type { BuilderTarget, Opened, Selection } from "./model.ts";
 import {
 	canHoldChildren,
 	childLists,
 	insertAt,
 	insertionPlace,
-	moveDown,
-	moveIntoPrevious,
-	moveOut,
 	moveTo,
-	moveUp,
 	type NodePath,
 	nodeAt,
 	pathOfId,
 	placeBy,
-	removeAt,
 	replaceAt,
 	treeProblem,
-	withNewIds,
 } from "./tree.ts";
 
 export type PanelSource = {
@@ -153,9 +148,9 @@ function LivePanels({
 						: [ref];
 					for (const each of refs) bridge.changed(each, markup);
 				})
-				.catch((failure) => setError(String(failure)));
+				.catch((failure) => setError(t(errorMessage(failure))));
 		},
-		[bridge],
+		[bridge, t],
 	);
 	const update = useCallback((ref: string, tree: ElementTree, props?: Opened["props"]) => {
 		setSources((before) => {
@@ -230,11 +225,11 @@ function LivePanels({
 			.then((source) => {
 				if (current) setActive(source.ref);
 			})
-			.catch((failure) => setError(String(failure)));
+			.catch((failure) => setError(t(errorMessage(failure))));
 		return () => {
 			current = false;
 		};
-	}, [selected, load]);
+	}, [selected, load, t]);
 	useEffect(() => {
 		const requested = new Set(["site"]);
 		for (const element of document.querySelectorAll("[data-wc-code]")) {
@@ -592,7 +587,7 @@ function SourcePanels({
 	const [quick, setQuick] = useState<string | null>(null);
 	const [where, setWhere] = useState<InsertWhere>("inside");
 	const trigger = useRef<HTMLButtonElement>(null);
-	const clipboard = useRef<TreeNode[]>([]);
+	const clipboard = useRef<LayerClipboard | null>(null);
 	const [grabbed, setGrabbed] = useState<ElementTree | null>(null);
 	const [catalogue, setCatalogue] = useState(source.opened.catalogue);
 	const [fixed, setFixed] = useState<NodePath | null>(null);
@@ -675,31 +670,17 @@ function SourcePanels({
 		return apply(made.tree, { kind: "node", path: made.path });
 	};
 	const action = (action: LayerAction) => {
-		if (selection?.kind !== "node") return;
-		const path = selection.path;
-		const node = nodeAt(tree, path);
-		if (!node) return;
-		if (action === "copy" || action === "cut") clipboard.current = [node];
-		if (action === "delete" || action === "cut") {
-			apply(removeAt(tree, path), null);
-			return;
-		}
-		if (action === "duplicate" || action === "paste") {
-			const made = insertAt(
-				tree,
-				placeBy(tree, path, "after"),
-				withNewIds(tree, action === "duplicate" ? [node] : clipboard.current),
-			);
-			apply(made.tree, { kind: "node", path: made.path });
-			return;
-		}
-		const move = { moveUp, moveDown, moveIn: moveIntoPrevious, moveOut }[action as "moveUp"];
-		if (move) {
-			const result = move(tree, path);
-			if ("tree" in result) apply(result.tree, { kind: "node", path: result.path });
-			else announce(t(`builder.moves.refused.${result.refused as "first"}`, { name: "" }));
-		}
+		const result = runLayerAction(
+			action,
+			{ doc: { tree, styles: {}, props: null }, selection, clipboard: clipboard.current, catalogue },
+			t,
+		);
+		if (!result) return;
+		if (result.clipboard) clipboard.current = result.clipboard;
+		if (result.change) apply(result.change.doc.tree, result.change.selection, result.message);
+		else announce(result.message);
 	};
+
 	const previewRun = useRef(0);
 	const previewInsertion = async (show: boolean) => {
 		const run = ++previewRun.current;
@@ -786,7 +767,7 @@ function SourcePanels({
 						selection={selection}
 						collapsed={collapsed}
 						grabbed={grabbed !== null}
-						canPaste={clipboard.current.length > 0}
+						canPaste={clipboard.current !== null}
 						focusRequest={0}
 						onSelect={select}
 						onToggle={(key, open) =>
@@ -868,7 +849,7 @@ function SourcePanels({
 									setCatalogue(fresh.opened.catalogue);
 									onTree(fresh.opened.tree);
 								} catch (failure) {
-									announce(String(failure));
+									announce(t(errorMessage(failure)));
 								}
 							})();
 						}}

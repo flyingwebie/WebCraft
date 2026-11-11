@@ -78,7 +78,7 @@ export function codeMode(config: CodeModeConfig): void {
 		get(): string;
 		set(text: string, keepCaret?: boolean): void;
 		problems(lines: readonly number[]): void;
-		mark(line: number | null): void;
+		mark(line: number | null, through?: number): void;
 		reveal(offset: number): void;
 		readOnly(on: boolean): void;
 		/** Inserts text in place of what is selected, as typing would (it can be undone). */
@@ -448,6 +448,7 @@ export function codeMode(config: CodeModeConfig): void {
 					html.set(markup, true);
 					savedMarkup = markup;
 					if (selectedRef?.startsWith(`${ref}#`)) revealElement(selectedRef.slice(ref.length + 1));
+					else if (inspectorRef && selectedRef === inspectorRef) html.mark(1, markup.split("\n").length);
 					setDirty("html");
 				}
 				schedulePreview();
@@ -468,18 +469,12 @@ export function codeMode(config: CodeModeConfig): void {
 				showInsertion = () => {
 					root.querySelector(".insertion-context")?.remove();
 					for (const line of root.querySelectorAll(".insert-line")) line.classList.remove("insert-line");
-					const elements = [...doc.querySelectorAll("[data-wc-code]")];
-					const target = ref
-						? (elements.findLast((element) => element.getAttribute("data-wc-code") === ref) ??
-							pageElementFor(ref) ??
-							doc.querySelector("main"))
-						: null;
-					insertBox.hidden = !target;
-					if (!target || !ref || !context) {
+					const box = ref ? (pageBoundsFor(ref) ?? doc.querySelector("main")?.getBoundingClientRect()) : null;
+					insertBox.hidden = !box;
+					if (!box || !ref || !context) {
 						insertBox.removeAttribute("data-insert-preview");
 						return;
 					}
-					const box = target.getBoundingClientRect();
 					insertBox.style.left = `${box.left}px`;
 					insertBox.style.top = `${box.bottom - (where === "inside" ? 4 : 0)}px`;
 					insertBox.style.width = `${box.width}px`;
@@ -688,7 +683,7 @@ export function codeMode(config: CodeModeConfig): void {
 			setHover(null);
 		});
 		const reposition = () => {
-			const target = selectedRef ? pageElementFor(selectedRef) : null;
+			const target = selectedRef ? pageBoundsFor(selectedRef) : null;
 			if (target) outline(selectedBox, target);
 			else selectedBox.hidden = true;
 			hoverBox.hidden = true;
@@ -959,7 +954,7 @@ export function codeMode(config: CodeModeConfig): void {
 
 	function setHover(ref: string | null): void {
 		hoveredRef = ref;
-		const target = ref ? pageElementFor(ref) : null;
+		const target = ref ? pageBoundsFor(ref) : null;
 		if (target) {
 			outline(hoverBox, target);
 			hoverBox.dataset.hoverRef = ref ?? "";
@@ -987,8 +982,32 @@ export function codeMode(config: CodeModeConfig): void {
 		);
 	}
 
-	function outline(box: HTMLElement, target: Element, label?: string): void {
-		const rect = target.getBoundingClientRect();
+	/** A Placement can render several roots, including roots supplied by nested Components. */
+	function pageBoundsFor(ref: string): DOMRect | null {
+		const elements = [...doc.querySelectorAll("[data-wc-code]")];
+		const exact = elements.filter((element) => element.getAttribute("data-wc-code") === ref);
+		const placed = ref.replace("#", "/");
+		const matches = exact.length
+			? exact
+			: elements.filter((element) => {
+					const source = element.getAttribute("data-wc-code") ?? "";
+					return source.startsWith(`${placed}#`) || source.startsWith(`${placed}/`);
+				});
+		const roots = matches.filter((element) => !matches.some((other) => other !== element && other.contains(element)));
+		if (!roots.length) return null;
+		const rects = roots.map((element) => element.getBoundingClientRect());
+		const left = Math.min(...rects.map((rect) => rect.left));
+		const top = Math.min(...rects.map((rect) => rect.top));
+		return new DOMRect(
+			left,
+			top,
+			Math.max(...rects.map((rect) => rect.right)) - left,
+			Math.max(...rects.map((rect) => rect.bottom)) - top,
+		);
+	}
+
+	function outline(box: HTMLElement, target: Element | DOMRect, label?: string): void {
+		const rect = target instanceof Element ? target.getBoundingClientRect() : target;
 		box.hidden = false;
 		box.style.top = `${Math.round(rect.top)}px`;
 		box.style.left = `${Math.round(rect.left)}px`;
@@ -1010,7 +1029,7 @@ export function codeMode(config: CodeModeConfig): void {
 		else host.before(...rest);
 		if (skip) doc.body.prepend(skip);
 		panelsAdapter?.refresh();
-		const target = selectedRef ? pageElementFor(selectedRef) : null;
+		const target = selectedRef ? pageBoundsFor(selectedRef) : null;
 		if (target) outline(selectedBox, target);
 		else selectedBox.hidden = true;
 	}
@@ -1070,7 +1089,7 @@ export function codeMode(config: CodeModeConfig): void {
 		const fresh = answer.data as Opened;
 		const sameSource = opened?.ref === fresh.ref;
 		opened = fresh;
-		selectedRef = fresh.element ? `${fresh.ref}#${fresh.element.id}` : null;
+		selectedRef = fresh.element ? `${fresh.ref}#${fresh.element.id}` : (inspectorRef ?? null);
 		if (!keepText || !sameSource) {
 			savedMarkup = fresh.markup;
 			html.set(fresh.markup);
@@ -1082,12 +1101,13 @@ export function codeMode(config: CodeModeConfig): void {
 		html.area.setAttribute("aria-label", word("htmlOf", { name: currentName() }));
 		renderBreadcrumb();
 		renderUsage();
-		const target = selectedRef ? pageElementFor(selectedRef) : null;
+		const target = selectedRef ? pageBoundsFor(selectedRef) : null;
 		if (target) {
 			const last = fresh.path.at(-1)?.label ?? "";
 			outline(selectedBox, target, `${last} · ${currentName()}`);
 		} else selectedBox.hidden = true;
 		if (fresh.element) revealElement(fresh.element.id);
+		else if (inspectorRef) html.mark(1, html.get().split("\n").length);
 		else html.mark(null);
 		if (!fresh.source.editable) setStatusText(word("readOnly", { name: currentName() }));
 		html.area.dataset.editorRef = fresh.ref;
@@ -2161,6 +2181,7 @@ export function codeMode(config: CodeModeConfig): void {
 		const rootElement = el("div", { class: `editor language-${options.language}` }, gutter, surface);
 		let problemLines = new Set<number>();
 		let marked: number | null = null;
+		let markedThrough = 0;
 
 		const paint = () => {
 			const text = area.value;
@@ -2176,7 +2197,7 @@ export function codeMode(config: CodeModeConfig): void {
 					const classes = [
 						"line",
 						problemLines.has(number) ? "has-problem" : "",
-						marked === number ? "marked" : "",
+						marked !== null && number >= marked && number <= markedThrough ? "marked" : "",
 						hoverLine === number ? "hovered" : "",
 					];
 					return `<span class="${classes.join(" ").trim()}">${line || " "}</span>`;
@@ -2187,7 +2208,13 @@ export function codeMode(config: CodeModeConfig): void {
 					const number = index + 1;
 					return el(
 						"span",
-						{ class: problemLines.has(number) ? "has-problem" : marked === number ? "marked" : "" },
+						{
+							class: problemLines.has(number)
+								? "has-problem"
+								: marked !== null && number >= marked && number <= markedThrough
+									? "marked"
+									: "",
+						},
 						String(number),
 					);
 				}),
@@ -2302,8 +2329,9 @@ export function codeMode(config: CodeModeConfig): void {
 				problemLines = new Set(lines);
 				paint();
 			},
-			mark(line) {
+			mark(line, through = line ?? 0) {
 				marked = line;
+				markedThrough = through;
 				paint();
 			},
 			reveal(offset) {
