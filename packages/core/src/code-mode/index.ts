@@ -99,8 +99,15 @@ export type CodeMode = {
 		host: SiteHost,
 		input: { path: string; ref: string; markup: string; version: string | null },
 	): Promise<SavedMarkup>;
-	/** What the CSS panel shows for the element a reference names (null: the Site CSS only). */
-	css(scope: SiteScope, host: SiteHost, input: { path: string; ref: string | null }): Promise<CodeCss>;
+	/**
+	 * What the CSS panel shows for an element: the Classes its editor's shared document gives it now
+	 * (`classes`, ids in order), else those of the element a reference names (null: the Site CSS only).
+	 */
+	css(
+		scope: SiteScope,
+		host: SiteHost,
+		input: { path: string; ref: string | null; classes?: readonly string[] },
+	): Promise<CodeCss>;
 	/**
 	 * Saves CSS (a piece of a Class, or the Site CSS) to the Design system's Draft, based on the
 	 * version it was opened at.

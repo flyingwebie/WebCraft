@@ -15,6 +15,7 @@ import {
 } from "@webcraft/renderer";
 
 import { storedComponentVersion } from "../content/component-versions.ts";
+import { publishedPagesShowing } from "../content/components.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 
 /** One place a Class or token is used. */
@@ -173,4 +174,31 @@ export async function useCounts(scope: Pick<SiteScope, "select">, designSystem: 
 	for (const each of designSystem.classes) for (const id of Object.keys(each.breakpoints)) count(tokens, id);
 	count(tokens, designSystem.tokens.focus.colour.colour);
 	return { classes, tokens };
+}
+
+/** How many elements use a Class, and on how many published pages. */
+export type ClassUsage = { elements: number; pages: number };
+
+/**
+ * How widely each of some Classes is used by its own uses, as the CSS panel warns before an edit:
+ * the elements of Templates' and Components' Drafts given it, and the published pages that show an
+ * element given it, counted as a Component's pages are (through what places its tree).
+ */
+export async function classUsage(scope: SiteScope, classIds: readonly string[]): Promise<Map<string, ClassUsage>> {
+	const usage = new Map<string, ClassUsage>(classIds.map((id) => [id, { elements: 0, pages: 0 }]));
+	if (usage.size === 0) return usage;
+	for (const source of await treeSources(scope)) {
+		if (source.use.version !== "draft") continue;
+		for (const element of elementsOf(source.tree.nodes)) {
+			for (const id of new Set(element.classes)) {
+				const each = usage.get(id);
+				if (each) each.elements++;
+			}
+		}
+	}
+	const pagesShowing = await publishedPagesShowing(scope);
+	for (const [id, each] of usage) {
+		each.pages = pagesShowing((tree) => [...elementsOf(tree.nodes)].some((element) => element.classes.includes(id)));
+	}
+	return usage;
 }

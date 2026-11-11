@@ -912,15 +912,22 @@ function propInfos(props: readonly FieldDefinition[]): PropInfo[] {
 // ---------------------------------------------------------------------------------------------------
 // Where Components are used
 
+/** A tree of the Site that can place Components or hold Classes, with what it is. */
+type Holder = { use: ComponentUse; draft: ElementTree; published: ElementTree | null };
+
 /**
- * Where each Component of the Site is placed and on how many published pages it shows, worked out
- * from every Template's and Component's Draft and published version.
+ * The Site's trees (every Template's and Component's Draft and published version, and the
+ * accessibility statement's page) and how many published pages show what some of them hold.
  */
-async function usages(scope: SiteScope): Promise<(componentId: string) => ComponentUsage> {
+async function pageGraph(
+	scope: SiteScope,
+): Promise<{
+	holders: Holder[];
+	pagesShowing(seed: readonly Holder[]): number;
+	placers(componentId: string): Holder[];
+}> {
 	const templateRows = await scope.select(templates);
 	const componentRows = await scope.select(components);
-	/** Every tree that places Components, with what it is. */
-	type Holder = { use: ComponentUse; draft: ElementTree; published: ElementTree | null };
 	const holders: Holder[] = [
 		...templateRows.map((row) => ({
 			use: {
@@ -952,20 +959,12 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 			published: statementPage.published ? tree : null,
 		});
 	}
-	const directUses = new Map<string, ComponentUse[]>();
 	/** Which published trees place a Component directly: holders by the Component's id. */
 	const publishedPlacers = new Map<string, Holder[]>();
 	for (const holder of holders) {
-		const inDraft = new Set(componentsPlacedIn(holder.draft));
-		const inPublished = new Set(holder.published ? componentsPlacedIn(holder.published) : []);
-		for (const id of new Set([...inDraft, ...inPublished])) {
-			const versions = [
-				...(inDraft.has(id) ? (["draft"] as const) : []),
-				...(inPublished.has(id) ? (["published"] as const) : []),
-			];
-			directUses.set(id, [...(directUses.get(id) ?? []), { ...holder.use, versions }]);
+		for (const id of new Set(holder.published ? componentsPlacedIn(holder.published) : [])) {
+			publishedPlacers.set(id, [...(publishedPlacers.get(id) ?? []), holder]);
 		}
-		for (const id of inPublished) publishedPlacers.set(id, [...(publishedPlacers.get(id) ?? []), holder]);
 	}
 
 	const postTypes = await listPostTypes(scope);
@@ -989,29 +988,31 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 			.filter((postType) => isPagePostType(postType) || withEntryTemplate.has(postType.id))
 			.reduce((sum, postType) => sum + (publishedEntries.get(postType.id) ?? 0), 0) + withArchive.size;
 
-	const pagesShowing = (componentId: string): number => {
-		const seen = new Set<string>([componentId]);
-		const stack = [componentId];
+	/**
+	 * How many published pages show what `seed` (published trees) hold: through the Components and
+	 * Templates that place those trees, every page when the Site template does.
+	 */
+	const pagesShowing = (seed: readonly Holder[]): number => {
+		const seen = new Set<string>();
+		const stack = [...seed];
 		const postTypeIds = new Set<string>();
 		const archives = new Set<string>();
 		const individualPages = new Set<string>();
 		while (stack.length > 0) {
-			const id = stack.pop() as string;
-			for (const holder of publishedPlacers.get(id) ?? []) {
-				if (holder.use.kind === "component" || holder.use.kind === "popup") {
-					if (!seen.has(holder.use.id)) {
-						seen.add(holder.use.id);
-						stack.push(holder.use.id);
-					}
-				} else if (holder.use.kind === "entry") {
-					individualPages.add(holder.use.id);
-				} else if (holder.use.templateKind === "site") {
-					return allPages;
-				} else if (holder.use.templateKind === "archive" && holder.use.postTypeId) {
-					if (withArchive.has(holder.use.postTypeId)) archives.add(holder.use.postTypeId);
-				} else if (holder.use.postTypeId) {
-					postTypeIds.add(holder.use.postTypeId);
+			const holder = stack.pop() as Holder;
+			if (holder.use.kind === "component" || holder.use.kind === "popup") {
+				if (!seen.has(holder.use.id)) {
+					seen.add(holder.use.id);
+					stack.push(...(publishedPlacers.get(holder.use.id) ?? []));
 				}
+			} else if (holder.use.kind === "entry") {
+				individualPages.add(holder.use.id);
+			} else if (holder.use.templateKind === "site") {
+				return allPages;
+			} else if (holder.use.templateKind === "archive" && holder.use.postTypeId) {
+				if (withArchive.has(holder.use.postTypeId)) archives.add(holder.use.postTypeId);
+			} else if (holder.use.postTypeId) {
+				postTypeIds.add(holder.use.postTypeId);
 			}
 		}
 		return (
@@ -1020,6 +1021,38 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 			individualPages.size
 		);
 	};
+	return { holders, pagesShowing, placers: (componentId) => publishedPlacers.get(componentId) ?? [] };
+}
+
+/**
+ * How many published pages show an element of a published tree that `holds` accepts, counted as a
+ * Component's pages are: a Class's own uses, through the Templates and Components that place them.
+ */
+export async function publishedPagesShowing(
+	scope: SiteScope,
+): Promise<(holds: (tree: ElementTree) => boolean) => number> {
+	const { holders, pagesShowing } = await pageGraph(scope);
+	return (holds) => pagesShowing(holders.filter((holder) => holder.published && holds(holder.published)));
+}
+
+/**
+ * Where each Component of the Site is placed and on how many published pages it shows, worked out
+ * from every Template's and Component's Draft and published version.
+ */
+async function usages(scope: SiteScope): Promise<(componentId: string) => ComponentUsage> {
+	const { holders, pagesShowing, placers } = await pageGraph(scope);
+	const directUses = new Map<string, ComponentUse[]>();
+	for (const holder of holders) {
+		const inDraft = new Set(componentsPlacedIn(holder.draft));
+		const inPublished = new Set(holder.published ? componentsPlacedIn(holder.published) : []);
+		for (const id of new Set([...inDraft, ...inPublished])) {
+			const versions = [
+				...(inDraft.has(id) ? (["draft"] as const) : []),
+				...(inPublished.has(id) ? (["published"] as const) : []),
+			];
+			directUses.set(id, [...(directUses.get(id) ?? []), { ...holder.use, versions }]);
+		}
+	}
 	for (const row of await scope.select(popups)) {
 		const uses = directUses.get(row.componentId) ?? [];
 		uses.push({
@@ -1030,7 +1063,7 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 		});
 		directUses.set(row.componentId, uses);
 	}
-	return (componentId) => ({ pages: pagesShowing(componentId), usedIn: directUses.get(componentId) ?? [] });
+	return (componentId) => ({ pages: pagesShowing(placers(componentId)), usedIn: directUses.get(componentId) ?? [] });
 }
 
 // ---------------------------------------------------------------------------------------------------
