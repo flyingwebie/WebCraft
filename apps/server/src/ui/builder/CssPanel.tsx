@@ -306,6 +306,8 @@ export function CssPanel({
 	const [picked, setPicked] = useState<{ element: string | null; tab: string } | null>(null);
 	const [view, setView] = useState<View>("all");
 	const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({});
+	/** The version each piece had when its unsaved text was started: a save names it, so it never overwrites a newer one unasked. */
+	const draftBases = useRef(new Map<string, string | null>());
 	const [problems, setProblems] = useState<Problem[]>([]);
 	const [conflict, setConflict] = useState<{ key: string; version: string } | null>(null);
 	const [renaming, setRenaming] = useState<{ classId: string; name: string } | null>(null);
@@ -424,6 +426,8 @@ export function CssPanel({
 	};
 
 	const change = (value: string) => {
+		if (!draftBases.current.has(key))
+			draftBases.current.set(key, target.kind === "site" ? (data?.siteCss.version ?? null) : (chosen?.version ?? null));
 		setDrafts((before) => ({ ...before, [key]: value }));
 		if (tab !== SITE) lastClass.current = tab;
 		setProblems(/@layer\b/i.test(value) ? [{ message: t("builder.css.noLayer") }] : []);
@@ -498,11 +502,18 @@ export function CssPanel({
 			setProblems([{ message: t("builder.css.noLayer") }]);
 			return;
 		}
-		const version = over ?? (target.kind === "site" ? (data?.siteCss.version ?? null) : (chosen?.version ?? null));
+		const version =
+			over ??
+			(draftBases.current.has(key)
+				? (draftBases.current.get(key) ?? null)
+				: target.kind === "site"
+					? (data?.siteCss.version ?? null)
+					: (chosen?.version ?? null));
 		const wasGenerated = target.kind === "class" && !!chosen?.generated && text !== saved;
 		setSaving(true);
 		try {
 			await port.save(target, text, version);
+			draftBases.current.delete(key);
 			setDrafts((before) => {
 				const { [key]: _, ...rest } = before;
 				return rest;
@@ -526,6 +537,7 @@ export function CssPanel({
 	};
 
 	const reloadTheirs = async () => {
+		draftBases.current.delete(key);
 		setDrafts((before) => {
 			const { [key]: _, ...rest } = before;
 			return rest;
