@@ -97,7 +97,25 @@ for (const theme of THEMES) {
 		await tree.getByRole("treeitem", { name: /^header$/, selected: true }).waitFor();
 		await tree.getByRole("treeitem", { name: /Greeting/ }).click();
 		const beforeTyping = await html.inputValue();
+		const refusals: Promise<{ path: string; status: number; code: unknown }>[] = [];
+		page.on("response", (response) => {
+			if (response.status() < 400) return;
+			refusals.push(
+				response
+					.json()
+					.catch(() => ({}))
+					.then((body) => ({
+						path: new URL(response.url()).pathname,
+						status: response.status(),
+						code: body.code,
+					})),
+			);
+		});
+		const invalid = page.waitForResponse(
+			(response) => response.url().endsWith("/code/editorRead") && response.status() === 400,
+		);
 		await html.fill(`${beforeTyping}<aside`);
+		await invalid;
 		await other.getByRole("treeitem", { name: /Greeting/ }).click();
 		await other.getByLabel("Layer label", { exact: true }).fill("Greeting together");
 		await other.getByLabel("Layer label", { exact: true }).press("Enter");
@@ -174,7 +192,19 @@ for (const theme of THEMES) {
 		await addClass.press("Enter");
 		await page.getByRole("button", { name: "Edit the styles of greeting" }).waitFor();
 		await expectNoAxeViolations(page, `Code mode Layers (${theme})`);
-		expect(pageErrors(page)).toEqual([]);
+		// Incomplete authored HTML is refused; other HTTP failures and browser errors are unexpected.
+		const failed = await Promise.all(refusals);
+		expect(failed.length).toBeGreaterThan(0);
+		for (const refusal of failed) {
+			expect(["/_webcraft/edit/api/code/preview", "/_webcraft/edit/api/code/editorRead"]).toContain(refusal.path);
+			expect(refusal.status).toBe(400);
+			expect(refusal.code).toBe("TEMPLATE_MARKUP_INVALID");
+		}
+		expect(
+			pageErrors(page).filter(
+				(message) => message !== "Failed to load resource: the server responded with a status of 400 (Bad Request)",
+			),
+		).toEqual([]);
 		if (process.env.WEBCRAFT_EDITOR_EVIDENCE)
 			await page.screenshot({ path: `${process.env.WEBCRAFT_EDITOR_EVIDENCE}/layers-${theme}.png` });
 	});

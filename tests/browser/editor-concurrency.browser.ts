@@ -36,6 +36,59 @@ async function editorPage(theme: (typeof THEMES)[number], canvas: "live" | "prev
 }
 
 for (const theme of THEMES) {
+	test(`a delayed Inspector selection preserves the peer's HTML for the next edit (${theme})`, async () => {
+		const { api, siteId, page, tree } = await editorPage(theme, "live");
+		const release = Promise.withResolvers<void>();
+		try {
+			await tree.getByRole("treeitem", { name: /^Before/ }).click();
+			await page.getByLabel("Tag", { exact: true }).waitFor();
+			await page.waitForLoadState("networkidle");
+			const html = page.getByRole("textbox", { name: /^HTML of / });
+			const held = Promise.withResolvers<void>();
+			const fulfilled = Promise.withResolvers<void>();
+			let hold = true;
+			await page.route("**/_webcraft/edit/api/code/open", async (route) => {
+				if (!hold || route.request().postDataJSON().ref !== "site#greeting") return route.continue();
+				hold = false;
+				const response = await route.fetch();
+				held.resolve();
+				await release.promise;
+				await route.fulfill({ response });
+				fulfilled.resolve();
+			});
+			await page.getByLabel("Tag", { exact: true }).fill("h2");
+			await page.getByLabel("Tag", { exact: true }).press("Enter");
+			await held.promise;
+			const changed = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+			expect(changed).toContain("<h2 ");
+			await api.templates.saveSiteTemplateMarkup({
+				siteId,
+				markup: changed.replace('data-wc-label="Before"', 'data-wc-label="Remote"'),
+			});
+			await tree.getByRole("treeitem", { name: /^Remote/ }).waitFor();
+			await page.waitForFunction(() =>
+				document
+					.querySelector("webcraft-code-mode")
+					?.shadowRoot?.querySelector("textarea")
+					?.value.includes('data-wc-label="Remote"'),
+			);
+			release.resolve();
+			await fulfilled.promise;
+			await page.waitForLoadState("networkidle");
+			await html.fill((await html.inputValue()).replace("<header ", '<header data-wc-label="Local header" '));
+			let saved = "";
+			for (let attempt = 0; attempt < 100; attempt++) {
+				saved = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+				if (saved.includes('data-wc-label="Local header"')) break;
+				await page.waitForTimeout(50);
+			}
+			expect(saved).toContain('data-wc-label="Local header"');
+			expect(saved).toContain('data-wc-label="Remote"');
+		} finally {
+			release.resolve();
+		}
+	});
+
 	test(`an old Inspector refresh preserves the peer's tree for the next edit (${theme})`, async () => {
 		const { api, siteId, page, tree } = await editorPage(theme, "live");
 		const release = Promise.withResolvers<void>();

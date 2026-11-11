@@ -1090,7 +1090,8 @@ export function codeMode(config: CodeModeConfig): void {
 		const sameSource = opened?.ref === fresh.ref;
 		opened = fresh;
 		selectedRef = fresh.element ? `${fresh.ref}#${fresh.element.id}` : (inspectorRef ?? null);
-		if (!keepText || !sameSource) {
+		// Once connected, the shared Draft owns this source's HTML; selection reads supply metadata only.
+		if (!sameSource || (!panelsAdapter && !keepText)) {
 			savedMarkup = fresh.markup;
 			html.set(fresh.markup);
 			showProblems("html", []);
