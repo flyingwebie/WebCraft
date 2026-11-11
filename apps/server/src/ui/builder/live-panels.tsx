@@ -48,7 +48,7 @@ export type LivePanelBridge = {
 	language: "en" | "it";
 	call<T>(action: string, body: object): Promise<T>;
 	select(ref: string, inspectorRef?: string): void;
-	changed(ref: string, markup: string): void;
+	changed(ref: string, markup: string, preserveAuthored?: boolean): void;
 	hover(ref: string | null): void;
 	ready(ref: string, editable: boolean): void;
 	refresh(): void;
@@ -189,7 +189,7 @@ function LivePanels({
 			bridge
 				.call<{ markup: string }>("code/editorMarkup", { ref, draft: { tree, ...(props ? { props } : {}) } })
 				.then(({ markup }) => {
-					if (typing.current || paintRuns.current.get(key) !== run) return;
+					if (paintRuns.current.get(key) !== run) return;
 					const sourceNow = sourcesRef.current[ref];
 					if (!sourceNow) return;
 					const currentId = sourceNow.opened.component?.id ?? sourceNow.opened.template?.id;
@@ -200,7 +200,7 @@ function LivePanels({
 								.filter((each) => (each.opened.component?.id ?? each.opened.template?.id) === id)
 								.map((each) => each.ref)
 						: [ref];
-					for (const each of refs) bridge.changed(each, markup);
+					for (const each of refs) bridge.changed(each, markup, typing.current);
 				})
 				.catch((failure) => setError(t(errorMessage(failure))));
 		},
