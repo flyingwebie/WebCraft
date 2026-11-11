@@ -182,7 +182,10 @@ function attachmentDisposition(name: string): string {
 /**
  * Whether a request could have come from the admin's own pages. Browsers say where a request comes
  * from (`Origin`, `Sec-Fetch-Site`); a request another site's page makes is refused, so no other site
- * can act with a signed-in person's cookie. Requests without either header don't come from a browser.
+ * can act with a signed-in person's cookie. The `Origin` must be the admin's own: its hostname, on
+ * the port this request came to (as Edit mode checks), so another service on the same hostname is
+ * refused too, even by a browser that doesn't send `Sec-Fetch-Site`. Requests without either header
+ * don't come from a browser (scripts and the CLI use API tokens at `/api/v1`, never this cookie).
  */
 function fromAdminPages(request: Request, adminHost: string): boolean {
 	const site = request.headers.get("sec-fetch-site");
@@ -190,7 +193,8 @@ function fromAdminPages(request: Request, adminHost: string): boolean {
 	const origin = request.headers.get("origin");
 	if (origin === null) return true;
 	try {
-		return normaliseHostname(new URL(origin).hostname) === adminHost;
+		const from = new URL(origin);
+		return normaliseHostname(from.hostname) === adminHost && from.port === new URL(request.url).port;
 	} catch {
 		return false;
 	}
