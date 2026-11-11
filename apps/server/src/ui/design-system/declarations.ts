@@ -34,11 +34,31 @@ export function declarationsOf(css: string): Declaration[] {
 	return rows;
 }
 
-export function cssOf(rows: readonly Declaration[]): string {
+/** Rows as CSS declarations, joined by `separator` (one line by default; the CSS panel puts each on its own). */
+export function cssOf(rows: readonly Declaration[], separator = " "): string {
 	return rows
 		.filter((row) => row.property.trim() && row.value.trim())
 		.map((row) => `${row.property.trim()}: ${row.value.trim()};`)
-		.join(" ");
+		.join(separator);
+}
+
+/** The value one property has in CSS declarations, read as `declarationsOf` reads them (the last one wins). */
+export function declarationOf(css: string, property: string): string | undefined {
+	return declarationsOf(css).findLast((row) => row.property.toLowerCase() === property)?.value;
+}
+
+/**
+ * CSS declarations with one property set: replaced where it is, else added at the end, each
+ * declaration on its own line. Text that doesn't read as declarations (unfinished typing) keeps
+ * what was typed, with the declaration added on a line of its own.
+ */
+export function withDeclarationOf(css: string, property: string, value: string): string {
+	const rows = declarationsOf(css);
+	if (css.trim() && rows.length === 0) return `${css}${css.endsWith("\n") ? "" : "\n"}${property}: ${value};`;
+	const at = rows.findIndex((row) => row.property.toLowerCase() === property);
+	const next =
+		at < 0 ? [...rows, { property, value }] : rows.map((row, index) => (index === at ? { property, value } : row));
+	return cssOf(next, "\n");
 }
 
 /** Properties the editor suggests first; any CSS property can be typed. */
@@ -71,4 +91,62 @@ export const PROPERTIES = [
 	"grid-template-columns",
 	"object-fit",
 	"aspect-ratio",
+];
+
+/** Every property the code editors suggest: those suggested first, then the rest most used first. */
+export const CSS_PROPERTIES: readonly string[] = [
+	...PROPERTIES,
+	"background",
+	"row-gap",
+	"column-gap",
+	"width",
+	"max-width",
+	"min-width",
+	"height",
+	"max-height",
+	"min-height",
+	"font-style",
+	"letter-spacing",
+	"text-decoration",
+	"text-transform",
+	"text-wrap",
+	"border-color",
+	"border-width",
+	"border-style",
+	"flex",
+	"flex-grow",
+	"flex-shrink",
+	"flex-basis",
+	"justify-items",
+	"align-content",
+	"align-self",
+	"grid-template-rows",
+	"grid-column",
+	"grid-row",
+	"grid-area",
+	"place-items",
+	"place-content",
+	"position",
+	"inset",
+	"top",
+	"right",
+	"bottom",
+	"left",
+	"z-index",
+	"overflow",
+	"opacity",
+	"transform",
+	"transition",
+	"animation",
+	"object-position",
+	"list-style",
+	"white-space",
+	"cursor",
+	"outline",
+	"outline-offset",
+	"visibility",
+	"content",
+	"container-type",
+	"scroll-margin-top",
+	"accent-color",
 ];

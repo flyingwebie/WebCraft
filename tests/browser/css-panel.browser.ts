@@ -433,3 +433,105 @@ describe("answers arriving late or out of date", () => {
 		await api.designSystem.updateClass({ siteId, classId: lead?.id ?? "", styles: "font-size: var(--text-xl);" });
 	});
 });
+
+describe("review follow-ups", () => {
+	for (const theme of THEMES) {
+		test(`the CSS shows highlighted, with line numbers, as the HTML and JS panels do (${theme})`, async () => {
+			const page = await codeModePage(theme);
+			await selectOnPage(page, page.locator("main h1"), ".hero-title");
+			const region = cssRegion(page);
+
+			await region.getByRole("button", { name: "Own CSS" }).click();
+			await region.getByRole("textbox", { name: "CSS: .hero-title, own CSS" }).waitFor();
+
+			const editor = region.locator("[data-code-area]");
+			expect(await editor.locator("[data-gutter] > span").allTextContents()).toEqual(["1", "2", "3"]);
+			await editor.locator('[data-token="property"]', { hasText: "color" }).waitFor();
+			await editor.locator('[data-token="selector"]', { hasText: "&" }).first().waitFor();
+			await expectNoAxeViolations(page, `CSS panel › highlighted CSS (${theme})`);
+		});
+	}
+
+	test("an element of a Module's Component says why its Classes can't change", async () => {
+		const local = install.install;
+		const { api } = await local.superadmin();
+		await api.modules.approve({ moduleId: "extra-blocks", version: "1.0.0" });
+		const workspace = await local.createWorkspace("Module CSS");
+		const moduleSlug = "module-css";
+		const { id: moduleSiteId } = await local.createSite(workspace.id, { name: "Module CSS", slug: moduleSlug });
+		const owner = (await local.createStaff({ workspaces: [workspace.id] })).account;
+		await api.templates.saveSiteTemplateMarkup({
+			siteId: moduleSiteId,
+			markup: '<header><Tabs data-wc-id="tabs" label="Details" /></header><main>{{@outlet}}</main>',
+		});
+		const page = await testPage("light");
+		await install.signIn(page, owner);
+		await page.goto(install.adminUrl(`/sites/${moduleSiteId}`));
+		await page.getByRole("button", { name: "Edit on site" }).click();
+		await page.waitForURL((url) => url.hostname.startsWith(moduleSlug));
+		await page.getByRole("button", { name: "Code", exact: true }).click();
+		const tree = page.getByRole("tree", { name: "Layers" });
+		await tree.getByRole("treeitem").filter({ hasText: /^Tabs/ }).click();
+		await page.getByRole("textbox", { name: "HTML of Tabs · Component" }).waitFor();
+		await tree
+			.getByRole("treeitem", { name: /^section/ })
+			.first()
+			.click();
+
+		const notice = cssRegion(page).getByText("This element comes from a Module: its Classes can't be changed here.");
+		await notice.waitFor();
+		const add = cssRegion(page).getByRole("button", { name: "Give this element a Class" });
+		expect(await add.isDisabled()).toBe(true);
+		expect(await add.getAttribute("aria-describedby")).toBe(await notice.getAttribute("id"));
+	});
+
+	test("an unfinished + form and rename prompt don't follow the selection to another element", async () => {
+		const { api } = await install.install.superadmin();
+		await api.templates.saveEntryTemplateMarkup({
+			siteId,
+			postTypeId,
+			markup: ENTRY_TEMPLATE.replace("<p>Plain words</p>", '<p style="color: navy">Plain words</p>'),
+		});
+		const page = await codeModePage("light");
+		const region = cssRegion(page);
+		await selectOnPage(page, page.locator("main h1"), ".hero-title");
+		await region.getByRole("button", { name: "Give this element a Class" }).click();
+		await region.getByRole("combobox", { name: "Class name" }).fill("half-typed");
+
+		await page.locator("main p", { hasText: "Out of the oven" }).click();
+		await waitForTabs(page, [".lead", "Site CSS"]);
+		expect(await region.getByRole("combobox", { name: "Class name" }).count()).toBe(0);
+
+		await page.locator("main p", { hasText: "Plain words" }).click();
+		await tabList(page)
+			.getByRole("tab", { name: /Generated/, selected: true })
+			.waitFor();
+		await cssText(page).fill("color: navy;\nfont-style: italic;");
+		await region.getByRole("button", { name: "Save", exact: true }).click();
+		await region.getByRole("textbox", { name: "Name" }).waitFor();
+		await page.locator("main h1").click();
+		await waitForTabs(page, [".hero-title", ".lead", "Site CSS"]);
+		expect(await region.getByRole("textbox", { name: "Name" }).count()).toBe(0);
+	});
+
+	test("the columns field shows a plain repeat(n, 1fr) grid", async () => {
+		const { api } = await install.install.superadmin();
+		const lead = (await draftClasses()).find((each) => each.name === "lead");
+		await api.designSystem.updateClass({
+			siteId,
+			classId: lead?.id ?? "",
+			styles: "display: grid;\ngrid-template-columns: repeat(4, 1fr);",
+		});
+		try {
+			const page = await codeModePage("light");
+			await selectOnPage(page, page.locator("main p", { hasText: "Out of the oven" }), ".lead");
+			for (let tries = 0; tries < 40 && !(await cssText(page).inputValue()).includes("repeat(4"); tries++)
+				await page.waitForTimeout(250);
+
+			expect(await cssText(page).inputValue()).toBe("display: grid;\ngrid-template-columns: repeat(4, 1fr);");
+			expect(await cssRegion(page).getByRole("textbox", { name: "Columns" }).inputValue()).toBe("4");
+		} finally {
+			await api.designSystem.updateClass({ siteId, classId: lead?.id ?? "", styles: "line-height: 1.6;" });
+		}
+	});
+});

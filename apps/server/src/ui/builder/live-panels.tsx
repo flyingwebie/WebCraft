@@ -891,6 +891,7 @@ function SourcePanels({
 	};
 	const node = selection?.kind === "node" ? nodeAt(tree, selection.path) : null;
 	const cssPort = useCssPort(bridge);
+	/** Whether this source can change now: editable, not being created, and its shared Draft connected and writable. */
 	const writable =
 		source.editable && !creating && (!(source.opened.template || source.opened.component) || !!shared?.writable);
 	return (
@@ -902,6 +903,7 @@ function SourcePanels({
 							element={node?.type === "element" ? { id: node.id, classes: node.classes } : null}
 							catalogue={catalogue}
 							editable={writable}
+							fromModule={!source.editable}
 							designVersion={designVersion}
 							onClasses={(classes, message) => {
 								// The class list changes in the element's current shared document, as the Inspector's does.
@@ -918,11 +920,7 @@ function SourcePanels({
 					)
 				: null}
 			<aside className="editor-left" aria-label={t("builder.layers.heading")}>
-				<fieldset
-					disabled={
-						!source.editable || creating || (!!(source.opened.template || source.opened.component) && !shared?.writable)
-					}
-				>
+				<fieldset disabled={!writable}>
 					<InsertToolbar
 						where={node && !canHoldChildren(node) ? "after" : where}
 						canInside={!!node && canHoldChildren(node)}
@@ -1013,11 +1011,7 @@ function SourcePanels({
 				</fieldset>
 			</aside>
 			<aside className="editor-right" aria-label={t("builder.inspector.heading")}>
-				<fieldset
-					disabled={
-						!source.editable || creating || (!!(source.opened.template || source.opened.component) && !shared?.writable)
-					}
-				>
+				<fieldset disabled={!writable}>
 					<Inspector
 						key={source.opened.component?.id ?? source.ref}
 						onEditComponent={

@@ -1,7 +1,6 @@
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
-import { Textarea } from "@webcraft/ui/components/textarea.tsx";
 import {
 	AlignHorizontalJustifyCenterIcon,
 	AlignHorizontalJustifyEndIcon,
@@ -26,8 +25,10 @@ import {
 import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { useAnnouncement } from "../content/reorder.tsx";
+import { CSS_PROPERTIES, declarationOf, withDeclarationOf } from "../design-system/declarations.ts";
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
+import { CodeArea } from "./CodeArea.tsx";
 import type { Catalogue } from "./model.ts";
 
 /** Which CSS a save or preview changes: one piece of a Class, or the Site CSS. */
@@ -88,6 +89,8 @@ export type CssPanelProps = {
 	catalogue: Pick<Catalogue, "classes" | "utilities">;
 	/** Whether the element's class list can change (its source is writable and connected). */
 	editable: boolean;
+	/** The element comes from a Module's Component: the panel says why its Classes can't change. */
+	fromModule?: boolean;
 	/** Changes the element's class list through its current shared document; answers why not, if it can't. */
 	onClasses(classIds: string[], announcement: string): string | undefined;
 	/**
@@ -118,22 +121,6 @@ function savedText(target: CssTarget, data: CssData | null, known: ReadonlyMap<s
 	if (target.part === "styles") return each.styles;
 	if (target.part === "css") return each.css;
 	return each.breakpoints[target.breakpointId] ?? "";
-}
-
-const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-/** The value a declaration has in declarations text, if any. */
-function declared(text: string, property: string): string | undefined {
-	return new RegExp(`(?:^|[;\\n])\\s*${escapeRegExp(property)}\\s*:\\s*([^;\\n]*)`, "i").exec(text)?.[1]?.trim();
-}
-
-/** Sets one declaration: replaced where it is, else added on a line of its own at the end. */
-function withDeclaration(text: string, property: string, value: string): string {
-	const found = new RegExp(`(^|[;\\n])([ \\t]*)${escapeRegExp(property)}\\s*:[^;\\n]*;?`, "i");
-	if (found.test(text))
-		return text.replace(found, (_all, before: string, space: string) => `${before}${space}${property}: ${value};`);
-	const prefix = !text || text.endsWith("\n") ? "" : "\n";
-	return `${text}${prefix}${property}: ${value};`;
 }
 
 /** The layout row's buttons: the property, its word, and each value with its icon. */
@@ -190,94 +177,11 @@ const LAYOUT: {
 	},
 ];
 
-/** CSS properties to suggest at the start of a declaration, most used first. */
-const CSS_PROPERTIES: readonly string[] = [
-	"display",
-	"color",
-	"background",
-	"background-color",
-	"margin",
-	"margin-block",
-	"margin-inline",
-	"padding",
-	"padding-block",
-	"padding-inline",
-	"gap",
-	"row-gap",
-	"column-gap",
-	"width",
-	"max-width",
-	"min-width",
-	"height",
-	"max-height",
-	"min-height",
-	"font-family",
-	"font-size",
-	"font-weight",
-	"font-style",
-	"line-height",
-	"letter-spacing",
-	"text-align",
-	"text-decoration",
-	"text-transform",
-	"text-wrap",
-	"border",
-	"border-radius",
-	"border-color",
-	"border-width",
-	"border-style",
-	"box-shadow",
-	"flex",
-	"flex-direction",
-	"flex-wrap",
-	"flex-grow",
-	"flex-shrink",
-	"flex-basis",
-	"justify-content",
-	"justify-items",
-	"align-items",
-	"align-content",
-	"align-self",
-	"grid-template-columns",
-	"grid-template-rows",
-	"grid-column",
-	"grid-row",
-	"grid-area",
-	"place-items",
-	"place-content",
-	"position",
-	"inset",
-	"top",
-	"right",
-	"bottom",
-	"left",
-	"z-index",
-	"overflow",
-	"opacity",
-	"transform",
-	"transition",
-	"animation",
-	"aspect-ratio",
-	"object-fit",
-	"object-position",
-	"list-style",
-	"white-space",
-	"cursor",
-	"outline",
-	"outline-offset",
-	"visibility",
-	"content",
-	"inline-size",
-	"block-size",
-	"container-type",
-	"scroll-margin-top",
-	"accent-color",
-];
-
 /** One suggestion: what it shows, and the text that replaces what was typed (`$0` marks the caret). */
 type Suggestion = { label: string; detail?: string; insert: string };
 
-const COLUMNS = /^repeat\(\s*(\d+)\s*,\s*minmax\(0,\s*1fr\)\s*\)$/;
+/** Equal columns as the layout row writes them, `repeat(3, minmax(0, 1fr))`, or plainly, `repeat(3, 1fr)`. */
+const COLUMNS = /^repeat\(\s*(\d+)\s*,\s*(?:minmax\(\s*0\s*,\s*1fr\s*\)|1fr)\s*\)$/i;
 
 /**
  * The CSS panel (ADR 0009, ADR 0035; decided in #120): one tab per Class of the selected element, in
@@ -294,6 +198,7 @@ export function CssPanel({
 	element,
 	catalogue,
 	editable,
+	fromModule = false,
 	onClasses,
 	refreshCatalogue,
 	designVersion = 0,
@@ -344,6 +249,7 @@ export function CssPanel({
 
 	// The tab: the one picked for this element, else the last Class edited when it has it, else its first Class.
 	const elementId = element?.id ?? null;
+	const moduleNotice = !!element && !editable && fromModule;
 	let tab: string;
 	if (picked && picked.element === elementId && (picked.tab === SITE || classTabs.includes(picked.tab)))
 		tab = picked.tab;
@@ -397,6 +303,16 @@ export function CssPanel({
 		const timer = setTimeout(() => port.preview?.(dirty && !hasLayer ? { target, text } : null), 250);
 		return () => clearTimeout(timer);
 	}, [port, key, text, dirty, hasLayer]);
+
+	// An unfinished + form or rename prompt belongs to the element it was opened on: another element closes it.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: only a change of element resets them.
+	useEffect(() => {
+		setRenaming(null);
+		setAdding(false);
+		setAddName("");
+		setAddProblem(null);
+		setSuggest(null);
+	}, [elementId]);
 
 	useEffect(() => {
 		if (renaming) renameInput.current?.focus();
@@ -567,7 +483,7 @@ export function CssPanel({
 	};
 
 	const layout = (property: string, value: string) => {
-		change(withDeclaration(text, property, value));
+		change(withDeclarationOf(text, property, value));
 		announce(t("builder.css.layoutValue", { property, value }));
 	};
 
@@ -665,8 +581,9 @@ export function CssPanel({
 				.sort((a, b) => a.localeCompare(b)),
 		[catalogue.classes, classIds],
 	);
-	const columns = COLUMNS.exec(declared(text, "grid-template-columns") ?? "")?.[1] ?? "";
+	const columns = COLUMNS.exec(declarationOf(text, "grid-template-columns") ?? "")?.[1] ?? "";
 	const showLayout = tab !== SITE && shownView !== "own";
+	const problemLines = new Set(problems.flatMap((problem) => (problem.line ? [problem.line] : [])));
 	const panelId = `${id}-panel`;
 	const listboxId = `${id}-suggest`;
 
@@ -726,7 +643,7 @@ export function CssPanel({
 									</Badge>
 								) : null}
 								<span aria-hidden="true" className="text-muted-foreground text-[10px] uppercase">
-									classes
+									{t("builder.css.layerClasses")}
 								</span>
 								{editable ? (
 									// The pointer's way to remove; the keyboard's is Delete on the focused tab.
@@ -763,7 +680,7 @@ export function CssPanel({
 					>
 						<span>{t("builder.css.siteCss")}</span>
 						<span aria-hidden="true" className="text-muted-foreground text-[10px] uppercase">
-							custom
+							{t("builder.css.layerCustom")}
 						</span>
 					</button>
 				</div>
@@ -775,6 +692,7 @@ export function CssPanel({
 						size="icon-sm"
 						disabled={!editable}
 						aria-label={t("builder.css.add")}
+						aria-describedby={moduleNotice ? `${id}-read-only` : undefined}
 						aria-expanded={adding}
 						aria-controls={`${id}-add`}
 						onClick={() => setAdding(!adding)}
@@ -783,6 +701,11 @@ export function CssPanel({
 					</Button>
 				) : null}
 			</div>
+			{moduleNotice ? (
+				<p id={`${id}-read-only`} className="text-muted-foreground text-xs">
+					{t("builder.css.readOnly")}
+				</p>
+			) : null}
 			<p id={`${id}-remove-hint`} hidden>
 				{t("builder.css.removeHint")}
 			</p>
@@ -848,7 +771,9 @@ export function CssPanel({
 				className="flex min-h-0 flex-1 flex-col gap-2"
 			>
 				<p className="text-muted-foreground text-xs">
-					{t("builder.css.layer", { layer: tab === SITE ? "custom" : "classes" })}
+					{t("builder.css.layer", {
+						layer: tab === SITE ? t("builder.css.layerCustom") : t("builder.css.layerClasses"),
+					})}
 					{tab === SITE
 						? ` · ${element ? (classTabs.length ? "" : t("builder.css.noClass")) : t("builder.css.noElement")}`
 						: ""}
@@ -907,8 +832,8 @@ export function CssPanel({
 											key={value}
 											type="button"
 											size="icon-xs"
-											variant={declared(text, group.property) === value ? "secondary" : "ghost"}
-											aria-pressed={declared(text, group.property) === value}
+											variant={declarationOf(text, group.property) === value ? "secondary" : "ghost"}
+											aria-pressed={declarationOf(text, group.property) === value}
 											aria-label={name}
 											title={name}
 											disabled={saved === null}
@@ -923,7 +848,7 @@ export function CssPanel({
 						<LayoutField
 							key={`gap-${key}`}
 							label={t("builder.css.gap")}
-							value={declared(text, "gap") ?? ""}
+							value={declarationOf(text, "gap") ?? ""}
 							disabled={saved === null}
 							onCommit={(value) => value && layout("gap", value)}
 						/>
@@ -936,8 +861,8 @@ export function CssPanel({
 							onCommit={(value) => {
 								const count = Number.parseInt(value, 10);
 								if (!Number.isInteger(count) || count < 1 || count > 24) return;
-								let next = withDeclaration(text, "display", "grid");
-								next = withDeclaration(next, "grid-template-columns", `repeat(${count}, minmax(0, 1fr))`);
+								let next = withDeclarationOf(text, "display", "grid");
+								next = withDeclarationOf(next, "grid-template-columns", `repeat(${count}, minmax(0, 1fr))`);
 								change(next);
 								announce(t("builder.css.layoutValue", { property: t("builder.css.columns"), value: count }));
 							}}
@@ -1002,14 +927,12 @@ export function CssPanel({
 					</div>
 				) : null}
 				<div className="relative flex min-h-32 flex-1 flex-col">
-					<Textarea
+					<CodeArea
 						ref={area}
 						id={`${id}-text`}
 						aria-label={t("builder.css.cssOf", { name: label })}
 						value={text}
 						readOnly={saved === null}
-						spellCheck={false}
-						autoCapitalize="off"
 						aria-busy={saved === null}
 						aria-invalid={problems.length > 0 ? true : undefined}
 						aria-describedby={problems.length > 0 ? `${id}-problems` : undefined}
@@ -1017,7 +940,7 @@ export function CssPanel({
 						aria-controls={suggest ? listboxId : undefined}
 						aria-activedescendant={suggest ? `${listboxId}-${suggest.active}` : undefined}
 						placeholder={saved === null ? t("builder.css.loading") : undefined}
-						className="field-sizing-fixed min-h-32 flex-1 resize-none overflow-auto font-mono text-xs leading-5 whitespace-pre"
+						problemLines={problemLines}
 						onChange={(event) => {
 							change(event.target.value);
 							suggestAt(event.target.value, event.target.selectionStart);

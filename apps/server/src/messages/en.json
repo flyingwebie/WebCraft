@@ -4609,6 +4609,8 @@
 			"tabs": "Classes of the selected element",
 			"siteCss": "Site CSS",
 			"layer": "Cascade layer: {layer}",
+			"layerClasses": "classes",
+			"layerCustom": "custom",
 			"generated": "Generated",
 			"removeClass": "Remove {name} from this element",
 			"removeHint": "Delete removes it from this element; the Class stays in the Design system.",

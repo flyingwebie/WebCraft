@@ -4609,6 +4609,8 @@
 			"tabs": "Classi dell'elemento selezionato",
 			"siteCss": "CSS del sito",
 			"layer": "Livello a cascata: {layer}",
+			"layerClasses": "classi",
+			"layerCustom": "personalizzato",
 			"generated": "Generata",
 			"removeClass": "Togli {name} da questo elemento",
 			"removeHint": "Canc la toglie da questo elemento; la Classe resta nel Design system.",
