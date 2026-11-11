@@ -7,7 +7,7 @@ export type PropBinding = {
 	paths: Record<string, string>;
 	/** Deleted target Field identity -> original relative source path. */
 	retained?: Record<string, string>;
-	/** Target path -> source declaration identity when a source name is reused. */
+	/** Target path -> original source declaration identity across deletion and name reuse. */
 	sources?: Record<string, string>;
 	/** Target paths whose source declaration is absent, never aliases of a reused name. */
 	missing?: string[];

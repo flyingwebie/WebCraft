@@ -330,15 +330,20 @@ export function projectSourceBindings(
 			const collision = wasFields.some(
 				(field) => !nowFields.some((f) => f.id === field.id) && nowFields.some((f) => f.path === field.path),
 			);
-			const sources: Record<string, string> = Object.assign(Object.create(null), value.binding?.sources);
+			const sources: Record<string, string> = Object.assign(
+				Object.create(null),
+				prior.binding?.sources,
+				value.binding?.sources,
+			);
 			const missing: string[] = [];
 			const paths = compactPaths(
 				[...new Set([...allowed, ...Object.keys(value.binding?.paths ?? {})])].map((target) => {
 					const source = mappedBindingPath(target, value.binding?.paths ?? {});
 					const absolute = `${previousRoot}.${source}`;
 					const id = sources[target] ?? wasFields.find((f) => f.path === absolute)?.id;
-					if (id && (collision || Object.keys(sources).length)) sources[target] = id;
 					const byIdentity = id && nowFields.find((f) => f.id === id)?.path;
+					// Remember a source from its first deletion, before a later save can reuse its name.
+					if (id && (!byIdentity || collision || Object.keys(sources).length)) sources[target] = id;
 					if (id && !byIdentity && sources[target]) missing.push(target);
 					const renamed = byIdentity || mappedBindingPath(absolute, renames);
 					return [
@@ -347,7 +352,7 @@ export function projectSourceBindings(
 					] as const;
 				}),
 			);
-			if (Object.keys(paths).length || collision || missing.length || value.binding?.retained)
+			if (Object.keys(paths).length || Object.keys(sources).length || missing.length || value.binding?.retained)
 				value.binding = {
 					root,
 					paths,

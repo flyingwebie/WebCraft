@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { expectSafePage } from "../harness/site-safety.ts";
 import { exportedArchive, importArchive, rewritten } from "../harness/site-transfer.ts";
+import { goLive } from "../harness/staging.ts";
+import { publishEverything } from "./support.ts";
 
 let install: TestInstall;
 beforeAll(async () => {
@@ -238,4 +241,113 @@ test("name reuse transfers distinct retained Media and Entry identities and rest
 	expect(final.markup?.draft).toContain(`a="${media.id}"`);
 	expect(final.markup?.draft).not.toContain(newMedia?.id ?? "missing");
 	expect(final.markup?.draft).not.toContain(values.a);
+});
+
+test("separate source deletions survive translated typed transfer and restoration before publish", async () => {
+	const admin = await install.superadmin();
+	const workspaceId = (await install.createWorkspace()).id;
+	const siteId = (await install.createSite(workspaceId)).id;
+	const { media } = await admin.api.media.upload({
+		siteId,
+		file: upload(await photo({ width: 32, height: 32 }), "bound.jpg"),
+	});
+	expect((await install.drainJobs()).failed).toEqual([]);
+	const { postType } = await admin.api.postTypes.create({
+		siteId,
+		name: "Stories",
+		key: "stories",
+		urlPattern: "/stories/{slug}",
+	});
+	const { entry } = await admin.api.entries.create({ siteId, postTypeId: postType.id, title: "Linked" });
+	const declarations =
+		'{{@props}}\ncard: group fields=[{"key":"a","label":"A","type":"media"},{"key":"b","label":"B","type":"text"}]\nrows: repeater fields=[{"key":"a","label":"A","type":"relationship","postTypes":["stories"]},{"key":"b","label":"B","type":"text"}]\n{{/props}}\n';
+	const { component: inner } = await admin.api.components.create({ siteId, name: "Inner" });
+	await admin.api.components.saveMarkup({
+		siteId,
+		componentId: inner.id,
+		markup: `${declarations}<img src="{{ props.card.a }}" alt="Original"><p>{{ props.card.b }}</p>{{@loop props.rows as row}}<p>{{ row.b }}</p>{{/loop}}`,
+	});
+	await admin.api.components.publish({ siteId, componentId: inner.id });
+	const { component: outer } = await admin.api.components.create({ siteId, name: "Outer" });
+	const target = { siteId, componentId: outer.id };
+	const original = await admin.api.components.saveMarkup({
+		...target,
+		markup: `${declarations}<Inner card="{{ props.card }}" rows="{{ props.rows }}" />`,
+	});
+	await admin.api.components.publish(target);
+	const card = JSON.stringify({ a: media.id, b: media.id });
+	const rows = JSON.stringify([
+		{ a: entry.id, b: entry.id },
+		{ a: entry.id, b: "Second" },
+	]);
+	const italian = JSON.stringify([
+		{ a: entry.id, b: entry.id },
+		{ a: entry.id, b: "Secondo" },
+	]);
+	const { template } = await admin.api.templates.saveEntryTemplateMarkup({
+		siteId,
+		postTypeId: postType.id,
+		markup: `<Outer card='{{ ${JSON.stringify(card)} it: ${JSON.stringify(card)} }}' rows='{{ ${JSON.stringify(rows)} it: ${JSON.stringify(italian)} }}' />`,
+	});
+	await admin.api.templates.publish({ siteId, templateId: template.id });
+	const props = structuredClone(original.component.draft.props);
+	for (const prop of props) {
+		if (!("fields" in prop) || !prop.fields[1]) throw new Error("Missing declarations");
+		prop.fields = [prop.fields[1]];
+	}
+	await admin.api.components.saveDraft({ ...target, props });
+	const deleted = await admin.api.components.getMarkup(target);
+	await admin.api.components.saveMarkup({ ...target, markup: deleted.markup.draft });
+	for (const prop of props) if ("fields" in prop && prop.fields[0]) prop.fields[0].key = "a";
+	await admin.api.components.saveDraft({ ...target, props });
+	await admin.api.history.leave({ siteId, item: { kind: "component", id: outer.id } });
+	const copied = await importArchive(install, admin, workspaceId, await exportedArchive(install, admin, siteId), {
+		name: "Bound retention",
+		slug: "bound-retention",
+	});
+	expect(copied.status).toBe("done");
+	const destination = copied.site?.id ?? "";
+	const components = (await admin.api.components.list({ siteId: destination })).components;
+	const copiedOuter = components.find((c) => c.name === "Outer");
+	const copiedTarget = { siteId: destination, componentId: copiedOuter?.id ?? "" };
+	const type = (await admin.api.postTypes.list({ siteId: destination })).postTypes.find((t) => t.key === "stories");
+	const holder = { siteId: destination, postTypeId: type?.id ?? "" };
+	const [newMedia] = (await admin.api.media.list({ siteId: destination })).items;
+	const [newEntry] = (await admin.api.entries.list(holder)).entries;
+	if (!newMedia || !newEntry) throw new Error("Missing transferred references");
+	const item = { kind: "component" as const, id: copiedTarget.componentId };
+	const { copies } = await admin.api.history.list({ siteId: destination, item });
+	const revision = copies.find((c) => c.type === "revision");
+	const checkpoint = copies.find((c) => c.type === "checkpoint" && c.reason === "left");
+	// Restoring both copies must keep identity metadata and typed retained values composable.
+	for (const copy of [revision, checkpoint, revision]) {
+		if (!copy) throw new Error("Missing historical contract");
+		await admin.api.history.restore({ siteId: destination, item, copy: { type: copy.type, id: copy.id } });
+	}
+	const restored = await admin.api.components.getMarkup(copiedTarget);
+	await admin.api.components.saveMarkup({ ...copiedTarget, markup: restored.markup.draft });
+	const placement = (await admin.api.templates.getEntryTemplate(holder)).template?.draft.nodes[0];
+	if (placement?.type !== "component") throw new Error("Missing restored Placement");
+	const [group, repeater] = placement.props.map((prop) => prop.value[0]);
+	if (group?.type !== "text" || repeater?.type !== "text") throw new Error("Missing translated values");
+	for (const value of [group.text, group.translations?.it ?? ""])
+		expect(JSON.parse(value)).toEqual({ a: newMedia.id, b: media.id });
+	expect(JSON.parse(repeater.text)).toEqual([
+		{ a: newEntry.id, b: entry.id },
+		{ a: newEntry.id, b: "Second" },
+	]);
+	expect(JSON.parse(repeater.translations?.it ?? "")).toEqual([
+		{ a: newEntry.id, b: entry.id },
+		{ a: newEntry.id, b: "Secondo" },
+	]);
+	expect(restored.propImpact.placements).toBe(0);
+	await publishEverything(admin, destination);
+	const origin = await goLive(install, destination);
+	const html = await install.request(`${origin}/stories/linked`).then(expectSafePage);
+	const url = (await admin.api.media.get({ siteId: destination, mediaId: newMedia.id })).media.url;
+	expect(html).toContain(`src="${url}"`);
+	expect(html).toContain(`${media.id}</p>`);
+	expect(html).toContain(`${entry.id}</p>`);
+	expect(html).toContain("Second</p>");
+	expect(html).not.toContain("data-wc-bindings");
 });

@@ -36,8 +36,10 @@ export function createReferenceLookup(
 		async prop(componentId, path, version, retainedId) {
 			// Select the source contract by time, then resolve names through its live identities.
 			// Baseline types belong to those identities, never whichever declaration reused a key.
-			const result = await client.query<{ content: unknown }>(
-				`WITH versions AS (
+			// Both callers own a transaction and traverse Props sequentially. Keep the ordered
+			// search in that snapshot, fetching one contract at a time, including fallbacks.
+			await client.query(
+				`DECLARE site_prop_contracts NO SCROLL CURSOR FOR WITH versions AS (
  SELECT row->'draft' AS content, row->>'updated_at' AS at, 'draft' AS kind, 0 AS priority
  FROM (${rows("public.components")}) source WHERE row->>'id' = ${parameter(1)}
  UNION ALL
@@ -61,19 +63,25 @@ export function createReferenceLookup(
  at DESC NULLS LAST, CASE WHEN kind = ${parameter(2)} THEN 0 ELSE 1 END`,
 				[...scope, componentId, version.kind, version.at ?? null],
 			);
-			for (const row of result.rows) {
-				const contract = storedComponentVersion(row.content);
-				let fields = retainedContract(contract.props, contract.propBaseline);
-				let found: (typeof fields)[number] | undefined;
-				for (const [index, key] of path.entries()) {
-					found = fields.find((field) =>
-						retainedId && index === path.length - 1 ? field.id === retainedId : field.key === key,
-					);
-					fields = found && "fields" in found ? found.fields : [];
+			try {
+				for (;;) {
+					const result = await client.query<{ content: unknown }>("FETCH 1 FROM site_prop_contracts");
+					const row = result.rows[0];
+					if (!row) return undefined;
+					const contract = storedComponentVersion(row.content);
+					let fields = retainedContract(contract.props, contract.propBaseline);
+					let found: (typeof fields)[number] | undefined;
+					for (const [index, key] of path.entries()) {
+						found = fields.find((field) =>
+							retainedId && index === path.length - 1 ? field.id === retainedId : field.key === key,
+						);
+						fields = found && "fields" in found ? found.fields : [];
+					}
+					if (found) return found;
 				}
-				if (found) return found;
+			} finally {
+				await client.query("CLOSE site_prop_contracts");
 			}
-			return undefined;
 		},
 	};
 }

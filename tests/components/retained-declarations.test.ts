@@ -246,80 +246,120 @@ test("shared Component name reuse reaches an open holder and survives legacy sav
 });
 
 for (const side of ["source", "target"] as const)
-	test(`${side} whole-Group bindings reverse name reuse by identity`, async () => {
-		const admin = await install.superadmin();
-		const workspaceId = (await install.createWorkspace()).id;
-		const siteId = (await install.createSite(workspaceId)).id;
-		const { component: inner } = await admin.api.components.create({ siteId, name: "Inner" });
-		const { component: outer } = await admin.api.components.create({ siteId, name: "Outer" });
-		const fields =
-			'[{"key":"a","label":"A","type":"text","id":"constructor"},{"key":"b","label":"B","type":"text","id":"survivor"}]';
-		const initialInner = await admin.api.components.saveMarkup({
-			siteId,
-			componentId: inner.id,
-			markup: `{{@props}}\ncard: group fields=${fields}\n{{/props}}\n<p>{{ props.card.a }} {{ props.card.b }}</p>`,
-		});
-		await admin.api.components.publish({ siteId, componentId: inner.id });
-		const initialOuter = await admin.api.components.saveMarkup({
-			siteId,
-			componentId: outer.id,
-			markup: `{{@props}}\ncard: group fields=${fields}\n{{/props}}\n<Inner card="{{ props.card }}" />`,
-		});
-		await admin.api.components.publish({ siteId, componentId: outer.id });
-		const { postType } = await admin.api.postTypes.create({ siteId, name: "Stories", urlPattern: "/stories/{slug}" });
-		const { template } = await admin.api.templates.saveEntryTemplateMarkup({
-			siteId,
-			postTypeId: postType.id,
-			markup: '<Outer card=\'{"a":"Removed","b":"Kept"}\' />',
-		});
-		await admin.api.templates.publish({ siteId, templateId: template.id });
-		const { entry } = await admin.api.entries.create({ siteId, postTypeId: postType.id, title: "Example" });
-		await admin.api.entries.publish({ siteId, entryId: entry.id });
-		const origin = await goLive(install, siteId);
-		const selected = side === "source" ? initialOuter : initialInner;
-		const target = { siteId, componentId: selected.component.id };
-		const props = structuredClone(selected.component.draft.props);
-		const card = props[0];
-		if (!card || !("fields" in card) || !card.fields[1]) throw new Error("Missing fields");
-		card.fields = [{ ...card.fields[1], key: "a" }];
-		await admin.api.components.saveDraft({
-			...target,
-			props,
-			...(side === "target" ? { tree: { version: 1, nodes: [] } } : {}),
-		});
-		const holder = { siteId, componentId: outer.id };
-		const saved = await admin.api.components.getMarkup(holder);
-		await admin.api.components.saveMarkup({ ...holder, markup: saved.markup.draft });
-		if (side === "source") {
-			const revived = structuredClone(selected.component.draft.props);
-			const group = revived[0];
-			if (!group || !("fields" in group) || !group.fields[0] || !group.fields[1])
-				throw new Error("Missing declarations");
-			group.fields = [
-				{ ...group.fields[0], key: "recovered" },
-				{ ...group.fields[1], key: "a" },
-			];
-			await admin.api.components.saveDraft({ ...target, props: revived });
-			await admin.api.components.publish(target);
-			expect(await install.request(`${origin}/stories/example`).then(expectSafePage)).toContain("Removed Kept</p>");
-		}
+	for (const type of ["group", "repeater"] as const)
+		for (const saves of ["together", "separate"] as const)
+			test(`${side} whole-${type} bindings reverse name reuse by identity after ${saves} saves`, async () => {
+				const admin = await install.superadmin();
+				const workspaceId = (await install.createWorkspace()).id;
+				const siteId = (await install.createSite(workspaceId)).id;
+				const { component: inner } = await admin.api.components.create({ siteId, name: "Inner" });
+				const { component: outer } = await admin.api.components.create({ siteId, name: "Outer" });
+				const fields =
+					'[{"key":"a","label":"A","type":"text","id":"constructor"},{"key":"b","label":"B","type":"text","id":"survivor"}]';
+				const body =
+					type === "group"
+						? "<p>{{ props.card.a }} {{ props.card.b }}</p>"
+						: "{{@loop props.card as row}}<p>{{ row.a }} {{ row.b }}</p>{{/loop}}";
+				const initialInner = await admin.api.components.saveMarkup({
+					siteId,
+					componentId: inner.id,
+					markup: `{{@props}}\ncard: ${type} fields=${fields}\n{{/props}}\n${body}`,
+				});
+				await admin.api.components.publish({ siteId, componentId: inner.id });
+				const initialOuter = await admin.api.components.saveMarkup({
+					siteId,
+					componentId: outer.id,
+					markup: `{{@props}}\ncard: ${type} fields=${fields}\n{{/props}}\n<Inner card="{{ props.card }}"${type === "repeater" ? ` data-wc-bindings='{"card":{"root":"props.card","paths":{"b":"b"}}}'` : ""} />`,
+				});
+				await admin.api.components.publish({ siteId, componentId: outer.id });
+				const { postType } = await admin.api.postTypes.create({
+					siteId,
+					name: "Stories",
+					urlPattern: "/stories/{slug}",
+				});
+				const { template } = await admin.api.templates.saveEntryTemplateMarkup({
+					siteId,
+					postTypeId: postType.id,
+					markup: `<Outer card='${type === "group" ? '{"a":"Removed","b":"Kept"}' : '[{"a":"Removed","b":"Kept"},{"a":"Removed two","b":"Kept two"}]'}' />`,
+				});
+				await admin.api.templates.publish({ siteId, templateId: template.id });
+				const { entry } = await admin.api.entries.create({ siteId, postTypeId: postType.id, title: "Example" });
+				await admin.api.entries.publish({ siteId, entryId: entry.id });
+				const origin = await goLive(install, siteId);
+				const selected = side === "source" ? initialOuter : initialInner;
+				const target = { siteId, componentId: selected.component.id };
+				const props = structuredClone(selected.component.draft.props);
+				const card = props[0];
+				if (!card || !("fields" in card) || !card.fields[1]) throw new Error("Missing fields");
+				const survivor = card.fields[1];
+				if (saves === "separate") {
+					card.fields = [survivor];
+					await admin.api.components.saveDraft({
+						...target,
+						props,
+						...(side === "target" ? { tree: { version: 1, nodes: [] } } : {}),
+					});
+					// An unrelated canonical save between deletion and name reuse keeps the original source.
+					const pending = await admin.api.components.getMarkup({ siteId, componentId: outer.id });
+					await admin.api.components.saveMarkup({ siteId, componentId: outer.id, markup: pending.markup.draft });
+				}
+				card.fields = [{ ...survivor, key: "a" }];
+				await admin.api.components.saveDraft({
+					...target,
+					props,
+					...(side === "target" ? { tree: { version: 1, nodes: [] } } : {}),
+				});
+				const holder = { siteId, componentId: outer.id };
+				const saved = await admin.api.components.getMarkup(holder);
+				await admin.api.components.saveMarkup({ ...holder, markup: saved.markup.draft });
+				// Restore before any publish, including when deletion and name reuse were separate edits.
+				await admin.api.components.saveMarkup({ ...target, markup: selected.markup });
+				await admin.api.components.publish(target);
+				if (side === "target") await admin.api.components.publish(holder);
+				const restored = await install.request(`${origin}/stories/example`).then(expectSafePage);
+				expect(restored).toContain("Removed Kept</p>");
+				if (type === "repeater") expect(restored).toContain("Removed two Kept two</p>");
+				expect(restored).not.toContain("data-wc-bindings");
+				await admin.api.components.saveDraft({
+					...target,
+					props,
+					...(side === "target" ? { tree: { version: 1, nodes: [] } } : {}),
+				});
+				if (side === "source") {
+					const revived = structuredClone(selected.component.draft.props);
+					const group = revived[0];
+					if (!group || !("fields" in group) || !group.fields[0] || !group.fields[1])
+						throw new Error("Missing declarations");
+					group.fields = [
+						{ ...group.fields[0], key: "recovered" },
+						{ ...group.fields[1], key: "a" },
+					];
+					await admin.api.components.saveDraft({ ...target, props: revived });
+					await admin.api.components.publish(target);
+					expect(await install.request(`${origin}/stories/example`).then(expectSafePage)).toContain("Removed Kept</p>");
+				}
 
-		await admin.api.components.saveMarkup({ ...target, markup: selected.markup });
-		await admin.api.components.publish(target);
-		if (side === "target") await admin.api.components.publish(holder);
-		expect(await install.request(`${origin}/stories/example`).then(expectSafePage)).toContain("Removed Kept</p>");
-		await admin.api.components.saveDraft({
-			...target,
-			props,
-			...(side === "target" ? { tree: { version: 1, nodes: [] } } : {}),
-		});
-		if (side === "target") await admin.api.components.saveMarkup({ ...target, markup: "<p>{{ props.card.a }}</p>" });
-		await admin.api.components.publish(target);
-		const after = await install.request(`${origin}/stories/example`).then(expectSafePage);
-		expect(after).toContain(side === "source" ? " Kept</p>" : "Kept</p>");
-		expect(after).not.toContain("Removed");
-		expect(after).not.toContain("Kept Kept");
-	});
+				await admin.api.components.saveMarkup({ ...target, markup: selected.markup });
+				await admin.api.components.publish(target);
+				if (side === "target") await admin.api.components.publish(holder);
+				expect(await install.request(`${origin}/stories/example`).then(expectSafePage)).toContain("Removed Kept</p>");
+				await admin.api.components.saveDraft({
+					...target,
+					props,
+					...(side === "target" ? { tree: { version: 1, nodes: [] } } : {}),
+				});
+				if (side === "target")
+					await admin.api.components.saveMarkup({
+						...target,
+						markup:
+							type === "group" ? "<p>{{ props.card.a }}</p>" : "{{@loop props.card as row}}<p>{{ row.a }}</p>{{/loop}}",
+					});
+				await admin.api.components.publish(target);
+				const after = await install.request(`${origin}/stories/example`).then(expectSafePage);
+				expect(after).toContain(side === "source" ? " Kept</p>" : "Kept</p>");
+				expect(after).not.toContain("Removed");
+				expect(after).not.toContain("Kept Kept");
+			});
 
 test("retention input refuses malformed identities and payloads atomically with markup source lines", async () => {
 	const admin = await install.superadmin();
