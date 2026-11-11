@@ -5,7 +5,7 @@
 // each Placement's root, where only the Props marked `exposed` are written as `data-` attributes.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
-import { answer, headOf, mainOf, openCodeMode } from "../harness/code-mode.ts";
+import { answer, codeTagsIn, headOf, mainOf, openCodeMode } from "../harness/code-mode.ts";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { fakeNpmPackage } from "../harness/fake-npm.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
@@ -441,5 +441,80 @@ describe("publishing with its Component", () => {
 		await staff.api.components.publish({ siteId, componentId: empty.id });
 		await staff.api.components.saveScriptDraft({ siteId, componentId: empty.id, code: "  " });
 		expect((await staff.api.publishing.drafts({ siteId })).drafts).toEqual([]);
+	});
+});
+
+type PanelScript = {
+	componentId: string;
+	name: string;
+	editable: boolean;
+	pages: number;
+	code: string;
+	consentCategory: string;
+	libraryIds: string[];
+	libraries: { id: string; name: string }[];
+	version: string | null;
+	src: string | null;
+};
+
+describe("Code mode's JS panel", () => {
+	test("shows the Component script of the Placement selected, with how many pages use it, and saves its Draft", async () => {
+		const site = await bakery();
+		const coding = await openCodeMode(install, staff, site.siteId, path);
+		const page = await (await coding.page(path)).text();
+		// An element of the Card, reached through its Placement in the page's Entry template.
+		const [, inCard] = codeTagsIn(page).find(([tag]) => tag === "h2") ?? [];
+
+		const none = await answer<{ component: PanelScript | null }>(coding.edit("code/scripts", { path, ref: "content" }));
+		expect(none.component).toBeNull();
+		const opened = await answer<{ component: PanelScript }>(coding.edit("code/scripts", { path, ref: inCard }));
+		expect(opened.component).toEqual({
+			componentId: site.componentId,
+			name: "Card",
+			editable: true,
+			pages: 1,
+			code: "",
+			consentCategory: "necessary",
+			libraryIds: [],
+			libraries: [],
+			version: null,
+			src: null,
+		});
+
+		// The Placement itself, as the Entry template's markup selects it, shows the same.
+		const placementId = /^content\/([^#/]+)#/.exec(inCard ?? "")?.[1];
+		const placement = await answer<{ component: PanelScript }>(
+			coding.edit("code/scripts", { path, ref: `content#${placementId}` }),
+		);
+		expect(placement.component).toEqual(opened.component);
+
+		const code = "export default (root) => { root.dataset.ready = 'yes'; };";
+		const saved = await answer<PanelScript>(
+			coding.edit("code/saveScript", {
+				path,
+				kind: "component",
+				componentId: site.componentId,
+				code,
+				consentCategory: "media",
+				version: null,
+			}),
+		);
+		expect(saved).toMatchObject({ componentId: site.componentId, code, consentCategory: "media" });
+		expect(saved.src).toMatch(new RegExp(`^/_webcraft/edit/js/component/${site.componentId}/[0-9a-f]{16}\\.js$`));
+		const { script } = await staff.api.components.getScript({ siteId: site.siteId, componentId: site.componentId });
+		expect(script?.draft).toEqual({ code, consentCategory: "media", libraryIds: [] });
+		// A newer Draft someone saved meanwhile isn't overwritten.
+		const stale = await coding.edit("code/saveScript", {
+			path,
+			kind: "component",
+			componentId: site.componentId,
+			code: "export default () => {};",
+			version: null,
+		});
+		expect(stale.status).toBe(409);
+		expect(((await stale.json()) as { code: string; data: { version: string } }).data.version).toBe(saved.version);
+
+		// The page in Code mode runs the Draft at once.
+		expect(await (await coding.page(path)).text()).toContain(saved.src as string);
 	});
 });
