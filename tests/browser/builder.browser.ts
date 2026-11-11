@@ -402,6 +402,7 @@ describe("the style panel", () => {
 		await expectAnnounced(page, "Created the Class lead-text in the Design system's Draft.");
 		await page.getByRole("textbox", { name: "Declarations" }).fill("color: red");
 		await page.getByRole("button", { name: "Apply" }).click();
+		await expectAnnounced(page, "One-off style applied.");
 		expect(await announced(page)).toBe("One-off style applied.");
 		await page.keyboard.press("ControlOrMeta+s");
 		await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
