@@ -39,6 +39,104 @@ async function editorPage(theme: (typeof THEMES)[number], canvas: "live" | "prev
 }
 
 for (const theme of THEMES) {
+	test(`clearing a one-off style follows peer changes during its catalogue read (${theme})`, async () => {
+		const { api, siteId, original, page, tree } = await editorPage(theme, "preview", "color: rgb(1, 2, 3);");
+		await tree.getByRole("treeitem", { name: /^Before/ }).click();
+		await page.getByRole("tab", { name: "Style", exact: true }).click();
+		const declarations = page.getByLabel("Declarations", { exact: true });
+		await page.waitForLoadState("networkidle");
+		const reading = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		let held = false;
+		await page.route(/\/api\/rpc\/builder\/open$/, async (route) => {
+			if (held) return route.continue();
+			held = true;
+			const response = await route.fetch();
+			reading.resolve();
+			await release.promise;
+			await route.fulfill({ response });
+		});
+		try {
+			await declarations.fill("");
+			await page.getByRole("button", { name: "Apply", exact: true }).click();
+			await reading.promise;
+			await api.templates.saveSiteTemplateMarkup({
+				siteId,
+				markup: original
+					.replace("<p ", '<section data-wc-id="group"><p ')
+					.replace("</p>", "</p></section>")
+					.replace('data-wc-label="Before"', 'data-wc-label="Remote"')
+					.replace("rgb(1, 2, 3)", "rgb(4, 5, 6)"),
+			});
+			await tree.getByRole("treeitem", { name: /^Remote/ }).waitFor();
+			release.resolve();
+			await page.getByRole("status").filter({ hasText: "One-off style removed." }).waitFor();
+			let stored = "";
+			for (let attempt = 0; attempt < 100; attempt++) {
+				stored = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+				if (!stored.includes('class="')) break;
+				await page.waitForTimeout(50);
+			}
+			expect(stored).not.toContain('class="');
+			expect(stored).toContain('<section data-wc-id="group"><p data-wc-label="Remote"');
+		} finally {
+			release.resolve();
+		}
+	});
+
+	test(`one-off styles can be cleared before their catalogue arrives (${theme})`, async () => {
+		const { api, siteId, page, tree } = await editorPage(theme, "preview");
+		await tree.getByRole("treeitem", { name: /^Before/ }).click();
+		await page.getByRole("tab", { name: "Style", exact: true }).click();
+		const declarations = page.getByLabel("Declarations", { exact: true });
+		await page.waitForLoadState("networkidle");
+		const release = Promise.withResolvers<void>();
+		const freshHeld = Promise.withResolvers<void>();
+		let holding = true;
+		await page.route(/\/api\/rpc\/builder\/open$/, async (route) => {
+			const response = await route.fetch();
+			const body = (await response.json()) as { json: { catalogue: { classes: { generated: boolean }[] } } };
+			if (holding && body.json.catalogue.classes.some((each) => each.generated)) {
+				freshHeld.resolve();
+				await release.promise;
+			}
+			await route.fulfill({ response });
+		});
+		try {
+			await declarations.fill("color: rgb(1, 2, 3);");
+			await page.getByRole("button", { name: "Apply", exact: true }).click();
+			await freshHeld.promise;
+			await page.waitForFunction(() => {
+				const frame = document.querySelector<HTMLIFrameElement>('iframe[title^="Canvas"]');
+				const paragraph = frame?.contentDocument?.querySelector("header p");
+				return (
+					paragraph?.getAttribute("class") && frame?.contentWindow?.getComputedStyle(paragraph).color === "rgb(1, 2, 3)"
+				);
+			});
+			expect((await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft).toContain('class="');
+			await declarations.fill("");
+			await page.getByRole("button", { name: "Apply", exact: true }).click();
+			holding = false;
+			release.resolve();
+			await page.getByRole("status").filter({ hasText: "One-off style removed." }).waitFor();
+			let stored = "";
+			for (let attempt = 0; attempt < 100; attempt++) {
+				stored = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+				if (!stored.includes('class="')) break;
+				await page.waitForTimeout(50);
+			}
+			expect(stored).not.toContain('class="');
+			await page.waitForFunction(() => {
+				const frame = document.querySelector<HTMLIFrameElement>('iframe[title^="Canvas"]');
+				const paragraph = frame?.contentDocument?.querySelector("header p");
+				return paragraph && frame?.contentWindow?.getComputedStyle(paragraph).color !== "rgb(1, 2, 3)";
+			});
+		} finally {
+			holding = false;
+			release.resolve();
+		}
+	});
+
 	for (const canvas of ["preview", "live"] as const) {
 		test(`unfinished declarations survive a peer refresh on the ${canvas} canvas (${theme})`, async () => {
 			const { api, siteId, original, page, tree } = await editorPage(theme, canvas, "color: rgb(1, 2, 3);");

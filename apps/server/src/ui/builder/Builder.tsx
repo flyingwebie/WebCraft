@@ -1110,26 +1110,43 @@ export function Builder({
 								const node = nodeAt(doc.tree, path);
 								if (node?.type === "element") replace(path, { ...node, classes: classIds }, message);
 							}}
-							onOneOff={(path, elementId, declarations) => {
-								const node = nodeAt(doc.tree, path);
-								if (node?.type !== "element") return false;
-								const styles = { ...doc.styles };
-								if (declarations) styles[elementId] = declarations;
-								else delete styles[elementId];
-								return (
-									apply(
-										{
-											...doc,
-											tree: replaceAt(doc.tree, path, {
-												...node,
-												classes: node.classes.filter((id) => !generatedIds.has(id)),
-											}),
-											styles,
-										},
-										{ kind: "node", path },
-										declarations ? t("builder.style.oneOffApplied") : t("builder.style.oneOffRemoved"),
-									) === undefined
-								);
+							onOneOff={async (_path, elementId, declarations) => {
+								try {
+									for (;;) {
+										// The shared tree can receive a generated Class before its background catalogue read.
+										const current = docRef.current;
+										const run = openedRead.current + 1;
+										const fresh = await readOpened();
+										// A peer may move or restyle this element while the catalogue is in flight.
+										if (current !== docRef.current || run !== openedRead.current) continue;
+										const generated = new Set(
+											fresh.catalogue.classes.filter((each) => each.generated).map((each) => each.id),
+										);
+										const path = pathOfId(current.tree, elementId);
+										const node = path && nodeAt(current.tree, path);
+										if (!path || node?.type !== "element") return false;
+										const styles = { ...current.styles };
+										if (declarations) styles[elementId] = declarations;
+										else delete styles[elementId];
+										return (
+											apply(
+												{
+													...current,
+													tree: replaceAt(current.tree, path, {
+														...node,
+														classes: node.classes.filter((id) => !generated.has(id)),
+													}),
+													styles,
+												},
+												{ kind: "node", path },
+												declarations ? t("builder.style.oneOffApplied") : t("builder.style.oneOffRemoved"),
+											) === undefined
+										);
+									}
+								} catch (failure) {
+									announce(t(errorMessage(failure)));
+									return false;
+								}
 							}}
 							onCatalogue={(classes: Catalogue["classes"]) => {
 								patchOpened((before) => ({ ...before, catalogue: { ...before.catalogue, classes } }));
