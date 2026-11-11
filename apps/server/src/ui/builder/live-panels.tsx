@@ -154,6 +154,7 @@ function LivePanels({
 	const sourcesRef = useRef(sources);
 	sourcesRef.current = sources;
 	const typing = useRef(false);
+	const draftChangeCount = useRef(0);
 	const paintRuns = useRef(new Map<string, number>());
 	const paint = useCallback(
 		(ref: string, tree: ElementTree) => {
@@ -180,6 +181,7 @@ function LivePanels({
 		[bridge, t],
 	);
 	const update = useCallback((ref: string, tree: ElementTree, props?: Opened["props"]) => {
+		draftChangeCount.current++;
 		setSources((before) => {
 			const source = before[ref];
 			if (!source) return before;
@@ -342,16 +344,20 @@ function LivePanels({
 						await load(ref);
 					}
 				}
-				if (run !== generation) return false;
-				setError("");
-				const saved = await bridge.call<{ markup: string }>("code/open", { ref });
-				if (run === generation) {
+				while (run === generation) {
+					const changeCount = draftChangeCount.current;
+					const saved = await bridge.call<{ markup: string }>("code/open", { ref });
+					if (run !== generation) return false;
+					// A peer may change the Draft after the server prints it but before this response arrives.
+					if (draftChangeCount.current !== changeCount) continue;
+					setError("");
 					pending?.cancel();
 					pending = null;
 					typing.current = false;
 					bridge.changed(ref, saved.markup);
+					return true;
 				}
-				return true;
+				return false;
 			} catch (failure) {
 				setError(t(errorMessage(failure)));
 				return false;
