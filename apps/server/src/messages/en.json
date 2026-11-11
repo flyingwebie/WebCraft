@@ -1827,7 +1827,7 @@
 			"siteTab": "Site",
 			"componentTab": "Component",
 			"componentScript": "{name} · Component script",
-			"componentPlaceholder": "// export default function (root) { … }\n// Runs once for each Placement of this Component, with its exposed Props as data- attributes.",
+			"componentPlaceholder": "// export default function (root): runs once for each Placement of this Component,\n// its exposed Props on the root as data- attributes.",
 			"consentCategory": "Consent category",
 			"consentNecessary": "Necessary",
 			"consentAnalytics": "Analytics",

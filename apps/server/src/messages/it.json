@@ -1827,7 +1827,7 @@
 			"siteTab": "Sito",
 			"componentTab": "Componente",
 			"componentScript": "{name} · Script del componente",
-			"componentPlaceholder": "// export default function (root) { … }\n// Viene eseguito una volta per ogni copia di questo Componente, con le sue Prop esposte come attributi data-.",
+			"componentPlaceholder": "// export default function (root): viene eseguito una volta per ogni copia di questo Componente,\n// con le sue Prop esposte sulla radice come attributi data-.",
 			"consentCategory": "Categoria di consenso",
 			"consentNecessary": "Necessari",
 			"consentAnalytics": "Statistiche",
