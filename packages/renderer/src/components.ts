@@ -34,10 +34,12 @@ export type PlacementNode = {
 };
 
 /** One Prop's value in a Placement, written as an attribute: fixed text and values joined together. */
-export type PropValue = { name: string; value: AttributePart[]; binding?: PropBinding };
+export type PropValue = { name: string; value: AttributePart[]; binding?: PropBinding; retained?: string };
 
 /** What reading and checking a Placement needs to know about one Prop of its Component. */
 export type PropInfo = {
+	/** Stable declaration identity, used only to recover retained values. */
+	id?: string;
 	/** The Prop's key, as Template markup writes it: `heading`. */
 	key: string;
 	/** A whole-Group/Repeater binding may retain relative paths through declaration renames. */
@@ -54,6 +56,8 @@ export type ComponentInfo = {
 	/** Its PascalCase tag in Template markup. */
 	name: string;
 	props: readonly PropInfo[];
+	/** Old declarations addressable by identity even when their names are reused. */
+	retainedProps?: readonly PropInfo[];
 	/** The tree a Placement shows, so it can be checked where it sits (a <div> can't go inside <p>). */
 	tree: ElementTree;
 };

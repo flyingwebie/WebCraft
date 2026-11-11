@@ -126,6 +126,7 @@ export {
 	type RenderOptions,
 	renderTree,
 } from "./html.ts";
+export { stableJson } from "./json.ts";
 export { canonicalLanguage, type Translations, textIn } from "./languages.ts";
 export {
 	DEFAULT_ITEM_NAME,
@@ -197,7 +198,8 @@ export {
 } from "./page.ts";
 export { checkSiteTemplate, OUTLET_ONLY_IN_SITE_TEMPLATE, refuseSiteTemplateCommands } from "./page-structure.ts";
 export { popupsPlacedIn } from "./popups.ts";
-export { boundRoot, mappedBindingPath, type PropBinding, readPropBinding } from "./prop-bindings.ts";
+export { boundRoot, mappedBindingPath, type PropBinding, readMetadataJson, readPropBinding } from "./prop-bindings.ts";
+export { RETAINED_KEY, type RetainedJsonValue, retainedPropProblem, retainedValues } from "./prop-retention.ts";
 export { cleanRichText, RICH_TEXT_MAX_LENGTH, richTextToText, richTextTranslation } from "./rich-text.ts";
 export {
 	cutText,

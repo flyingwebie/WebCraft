@@ -445,6 +445,7 @@ function renderPlacement(node: PlacementNode, options: RenderOptions, state: Ren
 	if (state.budget.nodes > COMPONENT_LIMITS.expandedNodes) return "";
 	const props = new Map<string, PropArgument>();
 	for (const prop of node.props) {
+		if (prop.retained) continue;
 		const [only] = prop.value;
 		props.set(
 			prop.name,

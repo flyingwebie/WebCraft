@@ -70,6 +70,7 @@ import {
 	projectSourceBindings,
 	propBaseline,
 	renamePropBindings,
+	retainedContract,
 	retainPropBindings,
 } from "./prop-migrations.ts";
 import { readPropText } from "./props.ts";
@@ -916,6 +917,7 @@ export async function siteComponents(
 				id: entry.id,
 				name: entry.name,
 				props: propInfos(entry.version.props, which === "draft" ? entry.version.propBaseline : undefined),
+				...(which === "draft" ? { retainedProps: propInfos(entry.version.propBaseline ?? []) } : {}),
 				tree: entry.version.tree,
 			};
 		}
@@ -984,13 +986,18 @@ export async function checkPublishedPlacements(
 function propInfos(props: readonly FieldDefinition[], retained: readonly FieldDefinition[] = []): PropInfo[] {
 	const all = [...props, ...retained.filter((old) => !props.some((prop) => prop.key === old.key))];
 	return all.map((prop) => ({
+		id: prop.id,
 		key: prop.key,
 		bindingPaths: bindingPaths([prop, ...retained.filter((old) => old.key === prop.key)]),
 		required: props.includes(prop) && prop.required && (prop.default === null || prop.default === undefined),
 		check(text) {
-			const read = readPropText(prop, text);
+			const old = retained.find((field) => field.id === prop.id);
+			const combined =
+				"fields" in prop && old && "fields" in old
+					? { ...prop, fields: retainedContract(prop.fields, old.fields) }
+					: prop;
+			const read = readPropText(combined, text);
 			if (!("problem" in read)) return undefined;
-			const old = retained.find((field) => field.key === prop.key);
 			if (old && "value" in readPropText(old, text)) return undefined;
 			return read.problem;
 		},

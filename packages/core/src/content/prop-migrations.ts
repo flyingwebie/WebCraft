@@ -11,6 +11,9 @@ import {
 	type PlacementNode,
 	type PropBinding,
 	placementsIn,
+	RETAINED_KEY,
+	type RetainedJsonValue,
+	retainedValues,
 	type TreeNode,
 } from "@webcraft/renderer";
 import { eq } from "drizzle-orm";
@@ -52,12 +55,45 @@ export function propBaseline(before: ComponentVersion, next: readonly FieldDefin
 	return renamed(all, before.props, next);
 }
 
+/** Current names take precedence, but retained types and identities remain authoritative until publish. */
+export function retainedContract(
+	current: readonly FieldDefinition[],
+	baseline: readonly FieldDefinition[] = [],
+): FieldDefinition[] {
+	return [
+		...current.map((field) => {
+			const old = successor(field, baseline);
+			if (!old) return field;
+			return {
+				...old,
+				key: field.key,
+				...("fields" in field && "fields" in old ? { fields: retainedContract(field.fields, old.fields) } : {}),
+			};
+		}),
+		...baseline.filter((field) => !successor(field, current)),
+	];
+}
+
 function losesFields(before: FieldDefinition, next: FieldDefinition): boolean {
 	if (!("fields" in before) || !("fields" in next)) return false;
 	return before.fields.some((field) => {
 		const after = successor(field, next.fields);
 		return !after || field.type !== after.type || losesFields(field, after);
 	});
+}
+
+/** Only deletion is safely projected out of a bound value; type changes still invalidate it. */
+function changesFieldTypes(before: FieldDefinition, next: FieldDefinition): boolean {
+	if (!("fields" in before) || !("fields" in next)) return false;
+	return before.fields.some((field) => {
+		const current = successor(field, next.fields);
+		return current && (current.type !== field.type || changesFieldTypes(field, current));
+	});
+}
+function reusesNames(before: readonly FieldDefinition[], next: readonly FieldDefinition[]): boolean {
+	const old = identityPaths(before);
+	const fresh = identityPaths(next);
+	return old.some((field) => !fresh.some((f) => f.id === field.id) && fresh.some((f) => f.path === field.path));
 }
 
 /** All identity-backed paths, including unchanged prefixes needed to compose nested renames. */
@@ -80,6 +116,14 @@ function declarationPaths(
 	return pairs;
 }
 
+/** Flat, identity-addressed nested declarations, including retained identities with reused names. */
+function identityPaths(fields: readonly FieldDefinition[], prefix = ""): { id: string; path: string }[] {
+	return fields.flatMap((field) => [
+		...(field.id ? [{ id: field.id, path: prefix + field.key }] : []),
+		...("fields" in field ? identityPaths(field.fields, `${prefix}${field.key}.`) : []),
+	]);
+}
+
 /** Omit redundant descendants but keep exceptions to a mapped prefix (even identity exceptions). */
 function compactPaths(entries: Iterable<readonly [string, string]>): Record<string, string> {
 	const paths: Record<string, string> = Object.create(null);
@@ -88,7 +132,7 @@ function compactPaths(entries: Iterable<readonly [string, string]>): Record<stri
 	return Object.fromEntries(Object.entries(paths).sort(([a], [b]) => a.localeCompare(b)));
 }
 
-type Value = { name: string; value: string | AttributePart[]; binding?: PropBinding };
+type Value = { name: string; value: string | AttributePart[]; binding?: PropBinding; retained?: string };
 function migrateValues(
 	values: Value[],
 	before: readonly FieldDefinition[],
@@ -102,21 +146,34 @@ function migrateValues(
 			return value.map((row) => json(row, { ...old, type: "group" }, { ...fresh, type: "group" } as FieldDefinition));
 		if (!value || typeof value !== "object" || Array.isArray(value)) return value;
 		const result: Record<string, unknown> = {};
-		for (const [key, part] of Object.entries(value)) {
-			const previous = old.fields.find((f) => f.key === key);
+		const held: RetainedJsonValue[] = [];
+		const object = value as Record<string, unknown>;
+		const parts = [
+			...Object.entries(object)
+				.filter(([key]) => key !== RETAINED_KEY)
+				.map(([name, value]) => ({ name, value, id: undefined as string | undefined })),
+			...retainedValues(object[RETAINED_KEY]),
+		];
+		for (const part of parts) {
+			const previous = old.fields.find((f) => (part.id ? f.id === part.id : f.key === part.name));
 			const current = previous && successor(previous, fresh.fields);
 			if (previous && (!current || current.type !== previous.type)) {
 				lost = true;
 				if (drop) continue;
 			}
-			result[current?.key ?? key] =
-				previous && current && previous.type === current.type ? json(part, previous, current) : part;
+			if (!current && previous?.id && (part.id || fresh.fields.some((f) => f.key === part.name))) {
+				held.push({ id: previous.id, name: part.name, value: part.value });
+			} else {
+				result[current?.key ?? part.name] =
+					previous && current && previous.type === current.type ? json(part.value, previous, current) : part.value;
+			}
 		}
+		if (held.length) result[RETAINED_KEY] = held;
 		return result;
 	}
 	const migrated: Value[] = [];
 	for (const value of values) {
-		const old = before.find((f) => f.key === value.name);
+		const old = before.find((f) => (value.retained ? f.id === value.retained : f.key === value.name));
 		if (!old) {
 			migrated.push(value);
 			continue;
@@ -130,7 +187,16 @@ function migrateValues(
 		// A binding reads someone else's Group/Repeater; never rewrite that Entry's values.
 		if (fresh && Array.isArray(written) && written.some((part) => part.type === "value") && losesFields(old, fresh)) {
 			lost = true;
-			if (drop) continue;
+			if (
+				drop &&
+				!(
+					"fields" in old &&
+					"fields" in fresh &&
+					reusesNames(old.fields, fresh.fields) &&
+					!changesFieldTypes(old, fresh)
+				)
+			)
+				continue;
 		}
 		if (fresh && "fields" in old && old.type === fresh.type) {
 			const migrateText = (text: string) => {
@@ -168,17 +234,60 @@ function migrateValues(
 		const root = Array.isArray(written) ? boundRoot(written) : undefined;
 		if (root && fresh && "fields" in old && "fields" in fresh) {
 			const pairs = declarationPaths(old.fields, fresh.fields);
-			const renames = Object.fromEntries(pairs.filter(([from, to]) => from !== to));
 			const prior = binding?.paths ?? {};
-			const paths = compactPaths([
-				...Object.entries(prior).map(([key, source]) => [mappedBindingPath(key, renames), source] as const),
-				...pairs.map(([from, to]) => [to, mappedBindingPath(from, prior)] as const),
-			]);
-			binding = Object.keys(paths).length ? { root, paths } : undefined;
+			const retained = { ...binding?.retained };
+			const was = identityPaths(old.fields);
+			const now = identityPaths(fresh.fields);
+			for (const field of was) {
+				if (!now.some((f) => f.id === field.id) && now.some((f) => f.path === field.path) && !retained[field.id])
+					retained[field.id] = mappedBindingPath(field.path, prior);
+			}
+			const paths = compactPaths(
+				pairs.map(([from, to]) => {
+					const identity = now.find((f) => f.path === to)?.id;
+					return [to, (identity && retained[identity]) || mappedBindingPath(from, prior)] as const;
+				}),
+			);
+			for (const field of now) delete retained[field.id];
+			if (drop) for (const id of Object.keys(retained)) delete retained[id];
+			const missing =
+				binding?.missing && pairs.filter(([from]) => binding?.missing?.includes(from)).map(([, to]) => to);
+			const sources =
+				binding?.sources &&
+				Object.fromEntries(
+					pairs.flatMap(([from, to]) => (binding?.sources?.[from] ? [[to, binding.sources[from]]] : [])),
+				);
+			binding =
+				Object.keys(paths).length ||
+				Object.keys(retained).length ||
+				(sources && Object.keys(sources).length) ||
+				missing?.length
+					? {
+							root,
+							paths,
+							...(Object.keys(retained).length ? { retained } : {}),
+							...(missing?.length ? { missing } : {}),
+							...(sources && Object.keys(sources).length ? { sources } : {}),
+						}
+					: undefined;
 		}
-		const { binding: _, ...plain } = value;
-		migrated.push({ ...plain, name: fresh?.key ?? value.name, value: written, ...(binding ? { binding } : {}) });
+		const { binding: _, retained: __, ...plain } = value;
+		const collision = !fresh && next.some((field) => field.key === value.name);
+		const retained = !fresh && (value.retained || collision) ? old.id : undefined;
+		migrated.push({
+			...plain,
+			name: fresh?.key ?? value.name,
+			value: written,
+			...(binding ? { binding } : {}),
+			...(retained ? { retained } : {}),
+		});
 	}
+	if (values.some((value) => value.retained))
+		migrated.sort((a, b) => {
+			const rank = (value: Value) => (value.retained ? next.length : next.findIndex((f) => f.key === value.name));
+			return rank(a) - rank(b);
+		});
+	migrated.sort((a, b) => Number(Boolean(a.retained)) - Number(Boolean(b.retained)));
 	return { values: migrated, lost };
 }
 
@@ -204,25 +313,48 @@ export function projectSourceBindings(
 		const component = catalogue.byId(node.component);
 		if (!isComponentInfo(component)) continue;
 		for (const value of node.props) {
-			const prior = was.node.props.find((p) => p.name === value.name);
+			const prior = was.node.props.find((p) => p.name === value.name && p.retained === value.retained);
 			const root = boundRoot(value.value);
 			const oldRoot = prior && boundRoot(prior.value);
-			const allowed = component.props.find((p) => p.key === value.name)?.bindingPaths;
+			const allowed = (
+				value.retained
+					? component.retainedProps?.find((p) => p.id === value.retained)
+					: component.props.find((p) => p.key === value.name)
+			)?.bindingPaths;
 			if (!root || !oldRoot || !allowed) continue;
 			const sourceRoot = resolve(root);
 			const previousRoot = was.resolve(oldRoot);
 			if (sourceRoot !== previousRoot && sourceRoot !== mappedBindingPath(previousRoot, renames)) continue;
+			const wasFields = identityPaths(before, "props.");
+			const nowFields = identityPaths(next, "props.");
+			const collision = wasFields.some(
+				(field) => !nowFields.some((f) => f.id === field.id) && nowFields.some((f) => f.path === field.path),
+			);
+			const sources = { ...value.binding?.sources };
+			const missing: string[] = [];
 			const paths = compactPaths(
 				[...new Set([...allowed, ...Object.keys(value.binding?.paths ?? {})])].map((target) => {
 					const source = mappedBindingPath(target, value.binding?.paths ?? {});
-					const renamed = mappedBindingPath(`${previousRoot}.${source}`, renames);
+					const absolute = `${previousRoot}.${source}`;
+					const id = sources[target] ?? wasFields.find((f) => f.path === absolute)?.id;
+					if (id && (collision || Object.keys(sources).length)) sources[target] = id;
+					const byIdentity = id && nowFields.find((f) => f.id === id)?.path;
+					if (id && !byIdentity && sources[target]) missing.push(target);
+					const renamed = byIdentity || mappedBindingPath(absolute, renames);
 					return [
 						target,
 						renamed.startsWith(`${sourceRoot}.`) ? renamed.slice(sourceRoot.length + 1) : source,
 					] as const;
 				}),
 			);
-			if (Object.keys(paths).length) value.binding = { root, paths };
+			if (Object.keys(paths).length || collision || missing.length || value.binding?.retained)
+				value.binding = {
+					root,
+					paths,
+					...(missing.length ? { missing } : {}),
+					...(value.binding?.retained ? { retained: value.binding.retained } : {}),
+					...(Object.keys(sources).length ? { sources } : {}),
+				};
 			else delete value.binding;
 		}
 	}
@@ -253,8 +385,10 @@ export function retainPropBindings(tree: ElementTree, previous: ElementTree): El
 	for (const node of placementsIn(result.nodes)) {
 		const was = old.get(node.id);
 		if (!was || was.component !== node.component) continue;
+		for (const held of was.props.filter((p) => p.retained))
+			if (!node.props.some((p) => p.retained === held.retained)) node.props.push(structuredClone(held));
 		for (const value of node.props) {
-			const prior = was.props.find((p) => p.name === value.name);
+			const prior = was.props.find((p) => p.name === value.name && p.retained === value.retained);
 			if (!value.binding && prior?.binding && boundRoot(value.value) === prior.binding.root)
 				value.binding = structuredClone(prior.binding);
 		}
@@ -314,9 +448,7 @@ export async function migratePropPlacements(
 				const from =
 					which === "published"
 						? (published?.props ?? before.props)
-						: mode === "rename"
-							? before.props
-							: (before.propBaseline ?? before.props);
+						: retainedContract(before.props, before.propBaseline);
 				migrateTree(tree, componentId, from, next.props, drop, (id) => losing.add(`${kind}:${row.id}:${id}`));
 				if (!sameJson(version, row[which])) change[which] = version;
 			}

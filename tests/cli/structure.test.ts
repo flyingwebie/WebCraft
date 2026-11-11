@@ -441,3 +441,52 @@ test("CLI and MCP keep per-Placement binding projections while editing canonical
 		site.remove();
 	}
 });
+
+test("CLI and MCP round trip retained name collisions without merging the two values", async () => {
+	const site = await bakerySite("retention-cli");
+	try {
+		const { component } = await staff.components.create({ siteId: site.siteId, name: "RetainedCard" });
+		const target = { siteId: site.siteId, componentId: component.id };
+		const first = await staff.components.saveMarkup({
+			...target,
+			markup: "{{@props}}\na: text\nb: text\n{{/props}}\n<p>Card</p>",
+		});
+		const holder = { siteId: site.siteId, componentId: site.componentId };
+		await staff.components.saveMarkup({ ...holder, markup: '<RetainedCard a="Removed" b="Kept" />' });
+		const b = first.component.draft.props[1];
+		if (!b) throw new Error("Missing Prop");
+		await staff.components.saveDraft({ ...target, props: [{ ...b, key: "a" }] });
+		expect((await site.pull()).code).toBe(0);
+		const source = site.read("components/PostCard.wc.html");
+		expect(source).toContain('a="Kept"');
+		site.write("components/PostCard.wc.html", `${source}<!--CLI retention-->`);
+		expect((await site.push(["--yes"])).code).toBe(0);
+		const { secret } = await createApiToken(staffBrowser, {
+			workspaceId,
+			name: "Retention MCP",
+			toolsets: ["structure"],
+		});
+		const client = await connectMcp(install, secret);
+		try {
+			const read = answerOf<Awaited<ReturnType<typeof staff.components.getMarkup>>>(
+				await client.callTool({ name: "components_get_markup", arguments: holder }),
+			);
+			const saved = answerOf<Awaited<ReturnType<typeof staff.components.saveMarkup>>>(
+				await client.callTool({
+					name: "components_save_markup",
+					arguments: { ...holder, markup: `${read.markup.draft}<!--MCP retention-->`, basedOn: read.version },
+				}),
+			);
+			expect(saved.markup).toContain('a="Kept"');
+		} finally {
+			await client.close();
+		}
+		await staff.components.saveMarkup({ ...target, markup: first.markup });
+		const restored = await staff.components.getMarkup(holder);
+		expect(restored.markup.draft).toContain('a="Removed" b="Kept"');
+		expect(restored.markup.draft).toContain("CLI retention");
+		expect(restored.markup.draft).toContain("MCP retention");
+	} finally {
+		site.remove();
+	}
+});

@@ -11,7 +11,6 @@
  * tree it answers is canonical and has passed the same checks as any stored tree.
  */
 import { decodeHTML, decodeHTMLAttribute } from "entities";
-
 import {
 	commandNamed,
 	filtersWithoutTheirLoop,
@@ -36,7 +35,8 @@ import { readFormat } from "../formatters.ts";
 import { canonicalLanguage, languageTagMessage, type Translations } from "../languages.ts";
 import { type LoopCatalogue, rootScope, type ValueScope } from "../loops.ts";
 import { mediaReference } from "../media.ts";
-import { BINDINGS_ATTRIBUTE, readBindingsJson, readPropBinding } from "../prop-bindings.ts";
+import { BINDINGS_ATTRIBUTE, readBindingsJson, readMetadataJson, readPropBinding } from "../prop-bindings.ts";
+import { RETAINED_ATTRIBUTE, RETAINED_MAX_LENGTH } from "../prop-retention.ts";
 import {
 	type Attribute,
 	type AttributePart,
@@ -828,7 +828,13 @@ class MarkupParser {
 		const props: PropValue[] = [];
 		const given = new Set<string>();
 		let bindings: WrittenAttribute | undefined;
+		let retained: WrittenAttribute | undefined;
 		for (const attribute of written) {
+			if (attribute.name === RETAINED_ATTRIBUTE) {
+				if (retained) this.problem(attribute.offset, `${RETAINED_ATTRIBUTE} is given twice.`);
+				retained = attribute;
+				continue;
+			}
 			if (attribute.name === BINDINGS_ATTRIBUTE) {
 				if (bindings) this.problem(attribute.offset, `${BINDINGS_ATTRIBUTE} is given twice.`);
 				bindings = attribute;
@@ -867,6 +873,25 @@ class MarkupParser {
 				}
 			}
 			props.push({ name: key, value: canonicalNodes(attribute.parts) });
+		}
+		if (retained) {
+			try {
+				if (retained.bound) throw new Error("Retained values are literal JSON.");
+				const values = readMetadataJson(retained.text, RETAINED_MAX_LENGTH);
+				if (!Array.isArray(values) || values.length > 256 || values.some((p) => !p?.retained))
+					throw new Error("Retained Props need declaration identities, at most 256 values.");
+				const checked = parseElementTree(
+					{
+						version: 1,
+						nodes: [{ type: "component", id: "retained-check", component: found.id, props: [...props, ...values] }],
+					},
+					{ components: catalogue },
+				);
+				const placement = checked.nodes[0];
+				if (placement?.type === "component") props.splice(0, props.length, ...placement.props);
+			} catch (error) {
+				this.problem(retained.valueOffset, `${RETAINED_ATTRIBUTE}: ${(error as Error).message}`);
+			}
 		}
 		if (bindings) {
 			try {

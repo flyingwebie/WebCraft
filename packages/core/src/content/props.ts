@@ -15,7 +15,7 @@
  * Values that read where the Component is placed (`{{ title }}`) can't be checked until then: a
  * value that doesn't fit renders nothing.
  */
-import { mediaReference } from "@webcraft/renderer";
+import { mediaReference, RETAINED_KEY, readMetadataJson, retainedValues } from "@webcraft/renderer";
 
 import {
 	type FieldDefinition,
@@ -35,7 +35,7 @@ export type PropText = { value: Json } | { problem: string };
 const NUMBER = /^-?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/;
 
 /** Reads fixed text as a Prop's value, checking it against the Prop's rules. Empty text is no value. */
-export function readPropText(prop: FieldDefinition, text: string): PropText {
+export function readPropText(prop: FieldDefinition, text: string, checkRetained = true): PropText {
 	const trimmed = text.trim();
 	if (prop.type === "boolean") {
 		const word = trimmed.toLowerCase();
@@ -47,11 +47,11 @@ export function readPropText(prop: FieldDefinition, text: string): PropText {
 	if (isContainer(prop)) {
 		let input: unknown;
 		try {
-			input = JSON.parse(trimmed);
+			input = trimmed.includes(RETAINED_KEY) ? readMetadataJson(trimmed) : JSON.parse(trimmed);
 		} catch {
 			return { problem: `a ${prop.type === "group" ? "Group" : "Repeater"}'s value is written as JSON.` };
 		}
-		return readJson(prop, input);
+		return readJson(prop, input, "", checkRetained);
 	}
 	const input = leafInput(prop, trimmed);
 	if (typeof input === "object" && input !== null && "problem" in input) return input as PropText;
@@ -60,7 +60,7 @@ export function readPropText(prop: FieldDefinition, text: string): PropText {
 
 /** A Prop's value from fixed text, or null when the text isn't one it holds. */
 export function propValue(prop: FieldDefinition, text: string): Json {
-	const read = readPropText(prop, text);
+	const read = readPropText(prop, text, false);
 	return "value" in read ? read.value : null;
 }
 
@@ -116,31 +116,46 @@ function readLeaf(field: LeafField, input: unknown): PropText {
 }
 
 /** Reads a Group's or Repeater's value from JSON, each Field's value as the APIs take it. */
-function readJson(field: FieldDefinition, input: unknown, at = ""): PropText {
-	if (field.type === "group") return readGroup(field, input, at);
-	if (field.type === "repeater") return readRepeater(field, input, at);
+function readJson(field: FieldDefinition, input: unknown, at = "", checkRetained = true): PropText {
+	if (field.type === "group") return readGroup(field, input, at, checkRetained);
+	if (field.type === "repeater") return readRepeater(field, input, at, checkRetained);
 	const read = readLeaf(field, input ?? null);
 	return "problem" in read && at ? { problem: `${at}: ${read.problem}` } : read;
 }
 
-function readGroup(field: GroupField, input: unknown, at: string): PropText {
+function readGroup(field: GroupField, input: unknown, at: string, checkRetained: boolean): PropText {
 	if (input === null) return field.required ? { problem: "the Prop is required." } : { value: null };
 	if (typeof input !== "object" || Array.isArray(input))
 		return { problem: `${at || field.key}: an object of its Fields' values.` };
 	const given = input as Record<string, unknown>;
-	const unknown = Object.keys(given).find((key) => !field.fields.some((inner) => inner.key === key));
+	if (checkRetained && RETAINED_KEY in given) {
+		try {
+			for (const held of retainedValues(given[RETAINED_KEY])) {
+				const declaration = field.fields.find((f) => f.id === held.id);
+				if (!declaration) return { problem: "The retained value has no matching declaration identity." };
+				const checked = readJson(declaration, held.value, at, checkRetained);
+				if ("problem" in checked) return checked;
+			}
+		} catch (error) {
+			return { problem: (error as Error).message };
+		}
+	}
+	const unknown = Object.keys(given).find(
+		(key) => key !== RETAINED_KEY && !field.fields.some((inner) => inner.key === key),
+	);
 	if (unknown !== undefined)
 		return { problem: `${at ? `${at}.` : ""}${unknown}: the Group has no Field named ${unknown}.` };
 	const value: Record<string, Json> = {};
 	for (const inner of field.fields) {
-		const read = readJson(inner, given[inner.key] ?? null, at ? `${at}.${inner.key}` : inner.key);
+		if (Object.hasOwn(value, inner.key)) continue;
+		const read = readJson(inner, given[inner.key] ?? null, at ? `${at}.${inner.key}` : inner.key, checkRetained);
 		if ("problem" in read) return read;
 		value[inner.key] = read.value;
 	}
 	return { value };
 }
 
-function readRepeater(field: RepeaterField, input: unknown, at: string): PropText {
+function readRepeater(field: RepeaterField, input: unknown, at: string, checkRetained: boolean): PropText {
 	if (input === null) return field.required ? { problem: "the Prop is required." } : { value: null };
 	if (!Array.isArray(input))
 		return { problem: `${at || field.key}: a list of rows, each an object of its Fields' values.` };
@@ -154,6 +169,7 @@ function readRepeater(field: RepeaterField, input: unknown, at: string): PropTex
 			{ ...field, type: "group", required: false } as unknown as GroupField,
 			row ?? {},
 			`${at || field.key}[${index}]`,
+			checkRetained,
 		);
 		if ("problem" in read) return read;
 		rows.push(read.value);

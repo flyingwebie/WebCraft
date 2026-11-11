@@ -1,4 +1,11 @@
-import { type AttributePart, readPropBinding } from "@webcraft/renderer";
+import {
+	type AttributePart,
+	RETAINED_KEY,
+	readMetadataJson,
+	readPropBinding,
+	retainedPropProblem,
+	retainedValues,
+} from "@webcraft/renderer";
 import type { FieldDefinition } from "../content/field-types.ts";
 import { POPUP_FIELDS } from "../popups/index.ts";
 import { ArchiveRefusedError } from "./format.ts";
@@ -110,8 +117,8 @@ export function createRowRemapper(
 				`The Module Component ${componentId} has stored Props but no source declaration. Restore its source Module version before transferring this Site.`,
 				{ componentId },
 			);
-		const definition = async (path: string[]): Promise<Row> => {
-			if (UUID.test(componentId)) return record(await lookup.prop(componentId, path, context));
+		const definition = async (path: string[], retainedId?: string): Promise<Row> => {
+			if (UUID.test(componentId)) return record(await lookup.prop(componentId, path, context, retainedId));
 			let fields: unknown = moduleProps.get(componentId);
 			let field: Row = {};
 			for (const key of path) {
@@ -131,6 +138,23 @@ export function createRowRemapper(
 			for (const row of field.type === "group" ? [value] : list(value)) {
 				const object = record(row);
 				for (const key of Object.keys(object)) {
+					if (key === RETAINED_KEY) {
+						let values: ReturnType<typeof retainedValues>;
+						try {
+							values = retainedValues(object[key]);
+						} catch (error) {
+							throw new ArchiveRefusedError("damaged", (error as Error).message);
+						}
+						for (const held of values) {
+							const nested = list(field.fields)
+								.map(record)
+								.find((f) => f.id === held.id);
+							if (!nested)
+								throw new ArchiveRefusedError("damaged", "A retained value has no source declaration identity.");
+							held.value = await jsonValue(held.value, nested, [...path, held.name]);
+						}
+						continue;
+					}
 					const nestedPath = [...path, key];
 					const nested =
 						list(field.fields)
@@ -150,8 +174,9 @@ export function createRowRemapper(
 			if (!["group", "repeater", "link"].includes(String(field.type))) return value;
 			let parsed: unknown;
 			try {
-				parsed = JSON.parse(value);
+				parsed = value.includes(RETAINED_KEY) ? readMetadataJson(value) : JSON.parse(value);
 			} catch {
+				if (value.includes(RETAINED_KEY)) throw new ArchiveRefusedError("damaged", "Invalid retained JSON values.");
 				return value;
 			}
 			const before = JSON.stringify(parsed);
@@ -159,11 +184,22 @@ export function createRowRemapper(
 			// Keep literal JSON and its formatting intact when no typed reference changed.
 			return before === after ? value : after;
 		};
+		const retainedIds = new Set<string>();
 		for (const prop of list(values)) {
 			const item = record(prop);
+			if (item.retained !== undefined) {
+				const problem = retainedPropProblem(item);
+				if (problem) throw new ArchiveRefusedError("damaged", problem);
+				const id = String(item.retained);
+				if (retainedIds.has(id) || retainedIds.size >= 256)
+					throw new ArchiveRefusedError("damaged", "Retained declarations are distinct, at most 256 Props.");
+				retainedIds.add(id);
+			}
 			if (typeof item.name !== "string") continue;
 			const path = [item.name];
-			const field = await definition(path);
+			const field = await definition(path, typeof item.retained === "string" ? item.retained : undefined);
+			if (item.retained !== undefined && (!tree || !field.id || item.retained !== field.id))
+				throw new ArchiveRefusedError("damaged", "A retained Prop has no source declaration identity.");
 			if (tree) {
 				if (item.binding !== undefined) {
 					const paths = (fields: unknown, prefix = ""): string[] =>

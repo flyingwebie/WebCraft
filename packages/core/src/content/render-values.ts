@@ -379,6 +379,8 @@ export function placementValues(
 		if (!prop) return undefined;
 		const argument = given.get(key);
 		if (argument?.kind === "bound") {
+			if (argument.binding?.missing?.some((p) => rest.join(".") === p || rest.join(".").startsWith(`${p}.`)))
+				return undefined;
 			const suffix = argument.binding ? mappedBindingPath(rest.join("."), argument.binding.paths) : rest.join(".");
 			return outer(suffix ? `${argument.path}.${suffix}` : argument.path);
 		}

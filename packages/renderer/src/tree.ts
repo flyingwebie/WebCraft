@@ -35,6 +35,7 @@ import { checkFormat, type ValueFormat } from "./formatters.ts";
 import { canonicalLanguage, languageTagMessage, type Translations } from "./languages.ts";
 import { LOOP_STATS, type LoopCatalogue, rootScope, type ValueScope } from "./loops.ts";
 import { readPropBinding } from "./prop-bindings.ts";
+import { retainedPropProblem } from "./prop-retention.ts";
 
 /** The version of the element tree format, stored in every tree. */
 export const ELEMENT_TREE_VERSION = 1;
@@ -1019,15 +1020,34 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 		if (!Array.isArray(raw.props)) {
 			problem(`${at}.props`, "A Placement's props are a list of its Prop values.");
 		} else {
+			if (raw.props.filter((p) => p?.retained !== undefined).length > 256)
+				problem(`${at}.props`, "At most 256 retained Props.");
 			raw.props.forEach((entry: unknown, index) => {
 				const here = `${at}.props[${index}]`;
-				const { name, value, binding } = (entry ?? {}) as { name?: unknown; value?: unknown; binding?: unknown };
-				const prop = found.props.find((candidate) => candidate.key === name);
-				if (typeof name !== "string" || !prop) {
+				const { name, value, binding, retained } = (entry ?? {}) as {
+					name?: unknown;
+					value?: unknown;
+					binding?: unknown;
+					retained?: unknown;
+				};
+				const invalidRetention = retained !== undefined && retainedPropProblem(entry);
+				if (invalidRetention) {
+					problem(here, invalidRetention);
+					return;
+				}
+				const prop =
+					retained === undefined
+						? found.props.find((candidate) => candidate.key === name)
+						: found.retainedProps?.find((candidate) => candidate.id === retained);
+				if (typeof name !== "string" || !/^[a-z][A-Za-z0-9_]{0,63}$/.test(name) || !prop) {
 					problem(`${here}.name`, `${found.name} has no Prop named ${String(name)}.`);
 					return;
 				}
-				if (props.some((given) => given.name === name)) {
+				if (
+					props.some((given) =>
+						retained === undefined ? !given.retained && given.name === name : given.retained === retained,
+					)
+				) {
 					problem(`${here}.name`, `${name} is given twice.`);
 					return;
 				}
@@ -1041,16 +1061,25 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 						.filter((part): part is AttributePart => part !== undefined),
 				);
 				if (parts.every((part) => part.type === "text")) {
-					const refused = prop.check(parts.map((part) => (part.type === "text" ? part.text : "")).join(""));
-					if (refused) problem(`${here}.value`, `${name}: ${refused}`);
+					const texts = parts.filter((part) => part.type === "text");
+					const languages = new Set(["", ...texts.flatMap((part) => Object.keys(part.translations ?? {}))]);
+					for (const language of languages) {
+						const refused = prop.check(texts.map((part) => part.translations?.[language] ?? part.text).join(""));
+						if (refused) problem(`${here}.value`, `${name}: ${refused}`);
+					}
 				}
 				const metadata = readPropBinding(binding, parts, prop.bindingPaths);
 				if ("problem" in metadata) problem(`${here}.binding`, metadata.problem);
-				props.push({ name, value: parts, ...("binding" in metadata ? { binding: metadata.binding } : {}) });
+				props.push({
+					name,
+					value: parts,
+					...(typeof retained === "string" ? { retained } : {}),
+					...("binding" in metadata ? { binding: metadata.binding } : {}),
+				});
 			});
 		}
 		for (const prop of found.props) {
-			if (prop.required && !props.some((given) => given.name === prop.key)) {
+			if (prop.required && !props.some((given) => !given.retained && given.name === prop.key)) {
 				problem(`${at}.props`, `${found.name} needs ${prop.key}: the Prop is required.`);
 			}
 		}

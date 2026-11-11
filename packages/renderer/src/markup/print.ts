@@ -14,7 +14,9 @@
  */
 import { commandForNode } from "../commands.ts";
 import { writeFormat } from "../formatters.ts";
+import { stableJson } from "../json.ts";
 import { BINDINGS_ATTRIBUTE } from "../prop-bindings.ts";
+import { RETAINED_ATTRIBUTE } from "../prop-retention.ts";
 import {
 	type Attribute,
 	type AttributePart,
@@ -99,23 +101,25 @@ function printNode(node: TreeNode, options: PrintMarkupOptions): string {
 		case "component": {
 			// A Prop with an empty value prints as its name alone: `featured`.
 			let props = "";
-			for (const prop of node.props) {
+			for (const prop of node.props.filter((p) => !p.retained)) {
 				props += prop.value.length === 0 ? ` ${prop.name}` : ` ${prop.name}="${prop.value.map(printPart).join("")}"`;
 			}
 			const bindings = Object.fromEntries(
 				node.props
-					.filter((p) => p.binding)
+					.filter((p) => p.binding && !p.retained)
 					.sort((a, b) => a.name.localeCompare(b.name))
 					.map((p) => [
 						p.name,
 						{
+							...p.binding,
 							root: p.binding?.root,
 							paths: Object.fromEntries(Object.entries(p.binding?.paths ?? {}).sort(([a], [b]) => a.localeCompare(b))),
 						},
 					]),
 			);
-			if (Object.keys(bindings).length)
-				props += ` ${BINDINGS_ATTRIBUTE}="${markupText(JSON.stringify(bindings), true)}"`;
+			if (Object.keys(bindings).length) props += ` ${BINDINGS_ATTRIBUTE}="${markupText(stableJson(bindings), true)}"`;
+			const retained = node.props.filter((p) => p.retained);
+			if (retained.length) props += ` ${RETAINED_ATTRIBUTE}="${markupText(stableJson(retained), true)}"`;
 			const name = options.componentName?.(node.component) ?? node.component;
 			return `<${name}${props} ${ID_ATTRIBUTE}="${markupText(node.id, true)}" />`;
 		}
