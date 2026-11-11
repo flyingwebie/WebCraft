@@ -114,7 +114,9 @@ function counted(step: FunnelStep, goals: ReadonlyMap<string, Goal>): CountedSte
 
 /**
  * How many visitors reached each step of a Funnel in a range, in order, each within one day: the
- * events of the visitors who reached the first step, oldest first, walked step by step.
+ * events of the visitors who reached the first step, oldest first, walked step by step for each
+ * visitor and UTC day. A daily id belongs to one UTC day already (ADR 0020); the walk says so itself,
+ * so a step on another day never follows one, whatever ids an event carries.
  */
 export async function funnelCounts(
 	context: ModuleContext,
@@ -146,11 +148,13 @@ export async function funnelCounts(
 		values: { n: count() },
 		orderBy: [asc(events.visitor), asc(events.occurredAt)],
 	});
-	let visitor: string | null = null;
+	let walking: string | null = null;
 	let at = 0;
 	for (const row of rows) {
-		if (row.visitor !== visitor) {
-			visitor = row.visitor;
+		const day = new Date(row.occurredAt).toISOString().slice(0, 10);
+		const key = `${row.visitor}\u0000${day}`;
+		if (key !== walking) {
+			walking = key;
 			at = 0;
 		}
 		for (let copy = 0; copy < Number(row.n) && at < steps.length; copy++) {
