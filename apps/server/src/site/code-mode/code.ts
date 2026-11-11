@@ -350,8 +350,8 @@ export function codeMode(config: CodeModeConfig): void {
 				inspectorRef = inspect;
 				void select(ref, true);
 			},
-			changed(ref: string, markup: string) {
-				if (opened?.ref === ref) {
+			changed(ref: string, markup: string, preserveAuthored = false) {
+				if (opened?.ref === ref && !preserveAuthored) {
 					html.set(markup, true);
 					savedMarkup = markup;
 					markSelection();

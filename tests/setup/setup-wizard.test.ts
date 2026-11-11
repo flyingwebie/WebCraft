@@ -180,3 +180,143 @@ describe("after the account step", () => {
 		await expect(superadmin.api.setup.finish()).rejects.toMatchObject({ code: "SETUP_STAGE" });
 	});
 });
+
+describe("the first client step", () => {
+	async function claimed() {
+		const superadmin = install.browser();
+		const { personId } = await superadmin.api.setup.claim({ token: install.setupToken() ?? "", ...account() });
+		return { superadmin, personId };
+	}
+
+	test("finishing with a Workspace name creates that Workspace and finishes setup", async () => {
+		const { superadmin } = await claimed();
+
+		const finished = await superadmin.api.setup.finish({ workspace: { name: " Acme Ltd " } });
+
+		expect(finished).toEqual({
+			stage: "done",
+			workspace: { id: expect.any(String), name: "Acme Ltd", createdAt: install.clock.now() },
+			site: null,
+		});
+		expect((await superadmin.api.workspaces.list()).workspaces).toMatchObject([
+			{ id: finished.workspace?.id, name: "Acme Ltd", siteCount: 0 },
+		]);
+		expect(await superadmin.api.setup.state()).toEqual({ stage: "done" });
+	});
+
+	test("finishing with its first Site too creates the Site in the Workspace", async () => {
+		const { superadmin } = await claimed();
+
+		const finished = await superadmin.api.setup.finish({
+			workspace: { name: "Acme Ltd", site: { name: "Acme Bakery", slug: " Acme-Bakery " } },
+		});
+
+		expect(finished.site).toEqual({
+			id: expect.any(String),
+			workspaceId: finished.workspace?.id ?? "",
+			name: "Acme Bakery",
+			slug: "acme-bakery",
+			createdAt: install.clock.now(),
+		});
+		const { site } = await superadmin.api.sites.get({ siteId: finished.site?.id ?? "" });
+		expect(site.name).toBe("Acme Bakery");
+		expect(await superadmin.api.setup.state()).toEqual({ stage: "done" });
+	});
+
+	test("the Audit log records the Workspace and the Site as their own screens do", async () => {
+		const { superadmin, personId } = await claimed();
+
+		const { workspace, site } = await superadmin.api.setup.finish({
+			workspace: { name: "Acme Ltd", site: { name: "Acme Bakery", slug: "acme-bakery" } },
+		});
+
+		const entries = (await superadmin.api.audit.list()).entries.filter((entry) => entry.action !== "install.claim");
+		expect(entries).toEqual(
+			expect.arrayContaining([
+				{
+					id: expect.any(String),
+					at: install.clock.now(),
+					action: "workspace.create",
+					personId,
+					via: { kind: "admin" },
+					workspaceId: workspace?.id ?? "",
+					siteId: null,
+					details: { name: "Acme Ltd" },
+				},
+				{
+					id: expect.any(String),
+					at: install.clock.now(),
+					action: "site.create",
+					personId,
+					via: { kind: "admin" },
+					workspaceId: workspace?.id ?? "",
+					siteId: site?.id ?? "",
+					details: { name: "Acme Bakery", slug: "acme-bakery" },
+				},
+			]),
+		);
+		expect(entries).toHaveLength(2);
+	});
+
+	test("skipping it finishes setup without creating anything", async () => {
+		const { superadmin } = await claimed();
+
+		expect(await superadmin.api.setup.finish({})).toEqual({ stage: "done", workspace: null, site: null });
+		expect((await superadmin.api.workspaces.list()).workspaces).toEqual([]);
+	});
+
+	test("a slug no Site may have creates nothing and leaves setup open to try again", async () => {
+		const { superadmin } = await claimed();
+
+		await expect(
+			superadmin.api.setup.finish({ workspace: { name: "Acme Ltd", site: { name: "Admin", slug: "admin" } } }),
+		).rejects.toMatchObject({ code: "SLUG_INVALID", data: { problem: "reserved" } });
+		await expect(
+			superadmin.api.setup.finish({ workspace: { name: "Acme Ltd", site: { name: "Acme", slug: "-acme" } } }),
+		).rejects.toMatchObject({ code: "SLUG_INVALID", data: { problem: "shape" } });
+
+		expect((await superadmin.api.workspaces.list()).workspaces).toEqual([]);
+		expect(await superadmin.api.setup.state()).toEqual({ stage: "continue" });
+		expect((await superadmin.api.audit.list()).entries.map((entry) => entry.action)).toEqual(["install.claim"]);
+
+		await superadmin.api.setup.finish({ workspace: { name: "Acme Ltd", site: { name: "Acme", slug: "acme" } } });
+		expect((await superadmin.api.workspaces.list()).workspaces).toMatchObject([{ name: "Acme Ltd", siteCount: 1 }]);
+	});
+
+	test("a slug another Site has creates nothing and leaves setup open", async () => {
+		const { superadmin } = await claimed();
+		const { workspace } = await superadmin.api.workspaces.create({ name: "Existing" });
+		await superadmin.api.sites.create({ workspaceId: workspace.id, name: "Bakery", slug: "bakery" });
+
+		await expect(
+			superadmin.api.setup.finish({ workspace: { name: "Acme Ltd", site: { name: "Acme Bakery", slug: "bakery" } } }),
+		).rejects.toMatchObject({ code: "SLUG_TAKEN", status: 409 });
+
+		expect((await superadmin.api.workspaces.list()).workspaces.map((each) => each.name)).toEqual(["Existing"]);
+		expect(await superadmin.api.setup.state()).toEqual({ stage: "continue" });
+	});
+
+	test("a missing Workspace or Site name is refused and creates nothing", async () => {
+		const { superadmin } = await claimed();
+
+		await expect(superadmin.api.setup.finish({ workspace: { name: "  " } })).rejects.toMatchObject({
+			code: "BAD_REQUEST",
+		});
+		await expect(
+			superadmin.api.setup.finish({ workspace: { name: "Acme Ltd", site: { name: " ", slug: "acme" } } }),
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+		expect((await superadmin.api.workspaces.list()).workspaces).toEqual([]);
+		expect(await superadmin.api.setup.state()).toEqual({ stage: "continue" });
+	});
+
+	test("once setup is finished, it creates nothing", async () => {
+		const { superadmin } = await claimed();
+		await superadmin.api.setup.finish({});
+
+		await expect(superadmin.api.setup.finish({ workspace: { name: "Acme Ltd" } })).rejects.toMatchObject({
+			code: "SETUP_STAGE",
+		});
+		expect((await superadmin.api.workspaces.list()).workspaces).toEqual([]);
+	});
+});

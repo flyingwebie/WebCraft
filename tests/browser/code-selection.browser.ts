@@ -43,8 +43,10 @@ for (const theme of THEMES) {
 		const slug = `hover-sources-${theme}`;
 		const { id: siteId } = await local.createSite(workspace.id, { name: "Hover sources", slug });
 		const staff = (await local.createStaff({ workspaces: [workspace.id] })).account;
+		let otherId = "";
 		for (const name of ["Notice", "Other"]) {
 			const { component } = await api.components.create({ siteId, name });
+			if (name === "Other") otherId = component.id;
 			await api.components.saveMarkup({
 				siteId,
 				componentId: component.id,
@@ -66,7 +68,7 @@ for (const theme of THEMES) {
 		const tree = page.getByRole("tree", { name: "Layers" });
 		const greeting = tree.getByRole("treeitem", { name: /^Template greeting p$/ });
 		const notice = tree.getByRole("treeitem", { name: /^Notice message p$/ });
-		const other = tree.getByRole("treeitem", { name: /^Other message p$/ });
+		const other = tree.getByRole("treeitem", { name: /^Other (?:message|revised) p$/ });
 		await notice.waitFor();
 		await greeting.click();
 		await page.getByRole("textbox", { name: "HTML of Site template", exact: true }).waitFor();
@@ -87,6 +89,15 @@ for (const theme of THEMES) {
 		await page.locator('[data-wc-code="site/other#message"]').hover();
 		await page.locator(".language-markup .line.hovered").filter({ hasText: "Other text" }).waitFor();
 		expect(await other.getAttribute("data-hovered")).toBe("true");
+		expect(await notice.getAttribute("aria-selected")).toBe("true");
+		expect(await html.inputValue()).toBe(unfinished);
+		await api.components.saveMarkup({
+			siteId,
+			componentId: otherId,
+			markup: '<p data-wc-id="message" data-wc-label="Other revised">Other revised text</p>',
+		});
+		await tree.getByRole("treeitem", { name: /^Other revised p$/ }).waitFor();
+		await page.locator(".language-markup .line.hovered").filter({ hasText: "Other revised text" }).waitFor();
 		expect(await notice.getAttribute("aria-selected")).toBe("true");
 		expect(await html.inputValue()).toBe(unfinished);
 		await greeting.hover();

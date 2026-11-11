@@ -81,6 +81,13 @@ describe("webcraft admin create-superadmin", () => {
 		await expect(browser.api.setup.checkToken({ token })).rejects.toMatchObject({ code: "SETUP_CLOSED" });
 	});
 
+	test("creates no Workspace: the wizard's first client step is skipped with the rest of it", async () => {
+		await createSuperadmin(["ops@agency.example"], `${PASSWORD}\n`);
+
+		const browser = await install.signIn({ email: "ops@agency.example", password: PASSWORD });
+		expect((await browser.api.workspaces.list()).workspaces).toEqual([]);
+	});
+
 	test("names the Superadmin after their email when no name is given, and sets the Admin language", async () => {
 		await createSuperadmin(["giulia@agency.example", "--language", "it"], `${PASSWORD}\n`);
 
