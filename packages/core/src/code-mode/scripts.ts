@@ -5,7 +5,7 @@
  * load the page again in Code mode.
  */
 
-import { componentLoaderName, contentHash } from "@webcraft/renderer";
+import { COMPONENT_SCRIPT_RUNTIME, componentLoaderName, contentHash } from "@webcraft/renderer";
 
 import {
 	type ComponentScript,
@@ -45,6 +45,8 @@ export type CodeComponentScript = {
 	libraries: { id: string; name: string }[];
 	version: string | null;
 	src: string | null;
+	/** WebCraft's runtime, which Run loads first when the page has none yet. */
+	runtime: string;
 };
 
 /**
@@ -125,11 +127,13 @@ async function selectedComponent(
 
 function codeComponentScript(
 	script: ComponentScript | null,
-): Pick<CodeComponentScript, "code" | "consentCategory" | "libraryIds" | "version" | "src"> {
-	if (!script) return { code: "", consentCategory: "necessary", libraryIds: [], version: null, src: null };
+): Pick<CodeComponentScript, "code" | "consentCategory" | "libraryIds" | "version" | "src" | "runtime"> {
+	const runtime = COMPONENT_SCRIPT_RUNTIME.href;
+	if (!script) return { code: "", consentCategory: "necessary", libraryIds: [], version: null, src: null, runtime };
 	const hash = contentHash(script.draft.code);
 	return {
 		...script.draft,
+		runtime,
 		version: script.version,
 		src: script.draft.code.trim() ? `${CODE_MODE_SCRIPT_PATH}${componentLoaderName(script.componentId, hash)}` : null,
 	};

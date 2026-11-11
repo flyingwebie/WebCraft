@@ -455,6 +455,7 @@ type PanelScript = {
 	libraries: { id: string; name: string }[];
 	version: string | null;
 	src: string | null;
+	runtime: string;
 };
 
 describe("Code mode's JS panel", () => {
@@ -479,6 +480,7 @@ describe("Code mode's JS panel", () => {
 			libraries: [],
 			version: null,
 			src: null,
+			runtime: expect.stringMatching(/^\/_wc\/js\/[0-9a-f]{16}\.js$/),
 		});
 
 		// The Placement itself, as the Entry template's markup selects it, shows the same.

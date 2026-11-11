@@ -16,10 +16,12 @@
  * root of the Component (`data-wc-component`, a space-separated list when a Component's root is also
  * the root of a Component placed inside it), skips one inside a Hidden placement (`data-wc-hidden`),
  * and calls the function once per root, each call on its own: an error (thrown, or a rejected promise
- * it returns) is reported and the next root still runs. A report is `console.error` and a
- * `webcraft:component-error` event that bubbles from the root, `detail: { component, name, message }`,
- * which Code mode shows against that Placement. In Edit mode (`data-wc-watch` on the runtime's tag) it
- * also calls the function for Placements added to the page later.
+ * it returns) is reported and the next root still runs. A report is a `webcraft:component-error`
+ * event that bubbles from the root, `detail: { component, name, message }`, then `console.error`
+ * unless a listener cancelled the event (Code mode does, showing it against that Placement). In Edit
+ * mode (`data-wc-watch` on the runtime's tag) it also calls the function for Placements added to the
+ * page later, and a Component script loaded again with new code (Code mode's Run, which first has the
+ * runtime `forget` the old one) runs once more on each root.
  */
 import { createHash } from "node:crypto";
 
@@ -46,18 +48,20 @@ const RUNTIME = `(() => {
 		return "";
 	};
 	const report = (id, element, error) => {
-		console.error(error);
 		const message = error && typeof error === "object" && "message" in error ? String(error.message) : String(error);
-		element.dispatchEvent(
-			new CustomEvent("webcraft:component-error", { bubbles: true, detail: { component: id, name: nameOf(id), message } }),
-		);
+		const event = new CustomEvent("webcraft:component-error", {
+			bubbles: true,
+			cancelable: true,
+			detail: { component: id, name: nameOf(id), message },
+		});
+		if (element.dispatchEvent(event)) console.error(error);
 	};
 	const call = (id, run, element) => {
 		if (element.closest("[data-wc-hidden]")) return;
 		let done = ran.get(element);
-		if (!done) ran.set(element, (done = new Set()));
-		if (done.has(id)) return;
-		done.add(id);
+		if (!done) ran.set(element, (done = new Map()));
+		if (done.get(id) === run) return;
+		done.set(id, run);
 		try {
 			const result = run(element);
 			if (result && typeof result.then === "function") result.then(undefined, (error) => report(id, element, error));
@@ -80,6 +84,8 @@ const RUNTIME = `(() => {
 		known.set(id, run);
 		for (const element of rootsIn(id, document)) call(id, run, element);
 	};
+	// Code mode's Run, about to load new code of a Component's script: Placements shown meanwhile wait for it.
+	webcraft.componentScript.forget = (id) => known.delete(id);
 	if (watching) {
 		new MutationObserver((records) => {
 			for (const record of records) {
