@@ -325,6 +325,11 @@ export type TestInstall = {
 	 */
 	crashJobs(options: { only: readonly string[] }): Promise<number>;
 	/**
+	 * Makes the job queue refuse to take jobs with these names, as a queue with a passing failure
+	 * does (sending one throws), until called again without them (`refuseJobs([])`).
+	 */
+	refuseJobs(names: readonly string[]): void;
+	/**
 	 * Every secret of the Install, encrypted under its Master key: set, use and describe them, for
 	 * the Install, a Workspace or a Site (`{ owner: { kind: "site", workspaceId, siteId }, name }`).
 	 * WebCraft's own code reaches a Workspace's or Site's secrets through the data layer; tests of
@@ -422,6 +427,15 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	const storageDir = mkdtempSync(join(tmpdir(), "webcraft-storage-"));
 	const backupDir = mkdtempSync(join(tmpdir(), "webcraft-backups-"));
 	const logs: LogEntry[] = [];
+	// The names of the jobs the job queue refuses to take (`refuseJobs`).
+	const refused = new Set<string>();
+	const refusing = (queue: JobQueue): JobQueue => ({
+		...queue,
+		send: (job, payload, sendOptions) =>
+			refused.has(job.name)
+				? Promise.reject(new Error(`The job queue did not accept a "${job.name}" job.`))
+				: queue.send(job, payload, sendOptions),
+	});
 	const log = createLogger({ clock, write: (entry) => logs.push(entry) });
 	// Transactional job sends use the application's pool rather than pg-boss's own pool. Both
 	// must opt into TestClock; real CLI processes keep the unmodified URL and their real clock.
@@ -494,7 +508,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			errorDsn: options.errorDsn === undefined ? null : parseErrorDsn(options.errorDsn),
 		},
 		database,
-		jobs: boss ? createJobQueue(boss) : withoutJobQueue(mode),
+		jobs: boss ? refusing(createJobQueue(boss)) : withoutJobQueue(mode),
 		mailer: mail,
 		http: http.fetch,
 		dns: dns.resolver,
@@ -710,6 +724,10 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			await sendDueSchedules(boss, services.jobs, clock, schedulesCheckedAt, options.healthChecks === true);
 			return drainJobs(boss, services, drainOptions.only, drainOptions.batchSize, drainOptions.rounds);
 		},
+		refuseJobs: (names) => {
+			refused.clear();
+			for (const name of names) refused.add(name);
+		},
 		crashJobs: async ({ only }) => {
 			if (!boss) throw new Error(`An Install with an ${started} database has no job queue.`);
 			let taken = 0;
@@ -813,7 +831,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 				throw error;
 			}
 			boss = await startJobQueue();
-			ports.jobs = createJobQueue(boss);
+			ports.jobs = refusing(createJobQueue(boss));
 			started = "migrated";
 			Object.assign(services, await start(masterKey));
 			return report;
