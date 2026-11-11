@@ -179,6 +179,13 @@ test("shared Component name reuse reaches an open holder and survives legacy sav
 		const node = legacy?.nodes[0];
 		if (!legacy || node?.type !== "component") throw new Error("Missing Placement");
 		node.props = node.props.filter((p) => !p.retained);
+		placed.change(legacy as DocumentJson);
+		await placed.saved();
+		await placed.untilDraft(
+			(doc) => JSON.stringify(doc).includes('"retained"'),
+			"the canonical retained values returned to the originating Template editor",
+		);
+		expect(JSON.stringify(placed.draft())).toContain("Removed");
 		await admin.api.templates.saveEntryTemplate({ ...holder, tree: legacy });
 		await admin.api.components.saveMarkup({ ...target, markup: first.markup });
 		const restored = await admin.api.templates.getEntryTemplateMarkup(holder);
