@@ -1,6 +1,6 @@
 import { Field, FieldDescription, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Textarea } from "@webcraft/ui/components/textarea.tsx";
-import { useId, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 
 import { useT } from "../i18n.tsx";
 
@@ -17,7 +17,11 @@ export function MarkupView({
 	value,
 	onChange,
 	problems,
+	selected,
+	onCaret,
 }: {
+	selected?: { start: number; end: number };
+	onCaret?(offset: number): void;
 	value: string;
 	onChange(value: string): void;
 	problems: readonly MarkupProblem[];
@@ -25,6 +29,13 @@ export function MarkupView({
 	const t = useT();
 	const id = useId();
 	const area = useRef<HTMLTextAreaElement>(null);
+	const highlight = useRef<HTMLPreElement>(null);
+	const tagEnd = selected ? Math.min(selected.end, value.indexOf(">", selected.start) >= 0 ? value.indexOf(">", selected.start) + 1 : selected.end) : 0;
+	useEffect(() => {
+		if (!selected || document.activeElement === area.current) return;
+		const line = value.slice(0, selected.start).split("\n").length - 1;
+		if (area.current && highlight.current) { area.current.scrollTop = Math.max(0, line * 20 - 40); highlight.current.scrollTop = area.current.scrollTop; }
+	}, [selected, value]);
 	const goTo = (problem: MarkupProblem) => {
 		const element = area.current;
 		if (!element) return;
@@ -40,17 +51,25 @@ export function MarkupView({
 			<Field className="flex min-h-0 flex-1 flex-col">
 				<FieldLabel htmlFor={`${id}-markup`}>{t("builder.markup.label")}</FieldLabel>
 				<FieldDescription id={`${id}-help`}>{t("builder.markup.help")}</FieldDescription>
+				<div className="relative min-h-32 flex-1 overflow-hidden">
+					<pre ref={highlight} aria-hidden="true" className="text-transparent pointer-events-none absolute inset-0 m-0 overflow-hidden rounded-md border border-transparent px-3 py-2 font-mono text-xs leading-5 whitespace-pre">
+						{selected ? <>{value.slice(0, selected.start)}<mark data-selected-tag="" className="bg-amber-200 text-transparent dark:bg-amber-900">{value.slice(selected.start, tagEnd)}</mark>{value.slice(tagEnd)}</> : value}
+					</pre>
 				<Textarea
 					ref={area}
 					id={`${id}-markup`}
 					value={value}
 					onChange={(event) => onChange(event.target.value)}
+					onSelect={(event) => onCaret?.(event.currentTarget.selectionStart)}
+					onScroll={(event) => { if (highlight.current) { highlight.current.scrollTop = event.currentTarget.scrollTop; highlight.current.scrollLeft = event.currentTarget.scrollLeft; } }}
+					wrap="off"
 					spellCheck={false}
 					autoCapitalize="off"
 					aria-describedby={`${id}-help${problems.length > 0 ? ` ${id}-problems` : ""}`}
 					aria-invalid={problems.length > 0 ? true : undefined}
-					className="min-h-64 flex-1 resize-none font-mono text-xs leading-5 whitespace-pre"
+					className="relative h-full min-h-32 w-full resize-none bg-transparent font-mono text-xs leading-5 whitespace-pre dark:bg-transparent"
 				/>
+				</div>
 			</Field>
 			<div id={`${id}-problems`} aria-live="polite" className="empty:hidden">
 				{problems.length > 0 ? (

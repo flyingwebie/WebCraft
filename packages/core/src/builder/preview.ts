@@ -23,9 +23,10 @@ import {
 	type TemplateValue,
 	type ValueReader,
 } from "@webcraft/renderer";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
 import type { ComponentSources } from "../content/components.ts";
+import { EntryNotFoundError } from "../content/errors.ts";
 import { entryStatus, entryValues } from "../content/entries.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
 import { linksIn } from "../content/field-values.ts";
@@ -67,6 +68,7 @@ export type CanvasPlaceholder =
 /** What the builder previews: a tree of one kind, with a Component's Props as it has them. */
 export type PreviewInput = {
 	kind: SourceKind;
+	entryId?: string;
 	postType: PostType | null;
 	props: readonly FieldDefinition[] | null;
 	tree: ElementTree;
@@ -113,7 +115,7 @@ export async function renderPreview(
 	let current: string | null = null;
 	let contentValues: unknown = null;
 	if (input.kind === "entry" && input.postType) {
-		const sample = await sampleEntry(scope, input.postType, postTypes, languages, siteValues);
+		const sample = await sampleEntry(scope, input.postType, postTypes, languages, siteValues, input.entryId);
 		if (sample) ({ root, current, values: contentValues } = sample);
 	}
 	let values: ValueReader = (path) => resolvePath(root, path);
@@ -223,8 +225,10 @@ async function sampleEntry(
 	postTypes: readonly PostType[],
 	languages: { language: string; defaultLanguage: string },
 	site: Parts,
+	entryId?: string,
 ): Promise<{ root: Parts; current: string; values: unknown } | undefined> {
-	const row = await scope.first(entries, eq(entries.postTypeId, postType.id), { orderBy: [desc(entries.updatedAt)] });
+	const row = await scope.first(entries, and(eq(entries.postTypeId, postType.id), entryId ? eq(entries.id, entryId) : undefined), { orderBy: [desc(entries.updatedAt)] });
+	if (!row && entryId) throw new EntryNotFoundError();
 	if (!row) return undefined;
 	const version = storedVersion(row.draft);
 	const draft = entryValues(version, postType.fields, languages);

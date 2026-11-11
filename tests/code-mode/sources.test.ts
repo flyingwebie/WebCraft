@@ -347,3 +347,30 @@ describe("suggestions", () => {
 		expect(suggestions.classes).toContainEqual({ name: "p-m", utility: true });
 	});
 });
+
+for (const kind of ["archive", "search"] as const) {
+	test(`opens, previews and saves the ${kind} Template through its real page`, async () => {
+		const siteId = (await install.createSite(workspaceId)).id;
+		let path: string;
+		let templateId: string;
+		if (kind === "archive") {
+			const { postType } = await staff.api.postTypes.create({ siteId, name: "Stories", urlPattern: "/stories/{slug}", fields: [] });
+			const saved = await staff.api.templates.saveArchiveTemplateMarkup({ siteId, postTypeId: postType.id, markup: '<h1 data-wc-id="heading">Archive draft</h1>' });
+			templateId = saved.template.id;
+			path = "/stories";
+		} else {
+			const pages = (await staff.api.postTypes.list({ siteId })).postTypes.find((item) => item.builtIn === "page");
+			const { entry: page } = await staff.api.entries.create({ siteId, postTypeId: pages!.id, title: "Find" });
+			await staff.api.pages.setSearchPage({ siteId, pageId: page.id });
+			templateId = (await staff.api.templates.saveSearchTemplateMarkup({ siteId, markup: '<h1 data-wc-id="heading">Search draft</h1>' })).template.id;
+			path = "/find";
+		}
+		const coding = await openCodeMode(install, staff, siteId, path);
+		const opened = await answer<Source>(coding.edit("code/open", { path, ref: "content#heading" }));
+		expect(opened.source).toMatchObject({ kind: `${kind}Template`, id: templateId });
+		const preview = await answer<{ html: string }>(coding.edit("code/preview", { path, markup: { ref: "content", text: '<h1 data-wc-id="heading">Pending preview</h1>' } }));
+		expect(preview.html).toContain("Pending preview");
+		await answer(coding.edit("code/save", { path, ref: "content", markup: '<h1 data-wc-id="heading">Saved through page</h1>', version: opened.version }));
+		expect((await answer<Source>(coding.edit("code/open", { path, ref: "content" }))).markup).toContain("Saved through page");
+	});
+}

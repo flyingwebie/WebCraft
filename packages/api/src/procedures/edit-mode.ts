@@ -15,13 +15,15 @@ export const editMode = {
 	 */
 	open: inAdminSession
 		.use(notWhileImpersonating("editMode"))
-		.input(z.object({ siteId: id, path: z.string().max(2000).default("/"), safeMode: z.boolean().default(false) }))
+		.input(z.object({ siteId: id, path: z.string().max(2000).default("/"), safeMode: z.boolean().default(false), code: z.boolean().default(false), selection: z.string().max(1000).regex(/^(site|content)(?:\/[A-Za-z0-9_-]{1,64}){0,10}(?:#(?:[A-Za-z0-9_-]{1,64}|@\d+(?:\.\d+)*)(?:\/\d+)?)?$/).optional() }))
 		.handler(async ({ context, input }) => {
-			const site = await context.services.data.site(context.access, input.siteId, "entry.edit");
+			const site = await context.services.data.site(context.access, input.siteId, input.code ? "structure.edit" : "entry.edit");
 			return await context.services.editMode.openLink(site, {
 				adminSessionId: context.session.id,
 				path: input.path,
 				safeMode: input.safeMode,
+				code: input.code,
+				selection: input.selection,
 			});
 		}),
 };

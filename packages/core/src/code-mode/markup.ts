@@ -6,7 +6,7 @@
  */
 import type { MarkupNotice } from "@webcraft/renderer";
 import { readComponentMarkup, saveComponentMarkup } from "../content/components.ts";
-import { readTemplateMarkup, saveEntryTemplateMarkup, saveSiteTemplateMarkup } from "../content/templates.ts";
+import { readTemplateMarkup, saveArchiveTemplateMarkup, saveSearchTemplateMarkup, saveEntryTemplateMarkup, saveSiteTemplateMarkup } from "../content/templates.ts";
 import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { draftStyles, draftTrees } from "../design-system/stylesheet.ts";
 import type { CodePreview, SiteHost } from "../site-pages/index.ts";
@@ -52,6 +52,12 @@ export async function previewMarkup(
 			);
 			return { ...template, source: { kind: "entryTemplate", tree: template.tree } } as const;
 		}
+		if (source.kind === "archiveTemplate" || source.kind === "searchTemplate") {
+			const target = source.kind === "archiveTemplate" ? { kind: "archive" as const, postTypeId: source.postTypeId! } : { kind: "search" as const };
+			const template = await readTemplateMarkup(scope, target, change.text, deps.sources);
+			return { ...template, source: { kind: source.kind, tree: template.tree } };
+		}
+
 		if (source.kind === "siteTemplate") {
 			const template = await readTemplateMarkup(scope, { kind: "site" }, change.text, deps.sources);
 			return { ...template, source: { kind: "siteTemplate", tree: template.tree } } as const;
@@ -86,6 +92,12 @@ export async function saveMarkup(
 	}
 	if (source.kind === "entryTemplate" && source.postTypeId !== null) {
 		const saved = await saveEntryTemplateMarkup(scope, source.postTypeId, input.markup, deps.sources, base);
+		return { markup: saved.markup, version: saved.version, notices: saved.notices };
+	}
+	if (source.kind === "archiveTemplate" || source.kind === "searchTemplate") {
+		const saved = source.kind === "archiveTemplate"
+			? await saveArchiveTemplateMarkup(scope, source.postTypeId!, input.markup, deps.sources, base)
+			: await saveSearchTemplateMarkup(scope, input.markup, deps.sources, base);
 		return { markup: saved.markup, version: saved.version, notices: saved.notices };
 	}
 	if (source.kind === "siteTemplate") {

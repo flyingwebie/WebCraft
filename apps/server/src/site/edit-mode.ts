@@ -854,13 +854,25 @@ async function enter(services: InstallServices, request: Request, host: SiteHost
 			headers,
 		);
 	}
+	const query = new URL(request.url).searchParams;
+	const code = query.get("code") === "1";
+	if (code) {
+		const session = await services.editMode.session(host, entered.cookie);
+		if (!session) return plainText(403, "Code mode is unavailable.", headers);
+		try { await services.codeMode.access(session); }
+		catch { return plainText(403, "Code mode needs permission to edit Structure.", headers); }
+	}
+	const selection = query.get("selection");
+	const selected = code && selection && /^(site|content)(?:\/[A-Za-z0-9_-]{1,64}){0,10}(?:#(?:[A-Za-z0-9_-]{1,64}|@\d+(?:\.\d+)*)(?:\/\d+)?)?$/.test(selection)
+		? `#wc-selection=${encodeURIComponent(selection)}` : "";
 	const hostname = new URL(request.url).hostname;
 	const maxAge = Math.max(0, Math.floor((entered.expiresAt.getTime() - services.clock.now().getTime()) / 1000));
 	const answer = new Response(null, {
 		status: 303,
-		headers: { location: entered.path, "cache-control": "no-store", ...headers },
+		headers: { location: entered.path + selected, "cache-control": "no-store", ...headers },
 	});
 	answer.headers.append("set-cookie", editCookie(hostname, entered.cookie, maxAge));
+	if (code) answer.headers.append("set-cookie", siteCookie(hostname, "code", "on", maxAge));
 	// A link opened from "Edit in Safe mode" starts Safe mode; any other link ends it.
 	if (safe) answer.headers.append("set-cookie", siteCookie(hostname, SAFE_COOKIE, "on", maxAge));
 	else if (safeModeOf(request)) answer.headers.append("set-cookie", siteCookie(hostname, SAFE_COOKIE, "", 0));

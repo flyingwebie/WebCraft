@@ -124,7 +124,7 @@ export type EditMode = {
 	 * Site's own scripts. Refuses a path that isn't one on the Site (`EditPathInvalidError`), and a Site
 	 * with no address yet (`EditModeUnavailableError`).
 	 */
-	openLink(scope: SiteScope, input: { adminSessionId: string; path: string; safeMode?: boolean }): Promise<EditLink>;
+	openLink(scope: SiteScope, input: { adminSessionId: string; path: string; safeMode?: boolean; code?: boolean; selection?: string }): Promise<EditLink>;
 	/**
 	 * Follows a link on the Site it was made for: uses it up and starts an Edit mode session, for at
 	 * most 8 hours. Null when the link isn't one (unknown, used, expired or another Site's), the admin
@@ -313,6 +313,10 @@ export function createEditMode(options: {
 			url.searchParams.set("token", token);
 			// Safe mode only takes scripts away, so the link may say it openly.
 			if (input.safeMode) url.searchParams.set("safe", "1");
+			if (input.code) {
+				url.searchParams.set("code", "1");
+				if (input.selection) url.searchParams.set("selection", input.selection);
+			}
 			return { url: url.toString(), expiresAt };
 		},
 

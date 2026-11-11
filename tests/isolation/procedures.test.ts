@@ -518,6 +518,7 @@ describe("the visual builder", () => {
 		kind: "entryTemplate" as const,
 		postTypeId: (await contentIn(target)).postTypeId,
 	});
+	isolation.refuses("builder.destinations", async (api, target) => api.builder.destinations({ siteId: target.siteId, target: await entryTemplateIn(target) }));
 	isolation.refuses("builder.open", async (api, target) =>
 		api.builder.open({ siteId: target.siteId, target: await entryTemplateIn(target) }),
 	);

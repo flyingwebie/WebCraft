@@ -518,7 +518,7 @@ export async function templateSource(
 }
 
 /** Which Template markup is read for: see `readTemplateMarkup`. */
-export type TemplateMarkupTarget = { kind: "entry"; postTypeId: string } | { kind: "site" };
+export type TemplateMarkupTarget = { kind: "entry" | "archive"; postTypeId: string } | { kind: "site" | "search" };
 
 /**
  * Reads Template markup as saving the Template's Draft would, without saving anything: the tree,
@@ -532,7 +532,9 @@ export async function readTemplateMarkup(
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
 ): Promise<{ tree: ElementTree; notices: MarkupNotice[]; designSystem: DesignSystem }> {
 	const rules =
-		target.kind === "entry" ? await entryTemplateTarget(scope, target.postTypeId) : await siteTemplateTarget(scope);
+		target.kind === "entry" ? await entryTemplateTarget(scope, target.postTypeId)
+		: target.kind === "archive" ? await archiveTemplateTarget(scope, target.postTypeId)
+		: target.kind === "search" ? await searchTemplateTarget(scope) : await siteTemplateTarget(scope);
 	const designSystem = await draftDesignSystem(scope);
 	const catalogue = classCatalogue(designSystem);
 	const { tree, notices } = parseTemplateMarkup(markup, {

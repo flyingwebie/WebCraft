@@ -212,6 +212,7 @@ export const PROCEDURES = {
 	"templates.saveSearchTemplateMarkup": write("Saves the Draft of the Search results template from Template markup."),
 	"templates.publish": write("Publishes a Template's Draft (API clients confirm a preview first)."),
 	"builder.open": internal(),
+	"builder.destinations": internal(),
 	"builder.preview": internal(),
 	"builder.markup": internal(),
 	"builder.read": internal(),

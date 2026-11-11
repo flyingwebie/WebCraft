@@ -14,8 +14,6 @@ import {
 } from "@webcraft/ui/components/dialog.tsx";
 import {
 	ArrowLeftIcon,
-	CodeIcon,
-	LayoutPanelLeftIcon,
 	MonitorIcon,
 	MoonIcon,
 	Redo2Icon,
@@ -34,6 +32,8 @@ import { StatusBadge } from "../content/DraftParts.tsx";
 import { Announcer, useAnnouncement } from "../content/reorder.tsx";
 import { errorCode, errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
+import { BuilderNavigation, type ReturnPage } from "./BuilderNavigation.tsx";
+import { selectionKey, selectionOf } from "./selection-ref.ts";
 import { Canvas, type CanvasTarget, type CanvasWidth } from "./Canvas.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
 import { FixedTextDialog, type MadeEditable } from "./FixedTextDialog.tsx";
@@ -88,6 +88,7 @@ export function Builder({
 	initial,
 	back,
 	select,
+	returnPage,
 }: {
 	siteId: string;
 	target: BuilderTarget;
@@ -95,6 +96,7 @@ export function Builder({
 	back: { to: "/sites/$siteId/templates" | "/sites/$siteId/components"; label: string };
 	/** What is selected when the builder opens: where a Filter is placed (the Filter builder opens it so). */
 	select?: { filter: string } | { element: string };
+	returnPage?: ReturnPage;
 }) {
 	const t = useT();
 	const navigate = useNavigate();
@@ -104,16 +106,15 @@ export function Builder({
 	const history = useRef<{ past: BuilderDoc[]; future: BuilderDoc[] }>({ past: [], future: [] });
 	const [, setHistoryVersion] = useState(0);
 	const [selection, setSelection] = useState<Selection | null>(() => {
-		const path = select
-			? "filter" in select
-				? pathOfFilter(initial.tree, select.filter)
-				: pathOfId(initial.tree, select.element)
-			: undefined;
+		if (select && "element" in select) return selectionOf(initial.tree, select.element);
+		const path = select && "filter" in select ? pathOfFilter(initial.tree, select.filter) : undefined;
 		return path ? { kind: "node", path } : null;
 	});
+	const [entryId, setEntryId] = useState("");
+	const [locations, setLocations] = useState<{ text: string; ranges: { key: string; start: number; end: number }[] }>({ text: "", ranges: [] });
+
 	const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
 	const [grab, setGrab] = useState<{ doc: BuilderDoc; selection: Selection; past: BuilderDoc[] } | null>(null);
-	const [view, setView] = useState<"visual" | "markup">("visual");
 	const [markup, setMarkup] = useState("");
 	const [markupBase, setMarkupBase] = useState("");
 	const [markupProblems, setMarkupProblems] = useState<MarkupProblem[]>([]);
@@ -147,8 +148,6 @@ export function Builder({
 	const appliedMarkupVersion = useRef(0);
 	const markupRef = useRef(markup);
 	markupRef.current = markup;
-	const viewRef = useRef(view);
-	viewRef.current = view;
 
 	const catalogue = opened.catalogue;
 	const allows = useMemo(
@@ -203,7 +202,7 @@ export function Builder({
 			setGrab(null);
 			docRef.current = next;
 			setDoc(next);
-			if (viewRef.current === "markup" && markupVersion.current === appliedMarkupVersion.current)
+			if (markupVersion.current === appliedMarkupVersion.current)
 				void refreshMarkup(next);
 			if (!Object.keys(next.styles).length) setSaved(JSON.stringify(next));
 		},
@@ -229,7 +228,7 @@ export function Builder({
 					styles: next.styles,
 					...(next.props ? { props: next.props } : {}),
 				});
-				if (docRef.current !== next || markupVersion.current !== version || viewRef.current !== "markup") return;
+				if (docRef.current !== next || markupVersion.current !== version) return;
 				markupPending.current?.cancel();
 				markupPending.current = shared.prepare();
 				markupRef.current = printed.markup;
@@ -241,9 +240,20 @@ export function Builder({
 		},
 		[siteId, target, t, shared.prepare],
 	);
+	useEffect(() => {
+		if (markupVersion.current === appliedMarkupVersion.current) void refreshMarkup(doc);
+	}, [doc, refreshMarkup]);
+	useEffect(() => {
+		let current = true;
+		void getApi().then((api) => api.builder.read({ siteId, target, markup })).then((read) => {
+			if (current && markupRef.current === markup) setLocations({ text: markup, ranges: read.locations });
+		}).catch(() => {});
+		return () => { current = false; };
+	}, [siteId, target, markup]);
+
 	const dirty =
 		(documentId ? shared.status === "saving" || Object.keys(doc.styles).length > 0 : JSON.stringify(doc) !== saved) ||
-		(view === "markup" && markup !== markupBase);
+		(markup !== markupBase);
 
 	const writeShared = useCallback(
 		(next: BuilderDoc) => {
@@ -463,12 +473,13 @@ export function Builder({
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: a change to the Design system's Draft (`designVersion`) shows too.
 	useEffect(() => {
-		if (view !== "visual") return;
+		
 		let current = true;
 		const handle = setTimeout(async () => {
 			try {
 				const api = await getApi();
 				const shown = await api.builder.preview({
+					entryId: entryId || undefined,
 					siteId,
 					target,
 					tree: doc.tree,
@@ -486,11 +497,11 @@ export function Builder({
 			current = false;
 			clearTimeout(handle);
 		};
-	}, [doc, view, siteId, target, designVersion, t, propsChange]);
+	}, [doc, entryId, siteId, target, designVersion, t, propsChange]);
 
 	// In the Template markup view the canvas follows the markup, read as switching back would read it.
 	useEffect(() => {
-		if (view !== "markup") return;
+		if (markup === markupBase) return;
 		let current = true;
 		const handle = setTimeout(async () => {
 			try {
@@ -505,6 +516,7 @@ export function Builder({
 				}
 				const props = next.props;
 				const shown = await api.builder.preview({
+					entryId: entryId || undefined,
 					siteId,
 					target,
 					tree: next.tree,
@@ -522,7 +534,7 @@ export function Builder({
 			current = false;
 			clearTimeout(handle);
 		};
-	}, [markup, markupBase, view, siteId, target, doc, t, propsChange, acceptMarkup]);
+	}, [markup, markupBase, entryId, siteId, target, doc, t, propsChange, acceptMarkup]);
 
 	const placeholderWords = useCallback(
 		(kind: string, name: string | null) => {
@@ -567,46 +579,6 @@ export function Builder({
 	// ---------------------------------------------------------------------------------------------
 	// Views, saving and publishing
 
-	const switchView = async (next: "visual" | "markup") => {
-		if (next === view || busy) return;
-		setBusy("switch");
-		try {
-			const api = await getApi();
-			if (next === "markup") {
-				markupPending.current?.cancel();
-				markupPending.current = shared.prepare();
-				const printed = await api.builder.markup({
-					siteId,
-					target,
-					tree: doc.tree,
-					styles: doc.styles,
-					...propsChange(doc),
-				});
-				setMarkup(printed.markup);
-				setMarkupBase(printed.markup);
-				setMarkupProblems([]);
-				setView("markup");
-				viewRef.current = "markup";
-				appliedMarkupVersion.current = markupVersion.current;
-				void refreshMarkup(docRef.current);
-				announce(t("builder.view.toMarkup"));
-			} else {
-				if (markup !== markupBase) {
-					const read = await api.builder.read({ siteId, target, markup, ...propsChange(doc) });
-					if (!acceptMarkup(read, markup)) return;
-				} else {
-					announce(t("builder.view.toVisual"));
-				}
-				setView("visual");
-			}
-		} catch (failure) {
-			if (next === "visual") setMarkupProblems(markupProblemsOf(failure, t(errorMessage(failure))));
-			else setProblems(treeProblemsOf(failure, t(errorMessage(failure))));
-			announce(t("builder.view.cantSwitch"));
-		} finally {
-			setBusy(null);
-		}
-	};
 
 	/** Saves the Draft; answers the builder reopened on what was saved, or null when it wasn't. */
 	const save = async (over?: { version: string | null }): Promise<Opened | null> => {
@@ -614,7 +586,7 @@ export function Builder({
 		let started = docRef.current;
 		try {
 			const api = await getApi();
-			if (view === "markup" && markup !== markupBase) {
+			if (markup !== markupBase) {
 				const read = await api.builder.read({ siteId, target, markup, ...propsChange(started) });
 				const next = acceptMarkup(read, markup);
 				if (!next) return null;
@@ -658,7 +630,7 @@ export function Builder({
 				}
 				setSaved(JSON.stringify(docOf(fresh)));
 			}
-			if (view === "markup") {
+			{
 				setMarkup(stored.markup);
 				setMarkupBase(stored.markup);
 			}
@@ -671,11 +643,8 @@ export function Builder({
 			if (errorCode(failure) === "CHANGED_MEANWHILE") {
 				const version = (failure as { data?: { version?: string | null } }).data?.version ?? null;
 				setConflict({ version });
-			} else if (view === "markup") {
-				setMarkupProblems(markupProblemsOf(failure, t(errorMessage(failure))));
-				toast.error(t("builder.notSaved"));
 			} else {
-				setProblems(treeProblemsOf(failure, t(errorMessage(failure))));
+				setMarkupProblems(markupProblemsOf(failure, t(errorMessage(failure))));
 				toast.error(t("builder.notSaved"));
 			}
 			return null;
@@ -727,7 +696,7 @@ export function Builder({
 		setSelection(null);
 		history.current = { past: [], future: [] };
 		setConflict(null);
-		if (view === "markup") {
+		{
 			const printed = await api.builder.markup({ siteId, target, tree: next.tree });
 			setMarkup(printed.markup);
 			setMarkupBase(printed.markup);
@@ -743,8 +712,8 @@ export function Builder({
 	}, [dirty]);
 
 	// Ctrl/⌘ S saves; Ctrl/⌘ Z and Shift+Z (or Y) undo and redo, outside text being typed; Ctrl/⌘ I inserts.
-	const keys = useRef({ save, undo, redo, view });
-	keys.current = { save, undo, redo, view };
+	const keys = useRef({ save, undo, redo });
+	keys.current = { save, undo, redo };
 	const shortcut = useRef<(event: KeyboardEvent) => void>(() => {});
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
@@ -756,7 +725,7 @@ export function Builder({
 				return;
 			}
 			const typing = (event.target as HTMLElement | null)?.closest?.("input, textarea, select, [contenteditable]");
-			if (typing || keys.current.view !== "visual") return;
+			if (typing) return;
 			if (key === "z" || key === "y") {
 				event.preventDefault();
 				if (key === "y" || event.shiftKey) keys.current.redo();
@@ -800,7 +769,7 @@ export function Builder({
 	return (
 		<div className="bg-background flex h-svh flex-col">
 			<header className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
-				<Link to={back.to} params={{ siteId }} className={buttonVariants({ variant: "ghost", size: "sm" })}>
+				<Link onClick={(event) => { event.preventDefault(); void save().then((saved) => { if (saved) void navigate({ to: back.to, params: { siteId } }); }); }} to={back.to} params={{ siteId }} className={buttonVariants({ variant: "ghost", size: "sm" })}>
 					<ArrowLeftIcon aria-hidden="true" className="rtl:rotate-180" />
 					{back.label}
 				</Link>
@@ -810,32 +779,10 @@ export function Builder({
 					{status ? <StatusBadge status={status} /> : <Badge variant="outline">{t("builder.status.new")}</Badge>}
 					{dirty ? <Badge variant="secondary">{t("builder.status.unsaved")}</Badge> : null}
 				</div>
+				<BuilderNavigation siteId={siteId} target={target} entryId={entryId} onEntry={setEntryId}
+					returnPage={returnPage} selection={selection ? selectionKey(doc.tree, selection) : null}
+					beforeLeave={async () => !!(await save())} />
 				<div className="ms-auto flex flex-wrap items-center gap-1">
-					<fieldset className="flex rounded-md border p-0.5">
-						<legend className="sr-only">{t("builder.view.label")}</legend>
-						<Button
-							type="button"
-							size="sm"
-							variant={view === "visual" ? "secondary" : "ghost"}
-							aria-pressed={view === "visual"}
-							disabled={busy !== null}
-							onClick={() => void switchView("visual")}
-						>
-							<LayoutPanelLeftIcon aria-hidden="true" />
-							{t("builder.view.visual")}
-						</Button>
-						<Button
-							type="button"
-							size="sm"
-							variant={view === "markup" ? "secondary" : "ghost"}
-							aria-pressed={view === "markup"}
-							disabled={busy !== null}
-							onClick={() => void switchView("markup")}
-						>
-							<CodeIcon aria-hidden="true" />
-							{t("builder.view.markup")}
-						</Button>
-					</fieldset>
 					<fieldset className="flex rounded-md border p-0.5">
 						<legend className="sr-only">{t("builder.width.label")}</legend>
 						{widths.map(({ width: each, icon: Icon }) => (
@@ -890,7 +837,7 @@ export function Builder({
 						aria-label={t("builder.undo")}
 						title={t("builder.undo")}
 						aria-keyshortcuts="Control+Z"
-						disabled={view !== "visual" || history.current.past.length === 0}
+						disabled={history.current.past.length === 0}
 						onClick={undo}
 					>
 						<Undo2Icon aria-hidden="true" />
@@ -902,7 +849,7 @@ export function Builder({
 						aria-label={t("builder.redo")}
 						title={t("builder.redo")}
 						aria-keyshortcuts="Control+Shift+Z"
-						disabled={view !== "visual" || history.current.future.length === 0}
+						disabled={history.current.future.length === 0}
 						onClick={redo}
 					>
 						<Redo2Icon aria-hidden="true" />
@@ -930,10 +877,10 @@ export function Builder({
 			<main
 				id="main"
 				tabIndex={-1}
-				className={`grid min-h-0 flex-1 outline-none ${view === "visual" ? "lg:grid-cols-[18rem_minmax(0,1fr)_20rem]" : "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]"}`}
+				className="grid min-h-0 flex-1 outline-none lg:grid-cols-[16rem_minmax(0,1fr)_18rem] lg:grid-rows-[minmax(16rem,1fr)_minmax(15rem,35vh)]"
 			>
-				{view === "visual" ? (
-					<section aria-labelledby="layers-heading" className="flex min-h-0 flex-col border-e">
+				{(
+					<section aria-labelledby="layers-heading" className="flex min-h-0 flex-col border-e lg:row-span-2">
 						<InsertToolbar
 							where={insertWhere}
 							canInside={!!selectedNode && canHoldChildren(selectedNode)}
@@ -985,22 +932,9 @@ export function Builder({
 							}}
 						/>
 					</section>
-				) : (
-					<section aria-label={t("builder.markup.label")} className="flex min-h-0 flex-col border-e">
-						<MarkupView
-							value={markup}
-							onChange={(text) => {
-								markupVersion.current++;
-								markupRef.current = text;
-								markupPending.current ??= shared.prepare();
-								setMarkup(text);
-							}}
-							problems={markupProblems}
-						/>
-					</section>
 				)}
-				<section aria-label={t("builder.canvas.label")} className="bg-muted flex min-h-[24rem] flex-col">
-					{problems.length > 0 && view === "visual" ? (
+				<section aria-label={t("builder.canvas.label")} className="bg-muted flex min-h-0 flex-col">
+					{problems.length > 0 ? (
 						<div aria-live="polite" className="border-destructive/40 bg-destructive/5 border-b px-3 py-2 text-sm">
 							<p className="font-medium">{t("builder.problems")}</p>
 							<ul className="grid gap-1">
@@ -1066,13 +1000,13 @@ export function Builder({
 						theme={theme}
 						width={width}
 						title={t("builder.canvas.title", { name: title })}
-						selected={view === "visual" ? canvasSelected : null}
+						selected={canvasSelected}
 						selectedName={selectedNode ? layerName(t, selectedNode, catalogue).name : null}
-						fixedText={view === "visual" ? fixedIds : []}
+						fixedText={fixedIds}
 						placeholderWords={placeholderWords}
 						onSelect={(found) => {
 							const path = pathOfId(doc.tree, found.id);
-							if (!path || view !== "visual") return;
+							if (!path) return;
 							setSelection({ kind: "node", path });
 							setFocusLayers((count) => count + 1);
 							const node = nodeAt(doc.tree, path);
@@ -1092,8 +1026,8 @@ export function Builder({
 						onShortcut={(event) => shortcut.current(event)}
 					/>
 				</section>
-				{view === "visual" ? (
-					<section aria-labelledby="inspector-heading" className="flex min-h-0 flex-col border-s">
+				{(
+					<section aria-labelledby="inspector-heading" className="flex min-h-0 flex-col border-s lg:row-span-2">
 						<Inspector
 							siteId={siteId}
 							tree={doc.tree}
@@ -1154,7 +1088,25 @@ export function Builder({
 							}}
 						/>
 					</section>
-				) : null}
+				)}
+				<div className="grid min-h-0 overflow-auto border-t lg:col-start-2 lg:row-start-2">
+					<section aria-label="HTML" className="flex min-h-0 flex-col">
+						<MarkupView value={markup} problems={markupProblems}
+							selected={locations.text === markup ? locations.ranges.find((range) => range.key === (selection ? selectionKey(doc.tree, selection) : null)) : undefined}
+							onCaret={(offset) => {
+								if (locations.text !== markup) return;
+								const found = locations.ranges.filter((range) => range.start <= offset && offset < range.end).sort((a,b) => a.end-a.start-(b.end-b.start))[0];
+								if (found) setSelection(selectionOf(doc.tree, found.key));
+							}}
+							onChange={(text) => {
+								markupVersion.current++;
+								markupRef.current = text;
+								markupPending.current ??= shared.prepare();
+								setMarkup(text);
+							}} />
+					</section>
+				</div>
+
 				<Announcer message={announcement} />
 			</main>
 			<InsertDialog

@@ -291,6 +291,7 @@ export type PageContent = {
 	 * Page, arranged with its Page layout, or the 404 page).
 	 */
 	templatePostTypeId: string | null;
+	contentTemplate?: { kind: "entryTemplate" | "archiveTemplate"; postTypeId: string } | { kind: "searchTemplate" };
 };
 
 /**
@@ -321,7 +322,7 @@ export type PageEditing = {
 export type CodePreview = {
 	source?:
 		| { kind: "siteTemplate"; tree: ElementTree }
-		| { kind: "entryTemplate"; tree: ElementTree }
+		| { kind: "entryTemplate" | "archiveTemplate" | "searchTemplate"; tree: ElementTree }
 		| { kind: "component"; id: string; version: ComponentVersion };
 	styles: SiteStyles;
 };
@@ -661,7 +662,7 @@ export function createSitePages(options: {
 				if (rendered.pagination && page > rendered.pagination.count) return null;
 				return { kind: "page", ...rendered };
 			}
-			const located = await locate(view.scope, host, pathname, editing !== undefined, view.routing);
+			const located = await locate(view.scope, host, pathname, editing !== undefined, view.routing, view.structure);
 			if (!located) return null;
 			if (located.kind === "redirect") return located;
 			const extras = await languageExtras(view.scope, host, located, located.found, view.entries);
@@ -701,7 +702,7 @@ export function createSitePages(options: {
 
 		async pageContent(host, pathname) {
 			const scope = data.visitors(host.site);
-			const archive = await locateArchive(scope, host, pathname, true, "published");
+			const archive = await locateArchive(scope, host, pathname, true, "draft");
 			if (archive) {
 				const siteTemplate = (await publishedSiteTemplate(scope)) ?? BUILT_IN_SITE_TEMPLATE;
 				const placed = await placedComponents(scope, [siteTemplate, archive.content], sources);
@@ -718,11 +719,11 @@ export function createSitePages(options: {
 					readsGlobals: trees.some((tree) => valuePathsOf(tree).some((path) => path.startsWith("site."))),
 					loops: [...new Set(trees.flatMap((tree) => loopNamesIn(tree)))],
 					notFound: false,
-					// Code mode opens Entry templates and the Site template so far; an Archive page's Template is a later step.
+					contentTemplate: { kind: "archiveTemplate" as const, postTypeId: archive.postType.id },
 					templatePostTypeId: null,
 				};
 			}
-			const located = await locate(scope, host, pathname, true, "publishedThenDraft");
+			const located = await locate(scope, host, pathname, true, "publishedThenDraft", "draft");
 			const place = located?.kind === "found" ? located : await notFoundPlace(scope, host, pathname);
 			const found = located?.kind === "found" ? located.found : located ? undefined : place.found;
 			const siteTemplate = (await publishedSiteTemplate(scope)) ?? BUILT_IN_SITE_TEMPLATE;
@@ -744,6 +745,9 @@ export function createSitePages(options: {
 				loops: [...new Set(trees.flatMap((tree) => loopNamesIn(tree)))],
 				notFound: located === null,
 				templatePostTypeId: found && !isPagePostType(found.postType) ? found.postType.id : null,
+				contentTemplate: found?.entry.id === await specialPageId(scope, "search")
+					? { kind: "searchTemplate" as const }
+					: found && !isPagePostType(found.postType) ? { kind: "entryTemplate" as const, postTypeId: found.postType.id } : undefined,
 			};
 		},
 
@@ -1097,6 +1101,7 @@ async function locate(
 	pathname: string,
 	editing: boolean,
 	routing: Routing = "published",
+	structure: "published" | "draft" = "published",
 ): Promise<Located | { kind: "redirect"; location: string; keepQuery?: boolean } | null> {
 	const segments = pathSegments(pathname);
 	if (!segments || isReservedPath(segments)) return null;
@@ -1113,13 +1118,13 @@ async function locate(
 			? undefined
 			: rest.length === 0
 				? home && (await publishedPage(scope, postTypes, home))
-				: ((await findPublishedEntry(scope, postTypes, rest, languages.language)) ??
+				: ((await findPublishedEntry(scope, postTypes, rest, languages.language, structure)) ??
 					(await findPage(scope, postTypes, rest, languages.language)));
 	// An Entry hidden in the language has no page there.
 	let found = published && isVisibleIn(storedVersion(published.entry.published), languages) ? published : undefined;
 	// The Staging address finds Entries by their Drafts' addresses; Edit mode also reaches those never published.
 	if (!found && routing !== "published") {
-		found = await draftAt(scope, postTypes, rest, languages, home, routing === "draft" ? "draft" : "published");
+		found = await draftAt(scope, postTypes, rest, languages, home, routing === "draft" ? "draft" : structure);
 	}
 	if (!found) return unprefixed ? { kind: "redirect", location: canonicalPath(unprefixed) } : null;
 	if (rest.length > 0 && found.entry.id === home) return { kind: "redirect", location: hostPath(host, languages, "/") };
@@ -1298,7 +1303,7 @@ async function renderArchivePage(
 			seo,
 			alternates,
 			languageLinks,
-			content: archive.content,
+			content: view.editing?.preview?.source?.kind === "archiveTemplate" ? view.editing.preview.source.tree : archive.content,
 			values: (path) => resolvePath(root, path),
 		},
 		loops: { current: null, page, path: archive.path },
@@ -1662,6 +1667,7 @@ async function findPublishedEntry(
 	postTypes: readonly PostType[],
 	segments: readonly string[],
 	language: string,
+	structure: "published" | "draft" = "published",
 ): Promise<FoundEntry | undefined> {
 	for (const { postType, pattern } of candidatePatterns(postTypes)) {
 		const slug = slugIn(pattern, segments);
@@ -1679,14 +1685,14 @@ async function findPublishedEntry(
 		if (!entry) continue;
 		const template = await scope.first(
 			templates,
-			and(eq(templates.kind, "entry"), eq(templates.postTypeId, postType.id), isNotNull(templates.published)),
+			and(eq(templates.kind, "entry"), eq(templates.postTypeId, postType.id), structure === "published" ? isNotNull(templates.published) : undefined),
 		);
 		if (!template) return undefined;
 		return {
 			postType,
 			postTypes,
 			entry,
-			content: template.published as ElementTree,
+			content: (template.published ?? template.draft) as ElementTree,
 			contentDraft: template.draft as ElementTree,
 		};
 	}
@@ -1816,7 +1822,7 @@ async function renderSearchPage(
 ): Promise<RenderedPage> {
 	const { scope } = view;
 	const { found, languages } = located;
-	const content = (await searchTemplateOf(scope, view.structure)) ?? builtInSearchTemplate(located.language.code);
+	const content = view.editing?.preview?.source?.kind === "searchTemplate" ? view.editing.preview.source.tree : (await searchTemplateOf(scope, view.structure)) ?? builtInSearchTemplate(located.language.code);
 	const version = storedVersion(view.version === "draft" ? found.entry.draft : found.entry.published);
 	const title = entryValues(version, found.postType.fields, languages).title;
 	const site = await siteParts(view, located, host.site.name);

@@ -31,7 +31,7 @@ import { listLoops } from "../content/loops.ts";
 import { getPostType } from "../content/post-types.ts";
 import { printPropDeclarations } from "../content/prop-markup.ts";
 import { RELATED_BUILT_INS } from "../content/render-values.ts";
-import { getEntryTemplate, getSiteTemplate } from "../content/templates.ts";
+import { getArchiveTemplate, getSearchTemplate, getEntryTemplate, getSiteTemplate } from "../content/templates.ts";
 import { classCatalogue } from "../design-system/classes.ts";
 import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { EditPathInvalidError } from "../edit-mode/errors.ts";
@@ -64,7 +64,7 @@ export function writeCodeRef(ref: Pick<CodeRef, "root" | "placements">, element?
 }
 
 /** The kinds of Structure Code mode opens as Template markup. */
-export type CodeSourceKind = "entryTemplate" | "siteTemplate" | "component";
+export type CodeSourceKind = "entryTemplate" | "archiveTemplate" | "searchTemplate" | "siteTemplate" | "component";
 
 /** One Template or Component on the way to an element: as the breadcrumb shows it. */
 export type CodeStep = {
@@ -157,19 +157,16 @@ async function rootOf(
 		};
 	}
 	const content = await deps.pageContent(host, path);
-	if (content.notFound || !content.templatePostTypeId) throw new CodeSourceNotFoundError();
-	const template = await getEntryTemplate(scope, content.templatePostTypeId);
+	const target = content.contentTemplate;
+	if (content.notFound || !target) throw new CodeSourceNotFoundError();
+	const postType = "postTypeId" in target ? await getPostType(scope, target.postTypeId) : null;
+	const template = target.kind === "searchTemplate" ? await getSearchTemplate(scope)
+		: target.kind === "archiveTemplate" ? await getArchiveTemplate(scope, target.postTypeId)
+		: await getEntryTemplate(scope, target.postTypeId);
 	if (!template) throw new CodeSourceNotFoundError();
-	const postType = await getPostType(scope, content.templatePostTypeId);
-	return {
-		kind: "entryTemplate",
-		id: template.id,
-		name: postType.name,
-		editable: true,
-		tree: template.draft,
-		draft: template.draft,
-		postTypeId: postType.id,
-	};
+	return { kind: target.kind, id: template.id, name: postType?.name ?? null, editable: true,
+		tree: template.draft, draft: template.draft, postTypeId: postType?.id ?? null };
+
 }
 
 /** A node of a tree by its id, with the elements and Placements around it, outermost first. */

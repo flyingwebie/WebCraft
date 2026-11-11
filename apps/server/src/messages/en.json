@@ -1873,7 +1873,10 @@
 				"COMPONENT_FROM_MODULE": "It comes from a Module, so it can't be changed here.",
 				"FORBIDDEN": "Only Staff can change code.",
 				"EDIT_MODE_ENDED": "Edit mode has ended. Open it again from the admin."
-			}
+			},
+			"openBuilder": "Open in builder",
+			"archiveTemplate": "{name} · Archive template",
+			"searchTemplate": "Search template"
 		},
 		"alsoEditing": "Also editing this page",
 		"inReview": "In review",
@@ -4623,6 +4626,20 @@
 			"more": "More",
 			"inside": "Inside",
 			"after": "After"
+		},
+		"navigation": {
+			"back": "← Back to {page}",
+			"entry": "Preview Entry",
+			"newest": "Newest Entry",
+			"view": "View on a page",
+			"pages": "On {count} pages",
+			"placement": "Placement on page",
+			"noHomePage": "No home page chosen",
+			"noSearchPage": "No search page chosen",
+			"noEntries": "No Entries yet",
+			"noAddress": "No address for this Entry",
+			"notPlaced": "Not placed on any page",
+			"saveFirst": "Save the Template first"
 		}
 	},
 	"siteEmail": {

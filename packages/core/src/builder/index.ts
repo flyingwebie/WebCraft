@@ -1,3 +1,4 @@
+import { builderDestinations, type BuilderDestinations } from "./navigation.ts";
 import { popups } from "@webcraft/db/schema";
 /**
  * The visual builder (ADRs 0002, 0009, 0017): Staff build Templates and Components on a canvas, as
@@ -123,6 +124,7 @@ export type BuilderOpened = {
 export type BuilderPreview = { html: string; css: string; checks: import("@webcraft/renderer").QualityCheck[] };
 
 export type Builder = {
+	destinations(scope: SiteScope, target: BuilderTarget, entryId?: string): Promise<BuilderDestinations>;
 	/** Opens a Template or Component (open the Site with `structure.edit`). */
 	open(scope: SiteScope, target: BuilderTarget): Promise<BuilderOpened>;
 	/**
@@ -130,7 +132,7 @@ export type Builder = {
 	 * problem and where; a one-off style that can't be one at `styles.<element id>`), with the
 	 * Design system's Draft's stylesheet, its one-off styles as generated Classes for the preview only.
 	 */
-	preview(scope: SiteScope, target: BuilderTarget, draft: BuilderDraft): Promise<BuilderPreview>;
+	preview(scope: SiteScope, target: BuilderTarget, draft: BuilderDraft & { entryId?: string }): Promise<BuilderPreview>;
 	/**
 	 * A tree as Template markup, its pending one-off styles as inline styles: what the Template
 	 * markup view shows and what a save sends. Checked as `preview` checks it.
@@ -157,6 +159,7 @@ export type Builder = {
 export function createBuilder(options: { sources: ComponentSources }): Builder {
 	const { sources } = options;
 	return {
+		destinations: (scope, target, entryId) => builderDestinations(scope, sources, target, entryId),
 		async open(scope, target) {
 			const source = await readSource(scope, target, sources);
 			const popup = source.component
@@ -189,6 +192,7 @@ export function createBuilder(options: { sources: ComponentSources }): Builder {
 			const tree = withStyleClasses(checked(draft.tree, source, catalogue), draft.styles ?? {}, catalogue);
 			const { html, checks } = await renderPreview(scope, sources, {
 				kind: source.kind,
+				entryId: draft.entryId,
 				postType: source.postType,
 				props: source.props,
 				tree,

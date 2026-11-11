@@ -1873,7 +1873,10 @@
 				"COMPONENT_FROM_MODULE": "Viene da un modulo, quindi qui non si può cambiare.",
 				"FORBIDDEN": "Solo lo Staff può cambiare il codice.",
 				"EDIT_MODE_ENDED": "La modalità di modifica è terminata. Riaprila dall'admin."
-			}
+			},
+			"openBuilder": "Apri nel Builder",
+			"archiveTemplate": "{name} · Template archivio",
+			"searchTemplate": "Template ricerca"
 		},
 		"alsoEditing": "Stanno modificando anche questa pagina",
 		"inReview": "In revisione",
@@ -4623,6 +4626,20 @@
 			"more": "Altro",
 			"inside": "Dentro",
 			"after": "Dopo"
+		},
+		"navigation": {
+			"back": "← Torna a {page}",
+			"entry": "Voce in anteprima",
+			"newest": "Voce più recente",
+			"view": "Visualizza su una pagina",
+			"pages": "Su {count} pagine",
+			"placement": "Posizionamento nella pagina",
+			"noHomePage": "Nessuna pagina iniziale scelta",
+			"noSearchPage": "Nessuna pagina di ricerca scelta",
+			"noEntries": "Nessuna voce ancora",
+			"noAddress": "Nessun indirizzo per questa voce",
+			"notPlaced": "Non posizionato su alcuna pagina",
+			"saveFirst": "Salva prima il template"
 		}
 	},
 	"siteEmail": {

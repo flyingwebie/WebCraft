@@ -168,7 +168,7 @@ export function createCodeMode(options: {
 		const opened = await (input.ref === null
 			? pages.pageContent(host, input.path).then((content) =>
 					openSource(scope, deps, host, input.path, {
-						root: content.templatePostTypeId && !content.notFound ? "content" : "site",
+						root: content.contentTemplate && !content.notFound ? "content" : "site",
 						placements: [],
 						element: null,
 					}),
@@ -178,9 +178,9 @@ export function createCodeMode(options: {
 		const target: BuilderTarget =
 			source.kind === "component"
 				? { kind: "component", componentId: source.id ?? "" }
-				: source.kind === "entryTemplate"
-					? { kind: "entryTemplate", postTypeId: source.postTypeId ?? "" }
-					: { kind: "siteTemplate" };
+				: (source.kind === "entryTemplate" || source.kind === "archiveTemplate")
+					? { kind: source.kind, postTypeId: source.postTypeId ?? "" }
+					: { kind: source.kind === "searchTemplate" ? "searchTemplate" : "siteTemplate" };
 		return { target, ref: opened.ref, source, catalogue, usage: opened.usage };
 	};
 	const access = (session: EditSession) => data.site(session.access, session.scope.site.id, "structure.edit");
@@ -190,7 +190,7 @@ export function createCodeMode(options: {
 			const opened = await builder.open(scope, source.editable ? target : { kind: "siteTemplate" });
 			const content = ref === "site" ? await pages.pageContent(host, input.path) : null;
 			const page =
-				content?.entryId && !content.templatePostTypeId && !content.notFound
+				content?.entryId && !content.contentTemplate && !content.notFound
 					? await getEntry(scope, content.entryId, content.language)
 					: null;
 			return {
@@ -199,7 +199,7 @@ export function createCodeMode(options: {
 				siteId: scope.site.id,
 				editable: source.editable,
 				name: source.name,
-				contentAvailable: !!content?.templatePostTypeId && !content.notFound,
+				contentAvailable: !!content?.contentTemplate && !content.notFound,
 				pageLayout: page ? { id: page.id, title: page.draft.title } : null,
 				opened: source.editable
 					? { ...opened, tree: opened.template || opened.component ? opened.tree : source.tree }
@@ -257,7 +257,7 @@ export function createCodeMode(options: {
 			if (input.ref !== null) return openSource(scope, deps, host, input.path, readCodeRef(input.ref));
 			// The page's content first, when a Template renders it; else the Site template around it.
 			const content = await pages.pageContent(host, input.path);
-			const root = content.templatePostTypeId && !content.notFound ? "content" : "site";
+			const root = content.contentTemplate && !content.notFound ? "content" : "site";
 			return openSource(scope, deps, host, input.path, { root, placements: [], element: null });
 		},
 		async preview(host, editing, input) {

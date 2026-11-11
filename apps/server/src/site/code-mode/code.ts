@@ -20,7 +20,7 @@ export function codeMode(config: CodeModeConfig): void {
 	type Answer = { ok: true; data: unknown } | { ok: false; code: string; data: Record<string, unknown> };
 	type Problem = { line: number; column: number; message: string };
 	type CssProblem = { at: string; message: string; line?: number; column?: number };
-	type SourceKind = "entryTemplate" | "siteTemplate" | "component";
+	type SourceKind = "entryTemplate" | "archiveTemplate" | "searchTemplate" | "siteTemplate" | "component";
 	type Opened = {
 		source: { kind: SourceKind; id: string | null; name: string | null; editable: boolean };
 		ref: string;
@@ -103,6 +103,7 @@ export function codeMode(config: CodeModeConfig): void {
 	type Panel = "html" | "css" | "js";
 
 	let inspectorRef: string | undefined;
+	let openBuilderButton: HTMLButtonElement;
 	let panelsAdapter:
 		| {
 				select(ref: string | null): void;
@@ -514,7 +515,9 @@ export function codeMode(config: CodeModeConfig): void {
 		words = ((state.data as { words?: Words }).words?.codeMode as Words | undefined) ?? {};
 		build();
 		for (const line of pending.splice(0)) logLine("error", line);
-		await Promise.all([open(null), loadCss(null), loadScripts()]);
+		const selectionHash = new URLSearchParams(win.location.hash.slice(1)).get("wc-selection");
+		if (selectionHash) win.history.replaceState(null, "", win.location.pathname + win.location.search);
+		await Promise.all([open(selectionHash), loadCss(null), loadScripts()]);
 		const module = await import(config.panels);
 		panelsAdapter = module.mount({
 			root,
@@ -696,12 +699,37 @@ export function codeMode(config: CodeModeConfig): void {
 	/** How a Template or Component is named: its kind in the person's words. */
 	function sourceName(kind: SourceKind, name: string | null): string {
 		if (kind === "siteTemplate") return word("siteTemplate");
-		if (kind === "entryTemplate") return word("entryTemplate", { name: name ?? "" });
+		if (kind === "entryTemplate" || kind === "archiveTemplate") return word(kind, { name: name ?? "" });
+		if (kind === "searchTemplate") return word("searchTemplate");
 		return word("component", { name: name ?? "" });
 	}
 
 	// ---------------------------------------------------------------------------------------------
 	// The panels
+
+	async function openBuilder(): Promise<void> {
+		if (!opened?.source.editable || !panelsAdapter || busy.size) return;
+		openBuilderButton.disabled = true;
+		try {
+			if (!(await panelsAdapter.save())) return;
+			if (jsDirty() && !(await saveScript(undefined))) return;
+			const ref = selectedRef ?? opened.ref;
+			const answer = await call("code/editor", { path, ref: requestRef(ref) });
+			if (!answer.ok) return;
+			const source = answer.data as { editable: boolean; siteId: string; adminOrigin: string; target: {kind: string; componentId?: string; postTypeId?: string} };
+			if (!source.editable) return;
+			const target = source.target;
+			const kind = target.kind.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
+			const id = target.componentId ?? target.postTypeId;
+			const url = new URL(`/builder/${source.siteId}/${kind}${id ? `/${id}` : ""}`, source.adminOrigin);
+			const [sourceRef, key] = ref.split("#");
+			if (key) url.searchParams.set("element", key);
+			url.searchParams.set("returnPath", path);
+			url.searchParams.set("returnTitle", doc.title.split(" · ")[0] ?? path);
+			url.searchParams.set("returnRef", sourceRef ?? opened.ref);
+			win.location.assign(url.href);
+		} finally { openBuilderButton.disabled = !opened?.source.editable; }
+	}
 
 	function build(): void {
 		host = doc.createElement("webcraft-code-mode");
@@ -725,6 +753,8 @@ export function codeMode(config: CodeModeConfig): void {
 		});
 		listbox.addEventListener("mousedown", (event) => event.preventDefault());
 
+		openBuilderButton = button({ class: "secondary" }, word("openBuilder"));
+		openBuilderButton.addEventListener("click", () => void openBuilder());
 		const panels = el("div", { class: "panels", id: newId("panels") });
 		panels.append(buildHtmlPanel(), buildCssPanel(), buildJsPanel());
 		toggleButton.setAttribute("aria-controls", panels.id);
@@ -737,6 +767,7 @@ export function codeMode(config: CodeModeConfig): void {
 				el("span", { class: "badge" }, word("staffOnly")),
 				el("nav", { class: "crumbs-nav", "aria-label": word("whereFrom") }, breadcrumb),
 				usage,
+				openBuilderButton,
 				toggleButton,
 			),
 			panels,
@@ -1352,6 +1383,7 @@ export function codeMode(config: CodeModeConfig): void {
 		}
 		editorReady();
 		htmlTitle.textContent = sourceName(fresh.source.kind, fresh.source.name);
+		openBuilderButton.disabled = !fresh.source.editable;
 		html.area.setAttribute("aria-label", word("htmlOf", { name: currentName() }));
 		renderBreadcrumb();
 		renderUsage();
