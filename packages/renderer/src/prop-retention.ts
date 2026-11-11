@@ -1,3 +1,7 @@
+import { checkFormat } from "./formatters.ts";
+import { canonicalLanguage } from "./languages.ts";
+import { isValuePath, textProblem } from "./tree.ts";
+
 /** Identity-tagged values whose old names are now occupied by another declaration. */
 export const RETAINED_MAX_LENGTH = 16_777_216;
 export const RETAINED_ATTRIBUTE = "data-wc-retained";
@@ -40,5 +44,39 @@ export function retainedPropProblem(input: unknown): string | undefined {
 		return "A retained Prop needs its original name.";
 	if (!Array.isArray(item.value) || item.value.length > 10_000)
 		return "A retained Prop value holds at most 10000 text or value parts.";
+	for (const part of item.value) {
+		if (!part || typeof part !== "object" || Array.isArray(part)) return "Retained values are text or value parts.";
+		if (part.type === "text") {
+			if (Object.keys(part).some((key) => !["type", "text", "translations"].includes(key)))
+				return "A retained text part holds text and translations.";
+			if (typeof part.text !== "string") return "Retained text must be a string.";
+			const problem = textProblem(part.text);
+			if (problem) return problem;
+			if (part.translations !== undefined) {
+				if (!part.translations || typeof part.translations !== "object" || Array.isArray(part.translations))
+					return "Retained translations are text by language tag.";
+				const languages = new Set<string>();
+				for (const [tag, text] of Object.entries(part.translations)) {
+					const language = canonicalLanguage(tag);
+					if (!language || languages.has(language) || typeof text !== "string")
+						return "Retained translations need distinct language tags and text.";
+					const problem = textProblem(text);
+					if (problem) return problem;
+					languages.add(language);
+				}
+			}
+		} else if (part.type === "value") {
+			if (
+				Object.keys(part).some((key) => !["type", "path", "format"].includes(key)) ||
+				typeof part.path !== "string" ||
+				!isValuePath(part.path)
+			)
+				return "A retained bound value needs a Field path and optional formatter.";
+			if (part.format !== undefined) {
+				const checked = checkFormat(part.format);
+				if ("problem" in checked) return checked.problem;
+			}
+		} else return "Retained values are text or value parts.";
+	}
 	return undefined;
 }

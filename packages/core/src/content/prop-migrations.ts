@@ -235,7 +235,7 @@ function migrateValues(
 		if (root && fresh && "fields" in old && "fields" in fresh) {
 			const pairs = declarationPaths(old.fields, fresh.fields);
 			const prior = binding?.paths ?? {};
-			const retained = { ...binding?.retained };
+			const retained: Record<string, string> = Object.assign(Object.create(null), binding?.retained);
 			const was = identityPaths(old.fields);
 			const now = identityPaths(fresh.fields);
 			for (const field of was) {
@@ -304,7 +304,7 @@ export function projectSourceBindings(
 	catalogue: ComponentCatalogue,
 ): ElementTree {
 	const renames = Object.fromEntries(declarationPaths(before, next, "props.", "props.").filter(([a, b]) => a !== b));
-	if (!Object.keys(renames).length) return tree;
+	if (sameJson(before, next)) return tree;
 	const old = new Map(scopedPlacements(previous).map((placed) => [placed.node.id, placed]));
 	const result = structuredClone(tree);
 	for (const { node, resolve } of scopedPlacements(result)) {
@@ -330,7 +330,7 @@ export function projectSourceBindings(
 			const collision = wasFields.some(
 				(field) => !nowFields.some((f) => f.id === field.id) && nowFields.some((f) => f.path === field.path),
 			);
-			const sources = { ...value.binding?.sources };
+			const sources: Record<string, string> = Object.assign(Object.create(null), value.binding?.sources);
 			const missing: string[] = [];
 			const paths = compactPaths(
 				[...new Set([...allowed, ...Object.keys(value.binding?.paths ?? {})])].map((target) => {

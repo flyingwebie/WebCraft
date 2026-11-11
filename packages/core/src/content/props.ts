@@ -51,7 +51,7 @@ export function readPropText(prop: FieldDefinition, text: string, checkRetained 
 		} catch {
 			return { problem: `a ${prop.type === "group" ? "Group" : "Repeater"}'s value is written as JSON.` };
 		}
-		return readJson(prop, input, "", checkRetained);
+		return readPropJson(prop, input, "", checkRetained);
 	}
 	const input = leafInput(prop, trimmed);
 	if (typeof input === "object" && input !== null && "problem" in input) return input as PropText;
@@ -116,7 +116,7 @@ function readLeaf(field: LeafField, input: unknown): PropText {
 }
 
 /** Reads a Group's or Repeater's value from JSON, each Field's value as the APIs take it. */
-function readJson(field: FieldDefinition, input: unknown, at = "", checkRetained = true): PropText {
+export function readPropJson(field: FieldDefinition, input: unknown, at = "", checkRetained = true): PropText {
 	if (field.type === "group") return readGroup(field, input, at, checkRetained);
 	if (field.type === "repeater") return readRepeater(field, input, at, checkRetained);
 	const read = readLeaf(field, input ?? null);
@@ -133,7 +133,7 @@ function readGroup(field: GroupField, input: unknown, at: string, checkRetained:
 			for (const held of retainedValues(given[RETAINED_KEY])) {
 				const declaration = field.fields.find((f) => f.id === held.id);
 				if (!declaration) return { problem: "The retained value has no matching declaration identity." };
-				const checked = readJson(declaration, held.value, at, checkRetained);
+				const checked = readPropJson(declaration, held.value, at, checkRetained);
 				if ("problem" in checked) return checked;
 			}
 		} catch (error) {
@@ -148,7 +148,7 @@ function readGroup(field: GroupField, input: unknown, at: string, checkRetained:
 	const value: Record<string, Json> = {};
 	for (const inner of field.fields) {
 		if (Object.hasOwn(value, inner.key)) continue;
-		const read = readJson(inner, given[inner.key] ?? null, at ? `${at}.${inner.key}` : inner.key, checkRetained);
+		const read = readPropJson(inner, given[inner.key] ?? null, at ? `${at}.${inner.key}` : inner.key, checkRetained);
 		if ("problem" in read) return read;
 		value[inner.key] = read.value;
 	}

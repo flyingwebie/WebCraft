@@ -198,7 +198,8 @@ for (const side of ["source", "target"] as const)
 		const siteId = (await install.createSite(workspaceId)).id;
 		const { component: inner } = await admin.api.components.create({ siteId, name: "Inner" });
 		const { component: outer } = await admin.api.components.create({ siteId, name: "Outer" });
-		const fields = '[{"key":"a","label":"A","type":"text"},{"key":"b","label":"B","type":"text"}]';
+		const fields =
+			'[{"key":"a","label":"A","type":"text","id":"constructor"},{"key":"b","label":"B","type":"text","id":"survivor"}]';
 		const initialInner = await admin.api.components.saveMarkup({
 			siteId,
 			componentId: inner.id,
@@ -235,6 +236,20 @@ for (const side of ["source", "target"] as const)
 		const holder = { siteId, componentId: outer.id };
 		const saved = await admin.api.components.getMarkup(holder);
 		await admin.api.components.saveMarkup({ ...holder, markup: saved.markup.draft });
+		if (side === "source") {
+			const revived = structuredClone(selected.component.draft.props);
+			const group = revived[0];
+			if (!group || !("fields" in group) || !group.fields[0] || !group.fields[1])
+				throw new Error("Missing declarations");
+			group.fields = [
+				{ ...group.fields[0], key: "recovered" },
+				{ ...group.fields[1], key: "a" },
+			];
+			await admin.api.components.saveDraft({ ...target, props: revived });
+			await admin.api.components.publish(target);
+			expect(await install.request(`${origin}/stories/example`).then(expectSafePage)).toContain("Removed Kept</p>");
+		}
+
 		await admin.api.components.saveMarkup({ ...target, markup: selected.markup });
 		await admin.api.components.publish(target);
 		if (side === "target") await admin.api.components.publish(holder);

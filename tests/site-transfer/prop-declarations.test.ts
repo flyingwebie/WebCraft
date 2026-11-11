@@ -182,6 +182,18 @@ test("name reuse transfers distinct retained Media and Entry identities and rest
 		slug: "damaged-retention",
 	});
 	expect(refused).toMatchObject({ status: "failed", site: null, failure: { reason: "damaged" } });
+	const malformedParts = rewritten(archive, {
+		rows: (table, rows) =>
+			table === "public.templates"
+				? rows.map((row) => JSON.parse(JSON.stringify(row).replaceAll(`"text":"media:${media.id}"`, '"text":42')))
+				: rows,
+	});
+	const invalidParts = await importArchive(install, admin, workspaceId, malformedParts, {
+		name: "Invalid retained parts",
+		slug: "invalid-retained-parts",
+	});
+	expect(invalidParts).toMatchObject({ status: "failed", site: null, failure: { reason: "damaged" } });
+
 	expect(copied.status).toBe("done");
 	const destination = copied.site?.id ?? "";
 	const [copy] = (await admin.api.components.list({ siteId: destination })).components;

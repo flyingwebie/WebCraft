@@ -7,6 +7,7 @@ import {
 	retainedValues,
 } from "@webcraft/renderer";
 import type { FieldDefinition } from "../content/field-types.ts";
+import { readPropJson, readPropText } from "../content/props.ts";
 import { POPUP_FIELDS } from "../popups/index.ts";
 import { ArchiveRefusedError } from "./format.ts";
 import type { ReferenceLookup, ReferenceVersion } from "./lookup.ts";
@@ -151,6 +152,9 @@ export function createRowRemapper(
 								.find((f) => f.id === held.id);
 							if (!nested)
 								throw new ArchiveRefusedError("damaged", "A retained value has no source declaration identity.");
+							const checked = readPropJson(nested as FieldDefinition, held.value);
+							if ("problem" in checked)
+								throw new ArchiveRefusedError("damaged", `Invalid retained value: ${checked.problem}`);
 							held.value = await jsonValue(held.value, nested, [...path, held.name]);
 						}
 						continue;
@@ -201,6 +205,18 @@ export function createRowRemapper(
 			if (item.retained !== undefined && (!tree || !field.id || item.retained !== field.id))
 				throw new ArchiveRefusedError("damaged", "A retained Prop has no source declaration identity.");
 			if (tree) {
+				if (item.retained !== undefined) {
+					const parts = list(item.value).map(record);
+					if (parts.every((part) => part.type === "text")) {
+						const languages = new Set(["", ...parts.flatMap((part) => Object.keys(record(part.translations)))]);
+						for (const language of languages) {
+							const text = parts.map((part) => record(part.translations)[language] ?? part.text).join("");
+							const checked = readPropText(field as FieldDefinition, text);
+							if ("problem" in checked)
+								throw new ArchiveRefusedError("damaged", `Invalid retained Prop: ${checked.problem}`);
+						}
+					}
+				}
 				if (item.binding !== undefined) {
 					const paths = (fields: unknown, prefix = ""): string[] =>
 						list(fields).flatMap((field) => {
