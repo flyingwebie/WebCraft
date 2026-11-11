@@ -107,6 +107,50 @@ describe("a Module's procedures", () => {
 	});
 });
 
+describe("a Module changing its own rows", () => {
+	test("can't move a Workspace table's row into another Workspace", async () => {
+		const admin = await install.superadmin();
+		const theirs = (await install.createWorkspace()).id;
+		for (const each of [workspaceId, theirs])
+			await admin.api.modules.setOnWorkspace({ workspaceId: each, moduleId: "sample-board", on: true });
+		const board = (browser: TestBrowser) => moduleApi<typeof sampleBoard>(browser, "sample-board");
+		const { pin } = await board(staff).pins.add({ workspaceId, text: "Ours" });
+
+		const { pin: changed } = await board(staff).pins.change({
+			workspaceId,
+			pinId: pin.id,
+			changes: { text: "Still ours", workspaceId: theirs, workspace_id: theirs },
+		});
+
+		expect(changed).toMatchObject({ id: pin.id, text: "Still ours", workspaceId });
+		expect((await board(staff).pins.list({ workspaceId })).pins.map((each) => each.id)).toContain(pin.id);
+		const outsider = (await install.createStaff({ workspaces: [theirs] })).browser;
+		expect((await board(outsider).pins.list({ workspaceId: theirs })).pins).toEqual([]);
+		// With nothing else to change, the pin is answered as it is.
+		const { pin: unchanged } = await board(staff).pins.change({
+			workspaceId,
+			pinId: pin.id,
+			changes: { workspaceId: theirs },
+		});
+		expect(unchanged).toMatchObject({ id: pin.id, text: "Still ours", workspaceId });
+	});
+
+	test("can't move a Site table's row into another Workspace or Site", async () => {
+		const theirs = (await install.createWorkspace()).id;
+		const theirSite = (await install.createSite(theirs)).id;
+		const { note } = await api(staff).notes.add({ siteId, body: "Ours" });
+
+		const { note: changed } = await api(staff).changeNote({
+			siteId,
+			noteId: note.id,
+			changes: { body: "Still ours", workspaceId: theirs, siteId: theirSite },
+		});
+
+		expect(changed).toMatchObject({ id: note.id, body: "Still ours" });
+		expect((await api(staff).notes.list({ siteId })).notes.map((each) => each.body)).toContain("Still ours");
+	});
+});
+
 describe("what a Module never declared", () => {
 	for (const attempt of PROBES) {
 		test(`is refused: ${attempt}`, async () => {

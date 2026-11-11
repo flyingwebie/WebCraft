@@ -154,6 +154,15 @@ export const sample = defineModule({
 				},
 			}),
 		},
+		/** Changes a note with whatever the caller sent, as a careless Module might. */
+		changeNote: procedure({
+			permission: "notes.edit",
+			input: z.object({ noteId: z.uuid(), changes: z.record(z.string(), z.unknown()) }),
+			async run({ noteId, changes }, context) {
+				const [note] = await context.data.update(notes, changes as { body: string }, eq(notes.id, noteId));
+				return { note: note ? view(note) : null };
+			},
+		}),
 		broken: procedure({
 			permission: "notes.view",
 			input: z.object({}),

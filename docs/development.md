@@ -1564,7 +1564,7 @@ Staff switch Site-level Modules on each Site and Workspace-level Modules on each
 
 Procedures, Site routes, events and jobs get a `ModuleContext` (`packages/core/src/modules/runtime.ts`), limited to one place and to what the manifest declares; anything else throws `ModuleRefusedError` with a `reason` (`permission`, `table`, `host`, `use`, `job`, `secret`, `email`):
 
-- `data`: its own tables in the place, through the data layer (`select`, `first`, `count`, `insert`, `update`, `delete`, `aggregate`, and `values` for a subquery, SDK 1.8); the Workspace and Site are filled in, and any other table is refused. `transaction(work)` runs table changes and Audit log entries together.
+- `data`: its own tables in the place, through the data layer (`select`, `first`, `count`, `insert`, `update`, `delete`, `aggregate`, and `values` for a subquery, SDK 1.8); the Workspace and Site are filled in, `update` never changes them (nor sets anything that isn't one of the table's columns), and any other table is refused. `transaction(work)` runs table changes and Audit log entries together.
 - `audit(action, details)`: recorded under the Module's id. In a procedure the person acted (`via: admin`); elsewhere the Module did (`via: module`, no person).
 - `email.send(message)` (needs `uses: ["email"]`): the `module-message` System email (a work email people can turn off), in the Module's words for each recipient's Admin language (else its first), in the built-in layout, recorded in the Email log.
 - `http(url, options)`: the guarded fetcher, to its declared hosts only. When a call fails the Module gets WebCraft's own error (`GuardedFetchError` with its `problem`, or `ModuleRefusedError`), never the error behind it, which could name the address.

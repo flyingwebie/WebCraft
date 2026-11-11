@@ -3,6 +3,7 @@
 import {
 	defineModule,
 	desc,
+	eq,
 	moduleSchema,
 	procedure,
 	text,
@@ -62,6 +63,15 @@ CREATE TABLE pins (
 				input: z.object({ text: z.string().trim().min(1).max(200) }),
 				async run({ text: body }, context) {
 					return { pin: await context.data.insert(pins, { text: body, createdAt: context.now() }) };
+				},
+			}),
+			/** Changes a pin with whatever the caller sent, as a careless Module might. */
+			change: procedure({
+				permission: "pins.edit",
+				input: z.object({ pinId: z.uuid(), changes: z.record(z.string(), z.unknown()) }),
+				async run({ pinId, changes }, context) {
+					const [pin] = await context.data.update(pins, changes as { text: string }, eq(pins.id, pinId));
+					return { pin: pin ?? null };
 				},
 			}),
 		},
