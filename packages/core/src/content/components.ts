@@ -919,9 +919,7 @@ type Holder = { use: ComponentUse; draft: ElementTree; published: ElementTree | 
  * The Site's trees (every Template's and Component's Draft and published version, and the
  * accessibility statement's page) and how many published pages show what some of them hold.
  */
-async function pageGraph(
-	scope: SiteScope,
-): Promise<{
+async function pageGraph(scope: SiteScope): Promise<{
 	holders: Holder[];
 	pagesShowing(seed: readonly Holder[]): number;
 	placers(componentId: string): Holder[];
