@@ -31,7 +31,10 @@ test("an AI client with the Structure Toolset saves and reads a Component script
 	);
 	const code = "export default (root) => { root.dataset.price = 'shown'; };";
 
-	const saved = answerOf<{ script: { draft: { code: string; consentCategory: string } }; version: string }>(
+	const saved = answerOf<{
+		script: { draft: { code: string; consentCategory: string; libraryIds: string[] } };
+		version: string;
+	}>(
 		await client.callTool({
 			name: "components_save_script_draft",
 			arguments: { siteId, componentId, code, consentCategory: "analytics", basedOn: null },

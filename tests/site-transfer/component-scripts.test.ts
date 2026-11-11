@@ -55,7 +55,7 @@ test("a Component script and its settings round-trip through a Site export", asy
 	expect(newLibrary?.id).not.toBe(library.id);
 
 	const { script } = await admin.api.components.getScript({ siteId: destination, componentId: copy?.id ?? "" });
-	expect(script?.draft).toEqual({ code, consentCategory: "analytics", libraryIds: [newLibrary?.id] });
+	expect(script?.draft).toEqual({ code, consentCategory: "analytics", libraryIds: [newLibrary?.id ?? ""] });
 
 	// Published on the new Site, its pages load it with that Library.
 	await admin.api.components.publish({ siteId: destination, componentId: copy?.id ?? "" });

@@ -514,7 +514,9 @@ describe("Code mode's JS panel", () => {
 			version: null,
 		});
 		expect(stale.status).toBe(409);
-		expect(((await stale.json()) as { code: string; data: { version: string } }).data.version).toBe(saved.version);
+		expect(((await stale.json()) as { code: string; data: { version: string } }).data.version).toBe(
+			saved.version as string,
+		);
 
 		// The page in Code mode runs the Draft at once.
 		expect(await (await coding.page(path)).text()).toContain(saved.src as string);
