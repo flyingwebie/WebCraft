@@ -11,6 +11,13 @@ export {
 export { type BodyFormat, ENTRY_BODY_FORMATS, exchangeMarkdown } from "./body-exchange.ts";
 export { PASTE_MAX_LENGTH, type Pasted, pasteBody, pastedBlocks } from "./body-paste.ts";
 export {
+	type ComponentScript,
+	type ComponentScriptInput,
+	type ComponentScriptVersion,
+	componentScriptOf,
+	saveComponentScript,
+} from "./component-scripts.ts";
+export {
 	type Component,
 	type ComponentDeletion,
 	type ComponentDraftChange,

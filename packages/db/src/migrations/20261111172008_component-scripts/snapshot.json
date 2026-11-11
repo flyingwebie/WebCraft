@@ -1,0 +1,329 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "5f27ff55-dcf9-4242-bddb-622f900dc84c",
+  "prevIds": [
+    "06fe5085-ba6b-4d40-967f-dd45a1d146e2"
+  ],
+  "footprints": [
+    {
+      "statementType": "drop_unique",
+      "statementTarget": [
+        "table",
+        "public",
+        "scripts"
+      ],
+      "writes": [
+        "s|uq|public.scripts.scripts_site_id_kind_entry_id_unique",
+        "n|uq|public.scripts.scripts_site_id_kind_entry_id_unique",
+        "e|uq|public.scripts.scripts_site_id_kind_entry_id_unique",
+        "n|con|public.scripts.scripts_site_id_kind_entry_id_unique",
+        "n|rel|public.scripts_site_id_kind_entry_id_unique"
+      ],
+      "reads": [
+        "n|tbl|public.scripts",
+        "n|sch|public",
+        "e|col|public.scripts.site_id",
+        "e|col|public.scripts.kind",
+        "e|col|public.scripts.entry_id"
+      ],
+      "sharedWrites": [
+        "e|uniqueness|public.scripts.entry_id.kind.site_id"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "scripts",
+        "component_id"
+      ],
+      "writes": [
+        "s|col|public.scripts.component_id",
+        "n|col|public.scripts.component_id",
+        "e|col|public.scripts.component_id"
+      ],
+      "reads": [
+        "n|tbl|public.scripts",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "scripts",
+        "consent_category"
+      ],
+      "writes": [
+        "s|col|public.scripts.consent_category",
+        "n|col|public.scripts.consent_category",
+        "e|col|public.scripts.consent_category"
+      ],
+      "reads": [
+        "n|tbl|public.scripts",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "scripts",
+        "library_ids"
+      ],
+      "writes": [
+        "s|col|public.scripts.library_ids",
+        "n|col|public.scripts.library_ids",
+        "e|col|public.scripts.library_ids"
+      ],
+      "reads": [
+        "n|tbl|public.scripts",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "scripts",
+        "published_consent_category"
+      ],
+      "writes": [
+        "s|col|public.scripts.published_consent_category",
+        "n|col|public.scripts.published_consent_category",
+        "e|col|public.scripts.published_consent_category"
+      ],
+      "reads": [
+        "n|tbl|public.scripts",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "scripts",
+        "published_library_ids"
+      ],
+      "writes": [
+        "s|col|public.scripts.published_library_ids",
+        "n|col|public.scripts.published_library_ids",
+        "e|col|public.scripts.published_library_ids"
+      ],
+      "reads": [
+        "n|tbl|public.scripts",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_unique",
+      "statementTarget": [
+        "table",
+        "public",
+        "scripts"
+      ],
+      "writes": [
+        "s|uq|public.scripts.scripts_site_id_kind_entry_id_component_id_unique",
+        "n|uq|public.scripts.scripts_site_id_kind_entry_id_component_id_unique",
+        "e|uq|public.scripts.scripts_site_id_kind_entry_id_component_id_unique",
+        "n|con|public.scripts.scripts_site_id_kind_entry_id_component_id_unique",
+        "n|rel|public.scripts_site_id_kind_entry_id_component_id_unique"
+      ],
+      "reads": [
+        "n|tbl|public.scripts",
+        "n|sch|public",
+        "n|col|public.scripts.site_id",
+        "n|col|public.scripts.kind",
+        "n|col|public.scripts.entry_id",
+        "n|col|public.scripts.component_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "scripts"
+      ],
+      "writes": [
+        "s|fk|public.scripts.scripts_component_fkey",
+        "n|fk|public.scripts.scripts_component_fkey",
+        "e|fk|public.scripts.scripts_component_fkey",
+        "n|con|public.scripts.scripts_component_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.scripts",
+        "n|sch|public",
+        "n|tbl|public.components",
+        "n|sch|public",
+        "n|col|public.scripts.site_id",
+        "n|col|public.scripts.component_id",
+        "n|col|public.components.site_id",
+        "n|col|public.components.id",
+        "e|uniqueness|public.components.id.site_id"
+      ]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "scripts"
+      ],
+      "writes": [
+        "s|ck|public.scripts.scripts_component_kind_check",
+        "n|ck|public.scripts.scripts_component_kind_check",
+        "e|ck|public.scripts.scripts_component_kind_check",
+        "n|con|public.scripts.scripts_component_kind_check"
+      ],
+      "reads": [
+        "n|tbl|public.scripts",
+        "n|sch|public",
+        "n|col|public.scripts.kind",
+        "n|col|public.scripts.component_id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scripts",
+        "name": "component_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scripts",
+        "name": "consent_category",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scripts",
+        "name": "library_ids",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scripts",
+        "name": "published_consent_category",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scripts",
+        "name": "published_library_ids",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 1,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scripts",
+        "name": "scripts_component_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "component_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "components",
+        "columnsTo": [
+          "site_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scripts",
+        "name": "scripts_site_id_kind_entry_id_component_id_unique",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "kind",
+          "entry_id",
+          "component_id"
+        ],
+        "nullsNotDistinct": true,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scripts",
+        "name": "scripts_component_kind_check",
+        "value": "(\"kind\" = 'component') = (\"component_id\" is not null)",
+        "entityType": "checks"
+      }
+    },
+    {
+      "op": "drop",
+      "key": "uniques\u0000[\"public\",\"scripts\",\"scripts_site_id_kind_entry_id_unique\"]"
+    }
+  ]
+}

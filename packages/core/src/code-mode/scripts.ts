@@ -4,6 +4,7 @@
  * Draft's file on the page) or load the page again in Code mode.
  */
 
+import { componentLoaderFile } from "../content/component-scripts.ts";
 import { getScript, type Script, type ScriptKind, saveScriptDraft, scriptFile } from "../content/scripts.ts";
 import { EditPathInvalidError } from "../edit-mode/errors.ts";
 import { CODE_MODE_SCRIPT_PATH, isEditPath } from "../edit-mode/paths.ts";
@@ -61,7 +62,10 @@ export async function saveScript(
 	return codeScript(await saveScriptDraft(scope, entryId, input.code, { basedOn: input.version }));
 }
 
-/** The Draft of one of the Site's scripts by its file's name (`/_webcraft/edit/js/<name>`); null for any other name. */
-export function draftScript(scope: SiteScope, name: string): Promise<string | null> {
-	return scriptFile(scope, name, "draft");
+/**
+ * The Draft of one of the Site's scripts by its file's name (`/_webcraft/edit/js/<name>`), or the
+ * loader of a Component script's Draft (`component/<id>/<hash>.js`); null for any other name.
+ */
+export async function draftScript(scope: SiteScope, name: string): Promise<string | null> {
+	return (await scriptFile(scope, name, "draft")) ?? (await componentLoaderFile(scope, name, "draft"));
 }

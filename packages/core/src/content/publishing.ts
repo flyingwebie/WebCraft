@@ -19,6 +19,7 @@ import { indexPublishedEntry } from "../search/indexing.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
 import { archiveAt, checkArchiveAddressFree, publishedArchives } from "./archives.ts";
+import { publishComponentScript } from "./component-scripts.ts";
 import { storedComponentVersion } from "./component-versions.ts";
 import {
 	type ComponentSources,
@@ -542,6 +543,8 @@ async function publishComponent(
 			tree: storedComponentVersion(row.draft).tree,
 		});
 	}
+	// Its Component script, when it has one, is published with it.
+	await publishComponentScript(scope, row.id);
 	await scope.audit("component.publish", { componentId: row.id, name: row.name });
 	return { kind: "component", id: row.id, publishedAt: now, pathChanges: [] };
 }

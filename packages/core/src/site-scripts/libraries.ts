@@ -351,12 +351,17 @@ async function keep(
 	return { fileName, hash, integrity, size: bytes.length, storage: backend.kind, storageKey };
 }
 
-/** The Site's Libraries as a page loads them, in order. */
-export async function pageLibraries(scope: Pick<VisitorScope, "select">): Promise<PageLibrary[]> {
+/** The Site's Libraries as a page loads them, in order, with their ids (which Component scripts declare them by). */
+export async function pageLibraries(scope: Pick<VisitorScope, "select">): Promise<(PageLibrary & { id: string })[]> {
 	const rows = await scope.select(libraries, undefined, {
 		orderBy: [asc(libraries.position), asc(libraries.createdAt)],
 	});
-	return rows.map((row) => ({ name: row.packageName ?? row.fileName, src: srcOf(row), integrity: row.integrity }));
+	return rows.map((row) => ({
+		id: row.id,
+		name: row.packageName ?? row.fileName,
+		src: srcOf(row),
+		integrity: row.integrity,
+	}));
 }
 
 /** A Library file as the Site serves it: its bytes and the hash its name holds. */

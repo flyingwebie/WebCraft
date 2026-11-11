@@ -15,6 +15,7 @@ import { createConsent } from "./consent/index.ts";
 import {
 	addLanguage,
 	cancelScheduled,
+	componentScriptOf,
 	countDrafts,
 	countReviewsToAct,
 	createComponent,
@@ -63,6 +64,7 @@ import {
 	saveArchiveTemplateMarkup,
 	saveComponentDraft,
 	saveComponentMarkup,
+	saveComponentScript,
 	saveDraft,
 	saveEntryTemplate,
 	saveEntryTemplateMarkup,
@@ -562,7 +564,13 @@ export async function createInstallServices(
 		cdns: createCdns({ database, clock, log, jobs: ports.jobs, fetch: guardedFetch }),
 		webhooks,
 		dashboards: dashboardService,
-		scripts: { get: getScript, byId: scriptById, saveDraft: saveScriptDraft },
+		scripts: {
+			get: getScript,
+			byId: scriptById,
+			saveDraft: saveScriptDraft,
+			component: componentScriptOf,
+			saveComponentDraft: saveComponentScript,
+		},
 		languages: {
 			get: siteLanguages,
 			add: (scope, input) => addLanguage({ config }, scope, input),
