@@ -60,7 +60,23 @@ export function codeMode(config: CodeModeConfig): void {
 		| { kind: "class"; classId: string; part: "breakpoint"; breakpointId: string }
 		| { kind: "site" };
 	type Script = { code: string; version: string | null; src: string | null };
-	type Scripts = { site: Script; page: (Script & { entryId: string }) | null };
+	/** The Component tab: the selected Placement's Component and its Component script's Draft. */
+	type ComponentScript = Script & {
+		componentId: string;
+		name: string;
+		editable: boolean;
+		pages: number;
+		consentCategory: string;
+		libraryIds: string[];
+		libraries: { id: string; name: string }[];
+		runtime: string;
+	};
+	type Scripts = {
+		site: Script;
+		page: (Script & { entryId: string }) | null;
+		component?: ComponentScript | null;
+	};
+	type ScriptKind = "page" | "site" | "component";
 	type Language = "markup" | "css" | "js";
 	type Suggestion = {
 		group: string;
@@ -99,7 +115,10 @@ export function codeMode(config: CodeModeConfig): void {
 	const path = win.location.pathname;
 	const SVG = "http://www.w3.org/2000/svg";
 	const PANEL_KEY = "webcraft-code-panels";
-	/** Which script the JS panel opens at, when the editing bar's notice about a failed script asked: `site` or `page`. */
+	/**
+	 * Which script the JS panel opens at, when the editing bar's notice about a failed script asked:
+	 * `site`, `page` or `component:<id>`.
+	 */
 	const CODE_SCRIPT_KEY = "webcraft-code-script";
 	const ICONS: Record<string, string[]> = {
 		code: ["m18 16 4-4-4-4", "m6 8-4 4 4 4", "m14.5 4-5 16"],
@@ -372,11 +391,18 @@ export function codeMode(config: CodeModeConfig): void {
 	let jsRun: HTMLButtonElement;
 	let jsPageTab: HTMLButtonElement;
 	let jsSiteTab: HTMLButtonElement;
+	let jsComponentTab: HTMLButtonElement;
 	let jsNote: HTMLElement;
+	let jsUsage: HTMLElement;
+	let jsSettings: HTMLElement;
+	let jsConsent: HTMLSelectElement;
+	let jsLibraries: HTMLElement;
 	let consoleList: HTMLElement;
 	let scripts: Scripts | null = null;
-	let jsKind: "page" | "site" = "page";
+	let jsKind: ScriptKind = "page";
 	let jsSaved = "";
+	/** The Component tab's settings as last saved (its Consent category and Libraries), to tell a change. */
+	let jsSettingsSaved = "";
 
 	/** Buttons whose action is running: pressing one again waits for it, and it keeps focus meanwhile. */
 	const busy = new Set<HTMLButtonElement>();
@@ -436,6 +462,22 @@ export function codeMode(config: CodeModeConfig): void {
 			asked = win.sessionStorage.getItem(CODE_SCRIPT_KEY);
 			win.sessionStorage.removeItem(CODE_SCRIPT_KEY);
 		} catch {
+			return;
+		}
+		if (asked?.startsWith("component:")) {
+			// A Component's script: a Placement of it on the page is selected, then its tab shown.
+			const id = asked.slice("component:".length);
+			const root = [...doc.querySelectorAll("[data-wc-component][data-wc-code]")].find((element) =>
+				(element.getAttribute("data-wc-component") ?? "").split(" ").includes(id),
+			);
+			const ref = root?.getAttribute("data-wc-code");
+			if (!ref) return;
+			showPanels(true);
+			void select(ref).then(async () => {
+				await loadComponentScript(ref);
+				switchScript("component");
+				jsEditor.area.focus();
+			});
 			return;
 		}
 		if (asked !== "site" && asked !== "page") return;
@@ -783,13 +825,33 @@ export function codeMode(config: CodeModeConfig): void {
 		jsTitle = el("span", { class: "panel-sub" });
 		jsPageTab = button({ class: "segment", "aria-pressed": "true" }, word("pageTab"));
 		jsSiteTab = button({ class: "segment", "aria-pressed": "false" }, word("siteTab"));
+		jsComponentTab = button({ class: "segment", "aria-pressed": "false", hidden: "" }, word("componentTab"));
 		jsPageTab.addEventListener("click", () => switchScript("page"));
 		jsSiteTab.addEventListener("click", () => switchScript("site"));
+		jsComponentTab.addEventListener("click", () => switchScript("component"));
 		jsSave = button({ class: "small secondary" }, word("save"));
 		jsSave.addEventListener("click", () => void saveScript(null));
 		jsRun = button({ class: "small primary", title: word("runHint") }, icon("play"), word("run"));
 		jsRun.addEventListener("click", () => void run());
 		jsNote = el("p", { class: "note", hidden: "" });
+		jsUsage = el("p", { class: "usage", hidden: "" });
+		const consentId = newId("consent");
+		jsConsent = el("select", { id: consentId, class: "picker" });
+		for (const category of ["necessary", "analytics", "marketing", "media"]) {
+			const name = `consent${category[0]?.toUpperCase()}${category.slice(1)}`;
+			jsConsent.append(el("option", { value: category }, word(name)));
+		}
+		jsConsent.addEventListener("change", () => setDirty("js"));
+		const librariesLabel = newId("libraries");
+		jsLibraries = el("div", { class: "checks", role: "group", "aria-labelledby": librariesLabel });
+		jsSettings = el(
+			"div",
+			{ class: "pickers", hidden: "" },
+			el("label", { for: consentId }, word("consentCategory")),
+			jsConsent,
+			el("span", { id: librariesLabel, class: "pickers-label" }, word("componentLibraries")),
+			jsLibraries,
+		);
 		jsEditor = editor({
 			language: "js",
 			label: word("js"),
@@ -810,10 +872,18 @@ export function codeMode(config: CodeModeConfig): void {
 				word("js"),
 				"braces",
 				jsTitle,
-				el("div", { class: "segments", role: "group", "aria-label": word("scriptSource") }, jsPageTab, jsSiteTab),
+				el(
+					"div",
+					{ class: "segments", role: "group", "aria-label": word("scriptSource") },
+					jsPageTab,
+					jsSiteTab,
+					jsComponentTab,
+				),
 				jsSave,
 				jsRun,
 			),
+			jsUsage,
+			jsSettings,
 			jsNote,
 			jsEditor.root,
 			el(
@@ -983,6 +1053,7 @@ export function codeMode(config: CodeModeConfig): void {
 		} else selectedBox.hidden = true;
 		if (fresh.element) revealElement(fresh.element.id);
 		else html.mark(null);
+		void loadComponentScript(selectedRef ?? fresh.ref);
 		if (!fresh.source.editable) setStatusText(word("readOnly", { name: currentName() }));
 	}
 
@@ -1495,48 +1566,139 @@ export function codeMode(config: CodeModeConfig): void {
 	// The JS panel
 
 	async function loadScripts(): Promise<void> {
-		const answer = await call("code/scripts", { path });
+		const answer = await call("code/scripts", { path, ref: selectedRef });
 		if (!answer.ok) return;
 		scripts = answer.data as Scripts;
-		if (!scripts.page) jsKind = "site";
+		if (!scripts.page && jsKind === "page") jsKind = "site";
+		if (!scripts.component && jsKind === "component") jsKind = scripts.page ? "page" : "site";
 		showScript();
 	}
 
-	function switchScript(kind: "page" | "site"): void {
+	/**
+	 * The selection changed: the Component tab follows the Placement it is (or is inside), unless the
+	 * tab holds changes not saved yet.
+	 */
+	async function loadComponentScript(ref: string | null): Promise<void> {
+		if (!scripts || (jsKind === "component" && jsDirty())) return;
+		const answer = await call("code/scripts", { path, ref });
+		if (!answer.ok || !scripts) return;
+		const component = (answer.data as Scripts).component ?? null;
+		// Typed meanwhile in the Component tab: it keeps what is being written.
+		if (jsKind === "component" && jsDirty()) return;
+		scripts.component = component;
+		// Another tab is shown: only the Component tab's button follows, so nothing typed there is lost.
+		if (jsKind !== "component") {
+			jsComponentTab.hidden = !component;
+			return;
+		}
+		if (!component) jsKind = scripts.page ? "page" : "site";
+		showScript();
+	}
+
+	function switchScript(kind: ScriptKind): void {
 		if (kind === "page" && !scripts?.page) return;
+		if (kind === "component" && !scripts?.component) return;
 		jsKind = kind;
 		showScript();
 	}
 
 	function currentScript(): Script | null {
 		if (!scripts) return null;
+		if (jsKind === "component") return scripts.component ?? null;
 		return jsKind === "site" ? scripts.site : scripts.page;
+	}
+
+	/** The Component tab's settings as the panel shows them now. */
+	function componentSettings(): { consentCategory: string; libraryIds: string[] } {
+		return {
+			consentCategory: jsConsent.value,
+			libraryIds: [...jsLibraries.querySelectorAll<HTMLInputElement>("input:checked")].map((box) => box.value),
+		};
+	}
+
+	function jsDirty(): boolean {
+		if (!jsEditor) return false;
+		if (jsEditor.get() !== jsSaved) return true;
+		return jsKind === "component" && encode(componentSettings()) !== jsSettingsSaved;
 	}
 
 	function showScript(): void {
 		const script = currentScript();
+		const component = scripts?.component ?? null;
 		jsPageTab.setAttribute("aria-pressed", String(jsKind === "page"));
 		jsSiteTab.setAttribute("aria-pressed", String(jsKind === "site"));
+		jsComponentTab.setAttribute("aria-pressed", String(jsKind === "component"));
 		jsPageTab.disabled = !scripts?.page;
-		jsTitle.textContent = jsKind === "site" ? word("siteScript") : word("pageScript");
-		jsNote.textContent = scripts?.page ? "" : word("noPageScript");
-		jsNote.hidden = Boolean(scripts?.page);
+		jsComponentTab.hidden = !component;
+		const onComponent = jsKind === "component" && component !== null;
+		jsTitle.textContent = onComponent
+			? word("componentScript", { name: component.name })
+			: jsKind === "site"
+				? word("siteScript")
+				: word("pageScript");
+		const note = onComponent
+			? component.editable
+				? ""
+				: word("componentFromModule", { name: component.name })
+			: scripts?.page
+				? ""
+				: word("noPageScript");
+		jsNote.textContent = note;
+		jsNote.hidden = !note;
+		jsUsage.hidden = !onComponent;
+		if (onComponent) {
+			const name = component.name;
+			const count = component.pages;
+			jsUsage.replaceChildren(
+				icon("warning"),
+				count === 0
+					? word("usedOnNone", { name })
+					: count === 1
+						? word("usedOnOne", { name })
+						: word("usedOnOther", { name, count }),
+			);
+		} else jsUsage.replaceChildren();
+		jsSettings.hidden = !onComponent || !component.editable;
+		if (onComponent) showComponentSettings(component);
 		jsSaved = script?.code ?? "";
 		jsEditor.set(jsSaved);
-		jsEditor.area.setAttribute("placeholder", word(jsKind === "site" ? "sitePlaceholder" : "pagePlaceholder"));
+		const editable = !onComponent || component.editable;
+		jsEditor.readOnly(!editable);
+		jsSave.disabled = !editable;
+		jsEditor.area.setAttribute(
+			"placeholder",
+			word(onComponent ? "componentPlaceholder" : jsKind === "site" ? "sitePlaceholder" : "pagePlaceholder"),
+		);
 		jsEditor.area.setAttribute("aria-label", word("jsOf", { name: jsTitle.textContent }));
+	}
+
+	function showComponentSettings(component: ComponentScript): void {
+		jsConsent.value = component.consentCategory;
+		jsLibraries.replaceChildren();
+		if (component.libraries.length === 0) jsLibraries.append(el("span", { class: "muted" }, word("noLibraries")));
+		for (const library of component.libraries) {
+			const id = newId("library");
+			const box = el("input", { type: "checkbox", id, value: library.id });
+			box.checked = component.libraryIds.includes(library.id);
+			box.addEventListener("change", () => setDirty("js"));
+			jsLibraries.append(el("span", { class: "check" }, box, el("label", { for: id }, library.name)));
+		}
+		jsSettingsSaved = encode(componentSettings());
 	}
 
 	async function saveScript(version: string | null | undefined): Promise<boolean> {
 		const script = currentScript();
 		if (!script) return false;
 		if (busy.has(jsSave)) return false;
+		const component = jsKind === "component" ? (scripts?.component ?? null) : null;
+		if (component && !component.editable) return false;
 		busy.add(jsSave);
 		const code = jsEditor.get();
 		const answer = await call("code/saveScript", {
 			path,
 			kind: jsKind,
 			code,
+			...(component ? { componentId: component.componentId, ...componentSettings() } : {}),
 			version: version === undefined || version === null ? script.version : version,
 		});
 		busy.delete(jsSave);
@@ -1544,6 +1706,7 @@ export function codeMode(config: CodeModeConfig): void {
 			const saved = answer.data as Script;
 			Object.assign(script, saved);
 			jsSaved = saved.code;
+			if (component) jsSettingsSaved = encode(componentSettings());
 			savedNote = word("savedName", { name: jsTitle.textContent ?? "" });
 			setStatusText(savedNote);
 			announce(savedNote);
@@ -1563,32 +1726,77 @@ export function codeMode(config: CodeModeConfig): void {
 		return false;
 	}
 
-	/** Runs the page's scripts again on a freshly rendered page: the Site script, then the page's. */
+	/**
+	 * Runs the page's scripts again on a freshly rendered page: the Site script, then the Component
+	 * script of the Component tab (WebCraft's runtime calls it for each of its Placements; the other
+	 * Component scripts already on the page run again on the fresh Placements by themselves), then the
+	 * page's. Inserted in order, they run in that order.
+	 */
 	async function run(): Promise<void> {
 		if (busy.has(jsRun)) return;
 		busy.add(jsRun);
 		jsRun.replaceChildren(icon("play"), word("running"));
-		const saved = jsEditor.get() === jsSaved || (await saveScript(null));
+		const saved = !jsDirty() || (await saveScript(null));
 		if (saved) {
-			await preview();
-			for (const old of doc.querySelectorAll("script[data-wc-run]")) old.remove();
-			for (const script of [scripts?.site, scripts?.page]) {
-				if (!script?.src) continue;
-				const tag = doc.createElement("script");
-				tag.src = script.src;
-				tag.dataset.wcRun = "";
-				doc.head.append(tag);
+			// New code of the Component tab's script runs on the fresh page, not the code loaded before it.
+			const fresh = scripts?.component?.src && !loadedComponentScripts().has(scripts.component.src);
+			if (fresh && scripts?.component) {
+				(
+					win as { webcraft?: { componentScript?: { forget?: (id: string) => void } } }
+				).webcraft?.componentScript?.forget?.(scripts.component.componentId);
 			}
+			await preview();
+			// Modules stay: the browser runs each once, and the list above reads what was loaded.
+			for (const old of doc.querySelectorAll("script[data-wc-run]:not([type=module])")) old.remove();
+			const component = scripts?.component ?? null;
+			const tags: HTMLScriptElement[] = [];
+			const add = (src: string, module = false) => {
+				const tag = doc.createElement("script");
+				if (module) tag.type = "module";
+				tag.async = false;
+				tag.src = src;
+				tag.dataset.wcRun = "";
+				tags.push(tag);
+				return tag;
+			};
+			if (scripts?.site.src) add(scripts.site.src);
+			if (component?.src && !loadedComponentScripts().has(component.src)) {
+				if (!doc.querySelector(`script[src="${component.runtime}"]`)) add(component.runtime).dataset.wcWatch = "";
+				add(component.src, true).dataset.wcComponentScript = component.componentId;
+			}
+			if (scripts?.page?.src) add(scripts.page.src);
+			doc.head.append(...tags);
 			announce(word("ran"));
 		}
 		busy.delete(jsRun);
 		jsRun.replaceChildren(icon("play"), word("run"));
 	}
 
+	/**
+	 * The Component scripts' loaders this page has loaded: a module runs once per page, so one loaded
+	 * already isn't loaded again (WebCraft's runtime calls it for fresh Placements by itself).
+	 */
+	function loadedComponentScripts(): Set<string> {
+		return new Set(
+			[...doc.querySelectorAll<HTMLScriptElement>("script[type=module][data-wc-component-script]")].map(
+				(tag) => tag.getAttribute("src") ?? "",
+			),
+		);
+	}
+
 	// ---------------------------------------------------------------------------------------------
 	// The console: what the page's scripts report
 
 	function captureConsole(): void {
+		// A Component script's call that failed on one Placement (WebCraft's runtime reports it there):
+		// shown against that Placement, which a button selects; the runtime then logs nothing more.
+		doc.addEventListener("webcraft:component-error", (event) => {
+			const detail = (event as CustomEvent<{ name?: string; message?: string }>).detail ?? {};
+			event.preventDefault();
+			const root = event.target instanceof Element ? event.target : null;
+			const ref = root?.getAttribute("data-wc-code") ?? null;
+			logLine("error", word("componentError", { name: detail.name || "?", message: detail.message ?? "" }), ref);
+		});
 		win.addEventListener("error", (event) => {
 			const file = event.filename ? new URL(event.filename, win.location.href).pathname : "";
 			const line = word("scriptError", { message: event.message, file: file || "?", line: event.lineno || 0 });
@@ -1615,12 +1823,18 @@ export function codeMode(config: CodeModeConfig): void {
 		}
 	}
 
-	function logLine(level: "log" | "info" | "warn" | "error", text: string): void {
+	function logLine(level: "log" | "info" | "warn" | "error", text: string, ref: string | null = null): void {
 		if (!consoleList) {
 			if (level === "error" && pending.length < 50) pending.push(text);
 			return;
 		}
-		consoleList.append(el("li", { class: `console-line ${level}` }, text));
+		const line = el("li", { class: `console-line ${level}` }, text);
+		if (ref) {
+			const show = button({ class: "link-button" }, word("showPlacement"));
+			show.addEventListener("click", () => void select(ref));
+			line.append(" ", show);
+		}
+		consoleList.append(line);
 		while (consoleList.childElementCount > 200) consoleList.firstElementChild?.remove();
 		const log = consoleList.parentElement;
 		if (log) log.scrollTop = log.scrollHeight;

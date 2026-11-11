@@ -83,7 +83,14 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	type Problem = { at: string; message: string; rule?: string };
 	type Popup = { trigger: HTMLButtonElement; panel: HTMLElement; focus(): void; render?(): void };
 	/** One of the Site's own scripts that threw, or didn't load (`line` null). */
-	type Failure = { kind: "site" | "page" | "library"; name: string; message: string; line: number | null };
+	type Failure = {
+		kind: "site" | "page" | "library" | "component";
+		name: string;
+		/** For a Component script, its Component. */
+		componentId?: string;
+		message: string;
+		line: number | null;
+	};
 	/** Someone else in one of the page's shared Drafts (Co-editing, ADR 0025), as the server says. */
 	type Participant = {
 		id: string;
@@ -155,6 +162,18 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		},
 		true,
 	);
+	// A Component script's call that failed on one of its Placements (WebCraft's runtime reports it).
+	doc.addEventListener("webcraft:component-error", (event) => {
+		const detail = (event as CustomEvent<{ component?: string; name?: string; message?: string }>).detail ?? {};
+		failures.push({
+			kind: "component",
+			name: String(detail.name ?? ""),
+			componentId: String(detail.component ?? ""),
+			message: String(detail.message ?? "").slice(0, 300),
+			line: 0,
+		});
+		showFailures?.();
+	});
 	/** Lucide-style icons (24 × 24, stroked), by name. */
 	const ICONS: Record<string, string[]> = {
 		edit: [
@@ -342,9 +361,12 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		if (event instanceof ErrorEventType) {
 			if (!event.filename) return null;
 			for (const candidate of doc.querySelectorAll<HTMLScriptElement>(
-				"script[data-wc-script], script[data-wc-library]",
+				"script[data-wc-script], script[data-wc-library], script[data-wc-component-script]",
 			)) {
 				if (candidate.src === event.filename) script = candidate;
+				// A Component script's loader imports the script's own file, named by the same hash.
+				const hash = /\/component\/[^/]+\/([0-9a-f]{16})\.js$/.exec(candidate.src)?.[1];
+				if (hash && event.filename.endsWith(`/${hash}.js`)) script = candidate;
 			}
 			message = String(event.message ?? "").slice(0, 300);
 			line = event.lineno || 0;
@@ -354,6 +376,11 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		if (!script) return null;
 		const tagged = script.getAttribute("data-wc-script");
 		const library = script.getAttribute("data-wc-library");
+		const component = script.getAttribute("data-wc-component-script");
+		if (component !== null) {
+			const name = script.getAttribute("data-wc-component-name") ?? "";
+			return { kind: "component", name, componentId: component, message, line };
+		}
 		if (tagged === "site" || tagged === "page") return { kind: tagged, name: "", message, line };
 		if (library !== null) return { kind: "library", name: library, message, line };
 		return null;
@@ -785,7 +812,9 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		const what =
 			first.kind === "library"
 				? word("libraryFailed", { name: first.name })
-				: word(first.kind === "site" ? "siteScriptFailed" : "pageScriptFailed");
+				: first.kind === "component"
+					? word("componentScriptFailed", { name: first.name })
+					: word(first.kind === "site" ? "siteScriptFailed" : "pageScriptFailed");
 		const detail =
 			first.line === null
 				? word("scriptNotLoaded")
@@ -800,7 +829,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		}
 		if ((state?.canCode || coding) && first.kind !== "library") {
 			const codeButton = button({ class: "secondary small" }, icon("code"), word("openScript"));
-			const kind = first.kind;
+			const kind = first.kind === "component" ? `component:${first.componentId ?? ""}` : first.kind;
 			codeButton.addEventListener("click", () => void openScript(kind));
 			actions.push(codeButton);
 		}
@@ -1238,8 +1267,11 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		if (answer.ok) win.location.reload();
 	}
 
-	/** Opens the failed script in Code mode's JS panel: Code mode on, the panel told which script. */
-	async function openScript(kind: "site" | "page"): Promise<void> {
+	/**
+	 * Opens the failed script in Code mode's JS panel: Code mode on, the panel told which script
+	 * (`site`, `page`, or `component:<id>` for a Component's).
+	 */
+	async function openScript(kind: string): Promise<void> {
 		if (!coding) {
 			const answer = await call("code/start", {});
 			if (!answer.ok) return;

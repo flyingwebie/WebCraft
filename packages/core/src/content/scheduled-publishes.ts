@@ -1,5 +1,5 @@
 import type { Database } from "@webcraft/db";
-import { entries, scheduledPublishes, scheduledPublishItems } from "@webcraft/db/schema";
+import { entries, popups, scheduledPublishes, scheduledPublishItems } from "@webcraft/db/schema";
 import { and, asc, eq, inArray, isNull, lte } from "drizzle-orm";
 
 import { type AuditVia, clientNameOf, recordAudit } from "../audit.ts";
@@ -15,6 +15,7 @@ import { can, type PersonActor, personIdOf } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { BackgroundScope, DataLayer, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
+import { frozenComponentScript } from "./component-scripts.ts";
 import type { ComponentSources } from "./components.ts";
 import { draftVersion } from "./json.ts";
 import { orderForPublish, PublishAllInvalidError, PublishAllRefusedError, siteDrafts } from "./publish-all.ts";
@@ -64,7 +65,7 @@ export type ScheduledItem = {
 	name: string | null;
 	postType: { id: string; name: string } | null;
 	templateKind: string | null;
-	scriptKind: "site" | "page" | null;
+	scriptKind: "site" | "page" | "component" | null;
 	/** Its Draft differs from the version it will publish: later edits stay in the Draft. */
 	changedSinceScheduled: boolean;
 	/** It was deleted since it was scheduled: the Scheduled publish will fail unless it is taken out. */
@@ -168,7 +169,18 @@ async function freeze(scope: SiteScope, items: readonly PublishItem[]): Promise<
 	const frozen: Frozen[] = [];
 	for (const item of items) {
 		const { draft, summary } = await itemState(scope, item);
-		frozen.push({ item, content: draft, version: draftVersion(draft), name: summary.name });
+		// A Component (a Popup's too) is frozen with its Component script: one saved later waits.
+		const componentId =
+			item.kind === "component"
+				? item.id
+				: item.kind === "popup"
+					? (await scope.first(popups, eq(popups.id, item.id)))?.componentId
+					: undefined;
+		const content =
+			componentId && draft && typeof draft === "object"
+				? { ...draft, script: await frozenComponentScript(scope, componentId) }
+				: draft;
+		frozen.push({ item, content, version: draftVersion(draft), name: summary.name });
 	}
 	return frozen;
 }

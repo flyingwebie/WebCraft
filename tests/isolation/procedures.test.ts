@@ -492,6 +492,16 @@ describe("Components", () => {
 	isolation.refuses("components.saveMarkup", async (api, target) =>
 		api.components.saveMarkup({ siteId: target.siteId, componentId: await componentIn(target), markup: "<p>Hi</p>" }),
 	);
+	isolation.refuses("components.getScript", async (api, target) =>
+		api.components.getScript({ siteId: target.siteId, componentId: await componentIn(target) }),
+	);
+	isolation.refuses("components.saveScriptDraft", async (api, target) =>
+		api.components.saveScriptDraft({
+			siteId: target.siteId,
+			componentId: await componentIn(target),
+			code: "export default () => {};",
+		}),
+	);
 	isolation.refuses("components.publish", async (api, target) =>
 		api.components.publish({ siteId: target.siteId, componentId: await componentIn(target) }),
 	);

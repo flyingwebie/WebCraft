@@ -97,6 +97,8 @@ export const TOOL_PLACES = {
 	"components.getMarkup": place(["structure"], "structure.edit"),
 	"components.saveMarkup": place(["structure"], "structure.edit"),
 	"components.publish": publishing(["structure", "publishing"], "structure.edit"),
+	"components.getScript": place(["structure"], "structure.edit"),
+	"components.saveScriptDraft": place(["structure"], "structure.edit"),
 	"components.rename": place(["structure"], "structure.edit"),
 	"components.delete": place(["structure"], "structure.edit"),
 	"popups.list": place(["content", "structure"], "site.view"),
