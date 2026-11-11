@@ -40,11 +40,15 @@ export type DraftsNotice =
 	| { t: "published"; s: string; k: string; i: string | null; p: string | null; v: AuditVia | null };
 
 /** Set while the shared document itself writes a Draft: that write is already in the document. */
-const documentWrites = new AsyncLocalStorage<true>();
+const documentWrites = new AsyncLocalStorage<{ workspaceId: string; siteId: string; item: HistoryItem }>();
 
 /** Runs a save that the shared document makes, so the Draft row it writes isn't brought back into the document. */
-export function writingFromDocument<Result>(work: () => Promise<Result>): Promise<Result> {
-	return documentWrites.run(true, work);
+export function writingFromDocument<Result>(
+	scope: SiteScope,
+	item: HistoryItem,
+	work: () => Promise<Result>,
+): Promise<Result> {
+	return documentWrites.run({ workspaceId: scope.workspace.id, siteId: scope.site.id, item }, work);
 }
 
 function itemCondition(item: HistoryItem): SQL {
@@ -222,7 +226,14 @@ export async function mirrorDraftChange(
 	before: unknown,
 	after: unknown,
 ): Promise<void> {
-	if (documentWrites.getStore()) return;
+	const writing = documentWrites.getStore();
+	if (
+		writing?.workspaceId === scope.workspace.id &&
+		writing.siteId === scope.site.id &&
+		writing.item.kind === item.kind &&
+		itemIdOf(writing.item) === itemIdOf(item)
+	)
+		return;
 	const row = await lockDocument(scope, item);
 	if (!row) return;
 	await bringIn(scope, item, row, before, after, {

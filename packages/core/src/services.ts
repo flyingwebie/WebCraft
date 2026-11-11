@@ -397,7 +397,13 @@ export type InstallServices = InstallPorts & {
 		markup(
 			scope: SiteScope,
 			componentId: string,
-		): Promise<{ component: Component; markup: ComponentMarkup; version: string; usage: ComponentUsage }>;
+		): Promise<{
+			component: Component;
+			markup: ComponentMarkup;
+			version: string;
+			usage: ComponentUsage;
+			propImpact: import("./content/prop-migrations.ts").PropImpact;
+		}>;
 		/**
 		 * Saves its Draft from Template markup (and new Props, when given); inline styles become
 		 * generated Classes. With `basedOn`, refused when the Draft changed since that version.

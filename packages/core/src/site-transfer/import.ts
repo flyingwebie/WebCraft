@@ -9,6 +9,8 @@ import { z } from "zod";
 
 import { useDumpSettings } from "../backups/dump.ts";
 import { readTar, type TarEntry } from "../backups/tar.ts";
+import { storedComponentVersion } from "../content/component-versions.ts";
+import { capturePropContracts, retainedContract } from "../content/prop-migrations.ts";
 import { MediaQuotaFullError } from "../media/errors.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
 import { keyParts } from "../media/storage.ts";
@@ -867,6 +869,7 @@ async function asDrafts(
   FROM public.components c WHERE p.site_id=$1 AND c.site_id=p.site_id AND c.id=p.component_id AND p.published IS NOT NULL`,
 			[siteId],
 		);
+	await keepPublishedPropContracts(client, target, siteId, now);
 	for (const table of target.values()) {
 		if (table.schema !== "public") continue;
 		const has = (column: string) => table.columns.includes(column);
@@ -892,7 +895,7 @@ async function asDrafts(
 		for (const [draft, live] of pairs) {
 			const kind =
 				live === "emails_published" ? "formEmails" : live === "content_published" ? "popupContent" : kinds[table.table];
-			if (kind) {
+			if (kind && !["template", "component", "popup"].includes(kind)) {
 				const item = ["globals", "consentBanner", "designSystem"].includes(kind) ? "NULL::uuid" : "t.id";
 				const time =
 					live === "emails_published"
@@ -935,6 +938,58 @@ async function asDrafts(
 		await client.query(`UPDATE ${quoted(table)} SET ${sets.join(", ")} WHERE site_id = $1`, [siteId]);
 	}
 	return published;
+}
+
+/** Capture tree history before any published Component contracts are cleared; never load all history. */
+async function keepPublishedPropContracts(
+	client: pg.ClientBase,
+	target: ReadonlyMap<string, SiteTable>,
+	siteId: string,
+	now: Date,
+) {
+	for (const [name, kind] of [
+		["templates", "template"],
+		["components", "component"],
+		["popups", "popup"],
+	] as const) {
+		const table = target.get(`public.${name}`);
+		if (!table) continue;
+		const dates = ["last_published_at", "published_at"].filter((column) => table.columns.includes(column));
+		await client.query(
+			`DECLARE published_prop_items NO SCROLL CURSOR FOR SELECT id, workspace_id, published AS content,
+ coalesce(${[...dates.map(ident), "$2::timestamptz"].join(", ")}) AS at
+ FROM ${quoted(table)} WHERE site_id=$1 AND published IS NOT NULL ORDER BY id`,
+			[siteId, now],
+		);
+		try {
+			for (;;) {
+				const result = await client.query<{ id: string; workspace_id: string; content: unknown; at: Date }>(
+					"FETCH 1 FROM published_prop_items",
+				);
+				const row = result.rows[0];
+				if (!row) break;
+				const content = await capturePropContracts(kind, row.content, async (id) => {
+					const source = await client.query<{ version: unknown }>(
+						`SELECT jsonb_build_object('props', published->'props', 'propBaseline', published->'propBaseline',
+ 'propValueVersion', published->'propValueVersion') AS version FROM public.components WHERE site_id=$1 AND id=$2`,
+						[siteId, id],
+					);
+					if (!source.rows[0]) return undefined;
+					const version = storedComponentVersion(source.rows[0].version);
+					return retainedContract(version.props, version.propBaseline, version.propValueVersion !== 1);
+				});
+				await client.query(
+					`INSERT INTO public.revisions (workspace_id, site_id, item_kind, item_id, content, published_at, via)
+ SELECT $1, $2, $3, $4, $5::jsonb, $6, '{"kind":"command","name":"site import"}'::jsonb
+ WHERE NOT EXISTS (SELECT 1 FROM public.revisions WHERE site_id=$2 AND item_kind=$3 AND item_id=$4
+ AND (content=$5::jsonb OR content=$7::jsonb))`,
+					[row.workspace_id, siteId, kind, row.id, JSON.stringify(content), row.at, JSON.stringify(row.content)],
+				);
+			}
+		} finally {
+			await client.query("CLOSE published_prop_items");
+		}
+	}
 }
 
 /**

@@ -1108,6 +1108,13 @@
 										"items": {
 											"type": "object",
 											"properties": {
+												"id": {
+													"type": "string",
+													"maxLength": 100
+												},
+												"exposed": {
+													"type": "boolean"
+												},
 												"key": {
 													"type": "string",
 													"maxLength": 100
@@ -1273,6 +1280,13 @@
 													"items": {
 														"type": "object",
 														"properties": {
+															"id": {
+																"type": "string",
+																"maxLength": 100
+															},
+															"exposed": {
+																"type": "boolean"
+															},
 															"key": {
 																"type": "string",
 																"maxLength": 100
@@ -1614,6 +1628,13 @@
 										"items": {
 											"type": "object",
 											"properties": {
+												"id": {
+													"type": "string",
+													"maxLength": 100
+												},
+												"exposed": {
+													"type": "boolean"
+												},
 												"key": {
 													"type": "string",
 													"maxLength": 100
@@ -1779,6 +1800,13 @@
 													"items": {
 														"type": "object",
 														"properties": {
+															"id": {
+																"type": "string",
+																"maxLength": 100
+															},
+															"exposed": {
+																"type": "boolean"
+															},
 															"key": {
 																"type": "string",
 																"maxLength": 100
@@ -2788,6 +2816,13 @@
 										"items": {
 											"type": "object",
 											"properties": {
+												"id": {
+													"type": "string",
+													"maxLength": 100
+												},
+												"exposed": {
+													"type": "boolean"
+												},
 												"key": {
 													"type": "string",
 													"maxLength": 100
@@ -2953,6 +2988,13 @@
 													"items": {
 														"type": "object",
 														"properties": {
+															"id": {
+																"type": "string",
+																"maxLength": 100
+															},
+															"exposed": {
+																"type": "boolean"
+															},
 															"key": {
 																"type": "string",
 																"maxLength": 100
@@ -6326,6 +6368,13 @@
 										"items": {
 											"type": "object",
 											"properties": {
+												"id": {
+													"type": "string",
+													"maxLength": 100
+												},
+												"exposed": {
+													"type": "boolean"
+												},
 												"key": {
 													"type": "string",
 													"maxLength": 100
@@ -6491,6 +6540,13 @@
 													"items": {
 														"type": "object",
 														"properties": {
+															"id": {
+																"type": "string",
+																"maxLength": 100
+															},
+															"exposed": {
+																"type": "boolean"
+															},
 															"key": {
 																"type": "string",
 																"maxLength": 100
@@ -6725,6 +6781,13 @@
 										"items": {
 											"type": "object",
 											"properties": {
+												"id": {
+													"type": "string",
+													"maxLength": 100
+												},
+												"exposed": {
+													"type": "boolean"
+												},
 												"key": {
 													"type": "string",
 													"maxLength": 100
@@ -6890,6 +6953,13 @@
 													"items": {
 														"type": "object",
 														"properties": {
+															"id": {
+																"type": "string",
+																"maxLength": 100
+															},
+															"exposed": {
+																"type": "boolean"
+															},
 															"key": {
 																"type": "string",
 																"maxLength": 100
@@ -7185,6 +7255,13 @@
 										"items": {
 											"type": "object",
 											"properties": {
+												"id": {
+													"type": "string",
+													"maxLength": 100
+												},
+												"exposed": {
+													"type": "boolean"
+												},
 												"key": {
 													"type": "string",
 													"maxLength": 100
@@ -7350,6 +7427,13 @@
 													"items": {
 														"type": "object",
 														"properties": {
+															"id": {
+																"type": "string",
+																"maxLength": 100
+															},
+															"exposed": {
+																"type": "boolean"
+															},
 															"key": {
 																"type": "string",
 																"maxLength": 100
@@ -9355,6 +9439,13 @@
 										"items": {
 											"type": "object",
 											"properties": {
+												"id": {
+													"type": "string",
+													"maxLength": 100
+												},
+												"exposed": {
+													"type": "boolean"
+												},
 												"key": {
 													"type": "string",
 													"maxLength": 100
@@ -9520,6 +9611,13 @@
 													"items": {
 														"type": "object",
 														"properties": {
+															"id": {
+																"type": "string",
+																"maxLength": 100
+															},
+															"exposed": {
+																"type": "boolean"
+															},
 															"key": {
 																"type": "string",
 																"maxLength": 100
@@ -9789,6 +9887,13 @@
 										"items": {
 											"type": "object",
 											"properties": {
+												"id": {
+													"type": "string",
+													"maxLength": 100
+												},
+												"exposed": {
+													"type": "boolean"
+												},
 												"key": {
 													"type": "string",
 													"maxLength": 100
@@ -9954,6 +10059,13 @@
 													"items": {
 														"type": "object",
 														"properties": {
+															"id": {
+																"type": "string",
+																"maxLength": 100
+															},
+															"exposed": {
+																"type": "boolean"
+															},
 															"key": {
 																"type": "string",
 																"maxLength": 100

@@ -11,10 +11,12 @@ import { SCRIPT_PATH } from "../design-system/theme-toggle.ts";
  * classes and Unicode the same meaning. Its licence notice remains in the served file.
  *
  * Resolve from this package's entry, rather than this file: the web bundle lives in dist/server,
- * while the renderer and its installed dependencies remain in their workspace directories.
+ * while the renderer and its installed dependencies remain in their workspace directories. The entry
+ * is found with `require.resolve`, not `import.meta.resolve`: the dev server's module runner rewrites
+ * `import.meta.resolve` into a lookup that Bun can't load, so every request failed in `bun run dev`.
  */
 export const FORM_PATTERN_SCRIPT = (() => {
-	const require = createRequire(import.meta.resolve("@webcraft/renderer/forms"));
+	const require = createRequire(createRequire(import.meta.url).resolve("@webcraft/renderer/forms"));
 	const source = readFileSync(join(dirname(require.resolve("re2js")), "index.umd.js"), "utf8");
 	// Keep the UMD build's exports local, so loading it doesn't change any Site-script globals.
 	const text = `const exports = {}; const module = { exports };\n${source}\nexport const RE2JS = exports.RE2JS;\n`;

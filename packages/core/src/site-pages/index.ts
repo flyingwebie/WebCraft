@@ -2296,7 +2296,14 @@ export async function pageComponents(
 ): Promise<{ trees: ElementTree[]; render: PlacementRenderer }> {
 	const { catalogue, used } = await placedComponents(scope, trees, sources, shown.which, shown.replace);
 	const shownTrees = [...used.values()].map((version) => version.tree);
-	const related = await relatedOfProps(scope, [...trees, ...shownTrees], catalogue, languages, exposedPostTypes);
+	const related = await relatedOfProps(
+		scope,
+		[...trees, ...shownTrees],
+		catalogue,
+		languages,
+		shown.which,
+		exposedPostTypes,
+	);
 	return {
 		trees: shownTrees,
 		render: (componentId, props, outer) => {
@@ -2310,12 +2317,13 @@ export async function pageComponents(
 	};
 }
 
-/** The published Entries Relationship Props written as Entry ids point at, with their Post Type's key. */
+/** Relationship Props follow the page's Draft/live view, with their Post Type's key. */
 async function relatedOfProps(
 	scope: ReadScope,
 	trees: readonly (ElementTree | undefined)[],
 	catalogue: SiteComponents,
 	languages: { language: string; defaultLanguage: string },
+	which: "draft" | "published",
 	exposedPostTypes?: readonly PostType[],
 ): Promise<Map<string, RelatedEntry & { postTypeKey: string }>> {
 	const ids: string[] = [];
@@ -2323,6 +2331,7 @@ async function relatedOfProps(
 		for (const placement of placementsIn(tree?.nodes ?? [])) {
 			const props = catalogue.version(placement.component)?.props ?? [];
 			for (const given of placement.props) {
+				if (given.retained) continue;
 				const prop = props.find((candidate) => candidate.key === given.name);
 				if (prop?.type !== "relationship" || given.value.some((part) => part.type === "value")) continue;
 				const value = propValue(prop, given.value.map((part) => (part.type === "text" ? part.text : "")).join(""));
@@ -2334,7 +2343,7 @@ async function relatedOfProps(
 	const postTypes = exposedPostTypes ?? (await listPostTypes(scope));
 	const keys = new Map(postTypes.map((postType) => [postType.id, postType.key]));
 	const related = new Map<string, RelatedEntry & { postTypeKey: string }>();
-	for (const [id, entry] of await relatedEntries(scope, postTypes, ids, languages)) {
+	for (const [id, entry] of await relatedEntries(scope, postTypes, ids, languages, which)) {
 		related.set(id, { ...entry, postTypeKey: keys.get(entry.postTypeId) ?? "" });
 	}
 	return related;

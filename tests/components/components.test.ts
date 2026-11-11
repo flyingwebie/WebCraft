@@ -138,7 +138,7 @@ describe("a Component's Draft", () => {
 		});
 
 		const ids = [...saved.markup.matchAll(/data-wc-id="([A-Za-z0-9]{12})"/g)].map((match) => match[1]);
-		expect(saved.markup).toBe(
+		expect(saved.markup.split("{{/props}}\n")[1]).toBe(
 			`<aside data-wc-id="${ids[0]}"><h2 data-wc-id="${ids[1]}">{{ props.heading }}</h2>` +
 				`<a href="{{ props.link.url }}" data-wc-id="${ids[2]}">{{ props.link.text }}</a> Call {{ site.phone }}</aside>`,
 		);
@@ -192,7 +192,7 @@ describe("a Component's Draft", () => {
 		});
 	});
 
-	test("saved with new Props, its markup is checked against them; a Prop keeps its type", async () => {
+	test("saved with new Props, its markup is checked against them, including a changed type", async () => {
 		const { component } = await staff.api.components.create({
 			siteId,
 			name: "Teaser",
@@ -213,16 +213,15 @@ describe("a Component's Draft", () => {
 			["count", "number"],
 		]);
 
-		await expect(
-			staff.api.components.saveDraft({
-				siteId,
-				componentId: component.id,
-				props: [{ key: "heading", label: "Heading", type: "number" }],
-			}),
-		).rejects.toMatchObject({
-			code: "COMPONENT_INVALID",
-			data: { problems: [{ at: "props[0].type", message: "heading is a text Prop; a Prop keeps its type." }] },
+		const changed = await staff.api.components.saveDraft({
+			siteId,
+			componentId: component.id,
+			props: [
+				{ key: "heading", label: "Heading", type: "number" },
+				{ key: "count", label: "Count", type: "number" },
+			],
 		});
+		expect(changed.component.draft.props[0]?.type).toBe("number");
 		await expect(
 			staff.api.components.saveDraft({
 				siteId,

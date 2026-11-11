@@ -97,6 +97,8 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 	let documentId: string | null = null;
 	let transport: DraftTransport | null = null;
 	let welcomed = false;
+	/** Reconnect's initial sync carries queued edits; numbered changes wait until it has done so. */
+	let synchronizing = true;
 	let mayEdit = true;
 	let ended = false;
 	let closedForGood = false;
@@ -131,7 +133,7 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 
 	const settled = (): DraftStatus => {
 		if (ended) return "ended";
-		if (!transport || !welcomed || !synced)
+		if (!transport || !welcomed || !synced || synchronizing)
 			return offlineSince !== null && now() - offlineSince >= offlineLimit
 				? "readOnly"
 				: transport || !synced
@@ -164,7 +166,7 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 		clearTimeout(timer);
 		timer = undefined;
 		scheduled = false;
-		if (!transport || !welcomed || resetting || unsent.length === 0 || !mayEdit) return;
+		if (!transport || !welcomed || synchronizing || resetting || unsent.length === 0 || !mayEdit) return;
 		const update = unsent.length === 1 ? (unsent[0] ?? new Uint8Array()) : Y.mergeUpdates(unsent);
 		unsent = [];
 		seq += 1;
@@ -258,6 +260,7 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 					// After a refusal the refused change is gone; a document made again keeps what wasn't saved.
 					startAgain(frame.data, !afterRefusal);
 					resetting = false;
+					synchronizing = false;
 					afterRefusal = false;
 					transport?.send(encodeFrame("sync", Y.encodeStateVector(doc)));
 					setStatus(settled());
@@ -283,6 +286,7 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 					transport?.send(encodeFrame("state", missing));
 					stateUnsaved = true;
 				}
+				synchronizing = false;
 				setStatus(settled());
 				return;
 			}
@@ -352,6 +356,7 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 		connect(next) {
 			transport = next;
 			welcomed = false;
+			synchronizing = true;
 			setStatus(settled());
 			return { receive, closed: lost };
 		},

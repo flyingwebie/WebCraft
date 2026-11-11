@@ -38,6 +38,7 @@ import { draftVersion, type SaveBase, sameJson } from "./json.ts";
 import { loopCatalogue } from "./loops.ts";
 import { isPagePostType } from "./pages.ts";
 import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
+import { restorePropContracts, retainPropBindings, upgradePropValueContracts } from "./prop-migrations.ts";
 import { knownValues, loopItemKnownValues } from "./render-values.ts";
 import { checkRetainedModulePlacements } from "./retained-module-props.ts";
 
@@ -378,15 +379,11 @@ async function saveTemplate(
 		scope.transaction(async (tx) => {
 			// The Components it places can't be deleted while it is saved.
 			await lockComponents(tx);
+			await upgradePropValueContracts(tx);
 			const { ids } = classCatalogue(await draftDesignSystem(tx));
-			const draft = parseTemplate(
-				tree,
-				target,
-				ids,
-				await siteComponents(tx, "draft", sources),
-				await loopCatalogue(tx, "draft"),
-			);
-			return writeTemplateDraft(tx, target, draft);
+			const catalogue = await siteComponents(tx, "draft", sources);
+			const draft = parseTemplate(tree, target, ids, catalogue, await loopCatalogue(tx, "draft"));
+			return writeTemplateDraft(tx, target, draft, catalogue);
 		}),
 	);
 }
@@ -432,6 +429,7 @@ async function saveTemplateMarkup(
 				const version = current ? draftVersion(current.draft) : null;
 				if (version !== base.basedOn) throw new DraftChangedError(version);
 			}
+			await upgradePropValueContracts(tx);
 			const catalogue = classCatalogue(await draftDesignSystem(tx));
 			const components = await siteComponents(tx, "draft", sources);
 			const { tree, notices } = parseTemplateMarkup(markup, {
@@ -440,7 +438,7 @@ async function saveTemplateMarkup(
 				classForStyle: catalogue.forStyle,
 			});
 			await saveCreatedClasses(tx, catalogue);
-			const template = await writeTemplateDraft(tx, target, tree);
+			const template = await writeTemplateDraft(tx, target, tree, components);
 			return {
 				template,
 				markup: printMarkup(template.draft, catalogue, components),
@@ -592,7 +590,12 @@ function printMarkup(tree: ElementTree, catalogue: ClassCatalogue, components: S
 }
 
 /** Writes a checked tree as the Draft of the Template `target` names, creating it the first time. */
-async function writeTemplateDraft(scope: SiteScope, target: TemplateTarget, draft: ElementTree): Promise<Template> {
+async function writeTemplateDraft(
+	scope: SiteScope,
+	target: TemplateTarget,
+	input: ElementTree,
+	catalogue: SiteComponents,
+): Promise<Template> {
 	const now = scope.now();
 	const updatedBy = personIdOf(scope.access.actor);
 	const updatedVia = clientNameOf(scope.access.via);
@@ -601,6 +604,8 @@ async function writeTemplateDraft(scope: SiteScope, target: TemplateTarget, draf
 		.from(templates)
 		.where(scope.where(templates, whereFor(target)))
 		.for("update");
+	const restored = restorePropContracts(input, catalogue);
+	const draft = before ? retainPropBindings(restored, before.draft as ElementTree) : restored;
 	await checkRetainedModulePlacements(scope, draft, before?.draft as ElementTree | undefined);
 	const [updated] = await scope.update(templates, { draft, updatedAt: now, updatedBy, updatedVia }, whereFor(target));
 	const row =

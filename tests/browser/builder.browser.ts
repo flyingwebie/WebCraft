@@ -522,7 +522,9 @@ test("a Component: its fixed text becomes a Prop, saved with it, the text as its
 	await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
 
 	const saved = await api.components.getMarkup({ siteId, componentId: component.id });
-	expect(saved.markup.draft).toBe('<aside data-wc-id="n"><p data-wc-id="m">{{ props.message }}</p></aside>');
+	expect(saved.markup.draft.split("{{/props}}\n")[1]).toBe(
+		'<aside data-wc-id="n"><p data-wc-id="m">{{ props.message }}</p></aside>',
+	);
 	expect(saved.component.draft.props).toEqual([
 		expect.objectContaining({ key: "message", label: "Message", type: "text", default: "Closed on Sundays" }),
 	]);
@@ -553,3 +555,31 @@ for (const theme of THEMES) {
 		await expectAccessibleScreen(page, `Builder › Template markup (${theme})`, CANVAS);
 	});
 }
+
+for (const theme of THEMES)
+	test(`Component declarations preview and apply from the keyboard in ${theme}`, async () => {
+		const { api } = await install.install.superadmin();
+		const workspaceId = (await install.install.createWorkspace()).id;
+		const siteId = (await install.install.createSite(workspaceId)).id;
+		const staff = (await install.install.createStaff({ workspaces: [workspaceId] })).account;
+		const { component } = await api.components.create({ siteId, name: theme === "light" ? "LightProps" : "DarkProps" });
+		const page = await install.newPage(theme);
+		await install.signIn(page, staff);
+		await page.goto(install.adminUrl(`/builder/${siteId}/component/${component.id}`));
+		const button = page.getByRole("button", { name: "Template markup", exact: true });
+		await button.focus();
+		await page.keyboard.press("Enter");
+		const markup = page.getByRole("textbox", { name: "Template markup" });
+		await markup.fill(
+			'{{@props}}\nheading: text exposed default="Preview words"\n{{/props}}\n<h2>{{ props.heading }}</h2>',
+		);
+		await page.frameLocator("iframe[title^='Canvas']").getByText("Preview words").waitFor();
+		await expectAccessibleScreen(page, `Component Props ${theme}`, CANVAS);
+		await page.getByRole("button", { name: "Visual", exact: true }).focus();
+		await page.keyboard.press("Enter");
+		await page.getByRole("tree", { name: "Layers" }).waitFor();
+		await page.keyboard.press("ControlOrMeta+s");
+		await page.getByRole("button", { name: "Save", exact: true }).and(page.locator("[disabled]")).waitFor();
+		const saved = await api.components.getMarkup({ siteId, componentId: component.id });
+		expect(saved.component.draft.props[0]).toMatchObject({ key: "heading", exposed: true, default: "Preview words" });
+	});
