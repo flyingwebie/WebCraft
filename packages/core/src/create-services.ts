@@ -231,9 +231,22 @@ export async function createInstallServices(
 		database,
 		clock,
 		secrets: store,
+		// Each listener hears of every entry, whatever the others do: one that fails is logged.
 		afterAudit: async (entry) => {
-			for (const listener of listeners.afterAudit) await listener(entry);
+			for (const listener of listeners.afterAudit) {
+				try {
+					await listener(entry);
+				} catch (error) {
+					log.error("What follows a saved change failed", {
+						action: entry.action,
+						workspaceId: entry.workspaceId,
+						siteId: entry.siteId,
+						error,
+					});
+				}
+			}
 		},
+		log,
 	});
 	// Email reads the Install SMTP's password and a Site's own server's, each only for its send.
 	// A queued email may name a file to send with it (a Report's PDF), read when it is sent; Reports
@@ -310,7 +323,7 @@ export async function createInstallServices(
 		countries: ports.countries,
 		visitorIdKey: await visitorIdKey(masterKey),
 	});
-	listeners.afterAudit.push(modules.afterAudit, webhooks.afterAudit, socialCardsAfterAudit(ports.jobs));
+	listeners.afterAudit.push(modules.afterAudit, webhooks.afterAudit, socialCardsAfterAudit(ports.jobs, log));
 	// The Components of Modules: placed on Sites where their Module runs.
 	const componentSources = modules.components;
 	const actors = { person: (personId: string) => loadPersonActor(database.db, personId) };

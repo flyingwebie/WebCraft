@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
+import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { API_PATH, createTestInstall, type TestAccount, type TestInstall } from "../harness/index.ts";
 
 let install: TestInstall;
@@ -38,6 +39,57 @@ describe("the Management API at /api/rpc", () => {
 
 		expect(response.status).toBe(403);
 		expect((await browser.api.shell.context()).banners.masterKey).toBe(true);
+	});
+
+	/** Confirms the Master key is stored, signed in as the Superadmin, with `headers`; answers the status. */
+	async function confirmStored(headers: Record<string, string>) {
+		const browser = await install.signIn(superadmin);
+		const cookie = Array.from(browser.cookies, ([name, value]) => `${name}=${value}`).join("; ");
+		const response = await install.request(install.adminUrl(`${API_PATH}/install/masterKey/confirmStored`), {
+			method: "POST",
+			headers: { "content-type": "application/json", cookie, ...headers },
+			body: JSON.stringify({ json: {} }),
+		});
+		return { status: response.status, banner: (await browser.api.shell.context()).banners.masterKey };
+	}
+
+	test("refuses a page whose Origin isn't the admin's own, whatever the browser says of the site", async () => {
+		const admin = new URL(install.adminUrl("/"));
+		const otherPort = `${admin.protocol}//${admin.hostname}:${Number(admin.port || 443) + 1}`;
+		const refused: Record<string, string>[] = [
+			{ origin: "https://attacker.example" },
+			{ origin: otherPort },
+			{ origin: otherPort, "sec-fetch-site": "same-origin" },
+			{ origin: "null" },
+			{ "sec-fetch-site": "same-site" },
+		];
+		for (const headers of refused) {
+			expect({ headers, ...(await confirmStored(headers)) }).toEqual({ headers, status: 403, banner: true });
+		}
+	});
+
+	test("takes the admin's own pages, and callers that aren't browsers", async () => {
+		expect(
+			(await confirmStored({ origin: new URL(install.adminUrl("/")).origin, "sec-fetch-site": "same-origin" })).status,
+		).toBe(200);
+		expect((await confirmStored({})).status).toBe(200);
+	});
+
+	test("API tokens never use it: the public API takes them whatever page sent the request", async () => {
+		const browser = await install.signIn(superadmin);
+		const workspaceId = (await install.createWorkspace()).id;
+		const { secret } = await createApiToken(browser, { workspaceId, name: "Deploy" });
+
+		const response = await tokenClient(install, secret).request("sites/list", {
+			headers: {
+				"content-type": "application/json",
+				origin: "https://attacker.example",
+				"sec-fetch-site": "cross-site",
+			},
+			body: JSON.stringify({ workspaceId }),
+		});
+
+		expect(response.status).toBe(200);
 	});
 
 	test("answers are never cached", async () => {

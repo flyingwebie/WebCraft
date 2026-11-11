@@ -80,6 +80,16 @@ export const importFiles = pgTable(
 		key: text("key").notNull(),
 		/** What reading it found: its columns and first row, how many rows, its separator. */
 		details: jsonb("details").notNull(),
+		/**
+		 * When the worker was last asked to survey it. A file left `surveying` long after it lost its
+		 * worker, and is surveyed again.
+		 */
+		surveyStartedAt: timestamp("survey_started_at", { withTimezone: true }),
+		/**
+		 * How many times it was surveyed again after its worker stopped. Only the survey sent for the
+		 * current attempt records what it found.
+		 */
+		surveyAttempt: integer("survey_attempt").notNull().default(0),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		/** When it is deleted if no run took it. */
 		expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
@@ -131,6 +141,16 @@ export const importRuns = pgTable(
 		startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
 		/** When someone asked it to stop: it finishes the item it is on, keeping what's done. */
 		stopRequestedAt: timestamp("stop_requested_at", { withTimezone: true }),
+		/**
+		 * When the run last moved on (started, went through an item, was picked up again). A run left
+		 * `waiting` or `running` that stopped moving lost its worker, and is picked up again.
+		 */
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+		/**
+		 * How many times it was picked up again after its worker stopped. Only the jobs sent for the
+		 * current attempt go on with the run.
+		 */
+		attempt: integer("attempt").notNull().default(0),
 		finishedAt: timestamp("finished_at", { withTimezone: true }),
 		undoneAt: timestamp("undone_at", { withTimezone: true }),
 		undoneBy: uuid("undone_by").references(() => people.id, { onDelete: "set null" }),

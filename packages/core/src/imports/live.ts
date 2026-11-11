@@ -141,6 +141,7 @@ export async function connectSource(
 				storage: target.kind,
 				key: `${siteFolder(tx.site)}/imports/${id}`,
 				details: { live: { importId, connection, survey } },
+				surveyStartedAt: tx.now(),
 				createdAt: tx.now(),
 				expiresAt: new Date(tx.now().getTime() + IMPORT_FILE_LIFETIME_MS),
 			});

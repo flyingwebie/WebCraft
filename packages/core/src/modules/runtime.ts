@@ -389,7 +389,7 @@ async function moduleHttp(
 				// A call that carries a secret never follows a redirect: the secret stays with the declared host.
 				maxRedirects: binding || values.size > 0 ? 0 : undefined,
 			});
-			if (!binding) return response;
+			if (!binding) return values.size > 0 ? withoutSecrets(response, [...values.values()]) : response;
 			let content = await response.text();
 			const clean = (input: string) => {
 				let out = input;
@@ -440,6 +440,37 @@ async function moduleHttp(
 		}
 	};
 	return withSecrets(names, new Map());
+}
+
+/**
+ * What a host answered a Module's own call that carried secrets, with every one of them taken out
+ * (as written, JSON-escaped, or percent-encoded as the address carries it) from its body and its
+ * headers: a host that repeats the request it got must not hand a secret to the Module's code. The
+ * body is worked on as bytes, so an answer that isn't text arrives as it was sent.
+ */
+async function withoutSecrets(response: Response, secrets: readonly string[]): Promise<Response> {
+	const forms = [
+		...new Set(
+			secrets.flatMap((secret) =>
+				secret ? [secret, JSON.stringify(secret).slice(1, -1), encodeURIComponent(secret)] : [],
+			),
+		),
+	].sort((a, b) => b.length - a.length);
+	const clean = (text: string) => forms.reduce((out, form) => out.split(form).join("[redacted]"), text);
+	// One Latin-1 character per byte: a secret is found by its UTF-8 bytes, and other bytes stay as they are.
+	let bytes = Buffer.from(await response.arrayBuffer()).toString("latin1");
+	for (const form of forms) bytes = bytes.split(Buffer.from(form, "utf8").toString("latin1")).join("[redacted]");
+	const headers = new Headers();
+	for (const [name, value] of response.headers) {
+		// The body was read (and decoded) here: its length and encoding are no longer the host's.
+		if (name === "content-length" || name === "content-encoding") continue;
+		headers.append(name, clean(value));
+	}
+	return new Response([204, 205, 304].includes(response.status) ? null : Buffer.from(bytes, "latin1"), {
+		status: response.status,
+		statusText: response.statusText,
+		headers,
+	});
 }
 
 /** Whether an error is a Module's own answer (`ModuleError`), which isn't a failure. */

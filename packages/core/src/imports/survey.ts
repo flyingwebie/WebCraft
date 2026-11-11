@@ -9,10 +9,11 @@
 import { importFiles } from "@webcraft/db/schema";
 import { isModuleError, type SourceFile, type SourceItem, type SourceValue } from "@webcraft/module-sdk";
 import { textFromHtml } from "@webcraft/renderer/body";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull, lt, or } from "drizzle-orm";
 import { z } from "zod";
 import { defineJob, type JobContext } from "../jobs/define.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
+import type { BackgroundScope } from "../tenancy/data-layer.ts";
 import { IMPORT_FILE_LIFETIME_MS } from "./files.ts";
 import { captureLive } from "./live.ts";
 import { streamParts } from "./uploads.ts";
@@ -92,31 +93,39 @@ export function sourceFileOf(storage: InstallStorage, row: FileRow): SourceFile 
 	};
 }
 
-/** Surveys a source's file in the worker (see the module's comment). */
+/** How long a survey's job may run before the job queue gives up on it. */
+const SURVEY_JOB_SECONDS = 60 * 60;
+
+/**
+ * Surveys a source's file in the worker (see the module's comment), for the attempt the job was sent
+ * for (0 until the file is surveyed again; see `recoverSurveys`).
+ */
 export const importsSurvey = defineJob({
 	name: "imports.survey",
-	payload: z.object({ siteId: z.uuid(), fileId: z.uuid() }),
-	queue: { retryLimit: 0, expireInSeconds: 60 * 60 },
-	run: ({ siteId, fileId }, context) => runSurvey(context, siteId, fileId),
+	payload: z.object({ siteId: z.uuid(), fileId: z.uuid(), attempt: z.number().int().min(0).optional() }),
+	queue: { retryLimit: 0, expireInSeconds: SURVEY_JOB_SECONDS },
+	run: ({ siteId, fileId, attempt }, context) => runSurvey(context, siteId, fileId, attempt ?? 0),
 });
 
-async function runSurvey(context: JobContext, siteId: string, fileId: string): Promise<void> {
+/**
+ * A file still `surveying` this long after its survey started lost its worker (killed, out of
+ * memory, or its job was never sent): longer than a survey's job may run.
+ */
+export const STALLED_SURVEY_MS = SURVEY_JOB_SECONDS * 1000 + 30 * 60_000;
+
+/** How many times a file is surveyed again before it is refused instead (see `RUN_ATTEMPTS`). */
+export const SURVEY_ATTEMPTS = 3;
+
+/** Why a file whose survey kept stopping its worker, or failed unexpectedly, is refused. */
+const SURVEY_FAILED = { code: "error", message: "The file couldn't be read." };
+
+async function runSurvey(context: JobContext, siteId: string, fileId: string, attempt: number): Promise<void> {
 	const scope = await context.data.background(siteId);
 	const row = scope ? await scope.first(importFiles, eq(importFiles.id, fileId)) : undefined;
 	if (!scope || !row || row.status !== "surveying") return;
-	const finish = async (result: SourceFileDetails) => {
-		const details = { ...(row.details as SourceFileDetails), ...result };
-		const now = scope.now();
-		await scope.update(
-			importFiles,
-			{
-				status: details.survey ? "ready" : "refused",
-				details,
-				expiresAt: new Date(now.getTime() + IMPORT_FILE_LIFETIME_MS),
-			},
-			eq(importFiles.id, row.id),
-		);
-	};
+	// The file was surveyed again after this job was sent: the new attempt's job records the survey.
+	if (row.surveyAttempt !== attempt) return;
+	const finish = (result: SourceFileDetails) => finishSurvey(scope, row, result);
 	const source = await context.modules.importSource(scope.site, row.source);
 	if (!source) {
 		return finish({ refusal: { code: "source", message: "The Module reading this file isn't on for the Site." } });
@@ -132,7 +141,83 @@ async function runSurvey(context: JobContext, siteId: string, fileId: string): P
 		const refusal = refusalOf(error);
 		if (refusal) return finish({ refusal });
 		context.log.error("An import source couldn't survey a file", { siteId, fileId, error });
-		return finish({ refusal: { code: "error", message: "The file couldn't be read." } });
+		return finish({ refusal: SURVEY_FAILED });
+	}
+}
+
+/** Records what a file's survey found (or why it was refused), for the attempt that surveyed it. */
+async function finishSurvey(scope: BackgroundScope, row: FileRow, result: SourceFileDetails): Promise<void> {
+	const details = { ...(row.details as SourceFileDetails), ...result };
+	const now = scope.now();
+	await scope.update(
+		importFiles,
+		{
+			status: details.survey ? "ready" : "refused",
+			details,
+			expiresAt: new Date(now.getTime() + IMPORT_FILE_LIFETIME_MS),
+		},
+		and(
+			eq(importFiles.id, row.id),
+			eq(importFiles.status, "surveying"),
+			eq(importFiles.surveyAttempt, row.surveyAttempt),
+		),
+	);
+}
+
+/**
+ * Surveys again, on every Site, the files whose survey lost its worker (`STALLED_SURVEY_MS`), with a
+ * new attempt whose job is the only one that records the survey. A file surveyed again
+ * `SURVEY_ATTEMPTS` times already is refused instead.
+ */
+export async function recoverSurveys(context: JobContext): Promise<void> {
+	const { database, data, jobs, clock, log } = context;
+	const before = new Date(clock.now().getTime() - STALLED_SURVEY_MS);
+	// A file that started surveying before its start was recorded counts as stalled.
+	const stalled = and(
+		eq(importFiles.status, "surveying"),
+		or(isNull(importFiles.surveyStartedAt), lt(importFiles.surveyStartedAt, before)),
+	);
+	// Install-wide enumeration only; each file is read and changed in its Site's background scope.
+	const sites = await database.db.selectDistinct({ siteId: importFiles.siteId }).from(importFiles).where(stalled);
+	for (const { siteId } of sites) {
+		const scope = await data.background(siteId);
+		if (!scope) continue;
+		for (const { id } of await scope.select(importFiles, stalled)) {
+			const picked = await scope.transaction(async (tx) => {
+				const [row] = await tx.db
+					.select()
+					.from(importFiles)
+					.where(tx.where(importFiles, and(eq(importFiles.id, id), stalled)))
+					.for("update");
+				// It was surveyed meanwhile.
+				if (!row) return null;
+				if (row.surveyAttempt >= SURVEY_ATTEMPTS) {
+					await finishSurvey(tx, row, { refusal: SURVEY_FAILED });
+					return { row, again: false };
+				}
+				const [saved] = await tx.update(
+					importFiles,
+					{ surveyAttempt: row.surveyAttempt + 1, surveyStartedAt: tx.now() },
+					eq(importFiles.id, row.id),
+				);
+				return { row: saved as FileRow, again: true };
+			});
+			if (!picked) continue;
+			const { row, again } = picked;
+			if (again) {
+				log.warn("An Import file's survey lost its worker: it is surveyed again", {
+					siteId,
+					fileId: row.id,
+					attempt: row.surveyAttempt,
+				});
+				await jobs.send(importsSurvey, { siteId, fileId: row.id, attempt: row.surveyAttempt });
+			} else {
+				log.warn("An Import file's survey lost its worker too many times: the file is refused", {
+					siteId,
+					fileId: row.id,
+				});
+			}
+		}
 	}
 }
 

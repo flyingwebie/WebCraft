@@ -312,7 +312,23 @@ export type TestInstall = {
 		 * together share a queue's jobs as two workers do.
 		 */
 		batchSize?: number;
+		/**
+		 * How many rounds the drain goes through at most: 1 runs only the jobs due when it starts,
+		 * leaving the jobs they enqueue waiting. Unless given, it goes on until nothing is due.
+		 */
+		rounds?: number;
 	}): Promise<DrainReport>;
+	/**
+	 * A worker takes the due jobs with these names and stops for good while running them (killed,
+	 * out of memory): the jobs stay taken and never finish, and nothing they would have written is
+	 * written. Answers how many it took.
+	 */
+	crashJobs(options: { only: readonly string[] }): Promise<number>;
+	/**
+	 * Makes the job queue refuse to take jobs with these names, as a queue with a passing failure
+	 * does (sending one throws), until called again without them (`refuseJobs([])`).
+	 */
+	refuseJobs(names: readonly string[]): void;
 	/**
 	 * Every secret of the Install, encrypted under its Master key: set, use and describe them, for
 	 * the Install, a Workspace or a Site (`{ owner: { kind: "site", workspaceId, siteId }, name }`).
@@ -411,6 +427,15 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	const storageDir = mkdtempSync(join(tmpdir(), "webcraft-storage-"));
 	const backupDir = mkdtempSync(join(tmpdir(), "webcraft-backups-"));
 	const logs: LogEntry[] = [];
+	// The names of the jobs the job queue refuses to take (`refuseJobs`).
+	const refused = new Set<string>();
+	const refusing = (queue: JobQueue): JobQueue => ({
+		...queue,
+		send: (job, payload, sendOptions) =>
+			refused.has(job.name)
+				? Promise.reject(new Error(`The job queue did not accept a "${job.name}" job.`))
+				: queue.send(job, payload, sendOptions),
+	});
 	const log = createLogger({ clock, write: (entry) => logs.push(entry) });
 	// Transactional job sends use the application's pool rather than pg-boss's own pool. Both
 	// must opt into TestClock; real CLI processes keep the unmodified URL and their real clock.
@@ -483,7 +508,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			errorDsn: options.errorDsn === undefined ? null : parseErrorDsn(options.errorDsn),
 		},
 		database,
-		jobs: boss ? createJobQueue(boss) : withoutJobQueue(mode),
+		jobs: boss ? refusing(createJobQueue(boss)) : withoutJobQueue(mode),
 		mailer: mail,
 		http: http.fetch,
 		dns: dns.resolver,
@@ -697,7 +722,17 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 			// The 404 log's misses wait in the web process for a few seconds; the drain hands them over first.
 			await services.modules.flushMisses();
 			await sendDueSchedules(boss, services.jobs, clock, schedulesCheckedAt, options.healthChecks === true);
-			return drainJobs(boss, services, drainOptions.only, drainOptions.batchSize);
+			return drainJobs(boss, services, drainOptions.only, drainOptions.batchSize, drainOptions.rounds);
+		},
+		refuseJobs: (names) => {
+			refused.clear();
+			for (const name of names) refused.add(name);
+		},
+		crashJobs: async ({ only }) => {
+			if (!boss) throw new Error(`An Install with an ${started} database has no job queue.`);
+			let taken = 0;
+			for (const name of only) taken += (await boss.fetch(name, { batchSize: 100 })).length;
+			return taken;
 		},
 		get secrets() {
 			return secrets;
@@ -796,7 +831,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 				throw error;
 			}
 			boss = await startJobQueue();
-			ports.jobs = createJobQueue(boss);
+			ports.jobs = refusing(createJobQueue(boss));
 			started = "migrated";
 			Object.assign(services, await start(masterKey));
 			return report;
@@ -854,10 +889,12 @@ async function drainJobs(
 	services: InstallServices,
 	only?: readonly string[],
 	batchSize = 100,
+	rounds?: number,
 ): Promise<DrainReport> {
 	const report: DrainReport = { completed: [], failed: [] };
 	const jobs = only ? coreJobs.filter((job) => only.includes(job.name)) : coreJobs;
 	for (let round = 0; round < MAX_DRAIN_ROUNDS; round++) {
+		if (rounds !== undefined && round >= rounds) return report;
 		let ran = 0;
 		for (const job of jobs) {
 			for (const item of await boss.fetch(job.name, { batchSize })) {

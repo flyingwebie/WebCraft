@@ -25,6 +25,9 @@ export function placeQueries(scope: PlaceScope): ScopedQueries<WorkspaceTable, "
 	return scope as unknown as ScopedQueries<WorkspaceTable, "workspaceId">;
 }
 
+/** The columns placing a row in its Workspace and Site: the data layer's to fill, never a Module's to change. */
+const TENANCY_KEYS = new Set(["workspaceId", "siteId"]);
+
 /**
  * A Module's tables, limited to the place `scope` opened: the data layer adds the place's condition
  * to every query and fills in the Workspace (and Site); a table that isn't one of the Module's is
@@ -77,8 +80,16 @@ export function moduleData(
 			return changed(table, inserted, 1) as never;
 		},
 		update: async (table, set, where?: SQL) => {
-			const { siteId: _site, ...rest } = set as Record<string, unknown>;
-			const updated = await queries.update(own(table), rest as never, where);
+			const owned = own(table);
+			// A row stays in its place: whatever the Module sends, its Workspace and Site never change.
+			const columns = getTableColumns(owned);
+			const changes = Object.fromEntries(
+				Object.entries(set as Record<string, unknown>).filter(
+					([key]) => Object.hasOwn(columns, key) && !TENANCY_KEYS.has(key),
+				),
+			);
+			if (Object.keys(changes).length === 0) return queries.select(owned, where) as never;
+			const updated = await queries.update(owned, changes as never, where);
 			return changed(table, updated, updated.length) as never;
 		},
 		delete: async (table, where?: SQL) => {
