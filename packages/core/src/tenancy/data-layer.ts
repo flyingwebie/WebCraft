@@ -312,6 +312,7 @@ export function createDataLayer({
 			const resource: Resource = { level: "workspace", workspaceId: workspace.id };
 			if (!can(access.actor, "workspace.view", resource)) throw new WorkspaceNotFoundError();
 			check(access.actor, permission, resource);
+			noteLogPlace({ workspaceId: workspace.id });
 			return workspaceScope(executor, access, workspace, afterCommit);
 		},
 	});

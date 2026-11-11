@@ -183,6 +183,7 @@ await site.audit("entry.publish", { entryId: entry.id }); // who, when, how, Wor
 - `services.data.useSiteSecret(site, name, use)` uses one Site secret for a visitor's request inside the call that needs it (a Form's CAPTCHA check), never handing it back; only the Site pipeline's features use it, for the Site the hostname found.
 - A checked `scope.secrets` holds the Workspace's or Site's secrets (`set(name, value)`, `useWith`, `describe`, `remove`); `services.secrets` holds only the Install's own. A background Site scope offers only `remove` for retention cleanup.
 - The Install scope's `db` is for Install-level tables (Workspaces, Staff, invites); a domain function takes the scope it needs as its first argument, such as `createSite(workspace, input)`.
+- Inside an Install scope's `transaction`, `install.workspace(workspaceId, permission)` opens a Workspace scope in that same transaction, with the same checks as `services.data.workspace` (404 when the actor can't see it, 403 without the Permission). Use it when one action creates a Workspace and then works inside it atomically, as finishing the setup wizard with a first Workspace and Site does; anywhere else, open the Workspace with `services.data.workspace`.
 
 ### Writing a procedure
 
@@ -1545,7 +1546,7 @@ Nothing a Module asks for is granted until the Superadmin approves it on Install
 - **What a Module asks for** is a list of consent items (`consentItems`): `permission:<key>:<role>` for each role it gives one of its Permissions, `use:email`, `host:<host>`, `script:<category>`. The consent screen shows them in WebCraft's own words (the admin's message files, English and Italian), never the Module's, so a Module can't word what it asks for itself; only its Permissions' labels are its own.
 - **An approval** (`module_approvals`) stores the version approved and the items granted. A later version that asks for nothing more runs on it; one that asks for more is `update-waiting`: off everywhere (its switches and data kept) until the Superadmin approves it, the new items marked. Only one version of a first-party Module's code exists in a build, so "held at the approved version" means off until approved.
 - `modules.approve` names the version the screen showed: another version answers `MODULE_CHANGED`. `modules.withdraw` takes a Module back to waiting, off everywhere, data kept.
-- **The setup wizard** ends with the Modules step: the Modules waiting for approval, ticked (all Modules WebCraft loads are first-party), each with what it asks for.
+- **The setup wizard** has a Modules step, just before its last step (see "Signing in and the setup wizard"): the Modules waiting for approval, ticked (all Modules WebCraft loads are first-party), each with what it asks for.
 
 ### Switches and removing data
 
