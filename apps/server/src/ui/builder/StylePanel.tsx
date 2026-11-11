@@ -26,7 +26,7 @@ export function StylePanel({
 	oneOff,
 	onClasses,
 	onOneOff,
-	onCatalogue,
+	refreshCatalogue,
 }: {
 	siteId: string;
 	catalogue: Catalogue;
@@ -37,7 +37,7 @@ export function StylePanel({
 	onClasses(classIds: string[], announcement: string): void;
 	onOneOff(declarations: string): boolean | Promise<boolean>;
 	/** A Class was made or changed in the Design system's Draft. */
-	onCatalogue(classes: Catalogue["classes"]): void;
+	refreshCatalogue(): Promise<void>;
 }) {
 	const t = useT();
 	const getApi = useEditorApi();
@@ -50,8 +50,8 @@ export function StylePanel({
 	const [applyingOneOff, setApplyingOneOff] = useState(false);
 	const oneOffEdit = useRef(0);
 	const appliedOneOffEdit = useRef(0);
-	const current = useRef({ catalogue, classIds, onClasses, onCatalogue });
-	current.current = { catalogue, classIds, onClasses, onCatalogue };
+	const current = useRef({ catalogue, classIds, onClasses, refreshCatalogue });
+	current.current = { catalogue, classIds, onClasses, refreshCatalogue };
 	const mounted = useRef(true);
 	useEffect(() => {
 		mounted.current = true;
@@ -102,13 +102,11 @@ export function StylePanel({
 			const api = await getApi();
 			const made = await api.designSystem.createClass({ siteId, name });
 			if (!mounted.current) return;
+			await current.current.refreshCatalogue();
+			if (!mounted.current) return;
 			// Attach the new Class to the current element without restoring an old tree or Class list.
 			const latest = current.current;
-			const classes = latest.catalogue.classes.some((each) => each.id === made.class.id)
-				? latest.catalogue.classes
-				: [...latest.catalogue.classes, made.class];
-			latest.onCatalogue(classes);
-			const generatedIds = new Set(classes.filter((each) => each.generated).map((each) => each.id));
+			const generatedIds = new Set(latest.catalogue.classes.filter((each) => each.generated).map((each) => each.id));
 			if (!latest.classIds.includes(made.class.id))
 				latest.onClasses(
 					[
@@ -252,13 +250,7 @@ export function StylePanel({
 				</form>
 			</section>
 			{editing && catalogue.classes.some((each) => each.id === editing) ? (
-				<ClassEditor
-					key={editing}
-					siteId={siteId}
-					catalogue={catalogue}
-					classId={editing}
-					onSaved={(classes) => onCatalogue(classes)}
-				/>
+				<ClassEditor key={editing} siteId={siteId} catalogue={catalogue} classId={editing} onSaved={refreshCatalogue} />
 			) : null}
 			<section aria-labelledby={`${id}-one-off`} className="grid gap-2">
 				<h3 id={`${id}-one-off`} className="text-sm font-semibold">
@@ -309,7 +301,7 @@ function ClassEditor({
 	siteId: string;
 	catalogue: Catalogue;
 	classId: string;
-	onSaved(classes: Catalogue["classes"]): void;
+	onSaved(): Promise<void>;
 }) {
 	const t = useT();
 	const getApi = useEditorApi();
@@ -326,9 +318,9 @@ function ClassEditor({
 	const savedEdit = useRef(0);
 	useEffect(() => {
 		// Follow a co-editor's saved styles while retaining unfinished local declarations.
-		if (edit.current === savedEdit.current)
+		if (!busy && edit.current === savedEdit.current)
 			setRows([...declarationsOf(found?.styles ?? ""), { property: "", value: "" }]);
-	}, [found?.styles]);
+	}, [found?.styles, busy]);
 
 	const change = (index: number, part: keyof Declaration, value: string) => {
 		edit.current++;
@@ -346,16 +338,9 @@ function ClassEditor({
 		const revision = edit.current;
 		try {
 			const api = await getApi();
-			const saved = await api.designSystem.updateClass({ siteId, classId, styles: cssOf(rows) });
+			await api.designSystem.updateClass({ siteId, classId, styles: cssOf(rows) });
 			savedEdit.current = revision;
-			onSaved(
-				saved.designSystem.draft.classes.map((each) => ({
-					id: each.id,
-					name: each.name,
-					generated: each.generated,
-					styles: each.styles,
-				})),
-			);
+			await onSaved();
 		} catch (failure) {
 			const problems = (failure as { data?: { problems?: { message: string }[] } }).data?.problems;
 			setProblem(problems?.length ? problems.map((each) => each.message).join(" ") : t(errorMessage(failure)));

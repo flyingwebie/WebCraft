@@ -44,15 +44,7 @@ import { Inspector } from "./Inspector.tsx";
 import { type DropPosition, type LayerAction, LayersPanel, rowKey } from "./LayersPanel.tsx";
 import { type LayerClipboard, layerLocation, runLayerAction } from "./layer-actions.ts";
 import { type MarkupProblem, MarkupView } from "./MarkupView.tsx";
-import {
-	type BuilderDoc,
-	type BuilderTarget,
-	type Catalogue,
-	layerName,
-	type Opened,
-	type Selection,
-	targetTitle,
-} from "./model.ts";
+import { type BuilderDoc, type BuilderTarget, layerName, type Opened, type Selection, targetTitle } from "./model.ts";
 import { publishDraft, saveDraft } from "./save.ts";
 import {
 	type Changed,
@@ -1152,8 +1144,8 @@ export function Builder({
 									return false;
 								}
 							}}
-							onCatalogue={(classes: Catalogue["classes"]) => {
-								patchOpened((before) => ({ ...before, catalogue: { ...before.catalogue, classes } }));
+							refreshCatalogue={async () => {
+								await readOpened();
 								setDesignVersion((count) => count + 1);
 							}}
 							onMakeEditable={(path, trigger) => {

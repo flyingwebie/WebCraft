@@ -232,10 +232,18 @@ function LivePanels({
 		},
 		[update, paint],
 	);
+	const sourceRead = useRef(0);
+	const sourceReads = useRef(new Map<string | null, number>());
 	const load = useCallback(
 		async (ref: string | null): Promise<PanelSource> => {
+			const run = ++sourceRead.current;
+			sourceReads.current.set(ref, run);
 			const source = await bridge.call<PanelSource>("code/editor", { ref });
+			// Catalogue reads belong to their source and cannot replace a newer read of that source.
+			if (sourceReads.current.get(ref) !== run || (sourceReads.current.get(source.ref) ?? 0) > run) return source;
+			sourceReads.current.set(source.ref, run);
 			setSources((before) => {
+				if (sourceReads.current.get(source.ref) !== run) return before;
 				const id = source.opened.component?.id ?? source.opened.template?.id;
 				const draft = id ? connections.current.get(id)?.draft() : null;
 				return {
@@ -514,6 +522,9 @@ function LivePanels({
 				<SourcePanels
 					bridge={bridge}
 					source={source}
+					reload={async () => {
+						await load(source.ref);
+					}}
 					remoteRevision={
 						remoteRevisions.current.get(source.opened.component?.id ?? source.opened.template?.id ?? source.ref) ?? 0
 					}
@@ -629,6 +640,7 @@ function DraftConnection({
 function SourcePanels({
 	bridge,
 	source,
+	reload,
 	remoteRevision,
 	selected,
 	forest,
@@ -643,6 +655,7 @@ function SourcePanels({
 }: {
 	bridge: LivePanelBridge;
 	source: PanelSource;
+	reload(): Promise<void>;
 	remoteRevision: number;
 	forest: LayerSource[];
 	hovered: string | null;
@@ -672,6 +685,8 @@ function SourcePanels({
 		remoteRevision: number;
 	} | null>(null);
 	const sourceId = source.opened.component?.id ?? source.opened.template?.id ?? source.ref;
+	const currentSource = useRef(sourceId);
+	currentSource.current = sourceId;
 	const grabCurrent = grabbed?.source === sourceId && grabbed.remoteRevision === remoteRevision;
 	const [catalogue, setCatalogue] = useState(source.opened.catalogue);
 	const [fixed, setFixed] = useState<{ location: FixedTextLocation; source: string } | null>(null);
@@ -930,22 +945,23 @@ function SourcePanels({
 						onOneOff={async (_path, id, declarations) => {
 							try {
 								if (!(await shared?.flush())) {
-									announce(t(`coEditing.status.${shared?.status ?? "connecting"}`));
+									if (currentSource.current === sourceId)
+										announce(t(`coEditing.status.${shared?.status ?? "connecting"}`));
 									return false;
 								}
 								await saveOneOffStyles(bridge, source.ref, { [id]: declarations }, id);
-								const fresh = await bridge.call<PanelSource>("code/editor", { ref: source.ref });
-								setCatalogue(fresh.opened.catalogue);
+								await reload();
 								onTree(currentDraft(source, shared).tree);
-								announce(declarations ? t("builder.style.oneOffApplied") : t("builder.style.oneOffRemoved"));
+								if (currentSource.current === sourceId)
+									announce(declarations ? t("builder.style.oneOffApplied") : t("builder.style.oneOffRemoved"));
 								return true;
 							} catch (failure) {
-								announce(t(errorMessage(failure)));
+								if (currentSource.current === sourceId) announce(t(errorMessage(failure)));
 								return false;
 							}
 						}}
-						onCatalogue={(classes) => {
-							setCatalogue((before) => ({ ...before, classes }));
+						refreshCatalogue={async () => {
+							await reload();
 							bridge.refresh();
 						}}
 						onMakeEditable={(path, trigger) => {

@@ -43,7 +43,7 @@ export function Inspector({
 	onReplace,
 	onClasses,
 	onOneOff,
-	onCatalogue,
+	refreshCatalogue,
 	onMakeEditable,
 	onEditComponent,
 }: {
@@ -60,7 +60,7 @@ export function Inspector({
 	onReplace(path: NodePath, node: TreeNode, announcement: string): string | undefined;
 	onClasses(path: NodePath, classIds: string[], announcement: string): void;
 	onOneOff(path: NodePath, elementId: string, declarations: string): boolean | Promise<boolean>;
-	onCatalogue(classes: Catalogue["classes"]): void;
+	refreshCatalogue(): Promise<void>;
 	onMakeEditable(path: NodePath, trigger: HTMLElement): void;
 }) {
 	const t = useT();
@@ -101,7 +101,7 @@ export function Inspector({
 									oneOff={oneOffOf(node.id, node.classes)}
 									onClasses={(classIds, announcement) => onClasses(path, classIds, announcement)}
 									onOneOff={(declarations) => onOneOff(path, node.id, declarations)}
-									onCatalogue={onCatalogue}
+									refreshCatalogue={refreshCatalogue}
 								/>
 							),
 						},
