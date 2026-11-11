@@ -2,11 +2,13 @@ import { type Json, sameValue } from "@webcraft/core/draft-document";
 import type { ElementTree, TreeNode } from "@webcraft/renderer/builder";
 import { DialogContainer } from "@webcraft/ui/components/dialog.tsx";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { type SharedDraft, useSharedDraft } from "../co-editing/shared-draft.ts";
 import { useAnnouncement } from "../content/reorder.tsx";
 import { errorMessage } from "../errors.ts";
 import { AdminIntl, useT } from "../i18n.tsx";
+import { CssPanel, type CssPanelPort, type CssTarget } from "./CssPanel.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
 import { type EditorApi, EditorApiContext, EditorEnvironment } from "./editor-api.tsx";
 import { FixedTextDialog } from "./FixedTextDialog.tsx";
@@ -43,6 +45,10 @@ export type PanelSource = {
 };
 export type LivePanelBridge = {
 	root: ShadowRoot;
+	/** Where the CSS panel draws: Code mode's CSS panel, below the page. */
+	cssHost?: HTMLElement;
+	/** Shows unsaved CSS on the page, or (null) the Draft again. */
+	previewCss?(change: { target: CssTarget; text: string } | null): void;
 	language: "en" | "it";
 	call<T>(action: string, body: object): Promise<T>;
 	select(ref: string, inspectorRef?: string): void;
@@ -166,6 +172,7 @@ function LivePanels({
 	const [creating, setCreating] = useState(false);
 	const [connectionVersion, connectionChanged] = useState(0);
 	const [requested, requestSelection] = useState<{ ref: string; selection: Selection } | null>(null);
+	const [designVersion, designChanged] = useState(0);
 	const connections = useRef(new Map<string, SharedDraft>());
 	const loading = useRef(new Set<string>());
 	const sourcesRef = useRef(sources);
@@ -275,7 +282,10 @@ function LivePanels({
 		token: document.querySelector('meta[name="webcraft-edit-token"]')?.getAttribute("content") ?? "",
 		onRemote() {
 			// The initial snapshot is already rendered on the page. Replacing it would steal focus.
-			if (designLoaded.current) bridge.refresh();
+			if (designLoaded.current) {
+				bridge.refresh();
+				designChanged((count) => count + 1);
+			}
 			designLoaded.current = true;
 			void Promise.all(Object.keys(sourcesRef.current).map(load)).catch((failure) =>
 				setError(t(errorMessage(failure))),
@@ -509,6 +519,7 @@ function LivePanels({
 				<SourcePanels
 					bridge={bridge}
 					source={source}
+					designVersion={designVersion}
 					creating={creating}
 					onCreate={async (tree) => {
 						setCreating(true);
@@ -581,6 +592,22 @@ function LivePanels({
 	);
 }
 
+/** The CSS panel's way to the Design system's Draft on Code mode's canvas: its Edit mode endpoint. */
+function useCssPort(bridge: LivePanelBridge): CssPanelPort {
+	const port = useRef<CssPanelPort | null>(null);
+	port.current ??= {
+		read: (classes) => bridge.call("code/css", { ref: null, classes }),
+		save: (target, text, version) => bridge.call("code/saveCss", { target, text, version }),
+		createClass: async (name) =>
+			(await bridge.call<{ class: { id: string; name: string } }>("code/createClass", { name })).class,
+		renameClass: async (classId, name) => {
+			await bridge.call("code/editorService", { method: "classes.update", input: { classId, name } });
+		},
+		preview: (change) => bridge.previewCss?.(change),
+	};
+	return port.current;
+}
+
 function DraftConnection({
 	source,
 	register,
@@ -631,9 +658,11 @@ function SourcePanels({
 	requested,
 	creating,
 	onCreate,
+	designVersion,
 }: {
 	bridge: LivePanelBridge;
 	source: PanelSource;
+	designVersion: number;
 	forest: LayerSource[];
 	hovered: string | null;
 	shared?: SharedDraft;
@@ -798,8 +827,40 @@ function SourcePanels({
 		}
 	};
 	const node = selection?.kind === "node" ? nodeAt(tree, selection.path) : null;
+	const cssPort = useCssPort(bridge);
+	const writable =
+		source.editable && !creating && (!(source.opened.template || source.opened.component) || !!shared?.writable);
 	return (
 		<EditorEnvironment value={{ siteMedia: true, adminOrigin: source.adminOrigin }}>
+			{bridge.cssHost
+				? createPortal(
+						<CssPanel
+							port={cssPort}
+							element={node?.type === "element" ? { id: node.id, classes: node.classes } : null}
+							catalogue={catalogue}
+							editable={writable}
+							designVersion={designVersion}
+							onClasses={(classes, message) => {
+								// The class list changes in the element's current shared document, as the Inspector's does.
+								if (selection?.kind !== "node" || node?.type !== "element") return t("coEditing.status.readOnly");
+								return apply(replaceAt(tree, selection.path, { ...node, classes }), selection, message);
+							}}
+							onDesignChanged={({ made, renamed }) => {
+								if (made || renamed)
+									setCatalogue((before) => ({
+										...before,
+										classes: made
+											? [...before.classes, { id: made.id, name: made.name, generated: false, styles: "" }]
+											: before.classes.map((each) =>
+													each.id === renamed?.id ? { ...each, name: renamed.name, generated: false } : each,
+												),
+									}));
+								bridge.refresh();
+							}}
+						/>,
+						bridge.cssHost,
+					)
+				: null}
 			<aside className="editor-left" aria-label={t("builder.layers.heading")}>
 				<fieldset
 					disabled={

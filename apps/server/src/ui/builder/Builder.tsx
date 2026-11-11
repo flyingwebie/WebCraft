@@ -35,6 +35,7 @@ import { Announcer, useAnnouncement } from "../content/reorder.tsx";
 import { errorCode, errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
 import { Canvas, type CanvasTarget, type CanvasWidth } from "./Canvas.tsx";
+import { CssPanel, type CssPanelPort } from "./CssPanel.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
 import { FixedTextDialog, type MadeEditable } from "./FixedTextDialog.tsx";
 import { InsertDialog, type InsertWhere } from "./InsertDialog.tsx";
@@ -538,6 +539,22 @@ export function Builder({
 	);
 
 	const selectedNode = selection?.kind === "node" ? nodeAt(doc.tree, selection.path) : undefined;
+	/** The CSS panel's way to the Design system's Draft on the Builder canvas: the Management API. */
+	const cssPort = useMemo<CssPanelPort>(
+		() => ({
+			read: async (classes) => (await getApi()).builder.css({ siteId, classes: [...classes] }),
+			save: async (cssTarget, text, version) =>
+				(await getApi()).builder.saveCss({ siteId, target: cssTarget, text, version }),
+			createClass: async (name) => {
+				const made = await (await getApi()).designSystem.createClass({ siteId, name });
+				return { id: made.class.id, name: made.class.name };
+			},
+			renameClass: async (classId, name) => {
+				await (await getApi()).designSystem.updateClass({ siteId, classId, name });
+			},
+		}),
+		[siteId],
+	);
 	const canvasSelected: CanvasTarget | null =
 		selectedNode?.type === "element"
 			? { kind: "element", id: selectedNode.id }
@@ -1095,6 +1112,45 @@ export function Builder({
 						onMove={canvasMove}
 						onShortcut={(event) => shortcut.current(event)}
 					/>
+					{view === "visual" ? (
+						<section
+							aria-label={t("builder.css.heading")}
+							className="bg-background flex max-h-[45vh] min-h-56 flex-col overflow-auto border-t p-3"
+						>
+							<CssPanel
+								port={cssPort}
+								element={
+									selectedNode?.type === "element" ? { id: selectedNode.id, classes: selectedNode.classes } : null
+								}
+								catalogue={catalogue}
+								editable={!documentId || shared.writable}
+								designVersion={designVersion}
+								onClasses={(classes, message) =>
+									selection?.kind === "node" && selectedNode?.type === "element"
+										? replace(selection.path, { ...selectedNode, classes }, message)
+										: t("coEditing.status.readOnly")
+								}
+								onDesignChanged={({ made, renamed }) => {
+									if (made || renamed)
+										patchOpened((before) => ({
+											...before,
+											catalogue: {
+												...before.catalogue,
+												classes: made
+													? [
+															...before.catalogue.classes,
+															{ id: made.id, name: made.name, generated: false, styles: "" },
+														]
+													: before.catalogue.classes.map((each) =>
+															each.id === renamed?.id ? { ...each, name: renamed.name, generated: false } : each,
+														),
+											},
+										}));
+									setDesignVersion((count) => count + 1);
+								}}
+							/>
+						</section>
+					) : null}
 				</section>
 				{view === "visual" ? (
 					<section aria-labelledby="inspector-heading" className="flex min-h-0 flex-col border-s">

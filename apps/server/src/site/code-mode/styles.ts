@@ -17,6 +17,8 @@ export const CODE_STYLES = `
 .outline.insert { background:#4ade80; border:0; }
 .line.hovered { outline:1px solid #a1a1aa; background:#27272a; }
 .editor-panels [data-hovered] { outline:1px solid #a1a1aa; }
+/* The shared CSS panel draws in Code mode's CSS panel, with the Builder's dark theme. */
+.css-host { flex:1 1 auto; min-height:0; overflow:auto; padding:0.5rem 0.625rem; display:flex; flex-direction:column; background:var(--panel, #121214); }
 .line.insertion-context { position: absolute; inset: auto 0 0 3rem; z-index: 2; margin: 0; padding: 0.5rem; background: #17251e; color: #bbf7d0; white-space: pre-wrap; font: 12px/20px ui-monospace, monospace; }
 .insert-line { box-shadow:inset 0 -2px #4ade80; }
 :host { all: initial; }
@@ -106,15 +108,6 @@ svg { flex: none; }
 .small { height: 1.75rem; }
 .link-button { color: var(--muted); text-decoration: underline; padding: 0.125rem 0.25rem; }
 .link-button:hover { color: var(--text); }
-.pickers { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; padding: 0.375rem 0.625rem; border-bottom: 1px solid var(--line); }
-.pickers label { color: var(--muted); }
-.picker { height: 1.75rem; max-width: 12rem; border-radius: 0.375rem; border: 1px solid #52525b; background: var(--panel-raised); color: var(--text); }
-.layout { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; padding: 0.375rem 0.625rem; border-bottom: 1px solid var(--line); }
-.layout-set { display: flex; align-items: center; gap: 0.125rem; }
-.layout-name { color: var(--muted); margin-inline-end: 0.25rem; }
-.tool { display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 0.375rem; color: var(--text); }
-.tool:hover { background: var(--panel-raised); }
-.tool[aria-pressed="true"] { background: #4338ca; color: #ffffff; }
 .note { margin: 0; padding: 0.5rem 0.625rem; color: var(--muted); border-bottom: 1px solid var(--line); }
 
 .editor {
