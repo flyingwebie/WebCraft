@@ -545,10 +545,7 @@ async function writeDraft(
 	const before = storedComponentVersion(row.draft);
 	draft = {
 		...draft,
-		tree: retainPropBindings(
-			restorePropContracts(draft.tree, (id) => catalogue.version(id)?.props),
-			before.tree,
-		),
+		tree: retainPropBindings(restorePropContracts(draft.tree, catalogue), before.tree),
 	};
 	if (!sameJson(before.props, draft.props)) {
 		draft = { ...draft, tree: projectSourceBindings(draft.tree, before.tree, before.props, draft.props, catalogue) };

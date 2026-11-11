@@ -6,6 +6,7 @@ import {
 	type ComponentCatalogue,
 	childListsOf,
 	type ElementTree,
+	ElementTreeInvalidError,
 	isComponentInfo,
 	mappedBindingPath,
 	type PlacementNode,
@@ -27,6 +28,7 @@ import { isUuid } from "../ids.ts";
 import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { type ComponentVersion, storedComponentVersion } from "./component-versions.ts";
+import type { SiteComponents } from "./components.ts";
 import { ComponentInvalidError } from "./errors.ts";
 import type { FieldDefinition } from "./fields.ts";
 import { sameJson } from "./json.ts";
@@ -750,15 +752,26 @@ export async function capturePropContracts(
 }
 
 /** A restored snapshot carries its own active contract; reconcile it before saving a current Draft. */
-export function restorePropContracts(
-	tree: ElementTree,
-	fieldsOf: (id: string) => readonly FieldDefinition[] | undefined,
-): ElementTree {
+export function restorePropContracts(tree: ElementTree, catalogue: SiteComponents): ElementTree {
 	const result = structuredClone(tree);
 	for (const node of placementsIn(result.nodes)) {
 		if (!node.props.some((value) => value.contract && !value.retained)) continue;
-		const fields = fieldsOf(node.component);
+		const fields = catalogue.version(node.component)?.props;
 		if (fields) node.props = migrateValues(node.props, fields, fields, false).values as typeof node.props;
+		// A compatible historical type becomes current input; its old constraints cannot bypass
+		// today's validation. Incompatible retained values still use their own dormant contract.
+		const info = catalogue.byId(node.component);
+		if (!isComponentInfo(info)) continue;
+		for (const value of node.props) {
+			if (value.retained || !value.value.every((part) => part.type === "text")) continue;
+			const prop = info.props.find((candidate) => candidate.key === value.name);
+			const parts = value.value.filter((part) => part.type === "text");
+			const languages = new Set(["", ...parts.flatMap((part) => Object.keys(part.translations ?? {}))]);
+			for (const language of languages) {
+				const problem = prop?.check(parts.map((part) => part.translations?.[language] ?? part.text).join(""));
+				if (problem) throw new ElementTreeInvalidError([{ at: `props.${value.name}`, message: problem }]);
+			}
+		}
 	}
 	return result;
 }

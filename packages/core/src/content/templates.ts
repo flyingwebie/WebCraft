@@ -604,7 +604,7 @@ async function writeTemplateDraft(
 		.from(templates)
 		.where(scope.where(templates, whereFor(target)))
 		.for("update");
-	const restored = restorePropContracts(input, (id) => catalogue.version(id)?.props);
+	const restored = restorePropContracts(input, catalogue);
 	const draft = before ? retainPropBindings(restored, before.draft as ElementTree) : restored;
 	await checkRetainedModulePlacements(scope, draft, before?.draft as ElementTree | undefined);
 	const [updated] = await scope.update(templates, { draft, updatedAt: now, updatedBy, updatedVia }, whereFor(target));

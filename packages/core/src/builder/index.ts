@@ -270,10 +270,7 @@ function checked(tree: unknown, source: BuilderSource, catalogue: ClassCatalogue
 
 /** Previews and saves project the same immediate outer binding contract. */
 function prepared(tree: ElementTree, source: BuilderSource): ElementTree {
-	const retained = retainPropBindings(
-		restorePropContracts(tree, (id) => source.components.version(id)?.props),
-		source.draft,
-	);
+	const retained = retainPropBindings(restorePropContracts(tree, source.components), source.draft);
 	return source.component && source.props
 		? projectSourceBindings(retained, source.draft, source.component.draft.props, source.props, source.components)
 		: retained;
