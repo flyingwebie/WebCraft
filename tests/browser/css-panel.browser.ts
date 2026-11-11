@@ -379,3 +379,57 @@ for (const theme of THEMES) {
 		expect(await selectedTab(page)).toBe(".lead");
 	});
 }
+
+describe("answers arriving late or out of date", () => {
+	test("a slow CSS answer for an element selected before never replaces the tabs or the selection now", async () => {
+		const page = await codeModePage("light");
+		let delayed = false;
+		await page.route("**/_webcraft/edit/api/code/css", async (route) => {
+			const { classes } = JSON.parse(route.request().postData() ?? "{}") as { classes?: string[] };
+			// The heading's three Classes are answered last, after the next element has been selected.
+			if (!delayed && classes?.length === 3) {
+				delayed = true;
+				await new Promise((resolve) => setTimeout(resolve, 1500));
+			}
+			await route.continue();
+		});
+
+		const asked = page.waitForRequest(
+			(request) =>
+				request.url().endsWith("/code/css") &&
+				(JSON.parse(request.postData() ?? "{}") as { classes?: string[] }).classes?.length === 3,
+		);
+		await page.locator("main h1").click();
+		await asked;
+		await page.locator("main p", { hasText: "Plain words" }).click();
+		await waitForTabs(page, ["Site CSS"]);
+		await page.waitForTimeout(2000);
+
+		expect(delayed).toBe(true);
+		expect(await tabNames(page)).toEqual(["Site CSS"]);
+		expect(await selectedTab(page)).toBe("Site CSS");
+		const selected = await page.getByRole("tree").getByRole("treeitem", { selected: true }).first().textContent();
+		expect(selected).not.toContain("hero-title");
+	});
+
+	test("saving over CSS someone saved meanwhile offers to reload theirs or overwrite with mine", async () => {
+		const page = await codeModePage("light");
+		await selectOnPage(page, page.locator("main h1"), ".hero-title");
+		const region = cssRegion(page);
+		await cssText(page).fill("font-size: var(--text-xl);\ncolor: rgb(10, 20, 30);");
+		const { api } = await install.install.superadmin();
+		const lead = (await draftClasses()).find((each) => each.name === "hero-title");
+		await api.designSystem.updateClass({ siteId, classId: lead?.id ?? "", styles: "font-size: var(--text-2xl);" });
+
+		await region.getByRole("button", { name: "Save", exact: true }).click();
+		const alert = region.getByRole("alert").filter({ hasText: "Someone else saved this CSS" });
+		await alert.waitFor();
+		await alert.getByRole("button", { name: "Overwrite with mine" }).click();
+
+		await alert.waitFor({ state: "hidden" });
+		expect((await draftClasses()).find((each) => each.name === "hero-title")?.styles).toBe(
+			"font-size: var(--text-xl);\ncolor: rgb(10, 20, 30);",
+		);
+		await api.designSystem.updateClass({ siteId, classId: lead?.id ?? "", styles: "font-size: var(--text-xl);" });
+	});
+});
