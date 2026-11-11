@@ -493,7 +493,7 @@ export async function recordProblems(scope: SiteScope, runId: string, item: Entr
  * the same transaction as the item's write when given one.
  */
 export async function countOutcome(
-	scope: Pick<SiteScope, "db" | "where">,
+	scope: Pick<SiteScope, "db" | "where" | "now">,
 	runId: string,
 	outcome: Outcome,
 	hasProblems: boolean,
@@ -511,7 +511,7 @@ export async function countOutcome(
 	}
 	await scope.db
 		.update(importRuns)
-		.set({ done, summary })
+		.set({ done, summary, updatedAt: scope.now() })
 		.where(scope.where(importRuns, eq(importRuns.id, runId)));
 }
 

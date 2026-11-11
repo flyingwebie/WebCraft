@@ -13,7 +13,7 @@ import {
 	people,
 	postTypes,
 } from "@webcraft/db/schema";
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull, ne } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, lt, ne } from "drizzle-orm";
 import { z } from "zod";
 
 import { siteLanguages } from "../content/languages.ts";
@@ -204,7 +204,12 @@ type RunSummaryJson = ImportCounts & { skippedColumns: string[] } & Partial<Sour
 /** How many rows one job goes through before it hands the rest to the next one. */
 const ROWS_PER_JOB = 500;
 
-export const importRunPayload = z.object({ siteId: z.uuid(), runId: z.uuid() });
+/** The run, and the attempt the job goes on with (0 until the run is picked up again; see `recoverRuns`). */
+export const importRunPayload = z.object({
+	siteId: z.uuid(),
+	runId: z.uuid(),
+	attempt: z.number().int().min(0).optional(),
+});
 
 /**
  * Runs an Import run in the worker, as the person who started it (their access is checked again):
@@ -215,8 +220,20 @@ export const importsRun = defineJob({
 	name: "imports.run",
 	payload: importRunPayload,
 	queue: { retryLimit: 0, expireInSeconds: 60 * 60 },
-	run: ({ siteId, runId }, context) => runImport(context, siteId, runId),
+	run: ({ siteId, runId, attempt }, context) => runImport(context, siteId, runId, attempt ?? 0),
 });
+
+/**
+ * A `waiting` or `running` run that hasn't moved on for this long lost its worker (killed, out of
+ * memory, or its job was never sent): every item moves it on, and an item takes minutes at most.
+ */
+export const STALLED_RUN_MS = 30 * 60_000;
+
+/**
+ * How many times a run is picked up again before it fails instead: a run that keeps stopping its
+ * worker would otherwise stop it again and again.
+ */
+export const RUN_ATTEMPTS = 3;
 
 /**
  * An Import's settings checked against the Site for its source: a CSV file's, or a Module source's
@@ -393,6 +410,7 @@ export async function startRun(
 			total,
 			summary,
 			startedAt: tx.now(),
+			updatedAt: tx.now(),
 		});
 		await tx.audit("import.run", {
 			importId: row.id,
@@ -654,12 +672,14 @@ async function sourceReport(scope: SiteScope, run: RunRow, defaultLanguage: stri
 	};
 }
 
-/** Goes through a run's rows in the worker (see `importsRun`). */
-async function runImport(context: JobContext, siteId: string, runId: string): Promise<void> {
+/** Goes through a run's rows in the worker (see `importsRun`), for the attempt the job was sent for. */
+async function runImport(context: JobContext, siteId: string, runId: string, attempt: number): Promise<void> {
 	const { data, storage, log } = context;
 	const background = await data.background(siteId);
 	const run = background ? await background.first(importRuns, eq(importRuns.id, runId)) : undefined;
 	if (!background || !run || (run.status !== "waiting" && run.status !== "running")) return;
+	// The run was picked up again after this job was sent: the new attempt's jobs go on with it.
+	if (run.attempt !== attempt) return;
 	const finish = (status: "done" | "stopped" | "failed", failure?: { reason: string }) =>
 		finishRun(background, storage, run, status, failure);
 	if (run.stopRequestedAt) return finish("stopped");
@@ -676,12 +696,12 @@ async function runImport(context: JobContext, siteId: string, runId: string): Pr
 		throw error;
 	}
 	try {
-		if (run.status === "waiting") await scope.update(importRuns, { status: "running" }, eq(importRuns.id, run.id));
+		await scope.update(importRuns, { status: "running", updatedAt: scope.now() }, eq(importRuns.id, run.id));
 		const parent = await scope.first(imports, eq(imports.id, run.importId));
 		if (!parent) return finish("failed", { reason: "settings" });
 		if (parent.source !== "csv") {
 			return await runSourceImport(context, scope, run, parent, finish, async () => {
-				await context.jobs.send(importsRun, { siteId, runId });
+				await context.jobs.send(importsRun, { siteId, runId, attempt });
 			});
 		}
 		const settings = csvSettingsSchema.parse(run.settings);
@@ -713,11 +733,15 @@ async function runImport(context: JobContext, siteId: string, runId: string): Pr
 				continue;
 			}
 			if (gone >= ROWS_PER_JOB) {
-				await context.jobs.send(importsRun, { siteId, runId });
+				await context.jobs.send(importsRun, { siteId, runId, attempt });
 				await stream.cancel().catch(() => {});
 				return;
 			}
 			const current = await scope.first(importRuns, eq(importRuns.id, run.id));
+			if (current && current.attempt !== run.attempt) {
+				await stream.cancel().catch(() => {});
+				return;
+			}
 			if (!current || current.stopRequestedAt) {
 				await stream.cancel().catch(() => {});
 				return finish("stopped");
@@ -742,7 +766,10 @@ async function runImport(context: JobContext, siteId: string, runId: string): Pr
 	}
 }
 
-/** Ends a run: its status, when it ended and when its report is purged; its file is deleted. */
+/**
+ * Ends a run: its status, when it ended and when its report is purged; its file is deleted. Only the
+ * run's current attempt ends it.
+ */
 async function finishRun(
 	scope: BackgroundScope,
 	storage: InstallStorage,
@@ -751,12 +778,64 @@ async function finishRun(
 	failure?: { reason: string },
 ): Promise<void> {
 	const now = scope.now();
-	await scope.update(
+	const ended = await scope.update(
 		importRuns,
-		{ status, finishedAt: now, expiresAt: reportExpiry(now), fileId: null, failure: failure ?? null },
-		eq(importRuns.id, run.id),
+		{ status, finishedAt: now, updatedAt: now, expiresAt: reportExpiry(now), fileId: null, failure: failure ?? null },
+		and(eq(importRuns.id, run.id), eq(importRuns.attempt, run.attempt)),
 	);
-	if (run.fileId) await removeFile(scope, storage, run.fileId);
+	if (ended.length > 0 && run.fileId) await removeFile(scope, storage, run.fileId);
+}
+
+/**
+ * Picks up again, on every Site, the runs whose worker stopped (`STALLED_RUN_MS`): each goes on
+ * from where it got to with a new attempt, whose job is the only one that goes on with it. A run
+ * someone asked to stop ends stopped, and one picked up `RUN_ATTEMPTS` times already fails.
+ */
+export async function recoverRuns(context: JobContext): Promise<void> {
+	const { database, data, storage, jobs, clock, log } = context;
+	const stalled = and(
+		inArray(importRuns.status, ["waiting", "running"]),
+		lt(importRuns.updatedAt, new Date(clock.now().getTime() - STALLED_RUN_MS)),
+	);
+	// Install-wide enumeration only; each run is read and changed in its Site's background scope.
+	const sites = await database.db.selectDistinct({ siteId: importRuns.siteId }).from(importRuns).where(stalled);
+	for (const { siteId } of sites) {
+		const scope = await data.background(siteId);
+		if (!scope) continue;
+		for (const { id } of await scope.select(importRuns, stalled)) {
+			const picked = await scope.transaction(async (tx) => {
+				const [run] = await tx.db
+					.select()
+					.from(importRuns)
+					.where(tx.where(importRuns, and(eq(importRuns.id, id), stalled)))
+					.for("update");
+				// It moved on meanwhile.
+				if (!run) return null;
+				if (run.stopRequestedAt || run.attempt >= RUN_ATTEMPTS) return { run, again: false };
+				const [saved] = await tx.update(
+					importRuns,
+					{ attempt: run.attempt + 1, updatedAt: tx.now() },
+					eq(importRuns.id, run.id),
+				);
+				return { run: saved as RunRow, again: true };
+			});
+			if (!picked) continue;
+			const { run, again } = picked;
+			if (again) {
+				log.warn("An Import run's worker stopped: the run is picked up again", {
+					siteId,
+					runId: run.id,
+					attempt: run.attempt,
+				});
+				await jobs.send(importsRun, { siteId, runId: run.id, attempt: run.attempt });
+			} else if (run.stopRequestedAt) {
+				await finishRun(scope, storage, run, "stopped");
+			} else {
+				log.warn("An Import run's worker stopped too many times: the run failed", { siteId, runId: run.id });
+				await finishRun(scope, storage, run, "failed", { reason: "error" });
+			}
+		}
+	}
 }
 
 /** Deletes an uploaded file, if it is still there. */

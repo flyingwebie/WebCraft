@@ -250,6 +250,29 @@ describe("outside calls", () => {
 		expect(seen?.join("\n")).not.toContain("never-shown-token");
 	});
 
+	test("never hand the secret back in what the host answers, however the host writes it", async () => {
+		const site = await install.createSite(workspaceId);
+		await goLive(install, site.id);
+		const settings = moduleApi<typeof sample>(staff, "sample").settings;
+		const secret = 'echoed "token"/0123456789';
+		await settings.setHookToken({ siteId: site.id, token: secret });
+		// A host whose error page repeats the request it received, in every form.
+		install.http.respond("GET", /^https:\/\/hooks\.sample\.example\/echo\?/, (request) => ({
+			status: 400,
+			headers: { "content-type": "application/json", "x-echo": request.headers.get("authorization") ?? "" },
+			body: JSON.stringify({ url: request.url, authorization: request.headers.get("authorization") }),
+		}));
+
+		const { status, body, echoed } = await settings.echoHook({ siteId: site.id });
+
+		expect(status).toBe(400);
+		expect(echoed).toBe("Bearer [redacted]");
+		expect(JSON.parse(body)).toEqual({
+			url: "https://hooks.sample.example/echo?token=[redacted]",
+			authorization: "Bearer [redacted]",
+		});
+	});
+
 	test("that carry a secret never follow a redirect", async () => {
 		const { siteId, entryId } = await siteWithEntry();
 		await moduleApi<typeof sample>(staff, "sample").settings.setHookToken({

@@ -164,6 +164,34 @@ describe("a published slug that changes", () => {
 		expect((await rules().list({ siteId: site.siteId })).rules).toEqual([]);
 	});
 
+	test("a rule pointing at the old path isn't sent to the new one when that would go round in a circle; the Audit log says so", async () => {
+		const site = await newSite();
+		const post = await publish(site, site.blogId, "Rolls", { slug: "rolls" });
+		await rules().add({ siteId: site.siteId, from: "/blog/buns", to: "/old-buns", status: 302 });
+		await rules().add({ siteId: site.siteId, from: "/old-buns", to: "/blog/rolls", status: 302 });
+		// A person changing it so would be refused.
+		await expect(
+			rules().update({
+				siteId: site.siteId,
+				ruleId: (await rules().list({ siteId: site.siteId })).rules.find((rule) => rule.from === "/old-buns")?.id ?? "",
+				from: "/old-buns",
+				to: "/blog/buns",
+				status: 302,
+			}),
+		).rejects.toMatchObject({ data: { code: "RULE_LOOP" } });
+
+		await republish(site, post, { slug: "buns" });
+		await drained();
+
+		const listed = (await rules().list({ siteId: site.siteId })).rules.map((rule) => [rule.from, rule.to]);
+		expect(listed).toContainEqual(["/old-buns", "/blog/rolls"]);
+		const [entry] = (await admin.api.audit.list({ limit: 1 })).entries;
+		expect(entry).toMatchObject({
+			action: "redirects.rules.follow",
+			details: { reason: "publish", looping: [{ from: "/old-buns", to: "/blog/buns" }] },
+		});
+	});
+
 	test("a person's rule at the old path stays as they made it", async () => {
 		const site = await newSite();
 		const post = await publish(site, site.blogId, "Tarts");

@@ -145,6 +145,18 @@ export const sample = defineModule({
 					}
 				},
 			}),
+			/** Calls the hook with its token, and answers everything it read back: its body and an echoed header. */
+			echoHook: procedure({
+				permission: "structure.edit",
+				input: z.object({}),
+				async run(_input, context) {
+					const token = context.secrets.placeholder("hook-token");
+					const response = await context.http(`https://hooks.sample.example/echo?token=${token}`, {
+						headers: { authorization: `Bearer ${token}` },
+					});
+					return { status: response.status, body: await response.text(), echoed: response.headers.get("x-echo") };
+				},
+			}),
 			setHookToken: procedure({
 				permission: "structure.edit",
 				input: z.object({ token: z.string().min(1).max(500) }),
@@ -154,6 +166,15 @@ export const sample = defineModule({
 				},
 			}),
 		},
+		/** Changes a note with whatever the caller sent, as a careless Module might. */
+		changeNote: procedure({
+			permission: "notes.edit",
+			input: z.object({ noteId: z.uuid(), changes: z.record(z.string(), z.unknown()) }),
+			async run({ noteId, changes }, context) {
+				const [note] = await context.data.update(notes, changes as { body: string }, eq(notes.id, noteId));
+				return { note: note ? view(note) : null };
+			},
+		}),
 		broken: procedure({
 			permission: "notes.view",
 			input: z.object({}),
