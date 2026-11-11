@@ -5381,6 +5381,7 @@
 			"archiveTemplate": "Il template d'archivio {postType}",
 			"searchTemplate": "Il template dei risultati di ricerca",
 			"siteScript": "Lo script del sito",
+			"componentScript": "Lo script del componente {name}",
 			"globals": "I globali",
 			"consentBanner": "I testi del banner dei consensi",
 			"designSystem": "Il design system",

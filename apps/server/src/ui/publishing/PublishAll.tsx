@@ -599,7 +599,10 @@ function refusalText(t: T, failure: unknown): string {
 }
 
 /** What Publish all names an item by: a Draft, or an item of a Scheduled publish. */
-type Named = Pick<SiteDraft, "item" | "name" | "postType" | "templateKind" | "scriptKind">;
+type Named = Pick<SiteDraft, "item" | "name" | "postType" | "templateKind"> & {
+	/** History also names Component scripts (`component`); Publish all lists them as their Components. */
+	scriptKind: SiteDraft["scriptKind"] | "component";
+};
 
 /** What the Draft is called: its name, or what it is when it has none (the Globals, the Design system). */
 function titleOf(t: T, draft: Named): string {
