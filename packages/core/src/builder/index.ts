@@ -19,6 +19,7 @@ import {
 	ElementTreeInvalidError,
 	elementsOf,
 	isComponentInfo,
+	type MarkupLocations,
 	type MarkupNotice,
 	parseElementTree,
 	printCss,
@@ -148,6 +149,7 @@ export type Builder = {
 		tree: ElementTree;
 		styles: Record<string, string>;
 		notices: MarkupNotice[];
+		locations: MarkupLocations;
 		props: FieldDefinition[] | null;
 	}>;
 };
@@ -236,8 +238,21 @@ export function createBuilder(options: { sources: ComponentSources }): Builder {
 			const catalogue = classCatalogue(await draftDesignSystem(scope));
 			// Classes an inline style would make: kept as the element's pending one-off style instead.
 			const pending = new Map<string, { name: string; declarations: string }>();
+			let locations: MarkupLocations = {};
 			const parsed = parseDeclaredTree(declarations, {
 				...source.rules,
+				locate(found) {
+					const prefix = input.markup.replace(/\r\n?/g, "\n").length - declarations.markup.length;
+					locations = Object.fromEntries(
+						Object.entries(found).map(([key, range]) => [
+							key,
+							{
+								start: range.start + prefix,
+								end: range.end + prefix,
+							},
+						]),
+					);
+				},
 				classNamed: catalogue.named,
 				classForStyle(declarations) {
 					const before = catalogue.created.length;
@@ -258,7 +273,7 @@ export function createBuilder(options: { sources: ComponentSources }): Builder {
 			}
 			const made = [...pending.values()].map((each) => each.name);
 			const notices = parsed.notices.filter((notice) => !made.some((name) => notice.message.includes(name)));
-			return { tree, styles, notices, props: source.props };
+			return { tree, styles, notices, locations, props: source.props };
 		},
 	};
 }

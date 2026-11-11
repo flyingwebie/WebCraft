@@ -5,7 +5,7 @@
 // panel can offer to reload it or to overwrite it; nothing is merged silently.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
-import { answer, mainOf, openCodeMode } from "../harness/code-mode.ts";
+import { answer, mainOf, openCodeMode, withoutCodeRanges } from "../harness/code-mode.ts";
 import { type EditModeBrowser, openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 
@@ -203,8 +203,8 @@ describe("saving", () => {
 		);
 
 		const page = await (await coding.page(path)).text();
-		expect(page).toContain('<h2 data-wc-code="content/placed#heading">Fresh today</h2>');
-		expect(page).toMatch(
+		expect(withoutCodeRanges(page)).toContain('<h2 data-wc-code="content/placed#heading">Fresh today</h2>');
+		expect(withoutCodeRanges(page)).toMatch(
 			/<header data-wc-code="site#[A-Za-z0-9]+"><p data-wc-code="site#[A-Za-z0-9]+">Acme<\/p><\/header>/,
 		);
 		const { component } = await staff.api.components.get({ siteId: site.siteId, componentId: site.componentId });

@@ -4,6 +4,7 @@
 // the preview only. A tree a save would refuse is refused the same way.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
+import { withoutCodeRanges } from "../harness/code-mode.ts";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectNoInlineCode } from "../harness/site-safety.ts";
@@ -78,13 +79,15 @@ describe("an Entry template", () => {
 		const { html, css } = await staff.api.builder.preview({ siteId, target: entryTemplate(), tree: shown });
 
 		expect(html).toContain('<article class="intro" data-wc-code="b#post">');
-		expect(html).toContain('<h1 data-wc-code="b#title">Fresh bread</h1>');
+		expect(withoutCodeRanges(html)).toContain('<h1 data-wc-code="b#title">Fresh bread</h1>');
 		// Values are escaped as on the Site.
 		expect(html).toContain("Out of the oven at seven &lt;b&gt;sharp&lt;/b&gt;");
 		// A value the Entry doesn't have shows as written, so the element doesn't vanish.
-		expect(html).toContain('<p data-wc-code="b#empty">{{ note }}</p>');
+		expect(withoutCodeRanges(html)).toContain('<p data-wc-code="b#empty">{{ note }}</p>');
 		// A Component's elements carry the Placement's id first.
-		expect(html).toContain('<aside data-wc-code="b/card#card-root"><h2 data-wc-code="b/card#card-title">A card</h2>');
+		expect(withoutCodeRanges(html)).toContain(
+			'<aside data-wc-code="b/card#card-root"><h2 data-wc-code="b/card#card-title">A card</h2>',
+		);
 		expect(css).toContain("@layer reset, tokens, base, classes, utilities, custom;");
 		expect(css).toContain(".intro{padding:var(--space-m)}");
 		expectNoInlineCode(html);
@@ -100,7 +103,7 @@ describe("an Entry template", () => {
 			styles: { lead: "color: red; margin-top: 0" },
 		});
 
-		const name = /<p class="(style-[0-9a-f]{8})" data-wc-code="b#lead">Hi<\/p>/.exec(html)?.[1];
+		const name = /<p class="(style-[0-9a-f]{8})" data-wc-code="b#lead">Hi<\/p>/.exec(withoutCodeRanges(html))?.[1];
 		expect(name).toBeDefined();
 		expect(css).toContain(`.${name}{color:red;margin-top:0}`);
 		const { designSystem } = await staff.api.designSystem.get({ siteId });
@@ -149,8 +152,10 @@ describe("the Site template", () => {
 
 		const { html } = await staff.api.builder.preview({ siteId, target: { kind: "siteTemplate" }, tree: shown });
 
-		expect(html).toContain('<p data-wc-code="b#phone">{{ site.phone }}</p>');
-		expect(html).toContain('<main data-wc-code="b#main"><span data-wc-builder-placeholder="outlet"></span></main>');
+		expect(withoutCodeRanges(html)).toContain('<p data-wc-code="b#phone">{{ site.phone }}</p>');
+		expect(withoutCodeRanges(html)).toContain(
+			'<main data-wc-code="b#main"><span data-wc-builder-placeholder="outlet"></span></main>',
+		);
 	});
 });
 
@@ -168,6 +173,6 @@ describe("a Component", () => {
 			],
 		});
 
-		expect(html).toBe('<p data-wc-code="b#n">Fresh daily</p>');
+		expect(withoutCodeRanges(html)).toBe('<p data-wc-code="b#n">Fresh daily</p>');
 	});
 });

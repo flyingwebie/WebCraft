@@ -363,6 +363,53 @@ export function codeMode(config: CodeModeConfig): void {
 	let selectedRef: string | null = null;
 	let openRun = 0;
 	let markupInputRun = 0;
+	type Locations = Record<string, { start: number; end: number }>;
+	let located: { ref: string; text: string; locations: Locations; pending: Promise<void> } | undefined;
+
+	/** Metadata belongs to the exact authored text. It never supplies content or changes selection. */
+	function locateMarkup(): Promise<void> {
+		if (!opened) return Promise.resolve();
+		const ref = opened.ref;
+		const text = html.get();
+		if (located?.ref === ref && located.text === text) return located.pending;
+		const next = { ref, text, locations: {} as Locations, pending: Promise.resolve() };
+		located = next;
+		next.pending = call("code/editorRead", { path, ref, markup: text }).then((answer) => {
+			if (located !== next || opened?.ref !== ref || html.get() !== text || !answer.ok) return;
+			next.locations = (answer.data as { locations: Locations }).locations;
+			markSelection();
+			setHover(hoveredRef);
+		});
+		return next.pending;
+	}
+
+	function locationOf(ref: string | null): { start: number; end: number } | undefined {
+		if (!ref || !opened || located?.ref !== opened.ref || located.text !== html.get()) return;
+		const [source, key = ""] = ref.split("#");
+		return source === opened.ref ? located.locations[key] : undefined;
+	}
+
+	function refAt(offset: number): string | null {
+		if (!opened || located?.ref !== opened.ref || located.text !== html.get()) return null;
+		const found = Object.entries(located.locations)
+			.filter(([, range]) => range.start <= offset && offset < range.end)
+			.sort(([, a], [, b]) => a.end - a.start - (b.end - b.start))[0];
+		return found ? `${opened.ref}#${found[0]}` : null;
+	}
+
+	function markSelection(reveal = false): void {
+		const range = locationOf(selectedRef);
+		if (range) {
+			if (reveal) html.reveal(range.start);
+			html.mark(lineOf(html.get(), range.start));
+		} else if (inspectorRef && selectedRef === inspectorRef) html.mark(1, html.get().split("\n").length);
+		else html.mark(null);
+	}
+
+	/** Derived row addresses are local selection metadata, not stored element ids. */
+	function requestRef(ref: string | null): string | null {
+		return ref?.includes("#@") ? (ref.split("#")[0] ?? null) : ref;
+	}
 
 	// The CSS panel
 	let cssEditor: Editor;
@@ -455,8 +502,8 @@ export function codeMode(config: CodeModeConfig): void {
 				if (opened?.ref === ref) {
 					html.set(markup, true);
 					savedMarkup = markup;
-					if (selectedRef?.startsWith(`${ref}#`)) revealElement(selectedRef.slice(ref.length + 1));
-					else if (inspectorRef && selectedRef === inspectorRef) html.mark(1, markup.split("\n").length);
+					markSelection();
+					void locateMarkup();
 					setDirty("html");
 				}
 				schedulePreview();
@@ -667,11 +714,11 @@ export function codeMode(config: CodeModeConfig): void {
 		doc.addEventListener(
 			"click",
 			(event) => {
-				const target = pageElement(event);
-				if (!target) return;
+				const ref = pageRef(event);
+				if (!ref) return;
 				event.preventDefault();
 				event.stopPropagation();
-				void select(target.getAttribute("data-wc-code") ?? "");
+				void select(ref);
 			},
 			true,
 		);
@@ -684,8 +731,7 @@ export function codeMode(config: CodeModeConfig): void {
 		);
 		doc.addEventListener("mouseover", (event) => {
 			if (event.composedPath().includes(host)) return;
-			const target = pageElement(event);
-			setHover(target?.getAttribute("data-wc-code") ?? null);
+			setHover(pageRef(event));
 		});
 		doc.addEventListener("mouseleave", () => {
 			setHover(null);
@@ -775,6 +821,7 @@ export function codeMode(config: CodeModeConfig): void {
 			label: word("html"),
 			onInput: () => {
 				markupInputRun++;
+				void locateMarkup();
 				setDirty("html");
 				schedulePreview();
 			},
@@ -961,6 +1008,20 @@ export function codeMode(config: CodeModeConfig): void {
 		return null;
 	}
 
+	/** Generated command output has no authored element id; its innermost rendered range owns it. */
+	function pageRef(event: Event): string | null {
+		if (event.composedPath().includes(host)) return null;
+		const target = event.composedPath().find((node): node is Element => node instanceof Element);
+		const element = pageElement(event);
+		if (target && target !== element) {
+			for (const { ref, range } of renderedRanges()) {
+				if (!ref.endsWith("/0") && range.intersectsNode(target) && (!element || !range.isPointInRange(element, 0)))
+					return ref;
+			}
+		}
+		return element?.getAttribute("data-wc-code") ?? null;
+	}
+
 	function setHover(ref: string | null): void {
 		hoveredRef = ref;
 		const target = ref ? pageBoundsFor(ref) : null;
@@ -972,10 +1033,8 @@ export function codeMode(config: CodeModeConfig): void {
 			delete hoverBox.dataset.hoverRef;
 		}
 		for (const line of html.root.querySelectorAll(".hovered")) line.classList.remove("hovered");
-		if (ref && opened?.ref === ref.split("#")[0]) {
-			const at = html.get().indexOf(`data-wc-id="${ref.split("#")[1]}"`);
-			if (at >= 0) html.root.querySelectorAll(".line")[lineOf(html.get(), at) - 1]?.classList.add("hovered");
-		}
+		const range = locationOf(ref);
+		if (range) html.root.querySelectorAll(".line")[lineOf(html.get(), range.start) - 1]?.classList.add("hovered");
 		panelsAdapter?.hover(ref);
 	}
 
@@ -993,6 +1052,12 @@ export function codeMode(config: CodeModeConfig): void {
 
 	/** A Placement can render several roots, including roots supplied by nested Components. */
 	function pageBoundsFor(ref: string): DOMRect | null {
+		if (ref.includes("#@")) {
+			const rects = renderedRanges()
+				.filter((each) => each.ref === ref)
+				.flatMap(({ range }) => [...range.getClientRects()]);
+			return boundsOf(rects);
+		}
 		const elements = [...doc.querySelectorAll("[data-wc-code]")];
 		const exact = elements.filter((element) => element.getAttribute("data-wc-code") === ref);
 		const placed = ref.replace("#", "/");
@@ -1003,8 +1068,36 @@ export function codeMode(config: CodeModeConfig): void {
 					return source.startsWith(`${placed}#`) || source.startsWith(`${placed}/`);
 				});
 		const roots = matches.filter((element) => !matches.some((other) => other !== element && other.contains(element)));
-		if (!roots.length) return null;
-		const rects = roots.map((element) => element.getBoundingClientRect());
+		return boundsOf(roots.map((element) => element.getBoundingClientRect()));
+	}
+
+	function renderedRanges(): { ref: string; range: Range }[] {
+		const ranges: { ref: string; range: Range }[] = [];
+		const starts = new Map<string, Comment[]>();
+		const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_COMMENT);
+		for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+			const match = /^wc-code-(start|end) (\S+)$/.exec(node.nodeValue ?? "");
+			if (!match) continue;
+			const ref = decodeURIComponent(match[2] ?? "");
+			const stack = starts.get(ref) ?? [];
+			if (match[1] === "start") {
+				stack.push(node as Comment);
+				starts.set(ref, stack);
+			} else {
+				const start = stack.pop();
+				if (!start) continue;
+				const range = doc.createRange();
+				range.setStartAfter(start);
+				range.setEndBefore(node);
+				ranges.push({ ref, range });
+			}
+		}
+		return ranges;
+	}
+
+	function boundsOf(boxes: DOMRect[]): DOMRect | null {
+		const rects = boxes.filter((rect) => rect.width > 0 && rect.height > 0);
+		if (!rects.length) return null;
 		const left = Math.min(...rects.map((rect) => rect.left));
 		const top = Math.min(...rects.map((rect) => rect.top));
 		return new DOMRect(
@@ -1065,6 +1158,7 @@ export function codeMode(config: CodeModeConfig): void {
 	// Selecting: the HTML panel
 
 	async function select(ref: string, fromPanels = false): Promise<void> {
+		cancel(caretTimer);
 		if (!fromPanels) inspectorRef = undefined;
 		if (!ref) return;
 		const sourceRef = ref.split("#")[0] ?? "";
@@ -1092,7 +1186,7 @@ export function codeMode(config: CodeModeConfig): void {
 	async function open(ref: string | null, keepText = false): Promise<void> {
 		const run = ++openRun;
 		const inputRun = markupInputRun;
-		const answer = await call("code/open", { path, ref });
+		const answer = await call("code/open", { path, ref: requestRef(ref) });
 		if (run !== openRun) return;
 		if (!answer.ok) {
 			setStatusText(errorText(answer.code));
@@ -1112,7 +1206,11 @@ export function codeMode(config: CodeModeConfig): void {
 			}
 		}
 		opened = fresh;
-		selectedRef = fresh.element ? `${fresh.ref}#${fresh.element.id}` : (inspectorRef ?? null);
+		selectedRef = ref?.includes("#@")
+			? ref
+			: fresh.element
+				? `${fresh.ref}#${fresh.element.id}`
+				: (inspectorRef ?? null);
 		// Once connected, the shared Draft owns this source's HTML; selection reads supply metadata only.
 		if (!sameSource || (!panelsAdapter && !keepText)) {
 			savedMarkup = fresh.markup;
@@ -1130,9 +1228,8 @@ export function codeMode(config: CodeModeConfig): void {
 			const last = fresh.path.at(-1)?.label ?? "";
 			outline(selectedBox, target, `${last} · ${currentName()}`);
 		} else selectedBox.hidden = true;
-		if (fresh.element) revealElement(fresh.element.id);
-		else if (inspectorRef) html.mark(1, html.get().split("\n").length);
-		else html.mark(null);
+		markSelection(true);
+		void locateMarkup();
 		if (!fresh.source.editable) setStatusText(word("readOnly", { name: currentName() }));
 		html.area.dataset.editorRef = fresh.ref;
 		if (!sameSource) html.area.dispatchEvent(new Event("editor-source"));
@@ -1145,17 +1242,6 @@ export function codeMode(config: CodeModeConfig): void {
 		html.readOnly(!editable);
 		htmlSave.disabled = !editable;
 		htmlFormat.disabled = !editable;
-	}
-
-	function revealElement(elementId: string): void {
-		const at = html.get().indexOf(`data-wc-id="${elementId}"`);
-		if (at < 0) {
-			html.mark(null);
-			return;
-		}
-		const start = html.get().lastIndexOf("<", at);
-		html.reveal(start < 0 ? at : start);
-		html.mark(lineOf(html.get(), start < 0 ? at : start));
 	}
 
 	function renderBreadcrumb(): void {
@@ -1206,47 +1292,26 @@ export function codeMode(config: CodeModeConfig): void {
 		}
 	}
 
-	/** The caret moved in the HTML panel: the element it is in becomes the selected one, on the page too. */
-	function caretMoved(offset: number): void {
-		if (!opened) return;
-		const elementId = elementAt(html.get(), offset);
-		if (!elementId) return;
-		const ref = `${opened.ref}#${elementId}`;
-		if (ref === selectedRef) return;
+	/** Use the parser's ranges for tags, Template commands, values and later branches alike. */
+	async function caretMoved(offset: number): Promise<void> {
+		if (root.activeElement !== html.area) return;
+		const source = opened?.ref;
+		const text = html.get();
+		const run = ++openRun;
+		await locateMarkup();
+		if (run !== openRun || source !== opened?.ref || text !== html.get() || root.activeElement !== html.area) return;
+		const ref = refAt(offset);
+		if (!ref || ref === selectedRef) return;
 		inspectorRef = undefined;
 		selectedRef = ref;
 		panelsAdapter?.select(ref);
-		html.mark(lineOf(html.get(), html.get().lastIndexOf("<", html.get().indexOf(`data-wc-id="${elementId}"`))));
-		const target = pageElementFor(ref);
-		if (target) {
-			outline(selectedBox, target, currentName());
-			target.scrollIntoView({ block: "nearest" });
-		}
+		markSelection();
+		const target = pageBoundsFor(ref);
+		if (target) outline(selectedBox, target, currentName());
+		else selectedBox.hidden = true;
+		pageElementFor(ref)?.scrollIntoView({ block: "nearest" });
 		if (!cssDirty()) void loadCss(ref);
 		if (html.get() === savedMarkup) void open(ref, true);
-	}
-
-	/** The id of the innermost element whose markup holds `offset`, by its `data-wc-id`. */
-	function elementAt(text: string, offset: number): string | null {
-		const stack: { id: string | null; name: string }[] = [];
-		const tag =
-			/<!--[\s\S]*?-->|\{\{[\s\S]*?\}\}|<\/([A-Za-z][\w-]*)\s*>|<([A-Za-z][\w-]*)((?:[^>"']|"[^"]*"|'[^']*')*?)(\/?)>/g;
-		for (let match = tag.exec(text); match; match = tag.exec(text)) {
-			if (match.index > offset) break;
-			const end = match.index + match[0].length;
-			if (match[1]) {
-				if (end > offset) break;
-				const at = stack.map((each) => each.name).lastIndexOf(match[1]);
-				if (at >= 0) stack.length = at;
-				continue;
-			}
-			if (!match[2]) continue;
-			const id = /data-wc-id="([^"]+)"/.exec(match[3] ?? "")?.[1] ?? null;
-			const selfClosing = match[4] === "/" || VOID.has(match[2].toLowerCase());
-			if (end > offset) return id ?? stack.findLast((each) => each.id)?.id ?? null;
-			if (!selfClosing) stack.push({ id, name: match[2] });
-		}
-		return stack.findLast((each) => each.id)?.id ?? null;
 	}
 
 	// ---------------------------------------------------------------------------------------------
@@ -1504,7 +1569,7 @@ export function codeMode(config: CodeModeConfig): void {
 	// The CSS panel
 
 	async function loadCss(ref: string | null): Promise<void> {
-		const answer = await call("code/css", { path, ref });
+		const answer = await call("code/css", { path, ref: requestRef(ref) });
 		if (!answer.ok) return;
 		css = answer.data as Css;
 		const first = css.classes.find((each) => each.id === cssClassId) ?? css.classes[0];
@@ -2196,8 +2261,7 @@ export function codeMode(config: CodeModeConfig): void {
 				const offset =
 					lines.slice(0, line).reduce((sum, text) => sum + text.length + 1, 0) +
 					Math.min(column, lines[line]?.length ?? 0);
-				const id = elementAt(area.value, offset);
-				setHover(id && opened ? `${opened.ref}#${id}` : null);
+				setHover(refAt(offset));
 			});
 			area.addEventListener("mouseleave", () => setHover(null));
 		}
@@ -2210,10 +2274,7 @@ export function codeMode(config: CodeModeConfig): void {
 		const paint = () => {
 			const text = area.value;
 			const lines = highlight(options.language, text);
-			const hoverAt =
-				options.language === "markup" && hoveredRef && opened?.ref === hoveredRef.split("#")[0]
-					? text.indexOf(`data-wc-id="${hoveredRef.split("#")[1]}"`)
-					: -1;
+			const hoverAt = options.language === "markup" ? (locationOf(hoveredRef)?.start ?? -1) : -1;
 			const hoverLine = hoverAt < 0 ? null : lineOf(text, hoverAt);
 			code.innerHTML = lines
 				.map((line, index) => {
