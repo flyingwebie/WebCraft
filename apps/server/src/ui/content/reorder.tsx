@@ -1,5 +1,5 @@
 import { GripVerticalIcon } from "lucide-react";
-import { type DragEvent, type ReactNode, useState } from "react";
+import { type DragEvent, type ReactNode, useCallback, useState } from "react";
 
 /** The list with the item at `from` moved to `to`. */
 export function moveItem<Item>(items: readonly Item[], from: number, to: number): Item[] {
@@ -76,6 +76,15 @@ export function DragHandle(props: ReturnType<ReturnType<typeof useDragOrder>["ha
 			<GripVerticalIcon className="size-4" />
 		</span>
 	);
+}
+
+/** Repeating the same action must still change the live region's text. */
+export function useAnnouncement() {
+	const [announcement, setAnnouncement] = useState({ text: "", count: 0 });
+	const announce = useCallback((text: string) => {
+		setAnnouncement((before) => ({ text, count: before.count + 1 }));
+	}, []);
+	return [`${announcement.text}${announcement.count % 2 === 0 ? "" : " "}`, announce] as const;
 }
 
 /** A polite announcement for screen readers, such as where an item moved to. */

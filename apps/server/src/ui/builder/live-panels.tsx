@@ -4,6 +4,7 @@ import { DialogContainer } from "@webcraft/ui/components/dialog.tsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { type SharedDraft, useSharedDraft } from "../co-editing/shared-draft.ts";
+import { useAnnouncement } from "../content/reorder.tsx";
 import { errorMessage } from "../errors.ts";
 import { AdminIntl, useT } from "../i18n.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
@@ -55,6 +56,32 @@ export type LivePanelBridge = {
 		context?: { ref: string; markup: string; offset: number; label: string },
 	): void;
 };
+
+/** Save one-off styles against the version of the tree being printed, never a later version. */
+async function saveOneOffStyles(
+	bridge: LivePanelBridge,
+	ref: string,
+	styles: Record<string, string>,
+	replaceElement?: string,
+) {
+	const { opened } = await bridge.call<PanelSource>("code/editor", { ref });
+	let tree = opened.tree;
+	// The Inspector replaces that element's one-off declarations, including clearing them.
+	if (replaceElement) {
+		const path = pathOfId(tree, replaceElement);
+		const node = path && nodeAt(tree, path);
+		if (path && node?.type === "element") {
+			const generated = new Set(opened.catalogue.classes.filter((each) => each.generated).map((each) => each.id));
+			tree = replaceAt(tree, path, { ...node, classes: node.classes.filter((id) => !generated.has(id)) });
+		}
+	}
+	const { markup } = await bridge.call<{ markup: string }>("code/editorMarkup", {
+		ref,
+		draft: { tree, styles, ...(opened.props ? { props: opened.props } : {}) },
+	});
+	await bridge.call("code/save", { ref, markup, version: opened.version });
+}
+
 export function mount(bridge: LivePanelBridge) {
 	const container = document.createElement("div");
 	container.className = "editor-panels dark";
@@ -300,37 +327,30 @@ function LivePanels({
 								...(read.props ? { props: read.props } : {}),
 							}
 						: (read.tree as unknown as Json);
-					if (!pending.apply(next)) {
+					if (!pending.apply(next, { keep: true })) {
 						pending = null;
 						setError(t("coEditing.status.readOnly"));
 						return false;
 					}
-					pending = null;
 					const draft = shared.draft();
 					const tree = (source.opened.component ? (draft as { tree: Json }).tree : draft) as unknown as ElementTree;
 					update(ref, tree, source.opened.component ? (draft as unknown as { props: Opened["props"] }).props : null);
 					if (!(await shared.flush())) return false;
 					if (Object.keys(read.styles).length) {
 						// Inline styles become generated Classes through the existing validated markup saver.
-						// Print the merged document, preserving edits that arrived while the HTML was incomplete.
-						const freshDraft = shared.draft();
-						const printed = await bridge.call<{ markup: string }>("code/editorMarkup", {
-							ref,
-							draft: {
-								...(source.opened.component ? (freshDraft as object) : { tree: freshDraft }),
-								styles: read.styles,
-							},
-						});
-						const current = await bridge.call<{ version: string | null }>("code/open", { ref });
-						await bridge.call("code/save", { ref, markup: printed.markup, version: current.version });
+						await saveOneOffStyles(bridge, ref, read.styles);
 						await load(ref);
 					}
 				}
 				if (run !== generation) return false;
-				typing.current = false;
 				setError("");
 				const saved = await bridge.call<{ markup: string }>("code/open", { ref });
-				if (run === generation) bridge.changed(ref, saved.markup);
+				if (run === generation) {
+					pending?.cancel();
+					pending = null;
+					typing.current = false;
+					bridge.changed(ref, saved.markup);
+				}
 				return true;
 			} catch (failure) {
 				setError(t(errorMessage(failure)));
@@ -472,13 +492,15 @@ function LivePanels({
 						const owner = sources[ref];
 						const shared =
 							owner && connections.current.get((owner.opened.component?.id ?? owner.opened.template?.id) as string);
-						if (!owner || !shared) return;
+						if (!owner || !shared) return false;
+						let updated = false;
 						const changed = shared.change((current) => {
 							const tree = (owner.opened.component
 								? (current as { tree: Json }).tree
 								: current) as unknown as ElementTree;
 							const node = nodeAt(tree, path);
-							if (node?.type !== "component") return current;
+							if (node?.type !== "component" || node.hidden === hidden) return current;
+							updated = true;
 							const next = replaceAt(tree, path, { ...node, hidden });
 							update(ref, next);
 							paint(ref, next);
@@ -486,10 +508,11 @@ function LivePanels({
 								? { ...(current as Record<string, Json>), tree: next as unknown as Json }
 								: (next as unknown as Json);
 						});
-						if (changed)
+						if (changed && updated)
 							void shared.flush().then((saved) => {
 								if (saved) bridge.refresh();
 							});
+						return changed && updated;
 					}}
 					shared={connections.current.get((source.opened.component?.id ?? source.opened.template?.id) as string)}
 					onTree={(tree) => {
@@ -570,7 +593,7 @@ function SourcePanels({
 	shared?: SharedDraft;
 	onTree(tree: ElementTree): void;
 	onSourceSelect(ref: string, selection: Selection): void;
-	onHidden(path: NodePath, hidden: boolean, ref?: string): void;
+	onHidden(path: NodePath, hidden: boolean, ref?: string): boolean;
 	requested: Selection | null;
 	creating: boolean;
 	onCreate(tree: ElementTree): Promise<void>;
@@ -578,11 +601,9 @@ function SourcePanels({
 }) {
 	const t = useT();
 	const [tree, setTree] = useState(source.opened.tree);
-	const treeRef = useRef(tree);
-	treeRef.current = tree;
 	const [selection, setSelection] = useState<Selection | null>(null);
 	const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
-	const [announcement, announce] = useState("");
+	const [announcement, announce] = useAnnouncement();
 	const [inserting, setInserting] = useState(false);
 	const [quick, setQuick] = useState<string | null>(null);
 	const [where, setWhere] = useState<InsertWhere>("inside");
@@ -632,7 +653,6 @@ function SourcePanels({
 		const created = !shared && !source.opened.template && !source.opened.component;
 		if (!created && !changed) return t("coEditing.status.connecting");
 		setTree(next);
-		treeRef.current = next;
 		setSelection(nextSelection);
 		const selectedNode = nextSelection?.kind === "node" ? nodeAt(next, nextSelection.path) : null;
 		selectedId.current = selectedNode && "id" in selectedNode ? selectedNode.id : null;
@@ -752,7 +772,9 @@ function SourcePanels({
 						onPreview={(show) => void previewInsertion(show)}
 					/>
 					<LayersPanel
-						onHidden={onHidden}
+						onHidden={(path, hidden, ref) => {
+							if (onHidden(path, hidden, ref)) announce(t("builder.inspector.changed"));
+						}}
 						forest={forest}
 						activeSource={source.ref}
 						hovered={hovered ? hovered.replace("#", ":#") : null}
@@ -839,15 +861,11 @@ function SourcePanels({
 							void (async () => {
 								try {
 									if (!(await shared?.flush())) return;
-									const markup = await bridge.call<{ markup: string }>("code/editorMarkup", {
-										ref: source.ref,
-										draft: { tree: treeRef.current, styles: { [id]: declarations } },
-									});
-									const current = await bridge.call<{ version: string | null }>("code/open", { ref: source.ref });
-									await bridge.call("code/save", { ref: source.ref, markup: markup.markup, version: current.version });
+									await saveOneOffStyles(bridge, source.ref, { [id]: declarations }, id);
 									const fresh = await bridge.call<PanelSource>("code/editor", { ref: source.ref });
 									setCatalogue(fresh.opened.catalogue);
 									onTree(fresh.opened.tree);
+									announce(declarations ? t("builder.style.oneOffApplied") : t("builder.style.oneOffRemoved"));
 								} catch (failure) {
 									announce(t(errorMessage(failure)));
 								}

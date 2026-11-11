@@ -174,7 +174,7 @@ export function createCodeMode(options: {
 				contentAvailable: !!content?.templatePostTypeId && !content.notFound,
 				pageLayout: page ? { id: page.id, title: page.draft.title } : null,
 				opened: source.editable
-					? { ...opened, tree: source.tree }
+					? { ...opened, tree: opened.template || opened.component ? opened.tree : source.tree }
 					: {
 							...opened,
 							template: null,

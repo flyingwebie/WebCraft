@@ -31,7 +31,7 @@ import { getApi } from "../api.ts";
 import { Checks } from "../Checks.tsx";
 import { type SharedDraft, useSharedDraft } from "../co-editing/shared-draft.ts";
 import { StatusBadge } from "../content/DraftParts.tsx";
-import { Announcer } from "../content/reorder.tsx";
+import { Announcer, useAnnouncement } from "../content/reorder.tsx";
 import { errorCode, errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
 import { Canvas, type CanvasTarget, type CanvasWidth } from "./Canvas.tsx";
@@ -134,7 +134,7 @@ export function Builder({
 	const [width, setWidth] = useState<CanvasWidth>("desktop");
 	const [showFixed, setShowFixed] = useState(true);
 	const [showChecks, setShowChecks] = useState(false);
-	const [announcement, setAnnouncement] = useState({ text: "", count: 0 });
+	const [announcement, announce] = useAnnouncement();
 	const [insertOpen, setInsertOpen] = useState(false);
 	const [quickInsert, setQuickInsert] = useState<string | null>(null);
 	const [insertWhere, setInsertWhere] = useState<InsertWhere>("inside");
@@ -173,9 +173,6 @@ export function Builder({
 		[opened.props],
 	);
 
-	const announce = useCallback((text: string) => {
-		setAnnouncement((before) => ({ text, count: before.count + 1 }));
-	}, []);
 	useSharedDraft({
 		path: `/api/drafts/${siteId}/designSystem`,
 		onRemote() {
@@ -626,18 +623,20 @@ export function Builder({
 				announce(t("builder.saved", { name: title }));
 				return latest;
 			}
+			// The snapshot and version must describe the same Draft; peers may edit while flushing.
+			const snapshot = documentId ? { ...started, tree: latest.tree, props: latest.props } : started;
 			const text = (
 				await api.builder.markup({
 					siteId,
 					target,
-					tree: started.tree,
-					styles: started.styles,
-					...propsChange(started),
+					tree: snapshot.tree,
+					styles: snapshot.styles,
+					...propsChange(snapshot),
 				})
 			).markup;
 			const stored = await saveDraft(api, siteId, target, {
 				markup: text,
-				props: propsChange(started).props ?? null,
+				props: propsChange(snapshot).props ?? null,
 				basedOn: over ? over.version : latest.version,
 			});
 			const fresh = await api.builder.open({ siteId, target });
@@ -1135,7 +1134,7 @@ export function Builder({
 						/>
 					</section>
 				) : null}
-				<Announcer message={`${announcement.text}${announcement.count % 2 === 0 ? "" : " "}`} />
+				<Announcer message={announcement} />
 			</main>
 			<InsertDialog
 				quick={quickInsert}

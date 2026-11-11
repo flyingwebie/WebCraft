@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
+import type { Locator } from "playwright";
 import { expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, pageErrors, startBrowserInstall, THEMES } from "./harness.ts";
 
@@ -9,6 +10,40 @@ beforeEach(async () => {
 afterEach(async () => {
 	await install.close();
 });
+
+/** Repeated actions must mutate the live region so assistive technology hears them again. */
+async function nextAnnouncement(region: Locator): Promise<{ heard: Promise<string | null> }> {
+	const ready = Promise.withResolvers<void>();
+	const callback = `announcementReady${crypto.randomUUID().replaceAll("-", "")}`;
+	await region.page().exposeFunction(callback, ready.resolve);
+	const heard = region
+		.evaluate(
+			(element, callback) =>
+				new Promise<string>((resolve, reject) => {
+					const observer = new MutationObserver(() => {
+						clearTimeout(timeout);
+						observer.disconnect();
+						resolve(element.textContent ?? "");
+					});
+					const timeout = setTimeout(() => {
+						observer.disconnect();
+						reject(new Error("The next action was not announced"));
+					}, 5000);
+					observer.observe(element, { childList: true, characterData: true, subtree: true });
+					(window as unknown as Record<string, () => void>)[callback]?.();
+				}),
+			callback,
+		)
+		.then(
+			(text) => text.trim(),
+			(error) => {
+				ready.reject(error);
+				return null;
+			},
+		);
+	await ready.promise;
+	return { heard };
+}
 
 for (const theme of THEMES) {
 	test(`live Layers and Inspector share selection and Draft edits (${theme})`, async () => {
@@ -67,10 +102,58 @@ for (const theme of THEMES) {
 		await other.getByLabel("Layer label", { exact: true }).fill("Greeting together");
 		await other.getByLabel("Layer label", { exact: true }).press("Enter");
 		await tree.getByRole("treeitem", { name: /Greeting together/ }).waitFor();
-		await html.fill(beforeTyping.replace("Welcome", "Typed together"));
-		await other.locator("header p", { hasText: "Typed together" }).waitFor();
+		const release = Promise.withResolvers<void>();
+		let hold = true;
+		await page.route("**/_webcraft/edit/api/code/open", async (route) => {
+			if (hold) {
+				hold = false;
+				await release.promise;
+			}
+			await route.continue();
+		});
+		try {
+			const opening = page.waitForRequest((request) => request.url().endsWith("/code/open"));
+			await html.fill(beforeTyping.replace("Welcome", "Typed together"));
+			await opening;
+			await html.fill((await html.inputValue()).replace("Typed together", "Typed together twice"));
+		} finally {
+			release.resolve();
+		}
+		await other.locator("header p", { hasText: "Typed together twice" }).waitFor();
+		expect((await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft).toContain(
+			'data-wc-label="Greeting together"',
+		);
 		await other.getByRole("treeitem", { name: /Typed together/ }).waitFor();
 		await other.getByRole("treeitem", { name: /Greeting together/ }).waitFor();
+		await page.unroute("**/_webcraft/edit/api/code/open");
+		await page.waitForLoadState("networkidle");
+		const printed = Promise.withResolvers<void>();
+		const display = Promise.withResolvers<void>();
+		let holdPrinted = true;
+		await page.route("**/_webcraft/edit/api/code/open", async (route) => {
+			if (!holdPrinted) return route.continue();
+			holdPrinted = false;
+			const response = await route.fetch();
+			printed.resolve();
+			await display.promise;
+			await route.fulfill({ response });
+		});
+		try {
+			await html.fill((await html.inputValue()).replace("Typed together twice", "Typed before printing"));
+			await printed.promise;
+			await other.getByRole("treeitem", { name: /Greeting together/ }).click();
+			await other.getByLabel("Layer label", { exact: true }).fill("Greeting later");
+			await other.getByLabel("Layer label", { exact: true }).press("Enter");
+			await tree.getByRole("treeitem", { name: /Greeting later/ }).waitFor();
+		} finally {
+			display.resolve();
+		}
+		await page.waitForFunction(() =>
+			document
+				.querySelector("webcraft-code-mode")
+				?.shadowRoot?.querySelector("textarea")
+				?.value.includes('data-wc-label="Greeting later"'),
+		);
 		await other.close();
 		await tree.getByRole("treeitem", { name: /Greeting/ }).hover();
 		await page.locator('.outline.hover[data-hover-ref="site#welcome"]').waitFor();
@@ -181,8 +264,12 @@ test("Placements keep their own Props beside the Component's inline tree and mar
 			.getByRole("button", { name: "Hide placement", exact: true })
 			.evaluate((element) => element.matches(":focus")),
 	).toBe(true);
+	const changed = page.getByRole("status").filter({ hasText: "Changed." });
+	await changed.waitFor();
+	const hiddenAnnouncement = await nextAnnouncement(changed);
 	await page.keyboard.press("Enter");
 	await page.locator("blockquote[data-wc-hidden-placement]").waitFor();
+	expect(await hiddenAnnouncement.heard).toBe("Changed.");
 	await visibility.getByRole("button", { name: "Show placement", exact: true }).press("Enter");
 	await page.locator("blockquote:not([data-wc-hidden-placement])").waitFor();
 	await page.getByRole("button", { name: "Edit the Component", exact: true }).click();
@@ -361,8 +448,24 @@ test("Loops show their rendered count and use the shared keyboard actions", asyn
 	await tree.getByRole("treeitem", { name: /Day name/ }).waitFor();
 	await page.keyboard.press("ControlOrMeta+d");
 	await page.waitForFunction(() => document.querySelectorAll("header p").length === 4);
+	await page.keyboard.press("ControlOrMeta+d");
+	await page.waitForFunction(() => document.querySelectorAll("header p").length === 6);
+	await tree
+		.getByRole("treeitem", { name: /Day name/ })
+		.first()
+		.click();
+	await page.keyboard.press("Delete");
+	await page.waitForFunction(() => document.querySelectorAll("header p").length === 4);
+	const deletion = page.getByRole("status").filter({ hasText: "Deleted Day name." });
+	await deletion.waitFor();
+	await tree
+		.getByRole("treeitem", { name: /Day name/ })
+		.first()
+		.click();
+	const announced = await nextAnnouncement(deletion);
 	await page.keyboard.press("Delete");
 	await page.waitForFunction(() => document.querySelectorAll("header p").length === 2);
+	expect(await announced.heard).toBe("Deleted Day name.");
 	await tree.getByRole("treeitem", { name: /Day name/ }).focus();
 	await page.keyboard.press("ControlOrMeta+i");
 	await page.getByRole("dialog").waitFor();
