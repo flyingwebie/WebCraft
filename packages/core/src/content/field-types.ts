@@ -60,6 +60,10 @@ export type LinkValue = { url: string; text: string };
 
 /** What every Field has, whatever its type. */
 type Common<Type extends FieldType, Default> = {
+	/** Component declaration identity; absent on ordinary Fields and legacy declarations. */
+	id?: string;
+	/** Component script opt-in; absent means private. */
+	exposed?: boolean;
 	/** Names the Field in Template markup (`{{ summary }}`), the APIs and files. Never changes. */
 	key: string;
 	/** What people see next to it. */
@@ -120,7 +124,7 @@ export type SelectField = Common<"select", string | string[] | null> & {
  * A media Field: the id of a file in the Site's Media library. Templates read it as `media:<id>`, so
  * an `<img>` bound to it renders as a Media image, and an `href` as the file's address.
  */
-export type MediaField = Common<"media", null>;
+export type MediaField = Common<"media", string | null>;
 export type LinkField = Common<"link", LinkValue | null>;
 export type EmailField = Common<"email", string | null> & { pattern: string | null };
 export type RelationshipField = Common<"relationship", null> & {
@@ -161,6 +165,8 @@ export type LeafField = Exclude<FieldDefinition, GroupField | RepeaterField>;
 
 /** A Field as people give it. Only `key`, `label` and `type` are needed; the rest has defaults. */
 export type FieldInput = {
+	id?: string;
+	exposed?: boolean;
 	key: string;
 	label: string;
 	type: FieldType;

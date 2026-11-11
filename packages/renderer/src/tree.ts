@@ -34,6 +34,8 @@ import { checkExpression, type Expression, expressionPaths } from "./expressions
 import { checkFormat, type ValueFormat } from "./formatters.ts";
 import { canonicalLanguage, languageTagMessage, type Translations } from "./languages.ts";
 import { LOOP_STATS, type LoopCatalogue, rootScope, type ValueScope } from "./loops.ts";
+import { readPropBinding } from "./prop-bindings.ts";
+import { retainedPropProblem, retainedPropsProblem, retainedValueIdentity } from "./prop-retention.ts";
 
 /** The version of the element tree format, stored in every tree. */
 export const ELEMENT_TREE_VERSION = 1;
@@ -1018,15 +1020,52 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 		if (!Array.isArray(raw.props)) {
 			problem(`${at}.props`, "A Placement's props are a list of its Prop values.");
 		} else {
+			const retentionProblem = retainedPropsProblem(raw.props);
+			if (retentionProblem) problem(`${at}.props`, retentionProblem);
 			raw.props.forEach((entry: unknown, index) => {
 				const here = `${at}.props[${index}]`;
-				const { name, value } = (entry ?? {}) as { name?: unknown; value?: unknown };
-				const prop = found.props.find((candidate) => candidate.key === name);
-				if (typeof name !== "string" || !prop) {
+				const { name, value, binding, retained, contract } = (entry ?? {}) as {
+					name?: unknown;
+					value?: unknown;
+					binding?: unknown;
+					retained?: unknown;
+					contract?: Record<string, unknown>;
+				};
+				const invalidRetention = retained !== undefined && retainedPropProblem(entry);
+				if (invalidRetention) {
+					problem(here, invalidRetention);
+					return;
+				}
+				let prop =
+					retained === undefined
+						? found.props.find((candidate) => candidate.key === name)
+						: found.retainedProps?.find((candidate) => candidate.id === retained);
+				if (contract !== undefined) {
+					try {
+						const identity = retained ?? contract?.id;
+						if (typeof identity !== "string" || !found.contractInfo)
+							throw new Error("A Prop source contract needs a declaration identity.");
+						prop = found.contractInfo(contract, identity);
+					} catch (error) {
+						problem(here, (error as Error).message);
+						return;
+					}
+				}
+				if (typeof name !== "string" || !/^[a-z][A-Za-z0-9_]{0,63}$/.test(name) || !prop) {
 					problem(`${here}.name`, `${found.name} has no Prop named ${String(name)}.`);
 					return;
 				}
-				if (props.some((given) => given.name === name)) {
+				if (
+					props.some((given) =>
+						retained === undefined
+							? !given.retained &&
+								(given.name === name ||
+									(prop.id && (given.contract?.id ?? found.props.find((p) => p.key === given.name)?.id) === prop.id))
+							: given.retained === retained &&
+								retainedValueIdentity(String(retained), given.contract) ===
+									retainedValueIdentity(String(retained), contract),
+					)
+				) {
 					problem(`${here}.name`, `${name} is given twice.`);
 					return;
 				}
@@ -1040,14 +1079,33 @@ export function parseElementTree(input: unknown, options: ParseTreeOptions = {})
 						.filter((part): part is AttributePart => part !== undefined),
 				);
 				if (parts.every((part) => part.type === "text")) {
-					const refused = prop.check(parts.map((part) => (part.type === "text" ? part.text : "")).join(""));
-					if (refused) problem(`${here}.value`, `${name}: ${refused}`);
+					const texts = parts.filter((part) => part.type === "text");
+					const languages = new Set(["", ...texts.flatMap((part) => Object.keys(part.translations ?? {}))]);
+					for (const language of languages) {
+						const refused = prop.check(texts.map((part) => part.translations?.[language] ?? part.text).join(""));
+						if (refused) problem(`${here}.value`, `${name}: ${refused}`);
+					}
 				}
-				props.push({ name, value: parts });
+				const metadata = readPropBinding(binding, parts, prop.bindingPaths);
+				if ("problem" in metadata) problem(`${here}.binding`, metadata.problem);
+				props.push({
+					name,
+					value: parts,
+					...(typeof retained === "string" ? { retained } : {}),
+					...(contract ? { contract } : {}),
+					...("binding" in metadata ? { binding: metadata.binding } : {}),
+				});
 			});
 		}
 		for (const prop of found.props) {
-			if (prop.required && !props.some((given) => given.name === prop.key)) {
+			if (
+				prop.required &&
+				!props.some((given) =>
+					given.retained
+						? given.retained === prop.id
+						: given.name === prop.key || (prop.id !== undefined && given.contract?.id === prop.id),
+				)
+			) {
 				problem(`${at}.props`, `${found.name} needs ${prop.key}: the Prop is required.`);
 			}
 		}

@@ -21,7 +21,6 @@ import {
 	isComponentInfo,
 	type MarkupNotice,
 	parseElementTree,
-	parseTemplateMarkup,
 	printCss,
 	printTemplateMarkup,
 	readInlineStyle,
@@ -33,12 +32,20 @@ import { eq } from "drizzle-orm";
 import { type CodeCss, type CssTarget, classesCss, saveCss } from "../code-mode/css.ts";
 import { valuesOf } from "../code-mode/sources.ts";
 import { type Component, type ComponentSources, getComponent, listComponents } from "../content/components.ts";
+import { ComponentInvalidError } from "../content/errors.ts";
 import type { FieldDefinition, FieldInput } from "../content/field-types.ts";
 import { BUILT_IN_FIELDS } from "../content/fields.ts";
 import { getGlobals } from "../content/globals.ts";
 import { siteLanguages } from "../content/languages.ts";
 import { listLoops } from "../content/loops.ts";
 import type { PostType } from "../content/post-types.ts";
+import {
+	declarationProblems,
+	parseDeclaredTree,
+	printPropDeclarations,
+	readPropDeclarations,
+} from "../content/prop-markup.ts";
+import { projectSourceBindings, restorePropContracts, retainPropBindings } from "../content/prop-migrations.ts";
 import type { Template } from "../content/templates.ts";
 import { type ClassCatalogue, classCatalogue } from "../design-system/classes.ts";
 import { draftDesignSystem } from "../design-system/design-systems.ts";
@@ -137,7 +144,12 @@ export type Builder = {
 		scope: SiteScope,
 		target: BuilderTarget,
 		input: { markup: string; props?: FieldInput[] },
-	): Promise<{ tree: ElementTree; styles: Record<string, string>; notices: MarkupNotice[] }>;
+	): Promise<{
+		tree: ElementTree;
+		styles: Record<string, string>;
+		notices: MarkupNotice[];
+		props: FieldDefinition[] | null;
+	}>;
 	/**
 	 * What the CSS panel shows on the Builder canvas, as on Code mode's: the Classes the element has
 	 * now, by id in its order (token utilities left out), with their uses, the breakpoints, the Site
@@ -211,23 +223,33 @@ export function createBuilder(options: { sources: ComponentSources }): Builder {
 			const tree = checked(draft.tree, source, catalogue);
 			const styles = canonicalStyles(tree, draft.styles ?? {});
 			return {
-				markup: printTemplateMarkup(tree, {
-					className: catalogue.nameOf,
-					componentName: source.components.nameOf,
-					formKey: source.components.forms.keyOf,
-					popupKey: source.components.popups.keyOf,
-					filterName: source.components.filters.nameOf,
-					inlineStyle: (elementId) => styles.get(elementId),
-				}),
+				markup:
+					(source.props ? printPropDeclarations(source.props) : "") +
+					printTemplateMarkup(tree, {
+						className: catalogue.nameOf,
+						componentName: source.components.nameOf,
+						formKey: source.components.forms.keyOf,
+						popupKey: source.components.popups.keyOf,
+						filterName: source.components.filters.nameOf,
+						inlineStyle: (elementId) => styles.get(elementId),
+					}),
 			};
 		},
 
 		async read(scope, target, input) {
-			const source = await readSource(scope, target, sources, input.props);
+			const declarations =
+				target.kind === "component"
+					? readPropDeclarations(input.markup)
+					: { markup: input.markup, lines: [], offset: 0, props: undefined };
+			const source = await readSource(scope, target, sources, declarations.props ?? input.props).catch((error) => {
+				if (declarations.props && error instanceof ComponentInvalidError)
+					declarationProblems(declarations, error.problems);
+				throw error;
+			});
 			const catalogue = classCatalogue(await draftDesignSystem(scope));
 			// Classes an inline style would make: kept as the element's pending one-off style instead.
 			const pending = new Map<string, { name: string; declarations: string }>();
-			const parsed = parseTemplateMarkup(input.markup, {
+			const parsed = parseDeclaredTree(declarations, {
 				...source.rules,
 				classNamed: catalogue.named,
 				classForStyle(declarations) {
@@ -239,7 +261,7 @@ export function createBuilder(options: { sources: ComponentSources }): Builder {
 					return found;
 				},
 			});
-			const tree = structuredClone(parsed.tree);
+			const tree = prepared(parsed.tree, source);
 			const styles: Record<string, string> = {};
 			for (const element of elementsOf(tree.nodes)) {
 				const own = element.classes.filter((classId) => pending.has(classId));
@@ -249,14 +271,22 @@ export function createBuilder(options: { sources: ComponentSources }): Builder {
 			}
 			const made = [...pending.values()].map((each) => each.name);
 			const notices = parsed.notices.filter((notice) => !made.some((name) => notice.message.includes(name)));
-			return { tree, styles, notices };
+			return { tree, styles, notices, props: source.props };
 		},
 	};
 }
 
 /** A tree from the builder, checked as saving its Draft would check it. */
 function checked(tree: unknown, source: BuilderSource, catalogue: ClassCatalogue): ElementTree {
-	return parseElementTree(tree, { ...source.rules, classIds: catalogue.ids });
+	return prepared(parseElementTree(tree, { ...source.rules, classIds: catalogue.ids }), source);
+}
+
+/** Previews and saves project the same immediate outer binding contract. */
+function prepared(tree: ElementTree, source: BuilderSource): ElementTree {
+	const retained = retainPropBindings(restorePropContracts(tree, source.components), source.draft);
+	return source.component && source.props
+		? projectSourceBindings(retained, source.draft, source.component.draft.props, source.props, source.components)
+		: retained;
 }
 
 /**

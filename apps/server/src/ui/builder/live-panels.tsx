@@ -12,6 +12,7 @@ import { CssPanel, type CssPanelPort, type CssTarget } from "./CssPanel.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
 import { type EditorApi, EditorApiContext, EditorEnvironment } from "./editor-api.tsx";
 import { FixedTextDialog } from "./FixedTextDialog.tsx";
+import { type FixedTextLocation, rememberFixedText, resolveFixedText } from "./fixed-text.ts";
 import { InsertDialog, type InsertWhere } from "./InsertDialog.tsx";
 import { InsertToolbar } from "./InsertToolbar.tsx";
 import { Inspector } from "./Inspector.tsx";
@@ -238,10 +239,18 @@ function LivePanels({
 		},
 		[update, paint],
 	);
+	const sourceRead = useRef(0);
+	const sourceReads = useRef(new Map<string | null, number>());
 	const load = useCallback(
 		async (ref: string | null): Promise<PanelSource> => {
+			const run = ++sourceRead.current;
+			sourceReads.current.set(ref, run);
 			const source = await bridge.call<PanelSource>("code/editor", { ref });
+			// Catalogue reads belong to their source and cannot replace a newer read of that source.
+			if (sourceReads.current.get(ref) !== run || (sourceReads.current.get(source.ref) ?? 0) > run) return source;
+			sourceReads.current.set(source.ref, run);
 			setSources((before) => {
+				if (sourceReads.current.get(source.ref) !== run) return before;
 				const id = source.opened.component?.id ?? source.opened.template?.id;
 				const draft = id ? connections.current.get(id)?.draft() : null;
 				return {
@@ -524,6 +533,9 @@ function LivePanels({
 					bridge={bridge}
 					source={source}
 					designVersion={designVersion}
+					reload={async () => {
+						await load(source.ref);
+					}}
 					remoteRevision={
 						remoteRevisions.current.get(source.opened.component?.id ?? source.opened.template?.id ?? source.ref) ?? 0
 					}
@@ -655,6 +667,7 @@ function DraftConnection({
 function SourcePanels({
 	bridge,
 	source,
+	reload,
 	remoteRevision,
 	selected,
 	forest,
@@ -671,6 +684,7 @@ function SourcePanels({
 	bridge: LivePanelBridge;
 	source: PanelSource;
 	designVersion: number;
+	reload(): Promise<void>;
 	remoteRevision: number;
 	forest: LayerSource[];
 	hovered: string | null;
@@ -700,9 +714,11 @@ function SourcePanels({
 		remoteRevision: number;
 	} | null>(null);
 	const sourceId = source.opened.component?.id ?? source.opened.template?.id ?? source.ref;
+	const currentSource = useRef(sourceId);
+	currentSource.current = sourceId;
 	const grabCurrent = grabbed?.source === sourceId && grabbed.remoteRevision === remoteRevision;
 	const [catalogue, setCatalogue] = useState(source.opened.catalogue);
-	const [fixed, setFixed] = useState<NodePath | null>(null);
+	const [fixed, setFixed] = useState<{ location: FixedTextLocation; source: string } | null>(null);
 	const fixedTrigger = useRef<HTMLElement | null>(null);
 	const fixedAction =
 		source.target.kind === "component" ? "prop" : source.target.kind === "entryTemplate" ? "field" : "global";
@@ -990,27 +1006,29 @@ function SourcePanels({
 						onOneOff={async (_path, id, declarations) => {
 							try {
 								if (!(await shared?.flush())) {
-									announce(t(`coEditing.status.${shared?.status ?? "connecting"}`));
+									if (currentSource.current === sourceId)
+										announce(t(`coEditing.status.${shared?.status ?? "connecting"}`));
 									return false;
 								}
 								await saveOneOffStyles(bridge, source.ref, { [id]: declarations }, id);
-								const fresh = await bridge.call<PanelSource>("code/editor", { ref: source.ref });
-								setCatalogue(fresh.opened.catalogue);
+								await reload();
 								onTree(currentDraft(source, shared).tree);
-								announce(declarations ? t("builder.style.oneOffApplied") : t("builder.style.oneOffRemoved"));
+								if (currentSource.current === sourceId)
+									announce(declarations ? t("builder.style.oneOffApplied") : t("builder.style.oneOffRemoved"));
 								return true;
 							} catch (failure) {
-								announce(t(errorMessage(failure)));
+								if (currentSource.current === sourceId) announce(t(errorMessage(failure)));
 								return false;
 							}
 						}}
-						onCatalogue={(classes) => {
-							setCatalogue((before) => ({ ...before, classes }));
+						refreshCatalogue={async () => {
+							await reload();
 							bridge.refresh();
 						}}
 						onMakeEditable={(path, trigger) => {
 							fixedTrigger.current = trigger;
-							setFixed(path);
+							const location = rememberFixedText(currentDraft(source, shared).tree, path);
+							if (location) setFixed({ location, source: sourceId });
 						}}
 					/>
 				</fieldset>
@@ -1024,15 +1042,15 @@ function SourcePanels({
 					}}
 					finalFocus={fixedTrigger}
 					target={fixedAction}
-					text={(() => {
-						const node = nodeAt(tree, fixed);
-						return node?.type === "text" ? node.text : "";
-					})()}
+					text={fixed.location.text}
 					siteId={source.siteId}
 					postTypeId={"postTypeId" in source.target ? source.target.postTypeId : null}
 					props={source.opened.props}
 					onMade={(made) => {
-						const next = replaceAt(tree, fixed, { type: "value", path: made.path });
+						const current = currentDraft(source, shared).tree;
+						const path = fixed.source === sourceId && resolveFixedText(current, fixed.location);
+						if (!path) return t("builder.fixedText.changed");
+						const next = replaceAt(current, path, { type: "value", path: made.path });
 						const message = t("builder.fixedText.made", { binding: `{{ ${made.path} }}` });
 						if (made.props) {
 							const changed = shared?.change((current) => ({
@@ -1041,13 +1059,19 @@ function SourcePanels({
 								tree: next as unknown as Json,
 							}));
 							if (!changed) {
-								announce(t(`coEditing.status.${shared?.status ?? "connecting"}`));
-								return;
+								const problem = t(`coEditing.status.${shared?.status ?? "connecting"}`);
+								announce(problem);
+								return problem;
 							}
 							setTree(next);
+							setSelection({ kind: "node", path });
+							selectedId.current = null;
 							onTree(next);
 							announce(message);
-						} else if (apply(next, selection, message)) return;
+						} else {
+							const refused = apply(next, { kind: "node", path }, message);
+							if (refused) return refused;
+						}
 						setCatalogue((before) => ({
 							...before,
 							values: [

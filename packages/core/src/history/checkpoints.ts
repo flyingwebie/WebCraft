@@ -3,7 +3,9 @@ import { and, desc, eq, isNull, type SQL, sql } from "drizzle-orm";
 
 import type { AuditVia } from "../audit.ts";
 import { mirrorDraftChange } from "../co-editing/store.ts";
+import { lockComponents } from "../content/components.ts";
 import { sameJson } from "../content/json.ts";
+import { snapshotPropContracts } from "../content/prop-migrations.ts";
 import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { storedVia } from "./attribution.ts";
@@ -99,8 +101,10 @@ export async function noteDraftChange(
 	if (!options.created && before.content !== null && before.content !== undefined) {
 		const newest = await newestCopy(scope, item);
 		const due = scope.now().getTime() - (newest?.at ?? before.since).getTime() >= CHECKPOINT_EVERY_MS;
-		if (due && !(newest && sameJson(newest.content, before.content))) {
-			await insertCheckpoint(scope, item, before.content, "activity", await lastChange(scope, item, before));
+		if (due) {
+			const snapshot = await snapshotPropContracts(scope, item.kind, before.content, "draft");
+			if (!(newest && (sameJson(newest.content, before.content) || sameJson(newest.content, snapshot))))
+				await insertCheckpoint(scope, item, snapshot, "activity", await lastChange(scope, item, before));
 		}
 	}
 	const parts = changedParts(item.kind, before.content, after);
@@ -148,11 +152,13 @@ export async function saveCheckpoint(
 	item: HistoryItem,
 	reason: CheckpointReason,
 ): Promise<HistoryCopy | null> {
+	if (["template", "component", "popup"].includes(item.kind)) await lockComponents(scope);
 	const state = await itemState(scope, item);
 	if (state.draft === null || state.draft === undefined) return null;
 	const newest = await newestCopy(scope, item);
-	if (newest && sameJson(newest.content, state.draft)) return null;
-	await insertCheckpoint(scope, item, state.draft, reason, await lastChange(scope, item, state));
+	const snapshot = await snapshotPropContracts(scope, item.kind, state.draft, "draft");
+	if (newest && (sameJson(newest.content, state.draft) || sameJson(newest.content, snapshot))) return null;
+	await insertCheckpoint(scope, item, snapshot, reason, await lastChange(scope, item, state));
 	const { copies } = await listCopies(scope, item, { limit: 1 });
 	return copies[0] ?? null;
 }

@@ -39,6 +39,284 @@ async function editorPage(theme: (typeof THEMES)[number], canvas: "live" | "prev
 }
 
 for (const theme of THEMES) {
+	for (const canvas of ["preview", "live"] as const) {
+		test(`the ${canvas} Inspector edits current Props while preserving retained values (${theme})`, async () => {
+			const local = install.install;
+			const { api } = await local.superadmin();
+			const workspace = await local.createWorkspace("Retained Props editor");
+			const { id: siteId } = await local.createSite(workspace.id, {
+				name: "Retained Props editor",
+				slug: "retained-props-editor",
+			});
+			const staff = (await local.createStaff({ workspaces: [workspace.id] })).account;
+			const { component } = await api.components.create({
+				siteId,
+				name: "Notice",
+				props: [
+					{ key: "value", label: "Value", type: "text" },
+					{ key: "other", label: "Other", type: "text" },
+				],
+			});
+			const target = { siteId, componentId: component.id };
+			const original = await api.components.saveMarkup({ ...target, markup: "<p>{{ props.value }}</p>" });
+			await api.components.publish(target);
+			await api.templates.saveSiteTemplateMarkup({
+				siteId,
+				markup:
+					'<header><Notice data-wc-id="notice" value="Old text" other="Before" /></header><main>{{@outlet}}</main>',
+			});
+			await api.components.saveDraft({
+				...target,
+				props: original.component.draft.props.map((prop) =>
+					prop.key === "value" ? { id: prop.id, key: prop.key, label: prop.label, type: "number" as const } : prop,
+				),
+			});
+			const page = await install.newPage(theme);
+			page.setDefaultTimeout(10000);
+			await install.signIn(page, staff);
+			if (canvas === "preview") await page.goto(install.adminUrl(`/builder/${siteId}/site-template`));
+			else {
+				await page.goto(install.adminUrl(`/sites/${siteId}`));
+				await page.getByRole("button", { name: "Edit on site" }).click();
+				await page.waitForURL((url) => url.hostname.startsWith("retained-props-editor"));
+				await page.getByRole("button", { name: "Code", exact: true }).click();
+			}
+			await page.waitForLoadState("networkidle");
+			await page
+				.getByRole("tree", { name: "Layers" })
+				.getByRole("treeitem", { name: /^Notice/ })
+				.click();
+			const value = page.getByRole("textbox", { name: "Value", exact: true });
+			expect(await value.inputValue()).toBe("");
+			await page.getByRole("textbox", { name: "Other", exact: true }).fill("After");
+			await page.getByRole("textbox", { name: "Other", exact: true }).press("Enter");
+			await value.fill("42");
+			await value.press("Enter");
+			let stored = "";
+			for (let attempt = 0; attempt < 100; attempt++) {
+				stored = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+				if (stored.includes('value="42"') && stored.includes('other="After"')) break;
+				await page.waitForTimeout(50);
+			}
+			expect(stored).toContain('value="42"');
+			expect(stored).toContain('other="After"');
+			expect(stored).toContain("data-wc-retained");
+			expect(stored).toContain("Old text");
+			await api.components.saveMarkup({ ...target, markup: original.markup });
+			const restored = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+			expect(restored).toContain('value="Old text"');
+			expect(restored).toContain('other="After"');
+		});
+
+		test(`a delayed Class refresh preserves newer declarations on the ${canvas} canvas (${theme})`, async () => {
+			const { api, siteId, original, page, tree } = await editorPage(theme, canvas);
+			const peer = await api.designSystem.createClass({ siteId, name: "peer-class", styles: "color: red;" });
+			await api.templates.saveSiteTemplateMarkup({
+				siteId,
+				markup: original.replace("<p ", '<p class="peer-class" '),
+			});
+			await tree.getByRole("treeitem", { name: /^Before/ }).click();
+			await page.getByRole("tab", { name: "Style", exact: true }).click();
+			await page.getByRole("button", { name: "Edit the styles of peer-class", exact: true }).click();
+			await page.waitForLoadState("networkidle");
+			const captured = Promise.withResolvers<void>();
+			const release = Promise.withResolvers<void>();
+			const delivered = Promise.withResolvers<void>();
+			const releaseFresh = Promise.withResolvers<void>();
+			let holdFresh = false;
+			await page.route(/\/(builder\/open|code\/editor)$/, async (route) => {
+				const response = await route.fetch();
+				const body = await response.json();
+				const classes = (canvas === "preview" ? body.json.catalogue.classes : body.opened.catalogue.classes) as {
+					id: string;
+					styles: string;
+				}[];
+				const old = classes.some((each) => each.id === peer.class.id && each.styles === "color: blue;");
+				if (old) {
+					captured.resolve();
+					await release.promise;
+				} else if (holdFresh) await releaseFresh.promise;
+				await route.fulfill({ response });
+				if (old) delivered.resolve();
+			});
+			try {
+				await api.designSystem.updateClass({ siteId, classId: peer.class.id, styles: "color: blue;" });
+				await captured.promise;
+				await api.designSystem.updateClass({ siteId, classId: peer.class.id, styles: "color: purple;" });
+				const value = page.getByRole("combobox", { name: "Value 1", exact: true });
+				for (let attempt = 0; attempt < 100 && (await value.inputValue()) !== "purple"; attempt++)
+					await page.waitForTimeout(50);
+				expect(await value.inputValue()).toBe("purple");
+				holdFresh = true;
+				release.resolve();
+				await delivered.promise;
+				await page.waitForTimeout(300);
+				expect(await value.inputValue()).toBe("purple");
+			} finally {
+				release.resolve();
+				releaseFresh.resolve();
+			}
+		});
+
+		test(`a delayed Class save preserves peer declarations on the ${canvas} canvas (${theme})`, async () => {
+			const { api, siteId, original, page, tree } = await editorPage(theme, canvas);
+			await api.designSystem.createClass({ siteId, name: "local-class", styles: "color: red;" });
+			const peer = await api.designSystem.createClass({ siteId, name: "peer-class", styles: "color: blue;" });
+			await api.templates.saveSiteTemplateMarkup({
+				siteId,
+				markup: original.replace("<p ", '<p class="local-class peer-class" '),
+			});
+			await tree.getByRole("treeitem", { name: /^Before/ }).click();
+			await page.getByRole("tab", { name: "Style", exact: true }).click();
+			await page.getByRole("button", { name: "Edit the styles of local-class", exact: true }).click();
+			await page.getByRole("combobox", { name: "Value 1", exact: true }).fill("green");
+			const captured = Promise.withResolvers<void>();
+			const release = Promise.withResolvers<void>();
+			const delivered = Promise.withResolvers<void>();
+			await page.route(/\/(designSystem\/updateClass|code\/editorService)$/, async (route) => {
+				if (canvas === "live" && route.request().postDataJSON().method !== "classes.update") return route.continue();
+				const response = await route.fetch();
+				captured.resolve();
+				await release.promise;
+				await route.fulfill({ response });
+				delivered.resolve();
+			});
+			try {
+				await page.getByRole("button", { name: "Save local-class", exact: true }).click();
+				await captured.promise;
+				await api.designSystem.updateClass({ siteId, classId: peer.class.id, styles: "color: purple;" });
+				await page.getByRole("button", { name: "Edit the styles of peer-class", exact: true }).click();
+				const value = page.getByRole("combobox", { name: "Value 1", exact: true });
+				for (let attempt = 0; attempt < 100 && (await value.inputValue()) !== "purple"; attempt++)
+					await page.waitForTimeout(50);
+				expect(await value.inputValue()).toBe("purple");
+				release.resolve();
+				await delivered.promise;
+				await page.waitForLoadState("networkidle");
+				expect(await value.inputValue()).toBe("purple");
+			} finally {
+				release.resolve();
+			}
+		});
+
+		test(`creating a Class preserves peer Classes and labels on the ${canvas} canvas (${theme})`, async () => {
+			const { api, siteId, original, page, tree } = await editorPage(theme, canvas);
+			await api.designSystem.createClass({ siteId, name: "peer-class", styles: "font-weight: 600;" });
+			await tree.getByRole("treeitem", { name: /^Before/ }).click();
+			await page.getByRole("tab", { name: "Style", exact: true }).click();
+			await page.getByRole("combobox", { name: "Add a Class" }).fill("local-class");
+			await page.waitForLoadState("networkidle");
+			const captured = Promise.withResolvers<void>();
+			const release = Promise.withResolvers<void>();
+			await page.route(/\/(designSystem\/createClass|code\/editorService)$/, async (route) => {
+				if (canvas === "live" && route.request().postDataJSON().method !== "classes.create") return route.continue();
+				const response = await route.fetch();
+				captured.resolve();
+				await release.promise;
+				await route.fulfill({ response });
+			});
+			try {
+				await page.getByRole("button", { name: "Add", exact: true }).click();
+				await captured.promise;
+				await api.templates.saveSiteTemplateMarkup({
+					siteId,
+					markup: original
+						.replace('data-wc-id="header"', 'data-wc-id="header" data-wc-label="Peer header"')
+						.replace("<p ", '<p class="peer-class" '),
+				});
+				await tree.getByRole("treeitem", { name: /^Peer header/ }).waitFor();
+				release.resolve();
+				let stored = "";
+				for (let attempt = 0; attempt < 100; attempt++) {
+					stored = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+					if (stored.includes("local-class")) break;
+					await page.waitForTimeout(50);
+				}
+				expect(stored).toContain("local-class");
+				expect(stored).toContain("peer-class");
+				expect(stored).toContain('data-wc-label="Peer header"');
+			} finally {
+				release.resolve();
+			}
+		});
+
+		test(`fixed-text conversion preserves text changed by a peer on the ${canvas} canvas (${theme})`, async () => {
+			const { api, siteId, original, page, tree } = await editorPage(theme, canvas);
+			await tree.getByRole("treeitem", { name: /^“Original text”/ }).click();
+			await page.getByRole("button", { name: "Make it a Global", exact: true }).click();
+			const dialog = page.getByRole("dialog", { name: "Make it a Global" });
+			await dialog.getByRole("textbox", { name: "Label", exact: true }).fill("Welcome");
+			const captured = Promise.withResolvers<void>();
+			const release = Promise.withResolvers<void>();
+			await page.route(/\/(globals\/setFields|code\/editorService)$/, async (route) => {
+				if (canvas === "live" && route.request().postDataJSON().method !== "globals.setFields") return route.continue();
+				const response = await route.fetch();
+				captured.resolve();
+				await release.promise;
+				await route.fulfill({ response });
+			});
+			try {
+				await dialog.getByRole("button", { name: "Make it a Global", exact: true }).click();
+				await captured.promise;
+				await api.templates.saveSiteTemplateMarkup({ siteId, markup: original.replace("Original text", "Peer text") });
+				await page.getByRole("treeitem", { name: /^“Peer text”/, includeHidden: true }).waitFor();
+				release.resolve();
+				await dialog
+					.getByText("The selected text changed. Select it again to make it editable.", { exact: true })
+					.waitFor();
+				const stored = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+				expect(stored).toContain("Peer text");
+				expect(stored).not.toContain("{{ site.welcome }}");
+			} finally {
+				release.resolve();
+			}
+		});
+
+		test(`fixed-text conversion follows its element and preserves peer edits on the ${canvas} canvas (${theme})`, async () => {
+			const { api, siteId, original, page, tree } = await editorPage(theme, canvas);
+			await tree.getByRole("treeitem", { name: /^“Original text”/ }).click();
+			await page.getByRole("button", { name: "Make it a Global", exact: true }).click();
+			const dialog = page.getByRole("dialog", { name: "Make it a Global" });
+			await dialog.getByRole("textbox", { name: "Label", exact: true }).fill("Welcome");
+			const captured = Promise.withResolvers<void>();
+			const release = Promise.withResolvers<void>();
+			await page.route(/\/(globals\/setFields|code\/editorService)$/, async (route) => {
+				if (canvas === "live" && route.request().postDataJSON().method !== "globals.setFields") return route.continue();
+				const response = await route.fetch();
+				captured.resolve();
+				await release.promise;
+				await route.fulfill({ response });
+			});
+			try {
+				await dialog.getByRole("button", { name: "Make it a Global", exact: true }).click();
+				await captured.promise;
+				await api.templates.saveSiteTemplateMarkup({
+					siteId,
+					markup: original
+						.replace('data-wc-id="header"', 'data-wc-id="header" data-wc-label="Peer header"')
+						.replace("<p ", '<section data-wc-id="peer-group"><p ')
+						.replace("</p>", "</p></section>"),
+				});
+				await page.getByRole("treeitem", { name: /^Peer header/, includeHidden: true }).waitFor();
+				release.resolve();
+				await dialog.waitFor({ state: "hidden" });
+				let stored = "";
+				for (let attempt = 0; attempt < 100; attempt++) {
+					stored = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+					if (stored.includes("{{ site.welcome }}")) break;
+					await page.waitForTimeout(50);
+				}
+				expect(stored).toContain("{{ site.welcome }}");
+				expect(stored).toContain('data-wc-label="Peer header"');
+				expect(stored).toContain(
+					'<section data-wc-id="peer-group"><p data-wc-label="Before" data-wc-id="greeting">{{ site.welcome }}</p></section>',
+				);
+			} finally {
+				release.resolve();
+			}
+		});
+	}
+
 	test(`cancelling a live keyboard move keeps the moved layer selected (${theme})`, async () => {
 		const { api, siteId, original, page, tree } = await editorPage(theme, "live");
 		await api.templates.saveSiteTemplateMarkup({
@@ -257,6 +535,99 @@ for (const theme of THEMES) {
 			expect(await declarations.inputValue()).toBe("color: rgb(7, 8, 9);");
 		});
 	}
+
+	test(`finishing a one-off style keeps the newly selected source's values (${theme})`, async () => {
+		const local = install.install;
+		const { api } = await local.superadmin();
+		const workspace = await local.createWorkspace("Style source completion");
+		const { id: siteId } = await local.createSite(workspace.id, {
+			name: "Style source completion",
+			slug: "style-source-completion",
+		});
+		const staff = (await local.createStaff({ workspaces: [workspace.id] })).account;
+		for (const [name, key] of [
+			["FirstNotice", "first"],
+			["SecondNotice", "second"],
+		] as const) {
+			const { component } = await api.components.create({
+				siteId,
+				name,
+				props: [{ key, label: key, type: "text", default: name }],
+			});
+			await api.components.saveMarkup({
+				siteId,
+				componentId: component.id,
+				markup: `<p data-wc-id="${key}-element">{{ props.${key} }}</p>`,
+			});
+			await api.components.publish({ siteId, componentId: component.id });
+		}
+		await api.templates.saveSiteTemplateMarkup({
+			siteId,
+			markup:
+				'<header><FirstNotice data-wc-id="first" /><SecondNotice data-wc-id="second" /></header><main>{{@outlet}}</main>',
+		});
+		const page = await install.newPage(theme);
+		page.setDefaultTimeout(10000);
+		await install.signIn(page, staff);
+		await page.goto(install.adminUrl(`/sites/${siteId}`));
+		await page.getByRole("button", { name: "Edit on site" }).click();
+		await page.waitForURL((url) => url.hostname.startsWith("style-source-completion"));
+		await page.getByRole("button", { name: "Code", exact: true }).click();
+		const tree = page.getByRole("tree", { name: "Layers" });
+		await tree.getByText("Component · SecondNotice", { exact: true }).waitFor();
+		await page.waitForLoadState("networkidle");
+		await page.locator('p[data-wc-code="site/first#first-element"]').click();
+		await page.getByRole("textbox", { name: "HTML of FirstNotice · Component" }).waitFor();
+		await page.getByRole("tab", { name: "Style", exact: true }).click();
+		await page.getByLabel("Declarations", { exact: true }).fill("color: red;");
+		const captured = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		const delivered = Promise.withResolvers<void>();
+		const releaseOther = Promise.withResolvers<void>();
+		let saved = false;
+		await page.route("**/_webcraft/edit/api/code/save", async (route) => {
+			const response = await route.fetch();
+			saved = true;
+			await route.fulfill({ response });
+		});
+		await page.route("**/_webcraft/edit/api/code/editor", async (route) => {
+			if (!saved) return route.continue();
+			const ref = route.request().postDataJSON().ref;
+			if (ref === "site/second") {
+				// A slow refresh of the selected source must not expose another source's values in the meantime.
+				const response = await route.fetch();
+				await releaseOther.promise;
+				return route.fulfill({ response });
+			}
+			if (ref !== "site/first") return route.continue();
+			const response = await route.fetch();
+			captured.resolve();
+			await release.promise;
+			await route.fulfill({ response });
+			delivered.resolve();
+		});
+		try {
+			await page.getByRole("button", { name: "Apply", exact: true }).click();
+			await captured.promise;
+			await page.locator('p[data-wc-code="site/second#second-element"]').click();
+			await page.getByRole("textbox", { name: "HTML of SecondNotice · Component" }).waitFor();
+			await tree
+				.getByRole("treeitem")
+				.filter({ hasText: /^\{\{ props\.second \}\}/ })
+				.click();
+			await page.getByRole("combobox", { name: "Reads", exact: true }).waitFor();
+			expect(await page.locator('datalist option[value="props.second"]').count()).toBe(1);
+			expect(await page.locator('datalist option[value="props.first"]').count()).toBe(0);
+			release.resolve();
+			await delivered.promise;
+			await page.waitForTimeout(300);
+			expect(await page.locator('datalist option[value="props.second"]').count()).toBe(1);
+			expect(await page.locator('datalist option[value="props.first"]').count()).toBe(0);
+		} finally {
+			release.resolve();
+			releaseOther.resolve();
+		}
+	});
 
 	test(`unfinished styles stay with the selected source (${theme})`, async () => {
 		const local = install.install;
@@ -765,4 +1136,73 @@ for (const { input, canvas } of [
 			}
 		});
 	}
+}
+
+for (const delayed of [false, true]) {
+	test(`keeps a peer rename through repeated markup edits${delayed ? " while printing is delayed" : ""}`, async () => {
+		const { api, siteId, page } = await editorPage("light", "preview");
+		const { postType } = await api.postTypes.create({
+			siteId,
+			name: "Articles",
+			urlPattern: "/articles/{slug}",
+			fields: [],
+		});
+		const postTypeId = postType.id;
+		await api.entries.create({ siteId, postTypeId, title: "Fresh bread", fields: {} });
+		await api.templates.saveEntryTemplateMarkup({
+			siteId,
+			postTypeId,
+			markup:
+				'<article data-wc-label="Post" data-wc-id="post"><h1 data-wc-id="title">{{ title }}</h1><p data-wc-id="lead">Fresh from the oven</p></article>',
+		});
+		await page.goto(install.adminUrl(`/builder/${siteId}/entry-template/${postTypeId}`));
+		await page.frameLocator("iframe[title^='Canvas']").getByText("Fresh bread").waitFor();
+		const draftMarkup = async () =>
+			(await api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).markup?.draft ?? "";
+		await page.getByRole("button", { name: "Template markup", exact: true }).click();
+		const markup = page.getByRole("textbox", { name: "Template markup", exact: true });
+		const original = await markup.inputValue();
+		await markup.fill(`${original}<aside`);
+		await markup.and(page.locator('[aria-invalid="true"]')).waitFor();
+		const received = page.waitForResponse(
+			async (response) => response.url().includes("/builder/open") && (await response.text()).includes("Remote"),
+		);
+		await api.templates.saveEntryTemplateMarkup({
+			siteId,
+			postTypeId,
+			markup: original.replace('data-wc-label="Post"', 'data-wc-label="Remote"'),
+		});
+		await received;
+		const printing = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		if (delayed)
+			await page.route("**/api/rpc/builder/markup", async (route) => {
+				printing.resolve();
+				await release.promise;
+				await route.continue();
+			});
+		await markup.fill(original.replace("Fresh from the oven", "First local text"));
+		if (delayed) {
+			await printing.promise;
+			await markup.fill((await markup.inputValue()).replace("First local text", "Second local text"));
+			for (let attempt = 0; attempt < 80; attempt++) {
+				if ((await draftMarkup()).includes("Second local text")) break;
+				await new Promise((resolve) => setTimeout(resolve, 50));
+			}
+			expect(await draftMarkup()).toContain("Second local text");
+			release.resolve();
+		}
+		await page.waitForFunction(() =>
+			document.querySelector<HTMLTextAreaElement>("textarea")?.value.includes('data-wc-label="Remote"'),
+		);
+		if (!delayed) {
+			expect(await markup.inputValue()).toContain("First local text");
+			await markup.fill((await markup.inputValue()).replace("First local text", "Second local text"));
+		}
+		await page.frameLocator("iframe[title^='Canvas']").getByText("Second local text", { exact: true }).waitFor();
+		await page.keyboard.press("ControlOrMeta+s");
+		await page.getByRole("button", { name: "Save", exact: true }).and(page.locator("[disabled]")).waitFor();
+		expect(await draftMarkup()).toContain('data-wc-label="Remote"');
+		expect(await draftMarkup()).toContain("Second local text");
+	});
 }

@@ -43,7 +43,7 @@ export function Inspector({
 	onReplace,
 	onClasses,
 	onOneOff,
-	onCatalogue,
+	refreshCatalogue,
 	onMakeEditable,
 	onEditComponent,
 }: {
@@ -60,7 +60,7 @@ export function Inspector({
 	onReplace(path: NodePath, node: TreeNode, announcement: string): string | undefined;
 	onClasses(path: NodePath, classIds: string[], announcement: string): void;
 	onOneOff(path: NodePath, elementId: string, declarations: string): boolean | Promise<boolean>;
-	onCatalogue(classes: Catalogue["classes"]): void;
+	refreshCatalogue(): Promise<void>;
 	onMakeEditable(path: NodePath, trigger: HTMLElement): void;
 }) {
 	const t = useT();
@@ -101,7 +101,7 @@ export function Inspector({
 									oneOff={oneOffOf(node.id, node.classes)}
 									onClasses={(classIds, announcement) => onClasses(path, classIds, announcement)}
 									onOneOff={(declarations) => onOneOff(path, node.id, declarations)}
-									onCatalogue={onCatalogue}
+									refreshCatalogue={refreshCatalogue}
 								/>
 							),
 						},
@@ -361,7 +361,7 @@ function Settings({
 				<div className="grid gap-4">
 					<p className="text-muted-foreground text-sm">{t("builder.inspector.placement")}</p>
 					{(component?.props ?? []).map((prop) => {
-						const given = node.props.find((each) => each.name === prop.key);
+						const given = node.props.find((each) => each.name === prop.key && !each.retained);
 						return (
 							<CommitInput
 								key={prop.key}
@@ -371,7 +371,7 @@ function Settings({
 								onCommit={(text) => {
 									const read = readParts(text);
 									if ("problem" in read) return read.problem;
-									const rest = node.props.filter((each) => each.name !== prop.key);
+									const rest = node.props.filter((each) => each.name !== prop.key || each.retained);
 									const props = text === "" && !prop.required ? rest : [...rest, { name: prop.key, value: read.parts }];
 									return replace({ ...node, props });
 								}}

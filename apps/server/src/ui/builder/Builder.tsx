@@ -38,21 +38,14 @@ import { Canvas, type CanvasTarget, type CanvasWidth } from "./Canvas.tsx";
 import { CssPanel, type CssPanelPort } from "./CssPanel.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
 import { FixedTextDialog, type MadeEditable } from "./FixedTextDialog.tsx";
+import { type FixedTextLocation, rememberFixedText, resolveFixedText } from "./fixed-text.ts";
 import { InsertDialog, type InsertWhere } from "./InsertDialog.tsx";
 import { InsertToolbar } from "./InsertToolbar.tsx";
 import { Inspector } from "./Inspector.tsx";
 import { type DropPosition, type LayerAction, LayersPanel, rowKey } from "./LayersPanel.tsx";
 import { type LayerClipboard, layerLocation, runLayerAction } from "./layer-actions.ts";
 import { type MarkupProblem, MarkupView } from "./MarkupView.tsx";
-import {
-	type BuilderDoc,
-	type BuilderTarget,
-	type Catalogue,
-	layerName,
-	type Opened,
-	type Selection,
-	targetTitle,
-} from "./model.ts";
+import { type BuilderDoc, type BuilderTarget, layerName, type Opened, type Selection, targetTitle } from "./model.ts";
 import { publishDraft, saveDraft } from "./save.ts";
 import {
 	type Changed,
@@ -139,7 +132,7 @@ export function Builder({
 	const [insertOpen, setInsertOpen] = useState(false);
 	const [quickInsert, setQuickInsert] = useState<string | null>(null);
 	const [insertWhere, setInsertWhere] = useState<InsertWhere>("inside");
-	const [fixedTextAt, setFixedTextAt] = useState<NodePath | null>(null);
+	const [fixedTextAt, setFixedTextAt] = useState<FixedTextLocation | null>(null);
 	const [conflict, setConflict] = useState<{ version: string | null } | null>(null);
 	const [busy, setBusy] = useState<"save" | "publish" | "switch" | null>(null);
 	const [designVersion, setDesignVersion] = useState(0);
@@ -443,12 +436,16 @@ export function Builder({
 	);
 
 	const madeEditable = (made: MadeEditable) => {
-		if (!fixedTextAt) return;
+		const current = docRef.current;
+		const path = fixedTextAt && resolveFixedText(current.tree, fixedTextAt);
+		if (!path) return t("builder.fixedText.changed");
 		const next: BuilderDoc = {
-			...doc,
-			tree: replaceAt(doc.tree, fixedTextAt, { type: "value", path: made.path }),
-			props: made.props ?? doc.props,
+			...current,
+			tree: replaceAt(current.tree, path, { type: "value", path: made.path }),
+			props: made.props ?? current.props,
 		};
+		const refused = apply(next, { kind: "node", path }, t("builder.fixedText.made", { binding: `{{ ${made.path} }}` }));
+		if (refused) return refused;
 		if (!catalogue.values.some((value) => value.path === made.path)) {
 			const group = made.path.startsWith("props.") ? "props" : made.path.startsWith("site.") ? "globals" : "entry";
 			patchOpened((before) => ({
@@ -459,7 +456,6 @@ export function Builder({
 				},
 			}));
 		}
-		apply(next, { kind: "node", path: fixedTextAt }, t("builder.fixedText.made", { binding: `{{ ${made.path} }}` }));
 		setFixedTextAt(null);
 	};
 
@@ -1204,13 +1200,13 @@ export function Builder({
 									return false;
 								}
 							}}
-							onCatalogue={(classes: Catalogue["classes"]) => {
-								patchOpened((before) => ({ ...before, catalogue: { ...before.catalogue, classes } }));
+							refreshCatalogue={async () => {
+								await readOpened();
 								setDesignVersion((count) => count + 1);
 							}}
 							onMakeEditable={(path, trigger) => {
 								fixedTextTrigger.current = trigger;
-								setFixedTextAt(path);
+								setFixedTextAt(rememberFixedText(docRef.current.tree, path));
 							}}
 						/>
 					</section>
@@ -1239,10 +1235,7 @@ export function Builder({
 					}}
 					finalFocus={fixedTextTrigger}
 					target={fixedTextAction}
-					text={(() => {
-						const node = nodeAt(doc.tree, fixedTextAt);
-						return node?.type === "text" ? node.text.trim() : "";
-					})()}
+					text={fixedTextAt.text.trim()}
 					siteId={siteId}
 					postTypeId={target.kind === "entryTemplate" ? target.postTypeId : null}
 					props={doc.props}

@@ -14,7 +14,7 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "@webcraft/ui/co
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { Label } from "@webcraft/ui/components/label.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
-import { type FormEvent, type RefObject, useId, useState } from "react";
+import { type FormEvent, type RefObject, useEffect, useId, useRef, useState } from "react";
 
 import { useEditorApi } from "../builder/editor-api.tsx";
 import { draftsOf, freeKey, inputsOf, keyFromLabel, newField } from "../content/field-drafts.ts";
@@ -58,7 +58,8 @@ export function FixedTextDialog({
 	postTypeId: string | null;
 	/** A Component's Props as the builder has them. */
 	props: FieldInput[] | null;
-	onMade(made: MadeEditable): void;
+	/** Apply to the current Draft, or explain why the selected text can no longer be replaced. */
+	onMade(made: MadeEditable): string | undefined;
 }) {
 	const t = useT();
 	const getApi = useEditorApi();
@@ -71,6 +72,22 @@ export function FixedTextDialog({
 	const [problem, setProblem] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
 	const prefix = target === "prop" ? "props." : target === "global" ? "site." : "";
+	const current = useRef({ onMade, onOpenChange });
+	current.current = { onMade, onOpenChange };
+	const mounted = useRef(true);
+	useEffect(() => {
+		mounted.current = true;
+		return () => {
+			mounted.current = false;
+		};
+	}, []);
+	const finish = (made: MadeEditable) => {
+		if (!mounted.current) return;
+		// A Global or Field request may finish after a peer changed the parent editor's Draft.
+		const refused = current.current.onMade(made);
+		if (refused) return setProblem(refused);
+		current.current.onOpenChange(false);
+	};
 
 	// What is there already: text and rich text only (their values show where the fixed text was).
 	const loadOptions = async () => {
@@ -89,8 +106,7 @@ export function FixedTextDialog({
 		if (mode === "existing") {
 			const chosen = options?.find((option) => option.key === existing);
 			if (!chosen) return setProblem(t("builder.fixedText.chooseExisting"));
-			onMade({ path: `${prefix}${chosen.key}`, label: chosen.label });
-			return onOpenChange(false);
+			return finish({ path: `${prefix}${chosen.key}`, label: chosen.label });
 		}
 		const finalKey = (key || keyFromLabel(label)).trim();
 		if (!label.trim()) return setProblem(t("builder.fixedText.labelRequired"));
@@ -101,8 +117,7 @@ export function FixedTextDialog({
 			if (target === "prop") {
 				const current = props ?? [];
 				if (current.some((prop) => prop.key === finalKey)) return setProblem(t("builder.fixedText.keyTaken"));
-				onMade({ path: `props.${finalKey}`, label: made.label, props: [...current, made] });
-				return onOpenChange(false);
+				return finish({ path: `props.${finalKey}`, label: made.label, props: [...current, made] });
 			}
 			const api = await getApi();
 			if (target === "global") {
@@ -116,8 +131,7 @@ export function FixedTextDialog({
 				if (postType.fields.some((field) => field.key === finalKey)) return setProblem(t("builder.fixedText.keyTaken"));
 				await api.postTypes.update({ siteId, postTypeId, fields: [...inputsOf(draftsOf(postType.fields)), made] });
 			}
-			onMade({ path: `${prefix}${finalKey}`, label: made.label });
-			onOpenChange(false);
+			finish({ path: `${prefix}${finalKey}`, label: made.label });
 		} catch (failure) {
 			const problems = (failure as { data?: { problems?: { message: string }[] } }).data?.problems;
 			setProblem(problems?.length ? problems.map((each) => each.message).join(" ") : t(errorMessage(failure)));

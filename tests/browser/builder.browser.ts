@@ -354,58 +354,6 @@ describe("the canvas", () => {
 });
 
 describe("the Template markup view", () => {
-	for (const delayed of [false, true]) {
-		test(`keeps a peer rename through repeated markup edits${delayed ? " while printing is delayed" : ""}`, async () => {
-			const page = await builderPage();
-			await page.getByRole("button", { name: "Template markup", exact: true }).click();
-			const markup = page.getByRole("textbox", { name: "Template markup", exact: true });
-			const original = await markup.inputValue();
-			await markup.fill(`${original}<aside`);
-			await markup.and(page.locator('[aria-invalid="true"]')).waitFor();
-			const received = page.waitForResponse(
-				async (response) => response.url().includes("/builder/open") && (await response.text()).includes("Remote"),
-			);
-			const { api } = await install.install.superadmin();
-			await api.templates.saveEntryTemplateMarkup({
-				siteId,
-				postTypeId,
-				markup: original.replace('data-wc-label="Post"', 'data-wc-label="Remote"'),
-			});
-			await received;
-			const printing = Promise.withResolvers<void>();
-			const release = Promise.withResolvers<void>();
-			if (delayed)
-				await page.route("**/api/rpc/builder/markup", async (route) => {
-					printing.resolve();
-					await release.promise;
-					await route.continue();
-				});
-			await markup.fill(original.replace("Fresh from the oven", "First local text"));
-			if (delayed) {
-				await printing.promise;
-				await markup.fill((await markup.inputValue()).replace("First local text", "Second local text"));
-				for (let attempt = 0; attempt < 80; attempt++) {
-					if ((await draftMarkup()).includes("Second local text")) break;
-					await new Promise((resolve) => setTimeout(resolve, 50));
-				}
-				expect(await draftMarkup()).toContain("Second local text");
-				release.resolve();
-			}
-			await page.waitForFunction(() =>
-				document.querySelector<HTMLTextAreaElement>("textarea")?.value.includes('data-wc-label="Remote"'),
-			);
-			if (!delayed) {
-				expect(await markup.inputValue()).toContain("First local text");
-				await markup.fill((await markup.inputValue()).replace("First local text", "Second local text"));
-			}
-			await page.frameLocator("iframe[title^='Canvas']").getByText("Second local text", { exact: true }).waitFor();
-			await page.keyboard.press("ControlOrMeta+s");
-			await page.getByRole("button", { name: "Save", exact: true }).and(page.locator("[disabled]")).waitFor();
-			expect(await draftMarkup()).toContain('data-wc-label="Remote"');
-			expect(await draftMarkup()).toContain("Second local text");
-		});
-	}
-
 	test("shows the same Draft as text; what is typed there comes back as layers and saves the same Draft", async () => {
 		await resetTemplate();
 		const page = await builderPage();
@@ -574,7 +522,9 @@ test("a Component: its fixed text becomes a Prop, saved with it, the text as its
 	await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
 
 	const saved = await api.components.getMarkup({ siteId, componentId: component.id });
-	expect(saved.markup.draft).toBe('<aside data-wc-id="n"><p data-wc-id="m">{{ props.message }}</p></aside>');
+	expect(saved.markup.draft.split("{{/props}}\n")[1]).toBe(
+		'<aside data-wc-id="n"><p data-wc-id="m">{{ props.message }}</p></aside>',
+	);
 	expect(saved.component.draft.props).toEqual([
 		expect.objectContaining({ key: "message", label: "Message", type: "text", default: "Closed on Sundays" }),
 	]);
@@ -605,3 +555,31 @@ for (const theme of THEMES) {
 		await expectAccessibleScreen(page, `Builder › Template markup (${theme})`, CANVAS);
 	});
 }
+
+for (const theme of THEMES)
+	test(`Component declarations preview and apply from the keyboard in ${theme}`, async () => {
+		const { api } = await install.install.superadmin();
+		const workspaceId = (await install.install.createWorkspace()).id;
+		const siteId = (await install.install.createSite(workspaceId)).id;
+		const staff = (await install.install.createStaff({ workspaces: [workspaceId] })).account;
+		const { component } = await api.components.create({ siteId, name: theme === "light" ? "LightProps" : "DarkProps" });
+		const page = await install.newPage(theme);
+		await install.signIn(page, staff);
+		await page.goto(install.adminUrl(`/builder/${siteId}/component/${component.id}`));
+		const button = page.getByRole("button", { name: "Template markup", exact: true });
+		await button.focus();
+		await page.keyboard.press("Enter");
+		const markup = page.getByRole("textbox", { name: "Template markup" });
+		await markup.fill(
+			'{{@props}}\nheading: text exposed default="Preview words"\n{{/props}}\n<h2>{{ props.heading }}</h2>',
+		);
+		await page.frameLocator("iframe[title^='Canvas']").getByText("Preview words").waitFor();
+		await expectAccessibleScreen(page, `Component Props ${theme}`, CANVAS);
+		await page.getByRole("button", { name: "Visual", exact: true }).focus();
+		await page.keyboard.press("Enter");
+		await page.getByRole("tree", { name: "Layers" }).waitFor();
+		await page.keyboard.press("ControlOrMeta+s");
+		await page.getByRole("button", { name: "Save", exact: true }).and(page.locator("[disabled]")).waitFor();
+		const saved = await api.components.getMarkup({ siteId, componentId: component.id });
+		expect(saved.component.draft.props[0]).toMatchObject({ key: "heading", exposed: true, default: "Preview words" });
+	});

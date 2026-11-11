@@ -4551,6 +4551,7 @@
 			"keyTaken": "That key is taken.",
 			"chooseExisting": "Choose one.",
 			"made": "The text now reads {binding}.",
+			"changed": "The selected text changed. Select it again to make it editable.",
 			"cancel": "Cancel",
 			"close": "Close"
 		},

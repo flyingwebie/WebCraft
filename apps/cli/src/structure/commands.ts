@@ -35,7 +35,7 @@ Writes a Site's Structure as files (Drafts, as they are now), with ${MANIFEST}, 
 was pulled:
   templates/site.wc.html, templates/search.wc.html          the Site and Search results templates
   templates/entry/<post type>.wc.html, templates/archive/…  each Post Type's Entry and Archive template
-  components/<Name>.wc.html and components/<Name>.json      each Component's markup and its Props
+  components/<Name>.wc.html                               each Component, including its {{@props}} block
   design-system/tokens.json                                 the Design tokens (DTCG)
   design-system/classes/<name>.css                          each Class: its styles, one @media (--<breakpoint>)
                                                             block per breakpoint, then its own CSS
@@ -316,7 +316,14 @@ const KINDS: Record<StructureItem["kind"], Kind> = {
 		send: async (ctx, key) => {
 			const markupPath = `components/${key}.wc.html`;
 			const propsPath = `components/${key}.json`;
-			const markup = ctx.local.get(markupPath);
+			let markup = ctx.local.get(markupPath);
+			// Older pulls used a JSON sidecar. Editing only that file is still a full Prop update.
+			if (ctx.unit.paths.includes(propsPath) && !ctx.unit.paths.includes(markupPath)) {
+				markup = (markup ?? ctx.state.files.get(markupPath) ?? "").replace(
+					/^\s*\{\{@props\}\}[\s\S]*?^\{\{\/props\}\}\r?\n?/m,
+					"",
+				);
+			}
 			const props = ctx.local.has(propsPath) ? parseJson(propsPath, ctx.local.get(propsPath)).props : undefined;
 			const item = ctx.unit.item;
 			if (item) {
@@ -657,6 +664,12 @@ async function refresh(
 		if (!wasSent && (!untouchedHere || (base !== undefined && hashOf(content) === base.hash))) continue;
 		files.set(path, content);
 		manifest.files[path] = entryFor(state, path, content);
+	}
+	for (const path of local.keys()) {
+		if (/^components\/[^/]+\.json$/.test(path) && sent.includes(unitOf(path)?.key ?? "")) {
+			await rm(join(dir, ...path.split("/")), { force: true });
+			delete manifest.files[path];
+		}
 	}
 	await writeFiles(dir, files);
 	await writeFile(join(dir, MANIFEST), `${JSON.stringify(manifest, null, "\t")}\n`);
