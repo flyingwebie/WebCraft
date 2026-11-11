@@ -36,6 +36,96 @@ async function expectOutline(page: Page, kind: "selected" | "hover", selector: s
 }
 
 for (const theme of THEMES) {
+	test(`hover across sources shows HTML context without changing selection or unfinished text (${theme})`, async () => {
+		const local = install.install;
+		const { api } = await local.superadmin();
+		const workspace = await local.createWorkspace("Hover sources");
+		const slug = `hover-sources-${theme}`;
+		const { id: siteId } = await local.createSite(workspace.id, { name: "Hover sources", slug });
+		const staff = (await local.createStaff({ workspaces: [workspace.id] })).account;
+		for (const name of ["Notice", "Other"]) {
+			const { component } = await api.components.create({ siteId, name });
+			await api.components.saveMarkup({
+				siteId,
+				componentId: component.id,
+				markup: `<p data-wc-id="message" data-wc-label="${name} message">${name} text</p>`,
+			});
+		}
+		await api.templates.saveSiteTemplateMarkup({
+			siteId,
+			markup:
+				'<header data-wc-id="header">\n<p data-wc-id="greeting" data-wc-label="Template greeting">Greeting</p>\n<Notice data-wc-id="placed" />\n<Other data-wc-id="other" />\n</header>\n<main>{{@outlet}}</main>',
+		});
+		const page = await install.newPage(theme);
+		page.setDefaultTimeout(10000);
+		await install.signIn(page, staff);
+		await page.goto(install.adminUrl(`/sites/${siteId}`));
+		await page.getByRole("button", { name: "Edit on site" }).click();
+		await page.waitForURL((url) => url.hostname.startsWith(slug));
+		await page.getByRole("button", { name: "Code", exact: true }).click();
+		const tree = page.getByRole("tree", { name: "Layers" });
+		const greeting = tree.getByRole("treeitem", { name: /^Template greeting p$/ });
+		const notice = tree.getByRole("treeitem", { name: /^Notice message p$/ });
+		const other = tree.getByRole("treeitem", { name: /^Other message p$/ });
+		await notice.waitFor();
+		await greeting.click();
+		await page.getByRole("textbox", { name: "HTML of Site template", exact: true }).waitFor();
+		await page.waitForLoadState("networkidle");
+		await greeting.hover();
+		await page.locator(".language-markup .line.hovered").filter({ hasText: 'data-wc-id="greeting"' }).waitFor();
+		await notice.hover();
+		await page.locator(".language-markup .line.hovered").filter({ hasText: "Notice text" }).waitFor();
+		expect(await greeting.getAttribute("aria-selected")).toBe("true");
+		expect(await notice.getAttribute("data-hovered")).toBe("true");
+		await expectOutline(page, "hover", '[data-wc-code="site/placed#message"]');
+
+		await notice.click();
+		const html = page.getByRole("textbox", { name: "HTML of Notice · Component", exact: true });
+		await html.waitFor();
+		const unfinished = `${await html.inputValue()}\n<`;
+		await html.fill(unfinished);
+		await page.locator('[data-wc-code="site/other#message"]').hover();
+		await page.locator(".language-markup .line.hovered").filter({ hasText: "Other text" }).waitFor();
+		expect(await other.getAttribute("data-hovered")).toBe("true");
+		expect(await notice.getAttribute("aria-selected")).toBe("true");
+		expect(await html.inputValue()).toBe(unfinished);
+		await greeting.hover();
+		await page.locator(".language-markup .line.hovered").filter({ hasText: 'data-wc-id="greeting"' }).waitFor();
+
+		const held = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		const delivered = Promise.withResolvers<void>();
+		await page.route("**/_webcraft/edit/api/code/open", async (route) => {
+			const response = await route.fetch();
+			const old = (route.request().postDataJSON().ref as string | null)?.startsWith("site/other");
+			if (old) {
+				held.resolve();
+				await release.promise;
+			}
+			await route.fulfill({ response });
+			if (old) delivered.resolve();
+		});
+		try {
+			await other.hover();
+			await held.promise;
+			await greeting.hover();
+			await page.locator(".language-markup .line.hovered").filter({ hasText: 'data-wc-id="greeting"' }).waitFor();
+			release.resolve();
+			await delivered.promise;
+			await page.waitForLoadState("networkidle");
+			expect(await page.locator(".language-markup .line.hovered").allTextContents()).toEqual([
+				expect.stringContaining('data-wc-id="greeting"'),
+			]);
+			expect(await notice.getAttribute("aria-selected")).toBe("true");
+			expect(await html.inputValue()).toBe(unfinished);
+			await page.getByRole("button", { name: "Code", exact: true }).hover();
+			expect(await page.locator(".language-markup .line.hovered").count()).toBe(0);
+		} finally {
+			release.resolve();
+			await page.unrouteAll({ behavior: "wait" });
+		}
+	});
+
 	test(`a structural row selects its Component script and ignores an earlier selection response (${theme})`, async () => {
 		const local = install.install;
 		const { api } = await local.superadmin();

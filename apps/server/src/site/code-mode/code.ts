@@ -219,6 +219,8 @@ export function codeMode(config: CodeModeConfig): void {
 	let markupInputRun = 0;
 	type Locations = { key: string; start: number; end: number }[];
 	let located: { ref: string; text: string; locations: Locations; pending: Promise<void> } | undefined;
+	type HoverContext = { ref: string; markup: string; label: string; locations: Locations };
+	let hoverContext: HoverContext | undefined;
 
 	/** Metadata belongs to the exact authored text. It never supplies content or changes selection. */
 	function locateMarkup(): Promise<void> {
@@ -356,6 +358,10 @@ export function codeMode(config: CodeModeConfig): void {
 					void locateMarkup();
 					setDirty("html");
 				}
+				if (hoverContext?.ref === ref) {
+					hoverContext = undefined;
+					showHtmlHover();
+				}
 				schedulePreview();
 			},
 			refresh() {
@@ -397,7 +403,11 @@ export function codeMode(config: CodeModeConfig): void {
 						// A Placement keeps its Component open; show its owning Template's insertion point alongside it.
 						const line = context.markup.split("\n")[lineOf(context.markup, at) - 1] ?? "";
 						html.root.append(
-							el("pre", { class: "insertion-context insert-line", "aria-live": "polite" }, `${context.label}\n${line}`),
+							el(
+								"pre",
+								{ class: "source-context insertion-context insert-line", "aria-live": "polite" },
+								`${context.label}\n${line}`,
+							),
 						);
 					}
 				};
@@ -835,10 +845,59 @@ export function codeMode(config: CodeModeConfig): void {
 			hoverBox.hidden = true;
 			delete hoverBox.dataset.hoverRef;
 		}
-		for (const line of html.root.querySelectorAll(".hovered")) line.classList.remove("hovered");
-		const range = locationOf(ref);
-		if (range) html.root.querySelectorAll(".line")[lineOf(html.get(), range.start) - 1]?.classList.add("hovered");
+		showHtmlHover();
 		panelsAdapter?.hover(ref);
+	}
+
+	/** Another source's hover is a read-only excerpt, never a switch away from unfinished markup. */
+	function showHtmlHover(): void {
+		html.root.querySelector(".hover-context")?.remove();
+		for (const line of html.root.querySelectorAll(".hovered")) line.classList.remove("hovered");
+		const range = locationOf(hoveredRef);
+		const [ref, key = ""] = (hoveredRef ?? "").split("#");
+		if (range || !ref || !opened || ref === opened.ref) {
+			hoverContext = undefined;
+			if (range) html.root.querySelectorAll(".line")[lineOf(html.get(), range.start) - 1]?.classList.add("hovered");
+			return;
+		}
+		if (hoverContext?.ref !== ref) {
+			const next: HoverContext = { ref, markup: "", label: "", locations: [] };
+			hoverContext = next;
+			void readHoverContext(next);
+			return;
+		}
+		const context = hoverContext;
+		const found = context.locations.find((each) => each.key === key);
+		if (!found) return;
+		const line = context.markup.split("\n")[lineOf(context.markup, found.start) - 1] ?? "";
+		html.root.append(
+			el(
+				"pre",
+				{ class: "source-context hover-context", "aria-hidden": "true" },
+				`${context.label}\n`,
+				el("span", { class: "line hovered" }, line),
+			),
+		);
+	}
+
+	async function readHoverContext(context: HoverContext): Promise<void> {
+		try {
+			const answer = await call("code/open", { path, ref: context.ref });
+			if (hoverContext !== context || !answer.ok) return;
+			const source = answer.data as Opened;
+			const markup = source.source.editable
+				? ((await panelsAdapter?.markup(context.ref)) ?? source.markup)
+				: source.markup;
+			if (hoverContext !== context) return;
+			const read = await call("code/editorRead", { path, ref: context.ref, markup });
+			if (hoverContext !== context || !read.ok) return;
+			context.markup = markup;
+			context.label = sourceName(source.source.kind, source.source.name);
+			context.locations = (read.data as { locations: Locations }).locations;
+			showHtmlHover();
+		} catch {
+			// An unavailable source has no excerpt; the hovered row and rendered outline still apply.
+		}
 	}
 
 	function pageElementFor(ref: string): Element | null {
