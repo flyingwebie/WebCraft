@@ -9,7 +9,14 @@ import type { ContentProblem } from "./errors.ts";
 import type { FieldDefinition, FieldInput } from "./fields.ts";
 import { stableJson } from "./json.ts";
 
-export type PropDeclarations = { markup: string; props?: FieldInput[]; lines: number[]; offset: number };
+export type PropDeclarations = {
+	markup: string;
+	props?: FieldInput[];
+	lines: number[];
+	offset: number;
+	/** Character offset of the rendered markup in the normalized authored source. */
+	markupStart: number;
+};
 const SETTINGS = new Set([
 	"id",
 	"label",
@@ -36,7 +43,7 @@ export function readPropDeclarations(input: string): PropDeclarations {
 	const text = input.replace(/\r\n?/g, "\n");
 	const lines = text.split("\n");
 	const first = lines.findIndex((line) => line.trim() !== "");
-	if (first < 0 || lines[first]?.trim() !== "{{@props}}") return { markup: text, lines: [], offset: 0 };
+	if (first < 0 || lines[first]?.trim() !== "{{@props}}") return { markup: text, lines: [], offset: 0, markupStart: 0 };
 	const end = lines.findIndex((line, index) => index > first && line.trim() === "{{/props}}");
 	const problems: MarkupProblem[] = [];
 	const fail = (line: number, message: string) => {
@@ -110,7 +117,8 @@ export function readPropDeclarations(input: string): PropDeclarations {
 		}
 	}
 	if (problems.length) throw new TemplateMarkupInvalidError(problems);
-	return { props, lines: positions, markup: lines.slice(end + 1).join("\n"), offset: end + 1 };
+	const markup = lines.slice(end + 1).join("\n");
+	return { props, lines: positions, markup, offset: end + 1, markupStart: text.length - markup.length };
 }
 
 export function declarationProblems(declarations: PropDeclarations, problems: readonly ContentProblem[]): never {
@@ -125,7 +133,20 @@ export function declarationProblems(declarations: PropDeclarations, problems: re
 
 export function parseDeclaredTree(declarations: PropDeclarations, options: ParseMarkupOptions) {
 	try {
-		const parsed = parseTemplateMarkup(declarations.markup, options);
+		const locate = options.locate;
+		const parsed = parseTemplateMarkup(declarations.markup, {
+			...options,
+			locate: locate
+				? (locations) =>
+						locate(
+							locations.map((range) => ({
+								...range,
+								start: range.start + declarations.markupStart,
+								end: range.end + declarations.markupStart,
+							})),
+						)
+				: undefined,
+		});
 		return {
 			...parsed,
 			notices: parsed.notices.map((notice) => ({ ...notice, line: notice.line + declarations.offset })),

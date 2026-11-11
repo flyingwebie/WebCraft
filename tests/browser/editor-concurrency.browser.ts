@@ -38,7 +38,92 @@ async function editorPage(theme: (typeof THEMES)[number], canvas: "live" | "prev
 	return { api, siteId, original, page, tree };
 }
 
+async function styledEditorPage(theme: (typeof THEMES)[number]) {
+	const editor = await editorPage(theme, "live");
+	const { api, siteId, original, page, tree } = editor;
+	await api.designSystem.createClass({ siteId, name: "earlier-style", styles: "color: red;" });
+	await api.designSystem.createClass({ siteId, name: "current-style", styles: "color: blue;" });
+	await api.templates.saveSiteTemplateMarkup({
+		siteId,
+		markup: original
+			.replace("<p ", '<p class="earlier-style" ')
+			.replace("</p>", '</p><p class="current-style" data-wc-id="current" data-wc-label="Current">Current</p>'),
+	});
+	await tree.getByRole("treeitem", { name: /^Current p$/ }).waitFor();
+	await tree.getByRole("treeitem", { name: /^Before p$/ }).click();
+	await page.getByRole("textbox", { name: "CSS: .earlier-style", exact: true }).waitFor();
+	await page.waitForLoadState("networkidle");
+	return editor;
+}
+
 for (const theme of THEMES) {
+	test(`a delayed CSS read keeps the current live Layers selection (${theme})`, async () => {
+		const { page, tree } = await styledEditorPage(theme);
+		const held = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		const delivered = Promise.withResolvers<void>();
+		await page.route("**/_webcraft/edit/api/code/css", async (route) => {
+			const earlier = route.request().postDataJSON().ref === "site#greeting";
+			const response = await route.fetch();
+			if (earlier) {
+				held.resolve();
+				await release.promise;
+			}
+			await route.fulfill({ response });
+			if (earlier) delivered.resolve();
+		});
+		try {
+			await tree.getByRole("treeitem", { name: /^Before p$/ }).click();
+			await held.promise;
+			const current = tree.getByRole("treeitem", { name: /^Current p$/ });
+			await current.click();
+			await page.getByRole("textbox", { name: "CSS: .current-style", exact: true }).waitFor();
+			await page.locator(".language-markup .line.marked").filter({ hasText: 'data-wc-id="current"' }).waitFor();
+			expect(await page.getByLabel("Layer label", { exact: true }).inputValue()).toBe("Current");
+			release.resolve();
+			await delivered.promise;
+			await page.waitForLoadState("networkidle");
+			expect(await current.getAttribute("aria-selected")).toBe("true");
+			expect(await page.locator(".language-css textarea").getAttribute("aria-label")).toBe("CSS: .current-style");
+			expect(await page.locator(".language-css textarea").inputValue()).toBe("color: blue;");
+		} finally {
+			release.resolve();
+			await page.unrouteAll({ behavior: "wait" });
+		}
+	});
+
+	test(`typing during a CSS read preserves the unfinished declarations (${theme})`, async () => {
+		const { api, siteId, page, tree } = await styledEditorPage(theme);
+		const held = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		const delivered = Promise.withResolvers<void>();
+		let hold = true;
+		await page.route("**/_webcraft/edit/api/code/css", async (route) => {
+			if (!hold || route.request().postDataJSON().ref !== "site#greeting") return route.continue();
+			hold = false;
+			const response = await route.fetch();
+			held.resolve();
+			await release.promise;
+			await route.fulfill({ response });
+			delivered.resolve();
+		});
+		try {
+			await tree.getByRole("treeitem", { name: /^Before p$/ }).click();
+			await held.promise;
+			const css = page.getByRole("textbox", { name: "CSS: .earlier-style", exact: true });
+			await css.fill("color: purple;");
+			release.resolve();
+			await delivered.promise;
+			await page.waitForLoadState("networkidle");
+			expect(await css.inputValue()).toBe("color: purple;");
+			const { designSystem } = await api.designSystem.get({ siteId });
+			expect(designSystem.draft.classes.find((each) => each.name === "earlier-style")?.styles).toBe("color: red;");
+		} finally {
+			release.resolve();
+			await page.unrouteAll({ behavior: "wait" });
+		}
+	});
+
 	test(`live layer moves announce pickup, refusals and their new position (${theme})`, async () => {
 		const { api, siteId, original, page, tree } = await editorPage(theme, "live");
 		await api.templates.saveSiteTemplateMarkup({

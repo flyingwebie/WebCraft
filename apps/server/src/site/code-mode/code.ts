@@ -363,7 +363,7 @@ export function codeMode(config: CodeModeConfig): void {
 	let selectedRef: string | null = null;
 	let openRun = 0;
 	let markupInputRun = 0;
-	type Locations = Record<string, { start: number; end: number }>;
+	type Locations = { key: string; start: number; end: number }[];
 	let located: { ref: string; text: string; locations: Locations; pending: Promise<void> } | undefined;
 
 	/** Metadata belongs to the exact authored text. It never supplies content or changes selection. */
@@ -372,7 +372,7 @@ export function codeMode(config: CodeModeConfig): void {
 		const ref = opened.ref;
 		const text = html.get();
 		if (located?.ref === ref && located.text === text) return located.pending;
-		const next = { ref, text, locations: {} as Locations, pending: Promise.resolve() };
+		const next = { ref, text, locations: [] as Locations, pending: Promise.resolve() };
 		located = next;
 		next.pending = call("code/editorRead", { path, ref, markup: text }).then((answer) => {
 			if (located !== next || opened?.ref !== ref || html.get() !== text || !answer.ok) return;
@@ -386,15 +386,15 @@ export function codeMode(config: CodeModeConfig): void {
 	function locationOf(ref: string | null): { start: number; end: number } | undefined {
 		if (!ref || !opened || located?.ref !== opened.ref || located.text !== html.get()) return;
 		const [source, key = ""] = ref.split("#");
-		return source === opened.ref ? located.locations[key] : undefined;
+		return source === opened.ref ? located.locations.find((range) => range.key === key) : undefined;
 	}
 
 	function refAt(offset: number): string | null {
 		if (!opened || located?.ref !== opened.ref || located.text !== html.get()) return null;
-		const found = Object.entries(located.locations)
-			.filter(([, range]) => range.start <= offset && offset < range.end)
-			.sort(([, a], [, b]) => a.end - a.start - (b.end - b.start))[0];
-		return found ? `${opened.ref}#${found[0]}` : null;
+		const found = located.locations
+			.filter((range) => range.start <= offset && offset < range.end)
+			.sort((a, b) => a.end - a.start - (b.end - b.start))[0];
+		return found ? `${opened.ref}#${found.key}` : null;
 	}
 
 	function markSelection(reveal = false): void {
@@ -427,6 +427,7 @@ export function codeMode(config: CodeModeConfig): void {
 	let cssClassId: string | null = null;
 	let cssSection = "styles";
 	let cssSaved = "";
+	let cssLoadRun = 0;
 
 	// The JS panel
 	let jsEditor: Editor;
@@ -875,6 +876,7 @@ export function codeMode(config: CodeModeConfig): void {
 			language: "css",
 			label: word("css"),
 			onInput: () => {
+				cssLoadRun++;
 				setDirty("css");
 				updateLayoutBar();
 				schedulePreview();
@@ -1569,8 +1571,9 @@ export function codeMode(config: CodeModeConfig): void {
 	// The CSS panel
 
 	async function loadCss(ref: string | null): Promise<void> {
+		const run = ++cssLoadRun;
 		const answer = await call("code/css", { path, ref: requestRef(ref) });
-		if (!answer.ok) return;
+		if (run !== cssLoadRun || !answer.ok) return;
 		css = answer.data as Css;
 		const first = css.classes.find((each) => each.id === cssClassId) ?? css.classes[0];
 		cssClassId = first?.id ?? null;
