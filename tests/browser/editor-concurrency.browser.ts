@@ -39,6 +39,34 @@ async function editorPage(theme: (typeof THEMES)[number], canvas: "live" | "prev
 }
 
 for (const theme of THEMES) {
+	test(`live layer moves announce pickup, refusals and their new position (${theme})`, async () => {
+		const { api, siteId, original, page, tree } = await editorPage(theme, "live");
+		await api.templates.saveSiteTemplateMarkup({
+			siteId,
+			markup: original.replace("</p>", '</p><section data-wc-id="group" data-wc-label="Group">Group text</section>'),
+		});
+		const group = tree.getByRole("treeitem", { name: /^Group section/ });
+		await group.click();
+		await page.waitForLoadState("networkidle");
+		await group.press("Space");
+		await page.getByRole("status").filter({ hasText: "Picked up Group." }).waitFor();
+		await group.press("ArrowRight");
+		await page
+			.getByRole("status")
+			.filter({ hasText: "<section> can't go inside <p>: a browser would end the paragraph before it." })
+			.waitFor();
+		expect((await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft).toContain("</p><section");
+		await group.press("ArrowUp");
+		await page.getByRole("status").filter({ hasText: "Moved Group: 1 of 2 in header." }).waitFor();
+		await group.press("Space");
+		await page.getByRole("status").filter({ hasText: "Put down Group: 1 of 2 in header." }).waitFor();
+		await group.press("Space");
+		await group.press("ArrowDown");
+		await group.press("Escape");
+		await page.getByRole("status").filter({ hasText: "Put Group back where it was." }).waitFor();
+		expect(await group.getAttribute("aria-selected")).toBe("true");
+	});
+
 	for (const canvas of ["preview", "live"] as const) {
 		test(`the ${canvas} Inspector edits current Props while preserving retained values (${theme})`, async () => {
 			const local = install.install;

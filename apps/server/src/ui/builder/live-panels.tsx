@@ -17,8 +17,8 @@ import { InsertDialog, type InsertWhere } from "./InsertDialog.tsx";
 import { InsertToolbar } from "./InsertToolbar.tsx";
 import { Inspector } from "./Inspector.tsx";
 import { type LayerAction, type LayerSource, LayersPanel } from "./LayersPanel.tsx";
-import { type LayerClipboard, runLayerAction } from "./layer-actions.ts";
-import type { BuilderTarget, Opened, Selection } from "./model.ts";
+import { type LayerClipboard, layerLocation, runLayerAction } from "./layer-actions.ts";
+import { type BuilderTarget, layerName, type Opened, type Selection } from "./model.ts";
 import {
 	canHoldChildren,
 	childLists,
@@ -756,15 +756,22 @@ function SourcePanels({
 		message = t("builder.inspector.changed"),
 	) => {
 		const problem = treeProblem(next, { elements: new Set(catalogue.elements), commands: new Set(catalogue.commands) });
-		if (problem) return problem.message;
-		if (!source.editable || creating) return t("coEditing.status.readOnly");
+		const refusal = problem?.message ?? (!source.editable || creating ? t("coEditing.status.readOnly") : null);
+		if (refusal) {
+			announce(refusal);
+			return refusal;
+		}
 		const changed = shared?.change((current) =>
 			kind === "component"
 				? { ...(current as Record<string, Json>), tree: next as unknown as Json }
 				: (next as unknown as Json),
 		);
 		const created = !shared && !source.opened.template && !source.opened.component;
-		if (!created && !changed) return t("coEditing.status.connecting");
+		if (!created && !changed) {
+			const message = t("coEditing.status.connecting");
+			announce(message);
+			return message;
+		}
 		setTree(next);
 		setSelection(nextSelection);
 		const selectedNode = nextSelection?.kind === "node" ? nodeAt(next, nextSelection.path) : null;
@@ -800,7 +807,15 @@ function SourcePanels({
 	const insert = (nodes: TreeNode[]) => {
 		const at = insertionPlace(tree, selection, where);
 		const made = insertAt(tree, at, nodes);
-		return apply(made.tree, { kind: "node", path: made.path });
+		const node = nodeAt(made.tree, made.path);
+		return apply(
+			made.tree,
+			{ kind: "node", path: made.path },
+			t("builder.moves.inserted", {
+				name: node ? layerName(t, node, catalogue).name : "",
+				where: layerLocation(t, made.tree, made.path, catalogue),
+			}),
+		);
 	};
 	const action = (action: LayerAction) => {
 		const result = runLayerAction(
@@ -947,19 +962,45 @@ function SourcePanels({
 						}
 						onAction={action}
 						onGrab={(change) => {
-							if (change === "pick") setGrabbed({ tree, selection, source: sourceId, remoteRevision });
-							else {
-								if (change === "cancel" && grabbed && grabCurrent) apply(grabbed.tree, grabbed.selection);
+							if (selection?.kind !== "node" || !node) return;
+							const name = layerName(t, node, catalogue).name;
+							if (change === "pick") {
+								setGrabbed({ tree, selection, source: sourceId, remoteRevision });
+								announce(t("builder.moves.picked", { name }));
+							} else if (change === "drop") {
+								setGrabbed(null);
+								announce(
+									t("builder.moves.dropped", { name, where: layerLocation(t, tree, selection.path, catalogue) }),
+								);
+							} else {
+								if (grabbed && grabCurrent)
+									apply(grabbed.tree, grabbed.selection, t("builder.moves.putBack", { name }));
 								setGrabbed(null);
 							}
 						}}
 						onRename={(path, label) => {
 							const node = nodeAt(tree, path);
-							if (node?.type === "element") apply(replaceAt(tree, path, { ...node, label }));
+							if (node?.type === "element")
+								apply(
+									replaceAt(tree, path, { ...node, label }),
+									selection,
+									t("builder.layers.renamed", { name: label }),
+								);
 						}}
 						onDrop={(from, to, position) => {
 							const moved = moveTo(tree, from, placeBy(tree, to, position));
-							if ("tree" in moved) apply(moved.tree, { kind: "node", path: moved.path });
+							const node = nodeAt(tree, from);
+							const name = node ? layerName(t, node, catalogue).name : "";
+							if ("refused" in moved) announce(t(`builder.moves.refused.${moved.refused as "first"}`, { name }));
+							else
+								apply(
+									moved.tree,
+									{ kind: "node", path: moved.path },
+									t("builder.moves.moved", {
+										name,
+										where: layerLocation(t, moved.tree, moved.path, catalogue),
+									}),
+								);
 						}}
 						onInsert={() => {
 							setQuick(null);
