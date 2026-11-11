@@ -224,6 +224,8 @@ export const PROCEDURES = {
 	"components.getMarkup": read("A Component as Template markup, Draft and published."),
 	"components.saveMarkup": write("Saves a Component's Draft from Template markup."),
 	"components.publish": write("Publishes a Component's Draft (API clients confirm a preview first)."),
+	"components.getScript": read("A Component's Component script, Draft and published."),
+	"components.saveScriptDraft": write("Saves the Draft of a Component's Component script."),
 	"components.rename": write("Renames a Component everywhere it is placed."),
 	"components.delete": write("Deletes a Component, after a confirmation."),
 	"popups.list": read("List the Site’s Popups."),

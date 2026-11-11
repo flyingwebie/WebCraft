@@ -1,5 +1,6 @@
 import { PLAYER_ORIGINS } from "./body/video.ts";
 import { VIDEO_SCRIPT } from "./body/video-script.ts";
+import { COMPONENT_ROOT_ATTRIBUTE, COMPONENT_SCRIPT_RUNTIME } from "./component-scripts.ts";
 import {
 	consentBannerHtml,
 	consentPlaceholderHtml,
@@ -163,6 +164,15 @@ export type PageToRender = {
 	 */
 	scripts?: readonly PageScript[];
 	/**
+	 * The Component scripts of the Site's Components (GLOSSARY.md), by Component: a page loads the
+	 * script of each Component whose Placement root it shows (`PlacementRenderer`'s `root`), once
+	 * however many Placements it has, after the Site script and before the page script, in the order
+	 * of each Component's first Placement on the page, behind WebCraft's runtime that calls each root.
+	 * One outside Necessary is held back until visitors accept its category. Like the Site's own
+	 * scripts, they run in Edit mode too (ADR 0022), but not in Safe mode.
+	 */
+	componentScripts?: readonly PageComponentScript[];
+	/**
 	 * The Site scripts of the Modules running on the Site (SDK 1.3): files on the Site's domain, loaded
 	 * with `defer` after the Site's own scripts, each held back until visitors accept its Consent
 	 * category, unless it runs before consent (`beforeConsent`, SDK 1.4: it holds back itself what
@@ -195,8 +205,15 @@ export type PageToRender = {
 /** Where a page's Search elements send visitors, and what they show in their box. */
 export type PageSearch = { action: string; query: string };
 
-/** One of the Site's Libraries on a page: its name, where the Site serves it and its integrity hash. */
-export type PageLibrary = { name: string; src: string; integrity: string };
+/**
+ * One of the Site's Libraries on a page: its name, where the Site serves it and its integrity hash.
+ * With `components`, it loads only on a page loading the Component script of one of them (those
+ * Component scripts declare it).
+ */
+export type PageLibrary = { name: string; src: string; integrity: string; components?: readonly string[] };
+
+/** A Component script a page may load: the Component, its name, its loader's address and its Consent category. */
+export type PageComponentScript = { componentId: string; name: string; src: string; consentCategory: string };
 
 /** One of the Site's own scripts on a page: the Site script or the page's own, as a file on the Site. */
 export type PageScript = { kind: "site" | "page"; src: string };
@@ -459,6 +476,18 @@ export function renderDocument(page: PageToRender): RenderedPage {
 			return `<template data-site="${escapeAttribute(page.popups?.siteId ?? "")}" data-popup-id="${item.id}" data-wc-popup="${escapeAttribute(JSON.stringify(item.config))}"><dialog class="wc-popup" data-layout="${escapeAttribute(config.layout)}" data-bar-position="${escapeAttribute(config.barPosition)}" data-bar-behavior="${escapeAttribute(config.barBehavior)}" data-animation="${escapeAttribute(item.config.animation)}" aria-labelledby="wc-popup-title-${item.id}"><button type="button" data-wc-popup-close aria-label="${close}">${close}</button>${heading}${inside}</dialog></template>${[item.config.trigger, ...item.config.additionalTriggers].some((t) => t.kind === "click") ? `<noscript>${section}</noscript>` : ""}`;
 		})
 		.join("");
+	// Component scripts, in the order of their Components' first Placement root on the page.
+	const rooted = new Set<string>();
+	for (const match of `${body}${popupHtml}`.matchAll(new RegExp(` ${COMPONENT_ROOT_ATTRIBUTE}="([^"]*)"`, "g")))
+		for (const id of (match[1] ?? "").split(" ")) if (id) rooted.add(id);
+	const componentScripts = [...rooted].flatMap((id) => {
+		const script = page.componentScripts?.find((candidate) => candidate.componentId === id);
+		return script ? [script] : [];
+	});
+	const libraries = (page.libraries ?? []).filter(
+		(library) =>
+			!library.components || componentScripts.some((script) => library.components?.includes(script.componentId)),
+	);
 	const outside = [...(page.outsideScripts ?? []), ...(page.formScripts?.() ?? [])];
 	const heldBack = (category: string) => consent !== undefined && category !== "necessary";
 	// The banner and its script come only to a page that asks something.
@@ -472,7 +501,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		consent !== undefined &&
 		(shown.held > 0 ||
 			shown.settings > 0 ||
-			[...outside, ...moduleScripts].some((script) => heldBack(script.consentCategory)));
+			[...outside, ...moduleScripts, ...componentScripts].some((script) => heldBack(script.consentCategory)));
 	// Outside scripts never run in Edit mode (ADR 0022): each shows as a placeholder instead. Visitors
 	// get those outside Necessary held back until they accept their category.
 	const outsideIn = (placement: PageOutsideScript["placement"]) =>
@@ -506,14 +535,13 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		...(shown.videos > 0 ? [`<script src="${VIDEO_SCRIPT.href}" defer></script>`] : []),
 		...(filtersShown > 0 ? [`<script src="${FILTER_SCRIPT.href}" defer></script>`] : []),
 		...(formsShown > 0 ? [`<script src="${FORM_SCRIPT.href}" defer></script>`] : []),
-		...(page.libraries ?? []).map((library) => {
+		...libraries.map((library) => {
 			const tag = editMode ? ` data-wc-library="${escapeAttribute(library.name)}"` : "";
 			return `<script src="${escapeAttribute(library.src)}" integrity="${escapeAttribute(library.integrity)}" defer${tag}></script>`;
 		}),
-		...(page.scripts ?? []).map((script) => {
-			const tag = editMode ? ` data-wc-script="${script.kind}"` : "";
-			return `<script src="${escapeAttribute(script.src)}" defer${tag}></script>`;
-		}),
+		...ownScriptTags(page.scripts ?? [], "site", editMode),
+		...componentScriptTags(componentScripts, heldBack, editMode),
+		...ownScriptTags(page.scripts ?? [], "page", editMode),
 		...moduleScripts.map((script) => {
 			const tag = `<script src="${escapeAttribute(script.src)}" defer data-wc-module="${escapeAttribute(script.moduleId)}"></script>`;
 			return heldBack(script.consentCategory) && !script.beforeConsent
@@ -534,6 +562,40 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		"",
 	].join("\n");
 	return { html, frames: shown.videos > 0 ? PLAYER_ORIGINS : [] };
+}
+
+/** The Site's own scripts of one kind, as a page loads them: deferred, saying which they are in Edit mode. */
+function ownScriptTags(scripts: readonly PageScript[], kind: PageScript["kind"], editMode: EditModePage | undefined) {
+	return scripts
+		.filter((script) => script.kind === kind)
+		.map((script) => {
+			const tag = editMode ? ` data-wc-script="${script.kind}"` : "";
+			return `<script src="${escapeAttribute(script.src)}" defer${tag}></script>`;
+		});
+}
+
+/**
+ * The Component scripts a page loads: WebCraft's runtime (deferred, watching for Placements added
+ * later in Edit mode), then each loader as a module script, which runs in order with the deferred
+ * scripts; one outside Necessary held back until visitors accept its category. In Edit mode each says
+ * which Component it is, so an error can name it.
+ */
+function componentScriptTags(
+	scripts: readonly PageComponentScript[],
+	heldBack: (category: string) => boolean,
+	editMode: EditModePage | undefined,
+): string[] {
+	if (scripts.length === 0) return [];
+	return [
+		`<script src="${COMPONENT_SCRIPT_RUNTIME.href}" defer${editMode ? " data-wc-watch" : ""}></script>`,
+		...scripts.map((script) => {
+			const tag = editMode
+				? ` data-wc-component-script="${escapeAttribute(script.componentId)}" data-wc-component-name="${escapeAttribute(script.name)}"`
+				: "";
+			const loader = `<script type="module" src="${escapeAttribute(script.src)}"${tag}></script>`;
+			return heldBack(script.consentCategory) ? heldScriptsHtml(script.consentCategory, [loader]) : loader;
+		}),
+	];
 }
 
 /**

@@ -1,4 +1,4 @@
-import { publishPermission } from "@webcraft/core";
+import { CONSENT_CATEGORIES, LIBRARIES_PER_SITE, publishPermission, SCRIPT_MAX_LENGTH } from "@webcraft/core";
 import { z } from "zod";
 
 import { confirmationInput, confirmedPublish } from "../confirm.ts";
@@ -98,6 +98,40 @@ export const components = {
 			const site = await context.services.data.site(context.access, input.siteId, publishPermission(item));
 			const published = await context.services.publishing.publish(site, item);
 			return { published, ...(await context.services.components.get(site, input.componentId)) };
+		}),
+
+	/**
+	 * A Component's Component script: its Draft and published version (each its code, Consent
+	 * category and the Libraries it declares), null while it has none. A Module's Components have none.
+	 */
+	getScript: signedIn.input(z.object({ siteId: id, componentId })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+		return { script: await context.services.scripts.component(site, input.componentId) };
+	}),
+
+	/**
+	 * Saves the Draft of a Component's Component script, making it the first time: its code (an ES
+	 * module whose default export WebCraft calls with each Placement's root element), and its Consent
+	 * category and Libraries when given (they stay as they were otherwise). Answers the script and its
+	 * Draft's version; with `basedOn`, refused with `CHANGED_MEANWHILE` when someone saved it
+	 * meanwhile. Visitors run nothing of it until the Component is published, which publishes it too.
+	 */
+	saveScriptDraft: signedIn
+		.input(
+			z.object({
+				siteId: id,
+				componentId,
+				code: z.string().max(SCRIPT_MAX_LENGTH),
+				consentCategory: z.enum(CONSENT_CATEGORIES).optional(),
+				libraryIds: z.array(id).max(LIBRARIES_PER_SITE).optional(),
+				basedOn,
+			}),
+		)
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			const { siteId: _, componentId: target, basedOn: base, ...change } = input;
+			const script = await context.services.scripts.saveComponentDraft(site, target, change, { basedOn: base });
+			return { script, version: script.version };
 		}),
 
 	/** Renames a Component: every Template and Component placing it writes the new name at once. */

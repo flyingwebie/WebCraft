@@ -4,12 +4,14 @@ import {
 	type AdminLanguageCode,
 	CODE_MODE_SCRIPT_PATH,
 	CODE_MODE_STYLESHEET_PATH,
+	CONSENT_CATEGORIES,
 	EDIT_MODE_PATH,
 	type EditSession,
 	editModePolicy,
 	type FieldInput,
 	type InstallServices,
 	isAdminLanguage,
+	LIBRARIES_PER_SITE,
 	MEDIA_TEXT_MAX_LENGTH,
 	MediaTooLargeError,
 	PASTE_MAX_LENGTH,
@@ -252,18 +254,28 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 		const scope = await services.codeMode.access(session);
 		return json(200, await services.codeMode.createClass(scope, parse(codeClassName, body).name));
 	},
-	/** The page's scripts for the JS panel: the Site script and the page's own, with their Drafts' files. */
+	/**
+	 * The page's scripts for the JS panel: the Site script and the page's own, with their Drafts' files;
+	 * with `ref` (the element selected), the Component script of its Placement, for the Component tab.
+	 */
 	"code/scripts": async (services, session, body, _request, host) => {
 		const scope = await services.codeMode.access(session);
-		return json(200, await services.codeMode.scripts(scope, host, parse(pagePath, body).path));
+		const input = parse(codeScripts, body);
+		return json(200, await services.codeMode.scripts(scope, host, input.path, input.ref));
 	},
 	/**
-	 * Saves the Site script's or the page's script's Draft, based on the version it was opened at. It
-	 * runs on the page only when Staff press Run, which loads the file this answers, or load the page.
+	 * Saves the Site script's, the page's script's or a Component script's Draft, based on the version
+	 * it was opened at. It runs on the page only when Staff press Run, which loads the file this
+	 * answers, or load the page.
 	 */
 	"code/saveScript": async (services, session, body, _request, host) => {
 		const scope = await services.codeMode.access(session);
-		return json(200, await services.codeMode.saveScript(scope, host, parse(codeSaveScript, body)));
+		const input = parse(codeSaveScript, body);
+		if (input.kind === "component") {
+			const { kind: _, path: __, ...change } = input;
+			return json(200, await services.codeMode.saveComponentScript(scope, change));
+		}
+		return json(200, await services.codeMode.saveScript(scope, host, input));
 	},
 	/**
 	 * Turns Safe mode on for this browser (ADR 0022): its pages in Edit mode run none of the Site's own
@@ -445,12 +457,25 @@ const codeClassName = z.object({ name: z.string().max(200) });
  */
 const codeCss = codeSource.extend({ classes: z.array(z.string().max(200)).max(500).optional() });
 
-const codeSaveScript = z.object({
-	path: z.string().max(2000),
-	kind: z.enum(["site", "page"]),
-	code: z.string().max(SCRIPT_MAX_LENGTH),
-	version: draftVersion,
-});
+const codeScripts = z.object({ path: z.string().max(2000), ref: z.string().max(1000).nullable().optional() });
+
+const codeSaveScript = z.discriminatedUnion("kind", [
+	z.object({
+		path: z.string().max(2000),
+		kind: z.enum(["site", "page"]),
+		code: z.string().max(SCRIPT_MAX_LENGTH),
+		version: draftVersion,
+	}),
+	z.object({
+		path: z.string().max(2000),
+		kind: z.literal("component"),
+		componentId: z.string().uuid(),
+		code: z.string().max(SCRIPT_MAX_LENGTH),
+		consentCategory: z.enum(CONSENT_CATEGORIES).optional(),
+		libraryIds: z.array(z.string().uuid()).max(LIBRARIES_PER_SITE).optional(),
+		version: draftVersion,
+	}),
+]);
 
 const codeSave = z.object({
 	path: z.string().max(2000),

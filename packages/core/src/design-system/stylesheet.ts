@@ -10,6 +10,7 @@
  */
 import { components, designSystems, stylesheets, templates } from "@webcraft/db/schema";
 import {
+	COMPONENT_SCRIPT_RUNTIME,
 	CONSENT_SCRIPT,
 	compileStylesheet,
 	contentHash,
@@ -163,12 +164,14 @@ export { SCRIPT_PATH } from "@webcraft/renderer";
 /**
  * A script WebCraft serves on every Site by its file name (`/_wc/js/<name>`): the theme toggle's, the
  * embed script (a body's videos), the consent script (the Consent banner), the Filter script (a
- * page's Filters) and the forms script (a page's Forms), each named by its hash.
+ * page's Filters), the forms script (a page's Forms) and the runtime of Component scripts, each named
+ * by its hash.
  * Null for any other name.
  */
 export function siteScript(name: string): string | null {
 	for (const script of [
 		THEME_TOGGLE_SCRIPT,
+		COMPONENT_SCRIPT_RUNTIME,
 		VIDEO_SCRIPT,
 		CONSENT_SCRIPT,
 		FILTER_SCRIPT,

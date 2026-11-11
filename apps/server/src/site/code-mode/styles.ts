@@ -108,6 +108,20 @@ svg { flex: none; }
 .small { height: 1.75rem; }
 .link-button { color: var(--muted); text-decoration: underline; padding: 0.125rem 0.25rem; }
 .link-button:hover { color: var(--text); }
+.pickers { display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; padding: 0.375rem 0.625rem; border-bottom: 1px solid var(--line); }
+.pickers label { color: var(--muted); }
+.picker { height: 1.75rem; max-width: 12rem; border-radius: 0.375rem; border: 1px solid #52525b; background: var(--panel-raised); color: var(--text); }
+.layout { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; padding: 0.375rem 0.625rem; border-bottom: 1px solid var(--line); }
+.layout-set { display: flex; align-items: center; gap: 0.125rem; }
+.layout-name { color: var(--muted); margin-inline-end: 0.25rem; }
+.tool { display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 0.375rem; color: var(--text); }
+.tool:hover { background: var(--panel-raised); }
+.tool[aria-pressed="true"] { background: #4338ca; color: #ffffff; }
+.pickers-label { color: var(--muted); }
+.checks { display: flex; align-items: center; gap: 0.625rem; flex-wrap: wrap; }
+.check { display: inline-flex; align-items: center; gap: 0.25rem; }
+.check input { margin: 0; accent-color: #6366f1; }
+.muted { color: var(--muted); }
 .note { margin: 0; padding: 0.5rem 0.625rem; color: var(--muted); border-bottom: 1px solid var(--line); }
 
 .editor {
