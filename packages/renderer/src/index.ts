@@ -14,6 +14,14 @@ export {
 	type TemplateCommand,
 } from "./commands.ts";
 export {
+	COMPONENT_ROOT_ATTRIBUTE,
+	COMPONENT_SCRIPT_RUNTIME,
+	componentLoaderName,
+	componentLoaderText,
+	componentRootAttributes,
+	readComponentLoaderName,
+} from "./component-scripts.ts";
+export {
 	blockPlacement,
 	boundaryProblem,
 	COMPONENT_LIMITS,
@@ -180,6 +188,7 @@ export {
 	type LanguageLink,
 	PAGE_HOOKS,
 	type PageAlternate,
+	type PageComponentScript,
 	type PageLibrary,
 	type PageModuleScript,
 	type PageOutsideScript,

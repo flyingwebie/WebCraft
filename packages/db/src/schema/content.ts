@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
 	boolean,
+	check,
 	foreignKey,
 	index,
 	jsonb,
@@ -260,10 +261,11 @@ export const components = pgTable(
 
 /**
  * Scripts Staff write in Code mode (ADR 0016): the Site script (`kind = 'site'`, one per Site, on
- * every page) and page scripts (`kind = 'page'`, one per Entry, on its page only). Structure with a
- * Draft and a published version, as text. Pages never carry them inline (ADR 0023): each version is
- * a file named by the hash of its text, `draft_hash` and `published_hash` (16 hexadecimal digits of
- * its SHA-256), served from the Site's own domain.
+ * every page), page scripts (`kind = 'page'`, one per Entry, on its page only) and Component scripts
+ * (`kind = 'component'`, one per Component, on the pages showing it, published with it). Structure
+ * with a Draft and a published version, as text. Pages never carry them inline (ADR 0023): each
+ * version is a file named by the hash of its text, `draft_hash` and `published_hash` (16 hexadecimal
+ * digits of its SHA-256), served from the Site's own domain.
  */
 export const scripts = pgTable(
 	"scripts",
@@ -271,10 +273,19 @@ export const scripts = pgTable(
 		id: uuid("id").primaryKey().defaultRandom(),
 		workspaceId: uuid("workspace_id").notNull(),
 		siteId: uuid("site_id").notNull(),
-		/** `site` or `page`. */
+		/** `site`, `page` or `component`. */
 		kind: text("kind").notNull(),
-		/** The Entry whose page a page script runs on; null for the Site script. */
+		/** The Entry whose page a page script runs on; null for the Site script and Component scripts. */
 		entryId: uuid("entry_id"),
+		/** The Component a Component script belongs to; null for the others. */
+		componentId: uuid("component_id"),
+		/** A Component script's Consent category in its Draft (`necessary` unless Staff choose another); null for the others. */
+		consentCategory: text("consent_category"),
+		/** The Libraries a Component script's Draft declares, in no order; null for the others. */
+		libraryIds: uuid("library_ids").array(),
+		/** The same two as published; null until the first publish. */
+		publishedConsentCategory: text("published_consent_category"),
+		publishedLibraryIds: uuid("published_library_ids").array(),
 		draft: text("draft").notNull(),
 		draftHash: text("draft_hash").notNull(),
 		/** What visitors run; null until the first publish. */
@@ -300,7 +311,15 @@ export const scripts = pgTable(
 			columns: [table.siteId, table.entryId],
 			foreignColumns: [entries.siteId, entries.id],
 		}).onDelete("cascade"),
-		unique("scripts_site_id_kind_entry_id_unique").on(table.siteId, table.kind, table.entryId).nullsNotDistinct(),
+		foreignKey({
+			name: "scripts_component_fkey",
+			columns: [table.siteId, table.componentId],
+			foreignColumns: [components.siteId, components.id],
+		}).onDelete("cascade"),
+		unique("scripts_site_id_kind_entry_id_component_id_unique")
+			.on(table.siteId, table.kind, table.entryId, table.componentId)
+			.nullsNotDistinct(),
+		check("scripts_component_kind_check", sql`(${table.kind} = 'component') = (${table.componentId} is not null)`),
 		index("scripts_site_id_published_hash_idx").on(table.siteId, table.publishedHash),
 		index("scripts_site_id_draft_hash_idx").on(table.siteId, table.draftHash),
 	],

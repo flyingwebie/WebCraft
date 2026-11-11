@@ -298,6 +298,32 @@ describe("Structure Drafts", () => {
 		expect(await (await install.request(`${site.live}${live}`)).text()).toBe("console.log('published');");
 	});
 
+	test("a Component script's Draft runs there; visitors run the published one", async () => {
+		const site = await newSite();
+		const { component } = await staff.api.components.create({ siteId: site.siteId, name: "Notice" });
+		await staff.api.components.saveMarkup({ siteId: site.siteId, componentId: component.id, markup: "<p>Hello</p>" });
+		const target = { siteId: site.siteId, componentId: component.id };
+		await staff.api.components.saveScriptDraft({ ...target, code: "export default () => 'published';" });
+		await staff.api.components.publish(target);
+		const saved = await staff.api.templates.saveSiteTemplateMarkup({
+			siteId: site.siteId,
+			markup: "<header><Notice /></header><main>{{@outlet}}</main>",
+		});
+		await staff.api.templates.publish({ siteId: site.siteId, templateId: saved.template.id });
+		await staff.api.components.saveScriptDraft({ ...target, code: "export default () => 'draft';" });
+
+		const loaderOf = (text: string) =>
+			/<script type="module" src="(\/_wc\/js\/component\/[^"]+)"><\/script>/.exec(text)?.[1] as string;
+		const fileOf = (loader: string) => `/_wc/js/${/from "\.\.\/\.\.\/([0-9a-f]{16}\.js)"/.exec(loader)?.[1]}`;
+		const staged = loaderOf(await html(await site.staging.page("/about")));
+		const stagedFile = fileOf(await (await site.staging.page(staged)).text());
+		expect(await (await site.staging.page(stagedFile)).text()).toBe("export default () => 'draft';");
+		expect((await install.request(`${site.live}${staged}`)).status).toBe(404);
+		const live = loaderOf(await html(await install.request(`${site.live}/about`)));
+		const liveFile = fileOf(await (await install.request(`${site.live}${live}`)).text());
+		expect(await (await install.request(`${site.live}${liveFile}`)).text()).toBe("export default () => 'published';");
+	});
+
 	test("Loops show their Drafts over every Entry's Draft, never-published ones too, linked at their Draft addresses", async () => {
 		const site = await newSite();
 		const { loop } = await staff.api.loops.create({

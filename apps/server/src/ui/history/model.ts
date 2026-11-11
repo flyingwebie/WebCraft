@@ -105,6 +105,10 @@ const TEMPLATE_NAMES: Record<string, MessageKey> = {
 export function itemName(t: Translate, item: HistoryPage["item"]): string {
 	// A Form's emails have a history of their own beside the Form's.
 	if (item.kind === "formEmails") return t("history.item.formEmails", { name: item.name ?? "" });
+	// A Component script is named after its Component, as what it is.
+	if (item.kind === "script" && item.scriptKind === "component") {
+		return t("history.item.componentScript", { name: item.name ?? "" });
+	}
 	if (item.name) return item.name;
 	switch (item.kind) {
 		case "template":

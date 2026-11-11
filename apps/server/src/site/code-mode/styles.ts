@@ -100,6 +100,11 @@ svg { flex: none; }
 .tool { display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 0.375rem; color: var(--text); }
 .tool:hover { background: var(--panel-raised); }
 .tool[aria-pressed="true"] { background: #4338ca; color: #ffffff; }
+.pickers-label { color: var(--muted); }
+.checks { display: flex; align-items: center; gap: 0.625rem; flex-wrap: wrap; }
+.check { display: inline-flex; align-items: center; gap: 0.25rem; }
+.check input { margin: 0; accent-color: #6366f1; }
+.muted { color: var(--muted); }
 .note { margin: 0; padding: 0.5rem 0.625rem; color: var(--muted); border-bottom: 1px solid var(--line); }
 
 .editor {

@@ -21,6 +21,8 @@ import type {
 	ComponentDeletion,
 	ComponentDraftChange,
 	ComponentMarkup,
+	ComponentScript,
+	ComponentScriptInput,
 	ComponentUsage,
 	DefaultLanguageChange,
 	DraftChange,
@@ -452,6 +454,18 @@ export type InstallServices = InstallPorts & {
 		byId(scope: SiteScope, scriptId: string): Promise<Script>;
 		/** Saves its Draft, making it the first time; with `basedOn`, refused when it changed since. */
 		saveDraft(scope: SiteScope, entryId: string | null, code: string, base?: SaveBase): Promise<Script>;
+		/** One of the Site's Components' script (Component scripts); null while it has none. */
+		component(scope: SiteScope, componentId: string): Promise<ComponentScript | null>;
+		/**
+		 * Saves a Component script's Draft (its code, and its Consent category and Libraries when
+		 * given), making it the first time; with `basedOn`, refused when it changed since.
+		 */
+		saveComponentDraft(
+			scope: SiteScope,
+			componentId: string,
+			input: ComponentScriptInput,
+			base?: SaveBase,
+		): Promise<ComponentScript>;
 	};
 	/**
 	 * Which Pages answer at `/` (the home page), for paths with no page (the 404 page) and for Site
