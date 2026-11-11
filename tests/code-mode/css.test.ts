@@ -36,6 +36,7 @@ type CodeClass = {
 	breakpoints: Record<string, string>;
 	css: string;
 	version: string;
+	usage: { elements: number; pages: number };
 };
 type Css = {
 	classes: CodeClass[];
@@ -103,6 +104,7 @@ describe("reading an element's CSS", () => {
 				breakpoints: { [site.tablet.id]: "font-size: var(--text-2xl);" },
 				css: "&:hover {\n  color: red;\n}",
 				version: expect.stringMatching(/^[0-9a-f]{16}$/),
+				usage: { elements: 1, pages: 1 },
 			},
 		]);
 		expect(css.breakpoints[0]).toEqual({ id: site.tablet.id, name: site.tablet.name, width: site.tablet.width });
@@ -115,6 +117,50 @@ describe("reading an element's CSS", () => {
 		expect(css.tokens).toContainEqual({ property: "--space-m", value: expect.any(String), kind: "space" });
 		expect(css.tokens).toContainEqual({ property: "--text-xl", value: expect.any(String), kind: "text" });
 		expect(css.tokens.some((token) => token.kind === "colour" && token.property.endsWith("-60"))).toBe(true);
+	});
+
+	test("answers the Classes an element has now, by id in its order, with how many elements and pages use each", async () => {
+		const unused = await staff.api.designSystem.createClass({ siteId: site.siteId, name: "unused" });
+		const opened = await staff.api.builder.open({
+			siteId: site.siteId,
+			target: { kind: "entryTemplate", postTypeId: site.postTypeId },
+		});
+		// The heading's token utility (`p-m`), by the id its tree gives it.
+		const utility = JSON.stringify(opened.tree).match(/"(u:[^"]+)"/)?.[1];
+		expect(utility).toBeDefined();
+
+		const css = await answer<Css>(
+			coding.edit("code/css", { path, ref: null, classes: [unused.class.id, utility, "missing", site.classId] }),
+		);
+
+		expect(css.classes.map((each) => [each.name, each.usage])).toEqual([
+			["unused", { elements: 0, pages: 0 }],
+			["title", { elements: 1, pages: 1 }],
+		]);
+	});
+
+	test("a Class used only inside a Component counts the pages that Component shows on", async () => {
+		const site = await bakery();
+		const badge = await staff.api.designSystem.createClass({ siteId: site.siteId, name: "badge" });
+		const { component } = await staff.api.components.create({ siteId: site.siteId, name: "Badge" });
+		await staff.api.components.saveMarkup({
+			siteId: site.siteId,
+			componentId: component.id,
+			markup: '<span class="badge">New</span><span class="badge">Fresh</span>',
+		});
+		await staff.api.components.publish({ siteId: site.siteId, componentId: component.id });
+		const layout = await staff.api.templates.saveSiteTemplateMarkup({
+			siteId: site.siteId,
+			markup: "<header><Badge /></header><main>{{@outlet}}</main>",
+		});
+		await staff.api.templates.publish({ siteId: site.siteId, templateId: layout.template.id });
+		const shown = await staff.api.components.get({ siteId: site.siteId, componentId: component.id });
+		expect(shown.usage.pages).toBeGreaterThan(0);
+		const coding = await openCodeMode(install, staff, site.siteId, path);
+
+		const css = await answer<Css>(coding.edit("code/css", { path, ref: null, classes: [badge.class.id] }));
+
+		expect(css.classes[0]?.usage).toEqual({ elements: 2, pages: shown.usage.pages });
 	});
 
 	test("an element without Classes, or none selected, has the Site CSS only", async () => {
@@ -306,4 +352,57 @@ test("Members in Edit mode can't read or change CSS", async () => {
 	] as const) {
 		expect((await refusal(await editing.edit(action, body), 403)).code).toBe("FORBIDDEN");
 	}
+});
+
+describe("a Generated Class in the CSS panel", () => {
+	/** A Site whose Blog post's title has a one-off style, which made it a Generated Class. */
+	async function generated() {
+		const site = await bakery();
+		const coding = await openCodeMode(install, staff, site.siteId, path);
+		const opened = await answer<{ markup: string; version: string }>(
+			coding.edit("code/open", { path, ref: "content" }),
+		);
+		await answer(
+			coding.edit("code/save", {
+				path,
+				ref: "content",
+				markup: opened.markup.replace('class="title p-m"', 'class="title p-m" style="color: olive"'),
+				version: opened.version,
+			}),
+		);
+		const css = await answer<Css>(coding.edit("code/css", { path, ref: "content#title" }));
+		const made = css.classes.find((each) => each.generated);
+		if (!made) throw new Error("The one-off style made no Generated Class.");
+		return { ...site, coding, made };
+	}
+
+	test("editing it makes it a normal Class that keeps its name", async () => {
+		const { siteId, coding, made } = await generated();
+
+		await answer(
+			coding.edit("code/saveCss", {
+				target: { kind: "class", classId: made.id, part: "styles" },
+				text: "color: olive;\nfont-weight: 700;",
+				version: made.version,
+			}),
+		);
+
+		const css = await answer<Css>(coding.edit("code/css", { path, ref: null, classes: [made.id] }));
+		expect(css.classes[0]).toMatchObject({ name: made.name, generated: false });
+		const { designSystem } = await staff.api.designSystem.get({ siteId });
+		expect(designSystem.draft.classes.find((each) => each.id === made.id)?.generated).toBe(false);
+	});
+
+	test("can be renamed from the panel, and the element keeps it", async () => {
+		const { coding, made } = await generated();
+
+		await answer(
+			coding.edit("code/editorService", { method: "classes.update", input: { classId: made.id, name: "headline" } }),
+		);
+
+		const css = await answer<Css>(coding.edit("code/css", { path, ref: "content#title" }));
+		expect(css.classes.map((each) => [each.name, each.generated])).toContainEqual(["headline", false]);
+		const opened = await answer<{ markup: string }>(coding.edit("code/open", { path, ref: "content" }));
+		expect(opened.markup).toContain('class="title p-m headline"');
+	});
 });

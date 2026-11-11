@@ -216,6 +216,8 @@ export const PROCEDURES = {
 	"builder.preview": internal(),
 	"builder.markup": internal(),
 	"builder.read": internal(),
+	"builder.css": internal(),
+	"builder.saveCss": internal(),
 	"components.list": read("Lists the Site's Components and those of its Modules, with where each is used."),
 	"components.get": read("One Component: its Draft and published Props and tree, and where it is used."),
 	"components.create": write("Creates a Component with its name and Props."),

@@ -143,8 +143,18 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 					await services.designSystem.createClass(scope, parse(z.object({ name: z.string().max(200) }), input)),
 				);
 			case "classes.update": {
-				const change = parse(z.object({ classId: designId, styles: z.string().max(CSS_MAX_LENGTH) }), input);
-				return json(200, await services.designSystem.updateClass(scope, change.classId, { styles: change.styles }));
+				// Restyled from the Inspector, or renamed from the CSS panel (a Generated Class keeps its name unless renamed).
+				const { classId, ...change } = parse(
+					z
+						.object({
+							classId: designId,
+							styles: z.string().max(CSS_MAX_LENGTH).optional(),
+							name: z.string().max(200).optional(),
+						})
+						.refine((value) => value.styles !== undefined || value.name !== undefined),
+					input,
+				);
+				return json(200, await services.designSystem.updateClass(scope, classId, change));
 			}
 			case "media.list":
 				return json(
@@ -229,10 +239,10 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 		const scope = await services.codeMode.access(session);
 		return json(200, await services.codeMode.save(scope, host, parse(codeSave, body)));
 	},
-	/** What the CSS panel shows for an element: its Classes, the breakpoints, the Site CSS and the tokens. */
+	/** What the CSS panel shows for an element: its Classes with their uses, the breakpoints, the Site CSS and the tokens. */
 	"code/css": async (services, session, body, _request, host) => {
 		const scope = await services.codeMode.access(session);
-		return json(200, await services.codeMode.css(scope, host, parse(codeSource, body)));
+		return json(200, await services.codeMode.css(scope, host, parse(codeCss, body)));
 	},
 	/** Saves a piece of a Class, or the Site CSS, to the Design system's Draft, based on the version it was opened at. */
 	"code/saveCss": async (services, session, body) => {
@@ -440,6 +450,12 @@ const codePreview = z.object({
 const codeSaveCss = z.object({ target: cssTarget, text: z.string().max(CSS_MAX_LENGTH), version: draftVersion });
 
 const codeClassName = z.object({ name: z.string().max(200) });
+
+/**
+ * What the CSS panel reads for an element: by the Classes its shared document gives it now (ids in
+ * order, token utilities among them), else by its reference.
+ */
+const codeCss = codeSource.extend({ classes: z.array(z.string().max(200)).max(500).optional() });
 
 const codeScripts = z.object({ path: z.string().max(2000), ref: z.string().max(1000).nullable().optional() });
 

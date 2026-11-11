@@ -23,6 +23,17 @@ const styles = z
 	.refine((value) => Object.keys(value).length <= TREE_LIMITS.nodes, "Too many one-off styles.")
 	.optional();
 
+/** The id of a Class or a breakpoint token. */
+const designId = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
+
+/** Which CSS a save changes: one piece of a Class (its styles, own CSS, or a breakpoint's styles), or the Site CSS. */
+const cssTarget = z.union([
+	z.object({ kind: z.literal("class"), classId: designId, part: z.literal("styles") }),
+	z.object({ kind: z.literal("class"), classId: designId, part: z.literal("css") }),
+	z.object({ kind: z.literal("class"), classId: designId, part: z.literal("breakpoint"), breakpointId: designId }),
+	z.object({ kind: z.literal("site") }),
+]);
+
 /** The tree as the builder has it, with its pending one-off styles and, for a Component, its Props. */
 const draft = { tree: z.unknown(), styles, props: fieldInputs.optional() };
 
@@ -80,5 +91,41 @@ export const builder = {
 		.handler(async ({ context, input }) => {
 			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
 			return context.services.builder.read(site, input.target, { markup: input.markup, props: input.props });
+		}),
+
+	/**
+	 * What the CSS panel shows on the Builder canvas, as on Code mode's: the Classes the element has
+	 * now, by id in its order (token utilities and unknown ids left out), each with its CSS as text,
+	 * its version and how many elements and published pages use it; the breakpoints, the Site CSS and
+	 * the tokens' custom properties.
+	 */
+	css: signedIn
+		.input(z.object({ siteId: id, classes: z.array(z.string().max(200)).max(500) }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return context.services.builder.css(site, input.classes);
+		}),
+
+	/**
+	 * Saves a piece of a Class, or the Site CSS, to the Design system's Draft, based on the version
+	 * `css` answered: `CHANGED_MEANWHILE` with the newer version when someone changed it meanwhile,
+	 * `DESIGN_SYSTEM_INVALID` with each problem when its checks refuse the CSS.
+	 */
+	saveCss: signedIn
+		.input(
+			z.object({
+				siteId: id,
+				target: cssTarget,
+				text: z.string().max(CSS_MAX_LENGTH),
+				version: z
+					.string()
+					.regex(/^[0-9a-f]{16}$/)
+					.nullable(),
+			}),
+		)
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			const { siteId: _, ...save } = input;
+			return context.services.builder.saveCss(site, save);
 		}),
 };

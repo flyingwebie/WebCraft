@@ -8,7 +8,8 @@ export type CodeModeConfig = { styles: string; panels: string };
  * must use nothing from outside itself.
  *
  * Clicking an element of the page (every element carries `data-wc-code`, where it comes from) opens
- * its Template or Component in the HTML panel, its Class or the Site CSS in the CSS panel, and the
+ * its Template or Component in the HTML panel, its Classes and the Site CSS in the CSS panel (the
+ * editor's shared panel, mounted by the live panels module into this script's CSS panel), and the
  * page's and the Site's scripts in the JS panel, below the page. The page previews HTML and CSS as
  * Staff type (rendered by the server, never saved); each panel saves to the Draft only when asked,
  * and a save over a Draft someone changed meanwhile offers to reload it or overwrite it. Scripts run
@@ -19,7 +20,6 @@ export function codeMode(config: CodeModeConfig): void {
 	type Words = { [key: string]: string | Words };
 	type Answer = { ok: true; data: unknown } | { ok: false; code: string; data: Record<string, unknown> };
 	type Problem = { line: number; column: number; message: string };
-	type CssProblem = { at: string; message: string; line?: number; column?: number };
 	type SourceKind = "entryTemplate" | "archiveTemplate" | "searchTemplate" | "siteTemplate" | "component";
 	type Opened = {
 		source: { kind: SourceKind; id: string | null; name: string | null; editable: boolean };
@@ -38,21 +38,6 @@ export function codeMode(config: CodeModeConfig): void {
 			loops: { name: string }[];
 			classes: { name: string; utility: boolean }[];
 		};
-	};
-	type CodeClass = {
-		id: string;
-		name: string;
-		generated: boolean;
-		styles: string;
-		breakpoints: Record<string, string>;
-		css: string;
-		version: string;
-	};
-	type Css = {
-		classes: CodeClass[];
-		breakpoints: { id: string; name: string; width: number }[];
-		siteCss: { css: string; version: string };
-		tokens: { property: string; value: string; kind: string }[];
 	};
 	type CssTarget =
 		| { kind: "class"; classId: string; part: "styles" }
@@ -77,7 +62,7 @@ export function codeMode(config: CodeModeConfig): void {
 		component?: ComponentScript | null;
 	};
 	type ScriptKind = "page" | "site" | "component";
-	type Language = "markup" | "css" | "js";
+	type Language = "markup" | "js";
 	type Suggestion = {
 		group: string;
 		label: string;
@@ -148,157 +133,7 @@ export function codeMode(config: CodeModeConfig): void {
 		play: ["M6 3l14 9-14 9z"],
 		check: ["M20 6 9 17l-5-5"],
 		x: ["M18 6 6 18", "m6 6 12 12"],
-		block: ["M3 5h18v14H3z"],
-		flex: ["M3 5h18v14H3z", "M9 5v14", "M15 5v14"],
-		grid: ["M3 3h7v7H3z", "M14 3h7v7h-7z", "M14 14h7v7h-7z", "M3 14h7v7H3z"],
-		hidden: [
-			"M9.88 9.88a3 3 0 1 0 4.24 4.24",
-			"M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68",
-			"M6.61 6.61A13.53 13.53 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61",
-			"m2 2 20 20",
-		],
-		row: ["M5 12h14", "m12 5 7 7-7 7"],
-		column: ["M12 5v14", "m19 12-7 7-7-7"],
-		start: ["M4 4v16", "M8 8h4v8H8z", "M14 8h4v8h-4z"],
-		center: ["M12 4v16", "M5 8h4v8H5z", "M15 8h4v8h-4z"],
-		end: ["M20 4v16", "M6 8h4v8H6z", "M12 8h4v8h-4z"],
-		between: ["M4 4v16", "M20 4v16", "M7 8h3v8H7z", "M14 8h3v8h-3z"],
-		stretch: ["M4 4h16", "M4 20h16", "M8 7h3v10H8z", "M13 7h3v10h-3z"],
-		wrap: ["M3 6h18", "M3 12h15a3 3 0 1 1 0 6h-4", "m16 16-2 2 2 2", "M3 18h7"],
-		nowrap: ["M3 12h18", "m17 8 4 4-4 4"],
 	};
-	/** The layout properties the CSS panel's buttons set, with their values and icons. */
-	const LAYOUT: { property: string; word: string; values: [value: string, icon: string][] }[] = [
-		{
-			property: "display",
-			word: "display",
-			values: [
-				["block", "block"],
-				["flex", "flex"],
-				["grid", "grid"],
-				["none", "hidden"],
-			],
-		},
-		{
-			property: "flex-direction",
-			word: "direction",
-			values: [
-				["row", "row"],
-				["column", "column"],
-			],
-		},
-		{
-			property: "justify-content",
-			word: "justify",
-			values: [
-				["flex-start", "start"],
-				["center", "center"],
-				["flex-end", "end"],
-				["space-between", "between"],
-			],
-		},
-		{
-			property: "align-items",
-			word: "align",
-			values: [
-				["flex-start", "start"],
-				["center", "center"],
-				["flex-end", "end"],
-				["stretch", "stretch"],
-			],
-		},
-		{
-			property: "flex-wrap",
-			word: "wrap",
-			values: [
-				["wrap", "wrap"],
-				["nowrap", "nowrap"],
-			],
-		},
-	];
-	/** CSS properties to suggest, most used first. */
-	const CSS_PROPERTIES = [
-		"display",
-		"color",
-		"background",
-		"background-color",
-		"margin",
-		"margin-block",
-		"margin-inline",
-		"padding",
-		"padding-block",
-		"padding-inline",
-		"gap",
-		"row-gap",
-		"column-gap",
-		"width",
-		"max-width",
-		"min-width",
-		"height",
-		"max-height",
-		"min-height",
-		"font-family",
-		"font-size",
-		"font-weight",
-		"font-style",
-		"line-height",
-		"letter-spacing",
-		"text-align",
-		"text-decoration",
-		"text-transform",
-		"text-wrap",
-		"border",
-		"border-radius",
-		"border-color",
-		"border-width",
-		"border-style",
-		"box-shadow",
-		"flex",
-		"flex-direction",
-		"flex-wrap",
-		"flex-grow",
-		"flex-shrink",
-		"flex-basis",
-		"justify-content",
-		"justify-items",
-		"align-items",
-		"align-content",
-		"align-self",
-		"grid-template-columns",
-		"grid-template-rows",
-		"grid-column",
-		"grid-row",
-		"grid-area",
-		"place-items",
-		"place-content",
-		"position",
-		"inset",
-		"top",
-		"right",
-		"bottom",
-		"left",
-		"z-index",
-		"overflow",
-		"opacity",
-		"transform",
-		"transition",
-		"animation",
-		"aspect-ratio",
-		"object-fit",
-		"object-position",
-		"list-style",
-		"white-space",
-		"cursor",
-		"outline",
-		"outline-offset",
-		"visibility",
-		"content",
-		"inline-size",
-		"block-size",
-		"container-type",
-		"scroll-margin-top",
-		"accent-color",
-	];
 	/** Elements whose content Format may put on lines of its own: block containers. */
 	const CONTAINERS = new Set(
 		"address article aside blockquote details dialog div dl fieldset figure footer form header hgroup li main menu nav ol search section ul".split(
@@ -433,23 +268,9 @@ export function codeMode(config: CodeModeConfig): void {
 		return ref?.includes("#@") ? (ref.split("#")[0] ?? null) : ref;
 	}
 
-	// The CSS panel
-	let cssEditor: Editor;
-	let cssTitle: HTMLElement;
-	let cssSave: HTMLButtonElement;
-	let cssProblems: HTMLElement;
-	let cssNote: HTMLElement;
-	let cssClassTab: HTMLButtonElement;
-	let cssSiteTab: HTMLButtonElement;
-	let classPicker: HTMLSelectElement;
-	let sectionPicker: HTMLSelectElement;
-	let layoutBar: HTMLElement;
-	let css: Css | null = null;
-	let cssMode: "class" | "site" = "class";
-	let cssClassId: string | null = null;
-	let cssSection = "styles";
-	let cssSaved = "";
-	let cssLoadRun = 0;
+	// The CSS panel: the editor's shared panel draws in `cssHost`, and asks the page to preview what it has unsaved.
+	let cssHost: HTMLElement;
+	let pendingCss: { target: CssTarget; text: string } | null = null;
 
 	// The JS panel
 	let jsEditor: Editor;
@@ -517,10 +338,11 @@ export function codeMode(config: CodeModeConfig): void {
 		for (const line of pending.splice(0)) logLine("error", line);
 		const selectionHash = new URLSearchParams(win.location.hash.slice(1)).get("wc-selection");
 		if (selectionHash) win.history.replaceState(null, "", win.location.pathname + win.location.search);
-		await Promise.all([open(selectionHash), loadCss(null), loadScripts()]);
+		await Promise.all([open(selectionHash), loadScripts()]);
 		const module = await import(config.panels);
 		panelsAdapter = module.mount({
 			root,
+			cssHost,
 			language: (state.data as { adminLanguage?: string }).adminLanguage === "it" ? "it" : "en",
 			async call(action: string, body: object) {
 				const response = await call(action, { path, ...body });
@@ -547,7 +369,12 @@ export function codeMode(config: CodeModeConfig): void {
 			},
 			refresh() {
 				schedulePreview();
-				if (!cssDirty()) void loadCss(selectedRef ?? opened?.ref ?? null);
+			},
+			previewCss(change: { target: CssTarget; text: string } | null) {
+				// The page renders again only when what it should show changes.
+				if (encode(change) === encode(pendingCss)) return;
+				pendingCss = change;
+				schedulePreview();
 			},
 			ready(ref: string, editable: boolean) {
 				panelReady.set(ref, editable);
@@ -929,69 +756,12 @@ export function codeMode(config: CodeModeConfig): void {
 
 	function buildCssPanel(): HTMLElement {
 		const heading = newId("css");
-		cssTitle = el("span", { class: "panel-sub" });
-		cssClassTab = button({ class: "segment", "aria-pressed": "true" }, word("classTab"));
-		cssSiteTab = button({ class: "segment", "aria-pressed": "false" }, word("siteCssTab"));
-		cssClassTab.addEventListener("click", () => void switchCss("class"));
-		cssSiteTab.addEventListener("click", () => void switchCss("site"));
-		cssSave = button({ class: "small primary" }, word("save"));
-		cssSave.addEventListener("click", () => void saveCss(null));
-		const classId = newId("class");
-		const sectionId = newId("section");
-		classPicker = el("select", { id: classId, class: "picker" });
-		sectionPicker = el("select", { id: sectionId, class: "picker" });
-		classPicker.addEventListener("change", () => {
-			cssClassId = classPicker.value;
-			cssSection = "styles";
-			showCss();
-		});
-		sectionPicker.addEventListener("change", () => {
-			cssSection = sectionPicker.value;
-			showCss();
-		});
-		cssNote = el("p", { class: "note", hidden: "" });
-		cssProblems = el("ul", {
-			class: "problems",
-			"aria-label": word("problemList", { panel: word("css") }),
-			hidden: "",
-		});
-		layoutBar = buildLayoutBar();
-		cssEditor = editor({
-			language: "css",
-			label: word("css"),
-			onInput: () => {
-				cssLoadRun++;
-				setDirty("css");
-				updateLayoutBar();
-				schedulePreview();
-			},
-			onCaret: () => undefined,
-			suggest: cssSuggestions,
-			save: () => void saveCss(null),
-		});
+		cssHost = el("div", { class: "css-host editor-panels dark" });
 		return el(
 			"section",
 			{ class: "panel", "aria-labelledby": heading },
-			panelHeader(
-				heading,
-				word("css"),
-				"brush",
-				cssTitle,
-				el("div", { class: "segments", role: "group", "aria-label": word("cssSource") }, cssClassTab, cssSiteTab),
-				cssSave,
-			),
-			el(
-				"div",
-				{ class: "pickers" },
-				el("label", { for: classId }, word("whichClass")),
-				classPicker,
-				el("label", { for: sectionId }, word("section")),
-				sectionPicker,
-			),
-			layoutBar,
-			cssNote,
-			cssEditor.root,
-			cssProblems,
+			panelHeader(heading, word("css"), "brush", el("span", { class: "panel-sub" })),
+			cssHost,
 		);
 	}
 
@@ -1069,46 +839,6 @@ export function codeMode(config: CodeModeConfig): void {
 				el("p", { class: "console-empty" }, word("consoleEmpty")),
 			),
 		);
-	}
-
-	function buildLayoutBar(): HTMLElement {
-		const bar = el("div", { class: "layout", role: "toolbar", "aria-label": word("layout") });
-		const all: HTMLButtonElement[] = [];
-		for (const group of LAYOUT) {
-			const set = el("div", { class: "layout-set", role: "group", "aria-label": word(group.word) });
-			set.append(el("span", { class: "layout-name", "aria-hidden": "true" }, word(group.word)));
-			for (const [value, iconName] of group.values) {
-				const choice = button(
-					{
-						class: "tool",
-						"aria-pressed": "false",
-						"aria-label": word("layoutValue", { property: word(group.word), value }),
-						title: `${group.property}: ${value}`,
-						"data-property": group.property,
-						"data-value": value,
-						tabindex: all.length === 0 ? "0" : "-1",
-					},
-					icon(iconName),
-				);
-				choice.addEventListener("click", () => setDeclaration(group.property, value));
-				all.push(choice);
-				set.append(choice);
-			}
-			bar.append(set);
-		}
-		bar.addEventListener("keydown", (event) => {
-			const at = all.indexOf(root.activeElement as HTMLButtonElement);
-			let next = -1;
-			if (event.key === "ArrowRight") next = (at + 1) % all.length;
-			else if (event.key === "ArrowLeft") next = (at - 1 + all.length) % all.length;
-			else if (event.key === "Home") next = 0;
-			else if (event.key === "End") next = all.length - 1;
-			else return;
-			event.preventDefault();
-			for (const [index, each] of all.entries()) each.setAttribute("tabindex", index === next ? "0" : "-1");
-			all[next]?.focus();
-		});
-		return bar;
 	}
 
 	// ---------------------------------------------------------------------------------------------
@@ -1331,15 +1061,12 @@ export function codeMode(config: CodeModeConfig): void {
 				["discard", word("discardAndOpen"), "danger"],
 			]);
 			if (keep !== "discard") return;
-			await Promise.all([open(ref), cssDirty() ? Promise.resolve() : loadCss(ref)]);
+			await open(ref);
 			// The page showed the discarded markup: it shows the Drafts again.
 			await preview();
 			return;
 		}
-		await Promise.all([
-			open(ref, sourceRef === opened?.ref && htmlDirty()),
-			cssDirty() ? Promise.resolve() : loadCss(ref),
-		]);
+		await open(ref, sourceRef === opened?.ref && htmlDirty());
 	}
 
 	function currentName(): string {
@@ -1475,19 +1202,14 @@ export function codeMode(config: CodeModeConfig): void {
 		if (target) outline(selectedBox, target, currentName());
 		else selectedBox.hidden = true;
 		pageElementFor(ref)?.scrollIntoView({ block: "nearest" });
-		if (!cssDirty()) void loadCss(ref);
 		if (html.get() === savedMarkup) void open(ref, true);
 	}
 
 	// ---------------------------------------------------------------------------------------------
-	// Preview, save, format: the HTML and CSS panels
+	// Preview, save, format: the HTML panel, and the CSS panel's unsaved CSS on the page
 
 	function htmlDirty(): boolean {
 		return opened !== null && html.get() !== savedMarkup;
-	}
-
-	function cssDirty(): boolean {
-		return css !== null && cssEditor.get() !== cssSaved;
 	}
 
 	function schedulePreview(): void {
@@ -1499,13 +1221,12 @@ export function codeMode(config: CodeModeConfig): void {
 		const run = ++previewRun;
 		const body: Record<string, unknown> = { path };
 		if (opened && htmlDirty()) body.markup = { ref: opened.ref, text: html.get() };
-		const target = cssTarget();
-		if (target && cssDirty()) body.css = { target, text: cssEditor.get() };
+		if (pendingCss) body.css = pendingCss;
 		const answer = await call("code/preview", body);
 		if (run !== previewRun) return;
 		if (!answer.ok) {
+			// CSS the Design system refuses is the CSS panel's to show, when it is saved.
 			if (answer.code === "TEMPLATE_MARKUP_INVALID") showProblems("html", (answer.data.problems as Problem[]) ?? []);
-			else if (answer.code === "DESIGN_SYSTEM_INVALID") showCssProblems((answer.data.problems as CssProblem[]) ?? []);
 			return;
 		}
 		const shown = answer.data as {
@@ -1516,7 +1237,6 @@ export function codeMode(config: CodeModeConfig): void {
 		qualityChecks = shown.checks;
 		showChecks();
 		showProblems("html", []);
-		showCssProblems([]);
 		swapPage(shown.html);
 		applyStylesheet(shown.stylesheet.css);
 	}
@@ -1677,38 +1397,12 @@ export function codeMode(config: CodeModeConfig): void {
 		setStatus();
 	}
 
-	function showCssProblems(problems: readonly CssProblem[]): void {
-		cssProblems.replaceChildren(
-			...problems.map((problem) =>
-				el(
-					"li",
-					{},
-					problem.line === undefined
-						? problem.message
-						: word("problemAt", { line: problem.line, column: problem.column ?? 1, message: problem.message }),
-				),
-			),
-		);
-		cssProblems.hidden = problems.length === 0;
-		cssEditor.problems(problems.flatMap((problem) => (problem.line === undefined ? [] : [problem.line])));
-		status.css =
-			problems.length === 0
-				? ""
-				: problems.length === 1
-					? word("problemsOne", { panel: word("css") })
-					: word("problemsOther", { panel: word("css"), count: problems.length });
-		setStatus();
-	}
-
 	function setDirty(_panel: Panel): void {
 		setStatus();
 	}
 
 	function setStatus(): void {
-		const parts = [
-			status.html || word("valid", { panel: word("html") }),
-			status.css || word("valid", { panel: word("css") }),
-		];
+		const parts = [status.html || word("valid", { panel: word("html") })];
 		if (savedNote) parts.push(savedNote);
 		statusLine.textContent = parts.join(" · ");
 	}
@@ -1728,173 +1422,6 @@ export function codeMode(config: CodeModeConfig): void {
 		announce(word("classCreated", { name }));
 		setStatusText(word("classCreated", { name }));
 		schedulePreview();
-	}
-
-	// ---------------------------------------------------------------------------------------------
-	// The CSS panel
-
-	async function loadCss(ref: string | null): Promise<void> {
-		const run = ++cssLoadRun;
-		const answer = await call("code/css", { path, ref: requestRef(ref) });
-		if (run !== cssLoadRun || !answer.ok) return;
-		css = answer.data as Css;
-		const first = css.classes.find((each) => each.id === cssClassId) ?? css.classes[0];
-		cssClassId = first?.id ?? null;
-		if (!css.classes.some((each) => each.id === cssClassId)) cssSection = "styles";
-		classPicker.replaceChildren(...css.classes.map((each) => el("option", { value: each.id }, `.${each.name}`)));
-		if (cssClassId) classPicker.value = cssClassId;
-		sectionPicker.replaceChildren(
-			el("option", { value: "styles" }, word("everyWidth")),
-			...css.breakpoints.map((breakpoint) =>
-				el(
-					"option",
-					{ value: `bp:${breakpoint.id}` },
-					word("fromBreakpoint", { name: breakpoint.name, width: breakpoint.width }),
-				),
-			),
-			el("option", { value: "css" }, word("ownCss")),
-		);
-		sectionPicker.value = cssSection;
-		showCss();
-	}
-
-	function switchCss(mode: "class" | "site"): void {
-		cssMode = mode;
-		cssClassTab.setAttribute("aria-pressed", String(mode === "class"));
-		cssSiteTab.setAttribute("aria-pressed", String(mode === "site"));
-		showCss();
-	}
-
-	function currentClass(): CodeClass | undefined {
-		return css?.classes.find((each) => each.id === cssClassId);
-	}
-
-	function cssTarget(): CssTarget | null {
-		if (cssMode === "site") return { kind: "site" };
-		const chosen = currentClass();
-		if (!chosen) return null;
-		if (cssSection === "styles") return { kind: "class", classId: chosen.id, part: "styles" };
-		if (cssSection === "css") return { kind: "class", classId: chosen.id, part: "css" };
-		return { kind: "class", classId: chosen.id, part: "breakpoint", breakpointId: cssSection.slice(3) };
-	}
-
-	function showCss(): void {
-		if (!css) return;
-		const chosen = currentClass();
-		const site = cssMode === "site";
-		classPicker.disabled = site || css.classes.length < 2;
-		sectionPicker.disabled = site || !chosen;
-		let text = "";
-		let note = "";
-		let editable = true;
-		if (site) {
-			text = css.siteCss.css;
-			cssTitle.textContent = word("siteCssTab");
-		} else if (!chosen) {
-			note = word("noClass");
-			editable = false;
-			cssTitle.textContent = "";
-		} else {
-			cssTitle.textContent = `.${chosen.name}`;
-			text =
-				cssSection === "styles"
-					? chosen.styles
-					: cssSection === "css"
-						? chosen.css
-						: (chosen.breakpoints[cssSection.slice(3)] ?? "");
-			if (chosen.generated) {
-				note = word("generated");
-				editable = false;
-			}
-		}
-		cssNote.textContent = note;
-		cssNote.hidden = !note;
-		cssSaved = text;
-		cssEditor.set(text);
-		cssEditor.readOnly(!editable);
-		cssSave.disabled = !editable;
-		cssEditor.area.setAttribute("aria-label", word("cssOf", { name: cssTitle.textContent || word("css") }));
-		layoutBar.hidden = site || !chosen || cssSection === "css";
-		showCssProblems([]);
-		updateLayoutBar();
-	}
-
-	/** The value a declaration has at the top level of the CSS panel's text, if any. */
-	function declarationValue(text: string, property: string): string | undefined {
-		const pattern = new RegExp(`(?:^|[;{\\n])\\s*${property}\\s*:\\s*([^;\\n]*)`, "g");
-		let found: string | undefined;
-		for (let match = pattern.exec(text); match; match = pattern.exec(text)) found = match[1]?.trim();
-		return found;
-	}
-
-	function updateLayoutBar(): void {
-		const text = cssEditor.get();
-		for (const tool of layoutBar.querySelectorAll<HTMLButtonElement>("button[data-property]")) {
-			const current = declarationValue(text, tool.dataset.property ?? "");
-			tool.setAttribute("aria-pressed", String(current === tool.dataset.value));
-		}
-	}
-
-	/** Sets one declaration in the CSS panel's text: replaces it where it is, else adds it at the end. */
-	function setDeclaration(property: string, value: string): void {
-		const text = cssEditor.get();
-		const pattern = new RegExp(`(^|\\n)([ \\t]*)${property}\\s*:[^;\\n]*;?`);
-		const match = pattern.exec(text);
-		if (match) {
-			const from = match.index + (match[1] ?? "").length;
-			cssEditor.insert(`${match[2] ?? ""}${property}: ${value};`, from, match.index + match[0].length);
-		} else {
-			const prefix = text && !text.endsWith("\n") ? "\n" : "";
-			cssEditor.insert(`${prefix}${property}: ${value};`, text.length, text.length);
-		}
-		setDirty("css");
-		updateLayoutBar();
-		schedulePreview();
-	}
-
-	async function saveCss(version: string | null | undefined): Promise<void> {
-		const target = cssTarget();
-		if (!target || !css) return;
-		const chosen = currentClass();
-		const base = target.kind === "site" ? css.siteCss.version : (chosen?.version ?? null);
-		if (busy.has(cssSave)) return;
-		busy.add(cssSave);
-		const text = cssEditor.get();
-		const answer = await call("code/saveCss", {
-			target,
-			text,
-			version: version === undefined || version === null ? base : version,
-		});
-		busy.delete(cssSave);
-		if (answer.ok) {
-			const saved = answer.data as { text: string; version: string };
-			if (target.kind === "site") css.siteCss = { css: saved.text, version: saved.version };
-			else if (chosen) {
-				chosen.version = saved.version;
-				if (target.part === "styles") chosen.styles = saved.text;
-				else if (target.part === "css") chosen.css = saved.text;
-				else chosen.breakpoints[target.breakpointId] = saved.text;
-			}
-			cssSaved = saved.text;
-			if (cssEditor.get() === text) cssEditor.set(saved.text, true);
-			showCssProblems([]);
-			savedNote = word("savedName", { name: cssTitle.textContent ?? "" });
-			setStatusText(savedNote);
-			announce(savedNote);
-			return;
-		}
-		if (answer.code === "DESIGN_SYSTEM_INVALID") showCssProblems((answer.data.problems as CssProblem[]) ?? []);
-		if (answer.code === "CHANGED_MEANWHILE") {
-			const choice = await ask(word("conflictTitle"), word("conflictText", { name: cssTitle.textContent ?? "" }), [
-				["cancel", word("cancel"), "secondary"],
-				["reload", word("reload"), "secondary"],
-				["overwrite", word("overwrite"), "danger"],
-			]);
-			if (choice === "overwrite") await saveCss((answer.data.version as string | null) ?? null);
-			else if (choice === "reload") await loadCss(selectedRef);
-			return;
-		}
-		setStatusText(word("notSaved", { reason: errorText(answer.code) }));
 	}
 
 	// ---------------------------------------------------------------------------------------------
@@ -2351,44 +1878,6 @@ export function codeMode(config: CodeModeConfig): void {
 		};
 	}
 
-	function cssSuggestions(text: string, caret: number, asked: boolean): Context | null {
-		if (!css) return null;
-		const lineStart = text.lastIndexOf("\n", caret - 1) + 1;
-		const before = text.slice(lineStart, caret);
-		const variable = /(--[\w-]*)$/.exec(before);
-		if (variable && /var\(\s*--[\w-]*$|:\s*[^;]*--[\w-]*$/.test(before)) {
-			const query = variable[1] ?? "";
-			return {
-				from: caret - query.length,
-				to: caret,
-				items: css.tokens
-					.filter((each) => each.property.startsWith(query))
-					.slice(0, 80)
-					.map((each) => ({
-						group: word("groups.tokens"),
-						label: each.property,
-						detail: each.value.length > 32 ? `${each.value.slice(0, 31)}…` : each.value,
-						insert: each.property,
-						...(each.kind === "colour" ? { swatch: each.value } : {}),
-					})),
-			};
-		}
-		const property = /^\s*([a-z-]*)$/.exec(before);
-		if (property && (asked || (property[1] ?? "").length > 0)) {
-			const query = property[1] ?? "";
-			return {
-				from: caret - query.length,
-				to: caret,
-				items: CSS_PROPERTIES.filter((each) => each.startsWith(query)).map((each) => ({
-					group: word("groups.properties"),
-					label: each,
-					insert: `${each}: $0;`,
-				})),
-			};
-		}
-		return null;
-	}
-
 	function openSuggestions(target: Editor, context: Context): void {
 		if (context.items.length === 0) {
 			closeSuggestions();
@@ -2766,20 +2255,18 @@ export function codeMode(config: CodeModeConfig): void {
 				/<[A-Z]$/.test(before) ||
 				/class="$/.test(text.slice(Math.max(0, caret - 7), caret))
 			);
-		if (language === "css")
-			return before.endsWith("--") || /^\s*[a-z]$/.test(text.slice(text.lastIndexOf("\n", caret - 1) + 1, caret));
 		return false;
 	}
 
 	// ---------------------------------------------------------------------------------------------
-	// Highlighting: Template markup, CSS and JavaScript, as escaped HTML, one string per line
+	// Highlighting: Template markup and JavaScript, as escaped HTML, one string per line
 
 	function escapeHtml(text: string): string {
 		return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 	}
 
 	function highlight(language: Language, text: string): string[] {
-		const tokens = language === "markup" ? markupTokens(text) : language === "css" ? cssTokens(text) : jsTokens(text);
+		const tokens = language === "markup" ? markupTokens(text) : jsTokens(text);
 		const lines: string[] = [""];
 		for (const [kind, part] of tokens) {
 			const pieces = part.split("\n");
@@ -2815,26 +2302,6 @@ export function codeMode(config: CodeModeConfig): void {
 					else tokens.push([/^[\w:.@-]$/.test(piece) ? "attribute" : "", piece]);
 				}
 			} else tokens.push(["", part]);
-		}
-		return tokens;
-	}
-
-	function cssTokens(text: string): [string, string][] {
-		const tokens: [string, string][] = [];
-		const pattern =
-			/\/\*[\s\S]*?(?:\*\/|$)|"[^"\n]*"?|'[^'\n]*'?|@[\w-]+|--[\w-]+|#[0-9a-fA-F]{3,8}\b|-?\d*\.?\d+(?:[a-z%]+)?|[\w-]+(?=\s*:(?![^{;}]*\{))|[{};:()]|[^\s"'/@#{};:()\d-]+|\s+|[\s\S]/g;
-		for (const match of text.matchAll(pattern)) {
-			const part = match[0];
-			if (part.startsWith("/*")) tokens.push(["comment", part]);
-			else if (part.startsWith('"') || part.startsWith("'")) tokens.push(["string", part]);
-			else if (part.startsWith("@")) tokens.push(["keyword", part]);
-			else if (part.startsWith("--")) tokens.push(["variable", part]);
-			else if (/^(#|-?\d|-?\.\d)/.test(part)) tokens.push(["number", part]);
-			else if (/^[\w-]+$/.test(part) && /^\s*:(?![^{;}]*\{)/.test(text.slice((match.index ?? 0) + part.length))) {
-				tokens.push(["property", part]);
-			} else if (/^[.&:][\w-]*/.test(part) || /^[\w-]+$/.test(part))
-				tokens.push([part.startsWith(".") || part.startsWith("&") ? "selector" : "", part]);
-			else tokens.push(["", part]);
 		}
 		return tokens;
 	}
