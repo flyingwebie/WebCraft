@@ -74,8 +74,13 @@ export async function claimDueVerifications(database: Database, now: Date): Prom
 	return claimed;
 }
 
+/** What verifying writes with, in one transaction. */
+type DomainWrites = Pick<SiteScope, "update" | "db" | "site">;
+
 /** What verifying works on: a Site opened by Staff (Check now) or for WebCraft's own work (a job). */
-export type DomainScope = Pick<SiteScope, "first" | "update" | "now" | "db" | "site" | "workspace">;
+export type DomainScope = Pick<SiteScope, "first" | "update" | "now" | "db" | "site" | "workspace"> & {
+	transaction<Result>(work: (scope: DomainWrites) => Promise<Result>): Promise<Result>;
+};
 
 /**
  * Checks once whether a domain waiting for DNS reaches the Install, and records what was found. A
@@ -98,22 +103,24 @@ export async function verifyOnce(
 		return updated ?? row;
 	}
 	const certificate = await checkCertificate(ports, row.name, reached.addresses, now);
-	const [updated] = await scope.update(
-		siteDomains,
-		{
-			verifiedAt: now,
-			nextCheckAt: null,
-			lastCheckedAt: now,
-			lastProblem: null,
-			unreachableSince: null,
-			certificateExpiresAt: certificate.expiresAt,
-		},
-		and(eq(siteDomains.id, row.id), isNull(siteDomains.verifiedAt)),
-	);
-	if (updated) {
-		await clearPageCache(scope);
-		ports.log.info("A domain was verified", { siteId: scope.site.id, domain: row.name, role: row.role });
-	}
+	// Verified and serving together: never one without the other.
+	const updated = await scope.transaction(async (tx) => {
+		const [verified] = await tx.update(
+			siteDomains,
+			{
+				verifiedAt: now,
+				nextCheckAt: null,
+				lastCheckedAt: now,
+				lastProblem: null,
+				unreachableSince: null,
+				certificateExpiresAt: certificate.expiresAt,
+			},
+			and(eq(siteDomains.id, row.id), isNull(siteDomains.verifiedAt)),
+		);
+		if (verified) await clearPageCache(tx);
+		return verified;
+	});
+	if (updated) ports.log.info("A domain was verified", { siteId: scope.site.id, domain: row.name, role: row.role });
 	return updated ?? row;
 }
 
