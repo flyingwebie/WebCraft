@@ -58,8 +58,14 @@ export type InstallSetup = {
 	 * Superadmin exists. Recorded in the Audit log as `superadmin.create`, through the command.
 	 */
 	createSuperadmin(account: SuperadminAccount): Promise<{ personId: string }>;
-	/** The Superadmin finished the wizard's remaining steps; it never opens again. */
-	finish(personId: string): Promise<void>;
+	/**
+	 * The Superadmin finished the wizard's remaining steps; it never opens again. Refuses with
+	 * `SetupStageError` unless setup is at the `continue` stage. Given `executor`, a transaction, it
+	 * finishes setup in it, so that setup is finished only if the rest of that transaction is saved
+	 * (the first client step creates the first Workspace and Site with it); the caller then notes it
+	 * in the log once the transaction commits.
+	 */
+	finish(personId: string, executor?: Database["db"] | Transaction): Promise<void>;
 };
 
 /** The Install already has a Superadmin, so it can't be claimed again. */
@@ -165,12 +171,14 @@ export function createInstallSetup({ database, auth, config, clock, log }: Setup
 		return { token, setupUrl: setupUrl.toString() };
 	};
 
+	const stageOn = async (executor: Database["db"] | Transaction): Promise<SetupStage> => {
+		if (!(await superadminExists(executor))) return "claim";
+		const settings = await readSettingsRow(executor);
+		return settings?.setupFinishedAt ? "done" : "continue";
+	};
+
 	return {
-		async stage() {
-			if (!(await superadminExists(db))) return "claim";
-			const settings = await readSettingsRow(db);
-			return settings?.setupFinishedAt ? "done" : "continue";
-		},
+		stage: () => stageOn(db),
 
 		async announce() {
 			const link = await newSetupLink();
@@ -213,10 +221,16 @@ export function createInstallSetup({ database, auth, config, clock, log }: Setup
 			return result;
 		},
 
-		async finish(personId) {
-			const stage = await this.stage();
-			if (stage !== "continue") throw new SetupStageError(`Setup can't be finished at the ${stage} stage.`);
-			await writeSettingsRow(db, { setupFinishedAt: clock.now() });
+		async finish(personId, executor) {
+			const work = async (tx: Database["db"] | Transaction) => {
+				// Two finishes at once can't both pass the stage check.
+				await tx.execute(SETUP_LOCK);
+				const stage = await stageOn(tx);
+				if (stage !== "continue") throw new SetupStageError(`Setup can't be finished at the ${stage} stage.`);
+				await writeSettingsRow(tx, { setupFinishedAt: clock.now() });
+			};
+			if (executor && executor !== db) return work(executor);
+			await db.transaction(work);
 			log.info("The Superadmin finished the setup wizard", { personId });
 		},
 	};
