@@ -1,0 +1,149 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "70701bf4-178c-4d9b-9b81-e13d7a036228",
+  "prevIds": [
+    "06fe5085-ba6b-4d40-967f-dd45a1d146e2"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "import_files",
+        "survey_started_at"
+      ],
+      "writes": [
+        "s|col|public.import_files.survey_started_at",
+        "n|col|public.import_files.survey_started_at",
+        "e|col|public.import_files.survey_started_at"
+      ],
+      "reads": [
+        "n|tbl|public.import_files",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "import_files",
+        "survey_attempt"
+      ],
+      "writes": [
+        "s|col|public.import_files.survey_attempt",
+        "n|col|public.import_files.survey_attempt",
+        "e|col|public.import_files.survey_attempt"
+      ],
+      "reads": [
+        "n|tbl|public.import_files",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "import_runs",
+        "updated_at"
+      ],
+      "writes": [
+        "s|col|public.import_runs.updated_at",
+        "n|col|public.import_runs.updated_at",
+        "e|col|public.import_runs.updated_at"
+      ],
+      "reads": [
+        "n|tbl|public.import_runs",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "import_runs",
+        "attempt"
+      ],
+      "writes": [
+        "s|col|public.import_runs.attempt",
+        "n|col|public.import_runs.attempt",
+        "e|col|public.import_runs.attempt"
+      ],
+      "reads": [
+        "n|tbl|public.import_runs",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "survey_started_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_files",
+        "name": "survey_attempt",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "0",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "now()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "import_runs",
+        "name": "attempt",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "0",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

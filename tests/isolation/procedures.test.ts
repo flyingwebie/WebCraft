@@ -2251,6 +2251,22 @@ describe("Modules", () => {
 	isolation.refuses("m.sample.settings.setHookToken", (api, { siteId }) =>
 		moduleOf<typeof sample>(api, "sample").settings.setHookToken({ siteId, token: "our-hook-token" }),
 	);
+	isolation.refuses("m.sample.settings.echoHook", async (api, { siteId }) => {
+		install.dns.answer("hooks.sample.example", ["93.184.216.34"]);
+		install.http.respond("GET", /^https:\/\/hooks\.sample\.example\/echo\?/, { status: 204 });
+		const settings = moduleOf<typeof sample>(api, "sample").settings;
+		await settings.setHookToken({ siteId, token: "our-echo-token" });
+		return settings.echoHook({ siteId });
+	});
+	isolation.refuses(
+		"m.sample.changeNote",
+		async (api, { siteId }) => {
+			const sampleApi = moduleOf<typeof sample>(api, "sample");
+			const { note } = await sampleApi.notes.add({ siteId, body: "To change" });
+			return sampleApi.changeNote({ siteId, noteId: note.id, changes: { body: "Changed" } });
+		},
+		{ as: ["staff", "editor"] },
+	);
 	isolation.refuses("m.sample.probe", (api, { siteId }) =>
 		moduleOf<typeof sample>(api, "sample").probe({ siteId, attempt: "undeclared-host" }),
 	);
@@ -2278,6 +2294,16 @@ describe("Modules", () => {
 		async (api, { workspaceId }) => {
 			await boardOn(workspaceId);
 			return moduleOf<typeof sampleBoard>(api, "sample-board").pins.add({ workspaceId, text: "Ours" });
+		},
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"m.sample-board.pins.change",
+		async (api, { workspaceId }) => {
+			await boardOn(workspaceId);
+			const pins = moduleOf<typeof sampleBoard>(api, "sample-board").pins;
+			const { pin } = await pins.add({ workspaceId, text: "To change" });
+			return pins.change({ workspaceId, pinId: pin.id, changes: { text: "Changed" } });
 		},
 		{ as: ["staff", "owner"] },
 	);

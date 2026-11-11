@@ -12,7 +12,7 @@ export const POPUP_SCRIPT = `(function mount(){
  const state=item=>{try{const value=JSON.parse(read(item.id)||'{}');return value&&typeof value==='object'?value:{}}catch{return {}}};
  const record=(item,patch)=>write(item.id,JSON.stringify({...state(item),...patch}));
  const active={bar:null,promotion:null},releases=new Map(),closers=new Map(),queue=[],attempted=new Set(),cleanups=[];
- let stopped=false,answered=false,started=false;
+ let stopped=false,answered=false,started=false,unanswerable=false;
  const consent=window.webcraft&&window.webcraft.consent;
  const device=item=>innerWidth<item.config.phoneWidth?'phone':innerWidth<item.config.tabletWidth?'tablet':'desktop';
  const eligible=item=>{
@@ -32,7 +32,7 @@ export const POPUP_SCRIPT = `(function mount(){
  const timer=(fn,ms)=>{const id=setTimeout(fn,ms);cleanups.push(()=>clearTimeout(id));return id;};
  const analyticsScript=document.querySelector('script[data-wc-module="site-analytics"]'),tracking=[];
  let analyticsPending=!!analyticsScript;
- const canTrack=()=>answered&&(!consent||consent.has('analytics'));
+ const canTrack=()=>{try{return answered&&(!consent||consent.has('analytics')===true)}catch{return false}};
  const send=name=>{try{window.webcraft.analytics.track(name)}catch{}};
  const track=(item,action)=>{
   if(!analyticsScript||!canTrack())return;
@@ -46,7 +46,7 @@ export const POPUP_SCRIPT = `(function mount(){
  }
  const group=item=>item.config.layout==='bar'?'bar':'promotion';
  const drain=()=>{
-  if(stopped||!answered||consent&&!consent.answered)return;
+  if(stopped||!answered||consent&&!consent.answered&&!unanswerable)return;
   queue.sort((a,b)=>a.order-b.order);
   for(let i=0;i<queue.length;){
    const item=queue[i],slot=group(item);
@@ -99,7 +99,7 @@ export const POPUP_SCRIPT = `(function mount(){
  }
  const start=()=>{
   if(stopped)return;answered=true;if(started){drain();return;}started=true;
-  for(const item of items)for(const t of [item.config.trigger,...item.config.additionalTriggers]){
+  for(const item of items)for(const t of [item.config.trigger,...item.config.additionalTriggers])try{
    if(t.kind==='load')request(item);
    if(t.kind==='delay')timer(()=>request(item),t.seconds*1000);
    if(t.kind==='scroll'){
@@ -115,7 +115,7 @@ export const POPUP_SCRIPT = `(function mount(){
     for(const name of ['pointerdown','pointermove','keydown','scroll'])listen(document,name,reset,{passive:true});
     reset();cleanups.push(()=>clearTimeout(id));
    }
-  }
+  }catch(error){console.warn('A Popup Trigger could not be set up.',error);}
   drain();
  };
  listen(document,'click',event=>{
@@ -137,5 +137,9 @@ export const POPUP_SCRIPT = `(function mount(){
   if(event.persisted)window.addEventListener('pageshow',mount,{once:true});
  });
  listen(document,'webcraft:consent',event=>{answered=event.detail.answered;if(answered)start();});
- Promise.resolve(consent?consent.whenAnswered():undefined).then(start).catch(()=>{});
+ // Popups are Necessary: a consent service that can't answer must not keep them from showing (what
+ // they track still waits for Analytics consent).
+ const failed=error=>{console.warn('The consent service could not answer; Popups start without it.',error);unanswerable=true;start();};
+ let waiting;try{waiting=Promise.resolve(consent?consent.whenAnswered():undefined)}catch(error){waiting=Promise.reject(error)}
+ waiting.then(start,failed);
 })();`;

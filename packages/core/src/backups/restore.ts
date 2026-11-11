@@ -330,7 +330,7 @@ async function afterRestore(
 	const client = await opened.pool.connect();
 	let variants: { site_id: string; media_id: string }[];
 	let uploads: { site_id: string; media_id: string }[];
-	let runs: { site_id: string; id: string }[];
+	let runs: { site_id: string; id: string; attempt: number }[];
 	try {
 		await client.query("BEGIN");
 		await client.query("DELETE FROM public.media_files WHERE role = 'variant' AND storage = 'disk'");
@@ -348,8 +348,8 @@ async function afterRestore(
 			)
 		).rows;
 		runs = (
-			await client.query<{ site_id: string; id: string }>(
-				"SELECT site_id::text, id::text FROM public.import_runs WHERE status IN ('waiting', 'running')",
+			await client.query<{ site_id: string; id: string; attempt: number }>(
+				"SELECT site_id::text, id::text, attempt FROM public.import_runs WHERE status IN ('waiting', 'running')",
 			)
 		).rows;
 		await client.query(
@@ -386,7 +386,7 @@ async function afterRestore(
 		const jobs = createJobQueue(boss);
 		for (const row of variants) await jobs.send(mediaVariants, { siteId: row.site_id, mediaId: row.media_id });
 		for (const row of uploads) await jobs.send(mediaProcess, { siteId: row.site_id, mediaId: row.media_id });
-		for (const row of runs) await jobs.send(importsRun, { siteId: row.site_id, runId: row.id });
+		for (const row of runs) await jobs.send(importsRun, { siteId: row.site_id, runId: row.id, attempt: row.attempt });
 	} finally {
 		await boss.stop({ graceful: false, close: true });
 	}

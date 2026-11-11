@@ -130,22 +130,27 @@ export type RuleInput = { from: string; to: string; status: 301 | 302 };
  * its target (where it starts) followed through the Site's rules, with this one in place.
  */
 async function checkNoLoop(context: ModuleContext, from: RuleFrom, target: string, ruleId: string | null) {
-	const loop = () => {
+	if (await wouldLoop(context, from, target, ruleId)) {
 		throw new ModuleError(
 			"RULE_LOOP",
 			`Visitors would go round in a circle, or through more than ${MAX_CHAIN} rules: change where it sends them.`,
 			409,
 		);
-	};
+	}
+}
+
+/** Whether a rule from `from` to `target` (rule `ruleId`, when it exists) would be refused as a circle. */
+async function wouldLoop(context: ModuleContext, from: RuleFrom, target: string, ruleId: string | null) {
 	let next = sitePathOf(target);
 	const seen = new Set<string>();
 	for (let hop = 0; next !== null; hop++) {
-		if (covers(from, next) || seen.has(next) || hop >= MAX_CHAIN) loop();
+		if (covers(from, next) || seen.has(next) || hop >= MAX_CHAIN) return true;
 		seen.add(next);
 		const rule = await ruleFor(context, next);
-		if (!rule || rule.id === ruleId) return;
+		if (!rule || rule.id === ruleId) return false;
 		next = sitePathOf(targetFor({ path: rule.fromPath, wildcard: rule.wildcard, target: rule.target }, next));
 	}
+	return false;
 }
 
 /** The rule's `from` and target, checked: a path no other rule has, a target that doesn't loop. */
@@ -253,7 +258,9 @@ export type PathChange = { entryId: string; language: string; from: string; to: 
  * it, a URL pattern or the Default language that changed), so old links keep working:
  *
  * - a rule sending visitors to an old path now sends them to the new one (A→B, then B→C, is A→C);
- *   a rule that would then send a path to itself goes, as its path has a page again;
+ *   a rule that would then send a path to itself goes, as its path has a page again; one that would
+ *   then go round in a circle through other rules stays as it was, as a person couldn't change it
+ *   so either, and the Audit log entry lists it (`looping`);
  * - the old path gets a rule of the Module's own (301) to the new one, unless another page is now
  *   published there (a new path of the same change), or a person's rule has the path;
  * - rules of the Module's own from a path that has a page again (`live`, the new paths) go: they
@@ -273,6 +280,7 @@ export async function followPathChanges(
 	if (changes.length === 0 && live.length === 0) return;
 	await context.transaction(async (tx) => {
 		const counts = { added: 0, changed: 0, removed: 0 };
+		const looping: { from: string; to: string }[] = [];
 		const livePaths = new Set([...live, ...changes.map((change) => change.to)]);
 		for (const path of livePaths) {
 			counts.removed += await tx.data.delete(
@@ -285,12 +293,17 @@ export async function followPathChanges(
 		for (const change of changes) {
 			if (change.from === change.to || seen.has(change.from)) continue;
 			seen.add(change.from);
-			const retargeted = await tx.data.update(
-				rules,
-				{ target: change.to, updatedAt: at },
-				and(eq(rules.target, change.from), lte(rules.updatedAt, at)),
-			);
-			counts.changed += retargeted.length;
+			for (const rule of await tx.data.select(rules, and(eq(rules.target, change.from), lte(rules.updatedAt, at)))) {
+				const from = { path: rule.fromPath, wildcard: rule.wildcard };
+				// One that now sends its own path to itself goes below.
+				const toItself = !rule.wildcard && rule.fromPath === change.to;
+				if (!toItself && (await wouldLoop(tx, from, change.to, rule.id))) {
+					looping.push({ from: writtenFrom(from), to: change.to });
+					continue;
+				}
+				await tx.data.update(rules, { target: change.to, updatedAt: at }, eq(rules.id, rule.id));
+				counts.changed++;
+			}
 			counts.removed += await tx.data.delete(
 				rules,
 				and(eq(rules.fromPath, change.to), eq(rules.wildcard, false), eq(rules.target, change.to)),
@@ -320,8 +333,8 @@ export async function followPathChanges(
 			await tx.data.delete(misses, eq(misses.path, change.from));
 			counts.added++;
 		}
-		if (counts.added + counts.changed + counts.removed > 0) {
-			await tx.audit("rules.follow", { reason, ...counts });
+		if (counts.added + counts.changed + counts.removed + looping.length > 0) {
+			await tx.audit("rules.follow", { reason, ...counts, ...(looping.length > 0 ? { looping } : {}) });
 		}
 	});
 }

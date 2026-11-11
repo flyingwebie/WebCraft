@@ -785,7 +785,15 @@ async function changeable(scope: SiteScope, mediaId: string): Promise<MediaRow> 
 
 /** Whether the scope's person may change a Media item: their own upload, or any with `media.manage`. */
 function mayChange(scope: SiteScope, row: Pick<MediaRow, "uploadedBy">): boolean {
-	return row.uploadedBy === personIdOf(scope.access.actor) || canManage(scope);
+	return uploadedBy(row, personIdOf(scope.access.actor)) || canManage(scope);
+}
+
+/**
+ * Whether `personId` uploaded the item. Fails closed: an actor with no person (a Module) uploaded
+ * nothing, even a file whose uploader's account is gone.
+ */
+function uploadedBy(row: Pick<MediaRow, "uploadedBy">, personId: string | null): boolean {
+	return personId !== null && row.uploadedBy === personId;
 }
 
 function canManage(scope: SiteScope): boolean {
@@ -867,7 +875,7 @@ async function views(
 			purgeAt: row.trashedAt ? new Date(row.trashedAt.getTime() + TRASH_LIFETIME_MS) : null,
 			replacing: row.status === "ready" && own.some((file) => file.role === "upload"),
 			failure: (row.failure as MediaFailure | null) ?? null,
-			canEdit: manages || row.uploadedBy === personId,
+			canEdit: manages || uploadedBy(row, personId),
 		};
 	});
 }
