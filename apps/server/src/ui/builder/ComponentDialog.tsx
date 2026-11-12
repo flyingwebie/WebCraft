@@ -43,9 +43,11 @@ export function componentNameFrom(label: string): string {
 /** The key a piece of fixed text's Prop starts with, from what holds it. */
 function suggestedKey(text: string, taken: Set<string>): string {
 	const stem = keyFromLabel(text.split(/\s+/).slice(0, 3).join(" ")) || "text";
-	let key = stem.replaceAll(/_([a-z0-9])/g, (_, letter: string) => letter.toUpperCase());
-	if (!FIELD_KEY.test(key)) key = "text";
-	for (let count = 2; taken.has(key); count++) key = `${key.replace(/[0-9]+$/, "")}${count}`;
+	let base = stem.replaceAll(/_([a-z0-9])/g, (_, letter: string) => letter.toUpperCase());
+	if (!FIELD_KEY.test(base)) base = "text";
+	// `heading`, `heading_2`, …: as the Field builder numbers a key already taken.
+	let key = base;
+	for (let count = 2; taken.has(key); count++) key = `${base}_${count}`;
 	taken.add(key);
 	return key;
 }

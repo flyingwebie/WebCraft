@@ -1,4 +1,13 @@
-import { CONSENT_CATEGORIES, LIBRARIES_PER_SITE, publishPermission, SCRIPT_MAX_LENGTH } from "@webcraft/core";
+import {
+	CONSENT_CATEGORIES,
+	componentSourceTarget,
+	LIBRARIES_PER_SITE,
+	madeTexts,
+	newComponentPlace,
+	publishPermission,
+	SCRIPT_MAX_LENGTH,
+	treePath,
+} from "@webcraft/core";
 import { z } from "zod";
 
 import { confirmationInput, confirmedPublish } from "../confirm.ts";
@@ -14,29 +23,6 @@ const componentId = z.union([id, z.string().regex(/^[a-z][a-z0-9-]{0,31}:[A-Z][A
 
 /** A Component's name, its PascalCase tag; the server checks its form. */
 const componentName = z.string().max(200);
-
-/** Where a Component is made from or placed: a Template's Draft (by kind and Post Type) or one of the Site's own Components'. */
-const source = z.discriminatedUnion("kind", [
-	z.object({ kind: z.literal("siteTemplate") }),
-	z.object({ kind: z.literal("searchTemplate") }),
-	z.object({ kind: z.literal("entryTemplate"), postTypeId: id }),
-	z.object({ kind: z.literal("archiveTemplate"), postTypeId: id }),
-	z.object({ kind: z.literal("component"), componentId: id }),
-]);
-
-/**
- * Where a node is in a tree: its index among the tree's nodes, then for each level down which of its
- * container's lists (an element has one; a Condition one per branch, then Else; a Loop its items,
- * then Empty) and its index there: `[2, 0, 1]` is the second child of the third node.
- */
-const treePath = z
-	.array(z.number().int().min(0).max(100_000))
-	.min(1)
-	.max(201)
-	.refine(
-		(path) => path.length % 2 === 1,
-		"A path has an odd number of steps: an index, then a list and an index for each level down.",
-	);
 
 /**
  * Components: reusable element trees with Props, placed in Templates and other Components with
@@ -70,7 +56,7 @@ export const components = {
 				siteId: id,
 				name: componentName,
 				props: fieldInputs.optional(),
-				place: z.object({ source, path: treePath, list: z.array(z.unknown()).max(100_000) }).optional(),
+				place: newComponentPlace.optional(),
 			}),
 		)
 		.handler(async ({ context, input }) => {
@@ -95,13 +81,10 @@ export const components = {
 			z.object({
 				siteId: id,
 				name: componentName,
-				source,
+				source: componentSourceTarget,
 				path: treePath,
 				node: z.unknown(),
-				texts: z
-					.array(z.object({ index: z.number().int().min(0).max(100_000), key: z.string().max(64) }))
-					.max(200)
-					.optional(),
+				texts: madeTexts.optional(),
 			}),
 		)
 		.handler(async ({ context, input }) => {

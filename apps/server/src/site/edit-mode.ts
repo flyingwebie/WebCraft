@@ -5,6 +5,7 @@ import {
 	CODE_MODE_SCRIPT_PATH,
 	CODE_MODE_STYLESHEET_PATH,
 	CONSENT_CATEGORIES,
+	componentSourceTarget,
 	EDIT_MODE_PATH,
 	type EditSession,
 	editModePolicy,
@@ -15,6 +16,8 @@ import {
 	LIBRARIES_PER_SITE,
 	MEDIA_TEXT_MAX_LENGTH,
 	MediaTooLargeError,
+	madeTexts,
+	newComponentPlace,
 	PASTE_MAX_LENGTH,
 	type PageEditing,
 	RateLimitedError,
@@ -22,6 +25,7 @@ import {
 	SCRIPT_MAX_LENGTH,
 	type SiteHost,
 	type SiteScope,
+	treePath,
 } from "@webcraft/core";
 import { BODY_LIMITS } from "@webcraft/renderer";
 import { z } from "zod";
@@ -443,36 +447,15 @@ const codeRef = z.string().max(1000).nullable();
 
 const codeSource = z.object({ path: z.string().max(2000), ref: codeRef });
 
-/** Where Make Component and New Component work: a Template's Draft or one of the Site's own Components'. */
-const componentSourceTarget = z.discriminatedUnion("kind", [
-	z.object({ kind: z.literal("siteTemplate") }),
-	z.object({ kind: z.literal("searchTemplate") }),
-	z.object({ kind: z.literal("entryTemplate"), postTypeId: z.uuid() }),
-	z.object({ kind: z.literal("archiveTemplate"), postTypeId: z.uuid() }),
-	z.object({ kind: z.literal("component"), componentId: z.uuid() }),
-]);
-/** A node's place in a tree, as the editors write it (an odd number of steps). */
-const treePath = z
-	.array(z.number().int().min(0).max(100_000))
-	.min(1)
-	.max(201)
-	.refine((path) => path.length % 2 === 1);
+/** Make Component and New Component (#134): the Management API's inputs, as Code mode sends them. */
 const codeMakeComponent = z.object({
 	name: z.string().max(200),
 	source: componentSourceTarget,
 	path: treePath,
 	node: z.unknown(),
-	texts: z
-		.array(z.object({ index: z.number().int().min(0).max(100_000), key: z.string().max(64) }))
-		.max(200)
-		.optional(),
+	texts: madeTexts.optional(),
 });
-const codeCreateComponent = z.object({
-	name: z.string().max(200),
-	place: z
-		.object({ source: componentSourceTarget, path: treePath, list: z.array(z.unknown()).max(100_000) })
-		.optional(),
-});
+const codeCreateComponent = z.object({ name: z.string().max(200), place: newComponentPlace.optional() });
 
 /** The longest Template markup Code mode sends, in characters, as the Management API takes it. */
 const MARKUP_MAX_LENGTH = 2_000_000;

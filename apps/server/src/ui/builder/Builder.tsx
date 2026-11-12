@@ -65,6 +65,7 @@ import {
 } from "./model.ts";
 import { publishDraft, saveDraft } from "./save.ts";
 import { selectionKey, selectionOf } from "./selection-ref.ts";
+import { serverChangeArrived } from "./server-change.ts";
 import { ariaKeys, matches, withKeys } from "./shortcuts.ts";
 import {
 	type Changed,
@@ -1027,16 +1028,6 @@ export function Builder({
 	// ---------------------------------------------------------------------------------------------
 	// Components from here (#134): Make Component, New Component, the Props section and Bind to Prop
 
-	/** Waits for a change made on the server to reach the shared Draft (a few seconds at most). */
-	const arrived = async (id: string) => {
-		const holds = (nodes: readonly TreeNode[]): boolean =>
-			nodes.some((node) => ("id" in node && node.id === id) || childLists(node).some(holds));
-		for (let waited = 0; waited < 5000; waited += 50) {
-			if (holds(docRef.current.tree.nodes)) return true;
-			await new Promise((resolve) => setTimeout(resolve, 50));
-		}
-		return false;
-	};
 	const makeComponent =
 		(commandSelected?.type === "element" || commandSelected?.type === "component") && selection?.kind === "node"
 			? () =>
@@ -1073,7 +1064,7 @@ export function Builder({
 					texts: choice.texts,
 				});
 				announce(t("builder.components.made", { name: made.component.name }));
-				void arrived(made.placement.id).then(() => {
+				void serverChangeArrived(() => docRef.current.tree, made.placement.id).then(() => {
 					setSelection({ kind: "node", path: made.placement.path });
 					void readOpened();
 				});

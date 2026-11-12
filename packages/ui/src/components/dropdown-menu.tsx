@@ -3,7 +3,9 @@
 import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import { cn } from "cn";
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
-import type * as React from "react";
+import * as React from "react";
+
+import { DialogContainer } from "./dialog.tsx";
 
 function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
 	return <MenuPrimitive.Root data-slot="dropdown-menu" {...props} />;
@@ -22,13 +24,19 @@ function DropdownMenuContent({
 	alignOffset = 0,
 	side = "bottom",
 	sideOffset = 4,
+	anchor,
+	positionMethod,
 	className,
 	...props
-}: MenuPrimitive.Popup.Props & Pick<MenuPrimitive.Positioner.Props, "align" | "alignOffset" | "side" | "sideOffset">) {
+}: MenuPrimitive.Popup.Props &
+	Pick<MenuPrimitive.Positioner.Props, "align" | "alignOffset" | "side" | "sideOffset" | "anchor" | "positionMethod">) {
 	return (
-		<MenuPrimitive.Portal>
+		// Inside a shadow root (Code mode's panels), the menu renders where the dialogs do, so its styles apply.
+		<MenuPrimitive.Portal container={React.useContext(DialogContainer)}>
 			<MenuPrimitive.Positioner
 				className="isolate z-50 outline-none"
+				anchor={anchor}
+				positionMethod={positionMethod}
 				align={align}
 				alignOffset={alignOffset}
 				side={side}

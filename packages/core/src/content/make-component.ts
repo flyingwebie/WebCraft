@@ -27,6 +27,8 @@ import {
 	type TreeNode,
 } from "@webcraft/renderer";
 
+import { z } from "zod";
+
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import {
 	type Component,
@@ -56,20 +58,46 @@ import {
 	saveSiteTemplate,
 } from "./templates.ts";
 
-/** Where a Component is made from or placed: a Template's Draft or a Component's. */
-export type ComponentSourceTarget =
-	| { kind: "siteTemplate" }
-	| { kind: "searchTemplate" }
-	| { kind: "entryTemplate"; postTypeId: string }
-	| { kind: "archiveTemplate"; postTypeId: string }
-	| { kind: "component"; componentId: string };
+/**
+ * Where a Component is made from or placed: a Template's Draft (by kind and Post Type) or one of
+ * the Site's own Components'. The one schema the Management API and Code mode's actions read.
+ */
+export const componentSourceTarget = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("siteTemplate") }),
+	z.object({ kind: z.literal("searchTemplate") }),
+	z.object({ kind: z.literal("entryTemplate"), postTypeId: z.uuid() }),
+	z.object({ kind: z.literal("archiveTemplate"), postTypeId: z.uuid() }),
+	z.object({ kind: z.literal("component"), componentId: z.uuid() }),
+]);
+export type ComponentSourceTarget = z.infer<typeof componentSourceTarget>;
 
 /**
  * Where a node is in a tree, as the editors write it: its index among the tree's nodes, then for
  * each level down which of its container's lists (an element has one; a Condition one per branch,
- * then Else; a Loop its items, then Empty) and its index there.
+ * then Else; a Loop its items, then Empty) and its index there: `[2, 0, 1]` is the second child of
+ * the third node.
  */
-export type TreePath = readonly number[];
+export const treePath = z
+	.array(z.number().int().min(0).max(100_000))
+	.min(1)
+	.max(201)
+	.refine(
+		(path) => path.length % 2 === 1,
+		"A path has an odd number of steps: an index, then a list and an index for each level down.",
+	);
+export type TreePath = Readonly<z.infer<typeof treePath>>;
+
+/** Make Component's pieces of fixed text to turn into Props: their `fixedTextsOf` order and each Prop's key. */
+export const madeTexts = z
+	.array(z.object({ index: z.number().int().min(0).max(100_000), key: z.string().max(64) }))
+	.max(200);
+
+/** New Component's place: where its Placement goes (its path once there) and the list as the editor read it. */
+export const newComponentPlace = z.object({
+	source: componentSourceTarget,
+	path: treePath,
+	list: z.array(z.unknown()).max(100_000),
+});
 
 /** Make Component: the node to move, as the editor saw it, and the fixed text to turn into Props. */
 export type MakeComponentInput = {
@@ -83,7 +111,7 @@ export type MakeComponentInput = {
 };
 
 /** New Component, placed: where its Placement goes (its path once there) and the list as the editor saw it. */
-export type NewComponentPlace = { source: ComponentSourceTarget; path: TreePath; list: unknown };
+export type NewComponentPlace = z.infer<typeof newComponentPlace>;
 
 /** What making or placing a Component did: the Component and its Placement in the source. */
 export type MadeComponent = {
@@ -457,7 +485,8 @@ function freeKey(wanted: string, taken: Set<string>): string {
 	if (!FIELD_KEY.test(stem)) stem = "value";
 	let key = stem;
 	for (let count = 2; taken.has(key.toLowerCase()) || RESERVED.has(key.toLowerCase()); count++)
-		key = `${stem.slice(0, 60)}${count}`;
+		// `title`, `title_2`, …: as the Field builder numbers a key already taken.
+		key = `${stem.slice(0, 60)}_${count}`;
 	taken.add(key.toLowerCase());
 	return key;
 }

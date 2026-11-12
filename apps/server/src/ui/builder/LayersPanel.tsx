@@ -1,6 +1,7 @@
 import type { ElementTree, TreeNode } from "@webcraft/renderer/builder";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@webcraft/ui/components/dropdown-menu.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import {
 	ArrowDownIcon,
@@ -24,7 +25,7 @@ import {
 	ScissorsIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { type DragEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { type DragEvent, type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useAfterRender } from "../after-render.ts";
 import { useT } from "../i18n.tsx";
 import { editorAccessibility } from "./editor-accessibility.ts";
@@ -807,9 +808,9 @@ export function LayersPanel({
 }
 
 /**
- * A layer's right-click menu: a short list of menu items where the pointer was (or below the row,
- * from Shift+F10 or the menu key). The arrow keys move between them, Enter or a click runs one,
- * Escape, Tab or a click elsewhere closes it, and focus goes back to the row.
+ * A layer's right-click menu (the shared menu, anchored where the pointer was, or below the row from
+ * Shift+F10 or the menu key): its items, the arrow keys and type-ahead between them, Enter or a click
+ * runs one, Escape or a click elsewhere closes it, and focus goes back to the row.
  */
 function LayerMenu({
 	x,
@@ -823,56 +824,46 @@ function LayerMenu({
 	onClose(): void;
 }) {
 	const t = useT();
-	const menu = useRef<HTMLDivElement>(null);
+	const anchor = useMemo(
+		() => ({
+			getBoundingClientRect: () => DOMRect.fromRect({ x: Math.max(0, x), y: Math.max(0, y), width: 0, height: 0 }),
+		}),
+		[x, y],
+	);
+	// Opened from a row, never from a trigger: its first item takes focus, as a menu opened from the keyboard does.
+	const popup = useRef<HTMLDivElement>(null);
 	useEffect(() => {
-		menu.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus();
+		const frame = requestAnimationFrame(() => popup.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus());
+		return () => cancelAnimationFrame(frame);
 	}, []);
-	const choose = (run: () => void) => {
-		onClose();
-		run();
-	};
 	return (
-		<>
-			<div
-				className="fixed inset-0 z-40"
-				aria-hidden="true"
-				onPointerDown={onClose}
-				onContextMenu={(e) => e.preventDefault()}
-			/>
-			<div
-				ref={menu}
-				role="menu"
+		<DropdownMenu
+			open
+			onOpenChange={(open) => {
+				if (!open) onClose();
+			}}
+		>
+			<DropdownMenuContent
+				ref={popup}
+				anchor={anchor}
+				positionMethod="fixed"
 				aria-label={t("builder.components.layerMenu")}
-				className="bg-popover text-popover-foreground ring-foreground/10 fixed z-50 min-w-40 rounded-md p-1 shadow-md ring-1"
-				style={{ left: Math.max(0, x), top: Math.max(0, y) }}
-				onKeyDown={(event) => {
-					const all = [...(menu.current?.querySelectorAll<HTMLElement>("[role=menuitem]") ?? [])];
-					const at = all.indexOf(event.target as HTMLElement);
-					if (event.key === "Escape" || event.key === "Tab") {
-						event.preventDefault();
-						event.stopPropagation();
-						onClose();
-					} else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-						event.preventDefault();
-						const next = (at + (event.key === "ArrowDown" ? 1 : -1) + all.length) % all.length;
-						all[next]?.focus();
-					}
-				}}
+				className="w-auto min-w-40"
+				finalFocus={false}
 			>
 				{items.map((item) => (
-					<button
+					<DropdownMenuItem
 						key={item.label}
-						type="button"
-						role="menuitem"
-						tabIndex={-1}
-						className="hover:bg-accent focus-visible:bg-accent block w-full rounded-sm px-2 py-1.5 text-start text-sm outline-none"
-						onClick={() => choose(item.run)}
+						onClick={() => {
+							onClose();
+							item.run();
+						}}
 					>
 						{item.label}
-					</button>
+					</DropdownMenuItem>
 				))}
-			</div>
-		</>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 }
 

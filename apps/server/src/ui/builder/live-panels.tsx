@@ -26,6 +26,7 @@ import { type LayerAction, type LayerSource, LayersPanel, rowKey } from "./Layer
 import { type LayerClipboard, layerLocation, runLayerAction } from "./layer-actions.ts";
 import { type BuilderTarget, layerName, type Opened, type Selection, targetPath } from "./model.ts";
 import { hoveredRow, selectionKey, selectionOf } from "./selection-ref.ts";
+import { serverChangeArrived } from "./server-change.ts";
 import { ariaKeys, withKeys } from "./shortcuts.ts";
 import {
 	canHoldChildren,
@@ -110,13 +111,6 @@ function currentDraft(source: PanelSource, shared?: SharedDraft): Pick<Opened, "
 				props: (draft as unknown as { props: Opened["props"] }).props,
 			}
 		: { tree: draft as unknown as ElementTree, props: null };
-}
-
-/** Whether a tree holds a node with this id. */
-function holdsId(tree: ElementTree, id: string): boolean {
-	const visit = (nodes: readonly TreeNode[]): boolean =>
-		nodes.some((node) => ("id" in node && node.id === id) || childLists(node).some(visit));
-	return visit(tree.nodes);
 }
 
 /** What Make Component and New Component answer (#134): the Component and its Placement. */
@@ -1110,17 +1104,9 @@ function SourcePanels({
 	/** Whether this source can change now: editable, not being created, and its shared Draft connected and writable. */
 	const writable =
 		source.editable && !creating && (!(source.opened.template || source.opened.component) || !!shared?.writable);
-	/** Waits for a change made on the server to reach this editor's shared Draft (a few seconds at most). */
-	const arrived = async (id: string) => {
-		for (let waited = 0; waited < 5000; waited += 50) {
-			if (holdsId(currentDraft(source, shared).tree, id)) return true;
-			await new Promise((resolve) => setTimeout(resolve, 50));
-		}
-		return false;
-	};
 	/** Selects a Placement made on the server once it is in the shared Draft; its Component's markup then shows. */
 	const selectMade = async (made: MadeComponent, openComponent: boolean) => {
-		await arrived(made.placement.id);
+		await serverChangeArrived(() => currentDraft(source, shared).tree, made.placement.id);
 		if (currentSource.current !== sourceId) return;
 		setSelection({ kind: "node", path: made.placement.path });
 		selectedId.current = made.placement.id;
