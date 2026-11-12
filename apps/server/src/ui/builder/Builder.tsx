@@ -25,15 +25,13 @@ import {
 	Undo2Icon,
 	UploadIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { toast } from "sonner";
 import { useAfterRender } from "../after-render.ts";
 import { getApi } from "../api.ts";
 import { Checks } from "../Checks.tsx";
 import { type SharedDraft, useSharedDraft } from "../co-editing/shared-draft.ts";
 import { StatusBadge } from "../content/DraftParts.tsx";
-import { Announcer, useAnnouncement } from "../content/reorder.tsx";
 import { errorCode, errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
 import { BuilderNavigation, type ReturnPage } from "./BuilderNavigation.tsx";
@@ -43,7 +41,8 @@ import { ComponentScriptPanel } from "./ComponentScriptPanel.tsx";
 import { CssPanel, type CssPanelPort } from "./CssPanel.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
 import { type EditorCommandTarget, editorCommands, historyCommandTarget, type WrapKind } from "./commands.ts";
-import { type EditorDrawer, focusInto, nextDrawer, useEditorFit } from "./editor-fit.ts";
+import { editorAccessibility } from "./editor-accessibility.ts";
+import { type EditorDrawer, focusInto, useEditorFit } from "./editor-fit.ts";
 import { editorHistory, type HistoryLocation } from "./editor-history.ts";
 import { FixedTextDialog, type MadeEditable } from "./FixedTextDialog.tsx";
 import { type FixedTextLocation, rememberFixedText, resolveFixedText } from "./fixed-text.ts";
@@ -90,6 +89,7 @@ import {
 	unwrapAt,
 	wrapAt,
 } from "./tree.ts";
+import { useEditorAnnouncement } from "./use-editor-announcement.ts";
 
 /** A problem of a tree the server refused, where it is (`nodes[0].children[2]`, `styles.<element id>`). */
 type TreeProblem = { at: string; message: string };
@@ -203,7 +203,7 @@ export function Builder({
 	}
 	const [showFixed, setShowFixed] = useState(true);
 	const [showChecks, setShowChecks] = useState(false);
-	const [announcement, announce] = useAnnouncement();
+	const [announcement, announce] = useEditorAnnouncement();
 	const [menu, setMenu] = useState<MenuState | null>(null);
 	const [shortcutsOpen, setShortcutsOpen] = useState(false);
 	const [menuData, setMenuData] = useState<CommandMenuData | null>(null);
@@ -216,7 +216,7 @@ export function Builder({
 	const [conflict, setConflict] = useState<{ version: string | null } | null>(null);
 	const [busy, setBusy] = useState<"save" | "publish" | "switch" | null>(null);
 	const [designVersion, setDesignVersion] = useState(0);
-	const [focusLayers, setFocusLayers] = useState(0);
+	const [focusLayers, setFocusLayers] = useState(select && "element" in select ? 1 : 0);
 	/** What Cut and Copy took: the layers, and the unsaved one-off styles of the elements in them. */
 	const clipboard = useRef<LayerClipboard | null>(null);
 	const fixedTextTrigger = useRef<HTMLElement | null>(null);
@@ -281,6 +281,7 @@ export function Builder({
 			if (!Object.keys(next.styles).length) setSaved(JSON.stringify(next));
 		},
 		onRefused(refusal) {
+			announce(t(errorMessage(refusal)), "interrupt");
 			setProblems(treeProblemsOf(refusal, t(errorMessage(refusal))));
 		},
 		onSettled: async () => {
@@ -326,7 +327,7 @@ export function Builder({
 		() =>
 			history.listen({
 				finish: finishGrab,
-				announce,
+				announce: (message, refused) => announce(message, refused ? "interrupt" : "polite"),
 				reveal: (location) => {
 					if (location.draft !== historyKey && !(location.panel === "js" && location.title === title)) return false;
 					if (location.selection) setSelection(selectionOf(docRef.current.tree, location.selection));
@@ -519,12 +520,12 @@ export function Builder({
 		): string | undefined => {
 			const problem = treeProblem(next.tree, allows);
 			if (problem) {
-				announce(problem.message);
+				announce(problem.message, "interrupt");
 				return problem.message;
 			}
 			const before = documentId ? shared.draft() : (docRef.current.tree as unknown as Json);
 			if (!writeShared(next)) {
-				announce(t(`coEditing.status.${shared.status}`));
+				announce(t(`coEditing.status.${shared.status}`), "interrupt");
 				return t(`coEditing.status.${shared.status}`);
 			}
 			const change = {
@@ -602,7 +603,7 @@ export function Builder({
 
 	const applyMove = (result: Changed | Refused, name: string) => {
 		if ("refused" in result) {
-			announce(t(`builder.moves.refused.${result.refused as "first"}`, { name }));
+			announce(t(`builder.moves.refused.${result.refused as "first"}`, { name }), "interrupt");
 			return;
 		}
 		apply(
@@ -619,8 +620,9 @@ export function Builder({
 		const result = runLayerAction(action, { doc, selection, clipboard: clipboard.current, catalogue }, t);
 		if (!result) return;
 		if (result.clipboard) clipboard.current = result.clipboard;
-		if (result.change) apply(result.change.doc, result.change.selection, result.message);
-		else announce(result.message);
+		if (result.change) {
+			if (!apply(result.change.doc, result.change.selection, result.message)) setFocusLayers((count) => count + 1);
+		} else announce(result.message, result.refused ? "interrupt" : "polite");
 	};
 
 	const grabChange = (change: "pick" | "drop" | "cancel") => {
@@ -666,11 +668,13 @@ export function Builder({
 		const place = insertionPlace(doc.tree, selection, way);
 		const made = insertAt(doc.tree, place, nodes);
 		const name = nameAt(made.tree, made.path);
-		return apply(
+		const refusal = apply(
 			{ ...doc, tree: made.tree },
 			{ kind: "node", path: made.path },
 			t("builder.moves.inserted", { name, where: whereIs(made.tree, made.path) }),
 		);
+		if (!refusal) setFocusLayers((count) => count + 1);
+		return refusal;
 	};
 
 	const replace = (
@@ -865,7 +869,7 @@ export function Builder({
 
 	/** Saves the Draft; answers the builder reopened on what was saved, or null when it wasn't. */
 	const saveActive = useRef(false);
-	const save = async (over?: { version: string | null }): Promise<Opened | null> => {
+	const save = async (over?: { version: string | null }, autosave = false): Promise<Opened | null> => {
 		if (saveActive.current) return null;
 		saveActive.current = true;
 		setBusy("save");
@@ -891,7 +895,7 @@ export function Builder({
 			const pendingStyles = history.pendingChanges(`styles:${historyKey}`, historyStep);
 			if (documentId && Object.keys(started.styles).length === 0 && !pendingStyles.length) {
 				setSaved(JSON.stringify(docOf(latest)));
-				announce(t("builder.saved", { name: title }));
+				announce(t("builder.saved", { name: title }), autosave ? "silent" : "polite");
 				return markupVersion.current === revision && docRef.current === started ? latest : null;
 			}
 			// The snapshot and version must describe the same Draft; peers may edit while flushing.
@@ -968,16 +972,15 @@ export function Builder({
 			}
 			setProblems([]);
 			setMarkupProblems([]);
-			toast.success(t("builder.saved", { name: title }));
-			announce(t("builder.saved", { name: title }));
+			announce(t("builder.saved", { name: title }), autosave ? "silent" : "polite");
 			return markupVersion.current === revision ? fresh : null;
 		} catch (failure) {
+			announce(t("builder.notSaved"), "interrupt");
 			if (errorCode(failure) === "CHANGED_MEANWHILE") {
 				const version = (failure as { data?: { version?: string | null } }).data?.version ?? null;
 				setConflict({ version });
 			} else {
 				setMarkupProblems(markupProblemsOf(failure, t(errorMessage(failure))));
-				toast.error(t("builder.notSaved"));
 			}
 			return null;
 		} finally {
@@ -989,7 +992,7 @@ export function Builder({
 	saveNow.current = save;
 	useEffect(() => {
 		if (!Object.keys(doc.styles).length && (documentId || !dirty)) return;
-		const timer = setTimeout(() => void saveNow.current(), 400);
+		const timer = setTimeout(() => void saveNow.current(undefined, true), 400);
 		return () => clearTimeout(timer);
 	}, [doc.styles, documentId, dirty]);
 
@@ -1004,7 +1007,7 @@ export function Builder({
 		const current = await save();
 		if (!current) return;
 		if (target.kind !== "component" && !current.template) {
-			toast.error(t("builder.saveFirst"));
+			announce(t("builder.saveFirst"), "interrupt");
 			return;
 		}
 		setBusy("publish");
@@ -1016,11 +1019,11 @@ export function Builder({
 			const api = await getApi();
 			await publishDraft(api, siteId, target, current.template?.id ?? null);
 			await readOpened();
-			toast.success(t("builder.published", { name: title }));
 			announce(t("builder.published", { name: title }));
 		} catch (failure) {
 			const listed = (failure as { data?: { problems?: { message: string }[] } }).data?.problems;
-			toast.error(listed?.length ? listed.map((each) => each.message).join(" ") : t(errorMessage(failure)));
+			const message = listed?.length ? listed.map((each) => each.message).join(" ") : t(errorMessage(failure));
+			announce(message, "interrupt");
 		} finally {
 			setBusy(null);
 		}
@@ -1069,14 +1072,31 @@ export function Builder({
 			else document.getElementById("main")?.focus();
 		});
 	};
-	// F6 (#138, the drawer layout only): the tree, then the Inspector, then neither; Shift+F6 backwards.
-	// #137's F6 order for every region will take this over, opening the drawers with `showDrawer`
-	// (`editor-fit.ts`; docs/development.md › The visual builder › Window width).
-	const drawerKey = (event: KeyboardEvent) => {
-		if (fit.layout !== "drawers" || fit.covered || document.querySelector("[data-slot=dialog-content]")) return;
-		event.preventDefault();
-		showDrawer(nextDrawer(drawer, event.shiftKey), true);
-	};
+	const regionLayout = useRef({ fit, showDrawer });
+	regionLayout.current = { fit, showDrawer };
+	const [regionFocus, setRegionFocus] = useState<(() => void) | null>(null);
+	useLayoutEffect(() => {
+		regionFocus?.();
+	}, [regionFocus]);
+	useLayoutEffect(
+		() =>
+			editorAccessibility(document).registerRegionLayout({
+				hiddenRegions: () =>
+					regionLayout.current.fit.layout === "drawers" && !regionLayout.current.fit.covered
+						? ["tree", "inspector"]
+						: [],
+				reveal(name, focus) {
+					const { fit, showDrawer } = regionLayout.current;
+					if (fit.covered) return;
+					if (fit.layout === "drawers") {
+						showDrawer(name === "tree" ? "layers" : name === "inspector" ? "inspector" : null);
+						// A layout effect belongs to this commit; an earlier passive effect cannot consume it.
+						setRegionFocus(() => focus);
+					} else focus();
+				},
+			}),
+		[],
+	);
 
 	// Below the smallest width, a notice covers the builder: nothing under it closes or can be reached,
 	// and focus goes back where it was once the window is wide enough again.
@@ -1102,15 +1122,11 @@ export function Builder({
 		};
 	}, [fit.covered]);
 
-	const keys = useRef({ save, drawerKey });
-	keys.current = { save, drawerKey };
+	const keys = useRef({ save });
+	keys.current = { save };
 	const shortcut = useRef<(event: KeyboardEvent) => void>(() => {});
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
-			if (event.key === "F6" && !event.ctrlKey && !event.metaKey && !event.altKey) {
-				keys.current.drawerKey(event);
-				return;
-			}
 			// The shortcut registry decides which chords these are (`shortcuts.ts`).
 			if (matches(event, "editor.save")) {
 				event.preventDefault();
@@ -1185,7 +1201,7 @@ export function Builder({
 	const selectParent = () => {
 		if (selection?.kind !== "node") return;
 		if (selection.path.length > 1) selectPath(selection.path.slice(0, -2));
-		else announce(t("builder.commandMenu.noParent", { name: nameAt(doc.tree, selection.path) }));
+		else announce(t("builder.commandMenu.noParent", { name: nameAt(doc.tree, selection.path) }), "interrupt");
 	};
 	const wrapSelected = (wrapper: TreeNode): string | undefined => {
 		if (selection?.kind !== "node") return t("builder.moves.refused.gone", { name: "" });
@@ -1218,6 +1234,7 @@ export function Builder({
 						: "builder.commandMenu.cannotUnwrap",
 					{ name },
 				),
+				"interrupt",
 			);
 		else
 			apply(
@@ -1314,7 +1331,7 @@ export function Builder({
 			onInputCapture={() => inputRevision.current++}
 			onChangeCapture={() => inputRevision.current++}
 		>
-			<header className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
+			<header data-editor-region="topbar" className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
 				<Link
 					onClick={goBack}
 					to={back.to}
@@ -1468,6 +1485,9 @@ export function Builder({
 								: t("builder.publish")}
 					</Button>
 				</div>
+				<p aria-live="off" className="text-muted-foreground basis-full text-sm empty:hidden">
+					{announcement}
+				</p>
 			</header>
 			<main
 				id="main"
@@ -1476,64 +1496,67 @@ export function Builder({
 			>
 				{
 					<section
+						data-editor-region="tree"
 						id="builder-layers"
 						ref={layersSection}
 						tabIndex={-1}
 						aria-labelledby="layers-heading"
 						className={`min-h-0 flex-col border-e outline-none ${full ? "col-start-1 row-span-2 row-start-1 flex" : `bg-background z-10 col-start-1 row-start-1 w-64 justify-self-start shadow-lg ${drawer === "layers" ? "flex" : "hidden"}`}`}
 					>
-						<InsertToolbar
-							where={insertWhere}
-							canInside={!!selectedNode && canHoldChildren(selectedNode)}
-							onWhere={setInsertWhere}
-							onPick={(item) => {
-								if (item === null) return setMenu({ tab: "insert" });
-								if (item === "components") return setMenu({ tab: "insert", only: "components" });
-								const found = insertItems(t, doc.tree, catalogue).find((each) => each.id === item);
-								if (!found) return;
-								const nodes = insertNow(found, doc.tree, catalogue);
-								if (!nodes) setMenu({ tab: "insert", step: { item, mode: "insert" } });
-								else if (!insert(nodes)) setFocusLayers((count) => count + 1);
-							}}
-						/>
-						<LayersPanel
-							counts={preview ? loopCounts(new DOMParser().parseFromString(preview.html, "text/html")) : undefined}
-							onHidden={(path, hidden) => {
-								const node = nodeAt(doc.tree, path);
-								if (node?.type === "component") replace(path, { ...node, hidden }, t("builder.inspector.changed"));
-							}}
-							tree={doc.tree}
-							catalogue={catalogue}
-							selection={selection}
-							collapsed={collapsed}
-							grabbed={grab !== null}
-							canPaste={clipboard.current !== null}
-							onSelect={setSelection}
-							onToggle={(key, open) =>
-								setCollapsed((before) => {
-									const next = new Set(before);
-									if (open) next.delete(key);
-									else next.add(key);
-									return next;
-								})
-							}
-							onAction={act}
-							onGrab={grabChange}
-							onRename={(path, label) => {
-								const node = nodeAt(doc.tree, path);
-								if (node?.type !== "element" || (node.label ?? "") === label) return;
-								const { label: _, ...rest } = node;
-								replace(
-									path,
-									label.trim() ? { ...rest, label } : rest,
-									label.trim() ? t("builder.layers.renamed", { name: label }) : t("builder.layers.unnamed"),
-								);
-							}}
-							onDrop={dropOn}
-							focusRequest={focusLayers}
-							renameRequest={renameRequest}
-							onInsert={openInsert}
-						/>
+						<fieldset disabled={!!documentId && !shared.writable} className="contents">
+							<InsertToolbar
+								where={insertWhere}
+								canInside={!!selectedNode && canHoldChildren(selectedNode)}
+								onWhere={setInsertWhere}
+								onPick={(item) => {
+									if (item === null) return setMenu({ tab: "insert" });
+									if (item === "components") return setMenu({ tab: "insert", only: "components" });
+									const found = insertItems(t, doc.tree, catalogue).find((each) => each.id === item);
+									if (!found) return;
+									const nodes = insertNow(found, doc.tree, catalogue);
+									if (!nodes) setMenu({ tab: "insert", step: { item, mode: "insert" } });
+									else if (!insert(nodes)) setFocusLayers((count) => count + 1);
+								}}
+							/>
+							<LayersPanel
+								counts={preview ? loopCounts(new DOMParser().parseFromString(preview.html, "text/html")) : undefined}
+								onHidden={(path, hidden) => {
+									const node = nodeAt(doc.tree, path);
+									if (node?.type === "component") replace(path, { ...node, hidden }, t("builder.inspector.changed"));
+								}}
+								tree={doc.tree}
+								catalogue={catalogue}
+								selection={selection}
+								collapsed={collapsed}
+								grabbed={grab !== null}
+								canPaste={clipboard.current !== null}
+								onSelect={setSelection}
+								onToggle={(key, open) =>
+									setCollapsed((before) => {
+										const next = new Set(before);
+										if (open) next.delete(key);
+										else next.add(key);
+										return next;
+									})
+								}
+								onAction={act}
+								onGrab={grabChange}
+								onRename={(path, label) => {
+									const node = nodeAt(doc.tree, path);
+									if (node?.type !== "element" || (node.label ?? "") === label) return;
+									const { label: _, ...rest } = node;
+									replace(
+										path,
+										label.trim() ? { ...rest, label } : rest,
+										label.trim() ? t("builder.layers.renamed", { name: label }) : t("builder.layers.unnamed"),
+									);
+								}}
+								onDrop={dropOn}
+								focusRequest={focusLayers}
+								renameRequest={renameRequest}
+								onInsert={openInsert}
+							/>
+						</fieldset>
 					</section>
 				}
 				<section
@@ -1541,7 +1564,7 @@ export function Builder({
 					className={`bg-muted row-start-1 flex min-h-0 flex-col ${full ? "col-start-2" : "col-start-1"}`}
 				>
 					{problems.length > 0 ? (
-						<div aria-live="polite" className="border-destructive/40 bg-destructive/5 border-b px-3 py-2 text-sm">
+						<div className="border-destructive/40 bg-destructive/5 border-b px-3 py-2 text-sm">
 							<p className="font-medium">{t("builder.problems")}</p>
 							<ul className="grid gap-1">
 								{problems.map((problem, index) => {
@@ -1616,13 +1639,12 @@ export function Builder({
 							setSelection(next);
 							const path = next.kind === "node" ? next.path : next.list.owner;
 							if (!path) return;
-							setFocusLayers((count) => count + 1);
 							const node = nodeAt(doc.tree, path);
 							if (node) announce(t("builder.selected", { name: layerName(t, node, catalogue).name }));
-							reveal(path);
 						}}
 						onMove={canvasMove}
 						onShortcut={(event) => {
+							if (editorAccessibility(document).handleRegionKey(event)) return;
 							shortcut.current(event);
 							editorKeys(event);
 						}}
@@ -1630,6 +1652,7 @@ export function Builder({
 				</section>
 				{
 					<section
+						data-editor-region="inspector"
 						id="builder-inspector"
 						ref={inspectorSection}
 						tabIndex={-1}
@@ -1707,7 +1730,7 @@ export function Builder({
 					data-code-panel=""
 					className={`row-start-2 grid min-h-0 overflow-auto border-t ${full ? "col-start-2" : "col-start-1"} ${target.kind === "component" ? "grid-cols-3" : "grid-cols-2"}`}
 				>
-					<section aria-label="HTML" className="flex min-h-0 flex-col">
+					<section data-editor-region="html" aria-label="HTML" className="flex min-h-0 flex-col">
 						<MarkupView
 							value={markup}
 							problems={markupProblems}
@@ -1742,6 +1765,7 @@ export function Builder({
 						/>
 					</section>
 					<section
+						data-editor-region="css"
 						aria-label={t("builder.css.heading")}
 						className="bg-background flex min-h-0 flex-col overflow-auto border-t p-3"
 					>
@@ -1776,8 +1800,6 @@ export function Builder({
 						/>
 					) : null}
 				</div>
-
-				<Announcer message={announcement} />
 			</main>
 			<CommandMenu
 				canvas="builder"

@@ -37,6 +37,7 @@ import {
 	shortcutText,
 	withKeys,
 } from "./shortcuts.ts";
+import { useEditorAnnouncement } from "./use-editor-announcement.ts";
 
 /** What the menu shows: its tab, and in Insert a question being asked or a narrowed list. */
 export type MenuState = {
@@ -239,7 +240,7 @@ export function CommandMenu({
 	const [query, setQuery] = useState("");
 	const [active, setActive] = useState(0);
 	const [recent, setRecent] = useState<string[]>(() => recentCommands());
-	const [count, setCount] = useState("");
+	const [, announce] = useEditorAnnouncement();
 	const [step, setStep] = useState<{ item: InsertItem; mode: "insert" | "wrap" } | null>(null);
 	const [problem, setProblem] = useState<string | null>(null);
 	const origin = useRef<HTMLElement | null>(null);
@@ -276,7 +277,6 @@ export function CommandMenu({
 		setQuery("");
 		setActive(0);
 		setProblem(null);
-		setCount("");
 		const wanted = state?.step ? items.find((item) => item.id === state.step?.item) : undefined;
 		setStep(wanted && state?.step ? { item: wanted, mode: state.step.mode } : null);
 		if (!open) return;
@@ -328,13 +328,10 @@ export function CommandMenu({
 
 	// The number of results is read once, after a pause in typing.
 	useEffect(() => {
-		if (!open || !query) {
-			setCount("");
-			return;
-		}
-		const timer = setTimeout(() => setCount(t("builder.commandMenu.count", { count: rows.length })), 600);
+		if (!open || !query) return;
+		const timer = setTimeout(() => announce(t("builder.commandMenu.count", { count: rows.length })), 600);
 		return () => clearTimeout(timer);
-	}, [open, query, rows.length, t]);
+	}, [open, query, rows.length, t, announce]);
 
 	// Insert shows the insert toolbar's place-marker line while it is open.
 	const where = insert?.canInside ? insert.where : "after";
@@ -390,6 +387,7 @@ export function CommandMenu({
 		const refused = mode === "wrap" ? insert.onWrap?.(nodes[0] as TreeNode) : insert.onInsert(nodes, way);
 		if (refused) {
 			setProblem(refused);
+			announce(refused, "interrupt");
 			return;
 		}
 		close(true);
@@ -652,9 +650,6 @@ export function CommandMenu({
 						</>
 					)}
 				</div>
-				<p role="status" className="sr-only">
-					{count}
-				</p>
 			</DialogContent>
 		</Dialog>
 	);

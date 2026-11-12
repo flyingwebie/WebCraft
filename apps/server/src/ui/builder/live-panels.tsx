@@ -6,7 +6,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { type SharedDraft, useSharedDraft } from "../co-editing/shared-draft.ts";
-import { useAnnouncement } from "../content/reorder.tsx";
 import { errorMessage } from "../errors.ts";
 import { AdminIntl, adminMessages, useT } from "../i18n.tsx";
 import { CommandMenu, type MenuState, ShortcutsDialog, useEditorKeys, useHistoryKeys } from "./CommandMenu.tsx";
@@ -19,6 +18,7 @@ import {
 	historyCommandTarget,
 	type WrapKind,
 } from "./commands.ts";
+import type { AnnouncementPriority } from "./editor-accessibility.ts";
 import { type EditorApi, EditorApiContext, EditorEnvironment } from "./editor-api.tsx";
 import { editorHistory, type HistoryLocation } from "./editor-history.ts";
 import { FixedTextDialog } from "./FixedTextDialog.tsx";
@@ -51,6 +51,7 @@ import {
 	unwrapAt,
 	wrapAt,
 } from "./tree.ts";
+import { useEditorAnnouncement } from "./use-editor-announcement.ts";
 
 export type PanelSource = {
 	opened: Opened;
@@ -66,6 +67,7 @@ export type PanelSource = {
 export type LivePanelBridge = {
 	root: ShadowRoot;
 	historyToken?: string | null;
+	initialFocus?: string | null;
 	/** Where the CSS panel draws: Code mode's CSS panel, below the page. */
 	cssHost?: HTMLElement;
 	/** Shows unsaved CSS on the page, or (null) the Draft again. */
@@ -250,7 +252,15 @@ function LivePanels({
 	useHistoryKeys(historyCommandTarget(history));
 	const [sources, setSources] = useState<Record<string, PanelSource>>({});
 	const [active, setActive] = useState<string | null>(null);
-	const [error, setError] = useState("");
+	const [error, setErrorText] = useState("");
+	const [, announceError] = useEditorAnnouncement();
+	const setError = useCallback(
+		(message: string, priority: AnnouncementPriority = "polite") => {
+			setErrorText(message);
+			announceError(message, priority);
+		},
+		[announceError],
+	);
 	const [creating, setCreating] = useState(false);
 	const [connectionVersion, connectionChanged] = useState(0);
 	const [requested, requestSelection] = useState<{ ref: string; selection: Selection } | null>(null);
@@ -319,7 +329,7 @@ function LivePanels({
 				})
 				.catch((failure) => setError(t(errorMessage(failure))));
 		},
-		[bridge, t],
+		[bridge, t, setError],
 	);
 	const update = useCallback((ref: string, tree: ElementTree, props?: Opened["props"]) => {
 		draftChangeCount.current++;
@@ -430,7 +440,7 @@ function LivePanels({
 		return () => {
 			current = false;
 		};
-	}, [selected, load, t]);
+	}, [selected, load, t, setError]);
 	useEffect(() => {
 		const requested = new Set(["site"]);
 		for (const element of document.querySelectorAll("[data-wc-code]")) {
@@ -515,7 +525,7 @@ function LivePanels({
 					const before = shared.draft();
 					if (!pending.apply(next, { keep: true })) {
 						pending = null;
-						setError(t("coEditing.status.readOnly"));
+						setError(t("coEditing.status.readOnly"), "interrupt");
 						return false;
 					}
 					const draft = shared.draft();
@@ -627,7 +637,7 @@ function LivePanels({
 			area.removeEventListener("input", input);
 			area.removeEventListener("editor-source", sourceChanged);
 		};
-	}, [bridge, update, load, t, commands, history]);
+	}, [bridge, update, load, t, commands, history, setError]);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: registration is held in a ref; its status version drives readiness.
 	useEffect(() => {
 		for (const source of Object.values(sources)) {
@@ -660,7 +670,7 @@ function LivePanels({
 		});
 	return (
 		<>
-			{error ? <p role="alert">{error}</p> : null}
+			{error ? <p>{error}</p> : null}
 			{unique.map((each) => (
 				<DraftConnection
 					key={each.opened.component?.id ?? each.opened.template?.id}
@@ -669,7 +679,7 @@ function LivePanels({
 						connections.current.set((each.opened.component?.id ?? each.opened.template?.id) as string, shared)
 					}
 					onStatus={() => connectionChanged((n) => n + 1)}
-					onRefused={(failure) => setError(t(errorMessage(failure)))}
+					onRefused={(failure) => setError(t(errorMessage(failure)), "interrupt")}
 					onRemote={(tree, props) => receive(each.ref, tree, props)}
 					onSettled={() => {
 						const id = each.opened.component?.id ?? each.opened.template?.id;
@@ -967,7 +977,13 @@ function SourcePanels({
 			bridge.root.querySelector('[role="treeitem"][aria-selected="true"]')?.scrollIntoView({ block: "nearest" }),
 		);
 	}, [requested, bridge]);
-	const [announcement, announce] = useAnnouncement();
+	const [, announce] = useEditorAnnouncement();
+	useEffect(() => {
+		const ref = bridge.initialFocus;
+		if (!ref || selected !== ref || !selection || `${source.ref}#${selectionKey(tree, selection)}` !== ref) return;
+		bridge.initialFocus = null;
+		setFocusRows((count) => count + 1);
+	}, [bridge, selected, selection, source.ref, tree]);
 	const [where, setWhere] = useState<InsertWhere>("inside");
 	const [menu, setMenu] = useState<MenuState | null>(null);
 	const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -1035,7 +1051,7 @@ function SourcePanels({
 		const problem = treeProblem(next, { elements: new Set(catalogue.elements), commands: new Set(catalogue.commands) });
 		const refusal = problem?.message ?? (!source.editable || creating ? t("coEditing.status.readOnly") : null);
 		if (refusal) {
-			announce(refusal);
+			announce(refusal, "interrupt");
 			return refusal;
 		}
 		const before = shared?.draft() ?? null;
@@ -1047,7 +1063,7 @@ function SourcePanels({
 		const created = !shared && !source.opened.template && !source.opened.component;
 		if (!created && !changed) {
 			const message = t("coEditing.status.connecting");
-			announce(message);
+			announce(message, "interrupt");
 			return message;
 		}
 		if (shared && changed) {
@@ -1120,7 +1136,7 @@ function SourcePanels({
 		const at = insertionPlace(tree, selection, way);
 		const made = insertAt(tree, at, nodes);
 		const node = nodeAt(made.tree, made.path);
-		return apply(
+		const refusal = apply(
 			made.tree,
 			{ kind: "node", path: made.path },
 			t("builder.moves.inserted", {
@@ -1128,6 +1144,8 @@ function SourcePanels({
 				where: layerLocation(t, made.tree, made.path, catalogue),
 			}),
 		);
+		if (!refusal) setFocusRows((count) => count + 1);
+		return refusal;
 	};
 	const action = (action: LayerAction) => {
 		const result = runLayerAction(
@@ -1137,8 +1155,9 @@ function SourcePanels({
 		);
 		if (!result) return;
 		if (result.clipboard) clipboard.current = result.clipboard;
-		if (result.change) apply(result.change.doc.tree, result.change.selection, result.message);
-		else announce(result.message);
+		if (result.change) {
+			if (!apply(result.change.doc.tree, result.change.selection, result.message)) setFocusRows((count) => count + 1);
+		} else announce(result.message, result.refused ? "interrupt" : "polite");
 	};
 
 	const previewRun = useRef(0);
@@ -1267,7 +1286,7 @@ function SourcePanels({
 				return;
 			}
 		}
-		announce(t("builder.commandMenu.noParent", { name: nameIn(tree, selection.path) }));
+		announce(t("builder.commandMenu.noParent", { name: nameIn(tree, selection.path) }), "interrupt");
 	};
 	const wrapSelected = (wrapper: TreeNode): string | undefined => {
 		if (selection?.kind !== "node") return t("builder.moves.refused.gone", { name: "" });
@@ -1300,6 +1319,7 @@ function SourcePanels({
 						: "builder.commandMenu.cannotUnwrap",
 					{ name },
 				),
+				"interrupt",
 			);
 		else apply(result.tree, { kind: "node", path: result.path }, t("builder.commandMenu.unwrapped", { name }));
 	};
@@ -1417,7 +1437,13 @@ function SourcePanels({
 						bridge.cssHost,
 					)
 				: null}
-			<aside id="wc-code-layers" tabIndex={-1} className="editor-left" aria-label={t("builder.layers.heading")}>
+			<aside
+				data-editor-region="tree"
+				id="wc-code-layers"
+				tabIndex={-1}
+				className="editor-left"
+				aria-label={t("builder.layers.heading")}
+			>
 				<fieldset disabled={!writable}>
 					<InsertToolbar
 						where={node && !canHoldChildren(node) ? "after" : where}
@@ -1503,7 +1529,8 @@ function SourcePanels({
 							const moved = moveTo(tree, from, placeBy(tree, to, position));
 							const node = nodeAt(tree, from);
 							const name = node ? layerName(t, node, catalogue).name : "";
-							if ("refused" in moved) announce(t(`builder.moves.refused.${moved.refused as "first"}`, { name }));
+							if ("refused" in moved)
+								announce(t(`builder.moves.refused.${moved.refused as "first"}`, { name }), "interrupt");
 							else
 								apply(
 									moved.tree,
@@ -1518,7 +1545,13 @@ function SourcePanels({
 					/>
 				</fieldset>
 			</aside>
-			<aside id="wc-code-inspector" tabIndex={-1} className="editor-right" aria-label={t("builder.inspector.heading")}>
+			<aside
+				data-editor-region="inspector"
+				id="wc-code-inspector"
+				tabIndex={-1}
+				className="editor-right"
+				aria-label={t("builder.inspector.heading")}
+			>
 				<fieldset disabled={!writable}>
 					<Inspector
 						departure={oneOffDeparture}
@@ -1591,7 +1624,7 @@ function SourcePanels({
 						}}
 					/>
 				</fieldset>
-				<p role="status">{announcement || t(`coEditing.status.${shared?.status ?? "connecting"}`)}</p>
+				<p>{t(`coEditing.status.${shared?.status ?? "connecting"}`)}</p>
 			</aside>
 			{fixed ? (
 				<FixedTextDialog

@@ -411,6 +411,7 @@ test("typing while Redo awaits a save still retains only 200 finished steps", as
 		await js.fill("// Own");
 		await js.press("ControlOrMeta+s");
 		await page
+			.locator("[data-editor-messages]")
 			.getByRole("status")
 			.filter({ hasText: /Saved to Draft/ })
 			.waitFor();
@@ -444,6 +445,35 @@ test("typing while Redo awaits a save still retains only 200 finished steps", as
 	} finally {
 		release.resolve();
 		await page.unrouteAll({ behavior: "wait" });
+		await page.close();
+	}
+});
+
+test("CSS typing after blur starts a new history step without another selection", async () => {
+	const workspace = await install.install.createWorkspace("CSS grouping");
+	const site = await install.install.createSite(workspace.id, { name: "CSS grouping", slug: "css-grouping" });
+	const staff = await install.install.createStaff({ workspaces: [workspace.id] });
+	const { component } = await staff.browser.api.components.create({ siteId: site.id, name: "CssGrouping" });
+	const page = await install.newPage("light");
+	page.setDefaultTimeout(10000);
+	try {
+		await install.signIn(page, staff.account);
+		await page.goto(install.adminUrl(`/builder/${site.id}/component/${component.id}`));
+		const css = page.getByRole("textbox", { name: "CSS: Site CSS", exact: true });
+		await css.and(page.locator(":not([readonly])")).waitFor();
+		await page.waitForLoadState("networkidle");
+		await css.fill("p { color: red; }");
+		await css.blur();
+		await css.fill("p { color: blue; }");
+		await css.press("ControlOrMeta+z");
+		await page
+			.locator("[data-editor-messages]")
+			.getByRole("status")
+			.filter({ hasText: /Undid Edit CSS/ })
+			.waitFor();
+		expect(await css.inputValue()).toBe("p { color: red; }");
+		expect(await css.evaluate((el) => el === document.activeElement)).toBe(true);
+	} finally {
 		await page.close();
 	}
 });
@@ -486,7 +516,8 @@ test("an obsolete own step is explained and skipped while Undo keeps the peer la
 		await page.keyboard.press("ControlOrMeta+z");
 		await page.frameLocator("iframe[title^='Canvas']").getByText("Before").waitFor();
 		await page
-			.getByRole("status")
+			.locator("[data-editor-messages]")
+			.getByRole("alert")
 			.filter({ hasText: /Skipped Rename Mine.*newer change.*Undid Edit HTML/ })
 			.waitFor();
 		expect(await page.getByRole("treeitem", { name: /^Peer/ }).count()).toBe(1);

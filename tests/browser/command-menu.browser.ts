@@ -210,7 +210,7 @@ for (const theme of THEMES) {
 			await menu.getByText("Nothing matches.").waitFor();
 			await search.fill("dupl");
 			expect(await highlighted(search)).toBe(`Duplicate, Element, ${command} D`);
-			await menu.getByRole("status").filter({ hasText: "1 result" }).waitFor();
+			await page.locator("[data-editor-messages]").getByRole("status").filter({ hasText: "1 result" }).waitFor();
 			await page.keyboard.press("Enter");
 			await menu.waitFor({ state: "hidden" });
 			await expectAnnounced(page, /^Duplicated section: /);

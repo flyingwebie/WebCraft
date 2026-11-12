@@ -49,8 +49,8 @@ async function styledEditorPage(theme: (typeof THEMES)[number]) {
 			.replace("<p ", '<p class="earlier-style" ')
 			.replace("</p>", '</p><p class="current-style" data-wc-id="current" data-wc-label="Current">Current</p>'),
 	});
-	await tree.getByRole("treeitem", { name: /^Current p$/ }).waitFor();
-	await tree.getByRole("treeitem", { name: /^Before p$/ }).click();
+	await tree.getByRole("treeitem", { name: /^Current p(?: from .+)?$/ }).waitFor();
+	await tree.getByRole("treeitem", { name: /^Before p(?: from .+)?$/ }).click();
 	await page.getByRole("textbox", { name: "CSS: .earlier-style", exact: true }).waitFor();
 	await page.waitForLoadState("networkidle");
 	return { ...editor, earlierId: earlier.class.id };
@@ -75,11 +75,11 @@ for (const theme of THEMES) {
 		});
 		try {
 			// Away and back, so selecting Before reads its Classes again.
-			await tree.getByRole("treeitem", { name: /^Current p$/ }).click();
+			await tree.getByRole("treeitem", { name: /^Current p(?: from .+)?$/ }).click();
 			await page.getByRole("textbox", { name: "CSS: .current-style", exact: true }).waitFor();
-			await tree.getByRole("treeitem", { name: /^Before p$/ }).click();
+			await tree.getByRole("treeitem", { name: /^Before p(?: from .+)?$/ }).click();
 			await held.promise;
-			const current = tree.getByRole("treeitem", { name: /^Current p$/ });
+			const current = tree.getByRole("treeitem", { name: /^Current p(?: from .+)?$/ });
 			await current.click();
 			await page.getByRole("textbox", { name: "CSS: .current-style", exact: true }).waitFor();
 			await page.locator(".language-markup .line.marked").filter({ hasText: 'data-wc-id="current"' }).waitFor();
@@ -114,9 +114,9 @@ for (const theme of THEMES) {
 		});
 		try {
 			// Away and back, so selecting Before reads its Classes again.
-			await tree.getByRole("treeitem", { name: /^Current p$/ }).click();
+			await tree.getByRole("treeitem", { name: /^Current p(?: from .+)?$/ }).click();
 			await page.getByRole("textbox", { name: "CSS: .current-style", exact: true }).waitFor();
-			await tree.getByRole("treeitem", { name: /^Before p$/ }).click();
+			await tree.getByRole("treeitem", { name: /^Before p(?: from .+)?$/ }).click();
 			await held.promise;
 			const css = page.getByRole("textbox", { name: "CSS: .earlier-style", exact: true });
 			await css.fill("color: purple;");
@@ -145,7 +145,7 @@ for (const theme of THEMES) {
 		await page.getByRole("status").filter({ hasText: "Picked up Group." }).waitFor();
 		await group.press("ArrowRight");
 		await page
-			.getByRole("status")
+			.getByRole("alert")
 			.filter({ hasText: "<section> can't go inside <p>: a browser would end the paragraph before it." })
 			.waitFor();
 		expect((await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft).toContain("</p><section");
@@ -970,7 +970,7 @@ for (const theme of THEMES) {
 			await page.getByRole("button", { name: "Code", exact: true }).click();
 			const tree = page.getByRole("tree", { name: "Layers" });
 			await tree.getByText("Component · Notice", { exact: true }).waitFor();
-			await tree.getByRole("treeitem", { name: /^header$/ }).click();
+			await tree.getByRole("treeitem", { name: /^header(?: from .+)?$/ }).click();
 			await page.getByLabel("Tag", { exact: true }).waitFor();
 			await page.waitForLoadState("networkidle");
 			const html = page.getByRole("textbox", { name: /^HTML of / });

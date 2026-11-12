@@ -2,6 +2,7 @@ import { Field, FieldDescription, FieldLabel } from "@webcraft/ui/components/fie
 import { Textarea } from "@webcraft/ui/components/textarea.tsx";
 import { useEffect, useId, useRef } from "react";
 import { useT } from "../i18n.tsx";
+import { applyCodeKey } from "./apply-code-key.ts";
 import { editorHistory } from "./editor-history.ts";
 
 /** A problem of markup that can't be read, where it is (UTF-16 units, as the server counts). */
@@ -83,10 +84,15 @@ export function MarkupView({
 					</pre>
 					<Textarea
 						onBlur={() => editorHistory().boundary()}
+						data-editor-default-focus=""
+						data-editor-code=""
 						ref={area}
 						id={`${id}-markup`}
 						value={value}
 						onChange={(event) => onChange(event.target.value)}
+						onKeyDown={(event) => {
+							applyCodeKey(event, onChange);
+						}}
 						onMouseUp={(event) => onCaret?.(event.currentTarget.selectionStart)}
 						onKeyUp={(event) => {
 							if (
@@ -111,7 +117,7 @@ export function MarkupView({
 					/>
 				</div>
 			</Field>
-			<div id={`${id}-problems`} aria-live="polite" className="empty:hidden">
+			<div id={`${id}-problems`} aria-live="off" className="empty:hidden">
 				{problems.length > 0 ? (
 					<ul className="grid gap-1">
 						{problems.map((problem, index) => (

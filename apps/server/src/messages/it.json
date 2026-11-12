@@ -1863,6 +1863,8 @@
 			"undo": "Annulla",
 			"redo": "Ripeti",
 			"editScript": "Modifica JS di",
+			"skipToLayers": "Vai ai livelli",
+			"editorNavigation": "Navigazione dell’editor",
 			"layers": "Livelli",
 			"inspector": "Impostazioni",
 			"tooNarrow": "La modalità codice richiede una finestra larga almeno 1024px",
@@ -4293,7 +4295,7 @@
 			"heading": "Livelli",
 			"actions": "Livello selezionato",
 			"none": "Ancora niente. Inserisci un elemento per iniziare.",
-			"keys": "Le frecce si muovono tra i livelli. Alt con le frecce sposta quello selezionato (dentro il livello precedente, fuori dal suo genitore). Spazio lo prende e lo posa; Esc lo rimette a posto. Ctrl X, C, V, D: taglia, copia, incolla, duplica. Canc lo elimina, F2 lo rinomina.",
+			"keys": "Le frecce si muovono tra i livelli. Alt con le frecce sposta quello selezionato (dentro il livello precedente, fuori dal suo genitore). Spazio lo prende e lo posa; Esc lo rimette a posto. Ctrl X, C, V, D: taglia, copia, incolla, duplica. Canc lo elimina, F2 lo rinomina. Digita lettere per trovare un livello; * apre questo livello; Alt+Invio apre o chiude tutto il ramo. F6 passa tra le aree dell’editor.",
 			"action": {
 				"moveUp": "Sposta su",
 				"moveDown": "Sposta giù",
@@ -4330,7 +4332,11 @@
 			"pageTemplate": "Template di pagina · Principale",
 			"componentSource": "Componente · {name}",
 			"hidePlacement": "Nascondi posizionamento",
-			"showPlacement": "Mostra posizionamento"
+			"showPlacement": "Mostra posizionamento",
+			"placementOf": "Posizionamento di {name}",
+			"hiddenPlacement": "posizionamento nascosto",
+			"repeats": "si ripete {count} volte",
+			"from": "da {source}"
 		},
 		"moves": {
 			"moved": "Spostato {name}: {where}.",
@@ -4828,7 +4834,13 @@
 				"openClose": "Apri o chiudi un livello, o vai al suo genitore",
 				"toggle": "Apri o chiudi un livello",
 				"pick": "Prendi un livello, o posalo",
-				"putBack": "Rimetti a posto un livello preso"
+				"putBack": "Rimetti a posto un livello preso",
+				"typeahead": "Trova un livello digitandone il nome",
+				"openLevel": "Apri tutti i rami a questo livello",
+				"toggleBranch": "Apri o chiudi l'intero ramo",
+				"regions": "Spostati tra le aree dell'editor",
+				"indent": "Aumenta il rientro delle righe selezionate",
+				"outdent": "Riduci il rientro delle righe selezionate"
 			},
 			"keyNames": {
 				"command": "Comando",
@@ -4845,7 +4857,11 @@
 				"forwardDelete": "Elimina avanti",
 				"escape": "Esc",
 				"space": "Spazio",
-				"slash": "Barra"
+				"slash": "Barra",
+				"letter": "Lettera",
+				"asterisk": "Asterisco",
+				"leftBracket": "Parentesi quadra aperta",
+				"rightBracket": "Parentesi quadra chiusa"
 			}
 		}
 	},

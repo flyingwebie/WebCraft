@@ -2,7 +2,8 @@ import type { Permission } from "@webcraft/core";
 
 import type { MessageKey } from "../i18n.tsx";
 
-/** One way to press a shortcut. `mod` is ⌘ on Apple devices and Ctrl elsewhere. */
+/** One way to press a shortcut. `mod` is ⌘ on Apple devices and Ctrl elsewhere.
+ * `Letter` represents tree type-ahead, including letters outside the Latin alphabet. */
 export type Chord = { key: string; mod?: true; shift?: true; alt?: true };
 
 /** Where a shortcut works: how the Keyboard shortcuts list groups them. */
@@ -12,7 +13,7 @@ export type ShortcutArea = "menu" | "editor" | "element" | "tree" | "insert";
  * When a shortcut applies: anywhere in the editor (even in a code panel, where it wins), outside the
  * code panels and text fields, only in the Layers panel, or only in the Command menu's Insert tab.
  */
-export type ShortcutScope = "anywhere" | "outsideCode" | "tree" | "menu";
+export type ShortcutScope = "anywhere" | "outsideCode" | "tree" | "menu" | "code";
 
 export type Shortcut = {
 	id: string;
@@ -88,6 +89,34 @@ export const SHORTCUTS = [
 		label: "builder.commandMenu.keys.openClose",
 	},
 	{ id: "tree.toggle", area: "tree", chords: [{ key: "Enter" }], label: "builder.commandMenu.keys.toggle" },
+	{ id: "tree.typeahead", area: "tree", chords: [{ key: "Letter" }], label: "builder.commandMenu.keys.typeahead" },
+	{ id: "tree.openLevel", area: "tree", chords: [{ key: "*" }], label: "builder.commandMenu.keys.openLevel" },
+	{
+		id: "tree.toggleBranch",
+		area: "tree",
+		chords: [{ key: "Enter", alt: true }],
+		label: "builder.commandMenu.keys.toggleBranch",
+	},
+	{
+		id: "editor.regions",
+		area: "editor",
+		chords: [{ key: "F6" }, { key: "F6", shift: true }],
+		label: "builder.commandMenu.keys.regions",
+	},
+	{
+		id: "editor.indent",
+		area: "editor",
+		chords: [{ key: "]", mod: true }],
+		label: "builder.commandMenu.keys.indent",
+		scope: "code",
+	},
+	{
+		id: "editor.outdent",
+		area: "editor",
+		chords: [{ key: "[", mod: true }],
+		label: "builder.commandMenu.keys.outdent",
+		scope: "code",
+	},
 	{
 		id: "tree.moveUp",
 		area: "tree",
@@ -153,6 +182,7 @@ const SYMBOLS: Record<string, [apple: string, other: string]> = {
 	Delete: ["⌦", "Delete"],
 	Escape: ["Esc", "Esc"],
 	" ": ["Space", "Space"],
+	Letter: ["A–Z", "A–Z"],
 };
 /** Which of the message catalogue's key names (`builder.commandMenu.keyNames.*`) a key is spoken as. */
 const SPOKEN: Record<string, SpokenKey> = {
@@ -166,6 +196,10 @@ const SPOKEN: Record<string, SpokenKey> = {
 	Escape: "escape",
 	" ": "space",
 	"/": "slash",
+	Letter: "letter",
+	"*": "asterisk",
+	"[": "leftBracket",
+	"]": "rightBracket",
 };
 
 /** A key or modifier's spoken name, in the person's Admin language. */
@@ -184,7 +218,11 @@ export type SpokenKey =
 	| "forwardDelete"
 	| "escape"
 	| "space"
-	| "slash";
+	| "slash"
+	| "letter"
+	| "asterisk"
+	| "leftBracket"
+	| "rightBracket";
 export type KeyWords = (name: SpokenKey) => string;
 const ARIA: Record<string, string> = { " ": "Space", "/": "Slash" };
 
@@ -229,18 +267,22 @@ export function shortcutSpoken(id: ShortcutId, words: KeyWords, apple = onApple(
 
 /** Every chord of a shortcut, for `aria-keyshortcuts`: `Meta+D` on Apple devices, `Control+D` elsewhere. */
 export function ariaKeys(id: ShortcutId, apple = onApple()): string {
-	return (shortcut(id)?.chords ?? [])
-		.map((chord) =>
-			[
-				chord.mod ? (apple ? "Meta" : "Control") : "",
-				chord.shift ? "Shift" : "",
-				chord.alt ? "Alt" : "",
-				ARIA[chord.key] ?? keyName(chord.key),
-			]
-				.filter(Boolean)
-				.join("+"),
-		)
-		.join(" ");
+	return (
+		(shortcut(id)?.chords ?? [])
+			// Type-ahead is a category of keys, not an ARIA key token.
+			.filter((chord) => chord.key !== "Letter")
+			.map((chord) =>
+				[
+					chord.mod ? (apple ? "Meta" : "Control") : "",
+					chord.shift ? "Shift" : "",
+					chord.alt ? "Alt" : "",
+					ARIA[chord.key] ?? keyName(chord.key),
+				]
+					.filter(Boolean)
+					.join("+"),
+			)
+			.join(" ")
+	);
 }
 
 /** A tooltip with the keys: "Undo (⌘Z)". */
@@ -259,7 +301,11 @@ export function matches(
 		(chord) =>
 			!!chord.mod === mod &&
 			!!chord.alt === event.altKey &&
-			(chord.key.length === 1 ? event.key.toLowerCase() === chord.key : event.key === chord.key) &&
-			(!!chord.shift === event.shiftKey || chord.key === "/"),
+			(chord.key === "Letter"
+				? /^\p{L}$/u.test(event.key)
+				: chord.key.length === 1
+					? event.key.toLowerCase() === chord.key
+					: event.key === chord.key) &&
+			(!!chord.shift === event.shiftKey || ["/", "*", "Letter"].includes(chord.key)),
 	);
 }
