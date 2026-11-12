@@ -314,9 +314,7 @@ export function procedureContext(
 		},
 		confirmations: {
 			ask: (action, target, preview) => askConfirmation(scope, { action: actionOf(action), target, preview }),
-			use: async (id, action, target, preview) => {
-				await useConfirmation(scope, id, { action: actionOf(action), target, preview });
-			},
+			use: (id, action, target, preview) => useConfirmation(scope, id, { action: actionOf(action), target, preview }),
 		},
 	};
 }

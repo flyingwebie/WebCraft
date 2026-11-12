@@ -107,8 +107,6 @@ export {
 	ConfirmationInvalidError,
 	type ConfirmationProblem,
 	type ConfirmationRequest,
-	giveBackConfirmation,
-	type UsedConfirmation,
 	useConfirmation,
 } from "./confirmations.ts";
 export * from "./consent/index.ts";
