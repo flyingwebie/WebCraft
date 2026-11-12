@@ -485,3 +485,50 @@ for (const theme of THEMES) {
 		}
 	});
 }
+
+for (const theme of THEMES) {
+	test(`empty Page Props accept successive keystrokes before blur (${theme})`, async () => {
+		const site = await fixture([
+			{ key: "first", label: "First", type: "text" },
+			{ key: "group", label: "Group", type: "group", fields: [{ key: "second", label: "Second", type: "text" }] },
+		]);
+		const page = await enter(site, theme);
+		try {
+			await field(page, "First").focus();
+			await page.keyboard.type("ab");
+			await field(page, "First").press("Tab");
+			await field(page, "Second").focus();
+			await page.keyboard.type("cd");
+			await field(page, "Second").press("Tab");
+			await savedValues(site, { first: "ab", group: { second: "cd" } });
+		} finally {
+			await page.close();
+		}
+	});
+}
+
+for (const theme of THEMES) {
+	test(`a refused Page Prop exposes the saved value and accepts its next correction (${theme})`, async () => {
+		const site = await fixture([
+			{ key: "link", label: "Link", type: "link", default: { url: "https://example.com/old", text: "Old" } },
+		]);
+		const page = await enter(site, theme);
+		try {
+			await field(page, "Address").fill("javascript:alert(1)");
+			// Clicking away keeps the idle Inspector mounted; focusing another Link input would
+			// flush and replace that input owner, hiding a stale-document regression.
+			await page.getByRole("heading", { name: "Props", exact: true }).click();
+			await page
+				.locator("[data-editor-messages]")
+				.filter({ hasText: /Someone/ })
+				.waitFor();
+			await valueIs(page, "Address", "https://example.com/old");
+			await savedValues(site, { link: { url: "https://example.com/old", text: "Old" } });
+			await field(page, "Address").fill("https://example.com/new");
+			await field(page, "Address").press("Tab");
+			await savedValues(site, { link: { url: "https://example.com/new", text: "Old" } });
+		} finally {
+			await page.close();
+		}
+	});
+}

@@ -1,5 +1,5 @@
 import * as Y from "yjs";
-import { changeDocument, copyDocument, type Json, mergeChange, readDocument } from "./document.ts";
+import { changeDocument, copyDocument, type Json, mergeChange, readDocument, sameValue } from "./document.ts";
 import {
 	decodeFrame,
 	type EditorMessage,
@@ -367,11 +367,19 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 		},
 		stage() {
 			if (!canEdit()) return null;
-			const original = doc;
-			const staged = copyDocument(doc);
+			let original = doc;
+			let staged = copyDocument(doc);
 			let used = false;
 			let base = readDocument(doc);
 			const read = () => {
+				// A refusal replaces the document. An idle input must display that authoritative
+				// copy and accept new typing; an unfinished authored input still fails its old guard.
+				if (!used && doc !== original && sameValue(base, readDocument(staged))) {
+					staged.destroy();
+					original = doc;
+					staged = copyDocument(doc);
+					base = readDocument(doc);
+				}
 				if (!used && doc === original) {
 					const current = readDocument(doc);
 					let rebased: Json | undefined;

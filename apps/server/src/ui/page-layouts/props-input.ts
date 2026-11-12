@@ -54,7 +54,16 @@ export function propsInput(shared: SharedDraft, id: string, languages: ValueLang
 			const p = placement(view);
 			if (!p) return false;
 			const values = writeField(p.values as Record<string, DocumentJson>, field, value, languages);
-			authored.push({ field, before: (p.values[field.key] as DocumentJson) ?? null, after: values[field.key] ?? null });
+			// Target checks compare the whole unfinished input with its initial stored value, not
+			// an intermediate keystroke that only exists in this person's staged view.
+			const previous = authored.find((change) => change.field.id === field.id && change.field.key === field.key);
+			if (previous) previous.after = values[field.key] ?? null;
+			else
+				authored.push({
+					field,
+					before: (p.values[field.key] as DocumentJson) ?? null,
+					after: values[field.key] ?? null,
+				});
 			view = {
 				...(view as Record<string, DocumentJson>),
 				layout: {
