@@ -5,7 +5,9 @@ import { useEffect, useRef, useState } from "react";
 import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
+import { applyCodeKey } from "./apply-code-key.ts";
 import { componentScriptSettings } from "./component-script-settings.ts";
+import { useEditorAnnouncement } from "./use-editor-announcement.ts";
 
 /** Edits the real Component script Draft; the Builder's sandbox remains scriptless. */
 export function ComponentScriptPanel({
@@ -23,7 +25,7 @@ export function ComponentScriptPanel({
 	const [draft, setDraft] = useState<ComponentScriptVersion | null>(null);
 	const [version, setVersion] = useState<string | null>(null);
 	const [saved, setSaved] = useState("");
-	const [message, setMessage] = useState("");
+	const [message, setMessage] = useEditorAnnouncement();
 	const [conflict, setConflict] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
 	const saving = useRef(false);
@@ -69,7 +71,7 @@ export function ComponentScriptPanel({
 			current = false;
 			controls.root.remove();
 		};
-	}, [siteId, componentId, t]);
+	}, [siteId, componentId, t, setMessage]);
 	const save = async (over?: string): Promise<boolean> => {
 		const next = latest.current;
 		if (!next || saving.current) return false;
@@ -92,8 +94,8 @@ export function ComponentScriptPanel({
 			const refused = error as { code?: string; data?: { version?: string } };
 			if (refused.code === "CHANGED_MEANWHILE" && refused.data?.version) {
 				setConflict(refused.data.version);
-				setMessage("");
-			} else setMessage(t(errorMessage(error)));
+				setMessage(t("editBar.codeMode.conflictText", { name: title }), "interrupt");
+			} else setMessage(t(errorMessage(error)), "interrupt");
 			return false;
 		} finally {
 			saving.current = false;
@@ -125,7 +127,7 @@ export function ComponentScriptPanel({
 		};
 	}, [departure]);
 	return (
-		<section aria-label="JS" className="flex min-h-0 flex-col gap-2 overflow-auto border-s p-3">
+		<section data-editor-region="js" aria-label="JS" className="flex min-h-0 flex-col gap-2 overflow-auto border-s p-3">
 			<div className="flex items-center justify-between gap-2">
 				<h2 className="text-sm font-semibold">JS</h2>
 				<fieldset aria-label={t("editBar.codeMode.scriptSource")}>
@@ -139,7 +141,7 @@ export function ComponentScriptPanel({
 			</div>
 			<div ref={settingsHost} />
 			{conflict !== null ? (
-				<div role="alert" className="grid gap-2 text-sm">
+				<div aria-live="off" className="grid gap-2 text-sm">
 					<p>{t("editBar.codeMode.conflictText", { name: title })}</p>
 					<div className="flex flex-wrap gap-2">
 						<Button size="sm" variant="outline" disabled={busy} onClick={() => void reload()}>
@@ -152,6 +154,8 @@ export function ComponentScriptPanel({
 				</div>
 			) : null}
 			<Textarea
+				data-editor-default-focus=""
+				data-editor-code=""
 				aria-label={t("editBar.codeMode.jsOf", { name: title })}
 				value={draft?.code ?? ""}
 				readOnly={!draft}
@@ -165,6 +169,15 @@ export function ComponentScriptPanel({
 					}
 				}}
 				onKeyDown={(event) => {
+					if (
+						applyCodeKey(event, (text) => {
+							if (!latest.current) return;
+							latest.current = { ...latest.current, code: text };
+							setDraft(latest.current);
+						})
+					)
+						return;
+
 					if ((event.metaKey || event.ctrlKey) && event.key === "s") {
 						event.preventDefault();
 						event.stopPropagation();
@@ -173,7 +186,7 @@ export function ComponentScriptPanel({
 				}}
 			/>
 			<p className="text-muted-foreground text-xs">{t("builder.scriptPreview")}</p>
-			<p role="status" className="text-sm">
+			<p role="status" aria-live="off" className="text-sm">
 				{message}
 			</p>
 		</section>

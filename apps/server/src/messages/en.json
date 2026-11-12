@@ -1859,6 +1859,8 @@
 			"openBuilder": "Open in builder",
 			"archiveTemplate": "{name} · Archive template",
 			"searchTemplate": "Search template",
+			"skipToLayers": "Skip to Layers",
+			"editorNavigation": "Editor navigation",
 			"layers": "Layers",
 			"inspector": "Settings",
 			"tooNarrow": "Code mode needs a window at least 1024px wide",
@@ -4291,7 +4293,7 @@
 			"heading": "Layers",
 			"actions": "Selected layer",
 			"none": "Nothing here yet. Insert an element to start.",
-			"keys": "Arrows move through layers. Alt with the arrows moves the selected one (into the layer before, out of its parent). Space picks it up and puts it down; Escape puts it back. Ctrl X, C, V, D: cut, copy, paste, duplicate. Delete removes, F2 renames.",
+			"keys": "Arrows move through layers. Alt with the arrows moves the selected one (into the layer before, out of its parent). Space picks it up and puts it down; Escape puts it back. Ctrl X, C, V, D: cut, copy, paste, duplicate. Delete removes, F2 renames. Type letters to find a layer; * opens this level; Alt+Enter toggles the whole branch. F6 moves between editor regions.",
 			"action": {
 				"moveUp": "Move up",
 				"moveDown": "Move down",
@@ -4328,7 +4330,11 @@
 			"pageTemplate": "Page template · Main",
 			"componentSource": "Component · {name}",
 			"hidePlacement": "Hide placement",
-			"showPlacement": "Show placement"
+			"showPlacement": "Show placement",
+			"placementOf": "Placement of {name}",
+			"hiddenPlacement": "hidden placement",
+			"repeats": "repeats {count} times",
+			"from": "from {source}"
 		},
 		"moves": {
 			"moved": "Moved {name}: {where}.",
@@ -4830,7 +4836,14 @@
 				"openClose": "Open or close a layer, or go to its parent",
 				"toggle": "Open or close a layer",
 				"pick": "Pick a layer up, or put it down",
-				"putBack": "Put a picked-up layer back"
+				"putBack": "Put a picked-up layer back",
+				"typeahead": "Find a layer by typing its name",
+				"openLevel": "Open every branch at this level",
+				"toggleBranch": "Toggle the whole branch",
+				"regions": "Move between editor regions",
+				"indent": "Indent the selected lines",
+				"outdent": "Outdent the selected lines",
+				"layerMenu": "Open the layer's menu (Make Component, where a Placement is placed)"
 			},
 			"keyNames": {
 				"command": "Command",
@@ -4847,7 +4860,11 @@
 				"forwardDelete": "Forward Delete",
 				"escape": "Escape",
 				"space": "Space",
-				"slash": "Slash"
+				"slash": "Slash",
+				"letter": "Letter",
+				"asterisk": "Asterisk",
+				"leftBracket": "Left bracket",
+				"rightBracket": "Right bracket"
 			}
 		},
 		"components": {

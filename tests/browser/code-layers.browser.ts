@@ -94,7 +94,7 @@ for (const theme of THEMES) {
 		await html.press("ArrowLeft");
 		await html.press("ArrowRight");
 		expect(await html.evaluate((area: HTMLTextAreaElement) => area.selectionStart)).toBe(1);
-		await tree.getByRole("treeitem", { name: /^header$/, selected: true }).waitFor();
+		await tree.getByRole("treeitem", { name: /^header(?: from .+)?$/, selected: true }).waitFor();
 		await tree.getByRole("treeitem", { name: /Greeting/ }).click();
 		const beforeTyping = await html.inputValue();
 		const refusals: Promise<{ path: string; status: number; code: unknown }>[] = [];
@@ -184,7 +184,7 @@ for (const theme of THEMES) {
 		expect(await page.locator(".language-markup .insert-line").textContent()).toContain("</p>");
 		await page.getByRole("button", { name: "Paragraph", exact: true }).press("Enter");
 		await page.locator("header p").filter({ hasText: "Paragraph" }).waitFor();
-		expect(await tree.getByRole("treeitem", { name: /^p$/ }).getAttribute("aria-selected")).toBe("true");
+		expect(await tree.getByRole("treeitem", { name: /^p(?: from .+)?$/ }).getAttribute("aria-selected")).toBe("true");
 		await tree.getByRole("treeitem", { name: /Greeting/ }).click();
 		await page.getByRole("button", { name: "Give this element a Class", exact: true }).click();
 		const addClass = page.getByRole("combobox", { name: "Class name" });
@@ -527,13 +527,13 @@ test("Loops show their rendered count and use the shared keyboard actions", asyn
 	await page.waitForURL((url) => url.hostname.startsWith("loop-layers"));
 	await page.getByRole("button", { name: "Code", exact: true }).click();
 	const tree = page.getByRole("tree", { name: "Layers" });
-	await tree.getByRole("treeitem", { name: /Loop hours.*×2/ }).waitFor();
+	await tree.getByRole("treeitem", { name: /Loop hours.*repeats 2 times/ }).waitFor();
 	await tree.getByText("Page layout · Opening hours", { exact: true }).waitFor();
-	await tree.getByRole("treeitem", { name: /Loop hours.*×2/ }).click();
+	await tree.getByRole("treeitem", { name: /Loop hours.*repeats 2 times/ }).click();
 	await page.getByRole("button", { name: "Paragraph", exact: true }).focus();
 	await page.locator(".language-markup .insert-line").waitFor();
 	await page.locator('[data-insert-preview="inside"]').waitFor();
-	await tree.getByRole("treeitem", { name: /^p$/ }).click();
+	await tree.getByRole("treeitem", { name: /^p(?: from .+)?$/ }).click();
 	await page.keyboard.press("F2");
 	const rename = page.getByRole("textbox", { name: "Layer label of p" });
 	await rename.fill("Day name");
@@ -642,7 +642,7 @@ test("the built-in Page template becomes a shared Draft on its first insertion",
 	await page.getByRole("button", { name: "Code", exact: true }).click();
 	const tree = page.getByRole("tree", { name: "Layers" });
 	await tree.getByText("Page template · Main", { exact: true }).waitFor();
-	await tree.getByRole("treeitem", { name: /^main$/ }).click();
+	await tree.getByRole("treeitem", { name: /^main(?: from .+)?$/ }).click();
 	await page.getByRole("button", { name: "Paragraph", exact: true }).click();
 	await page.locator("main p", { hasText: "Paragraph" }).waitFor();
 	expect((await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft).toContain("Paragraph");

@@ -27,8 +27,9 @@ import {
 import { type DragEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { useAfterRender } from "../after-render.ts";
 import { useT } from "../i18n.tsx";
+import { editorAccessibility } from "./editor-accessibility.ts";
 import { type Catalogue, layerName, listName, type Selection } from "./model.ts";
-import { ariaKeys, type ShortcutId, withKeys } from "./shortcuts.ts";
+import { ariaKeys, matches, type ShortcutId, withKeys } from "./shortcuts.ts";
 import {
 	canHoldChildren,
 	childLists,
@@ -65,16 +66,19 @@ export function layerRows(tree: ElementTree, collapsed: ReadonlySet<string>): La
 					visit(list, [...path, 0], depth + 1);
 					return;
 				}
+				const listKey = `${key}/${at}`;
+				const expandable = list.some((child) => !isFormatting(child));
+				const expanded = expandable && !collapsed.has(listKey);
 				rows.push({
 					kind: "list",
-					key: `${key}/${at}`,
+					key: listKey,
 					list: { owner: path, list: at },
 					owner: node,
 					depth: depth + 1,
-					expandable: false,
-					expanded: false,
+					expandable,
+					expanded,
 				});
-				visit(list, [...path, at], depth + 2);
+				if (expanded) visit(list, [...path, at], depth + 2);
 			});
 		});
 	};
@@ -123,6 +127,15 @@ function forestRows(sources: readonly LayerSource[], collapsed: ReadonlySet<stri
 /** What remembers whether a row is open: an element's or Placement's id, else where it is. */
 export function rowKey(node: TreeNode, path: NodePath): string {
 	return node.type === "element" || node.type === "component" ? `#${node.id}` : pathKey(path);
+}
+
+function ancestorsBefore(rows: readonly LayerRow[], at: number): LayerRow[] {
+	const ancestors: LayerRow[] = [];
+	for (const row of rows.slice(0, Math.max(0, at))) {
+		ancestors.length = row.depth - 1;
+		ancestors.push(row);
+	}
+	return ancestors;
 }
 
 /** The moves and changes the Layers panel offers, on the selected layer. */
@@ -195,7 +208,7 @@ export function LayersPanel({
 	onMakeComponent?(): void;
 	/** A Placement's "on N pages" badge: Go to, listing that Component's Placements (#134). */
 	onPlacements?(componentId: string): void;
-	/** Changes when the selected row should take focus (after a click on the canvas). */
+	/** Changes only when an action or cross-canvas navigation explicitly requests tree focus. */
 	focusRequest: number;
 	/** Changes when the selected layer should start renaming (the Command menu's Rename). */
 	renameRequest?: number;
@@ -225,9 +238,12 @@ export function LayersPanel({
 	const t = useT();
 	const rows = forest ? forestRows(forest, collapsed) : layerRows(tree, collapsed);
 	const list = useRef<HTMLDivElement>(null);
+	const insertButton = useRef<HTMLButtonElement>(null);
+	const allRows = forest ? forestRows(forest, new Set()) : layerRows(tree, new Set());
 	const afterRender = useAfterRender();
 	const [renaming, setRenaming] = useState<string | null>(null);
-	const handledRequest = useRef(focusRequest);
+	const handledRequest = useRef(0);
+	const typed = useRef({ text: "", at: 0 });
 	const handledRename = useRef(renameRequest);
 	const [dragging, setDragging] = useState<NodePath | null>(null);
 	/** The last pointer pressed on a row: a finger never starts a drag (#126: Move up and Move down instead). */
@@ -237,13 +253,13 @@ export function LayersPanel({
 	const [context, setContext] = useState<{ x: number; y: number; key: string } | null>(null);
 	const selectedKey =
 		selection?.kind === "node"
-			? rows.find(
+			? allRows.find(
 					(row) =>
 						row.kind === "node" &&
 						(!activeSource || row.source === activeSource) &&
 						pathKey(row.path) === pathKey(selection.path),
 				)?.key
-			: rows.find(
+			: allRows.find(
 					(row) =>
 						row.kind === "list" &&
 						(!activeSource || row.source === activeSource) &&
@@ -251,21 +267,31 @@ export function LayersPanel({
 						pathKey(row.list.owner ?? []) === pathKey(selection.list.owner ?? []) &&
 						row.list.list === selection.list.list,
 				)?.key;
-	const focusKey = selectedKey ?? rows[0]?.key;
 	const selectedRow = rows.find((row) => row.key === selectedKey);
+	const selectedAt = allRows.findIndex((row) => row.key === selectedKey);
+	const ancestors = ancestorsBefore(allRows, selectedAt);
+	// A caret or peer can select inside a closed branch without revealing it or taking focus.
+	const focusKey =
+		selectedRow?.key ?? ancestors.findLast((parent) => rows.some((row) => row.key === parent.key))?.key ?? rows[0]?.key;
 	const nodeSelected = selectedRow?.kind === "node";
 
-	// The focused row follows the selection while focus is in the panel, and when something else
-	// (a click on the canvas) asks for it, so the keyboard carries on from there.
+	// Only an explicit action requests focus. Peer, caret and history selection changes do not.
 	useEffect(() => {
-		const element = list.current;
-		const asked = focusRequest !== handledRequest.current;
+		if (focusRequest === handledRequest.current || renaming) return;
+		// A nested source can finish loading after its selection; never focus the forest's first row meanwhile.
+		if (selection && !selectedKey) return;
+		const closed = ancestorsBefore(allRows, selectedAt).filter(
+			(row) => row.depth < (allRows[selectedAt]?.depth ?? 0) && collapsed.has(row.key),
+		);
+		if (closed.length) {
+			for (const row of closed) onToggle(row.key, true);
+			return;
+		}
+		const row = list.current?.querySelector<HTMLElement>(`[data-row-key="${CSS.escape(focusKey ?? "")}"]`);
 		handledRequest.current = focusRequest;
-		const active = (element?.getRootNode() as Document | ShadowRoot | undefined)?.activeElement;
-		if (!element || renaming || (!asked && !element.contains(active ?? null))) return;
-		const row = element.querySelector<HTMLElement>(`[data-row-key="${CSS.escape(focusKey ?? "")}"]`);
-		if (row && row !== active) row.focus();
-	}, [focusKey, renaming, focusRequest]);
+		const target = row ?? insertButton.current;
+		if (target) editorAccessibility(target.ownerDocument).focusSelectedRow();
+	}, [allRows, selectedAt, selectedKey, selection, focusKey, collapsed, onToggle, renaming, focusRequest]);
 
 	// The Command menu's Rename starts renaming the selected element's row.
 	useEffect(() => {
@@ -274,11 +300,17 @@ export function LayersPanel({
 		if (selectedRow?.kind === "node" && selectedRow.node.type === "element") setRenaming(selectedRow.key);
 	}, [renameRequest, selectedRow]);
 
-	const select = (row: LayerRow) => {
+	const select = (row: LayerRow, focus = true) => {
 		const selection: Selection =
 			row.kind === "node" ? { kind: "node", path: row.path } : { kind: "list", list: row.list };
 		if (row.source && row.source !== activeSource && onSourceSelect) onSourceSelect(row.source, selection);
 		else onSelect(selection);
+		if (focus)
+			afterRender(() => {
+				const root = list.current?.getRootNode() as Document | ShadowRoot | undefined;
+				if (list.current?.contains(root?.activeElement ?? null))
+					list.current.querySelector<HTMLElement>(`[data-row-key="${CSS.escape(row.key)}"]`)?.focus();
+			});
 	};
 
 	/** Opens the right-click menu on a layer, selecting it first: its actions are the selected layer's. */
@@ -298,7 +330,7 @@ export function LayersPanel({
 			event.preventDefault();
 			event.stopPropagation();
 		};
-		if ((event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) && row.kind === "node") {
+		if (matches(event, "tree.layerMenu") && row.kind === "node") {
 			handled();
 			const box = (event.target as HTMLElement).getBoundingClientRect();
 			openContext(row, box.left + 24, box.bottom);
@@ -325,6 +357,17 @@ export function LayersPanel({
 			return;
 		}
 		if (event.altKey && !mod) {
+			if (matches(event.nativeEvent, "tree.toggleBranch") && row.expandable) {
+				handled();
+				const all = forest ? forestRows(forest, new Set()) : layerRows(tree, new Set());
+				const start = all.findIndex((each) => each.key === row.key);
+				for (let at = start; at < all.length; at++) {
+					const each = all[at];
+					if (!each || (at > start && each.depth <= row.depth)) break;
+					if (each.expandable) onToggle(each.key, !row.expanded);
+				}
+				return;
+			}
 			const move = { ArrowUp: "moveUp", ArrowDown: "moveDown", ArrowRight: "moveIn", ArrowLeft: "moveOut" }[
 				event.key
 			] as LayerAction | undefined;
@@ -346,6 +389,32 @@ export function LayersPanel({
 			if (action) {
 				handled();
 				onAction(action);
+			}
+			return;
+		}
+		if (matches(event.nativeEvent, "tree.openLevel")) {
+			handled();
+			for (const each of rows) if (each.depth === row.depth && each.expandable) onToggle(each.key, true);
+			return;
+		}
+		if (matches(event.nativeEvent, "tree.typeahead")) {
+			handled();
+			const now = Date.now();
+			const letter = event.key.toLocaleLowerCase();
+			const previous = now - typed.current.at < 700 ? typed.current.text : "";
+			const text = previous === letter ? letter : previous + letter;
+			typed.current = { text, at: now };
+			for (let step = 1; step <= rows.length; step++) {
+				const each = rows[(index + step) % rows.length];
+				if (!each) continue;
+				const name =
+					each.kind === "node"
+						? layerName(t, each.node, each.catalogue ?? catalogue).name
+						: listName(t, each.owner, each.list.list);
+				if (name.toLocaleLowerCase().startsWith(text)) {
+					select(each);
+					break;
+				}
 			}
 			return;
 		}
@@ -435,6 +504,23 @@ export function LayersPanel({
 		};
 	};
 
+	// The DOM is flat; explicitly describe logical siblings, never dividers or descendants.
+	const parents: string[] = [];
+	const groups = new Map<string, LayerRow[]>();
+	const positions = new Map<string, { position: number; size: number }>();
+	for (const row of rows) {
+		parents.length = row.depth - 1;
+		const parent = `${row.source ?? ""}:${parents.at(-1) ?? "root"}`;
+		const siblings = groups.get(parent) ?? [];
+		siblings.push(row);
+		groups.set(parent, siblings);
+		parents[row.depth - 1] = row.key;
+	}
+	for (const siblings of groups.values())
+		siblings.forEach((row, index) => {
+			positions.set(row.key, { position: index + 1, size: siblings.length });
+		});
+
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
 			<div className="flex items-center justify-between gap-2 border-b px-3 py-2">
@@ -442,6 +528,7 @@ export function LayersPanel({
 					{t("builder.layers.heading")}
 				</h2>
 				<Button
+					ref={insertButton}
 					type="button"
 					size="sm"
 					variant="outline"
@@ -496,6 +583,7 @@ export function LayersPanel({
 					<div
 						ref={list}
 						role="tree"
+						data-selection-hidden={selection && !selectedRow ? "" : undefined}
 						aria-labelledby="layers-heading"
 						aria-describedby="layers-keys"
 						onKeyDown={onKeyDown}
@@ -514,6 +602,14 @@ export function LayersPanel({
 								row.kind === "node"
 									? layerName(t, row.node, row.catalogue ?? catalogue)
 									: { name: listName(t, row.owner, row.list.list), detail: null, kind: "list" };
+							const repetitions =
+								row.kind === "node" && row.node.type === "loop"
+									? (row.count ?? counts?.[`b:${pathKey(row.path)}`])
+									: undefined;
+							const detail =
+								row.kind === "node" && row.node.type === "component"
+									? t("builder.layers.placementOf", { name: named.name })
+									: named.detail;
 							const fixed = row.kind === "node" && isFixedText(row.node);
 							const drop = over?.key === row.key ? over.position : undefined;
 							return (
@@ -526,6 +622,21 @@ export function LayersPanel({
 									<div
 										role="treeitem"
 										aria-level={row.depth}
+										aria-posinset={positions.get(row.key)?.position}
+										aria-setsize={positions.get(row.key)?.size}
+										aria-label={[
+											named.name,
+											repetitions !== undefined ? t("builder.layers.repeats", { count: repetitions }) : null,
+											row.pages && row.pages > 1 ? t("builder.layers.onPages", { count: row.pages }) : null,
+											detail,
+											fixed ? t("builder.fixedText.badge") : null,
+											row.kind === "node" && row.node.type === "component" && row.node.hidden
+												? t("builder.layers.hiddenPlacement")
+												: null,
+											row.divider ? t("builder.layers.from", { source: row.divider.replaceAll(" · ", " ") }) : null,
+										]
+											.filter(Boolean)
+											.join(" ")}
 										aria-selected={selected}
 										aria-expanded={row.expandable ? row.expanded : undefined}
 										data-grabbed={selected && grabbed ? true : undefined}
@@ -570,7 +681,7 @@ export function LayersPanel({
 										// The tree hears the keys for every row (one tab stop, arrow keys).
 										onKeyDown={() => {}}
 										onFocus={(event) => {
-											if (event.target === event.currentTarget && !selected) select(row);
+											if (event.target === event.currentTarget && !selected) select(row, false);
 										}}
 										className={`${INDENT[Math.min(row.depth, INDENT.length - 1)]} focus-visible:ring-ring/50 aria-selected:bg-accent aria-selected:text-accent-foreground hover:bg-muted data-[drop=after]:border-b-primary data-[drop=before]:border-t-primary data-[drop=inside]:ring-primary data-[grabbed=true]:ring-primary flex min-w-0 cursor-default items-center gap-1 rounded-md border-y-2 border-transparent py-1 pe-2 text-sm outline-none focus-visible:ring-3 data-[drop=inside]:ring-2 data-[grabbed=true]:ring-2`}
 									>
@@ -621,11 +732,7 @@ export function LayersPanel({
 														<BracesIcon aria-hidden="true" />
 													) : null}
 													{named.name}
-													{row.kind === "node" &&
-													row.node.type === "loop" &&
-													(row.count ?? counts?.[`b:${pathKey(row.path)}`]) !== undefined
-														? ` ×${row.count ?? counts?.[`b:${pathKey(row.path)}`]}`
-														: ""}
+													{repetitions !== undefined ? ` ${t("builder.layers.repeats", { count: repetitions })}` : ""}
 												</span>
 												{row.kind === "node" && row.node.type === "component" && onHidden ? (
 													<button
@@ -659,17 +766,16 @@ export function LayersPanel({
 															{t("builder.layers.onPages", { count: row.pages })}
 														</button>
 													) : (
-														<span className="text-xs">{t("builder.layers.onPages", { count: row.pages })}</span>
+														<span className="text-xs"> {t("builder.layers.onPages", { count: row.pages })}</span>
 													)
 												) : null}
-												{named.detail ? (
-													<span className="text-muted-foreground truncate text-xs">{named.detail}</span>
-												) : null}
+												{detail ? <span className="text-muted-foreground truncate text-xs"> {detail}</span> : null}
 												{fixed ? (
 													<Badge
 														variant="outline"
 														className="ms-auto shrink-0 border-amber-600 text-amber-800 dark:border-amber-400 dark:text-amber-200"
 													>
+														{" "}
 														{t("builder.fixedText.badge")}
 													</Badge>
 												) : null}

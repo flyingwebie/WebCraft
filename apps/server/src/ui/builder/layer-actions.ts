@@ -24,6 +24,7 @@ type T = ReturnType<typeof useT>;
 export type LayerClipboard = { nodes: TreeNode[]; styles: Record<string, string> };
 type ActionResult = {
 	message: string;
+	refused?: boolean;
 	clipboard?: LayerClipboard;
 	change?: { doc: BuilderDoc; selection: Selection | null };
 };
@@ -53,7 +54,7 @@ export function runLayerAction(
 ): ActionResult | null {
 	const where = (tree: ElementTree, path: NodePath) => layerLocation(t, tree, path, catalogue);
 	if (action === "paste") {
-		if (!clipboard || !selection) return { message: t("builder.moves.nothingToPaste") };
+		if (!clipboard || !selection) return { refused: true, message: t("builder.moves.nothingToPaste") };
 		const nodes = withNewIds(doc.tree, clipboard.nodes);
 		const made = insertAt(doc.tree, insertionPlace(doc.tree, selection, "after"), nodes);
 		const node = nodeAt(made.tree, made.path);
@@ -83,7 +84,8 @@ export function runLayerAction(
 		case "moveIn":
 		case "moveOut": {
 			const result = { moveUp, moveDown, moveIn: moveIntoPrevious, moveOut }[action](doc.tree, path);
-			if ("refused" in result) return { message: t(`builder.moves.refused.${result.refused as "first"}`, { name }) };
+			if ("refused" in result)
+				return { refused: true, message: t(`builder.moves.refused.${result.refused as "first"}`, { name }) };
 			return {
 				message: t("builder.moves.moved", { name, where: where(result.tree, result.path) }),
 				change: { doc: { ...doc, tree: result.tree }, selection: { kind: "node", path: result.path } },
@@ -96,12 +98,16 @@ export function runLayerAction(
 			const tree = removeAt(doc.tree, path);
 			const place = placeOf(path);
 			const next = listAt(tree, place).findIndex((each, index) => index >= place.index && !isFormatting(each));
+			const previous = listAt(tree, place).findLastIndex((each, index) => index < place.index && !isFormatting(each));
+			const remaining = next >= 0 ? next : previous;
 			const selection: Selection | null =
-				next >= 0
-					? { kind: "node", path: [...path.slice(0, -1), next] }
-					: place.owner
-						? { kind: "node", path: place.owner }
-						: null;
+				remaining >= 0
+					? { kind: "node", path: [...path.slice(0, -1), remaining] }
+					: place.owner && place.list > 0
+						? { kind: "list", list: { owner: place.owner, list: place.list } }
+						: place.owner
+							? { kind: "node", path: place.owner }
+							: null;
 			const styles = { ...doc.styles };
 			if (node.type === "element") delete styles[node.id];
 			return {
@@ -122,7 +128,7 @@ export function runLayerAction(
 			};
 		}
 		case "rename":
-			return { message: t("builder.layers.renameElementsOnly") };
+			return { refused: true, message: t("builder.layers.renameElementsOnly") };
 	}
 }
 

@@ -264,10 +264,9 @@ describe("Code mode at each width", () => {
 		}
 	}
 
-	test("F6 opens the Layers drawer, then the Inspector, then closes them, moving focus with it", async () => {
+	test("F6 opens drawers in the editor region order and closes them on entering HTML", async () => {
 		const page = await codeModePage("light", 1100);
-		const html = page.getByRole("textbox", { name: "HTML of Blog posts · Entry template" });
-		await html.focus();
+		await page.getByRole("button", { name: "Code", exact: true }).focus();
 
 		await page.keyboard.press("F6");
 		await codeLayersAside(page).getByRole("tree", { name: "Layers" }).waitFor();
@@ -531,7 +530,7 @@ describe("the Builder at each width", () => {
 		}
 	}
 
-	test("F6 opens the Layers drawer, then the Inspector, then closes them, moving focus with it", async () => {
+	test("F6 opens drawers in the editor region order and closes them on entering HTML", async () => {
 		const page = await builderPage("light", 1100);
 		await page.getByRole("button", { name: "Dark preview" }).focus();
 
@@ -546,7 +545,11 @@ describe("the Builder at each width", () => {
 
 		await page.keyboard.press("F6");
 		await builderInspector(page).waitFor({ state: "hidden" });
-		expect((await focused(page)).name).toBe("Dark preview");
+		expect(
+			await page
+				.getByRole("textbox", { name: "Template markup", exact: true })
+				.evaluate((area) => area === document.activeElement),
+		).toBe(true);
 
 		await page.keyboard.press("Shift+F6");
 		await builderInspector(page).waitFor();

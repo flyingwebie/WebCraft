@@ -164,11 +164,9 @@ async function admin() {
 	return (await install.install.superadmin()).api;
 }
 
-/** The text of the bar's live region (what screen readers were just told). */
+/** The text of the shared live region (what screen readers were just told). */
 async function announced(page: Page): Promise<string> {
-	return page.evaluate(
-		() => document.querySelector("webcraft-edit-bar")?.shadowRoot?.querySelector('p[role="status"]')?.textContent ?? "",
-	);
+	return (await page.locator('[data-editor-messages] [role="status"]').textContent())?.trim() ?? "";
 }
 
 for (const theme of THEMES) {
@@ -312,7 +310,7 @@ describe("a Loop's items in place", () => {
 		await page.locator("li").first().focus();
 		await page.waitForFunction(
 			() =>
-				document.querySelector("webcraft-edit-bar")?.shadowRoot?.querySelector('p[role="status"]')?.textContent ===
+				document.querySelector('[data-editor-messages] [role="status"]')?.textContent?.trim() ===
 				"our-bakes · item 1 of 3. Alt+F10 for its tools.",
 		);
 
@@ -330,7 +328,7 @@ describe("a Loop's items in place", () => {
 		]);
 		await page.waitForFunction(
 			() =>
-				document.querySelector("webcraft-edit-bar")?.shadowRoot?.querySelector('p[role="status"]')?.textContent ===
+				document.querySelector('[data-editor-messages] [role="status"]')?.textContent?.trim() ===
 				"Moved to place 2 of 3",
 		);
 		expect(await page.locator("li h3").allTextContents()).toEqual(["Cardamom bun", "Country sourdough", "Seeded rye"]);

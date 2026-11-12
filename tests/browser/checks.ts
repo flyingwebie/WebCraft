@@ -111,6 +111,10 @@ async function expectSkipLinkWorks(page: Page, where: string): Promise<void> {
 	});
 	await page.keyboard.press("Enter");
 	const inMain = await page.evaluate((id) => {
+		if (id === "wc-editor-layers") {
+			const root = document.querySelector("webcraft-code-mode")?.shadowRoot;
+			return !!root?.querySelector('[role="tree"]')?.contains(root.activeElement);
+		}
 		const main = document.getElementById(id);
 		return Boolean(
 			main?.tagName === "MAIN" && (document.activeElement === main || main.contains(document.activeElement)),

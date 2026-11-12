@@ -87,6 +87,8 @@ export function CodeArea({
 					</code>
 				</pre>
 				<textarea
+					data-editor-code=""
+					data-editor-default-focus=""
 					{...textarea}
 					ref={ref}
 					value={value}

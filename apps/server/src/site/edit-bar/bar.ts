@@ -1,3 +1,4 @@
+import type { editorAccessibility } from "../../ui/builder/editor-accessibility.ts";
 import type {
 	BarKit,
 	BodyTools,
@@ -23,6 +24,7 @@ export type EditingBarConfig = { styles: string; drafts: string; body: string; c
  * image popover, Loop item tools and Page details, made with the bar's kit once it starts.
  */
 export type EditingBarParts = {
+	accessibility: typeof editorAccessibility;
 	images(kit: BarKit): ImageTools;
 	loops(kit: BarKit): LoopTools;
 	details(kit: BarKit): DetailsPanel;
@@ -275,7 +277,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	/** Turns Code mode on, unless the window is too narrow for it (then a notice says so). */
 	let startCode: (from: HTMLElement) => void = () => {};
 	let bar: HTMLElement;
-	let live: HTMLElement;
+
 	let chip: HTMLElement;
 	let savedNote: HTMLElement;
 	let pageButton: HTMLButtonElement;
@@ -469,11 +471,8 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		return el("button", { type: "button", ...attributes }, ...children);
 	}
 
-	function announce(text: string): void {
-		live.textContent = "";
-		later(() => {
-			live.textContent = text;
-		}, 60);
+	function announce(text: string, priority: "polite" | "interrupt" | "silent" = "polite"): void {
+		parts.accessibility(doc).announce(text, priority);
 	}
 
 	function initials(name: string): string {
@@ -490,7 +489,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		const s = state as State;
 		host = doc.createElement("webcraft-edit-bar");
 		root = host.attachShadow({ mode: "open" });
-		live = el("p", { role: "status", class: "sr-only" });
+		parts.accessibility(doc);
 		chip = el("span", { class: "chip" });
 		savedNote = el("span", { class: "saved optional" });
 		const name = el("span", { class: "site optional" }, s.site.name);
@@ -741,7 +740,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 
 		bar = el(
 			"div",
-			{ class: "bar" },
+			{ class: "bar", ...(coding ? { "data-editor-region": "topbar" } : {}) },
 			el(
 				"div",
 				{ class: "start" },
@@ -770,14 +769,13 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			),
 		);
 		// A Site script that failed while the page loaded is shown at once; later ones as they come.
-		const notice = el("div", { class: "notice", role: "alert", hidden: "" });
+		const notice = el("div", { class: "notice", role: coding ? "region" : "alert", hidden: "" });
 		showFailures = () => renderFailures(notice);
 		const section = el(
 			"section",
 			{ class: "edit-mode", "aria-label": word("label") },
 			bar,
 			notice,
-			live,
 			presenceLayer,
 			tag,
 			problem,
@@ -839,6 +837,11 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				: first.line > 0
 					? word("scriptErrorAt", { message: first.message, line: first.line })
 					: first.message;
+		if (coding) {
+			const message = `${what} ${detail}`;
+			if (notice.getAttribute("aria-label") !== message) announce(message);
+			notice.setAttribute("aria-label", message);
+		}
 		const actions: HTMLElement[] = [];
 		if (!safe) {
 			const safeButton = button({ class: "primary small" }, icon("shield"), word("openSafeMode"));
@@ -1394,7 +1397,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 
 	function renderPublish(panel: HTMLElement): void {
 		const s = state as State;
-		const error = el("p", { class: "error", role: "alert" });
+		const error = el("p", { class: "error" });
 		const list =
 			s.changes.length === 0
 				? el("p", { class: "empty" }, word("nothingToPublish"))
@@ -1417,6 +1420,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 								else {
 									undo.disabled = false;
 									error.textContent = errorText(answer.code);
+									announce(error.textContent, "interrupt");
 								}
 							});
 							return el(
@@ -1474,6 +1478,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 					else {
 						yes.disabled = false;
 						error.textContent = errorText(answer.code);
+						announce(error.textContent, "interrupt");
 					}
 				});
 			});
@@ -1507,6 +1512,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 					publish.disabled = false;
 					publish.replaceChildren(icon("publish"), word("publishPage"));
 					error.textContent = errorText(answer.code);
+					announce(error.textContent, "interrupt");
 				}
 			});
 			actions.append(publish);
@@ -1615,6 +1621,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				submit.disabled = false;
 				submit.replaceChildren(icon("review"), word("submitForReview"));
 				error.textContent = errorText(answer.ok ? "generic" : answer.code);
+				announce(error.textContent, "interrupt");
 			});
 			actions.append(
 				el(
@@ -1635,6 +1642,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				if (settle(answer, word("withdrawnFromReview"))) return;
 				withdraw.disabled = false;
 				error.textContent = errorText(answer.ok ? "generic" : answer.code);
+				announce(error.textContent, "interrupt");
 			});
 			actions.append(withdraw);
 			return;
@@ -1911,7 +1919,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			if (!answer.ok) {
 				const reason = errorText(answer.code);
 				savedNote.textContent = word("saveFailed", { reason });
-				announce(word("saveFailed", { reason }));
+				announce(word("saveFailed", { reason }), "interrupt");
 				return;
 			}
 			const saved = answer.data as { value: unknown; problems: Problem[] };
@@ -1932,7 +1940,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			savedTimer = later(() => {
 				savedNote.textContent = word("saved");
 			}, 60_000);
-			announce(found ? `${word("saved")}. ${problemText(found)}` : word("saved"));
+			if (found) announce(problemText(found));
 			await refresh();
 		})();
 		saving.set(region, run);
@@ -1983,7 +1991,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				onRefused: (refusal) => {
 					link.refusals++;
 					savedNote.textContent = word("saveFailed", { reason: errorText(refusal.code) });
-					announce(savedNote.textContent);
+					announce(savedNote.textContent, "interrupt");
 				},
 				onPresence: (participants) => {
 					link.participants = participants;

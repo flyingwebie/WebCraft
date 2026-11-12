@@ -422,9 +422,13 @@ describe("answers arriving late or out of date", () => {
 		await api.designSystem.updateClass({ siteId, classId: lead?.id ?? "", styles: "font-size: var(--text-2xl);" });
 
 		await region.getByRole("button", { name: "Save", exact: true }).click();
-		const alert = region.getByRole("alert").filter({ hasText: "Someone else saved this CSS" });
+		const alert = page.getByRole("alert").filter({ hasText: "Someone else saved this CSS" });
 		await alert.waitFor();
-		await alert.getByRole("button", { name: "Overwrite with mine" }).click();
+		await region
+			.getByRole("tabpanel")
+			.getByText("Someone else saved this CSS after you opened it.", { exact: true })
+			.waitFor();
+		await region.getByRole("button", { name: "Overwrite with mine" }).click();
 
 		await alert.waitFor({ state: "hidden" });
 		expect((await draftClasses()).find((each) => each.name === "hero-title")?.styles).toBe(

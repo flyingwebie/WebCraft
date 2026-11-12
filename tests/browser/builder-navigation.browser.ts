@@ -148,7 +148,7 @@ for (const theme of THEMES)
 		await canvas.getByText("Newest", { exact: true }).waitFor();
 		await page.getByRole("combobox", { name: "Preview Entry" }).selectOption(first.id);
 		await canvas.getByText("First", { exact: true }).waitFor();
-		await page.getByRole("treeitem", { name: /^p$/ }).click();
+		await page.getByRole("treeitem", { name: /^p(?: from .+)?$/ }).click();
 		await page.locator("[data-selected-tag]").filter({ hasText: 'data-wc-id="note"' }).waitFor();
 		await page.waitForLoadState("networkidle");
 		await expectAccessibleScreen(page, `Builder dock (${theme})`, { exclude: ["iframe[title^='Canvas']"] });
@@ -254,7 +254,7 @@ for (const kind of ["archive", "search"] as const)
 		await page.getByRole("button", { name: "Open in builder", exact: true }).click();
 		await page.waitForURL((url) => url.pathname === builderPath);
 		await page.frameLocator("iframe[title^='Canvas']").getByText("Saved on page", { exact: true }).waitFor();
-		await page.getByRole("treeitem", { name: /^h1$/ }).click();
+		await page.getByRole("treeitem", { name: /^h1(?: from .+)?$/ }).click();
 		await page
 			.getByRole("textbox", { name: "Template markup", exact: true })
 			.fill(markup.replace("Original", "Saved in Builder"));
@@ -394,7 +394,7 @@ test("navigation flushes one-off declarations on both canvases and refuses unfin
 	page.setDefaultTimeout(10000);
 	await install.signIn(page, staff);
 	await page.goto(install.adminUrl(`/builder/${siteId}/entry-template/${postType.id}`));
-	await page.getByRole("treeitem", { name: /^p$/ }).click();
+	await page.getByRole("treeitem", { name: /^p(?: from .+)?$/ }).click();
 	await page.getByRole("tab", { name: "Style", exact: true }).click();
 	await page.getByRole("textbox", { name: "Declarations", exact: true }).fill("color: rgb(1, 2, 3)");
 	await page.getByRole("button", { name: "View on a page", exact: true }).click();
@@ -402,7 +402,7 @@ test("navigation flushes one-off declarations on both canvases and refuses unfin
 	expect(await page.locator('[data-wc-code="content#note"]').evaluate((node) => getComputedStyle(node).color)).toBe(
 		"rgb(1, 2, 3)",
 	);
-	await page.getByRole("treeitem", { name: /^p$/ }).click();
+	await page.getByRole("treeitem", { name: /^p(?: from .+)?$/ }).click();
 	await page.getByRole("tab", { name: "Style", exact: true }).click();
 	await page.getByRole("textbox", { name: "Declarations", exact: true }).fill("color: rgb(4, 5, 6)");
 	await page.getByRole("button", { name: "Open in builder", exact: true }).click();
@@ -410,7 +410,7 @@ test("navigation flushes one-off declarations on both canvases and refuses unfin
 	const canvas = page.frameLocator("iframe[title^='Canvas']");
 	await canvas.getByText("Hello", { exact: true }).waitFor();
 	expect(await canvas.locator("p").evaluate((node) => getComputedStyle(node).color)).toBe("rgb(4, 5, 6)");
-	await page.getByRole("treeitem", { name: /^p$/ }).click();
+	await page.getByRole("treeitem", { name: /^p(?: from .+)?$/ }).click();
 	await page.getByRole("tab", { name: "Style", exact: true }).click();
 	await page.getByRole("textbox", { name: "Declarations", exact: true }).fill("color:");
 	await page.getByRole("button", { name: "View on a page", exact: true }).click();

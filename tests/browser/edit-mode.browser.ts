@@ -156,7 +156,7 @@ for (const theme of THEMES) {
 }
 
 describe("editing in place", () => {
-	test("text is typed over from the keyboard and saved to the Draft; the save is announced", async () => {
+	test("text is typed over from the keyboard and autosaved to the Draft without speech", async () => {
 		const page = await editModePage("light");
 		const title = page.locator('h1[data-wc-field="title"]');
 
@@ -165,11 +165,8 @@ describe("editing in place", () => {
 		await page.keyboard.type(" and rolls");
 		await page.keyboard.press("Enter");
 
-		await page.waitForFunction(
-			() =>
-				document.querySelector("webcraft-edit-bar")?.shadowRoot?.querySelector('[role="status"]')?.textContent ===
-				"Saved to Draft",
-		);
+		await page.getByText("Saved to Draft · just now", { exact: true }).waitFor();
+		expect(await page.locator("[data-editor-messages]").textContent()).not.toContain("Saved to Draft");
 		expect(
 			await eventually(
 				async () => (await draft()).title,
