@@ -260,6 +260,36 @@ describe("Make Component", () => {
 		);
 	});
 
+	test("two values with one name become two Props, the second numbered as the Field builder numbers keys", async () => {
+		const { component: list } = await staff.api.components.create({ siteId, name: "Lines" });
+		await staff.api.components.saveMarkup({
+			siteId,
+			componentId: list.id,
+			markup: [
+				"{{@props}}",
+				"  line: text",
+				'  rows: repeater fields=[{"key":"line","label":"Line","type":"text"}]',
+				"{{/props}}",
+				"<ul>{{@loop props.rows as row}}<li><span>{{ props.line }}: {{ row.line }}</span></li>{{/loop}}</ul>",
+			].join("\n"),
+		});
+		const { component: read } = await staff.api.components.get({ siteId, componentId: list.id });
+		const loop = (read.draft.tree.nodes[0] as { children: { children: { children: unknown[] }[] }[] }).children[0];
+		const span = loop?.children[0]?.children[0];
+
+		const made = await staff.api.components.make({
+			siteId,
+			name: "LinePair",
+			source: { kind: "component", componentId: list.id },
+			path: [0, 0, 0, 0, 0, 0, 0],
+			node: span,
+		});
+
+		expect(made.component.draft.props.map((prop) => prop.key)).toEqual(["line", "line_2"]);
+		const { markup } = await staff.api.components.getMarkup({ siteId, componentId: list.id });
+		expect(withoutIds(markup.draft)).toContain('<LinePair line="{{ props.line }}" line_2="{{ row.line }}" />');
+	});
+
 	test("refused, nothing is made: a name in use, a bad name, a change meanwhile, a Body field", async () => {
 		const { postTypeId } = await entryPage("<article><div><h2>{{ title }}</h2></div></article>");
 		const node = ((await entryTemplate(postTypeId)).nodes[0] as { children: unknown[] }).children[0];
