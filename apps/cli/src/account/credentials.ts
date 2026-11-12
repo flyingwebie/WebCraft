@@ -1,5 +1,7 @@
-import { chmod, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { chmod, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+
+import { readKeptJson } from "./files.ts";
 
 /** What a device sign-in keeps: the grant's tokens. Never shown, never in the profiles file. */
 export type StoredSignIn = {
@@ -37,12 +39,8 @@ export function credentialStore(configDir: string, prefer: CredentialPlace): Cre
 	const file = join(configDir, "credentials.json");
 
 	const readFileStore = async (): Promise<Record<string, StoredSignIn>> => {
-		try {
-			const parsed: unknown = JSON.parse(await readFile(file, "utf8"));
-			return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, StoredSignIn>) : {};
-		} catch {
-			return {};
-		}
+		const parsed = await readKeptJson(file);
+		return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, StoredSignIn>) : {};
 	};
 	const writeFileStore = async (entries: Record<string, StoredSignIn>) => {
 		if (Object.keys(entries).length === 0) {

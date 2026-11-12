@@ -3,6 +3,8 @@
 // read-only and May publish), and the CLI's polling gets tokens for the public Management API.
 // `whoami` says who it acts as, `logout` revokes the grant.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 
 import { approveDevice, type CliUser, cliUser, signInCli, userCodeIn } from "../harness/cli.ts";
 import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
@@ -214,6 +216,37 @@ describe("several Installs", () => {
 			expect((await cli.run(["whoami", "--install", "client-side"])).stdout).toContain("Olive Owner");
 			await cli.run(["profiles", "use", "client-side"]);
 			expect((await cli.run(["whoami"])).stdout).toContain("Olive Owner");
+		} finally {
+			await cli.close();
+		}
+	});
+});
+
+describe("a config file that can't be read", () => {
+	// The report's "Sloppy code": a file cut short (a full disk, an editor's mistake) was taken for
+	// an empty one, and the next sign-in wrote that back, dropping every other profile and sign-in.
+	test("stops the command and is left exactly as it is, never taken for empty and written over", async () => {
+		const cli = cliUser(install, { hostname: "ruined-laptop" });
+		try {
+			const first = await signInCli(cli, install, owner.browser, { workspaceId, sites: "all" });
+			expect(first.code).toBe(0);
+			for (const name of ["config.json", "credentials.json"]) {
+				const path = join(cli.configDir, name);
+				const whole = await readFile(path, "utf8");
+				const cut = whole.slice(0, Math.floor(whole.length / 2));
+				await writeFile(path, cut);
+
+				const whoami = await cli.run(["whoami"]);
+				expect({ name, code: whoami.code }).toEqual({ name, code: 1 });
+				expect(whoami.stderr).toContain(path);
+				const login = await signInCli(cli, install, owner.browser, { workspaceId, sites: "all" }, ["--name", "second"]);
+				expect({ name, code: login.code }).toEqual({ name, code: 1 });
+				expect(login.stderr).toContain(path);
+				expect(await readFile(path, "utf8")).toBe(cut);
+
+				await writeFile(path, whole);
+				expect((await cli.run(["whoami"])).code).toBe(0);
+			}
 		} finally {
 			await cli.close();
 		}
