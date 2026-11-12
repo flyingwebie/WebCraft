@@ -1700,6 +1700,7 @@
 		},
 		"errors": {
 			"generic": "Qualcosa è andato storto. Riprova.",
+			"CHANGED_MEANWHILE": "Qualcun altro l'ha modificato nello stesso momento. Riprova.",
 			"EDIT_MODE_ENDED": "La modalità modifica è terminata. Riaprila dall'admin.",
 			"EDIT_REQUEST_REFUSED": "Questa pagina non può fare modifiche. Ricaricala e riprova.",
 			"EDIT_FIELD_INVALID": "Questo non si può cambiare qui.",

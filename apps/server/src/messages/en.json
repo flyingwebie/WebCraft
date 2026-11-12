@@ -1700,6 +1700,7 @@
 		},
 		"errors": {
 			"generic": "Something went wrong. Try again.",
+			"CHANGED_MEANWHILE": "Someone changed this at the same moment. Try again.",
 			"EDIT_MODE_ENDED": "Edit mode has ended. Open it again from the admin.",
 			"EDIT_REQUEST_REFUSED": "This page can't make changes. Reload it and try again.",
 			"EDIT_FIELD_INVALID": "This can't be changed here.",

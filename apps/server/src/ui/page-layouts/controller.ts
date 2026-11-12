@@ -3,12 +3,16 @@ import type { FieldDefinition, Json } from "@webcraft/core";
 import { type Json as DocumentJson, sameValue } from "@webcraft/core/draft-document";
 import type { BarKit } from "../../site/edit-bar/kit.ts";
 import { editorAccessibility } from "../builder/editor-accessibility.ts";
-import { readFieldValues, writeField } from "../co-editing/values.ts";
+import { readFieldValues } from "../co-editing/values.ts";
+
+import { draftLayout, propsInput } from "./props-input.ts";
 
 export type LayoutState = Awaited<ReturnType<ApiClient["pageLayouts"]["get"]>>;
 export type LayoutAction = "moveUp" | "moveDown" | "duplicate" | "delete" | "hide" | "lock";
 export type LayoutPanel = "tree" | "inspector" | "picker" | null;
 export type LayoutStep = {
+	/** Captured synchronously at the shared-document mutation, before awaiting acknowledgement. */
+	draft?: { before: DocumentJson; after: DocumentJson };
 	before: LayoutState["layout"];
 	after: LayoutState["layout"];
 	label: string;
@@ -31,6 +35,18 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 	let pending: Promise<unknown> = Promise.resolve();
 	const listeners = new Set<() => void>();
 	const finished = new Set<(step: LayoutStep) => void>();
+	type PropsInput = NonNullable<ReturnType<typeof propsInput>>;
+	const inputs = new Map<string, PropsInput>();
+	const inlineInputs = new Set<PropsInput>();
+	const inputFor = (id: string) => {
+		let input = inputs.get(id);
+		if (!input) {
+			const shared = kit.shared(`entry:${entryId}`);
+			input = shared?.ready() ? (propsInput(shared, id, state) ?? undefined) : undefined;
+			if (input) inputs.set(id, input);
+		}
+		return input;
+	};
 	const flushers = new Set<() => void>();
 	const emit = () => {
 		for (const listener of listeners) listener();
@@ -52,6 +68,8 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 		return true;
 	};
 	const values = (id: string) => {
+		const input = inputFor(id);
+		if (input) return input.values();
 		const p = state.layout.placements.find((p) => p.id === id);
 		return p ? readFieldValues(p.values as Record<string, DocumentJson>, p.props, state) : {};
 	};
@@ -126,6 +144,9 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 		const result = await kit.call("layout/get", { entryId, language: kit.state().language.code });
 		if (result.ok) {
 			state = result.data as LayoutState;
+			// A peer deletion can unmount the field without a blur event. Finish/refuse its own input
+			// before the UI unregisters the flusher; never leave an orphan capable of restoring the row.
+			for (const id of inputs.keys()) if (!state.layout.placements.some((p) => p.id === id)) flushProps(id);
 			if (selected && !selection()) selected = null;
 			emit();
 			outline();
@@ -247,17 +268,59 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 			await save(next, `${kit.word("pageLayout.add")} ${component.name}`, state.layout, { focus: true });
 		});
 	}
-	async function prop(id: string, field: FieldDefinition, value: Json) {
-		if (!canEdit()) return;
+
+	function flushProps(id: string) {
+		const input = inputs.get(id);
+		if (!input) return;
+		inputs.delete(id);
+		return finishInput(id, input);
+	}
+	function finishInput(id: string, input: PropsInput) {
+		const shared = kit.shared(`entry:${entryId}`);
+		const receipt = canEdit() ? input.commit() : null;
+		if (!receipt || !shared) {
+			input.cancel();
+			saved = false;
+			announce(kit.errorText("CHANGED_MEANWHILE"), true);
+			emit();
+			return;
+		}
+		if ("empty" in receipt || sameValue(receipt.before, receipt.after)) return;
+		// This is the own mutation, including the peer state already merged before it. Never infer it
+		// from the canonical GET after awaiting the server: that may contain later peer work.
+		const step: LayoutStep = {
+			before: draftLayout(receipt.before),
+			after: draftLayout(receipt.after),
+			draft: receipt,
+			label: `${kit.word("pageLayout.props")} ${label(id)}`,
+			selection: selected,
+			panel,
+		};
 		return enqueue(async () => {
 			finishGrab();
-			const next = structuredClone(state.layout);
-			const p = next.placements.find((p) => p.id === id);
-			if (!p?.props.some((f) => f.id === field.id && f.key === field.key && f.type === field.type)) return;
-			p.values = writeField(p.values as Record<string, DocumentJson>, field, value, state);
-			await save(next, `${kit.word("pageLayout.props")} ${label(id)}`, state.layout, { announce: false });
+			busy = true;
+			emit();
+			saved = await shared.saved();
+			busy = false;
+			if (saved) for (const listener of finished) listener(step);
+			else announce(kit.errorText("CHANGED_MEANWHILE"), true);
+			await reload();
+			await kit.refresh();
+			await refreshPage();
 		});
 	}
+	function prop(id: string, field: FieldDefinition, value: Json, defer = false) {
+		if (!canEdit()) return;
+		const input = inputFor(id);
+		if (!input?.change(field, value)) {
+			saved = false;
+			announce(kit.errorText("CHANGED_MEANWHILE"), true);
+			return;
+		}
+		emit();
+		if (!defer) return flushProps(id);
+	}
+
 	function attachInline() {
 		for (const el of kit.doc.querySelectorAll<HTMLElement>("[data-wc-placement-prop]")) {
 			const p = state.layout.placements.find((p) => p.id === el.dataset.wcPlacement);
@@ -274,9 +337,17 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 			if (el.dataset.wcPropReady) continue;
 			el.dataset.wcPropReady = "true";
 			let before = el.textContent ?? "";
+			let input: PropsInput | null = null;
 			el.addEventListener("focus", () => {
 				before = el.textContent ?? "";
 				select(p.id);
+				if (input) {
+					input.cancel();
+					inlineInputs.delete(input);
+				}
+				const shared = kit.shared(`entry:${entryId}`);
+				input = shared?.ready() ? propsInput(shared, p.id, state) : null;
+				if (input) inlineInputs.add(input);
 			});
 			el.addEventListener("paste", (event) => {
 				event.preventDefault();
@@ -295,7 +366,15 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 			});
 			el.addEventListener("blur", () => {
 				const text = (el.textContent ?? "").replace(/[\r\n]+/g, " ");
-				if (text !== before) void prop(p.id, f, text);
+				if (input) {
+					inlineInputs.delete(input);
+					if (text !== before && input.change(f, text)) void finishInput(p.id, input);
+					else input.cancel();
+					input = null;
+				} else if (text !== before) {
+					saved = false;
+					announce(kit.errorText("CHANGED_MEANWHILE"), true);
+				}
 			});
 		}
 	}
@@ -401,6 +480,7 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 		action,
 		insert,
 		prop,
+		flushProps,
 		grab,
 		openLayout(focus = true) {
 			if (!canEdit()) return;
@@ -483,6 +563,10 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 		},
 		dispose() {
 			disposed = true;
+			for (const input of inputs.values()) input.cancel();
+			inputs.clear();
+			for (const input of inlineInputs) input.cancel();
+			inlineInputs.clear();
 			stop?.();
 			kit.doc.defaultView?.removeEventListener("beforeunload", leaving);
 			kit.doc.removeEventListener("click", click);

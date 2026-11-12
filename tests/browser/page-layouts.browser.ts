@@ -96,7 +96,7 @@ for (const theme of THEMES) {
 			const inline = page.locator("main [data-wc-placement-prop]");
 			await inline.fill("Inline Cork");
 			const inlineSaved = page.waitForResponse(
-				(response) => response.url().endsWith("/layout/save") && response.status() === 200,
+				(response) => response.url().endsWith("/layout/get") && response.status() === 200,
 			);
 			await inline.press("Enter");
 			await inlineSaved;

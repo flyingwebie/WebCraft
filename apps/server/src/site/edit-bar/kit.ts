@@ -1,3 +1,4 @@
+import type { DraftClient } from "@webcraft/core/draft-document";
 /**
  * What the editing bar hands its parts (the image popover, Loop item tools, Page details): the
  * browser functions it kept before any Site script ran, its words, its requests and its shared
@@ -139,6 +140,7 @@ export type BarKit = {
  * the next batch, and others' changes as they come.
  */
 export type SharedDraft = {
+	stage: DraftClient["stage"];
 	/** Whether it has the server's document yet (nothing can be changed before). */
 	ready(): boolean;
 	draft(): unknown;

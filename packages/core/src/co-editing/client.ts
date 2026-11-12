@@ -52,7 +52,16 @@ export type DraftEvents = {
 	onEnded?(code: Extract<ServerMessage, { type: "ended" }>["code"]): void;
 };
 
+/** An unfinished input in the same CRDT: peer updates merge into its view without publishing it. */
+export type DraftStage = {
+	read(): Json;
+	change(next: Json): void;
+	commit(): { before: Json; after: Json } | null;
+	cancel(): void;
+};
+
 export type DraftClient = {
+	stage(): DraftStage | null;
 	/** Applies an own-step inverse, awaiting its actual acknowledgement (including refusal resets). */
 	reverse(from: Json, to: Json): Promise<{ ok: true; before: Json; after: Json } | { ok: false; code: string }>;
 	/** The Draft as this editor's copy holds it now. */
@@ -355,6 +364,56 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 			changeDocument(doc, value);
 			options.onChange?.(readDocument(doc), "local");
 			return true;
+		},
+		stage() {
+			if (!canEdit()) return null;
+			const original = doc;
+			const staged = copyDocument(doc);
+			let used = false;
+			let base = readDocument(doc);
+			const read = () => {
+				if (!used && doc === original) {
+					const current = readDocument(doc);
+					let rebased: Json | undefined;
+					try {
+						// Stable keyed moves recreate Yjs items. Carry the authored delta to the surviving id;
+						// a peer's unrelated values and added rows are not part of that delta.
+						rebased = reverseChange(base, readDocument(staged), current);
+					} catch {
+						// Overlapping text/scalars use the normal CRDT merge. The typed owner still refuses
+						// deleted targets and replaced declarations before committing.
+					}
+					Y.applyUpdate(staged, Y.encodeStateAsUpdate(doc, Y.encodeStateVector(staged)));
+					if (rebased !== undefined) changeDocument(staged, rebased);
+					base = current;
+				}
+				return readDocument(staged);
+			};
+			const cancel = () => {
+				if (!used) staged.destroy();
+				used = true;
+			};
+			return {
+				read,
+				// `next` is authored against the last displayed read, never a fresh snapshot after an await.
+				change(next) {
+					if (!used) changeDocument(staged, next);
+				},
+				commit() {
+					if (used || doc !== original || !canEdit()) {
+						cancel();
+						return null;
+					}
+					read();
+					const before = readDocument(doc);
+					Y.applyUpdate(doc, Y.encodeStateAsUpdate(staged, Y.encodeStateVector(doc)));
+					const after = readDocument(doc);
+					cancel();
+					options.onChange?.(after, "local");
+					return { before, after };
+				},
+				cancel,
+			};
 		},
 		prepare() {
 			if (!canEdit()) return null;

@@ -1,4 +1,4 @@
-import type { FieldDefinition, Json } from "@webcraft/core";
+import type { FieldDefinition } from "@webcraft/core";
 import { DialogContainer } from "@webcraft/ui/components/dialog.tsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -42,9 +42,16 @@ function LayoutEditor({
 	useEffect(() => controller.subscribe(() => render((n) => n + 1)), [controller]);
 	const { data, selected, panel, focusRequest, grabbed, busy, editing } = controller.state();
 	const dialog = useRef<HTMLDialogElement>(null);
+	const [modalOwner, setModalOwner] = useState<HTMLDialogElement | null>(null);
+	const ownDialog = useCallback((node: HTMLDialogElement | null) => {
+		dialog.current = node;
+		setModalOwner(node);
+	}, []);
 	const root = useRef<HTMLDivElement>(null);
 	const previous = useRef(panel);
 	const handledFocus = useRef(0);
+	const treeFocusRequest = useRef(0);
+	if (panel === "tree") treeFocusRequest.current = focusRequest;
 	const phone = kit.phone();
 	useEffect(() => {
 		if (!editing || phone) return;
@@ -53,7 +60,21 @@ function LayoutEditor({
 			reveal(name, focus) {
 				if (name === "tree") controller.openLayout(false);
 				if (name === "inspector") controller.openProps(false);
-				requestAnimationFrame(focus);
+				const requested = controller.state();
+				requestAnimationFrame(() => {
+					const current = controller.state();
+					if (
+						current.panel !== name ||
+						current.selected !== requested.selected ||
+						current.focusRequest !== requested.focusRequest
+					)
+						return;
+					let active = kit.doc.activeElement;
+					while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+					// The person's input may already have taken focus while the region was opening.
+					if (root.current?.querySelector(`[data-editor-region="${name}"]`)?.contains(active)) return;
+					focus();
+				});
 			},
 		});
 	}, [controller, kit, editing, phone]);
@@ -64,8 +85,8 @@ function LayoutEditor({
 	}, [panel, phone, launcher]);
 	useEffect(() => {
 		if (!panel || !focusRequest || focusRequest === handledFocus.current) return;
-		handledFocus.current = focusRequest;
-		requestAnimationFrame(() => {
+		const frame = requestAnimationFrame(() => {
+			handledFocus.current = focusRequest;
 			if (phone) {
 				const target = root.current?.querySelector<HTMLElement>(
 					panel === "tree"
@@ -78,6 +99,7 @@ function LayoutEditor({
 			} else if (panel !== "picker") editorAccessibility(kit.doc).focusRegion(panel);
 			else root.current?.querySelector<HTMLElement>("[data-picker] button")?.focus();
 		});
+		return () => cancelAnimationFrame(frame);
 	}, [focusRequest, panel, phone, kit]);
 	const p = data.layout.placements.find((p) => p.id === selected);
 	const nodes = [
@@ -144,7 +166,7 @@ function LayoutEditor({
 					collapsed={new Set()}
 					grabbed={grabbed}
 					canPaste={false}
-					focusRequest={focusRequest}
+					focusRequest={treeFocusRequest.current}
 					placementRows={{
 						label,
 						locked: (row) => contextual(idOf(row)) || !!data.layout.placements.find((p) => p.id === idOf(row))?.locked,
@@ -213,7 +235,7 @@ function LayoutEditor({
 	if (phone)
 		return panel ? (
 			<dialog
-				ref={dialog}
+				ref={ownDialog}
 				aria-labelledby="page-layout-title"
 				className={`bg-background text-foreground fixed m-0 w-full max-w-none overflow-auto p-0 ${panel === "tree" ? "inset-0 h-dvh max-h-none" : "inset-x-0 top-auto bottom-0 max-h-[85dvh] rounded-t-xl"}`}
 				onCancel={(event) => {
@@ -221,7 +243,7 @@ function LayoutEditor({
 					controller.close();
 				}}
 			>
-				{content}
+				<DialogContainer value={modalOwner ?? undefined}>{content}</DialogContainer>
 			</dialog>
 		) : (
 			floating
@@ -252,22 +274,13 @@ function Props({
 	kit: BarKit;
 }) {
 	const { data } = controller.state();
-	const [values, setValues] = useState(() => controller.values(id));
+
+	const values = controller.values(id);
 	const [media, setMedia] = useState<Record<string, MediaItem>>({});
-	const pending = useRef(new Map<string, { field: FieldDefinition; value: Json }>());
 	const flush = useCallback(() => {
-		const changes = [...pending.current.values()];
-		pending.current.clear();
-		for (const change of changes) void controller.prop(id, change.field, change.value);
+		void controller.flushProps(id);
 	}, [controller, id]);
 	useEffect(() => controller.flushWith(flush), [controller, flush]);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: accepted and peer versions invalidate the controller's value view.
-	useEffect(() => {
-		setValues((before) => ({
-			...controller.values(id),
-			...Object.fromEntries([...pending.current].map(([key]) => [key, before[key] ?? null])),
-		}));
-	}, [controller, id, data.version]);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: media references can change with the accepted layout version.
 	useEffect(() => {
 		let active = true;
@@ -302,10 +315,9 @@ function Props({
 			at="props."
 			wrap={(_field, control) => <div onBlurCapture={flush}>{control}</div>}
 			onChange={(key, value) => {
-				setValues((before) => ({ ...before, [key]: value }));
 				const field = fields.find((f) => f.key === key);
 				if (!field) return;
-				pending.current.set(key, { field, value });
+				controller.prop(id, field, value, true);
 				let active: Element | null = kit.doc.activeElement;
 				while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
 				if (!active?.matches("textarea,[contenteditable],input:not([type=checkbox]):not([type=radio])")) flush();

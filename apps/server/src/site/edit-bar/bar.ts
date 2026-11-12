@@ -114,6 +114,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	};
 	type DraftEnds = { receive(data: string | Uint8Array): void; closed(): void };
 	type DraftClient = {
+		stage: SharedDraft["stage"];
 		place(at: string | null): void;
 		connect(transport: { send(data: string | Uint8Array): void; close(): void }): DraftEnds;
 		draft(): unknown;
@@ -956,6 +957,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		if (!link) return null;
 		const refusals = link.refusals;
 		return {
+			stage: () => link.client.stage(),
 			ready: () => link.synced && link.client.status() !== "readOnly" && link.client.status() !== "ended",
 			draft: () => link.client.draft(),
 			change: (next) => link.client.change(next),
