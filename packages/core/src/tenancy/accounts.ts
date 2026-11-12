@@ -1,6 +1,6 @@
 import type { Auth } from "@webcraft/auth";
 import { installRoles, people } from "@webcraft/db/schema";
-import { and, eq, isNull, ne } from "drizzle-orm";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 
 import { isUuid } from "../ids.ts";
 import { PersonNotFoundError } from "../impersonation.ts";
@@ -46,6 +46,13 @@ export type AccountsService = {
 	reactivate(scope: InstallScope, personId: string): Promise<void>;
 };
 
+/**
+ * Deactivations take turns, across processes: "is another Superadmin left who can sign in?" is
+ * counted and then acted on, and two Superadmins deactivating each other at the same moment would
+ * each count the other. Held until the transaction ends, as setup's lock is (`setup.ts`).
+ */
+const DEACTIVATION_LOCK = sql`select pg_advisory_xact_lock(hashtextextended('webcraft:account-deactivation', 0))`;
+
 export function createAccounts({ auth }: { auth: Auth }): AccountsService {
 	const personOf = async (scope: InstallScope, personId: string) => {
 		if (!isUuid(personId)) throw new PersonNotFoundError();
@@ -62,6 +69,7 @@ export function createAccounts({ auth }: { auth: Auth }): AccountsService {
 	return {
 		deactivate(scope, personId) {
 			return scope.transaction(async (tx) => {
+				await tx.db.execute(DEACTIVATION_LOCK);
 				const person = await personOf(tx, personId);
 				if (person.role === SUPERADMIN_ROLE) {
 					const others = await tx.db
