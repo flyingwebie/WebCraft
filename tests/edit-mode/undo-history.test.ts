@@ -310,3 +310,32 @@ test("losing access ends the handoff and the Draft socket with Edit mode", async
 	const { entry } = await staff.api.entries.get({ siteId: site.siteId, entryId: site.entryId });
 	expect(entry.draft.fields.subtitle).toBe("Mine");
 });
+
+test("a mode switch shows the same page again with the handoff, only for a browser in Edit mode", async () => {
+	const site = await bakery();
+	const editing = await openEditMode(install, editor, site.siteId, "/blog/fresh-bread");
+	const token = ((await (await editing.edit("history/transfer", { payload: "{}" })).json()) as { token: string }).token;
+	const again = (to: string, history = token, browser = editing.browser) =>
+		browser.request(`${editing.origin}/_webcraft/edit/again?to=${encodeURIComponent(to)}&history=${history}`);
+
+	const answer = await again("/blog/fresh-bread?page=2");
+	expect(answer.status).toBe(303);
+	expect(answer.headers.get("location")).toBe(`/blog/fresh-bread?page=2#wc-history=${token}`);
+	expect(answer.headers.get("cache-control")).toBe("no-store");
+	// It only sends the browser back to a page of this Site: no other address, no made-up token.
+	for (const to of ["//elsewhere.test/", "https://elsewhere.test/", "/\\elsewhere.test", "/a#b", "/a b", "blog"]) {
+		expect({ to, status: (await again(to)).status }).toEqual({ to, status: 404 });
+	}
+	expect((await again("/blog/fresh-bread", "not-a-token")).status).toBe(404);
+	// Without Edit mode there is nothing to hand over to.
+	expect((await again("/blog/fresh-bread", token, install.browser({ origin: editing.origin }))).status).toBe(404);
+	expect(
+		(
+			await editing.browser.request(
+				new Request(`${editing.origin}/_webcraft/edit/again?to=%2F&history=${token}`, { method: "POST" }),
+			)
+		).status,
+	).toBe(405);
+	// It claimed nothing: the page still can.
+	expect(await (await editing.edit("history/claim", { token })).json()).toEqual({ payload: "{}" });
+});

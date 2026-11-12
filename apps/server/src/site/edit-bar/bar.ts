@@ -290,6 +290,11 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		layoutTools = (event as CustomEvent<PageLayoutController>).detail;
 		historyTools?.layout(layoutTools);
 	});
+	/** In Code mode the history is its panels': how they save their work and hand it over, once they said. */
+	let codeDeparture: HistoryTools["departure"] | undefined;
+	doc.addEventListener("webcraft:history-departure", (event) => {
+		codeDeparture = (event as CustomEvent<HistoryTools["departure"]>).detail;
+	});
 	let ended = false;
 
 	let host: HTMLElement;
@@ -1105,9 +1110,10 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	}
 
 	async function departure(url: string): Promise<string | null> {
-		if (!historyTools) return url;
+		const leave = historyTools?.departure ?? codeDeparture;
+		if (!leave) return url;
 		try {
-			return await historyTools.departure(url);
+			return await leave(url);
 		} catch {
 			announce(errorText("generic"), "interrupt");
 			return null;
