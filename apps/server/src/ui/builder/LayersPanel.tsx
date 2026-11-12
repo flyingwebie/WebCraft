@@ -219,6 +219,8 @@ export function LayersPanel({
 	const [renaming, setRenaming] = useState<string | null>(null);
 	const handledRequest = useRef(focusRequest);
 	const [dragging, setDragging] = useState<NodePath | null>(null);
+	/** The last pointer pressed on a row: a finger never starts a drag (#126: Move up and Move down instead). */
+	const pointer = useRef("");
 	const [over, setOver] = useState<{ key: string; position: DropPosition } | null>(null);
 	const selectedKey =
 		selection?.kind === "node"
@@ -500,7 +502,14 @@ export function LayersPanel({
 										onMouseLeave={() => onHover?.(row.source, null)}
 										data-drop={drop}
 										draggable={row.kind === "node" && renaming !== row.key}
+										onPointerDown={(event) => {
+											pointer.current = event.pointerType;
+										}}
 										onDragStart={(event) => {
+											if (pointer.current === "touch") {
+												event.preventDefault();
+												return;
+											}
 											if (row.kind !== "node") return;
 											event.dataTransfer.effectAllowed = "move";
 											event.dataTransfer.setData("text/plain", row.key);

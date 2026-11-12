@@ -151,6 +151,8 @@ export function Canvas({
 		const onPointerDown = (event: PointerEvent) => {
 			const found = targetAt(event.clientX, event.clientY);
 			const current = callbacks.current.selected;
+			// Dragging moves with a mouse or a pen; a finger never drags (#126: reorder by touch with Move up/down).
+			if (event.pointerType === "touch") return;
 			if (found && current && current.kind !== "structural" && found.target.id === current.id && event.button === 0) {
 				drag.current = { from: current, x: event.clientX, y: event.clientY, moving: false };
 			}
