@@ -149,6 +149,6 @@ WebCraft calls other servers directly. It has no outgoing proxy in v1: web and w
 
 ## Logs and Install health
 
-Every process writes one JSON object per line: `time` (ISO, UTC), `level`, `msg`, the request id (`requestId`, answered in `X-Request-Id`; a trusted proxy's own `X-Request-Id` is kept), and where known the job, Workspace, Site and Module. Secrets, cookies, `Authorization` headers, form answers and the text of a Site's emails never reach a line. Collect them with your platform's log tools.
+Every process writes one JSON object per line: `time` (ISO, UTC), `level`, `msg`, the request id (`requestId`, made by the web process for every request and answered in `X-Request-Id`; an `X-Request-Id` a request carries is never used, so have your proxy log the answer's), and where known the job, Workspace, Site and Module. Secrets, cookies, `Authorization` headers, form answers and the text of a Site's emails never reach a line. Collect them with your platform's log tools.
 
 The Superadmin sees **Install health** (Install › Install health: web, worker, database, job queue, storage, the last Backup, Failing SMTP, domains, the Error log and the Module log) and the **Error log** (unexpected failures grouped by cause, 30 days) in the admin, gets a Health alert email when a part has been Failing for 5 minutes and one when it has worked again for 15, and a banner meanwhile. With `WEBCRAFT_ERROR_DSN`, failures also go to an error tracker.

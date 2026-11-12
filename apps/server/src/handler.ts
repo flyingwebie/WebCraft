@@ -17,7 +17,7 @@ import {
 	type UpgradeAnswer,
 } from "./co-editing/sockets.ts";
 import { recordedAddress } from "./recorded-address.ts";
-import { requestIdOf, withRequestId } from "./request-ids.ts";
+import { newRequestId, withRequestId } from "./request-ids.ts";
 import { type Handler, notFound, plainText } from "./responses.ts";
 import { createPageCache } from "./site/page-cache.ts";
 import { createSitePipeline } from "./site/pipeline.ts";
@@ -73,7 +73,7 @@ export function createWebHandler({ services, adminApp, filterVariants, sitemapLi
 	const sockets = createDraftSockets(services);
 
 	const upgrade = (request: Request): Promise<UpgradeAnswer> =>
-		withLogContext({ requestId: requestIdOf(request, services.config) }, () => answerUpgrade(request));
+		withLogContext({ requestId: newRequestId() }, () => answerUpgrade(request));
 
 	const answerUpgrade = async (request: Request): Promise<UpgradeAnswer> => {
 		try {
@@ -96,7 +96,7 @@ export function createWebHandler({ services, adminApp, filterVariants, sitemapLi
 	// Every request's body comes under one ceiling (`request-body.ts` in `@webcraft/core`): a route
 	// reads more only by setting its own limit, and each side answers 413 for a body cut off there.
 	const handler = (incoming: Request): Promise<Response> => {
-		const requestId = requestIdOf(incoming, services.config);
+		const requestId = newRequestId();
 		const request = underBodyCeiling(incoming);
 		if (request !== incoming) sameClient(incoming, request);
 		return withLogContext({ requestId }, () => answer(request)).then((response) => withRequestId(response, requestId));

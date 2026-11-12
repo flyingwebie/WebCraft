@@ -81,18 +81,6 @@ export async function recordVisitorAddress(request: Request, services: InstallSe
 	Object.defineProperty(request, VISITOR, { value: address, configurable: true });
 }
 
-/**
- * Whether a request came in on a connection from a proxy the Install trusts
- * (`WEBCRAFT_TRUSTED_PROXIES`): only then are the headers such a proxy adds believed.
- */
-export function fromTrustedProxy(request: Request, config: InstallConfig): boolean {
-	const ip = (request as ConnectedRequest).ip;
-	const connection = typeof ip === "string" ? normaliseAddress(ip) : null;
-	if (connection === null) return false;
-	const trusted = config.trustedProxies;
-	return inRanges(connection, compiled(trusted.kind === "railway" ? RAILWAY_NETWORK : trusted.ranges));
-}
-
 /** The client's address as the trusted proxies in front of the web process tell it. */
 function proxiedAddress(request: Request, trusted: TrustedProxies): string | null {
 	const ip = (request as ConnectedRequest).ip;
