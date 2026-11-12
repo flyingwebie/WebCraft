@@ -309,6 +309,10 @@ for (const theme of THEMES) {
 			await locked;
 			await page.getByRole("treeitem", { name: /Hero ·.*Locked/ }).waitFor();
 			expect(await page.getByRole("treeitem", { name: /Hero ·/ }).getAttribute("aria-label")).toContain("Locked");
+			await page.getByRole("button", { name: "Code", exact: true }).click();
+			await page.getByRole("textbox", { name: /^HTML of / }).waitFor();
+			await page.waitForLoadState("networkidle");
+			expect(await page.getByRole("button", { name: "Page layout", exact: true }).count()).toBe(0);
 			const member = await enter(theme, site);
 			try {
 				await member.getByRole("button", { name: "Page layout", exact: true }).click();

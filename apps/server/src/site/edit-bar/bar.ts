@@ -418,7 +418,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		kit.openImage = images.open;
 		setUpRegions();
 		loadBody();
-		loadLayout();
+		if (!coding) loadLayout();
 		openDrafts();
 		every(() => void refresh(), 60_000);
 		doc.addEventListener("visibilitychange", () => {
