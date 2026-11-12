@@ -239,6 +239,19 @@ export const sample = defineModule({
 		}),
 		siteRoute({
 			method: "GET",
+			path: "/page",
+			async handle() {
+				// An HTML answer with a script and a policy of the Module's own that would let it run.
+				return new Response("<!doctype html><title>Sample</title><script>window.sampleRan = 1</script>", {
+					headers: {
+						"content-type": "text/html; charset=utf-8",
+						"content-security-policy": "script-src 'unsafe-inline'",
+					},
+				});
+			},
+		}),
+		siteRoute({
+			method: "GET",
 			path: "/broken",
 			async handle() {
 				throw new Error("The sample's broken route broke, as it should.");

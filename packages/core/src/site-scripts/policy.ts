@@ -81,6 +81,22 @@ export const SITE_SECURITY_HEADERS: Readonly<Record<string, string>> = {
 export const FILE_POLICY = FIXED_DIRECTIVES.join("; ");
 
 /**
+ * The policy of a Module's Site route answer, which is WebCraft's and never the Module's own. The
+ * answer is on the Site's own origin, where Edit mode's session lives: a script in it could read the
+ * page's edit token and act as whoever is editing, although the Module never sees WebCraft's cookies.
+ * So whatever it answers loads and runs nothing (`default-src 'none'`), and a document among it is
+ * sandboxed: no script, no forms, an origin of its own.
+ */
+export const MODULE_ROUTE_POLICY = [
+	"default-src 'none'",
+	"object-src 'none'",
+	"base-uri 'none'",
+	"form-action 'self'",
+	"frame-ancestors 'none'",
+	"sandbox",
+].join("; ");
+
+/**
  * The policy of a Site's Media files. A browser may open one by itself (a PDF in its own viewer),
  * which `object-src 'none'` would stop, so they get the rest of the fixed directives.
  */
