@@ -188,7 +188,7 @@ export const PROCEDURES = {
 	"webhooks.update": write("Changes a Webhook's name, URL and events (Sensitive: admin only)."),
 	"webhooks.changeSecret": write("Replaces a Webhook's signing secret (Sensitive: admin only)."),
 	"webhooks.remove": write("Removes a Webhook, after a preview and a confirmation."),
-	"webhooks.deliveries": read("A Webhook's delivery log, newest first."),
+	"webhooks.deliveries": read("A Webhook's delivery log, newest first (Staff only)."),
 	"webhooks.setEnabled": write("Switches a Webhook on or off."),
 	"webhooks.test": write("Sends the Webhook a signed test event at once."),
 	"webhooks.redeliver": write("Queues a failed delivery again."),

@@ -70,7 +70,7 @@ export const TOOL_PLACES = {
 	"webhooks.update": place(["siteSettings"], "structure.edit"),
 	"webhooks.changeSecret": place(["siteSettings"], "structure.edit"),
 	"webhooks.remove": place(["siteSettings"], "structure.edit"),
-	"webhooks.deliveries": place(["siteSettings"], "site.view"),
+	"webhooks.deliveries": place(["siteSettings"], "structure.edit"),
 	"webhooks.setEnabled": place(["siteSettings"], "structure.edit"),
 	"webhooks.test": place(["siteSettings"], "structure.edit"),
 	"webhooks.redeliver": place(["siteSettings"], "structure.edit"),

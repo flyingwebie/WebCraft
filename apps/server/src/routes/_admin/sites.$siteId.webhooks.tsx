@@ -15,11 +15,14 @@ export const Route = createFileRoute("/_admin/sites/$siteId/webhooks")({
 	staticData: { crumb: "webhooks.pageTitle" },
 	validateSearch: search,
 	loaderDeps: ({ search: { webhook, before } }) => ({ webhook, before }),
-	loader: async ({ params, deps }) => {
+	loader: async ({ params, deps, context }) => {
 		const api = await getApi();
 		const { siteId } = params;
 		const { webhooks, events } = await api.webhooks.list({ siteId });
-		const shown = webhooks.find((webhook) => webhook.id === deps.webhook) ?? webhooks[0];
+		// The delivery log is Staff's: its bodies can hold what visitors sent in Forms.
+		const shown = context.place.permissions.includes("structure.edit")
+			? (webhooks.find((webhook) => webhook.id === deps.webhook) ?? webhooks[0])
+			: undefined;
 		if (!shown) return { webhooks, events, log: null };
 		const before = shown.id === deps.webhook ? (deps.before ?? null) : null;
 		// A page that no longer exists (its delivery is older than 30 days) starts from the newest.
@@ -35,9 +38,9 @@ export const Route = createFileRoute("/_admin/sites/$siteId/webhooks")({
 });
 
 /**
- * Site › Webhooks (Site settings): Staff add, change, test and remove the Site's Webhooks here;
- * anyone else who sees the Site and follows a link here (the email about a Webhook switched off)
- * sees each one's origin, status and delivery log.
+ * Site › Webhooks (Site settings): Staff add, change, test and remove the Site's Webhooks here and
+ * read their delivery logs; anyone else who sees the Site and follows a link here (the email about a
+ * Webhook switched off) sees each one's origin, its status and how its last delivery went.
  */
 function WebhooksRoute() {
 	const data = Route.useLoaderData();
