@@ -16,6 +16,7 @@ import {
 	EDIT_DRAFTS_PREFIX,
 	type UpgradeAnswer,
 } from "./co-editing/sockets.ts";
+import { recordedAddress } from "./recorded-address.ts";
 import { requestIdOf, withRequestId } from "./request-ids.ts";
 import { type Handler, notFound, plainText } from "./responses.ts";
 import { createPageCache } from "./site/page-cache.ts";
@@ -86,7 +87,7 @@ export function createWebHandler({ services, adminApp, filterVariants, sitemapLi
 			if (!host || host.address === "redirect") return notFound();
 			return await sockets.site(request, host);
 		} catch (error) {
-			services.log.error("A WebSocket upgrade failed unexpectedly", { error, url: request.url });
+			services.log.error("A WebSocket upgrade failed unexpectedly", { error, url: recordedAddress(request, services) });
 			return plainText(500, "Internal Server Error");
 		}
 	};
@@ -112,7 +113,11 @@ export function createWebHandler({ services, adminApp, filterVariants, sitemapLi
 			}
 			return await sitePipeline(request);
 		} catch (error) {
-			services.log.error("A request failed unexpectedly", { error, method: request.method, url: request.url });
+			services.log.error("A request failed unexpectedly", {
+				error,
+				method: request.method,
+				url: recordedAddress(request, services),
+			});
 			return plainText(500, "Internal Server Error");
 		}
 	};
