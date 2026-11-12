@@ -9,6 +9,14 @@ export const CODE_STYLES = `
 .editor-panels { --radius: 0.625rem; --focus:#fb923c; font:13px/1.4 system-ui; color:var(--foreground); }
 .editor-panels .editor-left, .editor-panels .editor-right { position:fixed; top:3.5rem; bottom:0; z-index:2147482990; background:#121214; overflow:auto; border:1px solid #2a2a30; }
 .editor-left { left:0; width:16rem; } .editor-right { right:0; width:18rem; }
+.editor-panels > aside:focus { outline:none; }
+/* 1024–1279px (#138): the tree and the Inspector are drawers over the page, above the code panels, one at a time. */
+:host([data-layout="drawers"]) .editor-panels .editor-left, :host([data-layout="drawers"]) .editor-panels .editor-right {
+	display:none; bottom:var(--wc-code-dock, 0px); box-shadow:0 12px 32px rgba(0,0,0,.45);
+}
+:host([data-layout="drawers"][data-drawer="layers"]) .editor-panels .editor-left,
+:host([data-layout="drawers"][data-drawer="inspector"]) .editor-panels .editor-right { display:block; }
+:host([data-layout="drawers"]) .code-mode { inset-inline:0; }
 .editor-panels > aside > fieldset { min-width:0; border:0; padding:0; margin:0; }
 .editor-panels [role=treeitem][data-hidden] { opacity:.6; }
 .editor-panels .layer-divider { padding:8px; color:#a1a1aa; border-top:1px solid #52525b; }
@@ -27,7 +35,7 @@ export const CODE_STYLES = `
 :host { all: initial; }
 *, *::before, *::after { box-sizing: border-box; }
 [hidden] { display: none !important; }
-.code-mode, .suggest, .dialog-backdrop, .outline {
+.code-mode, .suggest, .dialog-backdrop, .outline, .too-narrow {
 	--panel: #121214;
 	--panel-raised: #1b1b1f;
 	--editor: #0c0c0e;
@@ -241,9 +249,12 @@ svg { flex: none; }
 .quality-checks p { color: var(--muted); }
 .quality-checks li { margin-block: 0.5rem; }
 
-@media (max-width: 900px) {
-	.panels { grid-template-columns: minmax(0, 1fr); overflow: auto; }
-	.panel { min-height: 16rem; border-inline-end: 0; border-bottom: 1px solid var(--line); }
-	.statusline .hint { display: none; }
+/* Below 1024px (#138): a notice covers the page and the panels; nothing under it closes. */
+.too-narrow {
+	position: fixed; inset: 3.5rem 0 0 0; z-index: 2147483004; display: grid; place-content: center; gap: 0.5rem;
+	padding: 1.5rem; text-align: center; background: var(--panel);
 }
+.too-narrow:focus { outline: none; }
+.too-narrow h2 { margin: 0; font-size: 18px; font-weight: 700; }
+.too-narrow p { margin: 0; color: var(--muted); }
 `;

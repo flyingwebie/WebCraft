@@ -8,11 +8,11 @@ import { createRoot } from "react-dom/client";
 import { type SharedDraft, useSharedDraft } from "../co-editing/shared-draft.ts";
 import { useAnnouncement } from "../content/reorder.tsx";
 import { errorMessage } from "../errors.ts";
-import { AdminIntl, useT } from "../i18n.tsx";
-import { CommandMenu, CommandMenuButton, type MenuState, ShortcutsDialog, useEditorKeys } from "./CommandMenu.tsx";
+import { AdminIntl, adminMessages, useT } from "../i18n.tsx";
+import { CommandMenu, type MenuState, ShortcutsDialog, useEditorKeys } from "./CommandMenu.tsx";
 import { CssPanel, type CssPanelPort, type CssTarget } from "./CssPanel.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
-import { type EditorCommandTarget, editorCommands, type WrapKind } from "./commands.ts";
+import { type CommandTab, type EditorCommandTarget, editorCommands, type WrapKind } from "./commands.ts";
 import { type EditorApi, EditorApiContext, EditorEnvironment } from "./editor-api.tsx";
 import { FixedTextDialog } from "./FixedTextDialog.tsx";
 import { type FixedTextLocation, rememberFixedText, resolveFixedText } from "./fixed-text.ts";
@@ -24,6 +24,7 @@ import { type LayerAction, type LayerSource, LayersPanel, rowKey } from "./Layer
 import { type LayerClipboard, layerLocation, runLayerAction } from "./layer-actions.ts";
 import { type BuilderTarget, layerName, type Opened, type Selection, targetPath } from "./model.ts";
 import { hoveredRow, selectionKey, selectionOf } from "./selection-ref.ts";
+import { ariaKeys, withKeys } from "./shortcuts.ts";
 import {
 	canHoldChildren,
 	childLists,
@@ -156,6 +157,9 @@ export function mount(bridge: LivePanelBridge) {
 	const commands: PanelCommands = { save: async () => false, markup: async () => null };
 	const oneOffDeparture = { current: null as (() => Promise<boolean>) | null };
 	const cssDeparture = { current: null as (() => Promise<boolean>) | null };
+	/** Opens the Command menu: Code mode's own toolbar button calls it. */
+	const menuOpener = { current: null as ((tab: CommandTab) => void) | null };
+	const opener = adminMessages[bridge.language].builder.commandMenu.open;
 	const show = (ref: string | null) => {
 		selection = ref;
 		react.render(
@@ -169,6 +173,7 @@ export function mount(bridge: LivePanelBridge) {
 							commands={commands}
 							oneOffDeparture={oneOffDeparture}
 							cssDeparture={cssDeparture}
+							menuOpener={menuOpener}
 						/>
 					</DialogContainer>
 				</EditorApiContext>
@@ -185,6 +190,9 @@ export function mount(bridge: LivePanelBridge) {
 			(await commands.save()),
 		save: async () => (!cssDeparture.current || (await cssDeparture.current())) && (await commands.save()),
 		markup: (ref: string) => commands.markup(ref),
+		openCommandMenu: () => menuOpener.current?.("actions"),
+		/** The toolbar button's name, tooltip and keys, from the shortcut registry. */
+		commandButton: { label: opener, title: withKeys(opener, "menu.actions"), keys: ariaKeys("menu.actions") },
 		hover: (ref: string | null) => {
 			hovered = ref;
 			show(selection);
@@ -199,7 +207,9 @@ function LivePanels({
 	commands,
 	oneOffDeparture,
 	cssDeparture,
+	menuOpener,
 }: {
+	menuOpener: { current: ((tab: CommandTab) => void) | null };
 	bridge: LivePanelBridge;
 	selected: string | null;
 	hovered: string | null;
@@ -571,6 +581,7 @@ function LivePanels({
 			))}
 			{source ? (
 				<SourcePanels
+					menuOpener={menuOpener}
 					oneOffDeparture={oneOffDeparture}
 					cssDeparture={cssDeparture}
 					bridge={bridge}
@@ -712,6 +723,7 @@ function DraftConnection({
 }
 
 function SourcePanels({
+	menuOpener,
 	bridge,
 	source,
 	reload,
@@ -730,6 +742,7 @@ function SourcePanels({
 	oneOffDeparture,
 	cssDeparture,
 }: {
+	menuOpener: { current: ((tab: CommandTab) => void) | null };
 	oneOffDeparture: { current: (() => Promise<boolean>) | null };
 	cssDeparture: { current: (() => Promise<boolean>) | null };
 	bridge: LivePanelBridge;
@@ -1100,8 +1113,12 @@ function SourcePanels({
 				}
 			: {}),
 	};
+	// Code mode's own toolbar button opens the menu (it lives in Code mode's top line, not here).
+	menuOpener.current = (tab) => setMenu({ tab });
 	useEditorKeys({
 		enabled: !fixed,
+		// Below the smallest width a notice covers the editor: the menu can't be reached.
+		blocked: () => document.documentElement.classList.contains("wc-code-covered"),
 		menu,
 		setMenu,
 		openShortcuts: () => setShortcutsOpen(true),
@@ -1141,10 +1158,7 @@ function SourcePanels({
 						bridge.cssHost,
 					)
 				: null}
-			<aside className="editor-left" aria-label={t("builder.layers.heading")}>
-				<div className="flex justify-end border-b p-2">
-					<CommandMenuButton onOpen={() => setMenu({ tab: "actions" })} />
-				</div>
+			<aside id="wc-code-layers" tabIndex={-1} className="editor-left" aria-label={t("builder.layers.heading")}>
 				<fieldset disabled={!writable}>
 					<InsertToolbar
 						where={node && !canHoldChildren(node) ? "after" : where}
@@ -1237,7 +1251,7 @@ function SourcePanels({
 					/>
 				</fieldset>
 			</aside>
-			<aside className="editor-right" aria-label={t("builder.inspector.heading")}>
+			<aside id="wc-code-inspector" tabIndex={-1} className="editor-right" aria-label={t("builder.inspector.heading")}>
 				<fieldset disabled={!writable}>
 					<Inspector
 						departure={oneOffDeparture}

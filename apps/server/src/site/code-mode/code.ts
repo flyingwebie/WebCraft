@@ -1,7 +1,17 @@
 import type { componentScriptSettings } from "../../ui/builder/component-script-settings.ts";
+import type { EditorDrawer, EditorFit, editorFit, focusInto, nextDrawer } from "../../ui/builder/editor-fit.ts";
 import type { renderedRanges } from "../../ui/builder/rendered-ranges.ts";
-/** What Code mode's script is given when it is made: the address of its own stylesheet. */
-export type CodeModeConfig = { styles: string; panels: string };
+/**
+ * What Code mode's script is given when it is made: the address of its own stylesheet and of the
+ * shared panels, and the window widths it needs (`EDITOR_WIDTHS`, #138).
+ */
+export type CodeModeConfig = { styles: string; panels: string; widths: { min: number; full: number } };
+/** The window-width rules Code mode shares with the Builder (`editor-fit.ts`), each self-contained. */
+export type CodeModeFitting = {
+	editorFit: typeof editorFit;
+	nextDrawer: typeof nextDrawer;
+	focusInto: typeof focusInto;
+};
 
 /**
  * Code mode's panels (ADR 0016): WebCraft's own script on a page in Code mode, loaded only there (a
@@ -22,6 +32,7 @@ export function codeMode(
 	config: CodeModeConfig,
 	makeScriptSettings: typeof componentScriptSettings,
 	rangesOf: typeof renderedRanges,
+	fitting: CodeModeFitting,
 ): void {
 	type Words = { [key: string]: string | Words };
 	type Answer = { ok: true; data: unknown } | { ok: false; code: string; data: Record<string, unknown> };
@@ -95,6 +106,7 @@ export function codeMode(
 
 	let inspectorRef: string | undefined;
 	let openBuilderButton: HTMLButtonElement;
+	let commandButton: HTMLButtonElement;
 	let openingBuilder = false;
 	let inputRevision = 0;
 	let panelsAdapter:
@@ -105,6 +117,10 @@ export function codeMode(
 				save(): Promise<boolean>;
 				depart(): Promise<boolean>;
 				markup(ref: string): Promise<string | null>;
+				/** Opens the Command menu (#131) at Actions. */
+				openCommandMenu(): void;
+				/** The Command menu button's name, tooltip and keys, from the shared shortcut registry. */
+				commandButton: { label: string; title: string; keys: string };
 		  }
 		| undefined;
 	const win = window;
@@ -142,6 +158,7 @@ export function codeMode(
 		play: ["M6 3l14 9-14 9z"],
 		check: ["M20 6 9 17l-5-5"],
 		x: ["M18 6 6 18", "m6 6 12 12"],
+		command: ["M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"],
 	};
 	/** Elements whose content Format may put on lines of its own: block containers. */
 	const CONTAINERS = new Set(
@@ -192,6 +209,18 @@ export function codeMode(
 	let listbox: HTMLElement;
 	let toggleButton: HTMLButtonElement;
 	let shown = true;
+
+	// The window's width (#138): the three-sided layout, the tree and the Inspector as drawers, or covered.
+	let fit: EditorFit | null = null;
+	let drawer: EditorDrawer | null = null;
+	let layersToggle: HTMLButtonElement;
+	let inspectorToggle: HTMLButtonElement;
+	let tooNarrow: HTMLElement;
+	/** What had focus before the first drawer opened from F6 or the toolbar, and before the notice covered. */
+	let drawerReturn: Element | null = null;
+	let coverReturn: Element | null = null;
+	/** The page's elements made inert under the notice (never ones the page had made inert itself). */
+	const coveredPage = new Set<Element>();
 
 	// The HTML panel
 	let html: Editor;
@@ -450,7 +479,15 @@ export function codeMode(
 				},
 			},
 		});
+		syncCover();
 		panelsAdapter?.select(selectedRef ?? opened?.ref ?? null);
+		if (panelsAdapter) {
+			const named = panelsAdapter.commandButton;
+			commandButton.setAttribute("aria-label", named.label);
+			commandButton.setAttribute("title", named.title);
+			commandButton.setAttribute("aria-keyshortcuts", named.keys);
+			commandButton.hidden = false;
+		}
 		editorReady();
 		openAskedScript();
 		await preview();
@@ -645,7 +682,37 @@ export function codeMode(
 		listbox.addEventListener("mousedown", (event) => event.preventDefault());
 
 		openBuilderButton = button({ class: "secondary", disabled: "" }, word("openBuilder"));
+		// The Command menu's button (#131): named and keyed by the shared panels once they load.
+		commandButton = button({ class: "icon-button", "aria-haspopup": "dialog", hidden: "" }, icon("command"));
+		commandButton.addEventListener("click", () => panelsAdapter?.openCommandMenu());
 		openBuilderButton.addEventListener("click", () => void openBuilder());
+		// In the drawer layout the tree and the Inspector open from here (or with F6), one at a time.
+		const drawerToggle = (which: EditorDrawer, id: string) => {
+			const made = button(
+				{ class: "secondary", "aria-expanded": "false", "aria-controls": id, "aria-keyshortcuts": "F6", hidden: "" },
+				word(which),
+			);
+			made.addEventListener("click", () => setDrawer(drawer === which ? null : which, drawer !== which));
+			return made;
+		};
+		layersToggle = drawerToggle("layers", "wc-code-layers");
+		inspectorToggle = drawerToggle("inspector", "wc-code-inspector");
+		const tooNarrowTitle = el("h2", { id: newId("too-narrow") }, word("tooNarrow"));
+		const tooNarrowText = el("p", { id: newId("too-narrow-text") }, word("tooNarrowText"));
+		tooNarrow = el(
+			"section",
+			{
+				class: "too-narrow",
+				role: "dialog",
+				"aria-modal": "true",
+				"aria-labelledby": tooNarrowTitle.id,
+				"aria-describedby": tooNarrowText.id,
+				tabindex: "-1",
+				hidden: "",
+			},
+			tooNarrowTitle,
+			tooNarrowText,
+		);
 		// Keys that act on the selected layer (⌘D, ⌫, Esc) leave the code panels alone.
 		const panels = el("div", { class: "panels", id: newId("panels"), "data-code-panel": "" });
 		panels.append(buildHtmlPanel(), buildCssPanel(), buildJsPanel());
@@ -659,6 +726,9 @@ export function codeMode(
 				el("span", { class: "badge" }, word("staffOnly")),
 				el("nav", { class: "crumbs-nav", "aria-label": word("whereFrom") }, breadcrumb),
 				usage,
+				layersToggle,
+				inspectorToggle,
+				commandButton,
 				openBuilderButton,
 				toggleButton,
 			),
@@ -678,7 +748,14 @@ export function codeMode(
 		dialog = el("div", { class: "dialog-backdrop", hidden: "" });
 		// The suggestions and the prompts float above everything, but belong to Code mode's region.
 		shell.append(listbox, dialog);
-		root.append(el("link", { rel: "stylesheet", href: config.styles }), selectedBox, hoverBox, insertBox, shell);
+		root.append(
+			el("link", { rel: "stylesheet", href: config.styles }),
+			selectedBox,
+			hoverBox,
+			insertBox,
+			shell,
+			tooNarrow,
+		);
 		doc.body.append(host);
 		doc.documentElement.classList.add("wc-code");
 		try {
@@ -736,7 +813,101 @@ export function codeMode(
 				closeDialog();
 			}
 		});
+		// The window's width, checked as it changes; the drawers stop above the code panels, however tall.
+		for (const width of [config.widths.min, config.widths.full]) {
+			win.matchMedia(`(min-width: ${width}px)`).addEventListener("change", applyFit);
+		}
+		applyFit();
+		const measureDock = () =>
+			host.style.setProperty("--wc-code-dock", `${Math.ceil(shell.getBoundingClientRect().height)}px`);
+		new ResizeObserver(measureDock).observe(shell);
+		measureDock();
+		// F6 (#138, the drawer layout only): the tree, then the Inspector, then neither; Shift+F6 backwards.
+		// #137's F6 order for every region will take this over, opening the drawers with `setDrawer`
+		// (`editor-fit.ts`; docs/development.md › Code mode › Window width).
+		win.addEventListener("keydown", (event) => {
+			if (event.key !== "F6" || event.ctrlKey || event.metaKey || event.altKey) return;
+			if (fit?.layout !== "drawers" || fit.covered || !dialog.hidden) return;
+			if (root.querySelector("[data-slot=dialog-content]")) return;
+			event.preventDefault();
+			setDrawer(fitting.nextDrawer(drawer, event.shiftKey), true);
+		});
 		setStatus();
+	}
+
+	/** What has focus, followed into shadow roots. */
+	function deepActive(): Element | null {
+		let active = doc.activeElement;
+		while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+		return active;
+	}
+
+	/** Follows the window's width: the layout, the drawer buttons, and the notice when it is too narrow. */
+	function applyFit(): void {
+		const before = fit;
+		fit = fitting.editorFit(win.innerWidth, config.widths, before);
+		// Narrowing to the drawer layout keeps open, as a drawer, the side that has focus.
+		if (before?.layout === "full" && fit.layout === "drawers" && !drawer) {
+			const side = deepActive()?.closest("aside")?.id;
+			if (side === "wc-code-layers") setDrawer("layers", false);
+			else if (side === "wc-code-inspector") setDrawer("inspector", false);
+		}
+		host.setAttribute("data-layout", fit.layout);
+		host.toggleAttribute("data-covered", fit.covered);
+		doc.documentElement.classList.toggle("wc-code-drawers", fit.layout === "drawers");
+		doc.documentElement.classList.toggle("wc-code-covered", fit.covered);
+		layersToggle.hidden = inspectorToggle.hidden = fit.layout !== "drawers";
+		if (fit.covered === (before?.covered ?? false)) return;
+		if (fit.covered) coverReturn = deepActive();
+		tooNarrow.hidden = !fit.covered;
+		syncCover();
+		if (fit.covered) tooNarrow.focus();
+		else {
+			const back = coverReturn;
+			coverReturn = null;
+			if (back instanceof HTMLElement && back.isConnected) back.focus();
+		}
+	}
+
+	/**
+	 * While the notice covers Code mode, nothing under it (the panels and the page; never the editing
+	 * bar) can be reached. Nothing closes: it is all there again as it was once the window is wider.
+	 */
+	function syncCover(): void {
+		const covered = fit?.covered ?? false;
+		for (const child of root.children) {
+			if (child !== tooNarrow && child.localName !== "link") child.toggleAttribute("inert", covered);
+		}
+		if (!covered) {
+			for (const each of coveredPage) each.removeAttribute("inert");
+			coveredPage.clear();
+			return;
+		}
+		for (const child of doc.body.children) {
+			if (child === host || child.localName === "webcraft-edit-bar" || child.hasAttribute("inert")) continue;
+			child.setAttribute("inert", "");
+			coveredPage.add(child);
+		}
+	}
+
+	/**
+	 * Opens a drawer (or none) in the drawer layout, one at a time. With `focus`, focus moves into it,
+	 * and back to where it was before the first drawer opened when none is left open.
+	 */
+	function setDrawer(next: EditorDrawer | null, focus: boolean): void {
+		if (focus && next && !drawer) drawerReturn = deepActive();
+		drawer = next;
+		if (next) host.setAttribute("data-drawer", next);
+		else host.removeAttribute("data-drawer");
+		layersToggle.setAttribute("aria-expanded", String(next === "layers"));
+		inspectorToggle.setAttribute("aria-expanded", String(next === "inspector"));
+		if (!focus) return;
+		if (next) fitting.focusInto(root.getElementById(next === "layers" ? "wc-code-layers" : "wc-code-inspector"));
+		else {
+			const back = drawerReturn;
+			drawerReturn = null;
+			if (back instanceof HTMLElement && back.isConnected) back.focus();
+		}
 	}
 
 	function showPanels(on: boolean): void {
@@ -1050,6 +1221,7 @@ export function codeMode(
 		if (bar) bar.after(...rest);
 		else host.before(...rest);
 		if (skip) doc.body.prepend(skip);
+		syncCover();
 		panelsAdapter?.refresh();
 		const target = selectedRef ? pageBoundsFor(selectedRef) : null;
 		if (target) outline(selectedBox, target);

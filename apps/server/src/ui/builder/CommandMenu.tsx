@@ -93,6 +93,8 @@ function inOtherDialog(event: KeyboardEvent): boolean {
  */
 export function useEditorKeys(options: {
 	enabled: boolean;
+	/** Checked as each key is pressed: true while something covers the editor. */
+	blocked?(): boolean;
 	menu: MenuState | null;
 	setMenu(menu: MenuState | null): void;
 	openShortcuts(): void;
@@ -102,8 +104,8 @@ export function useEditorKeys(options: {
 	latest.current = options;
 	const handler = useRef<(event: KeyboardEvent, phase: "capture" | "bubble") => void>(() => {});
 	handler.current = (event, phase) => {
-		const { enabled, menu, setMenu, openShortcuts, element } = latest.current;
-		if (!enabled || event.isComposing) return;
+		const { enabled, blocked, menu, setMenu, openShortcuts, element } = latest.current;
+		if (!enabled || blocked?.() || event.isComposing) return;
 		if (phase === "capture") {
 			if (inOtherDialog(event)) return;
 			for (const tab of COMMAND_TABS) {
@@ -155,15 +157,15 @@ export function CommandMenuButton({ onOpen }: { onOpen(): void }) {
 	return (
 		<Button
 			type="button"
-			size="sm"
-			variant="outline"
+			size="icon-sm"
+			variant="ghost"
 			aria-haspopup="dialog"
+			aria-label={t("builder.commandMenu.open")}
 			aria-keyshortcuts={ariaKeys("menu.actions")}
 			title={withKeys(t("builder.commandMenu.open"), "menu.actions")}
 			onClick={onOpen}
 		>
 			<CommandIcon aria-hidden="true" />
-			{t("builder.commandMenu.open")}
 		</Button>
 	);
 }
