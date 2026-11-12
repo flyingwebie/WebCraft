@@ -187,14 +187,22 @@ for (const theme of THEMES) {
 			const mod = (await onApple(page)) ? "⌘" : "Ctrl+";
 			const command = (await onApple(page)) ? "Command" : "Control";
 
-			// The Edit bar's search button, shown to everyone, with the shortcut in its tooltip.
+			// The Edit bar's search button, shown to everyone, with the shortcut in its tooltip. What the
+			// menu lists is read only once it is asked for: a page costs nothing until then.
+			const reads: string[] = [];
+			page.on("request", (request) => {
+				if (request.url().endsWith("/_webcraft/edit/api/commandMenu")) reads.push(request.url());
+			});
 			const button = searchButton(page);
 			await button.waitFor();
+			await page.waitForTimeout(300);
+			expect(reads).toHaveLength(0);
 			expect(await button.getAttribute("title")).toBe(`Command menu (${mod}K)`);
 			expect(await button.getAttribute("aria-keyshortcuts")).toBe(`${(await onApple(page)) ? "Meta" : "Control"}+K`);
 			await button.click();
 			const menu = menuOf(page);
 			await menu.waitFor();
+			expect(reads).toHaveLength(1);
 			expect(await menu.getByRole("tab").allTextContents()).toEqual([
 				`Actions${mod}K`,
 				`Go to${mod}P`,

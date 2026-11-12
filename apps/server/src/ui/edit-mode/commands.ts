@@ -22,9 +22,9 @@ const CONTEXT = { header: "context:header", footer: "context:footer" };
  * what the layout says of it. Null in Preview, without a Page layout, or on the header or footer.
  */
 function selectedPlacement(layout: PageLayoutController | null) {
-	const state = layout?.state();
-	if (!state?.editing || !state.data.canArrange) return null;
-	return state.data.placements.find((placement) => placement.id === state.selected) ?? null;
+	if (!layout || !arranging(layout)) return null;
+	const { data, selected } = layout.state();
+	return data.placements.find((placement) => placement.id === selected) ?? null;
 }
 
 /** Whether the person may arrange the page's layout now (never in Preview, or where arranging is off). */

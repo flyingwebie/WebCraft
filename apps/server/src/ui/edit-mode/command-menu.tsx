@@ -1,7 +1,7 @@
 import type { Permission } from "@webcraft/core";
 import type { AdminLanguageCode } from "@webcraft/core/admin-languages";
 import { DialogContainer } from "@webcraft/ui/components/dialog.tsx";
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createRoot } from "react-dom/client";
 
 import type { BarCommands, BarKit, EditHistory } from "../../site/edit-bar/kit.ts";
@@ -105,63 +105,92 @@ function EditCommandMenu({
 		() => width.matches,
 	);
 
-	// What the person may do comes from the server before the menu is offered; Go to reads its lists
-	// again each time it opens.
+	const inserts = editInserts(t, layout);
+	const tabs = inserts ? COMMAND_TABS : WITHOUT_INSERT;
+	const shown = wide && menu && tabs.includes(menu.tab) ? menu : null;
+	// A window made narrow, or a tab that went (Preview, arranging turned off), closes what was open.
+	useEffect(() => {
+		if (menu && !shown) setMenu(null);
+		if (!wide) setShortcutsOpen(false);
+	}, [menu, shown, wide]);
+
+	// What the person may do is read from the server the first time the menu or the shortcuts list is
+	// asked for, so a page costs nothing until then. Go to reads its lists again each time it opens.
+	const known = useRef(false);
+	/** Whether what was last read was read for the menu as it is open now: Go to then doesn't read it twice. */
+	const fresh = useRef(false);
 	const load = useCallback(async () => {
 		const answer = await kit.call("commandMenu", {});
-		if (answer.ok) setData(answer.data as EditMenuData);
-		else announce(kit.errorText(answer.code));
+		if (!answer.ok) {
+			announce(kit.errorText(answer.code), "interrupt");
+			return false;
+		}
+		setData(answer.data as EditMenuData);
+		known.current = true;
+		fresh.current = true;
+		return true;
 	}, [kit, announce]);
-	const goingTo = menu?.tab === "goTo";
+	/** Opens something once what the person may do is known; nothing opens when that can't be read. */
+	const whenKnown = useCallback(
+		(open: () => void) => {
+			if (known.current) open();
+			else
+				void load().then((read) => {
+					if (read) open();
+				});
+		},
+		[load],
+	);
+	const show = useCallback(
+		(next: MenuState | null) => {
+			if (next) whenKnown(() => setMenu(next));
+			else setMenu(null);
+		},
+		[whenKnown],
+	);
+	const open = shown !== null;
+	const goingTo = shown?.tab === "goTo";
 	useEffect(() => {
-		void load();
-	}, [load]);
+		if (!open) fresh.current = false;
+	}, [open]);
 	useEffect(() => {
-		if (goingTo) void load();
+		if (!goingTo) return;
+		if (fresh.current) fresh.current = false;
+		else void load();
 	}, [goingTo, load]);
 	const can = useCallback(
 		(permission: Permission) => !!data && (data.permissions as readonly Permission[]).includes(permission),
 		[data],
 	);
 
-	const offered = wide && data !== null;
-	const inserts = editInserts(t, layout);
-	const tabs = inserts ? COMMAND_TABS : WITHOUT_INSERT;
-	const shown = offered && menu && tabs.includes(menu.tab) ? menu : null;
-	// A window made narrow, or a tab that went (Preview, arranging turned off), closes what was open.
-	useEffect(() => {
-		if (menu && !shown) setMenu(null);
-		if (!offered) setShortcutsOpen(false);
-	}, [menu, shown, offered]);
-
-	// The Edit bar's search button: named, with the menu's key in its tooltip, once the menu is offered.
+	// The Edit bar's search button: named, with the menu's key in its tooltip, shown while the menu is offered.
 	useEffect(() => {
 		const button = bar.button;
 		const name = t("builder.commandMenu.open");
 		button.setAttribute("aria-label", name);
 		button.title = withKeys(name, "menu.actions");
 		button.setAttribute("aria-keyshortcuts", ariaKeys("menu.actions"));
-		const open = () => setMenu({ tab: "actions" });
-		button.addEventListener("click", open);
-		return () => button.removeEventListener("click", open);
-	}, [bar, t]);
+		const pressed = () => show({ tab: "actions" });
+		button.addEventListener("click", pressed);
+		return () => button.removeEventListener("click", pressed);
+	}, [bar, t, show]);
 	useEffect(() => {
-		bar.button.hidden = !offered;
-	}, [bar, offered]);
+		bar.button.hidden = !wide;
+	}, [bar, wide]);
 
 	useEditorKeys({
-		enabled: offered,
+		enabled: wide,
 		menu: shown,
-		setMenu,
+		setMenu: show,
 		tabs,
 		typing: typingInRichText,
-		openShortcuts: () => setShortcutsOpen(true),
+		openShortcuts: () => whenKnown(() => setShortcutsOpen(true)),
 		// Undo and Redo's keys are their history's own to bind: they work where the menu isn't offered too.
 		element: null,
 	});
 	// Save Draft's key, outside dialogs (theirs stay their own).
 	useEffect(() => {
-		if (!offered || !editing) return;
+		if (!wide || !editing) return;
 		const key = (event: KeyboardEvent) => {
 			if (event.isComposing || !matches(event, "editor.save")) return;
 			if (event.composedPath().some((each) => each instanceof Element && each.matches("[role=dialog]"))) return;
@@ -170,7 +199,7 @@ function EditCommandMenu({
 		};
 		kit.win.addEventListener("keydown", key);
 		return () => kit.win.removeEventListener("keydown", key);
-	}, [kit, bar, offered, editing]);
+	}, [kit, bar, wide, editing]);
 
 	/** Leaves for another page once what is on its way to the Draft is saved; stays when it wasn't. */
 	const leaveTo = async (url: string) => {
@@ -204,7 +233,7 @@ function EditCommandMenu({
 				}}
 			/>
 			<ShortcutsDialog
-				open={shortcutsOpen && offered}
+				open={shortcutsOpen && wide}
 				onOpenChange={setShortcutsOpen}
 				can={can}
 				edit={{ arranging: arranging(layout), history: history !== null }}

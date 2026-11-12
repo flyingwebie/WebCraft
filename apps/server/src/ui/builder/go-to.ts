@@ -27,7 +27,7 @@ export type GoToTarget = {
  * Builder, ADR 0035), for those who may change Structure.
  */
 export function destinationCommands(t: T, data: CommandMenuData, go: Pick<GoToTarget, "page" | "builder">): Command[] {
-	const both: readonly Canvas[] = ["code", "builder", "edit"];
+	const everywhere: readonly Canvas[] = ["code", "builder", "edit"];
 	const commands: Command[] = [];
 	const pagesGroup = t("builder.commandMenu.groups.pages");
 	for (const page of data.pages)
@@ -39,7 +39,7 @@ export function destinationCommands(t: T, data: CommandMenuData, go: Pick<GoToTa
 			hint: page.path,
 			keywords: [page.path],
 			permission: "entry.edit",
-			canvases: both,
+			canvases: everywhere,
 			run: () => go.page(page.path),
 		});
 	for (const postType of data.postTypes)
@@ -53,7 +53,7 @@ export function destinationCommands(t: T, data: CommandMenuData, go: Pick<GoToTa
 				hint: entry.path,
 				keywords: [entry.path],
 				permission: "entry.edit",
-				canvases: both,
+				canvases: everywhere,
 				run: () => go.page(entry.path),
 			});
 	const templatesGroup = t("builder.commandMenu.groups.templates");
@@ -65,7 +65,7 @@ export function destinationCommands(t: T, data: CommandMenuData, go: Pick<GoToTa
 			label,
 			keywords: [t(`builder.kinds.${target.kind}`)],
 			permission: "structure.edit",
-			canvases: both,
+			canvases: everywhere,
 			run: () => go.builder(target),
 		});
 	template("site", t("builder.commandMenu.templates.siteTemplate"), { kind: "siteTemplate" });
@@ -91,7 +91,7 @@ export function destinationCommands(t: T, data: CommandMenuData, go: Pick<GoToTa
 			label: component.name,
 			keywords: [t("builder.kinds.component")],
 			permission: "structure.edit",
-			canvases: both,
+			canvases: everywhere,
 			run: () => go.builder({ kind: "component", componentId: component.id }),
 		});
 	return commands;
