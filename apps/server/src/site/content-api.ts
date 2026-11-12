@@ -73,10 +73,10 @@ export async function contentApiAnswer(
 		}
 		cors.door = door;
 		if (request.method === "OPTIONS") return await preflight(request, cors);
-		const address = clientAddress(request, services.config) ?? "unknown";
 		const byAddress = await services.rateLimits.tally(
-			`content-api:${host.site.id}:${address}`,
+			`content-api:${host.site.id}`,
 			CONTENT_API_LIMITS.address,
+			clientAddress(request, services.config),
 		);
 		if (!byAddress.within) throw tooMany("address", byAddress, services);
 		const base = `${CONTENT_API_BASE}/`;

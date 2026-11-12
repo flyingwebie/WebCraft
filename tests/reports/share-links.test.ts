@@ -5,6 +5,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { REPORT_PAGE_POLICY } from "@webcraft/core";
 
+import { ipv6Network } from "../harness/addresses.ts";
+import { chunkedBody, chunkedPost } from "../harness/bodies.ts";
 import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { reportedSite, views } from "./support.ts";
 
@@ -178,6 +180,48 @@ describe("a Share link", () => {
 			await givePassword(url, `guess ${tried}`, {}, `198.51.100.${100 + tried}`);
 		}
 		expect((await givePassword(url, "the right password", {}, "198.51.100.200")).status).toBe(429);
+	});
+
+	test("an IPv6 connection is counted by its /64: for a link's pages and for its password", async () => {
+		const site = await newSite();
+		const { url } = await staff.api.shareLinks.create({
+			siteId: site.siteId,
+			dashboardId: site.dashboardId,
+			name: "From one connection",
+			password: "the right password",
+		});
+		const guesser = ipv6Network();
+		for (let tried = 0; tried < 10; tried++) {
+			expect((await givePassword(url, `guess ${tried}`, {}, guesser(tried + 1))).status).toBe(403);
+		}
+		expect((await givePassword(url, "the right password", {}, guesser(11))).status).toBe(429);
+		expect((await givePassword(url, "the right password", {}, ipv6Network()(1))).status).toBe(303);
+
+		const reader = ipv6Network();
+		for (let asked = 0; asked < 120; asked++) expect((await open(url, {}, reader(asked + 1))).status).toBe(401);
+		expect((await open(url, {}, reader(121))).status).toBe(429);
+		expect((await open(url, {}, ipv6Network()(1))).status).toBe(401);
+	});
+
+	test("a password post that doesn't say its length stops being read at its limit", async () => {
+		const site = await newSite();
+		const { url } = await staff.api.shareLinks.create({
+			siteId: site.siteId,
+			dashboardId: site.dashboardId,
+			name: "Flooded",
+			password: "the right password",
+		});
+		const sent = chunkedBody(4 * 1024 * 1024);
+		const headers = {
+			"content-type": "application/x-www-form-urlencoded",
+			origin: new URL(url).origin,
+			"sec-fetch-site": "same-origin",
+		};
+
+		const answer = await install.request(fromAddress(chunkedPost(url, headers, sent.body), "198.51.100.60"));
+
+		expect(answer.status).toBe(413);
+		expect(sent.taken()).toBeLessThan(64 * 1024);
 	});
 
 	test("stops working once it expires or is revoked, and says no more than that", async () => {

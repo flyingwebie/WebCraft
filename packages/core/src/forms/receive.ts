@@ -314,16 +314,17 @@ async function refusedFor(
 	version: FormVersion,
 	clientAddress: string | null,
 ): Promise<number | null> {
-	const address = clientAddress ?? "unknown";
 	const tallies = [
-		await deps.rateLimits.tally(`form:${formId}:all:minute:${address}`, {
-			limit: version.spam.perMinute * REFUSED_FROM,
-			windowMs: 60_000,
-		}),
-		await deps.rateLimits.tally(`form:${formId}:all:hour:${address}`, {
-			limit: version.spam.perHour * REFUSED_FROM,
-			windowMs: 3_600_000,
-		}),
+		await deps.rateLimits.tally(
+			`form:${formId}:all:minute`,
+			{ limit: version.spam.perMinute * REFUSED_FROM, windowMs: 60_000 },
+			clientAddress,
+		),
+		await deps.rateLimits.tally(
+			`form:${formId}:all:hour`,
+			{ limit: version.spam.perHour * REFUSED_FROM, windowMs: 3_600_000 },
+			clientAddress,
+		),
 	];
 	const over = tallies.filter((tally) => !tally.within);
 	if (over.length === 0) return null;
@@ -338,15 +339,16 @@ async function withinLimits(
 	version: FormVersion,
 	clientAddress: string | null,
 ): Promise<boolean> {
-	const address = clientAddress ?? "unknown";
-	const minute = await deps.rateLimits.count(`form:${formId}:minute:${address}`, {
-		limit: version.spam.perMinute,
-		windowMs: 60_000,
-	});
-	const hour = await deps.rateLimits.count(`form:${formId}:hour:${address}`, {
-		limit: version.spam.perHour,
-		windowMs: 3_600_000,
-	});
+	const minute = await deps.rateLimits.count(
+		`form:${formId}:minute`,
+		{ limit: version.spam.perMinute, windowMs: 60_000 },
+		clientAddress,
+	);
+	const hour = await deps.rateLimits.count(
+		`form:${formId}:hour`,
+		{ limit: version.spam.perHour, windowMs: 3_600_000 },
+		clientAddress,
+	);
 	return minute && hour;
 }
 

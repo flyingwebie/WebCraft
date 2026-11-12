@@ -140,9 +140,23 @@ async function readLocal(dir: string): Promise<Map<string, string>> {
 	return files;
 }
 
+/**
+ * Where a Structure file is on this computer: under `dir`, never beside or above it. Paths are made
+ * from what the Install answered, which is only what it says it is, so one that would leave the
+ * folder (`..`, an absolute path) stops the command.
+ */
+function fileIn(dir: string, path: string): string {
+	const folder = resolve(dir);
+	const full = resolve(folder, ...path.split("/"));
+	if (!full.startsWith(`${folder}${sep}`)) {
+		throw new CliError(EXIT.failed, `${path} isn't a file of this folder: nothing is written or deleted outside it.`);
+	}
+	return full;
+}
+
 async function writeFiles(dir: string, files: Iterable<[string, string]>): Promise<void> {
 	for (const [path, content] of files) {
-		const full = join(dir, ...path.split("/"));
+		const full = fileIn(dir, path);
 		await mkdir(dirname(full), { recursive: true });
 		await writeFile(full, content);
 	}
@@ -180,7 +194,7 @@ async function pull(context: RunContext, options: Options): Promise<number> {
 	let removed = 0;
 	for (const [path, content] of local) {
 		if (state.files.has(path) || !manifest?.files[path] || manifest.files[path].hash !== hashOf(content)) continue;
-		await rm(join(dir, ...path.split("/")), { force: true });
+		await rm(fileIn(dir, path), { force: true });
 		removed++;
 	}
 	const next: Manifest = {
@@ -667,7 +681,7 @@ async function refresh(
 	}
 	for (const path of local.keys()) {
 		if (/^components\/[^/]+\.json$/.test(path) && sent.includes(unitOf(path)?.key ?? "")) {
-			await rm(join(dir, ...path.split("/")), { force: true });
+			await rm(fileIn(dir, path), { force: true });
 			delete manifest.files[path];
 		}
 	}

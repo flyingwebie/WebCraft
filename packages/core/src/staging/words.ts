@@ -25,6 +25,8 @@ export type StagingWords = {
 	wrongPassword: string;
 	/** Said when one address tried too many passwords. */
 	tooMany: string;
+	/** Said when the Site was given too many wrong passwords, from anywhere, within the hour. */
+	tooManyForSite: string;
 	/** Prefixed to the title when the page says something went wrong. */
 	errorPrefix: string;
 };
@@ -41,6 +43,7 @@ const WORDS: Record<string, StagingWords> = {
 		submit: "See the site",
 		wrongPassword: "That password isn't right. Check it and try again.",
 		tooMany: "Too many tries from your network. Wait a minute, then try again.",
+		tooManyForSite: "Too many passwords were tried on this site. Try again in an hour, or sign in instead.",
 		errorPrefix: "Error:",
 	},
 	it: {
@@ -54,6 +57,7 @@ const WORDS: Record<string, StagingWords> = {
 		submit: "Vedi il sito",
 		wrongPassword: "La password non è corretta. Controllala e riprova.",
 		tooMany: "Troppi tentativi dalla tua rete. Aspetta un minuto e riprova.",
+		tooManyForSite: "Su questo sito sono state provate troppe password. Riprova tra un'ora, oppure accedi.",
 		errorPrefix: "Errore:",
 	},
 	fr: {
@@ -67,6 +71,7 @@ const WORDS: Record<string, StagingWords> = {
 		submit: "Voir le site",
 		wrongPassword: "Ce mot de passe n'est pas le bon. Vérifiez-le et réessayez.",
 		tooMany: "Trop d'essais depuis votre réseau. Attendez une minute, puis réessayez.",
+		tooManyForSite: "Trop de mots de passe ont été essayés sur ce site. Réessayez dans une heure, ou connectez-vous.",
 		errorPrefix: "Erreur :",
 	},
 	de: {
@@ -80,6 +85,8 @@ const WORDS: Record<string, StagingWords> = {
 		submit: "Website ansehen",
 		wrongPassword: "Das Passwort stimmt nicht. Prüfen Sie es und versuchen Sie es erneut.",
 		tooMany: "Zu viele Versuche aus Ihrem Netzwerk. Warten Sie eine Minute und versuchen Sie es erneut.",
+		tooManyForSite:
+			"Auf dieser Website wurden zu viele Passwörter ausprobiert. Versuchen Sie es in einer Stunde erneut oder melden Sie sich an.",
 		errorPrefix: "Fehler:",
 	},
 	es: {
@@ -93,6 +100,8 @@ const WORDS: Record<string, StagingWords> = {
 		submit: "Ver el sitio",
 		wrongPassword: "La contraseña no es correcta. Revísala y vuelve a intentarlo.",
 		tooMany: "Demasiados intentos desde tu red. Espera un minuto y vuelve a intentarlo.",
+		tooManyForSite:
+			"Se han probado demasiadas contraseñas en este sitio. Vuelve a intentarlo dentro de una hora, o inicia sesión.",
 		errorPrefix: "Error:",
 	},
 	pt: {
@@ -106,6 +115,8 @@ const WORDS: Record<string, StagingWords> = {
 		submit: "Ver o site",
 		wrongPassword: "A palavra-passe não está correta. Verifique-a e tente de novo.",
 		tooMany: "Demasiadas tentativas a partir da sua rede. Aguarde um minuto e tente de novo.",
+		tooManyForSite:
+			"Foram tentadas demasiadas palavras-passe neste site. Tente de novo dentro de uma hora, ou inicie sessão.",
 		errorPrefix: "Erro:",
 	},
 	nl: {
@@ -119,6 +130,8 @@ const WORDS: Record<string, StagingWords> = {
 		submit: "Bekijk de site",
 		wrongPassword: "Dat wachtwoord klopt niet. Controleer het en probeer het opnieuw.",
 		tooMany: "Te veel pogingen vanaf je netwerk. Wacht een minuut en probeer het opnieuw.",
+		tooManyForSite:
+			"Er zijn te veel wachtwoorden geprobeerd op deze site. Probeer het over een uur opnieuw, of log in.",
 		errorPrefix: "Fout:",
 	},
 };

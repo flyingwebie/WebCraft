@@ -1,6 +1,6 @@
 import { createReadStream } from "node:fs";
 import {
-	applyMigrationLevel,
+	applyMigrationLevelWithin,
 	createBoss,
 	type JobQueueOptions,
 	type MigrationReport,
@@ -9,6 +9,7 @@ import {
 	runMigrations,
 	unknownMigrations,
 } from "@webcraft/db";
+import type pg from "pg";
 import semver from "semver";
 import { importsRun } from "../imports/runs.ts";
 import { createJobQueue } from "../jobs/define.ts";
@@ -16,8 +17,9 @@ import { coreJobs } from "../jobs/index.ts";
 import { jobQueues } from "../jobs/queues.ts";
 import type { Logger } from "../log.ts";
 import { mediaProcess, mediaVariants } from "../media/jobs.ts";
+import { keyParts, StorageError } from "../media/storage.ts";
 import { WEBCRAFT_VERSION } from "../version.ts";
-import { loadTable, makePartitions, setSequences, useDumpSettings } from "./dump.ts";
+import { countDumpRows, loadTable, makePartitions, setSequences, useDumpSettings } from "./dump.ts";
 import { FILES_FOLDER, restoreLocalFile } from "./files.ts";
 import {
 	BACKUP_FORMAT,
@@ -46,6 +48,15 @@ export class RestoreRefusedError extends Error {
 		super(message);
 		this.refusal = refusal;
 	}
+}
+
+/**
+ * A restore failed after it started and was undone: the database is as it was before. The message says
+ * what went wrong. Files of the Backup already written into local storage stay there (they are the
+ * Backup's own, under the keys they had); the next restore writes them again.
+ */
+export class RestoreFailedError extends Error {
+	override name = "RestoreFailedError";
 }
 
 /** What restoring needs: the database to restore into, local storage, and this build's Modules. */
@@ -127,11 +138,15 @@ export async function inspectDatabase(databaseUrl: string): Promise<DatabaseCont
 /**
  * Restores a whole Install from a Backup (ADRs 0032, 0033): never part of one, never into a
  * database that holds anything unless asked to replace it. It refuses a Backup a newer WebCraft
- * wrote, one with migrations this build doesn't have, and one taken under another Master key. Then
- * it rebuilds the schema the Backup was taken at, loads every row in one transaction, writes the
- * files back into local storage, runs the migrate step (a Backup of an older version is brought up
- * to this one), queues the image variants to be made again and clears every Site's page cache and
- * search index.
+ * wrote, one with migrations this build doesn't have, and one taken under another Master key.
+ *
+ * All or nothing. Before anything is changed it reads the whole archive (`checkArchive`): a Backup
+ * that is cut short, damaged, or doesn't hold what its manifest says is refused. Then, in one
+ * transaction, it deletes what the database held (when replacing it), rebuilds the schema the Backup
+ * was taken at, loads every row and writes the files back into local storage, and only then commits:
+ * whatever fails before that is rolled back and the database is as it was (`RestoreFailedError`).
+ * After the commit it runs the migrate step (a Backup of an older version is brought up to this one),
+ * queues the image variants to be made again and clears every Site's page cache and search index.
  */
 export async function restoreBackup(
 	context: RestoreContext,
@@ -161,12 +176,9 @@ export async function restoreBackup(
 				`To replace everything in the database, type its name, ${contents.name}, as the confirmation.`,
 			);
 		}
-		step(`Deleting everything in the database ${contents.name}`);
-		await emptyDatabase(context.databaseUrl);
 	}
-
-	step(`Rebuilding the database as it was (${manifest.migrations.core.length} migrations of WebCraft's)`);
-	await applyMigrationLevel(context.databaseUrl, manifest.migrations, { modules: context.modules });
+	step("Checking the whole Backup before anything changes");
+	await checkArchive(archive, manifest);
 
 	const opened = openDatabase(context.databaseUrl, { maxConnections: 1, applicationName: "webcraft-restore" });
 	const client = await opened.pool.connect();
@@ -174,53 +186,55 @@ export async function restoreBackup(
 	let tables = 0;
 	let files = 0;
 	try {
-		const tablesByFile = new Map(manifest.database.tables.map((table) => [table.file, table]));
-		let loading = false;
-		const finishLoading = async () => {
-			if (!loading) return;
-			await setSequences(client, manifest.database.sequences);
-			await client.query("COMMIT");
-			loading = false;
-		};
+		await client.query("BEGIN");
 		try {
+			if (contents.tables > 0) {
+				step(`Deleting everything in the database ${contents.name}`);
+				await emptyDatabase(client);
+			}
+			step(`Rebuilding the database as it was (${manifest.migrations.core.length} migrations of WebCraft's)`);
+			await applyMigrationLevelWithin(client, manifest.migrations, { modules: context.modules });
+			step(`Loading ${manifest.database.tables.length} tables`);
+			await useDumpSettings(client);
+			await makePartitions(client, manifest.database.partitions);
+			const tablesByFile = new Map(manifest.database.tables.map((table) => [table.file, table]));
 			let first = true;
 			for await (const entry of readTar(openArchive(archive))) {
 				if (first) {
 					first = false;
-					step(`Loading ${manifest.database.tables.length} tables`);
-					await client.query("BEGIN");
-					loading = true;
-					await useDumpSettings(client);
-					await makePartitions(client, manifest.database.partitions);
 					continue;
 				}
 				const table = tablesByFile.get(entry.path);
 				if (table) {
-					rows += await loadTable(client, table, entry.body);
+					const loaded = await loadTable(client, table, entry.body);
+					if (loaded !== table.rows) throw miscounted(table.name, loaded, table.rows);
+					rows += loaded;
 					tables++;
 					continue;
 				}
 				if (entry.path.startsWith(FILES_FOLDER)) {
-					if (loading) {
-						await finishLoading();
-						step(`Writing ${manifest.files.local.count} files into local storage`);
-					}
+					if (files === 0) step(`Writing ${manifest.files.local.count} files into local storage`);
 					await restoreLocalFile(context.storageDir, entry.path.slice(FILES_FOLDER.length), entry.body);
 					files++;
 				}
 			}
-			await finishLoading();
+			if (tables !== manifest.database.tables.length) throw missingTables(tables, manifest);
+			await setSequences(client, manifest.database.sequences);
+			// Last: every row and every file is in.
+			await client.query("COMMIT");
 		} catch (error) {
-			if (loading) await client.query("ROLLBACK").catch(() => {});
-			if (error instanceof TarFormatError) throw notABackup(error.message.replace(/\.$/, "").toLowerCase());
-			throw error;
+			await client.query("ROLLBACK").catch(() => {});
+			// The archive changed since it was checked, or the database or the disk failed.
+			const problem =
+				error instanceof TarFormatError ? notABackup(error.message.replace(/\.$/, "").toLowerCase()) : error;
+			throw new RestoreFailedError(
+				`The restore failed and was undone: the database ${contents.name} is as it was. ${problem instanceof Error ? problem.message : String(problem)}`,
+				{ cause: problem },
+			);
 		}
 	} finally {
 		client.release();
 		await opened.close();
-	}
-	if (tables !== manifest.database.tables.length) {
-		throw notABackup(`it holds ${tables} of the ${manifest.database.tables.length} tables its manifest lists`);
 	}
 
 	step("Running the migrate step");
@@ -240,6 +254,67 @@ export async function restoreBackup(
 		migrations: migrations.appliedMigrations,
 	});
 	return { manifest, tables, rows, files, migrations, queued };
+}
+
+/**
+ * Reads a Backup from its first byte to its end marker, changing nothing, and refuses one that isn't
+ * what its manifest says: cut short or damaged (the tar layout, each table file's own checksum), a
+ * table missing, there twice or holding other rows than listed, a file with no place in local
+ * storage, more files than listed. (Fewer files are fine: one deleted while the Backup was taken is
+ * listed but not copied.) A restore deletes nothing before this passes.
+ */
+async function checkArchive(archive: string, manifest: BackupManifest): Promise<void> {
+	const tablesByFile = new Map(manifest.database.tables.map((table) => [table.file, table]));
+	const found = new Set<string>();
+	let files = 0;
+	try {
+		let first = true;
+		for await (const entry of readTar(openArchive(archive))) {
+			if (first) {
+				first = false;
+				continue;
+			}
+			const table = tablesByFile.get(entry.path);
+			if (table) {
+				if (found.has(entry.path)) throw notABackup(`it holds the rows of ${table.name} twice`);
+				found.add(entry.path);
+				let rows: number;
+				try {
+					rows = await countDumpRows(entry.body);
+				} catch (error) {
+					if (error instanceof TarFormatError) throw error;
+					throw notABackup(`its rows of ${table.name} are damaged`);
+				}
+				if (rows !== table.rows) throw miscounted(table.name, rows, table.rows);
+				continue;
+			}
+			if (entry.path.startsWith(FILES_FOLDER)) {
+				const key = entry.path.slice(FILES_FOLDER.length);
+				try {
+					keyParts(key);
+				} catch (error) {
+					if (!(error instanceof StorageError)) throw error;
+					throw notABackup(`it holds a file with no place in local storage (${key})`);
+				}
+				files++;
+			}
+		}
+	} catch (error) {
+		if (error instanceof TarFormatError) throw notABackup(error.message.replace(/\.$/, "").toLowerCase());
+		throw error;
+	}
+	if (found.size !== manifest.database.tables.length) throw missingTables(found.size, manifest);
+	if (files > manifest.files.local.count) {
+		throw notABackup(`it holds ${files} files, more than the ${manifest.files.local.count} its manifest lists`);
+	}
+}
+
+function miscounted(table: string, held: number, listed: number): RestoreRefusedError {
+	return notABackup(`it holds ${held} rows of ${table}, where its manifest lists ${listed}`);
+}
+
+function missingTables(held: number, manifest: BackupManifest): RestoreRefusedError {
+	return notABackup(`it holds ${held} of the ${manifest.database.tables.length} tables its manifest lists`);
 }
 
 /** Refuses a Backup this build can't restore: newer, with migrations it lacks, or under another Master key. */
@@ -266,54 +341,45 @@ function assertRestorable(manifest: BackupManifest, context: RestoreContext): vo
 	}
 }
 
-/** Deletes every table, sequence, function and type of the database's own schemas, and its other schemas. */
-async function emptyDatabase(databaseUrl: string): Promise<void> {
-	const opened = openDatabase(databaseUrl, { maxConnections: 1, applicationName: "webcraft-restore" });
-	const client = await opened.pool.connect();
-	try {
-		await client.query("BEGIN");
-		const schemas = await client.query<{ name: string }>(
-			`SELECT nspname AS name FROM pg_namespace WHERE nspname NOT IN ('public', 'pg_catalog', 'information_schema')
-				AND nspname NOT LIKE 'pg\\_%'`,
-		);
-		for (const { name } of schemas.rows) await client.query(`DROP SCHEMA ${ident(name)} CASCADE`);
-		const drop = async (kind: string, query: string) => {
-			for (const { name } of (await client.query<{ name: string }>(query)).rows) {
-				await client.query(`DROP ${kind} IF EXISTS ${name} CASCADE`);
-			}
-		};
-		await drop(
-			"TABLE",
-			"SELECT format('public.%I', c.relname) AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT c.relispartition",
-		);
-		await drop(
-			"VIEW",
-			"SELECT format('public.%I', c.relname) AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'v'",
-		);
-		await drop(
-			"MATERIALIZED VIEW",
-			"SELECT format('public.%I', c.relname) AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'm'",
-		);
-		await drop(
-			"SEQUENCE",
-			"SELECT format('public.%I', c.relname) AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'S'",
-		);
-		await drop(
-			"ROUTINE",
-			"SELECT format('public.%I(%s)', p.proname, pg_get_function_identity_arguments(p.oid)) AS name FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')",
-		);
-		await drop(
-			"TYPE",
-			"SELECT format('public.%I', t.typname) AS name FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = 'public' AND t.typtype IN ('e', 'd', 'c', 'r', 'm') AND NOT EXISTS (SELECT 1 FROM pg_class c WHERE c.reltype = t.oid) AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = t.oid AND d.deptype = 'e')",
-		);
-		await client.query("COMMIT");
-	} catch (error) {
-		await client.query("ROLLBACK").catch(() => {});
-		throw error;
-	} finally {
-		client.release();
-		await opened.close();
-	}
+/**
+ * Deletes every table, sequence, function and type of the database's own schemas, and its other
+ * schemas, in the transaction the restore holds on `client`: gone only once the restore commits.
+ */
+async function emptyDatabase(client: pg.PoolClient): Promise<void> {
+	const schemas = await client.query<{ name: string }>(
+		`SELECT nspname AS name FROM pg_namespace WHERE nspname NOT IN ('public', 'pg_catalog', 'information_schema')
+			AND nspname NOT LIKE 'pg\\_%'`,
+	);
+	for (const { name } of schemas.rows) await client.query(`DROP SCHEMA ${ident(name)} CASCADE`);
+	const drop = async (kind: string, query: string) => {
+		for (const { name } of (await client.query<{ name: string }>(query)).rows) {
+			await client.query(`DROP ${kind} IF EXISTS ${name} CASCADE`);
+		}
+	};
+	await drop(
+		"TABLE",
+		"SELECT format('public.%I', c.relname) AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT c.relispartition",
+	);
+	await drop(
+		"VIEW",
+		"SELECT format('public.%I', c.relname) AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'v'",
+	);
+	await drop(
+		"MATERIALIZED VIEW",
+		"SELECT format('public.%I', c.relname) AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'm'",
+	);
+	await drop(
+		"SEQUENCE",
+		"SELECT format('public.%I', c.relname) AS name FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind = 'S'",
+	);
+	await drop(
+		"ROUTINE",
+		"SELECT format('public.%I(%s)', p.proname, pg_get_function_identity_arguments(p.oid)) AS name FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = p.oid AND d.deptype = 'e')",
+	);
+	await drop(
+		"TYPE",
+		"SELECT format('public.%I', t.typname) AS name FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE n.nspname = 'public' AND t.typtype IN ('e', 'd', 'c', 'r', 'm') AND NOT EXISTS (SELECT 1 FROM pg_class c WHERE c.reltype = t.oid) AND NOT EXISTS (SELECT 1 FROM pg_depend d WHERE d.objid = t.oid AND d.deptype = 'e')",
+	);
 }
 
 /**

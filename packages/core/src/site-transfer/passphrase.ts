@@ -15,8 +15,12 @@ import { SECRET_MAX_LENGTH } from "../secrets/store.ts";
 
 /** PBKDF2-SHA256 rounds: OWASP's recommendation for it (2023). */
 export const PASSPHRASE_ROUNDS = 600_000;
-/** The fewest and most rounds an archive may ask for: fewer is too weak, more would keep the web process busy. */
-const ROUNDS_RANGE = { min: 100_000, max: 5_000_000 };
+/**
+ * The fewest and most rounds an archive may ask for. Fewer is too weak. More would let whoever uploads
+ * an archive decide how long the Install spends deriving a key from it: twice what WebCraft writes
+ * leaves room for a later version to write more, and no more than that.
+ */
+const ROUNDS_RANGE = { min: 100_000, max: 2 * PASSPHRASE_ROUNDS };
 
 export { PASSPHRASE_MAX_LENGTH, PASSPHRASE_MIN_LENGTH } from "./rules.ts";
 

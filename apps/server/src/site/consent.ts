@@ -1,4 +1,4 @@
-import type { InstallServices, SiteHost } from "@webcraft/core";
+import { type InstallServices, readLimitedBody, type SiteHost } from "@webcraft/core";
 import { CHOSEN_CATEGORIES, CONSENT_RECORD_PATH } from "@webcraft/renderer";
 
 import { clientAddress } from "../client-address.ts";
@@ -43,11 +43,11 @@ export async function consentRecordPost(
 	if (!fromSitePages(request)) return plainText(403, "Forbidden", headers);
 	const type = (request.headers.get("content-type") ?? "").split(";")[0]?.trim().toLowerCase();
 	if (type !== "application/json") return plainText(415, "Unsupported Media Type", headers);
-	const text = await readLimited(request, MAX_BYTES);
-	if (text === null) return plainText(413, "Payload Too Large", headers);
+	const body = await readLimitedBody(request, MAX_BYTES);
+	if (body === null) return plainText(413, "Payload Too Large", headers);
 	let input: unknown;
 	try {
-		input = JSON.parse(text);
+		input = JSON.parse(new TextDecoder().decode(body));
 	} catch {
 		return plainText(400, "Bad Request", headers);
 	}
@@ -88,12 +88,4 @@ function fromSitePages(request: Request): boolean {
 	} catch {
 		return false;
 	}
-}
-
-/** The body as text, or null when it is longer than `limit` bytes. */
-async function readLimited(request: Request, limit: number): Promise<string | null> {
-	const declared = Number(request.headers.get("content-length") ?? "0");
-	if (declared > limit) return null;
-	const bytes = new Uint8Array(await request.arrayBuffer());
-	return bytes.byteLength > limit ? null : new TextDecoder().decode(bytes);
 }

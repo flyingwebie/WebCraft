@@ -82,8 +82,7 @@ export async function recordConsent(
 	if (!read.success || read.data.version > settings.version) return { kind: "invalid" };
 	const { languages } = await siteLanguages(scope);
 	if (!languages.some((language) => language.code === read.data.language)) return { kind: "invalid" };
-	const key = `consent:${scope.site.id}:${limiter.clientAddress ?? "unknown"}`;
-	if (!(await limiter.rateLimits.count(key, CONSENT_RECORD_LIMIT))) {
+	if (!(await limiter.rateLimits.count(`consent:${scope.site.id}`, CONSENT_RECORD_LIMIT, limiter.clientAddress))) {
 		return { kind: "limited", retryAfterSeconds: CONSENT_RECORD_LIMIT.windowMs / 1000 };
 	}
 	const id = crypto.randomUUID();

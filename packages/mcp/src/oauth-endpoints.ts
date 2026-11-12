@@ -1,4 +1,4 @@
-import { DEVICE_CODE_GRANT, type InstallServices, MCP_PATH, OAuthRequestError } from "@webcraft/core";
+import { DEVICE_CODE_GRANT, type InstallServices, MCP_PATH, OAuthRequestError, readLimitedBody } from "@webcraft/core";
 
 import { corsHeaders, preflight } from "./cors.ts";
 
@@ -159,15 +159,9 @@ function answer(request: Request, status: number, body: unknown, headers: Record
 	return Response.json(body, { status, headers: { "cache-control": "no-store", ...corsHeaders(request), ...headers } });
 }
 
-/** The request's body as text, refused past `MAX_BODY_BYTES`. */
+/** The request's body as text, refused past `MAX_BODY_BYTES`: anyone may post here, so no more is read. */
 async function bodyText(request: Request): Promise<string> {
-	const declared = Number(request.headers.get("content-length"));
-	if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
-		throw new OAuthRequestError("invalid_request", "The request is too large.", 413);
-	}
-	const text = await request.text();
-	if (new TextEncoder().encode(text).byteLength > MAX_BODY_BYTES) {
-		throw new OAuthRequestError("invalid_request", "The request is too large.", 413);
-	}
-	return text;
+	const body = await readLimitedBody(request, MAX_BODY_BYTES);
+	if (body === null) throw new OAuthRequestError("invalid_request", "The request is too large.", 413);
+	return new TextDecoder().decode(body);
 }

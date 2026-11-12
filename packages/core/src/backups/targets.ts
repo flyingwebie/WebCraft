@@ -29,7 +29,7 @@ export function folderTarget(folder: string): BackupTarget {
 		kind: "folder",
 		location: (name) => join(folder, name),
 		async write(name, bytes) {
-			await mkdir(folder, { recursive: true });
+			await mkdir(folder, { recursive: true, mode: OWNER_ONLY_FOLDER });
 			return writeFile(join(folder, name), bytes);
 		},
 		async remove(name) {
@@ -53,7 +53,7 @@ export async function fileTarget(path: string): Promise<BackupTarget> {
 		kind: "file",
 		location: pathOf,
 		async write(name, bytes) {
-			await mkdir(dirname(pathOf(name)), { recursive: true });
+			await mkdir(dirname(pathOf(name)), { recursive: true, mode: OWNER_ONLY_FOLDER });
 			return writeFile(pathOf(name), bytes);
 		},
 		async remove(name) {
@@ -61,6 +61,14 @@ export async function fileTarget(path: string): Promise<BackupTarget> {
 		},
 	};
 }
+
+/**
+ * An archive holds the whole database (password hashes, sessions, what visitors sent, the Email log),
+ * in the clear: only its owner reads it, whatever the folder around it allows. A folder WebCraft makes
+ * for archives is its owner's alone too; one that was there already keeps the permissions it was given.
+ */
+const OWNER_ONLY_FILE = 0o600;
+const OWNER_ONLY_FOLDER = 0o700;
 
 async function writeFile(path: string, bytes: AsyncIterable<Uint8Array>): Promise<number> {
 	const partial = `${path}.partial`;
@@ -72,7 +80,7 @@ async function writeFile(path: string, bytes: AsyncIterable<Uint8Array>): Promis
 		}
 	};
 	try {
-		await pipeline(Readable.from(counted()), createWriteStream(partial));
+		await pipeline(Readable.from(counted()), createWriteStream(partial, { mode: OWNER_ONLY_FILE }));
 		await rename(partial, path);
 	} catch (error) {
 		await rm(partial, { force: true });

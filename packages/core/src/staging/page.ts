@@ -54,7 +54,7 @@ export type StagingPageOptions = {
 	/** Whether the Site has a staging password: the page then offers its form. */
 	passwordForm: boolean;
 	/** What went wrong with the password just given. */
-	problem?: "wrongPassword" | "tooMany";
+	problem?: "wrongPassword" | "tooMany" | "tooManyForSite";
 };
 
 /**

@@ -16,6 +16,7 @@ import {
 	API_TOKEN_LIMITS,
 	type ApiClientUse,
 	ApiTokenInvalidError,
+	bodyLimitedByRoute,
 	type InstallServices,
 	MCP_PATH,
 	OAUTH_PREFIXES,
@@ -68,6 +69,7 @@ export function createMcpEndpoint(
 			return serverFor(use, clientAddress);
 		},
 		{
+			maxRequestBodySize: MCP_BODY_MAX_BYTES,
 			onerror: (error) => {
 				services.log.warn("The MCP server refused or failed a request", { error });
 			},
@@ -192,10 +194,18 @@ export function createMcpEndpoint(
 			resource: new URL(services.oauth.resource),
 			extra: { use, clientAddress },
 		};
+		// Read only now that the token holds, by the MCP library, which stops at `MCP_BODY_MAX_BYTES` itself.
+		bodyLimitedByRoute(request);
 		const response = await handler.fetch(request, { authInfo });
 		return withCors(request, response);
 	};
 }
+
+/**
+ * The largest request the MCP server reads: a tool call, with a small file in base64 at most. The MCP
+ * library counts as it reads and answers a larger one 413.
+ */
+export const MCP_BODY_MAX_BYTES = 4 * 1024 * 1024;
 
 /** The rate limit counters of a client: shared with `/api/v1` for an API token. */
 function limitKey(use: ApiClientUse): string {

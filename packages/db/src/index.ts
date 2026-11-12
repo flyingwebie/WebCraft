@@ -8,6 +8,7 @@ export {
 export { type Listener, type ListenOptions, listen } from "./listen.ts";
 export {
 	applyMigrationLevel,
+	applyMigrationLevelWithin,
 	assertSchemaCurrent,
 	checkSchema,
 	DatabaseNotReadyError,

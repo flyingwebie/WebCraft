@@ -95,6 +95,21 @@ export async function loadTable(
 }
 
 /**
+ * How many rows a table's dump file holds, read to its end without a database: COPY's text format
+ * ends each row with a line feed and writes one inside a value as `\n`. Reading it whole also checks
+ * the file itself, which gzip ends with a checksum of its content: a damaged one throws.
+ */
+export async function countDumpRows(content: AsyncIterable<Uint8Array>): Promise<number> {
+	let rows = 0;
+	await pipeline(Readable.from(content), createGunzip(), async (chunks: AsyncIterable<Buffer>) => {
+		for await (const chunk of chunks) {
+			for (let at = chunk.indexOf(10); at !== -1; at = chunk.indexOf(10, at + 1)) rows++;
+		}
+	});
+	return rows;
+}
+
+/**
  * Makes the partitions a dump's partitioned tables had, before their rows are loaded. The statement is
  * built again from the bound's two timestamps, never from the manifest's text (`PARTITION_BOUND`).
  */

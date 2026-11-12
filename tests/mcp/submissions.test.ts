@@ -137,4 +137,19 @@ describe("chosen", () => {
 			details: { procedure: "m.forms.submissions.export", input: { formId } },
 		});
 	});
+
+	test("a read of Submissions whose input is over 1 MiB is held to the API's own limit, not the default one", async () => {
+		const { secret } = await createApiToken(owner.browser, {
+			workspaceId,
+			name: "Inbox export with a long note",
+			toolsets: ["submissions"],
+		});
+		const script = tokenClient(install, secret);
+		const answer = await script.request("m/forms/submissions/export", {
+			body: JSON.stringify({ siteId, formId, note: "x".repeat(2 * 1024 * 1024) }),
+			headers: { "content-type": "application/json" },
+		});
+		expect(answer.status).not.toBe(413);
+		expect(answer.status).toBeLessThan(500);
+	});
 });

@@ -55,8 +55,18 @@ export type CliUser = {
 
 let addresses = 0;
 
-/** A developer's computer with `webcraft` on it, talking to `install`. */
-export function cliUser(install: TestInstall, { hostname = "dev-laptop" }: { hostname?: string } = {}): CliUser {
+/**
+ * A developer's computer with `webcraft` on it, talking to `install`. `tamper` stands for an Install
+ * that isn't what it seems (a compromised one, or an address the person was tricked into signing in
+ * to): it rewrites what the Install answered before the CLI reads it.
+ */
+export function cliUser(
+	install: TestInstall,
+	{
+		hostname = "dev-laptop",
+		tamper,
+	}: { hostname?: string; tamper?: (request: Request, answer: Response) => Promise<Response> | Response } = {},
+): CliUser {
 	const configDir = mkdtempSync(join(tmpdir(), "webcraft-cli-config-"));
 	const address = `10.220.${(++addresses >> 8) & 255}.${addresses & 255}`;
 	const opened: string[] = [];
@@ -83,9 +93,11 @@ export function cliUser(install: TestInstall, { hostname = "dev-laptop" }: { hos
 					return answers.shift() ?? "";
 				},
 				readStdin: async () => options.stdin ?? "",
-				fetch: (request) => {
-					requests.push(request.clone());
-					return install.request(fromAddress(request, address));
+				fetch: async (request) => {
+					const sent = request.clone();
+					requests.push(sent);
+					const answer = await install.request(fromAddress(request, address));
+					return tamper ? tamper(sent, answer) : answer;
 				},
 				configDir,
 				cwd: options.cwd ?? configDir,

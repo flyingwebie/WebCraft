@@ -3,6 +3,7 @@
 // System email it sends through a real SMTP server with the real Mailer.
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { samplePing } from "@webcraft/core";
+import pg from "pg";
 import { imageInfo, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type LocalSmtpServer, startSmtpServer, type TestInstall } from "../harness/index.ts";
 import { goLive } from "../harness/staging.ts";
@@ -126,6 +127,51 @@ test("the worker cleans an uploaded photo on Node, then makes its AVIF and WebP 
 		worker.kill("SIGTERM");
 	}
 	expect(await worker.exited).toBe(0);
+}, 60_000);
+
+test("the worker says when the database drops connections it had open: a flapping database shows in the log", async () => {
+	const url = `http://127.0.0.1:${pingTarget.port}/before-the-drop`;
+	await install.jobs.send(samplePing, { url });
+	const worker = Bun.spawn(["node", WORKER], {
+		env: { ...process.env, ...install.env },
+		stdout: "pipe",
+		stderr: "pipe",
+	});
+	const lines: LogLine[] = [];
+	const reading = (async () => {
+		const decoder = new TextDecoder();
+		let buffered = "";
+		for await (const chunk of worker.stdout) {
+			buffered += decoder.decode(chunk, { stream: true });
+			const whole = buffered.split("\n");
+			buffered = whole.pop() ?? "";
+			for (const line of whole) {
+				const parsed = parseJson(line);
+				if (parsed) lines.push(parsed);
+			}
+		}
+	})();
+	const admin = new pg.Client({ connectionString: install.databaseUrl });
+	await admin.connect();
+	try {
+		// It has worked a job, so it holds connections open.
+		await eventually(async () => lines.find((line) => line.msg === "Pinged a URL"));
+
+		// The database server ends them, as a restart or a failover does.
+		await admin.query(
+			"SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = current_database() AND application_name = 'webcraft-worker'",
+		);
+
+		const said = await eventually(async () =>
+			lines.find((line) => String(line.msg).startsWith("The database dropped a connection")),
+		);
+		expect(said).toMatchObject({ level: "warn", process: "worker" });
+	} finally {
+		await admin.end();
+		worker.kill("SIGTERM");
+	}
+	await worker.exited;
+	await reading;
 }, 60_000);
 
 /** Asks `check` again every 100 ms until it answers something, for at most 10 seconds. */

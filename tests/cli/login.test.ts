@@ -198,6 +198,34 @@ describe("webcraft login", () => {
 	});
 });
 
+describe("a sign-ins file that can't be read", () => {
+	test("is left as it is: a new sign-in never replaces it with a file of one", async () => {
+		const cli = cliUser(install);
+		try {
+			expect((await signInCli(cli, install, owner.browser, { workspaceId }, ["--name", "client-side"])).code).toBe(0);
+			const file = `${cli.configDir}/credentials.json`;
+			// Damaged: cut off part-way, as a full disk or a crash leaves a file.
+			const damaged = (await Bun.file(file).text()).slice(0, -20);
+			await Bun.write(file, damaged);
+
+			const staff = await install.createStaff({ workspaces: [workspaceId], name: "Sam Second" });
+			const again = await signInCli(cli, install, staff.browser, { workspaceId }, ["--name", "agency-side"]);
+
+			expect(again.code).not.toBe(0);
+			expect(again.stderr).toContain("credentials.json");
+			expect(again.stderr).toContain("can't be read");
+			// Whatever of the other sign-in is still in it stays there for the person to mend.
+			expect(await Bun.file(file).text()).toBe(damaged);
+			// And nothing acts as if nobody had signed in.
+			const who = await cli.run(["whoami", "--install", "client-side"]);
+			expect(who.code).not.toBe(0);
+			expect(who.stderr).toContain("can't be read");
+		} finally {
+			await cli.close();
+		}
+	});
+});
+
 describe("several Installs", () => {
 	test("each sign-in is a profile; --install picks one, and the newest is the default", async () => {
 		const cli = cliUser(install);

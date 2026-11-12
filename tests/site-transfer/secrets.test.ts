@@ -230,6 +230,30 @@ test("a carried secret too large to store is dropped and reported before the Sit
 	expect((await admin.api.sites.list({ workspaceId: target })).sites).toHaveLength(1);
 });
 
+test("an archive can't make the Install hash a passphrase for longer than WebCraft's own exports do", async () => {
+	const admin = await install.superadmin();
+	const target = (await install.createWorkspace("Slow key")).id;
+	// The most the format took before: more than eight times what an export writes.
+	for (const rounds of [5_000_000, 1_200_001]) {
+		const files = tarFiles(withPassphrase);
+		const file = files.find((entry) => entry.path === "secrets.json");
+		const head = files[0];
+		if (!file || !head) throw new Error("Missing archive metadata.");
+		const bundle = JSON.parse(Buffer.from(file.data).toString());
+		expect(bundle.kdf.rounds).toBe(600_000);
+		bundle.kdf.rounds = rounds;
+		file.data = Buffer.from(JSON.stringify(bundle));
+		const manifest = manifestIn(withPassphrase);
+		manifest.secrets.sha256 = createHash("sha256").update(file.data).digest("hex");
+		head.data = Buffer.from(JSON.stringify(manifest));
+
+		await expect(uploadArchive(admin, target, tarOf(files))).rejects.toMatchObject({
+			code: "SITE_IMPORT_REFUSED",
+			data: { reason: "damaged" },
+		});
+	}
+});
+
 test("the secret inventory must agree with the manifest, without duplicate names", async () => {
 	const admin = await install.superadmin();
 	const target = (await install.createWorkspace("Secret inventory")).id;

@@ -1,0 +1,11 @@
+# The workflows name every action by its commit, so nothing moves under them. This keeps those commits
+# current: once a week, one pull request raising the actions that have a newer release.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]

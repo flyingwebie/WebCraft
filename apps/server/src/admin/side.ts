@@ -14,7 +14,8 @@ import { createMcpEndpoint, createOAuthEndpoints } from "@webcraft/mcp";
 
 import { clientAddress } from "../client-address.ts";
 import { mediaFileResponse } from "../media-response.ts";
-import { type Handler, json, notFound, plainText, readOnly } from "../responses.ts";
+import { recordedAddress } from "../recorded-address.ts";
+import { type Handler, json, notFound, plainText, readOnly, withinBodyCeiling } from "../responses.ts";
 import { BUILDER_CANVAS_PATH, builderCanvas } from "./builder-canvas.ts";
 import { CADDY_ASK_PATH, caddyAsk } from "./caddy-ask.ts";
 import { healthz, readyz } from "./health.ts";
@@ -87,9 +88,13 @@ export function createAdminSide(services: InstallServices, adminApp?: AdminApp):
 	};
 	return withAdminHeaders(services.config.adminOrigin, async (request, page) => {
 		try {
-			return await answer(request, page);
+			return await withinBodyCeiling(request, () => answer(request, page));
 		} catch (error) {
-			services.log.error("A request failed unexpectedly", { error, method: request.method, url: request.url });
+			services.log.error("A request failed unexpectedly", {
+				error,
+				method: request.method,
+				url: recordedAddress(request, services),
+			});
 			return plainText(500, "Internal Server Error");
 		}
 	});
