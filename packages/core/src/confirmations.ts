@@ -86,16 +86,19 @@ export async function askConfirmation(
 	return { id: row.id, expiresAt: row.expiresAt };
 }
 
+/** A confirmation used up by `useConfirmation`, to give back with `giveBackConfirmation`. */
+export type UsedConfirmation = typeof confirmations.$inferSelect;
+
 /**
  * Uses a confirmation for `request`, or throws `ConfirmationInvalidError`. Call it inside the
  * transaction that goes ahead, after working out the preview again; it is used up when that
- * transaction commits.
+ * transaction commits. Answers the confirmation used.
  */
 export async function useConfirmation(
 	scope: SiteScope | WorkspaceScope,
 	id: string,
 	request: ConfirmationRequest,
-): Promise<void> {
+): Promise<UsedConfirmation> {
 	const [row] = isUuid(id)
 		? await scope.db
 				.delete(confirmations)
@@ -114,4 +117,14 @@ export async function useConfirmation(
 	if (!row) throw new ConfirmationInvalidError("unknown");
 	if (row.expiresAt.getTime() <= scope.now().getTime()) throw new ConfirmationInvalidError("expired");
 	if (!sameJson(row.preview, request.preview ?? null)) throw new ConfirmationInvalidError("changed");
+	return row;
+}
+
+/**
+ * Gives back a confirmation used in a transaction of its own when what it confirmed then failed
+ * (`confirmedForApiClients`): it works again, as before, until it expires. A change that uses its
+ * confirmation in its own transaction never needs this: a failure rolls the use back with it.
+ */
+export async function giveBackConfirmation(scope: SiteScope, used: UsedConfirmation): Promise<void> {
+	await scope.db.insert(confirmations).values(used).onConflictDoNothing();
 }

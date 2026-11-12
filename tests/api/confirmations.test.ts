@@ -61,6 +61,28 @@ async function entryStatus(siteId: string, entryId: string) {
 }
 
 describe("publishing through a token", () => {
+	test("a confirmed publish that fails keeps its confirmation: once the problem is gone, the same id publishes", async () => {
+		const { siteId, entryId, script } = await fixture();
+		const { postTypeId } = (await admin.api.entries.get({ siteId, entryId })).entry;
+		const first = await asked(script.api.entries.publish({ siteId, entryId }));
+		// Staff make a Field required meanwhile: the Draft, and so the preview, hasn't changed.
+		const summary = { key: "summary", label: "Summary", type: "text" } as const;
+		await admin.api.postTypes.update({ siteId, postTypeId, fields: [{ ...summary, required: true }] });
+
+		await expect(
+			script.api.entries.publish({ siteId, entryId, confirmation: first.confirmation.id }),
+		).rejects.toMatchObject({ code: "ENTRY_INCOMPLETE" });
+		expect(await entryStatus(siteId, entryId)).toBe("draft");
+
+		await admin.api.postTypes.update({ siteId, postTypeId, fields: [summary] });
+		await script.api.entries.publish({ siteId, entryId, confirmation: first.confirmation.id });
+		expect(await entryStatus(siteId, entryId)).toBe("published");
+		// Used up once it went ahead.
+		await expect(
+			script.api.entries.publish({ siteId, entryId, confirmation: first.confirmation.id }),
+		).rejects.toMatchObject({ code: "CONFIRMATION_INVALID" });
+	});
+
 	test("the first call shows what publishing does and publishes nothing; the second, with its id, publishes", async () => {
 		const { siteId, entryId, script } = await fixture();
 

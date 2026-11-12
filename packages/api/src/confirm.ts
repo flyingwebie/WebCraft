@@ -3,6 +3,7 @@ import {
 	type Access,
 	askConfirmation,
 	type Confirmation,
+	giveBackConfirmation,
 	type InstallServices,
 	isApiClient,
 	type Permission,
@@ -27,7 +28,7 @@ type Described = { target: string; preview: unknown };
  * a preview and a confirmation from an API client. Its first call changes nothing and answers
  * `{ confirmation: { id, expiresAt }, preview }`; calling again with `confirmation` (valid 5
  * minutes, once, while the preview is unchanged) goes ahead. Anyone who sends a `confirmation`
- * has it checked. Put it after `.input(…)`; the input carries `siteId` and `confirmation`.
+ * has it checked. It is used up only when the change goes ahead: one that fails gives it back. Put it after `.input(…)`; the input carries `siteId` and `confirmation`.
  *
  * The Site is opened with the Permission the change needs, so nobody is asked to confirm what they
  * may not do.
@@ -48,8 +49,15 @@ export function confirmedForApiClients<Input extends { siteId: string; confirmat
 			const confirmation: Confirmation = await askConfirmation(site, request);
 			return { output: { confirmation, preview }, context: {} };
 		}
-		await site.transaction((tx) => useConfirmation(tx, given, request));
-		return next();
+		const used = await site.transaction((tx) => useConfirmation(tx, given, request));
+		try {
+			return await next();
+		} catch (error) {
+			// The change runs in its own transaction: when it fails, nothing went ahead, so the
+			// confirmation works again rather than being spent on nothing.
+			await giveBackConfirmation(site, used);
+			throw error;
+		}
 	});
 }
 
