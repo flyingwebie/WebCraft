@@ -344,6 +344,20 @@ export function createImpersonation({ database, clock, jobs, actors, hasSecondFa
 			const workspaceIds = await this.check(access, input.personId);
 			const names = await namesOf(session.personId, input.personId);
 			const now = clock.now();
+			// An earlier one in this session whose hour ran out is over already (`actingAs`), but its end
+			// is written down by a job: when that hasn't run yet, it is ended here first, since a session
+			// holds one impersonation at a time (`impersonations_one_per_session_idx`).
+			const [over] = await db
+				.select()
+				.from(impersonations)
+				.where(
+					and(
+						eq(impersonations.sessionId, session.id),
+						isNull(impersonations.endedAt),
+						lte(impersonations.endsAt, now),
+					),
+				);
+			if (over) await end(over, "time");
 			const row = await db.transaction(async (tx) => {
 				const [inserted] = await tx
 					.insert(impersonations)
