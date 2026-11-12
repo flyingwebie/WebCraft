@@ -6,7 +6,13 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 import forms from "@webcraft/module-forms";
 
 import { formVisitor } from "../harness/forms.ts";
-import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import {
+	createTestInstall,
+	TEST_PASSWORD,
+	type TestAccount,
+	type TestBrowser,
+	type TestInstall,
+} from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
 import { goLive } from "../harness/staging.ts";
 import { confirmed } from "../webhooks/support.ts";
@@ -68,6 +74,8 @@ async function newForm(name: string, key: string): Promise<{ formId: string; pag
 	const { form } = await staff.api.forms.create({ siteId, name, key });
 	await staff.api.forms.saveDraft({ siteId, formId: form.id, form: { fields: FIELDS } });
 	await staff.api.forms.publish({ siteId, formId: form.id });
+	// Who receives a Form's Submissions is a Sensitive action: the Owner confirms who they are.
+	await owner.api.session.confirmIdentity({ password: TEST_PASSWORD });
 	await owner.api.forms.saveEmails({ siteId, formId: form.id, emails: EMAILS });
 	await owner.api.forms.publishEmails({ siteId, formId: form.id });
 	const { postType } = await staff.api.postTypes.create({

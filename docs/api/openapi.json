@@ -8916,7 +8916,7 @@
 		"/forms/saveEmails": {
 			"post": {
 				"operationId": "forms.saveEmails",
-				"summary": "Saves a Form's emails Draft: its Notifications and Auto-reply.",
+				"summary": "Saves a Form's emails Draft: its Notifications and Auto-reply (changing recipients or routing is Sensitive: admin only).",
 				"tags": ["forms"],
 				"requestBody": {
 					"required": true,
@@ -8971,7 +8971,7 @@
 					}
 				},
 				"x-webcraft-access": "write",
-				"x-webcraft-toolsets": ["forms"],
+				"x-webcraft-toolsets": ["submissions"],
 				"x-webcraft-permissions": ["formEmails.edit"]
 			}
 		},
@@ -9023,7 +9023,7 @@
 					}
 				},
 				"x-webcraft-access": "write",
-				"x-webcraft-toolsets": ["forms", "publishing"],
+				"x-webcraft-toolsets": ["submissions"],
 				"x-webcraft-permissions": ["formEmails.edit"],
 				"x-webcraft-publishes": true,
 				"x-webcraft-confirmation": true

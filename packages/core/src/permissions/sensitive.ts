@@ -53,6 +53,13 @@ export const SENSITIVE_ACTIONS = {
 	 * send and a redelivery only use what was confirmed.
 	 */
 	"webhook.change": "sends Site data to an outside address",
+	/**
+	 * Changing who receives a Form's Submissions: a Notification's recipients or routing, in its emails
+	 * Draft (saved, or restored from their history). Every later Submission goes to those addresses once
+	 * the emails are published. Never for an API token or AI client, which could otherwise read every
+	 * Submission without the Submissions Toolset. Their words and the Auto-reply stay a plain change.
+	 */
+	"formRecipients.change": "sends Form Submissions to an outside address",
 	/** A Site's CAPTCHA for its Forms: its secret key is a secret. */
 	"formCaptcha.change": "changes a secret",
 	/** A Site's email settings: its own mail server's password is a secret, and it decides where the Site's mail comes from. */

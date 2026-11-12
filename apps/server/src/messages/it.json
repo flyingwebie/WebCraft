@@ -6728,6 +6728,9 @@
 			"formEmails": {
 				"publish": "Email del Form pubblicate"
 			},
+			"formRecipients": {
+				"change": "Destinatari del Form modificati"
+			},
 			"globals": {
 				"publish": "Globali pubblicati",
 				"update": "Campi dei Globali modificati"

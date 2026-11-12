@@ -3,7 +3,7 @@
 // (`@webcraft/core`); the last test fails while an action there has no row here.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { ApiClient } from "@webcraft/api";
-import { ALL_SENSITIVE_ACTIONS, type SensitiveAction } from "@webcraft/core";
+import { ALL_SENSITIVE_ACTIONS, type SensitiveAction, TOOLSETS } from "@webcraft/core";
 import wordpressImport from "@webcraft/module-wordpress-import";
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, TEST_PASSWORD, type TestAccount, type TestInstall } from "../harness/index.ts";
@@ -18,6 +18,8 @@ type Fixture = {
 	staffId: string;
 	workspaceId: string;
 	siteId: string;
+	/** A Form of the Site, to change who receives its Submissions. */
+	formId: string;
 	/** A Dashboard of the Site, to make Share links to. */
 	dashboardId: string;
 	/** A Site export the Superadmin uploaded into the Workspace, ready to be imported. */
@@ -81,6 +83,12 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 	"module.approve": (api) => api.modules.approve({ moduleId: "sample", version: "1.0.0" }),
 	"webhook.change": (api, { siteId }) =>
 		api.webhooks.add({ siteId, url: "https://hooks.agency.example/build", events: ["publish"] }),
+	"formRecipients.change": (api, { siteId, formId, next }) =>
+		api.forms.saveEmails({
+			siteId,
+			formId,
+			emails: { notifications: [{ recipients: [`leads-${next()}@agency.example`], subject: "", intro: "" }] },
+		}),
 	"formCaptcha.change": (api, { siteId }) => api.forms.captcha.set({ siteId, captcha: null }),
 	"siteSmtp.change": (api, { siteId }) => api.siteSmtp.update({ siteId, fromName: null, replyTo: null, server: null }),
 	"aiKey.change": (api, { workspaceId }) =>
@@ -133,6 +141,7 @@ beforeAll(async () => {
 		body: r.url.includes("/users/me") ? '{"roles":["administrator"]}' : "{}",
 	}));
 	const { dashboard } = await admin.api.dashboards.create({ siteId: site.id, name: "Overview" });
+	const { form } = await admin.api.forms.create({ siteId: site.id, name: "Contact" });
 	const uploaded = await uploadArchive(admin, workspace.id, await exportedArchive(install, admin, site.id));
 	let made = 0;
 	fixture = {
@@ -141,6 +150,7 @@ beforeAll(async () => {
 		staffId: staff.personId,
 		workspaceId: workspace.id,
 		siteId: site.id,
+		formId: form.id,
 		dashboardId: dashboard.id,
 		siteImportId: uploaded.id,
 		changedMemberId: changed.personId,
@@ -197,10 +207,12 @@ describe("each Sensitive action", () => {
 		const browser = await install.signIn(superadmin);
 		const answers: Record<string, string> = {};
 		for (const action of ALL_SENSITIVE_ACTIONS) {
-			// A token of the Superadmin's own for each, so no count of requests a minute gets in the way.
+			// A token of the Superadmin's own for each, so no count of requests a minute gets in the way,
+			// with every Toolset switched on, the opt-in ones too: no Toolset opens a Sensitive action.
 			const { secret } = await createApiToken(browser, {
 				workspaceId: fixture.workspaceId,
 				name: `Sensitive ${action}`,
+				toolsets: [...TOOLSETS],
 			});
 			answers[action] = await SENSITIVE_ACTION_CALLS[action](tokenClient(install, secret).api, fixture).then(
 				() => "allowed",
@@ -214,6 +226,7 @@ describe("each Sensitive action", () => {
 			"member.changeAccess",
 			"member.remove",
 			"webhook.change",
+			"formRecipients.change",
 			"formCaptcha.change",
 			"siteSmtp.change",
 			"aiKey.change",

@@ -6728,6 +6728,9 @@
 			"formEmails": {
 				"publish": "Form emails published"
 			},
+			"formRecipients": {
+				"change": "Form recipients changed"
+			},
 			"globals": {
 				"publish": "Globals published",
 				"update": "Globals' Fields changed"
