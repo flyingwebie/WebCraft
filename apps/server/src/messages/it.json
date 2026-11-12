@@ -1864,7 +1864,9 @@
 			"layers": "Livelli",
 			"inspector": "Impostazioni",
 			"tooNarrow": "La modalità codice richiede una finestra larga almeno 1024px",
-			"tooNarrowText": "Allarga la finestra per continuare: niente viene chiuso o perso."
+			"tooNarrowText": "Allarga la finestra per continuare: niente viene chiuso o perso.",
+			"createProp": "Crea la Prop “{name}” ({type})",
+			"propCreated": "Prop {name} ({type}) aggiunta al blocco delle Props"
 		},
 		"alsoEditing": "Stanno modificando anche questa pagina",
 		"inReview": "In revisione",
@@ -4552,7 +4554,7 @@
 			"heading": "Testo fisso",
 			"help": "I clienti non possono modificare il testo fisso. Rendilo un valore che possono modificare.",
 			"make": {
-				"prop": "Rendilo una Prop",
+				"prop": "Collega a una Prop",
 				"field": "Rendilo un Field",
 				"global": "Rendilo un Global"
 			},
@@ -4750,7 +4752,9 @@
 				"unwrap": "Togli il contenitore",
 				"editComponent": "Modifica il Component",
 				"hidePlacement": "Nascondi il Placement",
-				"showPlacement": "Mostra il Placement"
+				"showPlacement": "Mostra il Placement",
+				"makeComponent": "Crea Component",
+				"newComponent": "Nuovo Component"
 			},
 			"wrap": {
 				"div": "div",
@@ -4779,7 +4783,9 @@
 				"wrap": "racchiudi contenitore gruppo",
 				"unwrap": "togli contenitore appiattisci",
 				"editComponent": "component apri modifica",
-				"hidePlacement": "nascondi mostra nascosto visibile placement"
+				"hidePlacement": "nascondi mostra nascosto visibile placement",
+				"makeComponent": "component estrai riusa converti",
+				"newComponent": "component crea aggiungi nuovo vuoto"
 			},
 			"nothingToUndo": "Niente da annullare.",
 			"nothingToRedo": "Niente da ripetere.",
@@ -4836,7 +4842,8 @@
 				"toggleBranch": "Apri o chiudi l'intero ramo",
 				"regions": "Spostati tra le aree dell'editor",
 				"indent": "Aumenta il rientro delle righe selezionate",
-				"outdent": "Riduci il rientro delle righe selezionate"
+				"outdent": "Riduci il rientro delle righe selezionate",
+				"layerMenu": "Apri il menu del livello (Crea Component, dove è inserito un Component)"
 			},
 			"keyNames": {
 				"command": "Comando",
@@ -4859,6 +4866,80 @@
 				"leftBracket": "Parentesi quadra aperta",
 				"rightBracket": "Parentesi quadra chiusa"
 			}
+		},
+		"components": {
+			"cancel": "Annulla",
+			"makeTitle": "Crea Component",
+			"newTitle": "Nuovo Component",
+			"makeIntro": "Il suo markup passa in un nuovo Component e al suo posto resta una Placement, quindi la pagina resta uguale. Ciò che legge qui (i valori dell'Entry, gli elementi di un Loop, le Props intorno) arriva tramite Props del nuovo Component.",
+			"newIntro": "Un Component vuoto: il suo markup si apre nel pannello HTML.",
+			"newPlacedIntro": "Un Component vuoto, inserito nel punto di inserimento: il suo markup si apre nel pannello HTML.",
+			"name": "Nome",
+			"nameHelp": "Il suo tag nel markup, in PascalCase (PostCard): una maiuscola, poi lettere e cifre. Deve essere unico nel Sito.",
+			"nameInvalid": "Scrivi il nome in PascalCase: prima una maiuscola, poi lettere e cifre, con almeno una minuscola (PostCard).",
+			"keyInvalid": "{key} non può essere il nome di una Prop: inizia con una lettera minuscola, poi lettere, cifre o _.",
+			"keyTwice": "Due Props non possono chiamarsi entrambe {key}.",
+			"texts": "Testo fisso",
+			"textsHelp": "Ogni copia del Component potrà mostrare un suo testo. Il testo attuale diventa il valore predefinito della Prop.",
+			"turnIntoProp": "Trasforma il testo fisso in una Prop",
+			"propKey": "Nome della Prop",
+			"make": "Crea Component",
+			"create": "Crea il Component",
+			"made": "Creato il Component {name}: qui ora c'è una sua Placement.",
+			"created": "Creato il Component {name}.",
+			"saveFirst": "Prima salva la bozza: non è stato possibile salvarla.",
+			"newRow": "Nuovo Component…",
+			"newRowHint": "Un Component vuoto, inserito qui",
+			"placementsHint": "Dove è inserito questo Component",
+			"layerMenu": "Azioni del livello",
+			"placementsOf": "Placements di {name}",
+			"draftOnly": "Solo nella bozza",
+			"onThisPage": "In questa pagina",
+			"createProp": "Crea la Prop {name} ({type})",
+			"propCreated": "Creata la Prop {name} ({type}).",
+			"nameTaken": "Nel Sito c'è già un Component chiamato {name}, oppure un Modulo usa quel nome: scegline un altro."
+		},
+		"props": {
+			"heading": "Props di {name}",
+			"help": "Ogni Placement indica i suoi valori. Le modifiche qui riscrivono il blocco {block} in cima al markup.",
+			"none": "Ancora nessuna Prop.",
+			"add": "Aggiungi una Prop",
+			"newLabel": "Nuova Prop",
+			"added": "Aggiunta la Prop {name}.",
+			"removed": "Rimossa la Prop {name}.",
+			"changed": "Modificata la Prop {name}.",
+			"renamed": "Prop rinominata in {name}.",
+			"retyped": "{name} ora è una Prop di tipo {type}.",
+			"remove": "Rimuovi la Prop {name}",
+			"name": "Nome",
+			"nameHelp": "Il markup la legge come {binding}.",
+			"keyInvalid": "Inizia con una lettera minuscola, poi lettere, cifre o _.",
+			"keyTaken": "Un'altra Prop si chiama {name}.",
+			"type": "Tipo di Field",
+			"required": "Obbligatoria",
+			"exposed": "Esposta allo script del Component",
+			"default": "Valore predefinito",
+			"defaultOn": "Attiva per impostazione predefinita",
+			"defaultInMarkup": "Il suo valore predefinito si scrive nel blocco {block}.",
+			"defaultHelp": {
+				"text": "Ciò che una Placement mostra quando non indica un valore.",
+				"link": "Un indirizzo, come /chi-siamo.",
+				"media": "Un file della libreria Media, scritto media: seguito dal suo id."
+			}
+		},
+		"bind": {
+			"linkLabel": "Link",
+			"imageLabel": "Immagine",
+			"choose": "Scegli una Prop.",
+			"linkTitle": "Collega il link a una Prop",
+			"imageTitle": "Collega l'immagine a una Prop",
+			"linkIntro": "Ogni Placement indicherà il suo indirizzo. Una nuova Prop di tipo Link parte con l'indirizzo di questo link come valore predefinito.",
+			"imageIntro": "Ogni Placement indicherà la sua immagine. Una nuova Prop di tipo Media parte con questa immagine come valore predefinito.",
+			"button": "Collega a una Prop",
+			"linkHeading": "Link",
+			"imageHeading": "Immagine",
+			"help": "Permetti a ogni Placement del Component di indicare un suo valore.",
+			"done": "Collegato a {binding}."
 		}
 	},
 	"siteEmail": {

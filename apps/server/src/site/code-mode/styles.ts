@@ -22,6 +22,7 @@ export const CODE_STYLES = `
 .editor-panels .layer-divider { padding:8px; color:#a1a1aa; border-top:1px solid #52525b; }
 .editor-panels [data-slot=dialog-overlay] { z-index:2147483000; }
 .editor-panels [data-slot=dialog-content] { z-index:2147483001; max-height:80vh; overflow:auto; }
+.editor-panels :has(> [data-slot=dropdown-menu-content]) { z-index:2147483001; }
 .outline.insert { background:#4ade80; border:0; }
 .line.hovered { outline:1px solid #a1a1aa; background:#27272a; }
 .editor-panels [data-hovered] { outline:1px solid #a1a1aa; }

@@ -170,6 +170,7 @@ export {
 	type MarkupProblem,
 	TemplateMarkupInvalidError,
 } from "./markup/problems.ts";
+export { propsBlockAt } from "./markup/props-block.ts";
 export {
 	FOCAL_POINT_STEP,
 	focalPointClasses,
@@ -258,6 +259,7 @@ export {
 	type FormCatalogue,
 	type FormFound,
 	type FormNode,
+	fixedTextsOf,
 	hasText,
 	LABEL_MAX_LENGTH,
 	type LanguageSwitcherNode,

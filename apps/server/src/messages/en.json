@@ -1864,7 +1864,9 @@
 			"layers": "Layers",
 			"inspector": "Settings",
 			"tooNarrow": "Code mode needs a window at least 1024px wide",
-			"tooNarrowText": "Make the window wider to carry on: nothing is closed or lost."
+			"tooNarrowText": "Make the window wider to carry on: nothing is closed or lost.",
+			"createProp": "Create the Prop “{name}” ({type})",
+			"propCreated": "Prop {name} ({type}) added to the Props block"
 		},
 		"alsoEditing": "Also editing this page",
 		"inReview": "In review",
@@ -4552,7 +4554,7 @@
 			"heading": "Fixed text",
 			"help": "Clients can't edit fixed text. Make it a value they edit instead.",
 			"make": {
-				"prop": "Make it a Prop",
+				"prop": "Bind to Prop",
 				"field": "Make it a Field",
 				"global": "Make it a Global"
 			},
@@ -4750,7 +4752,9 @@
 				"unwrap": "Unwrap",
 				"editComponent": "Edit the Component",
 				"hidePlacement": "Hide the Placement",
-				"showPlacement": "Show the Placement"
+				"showPlacement": "Show the Placement",
+				"makeComponent": "Make Component",
+				"newComponent": "New Component"
 			},
 			"wrap": {
 				"div": "div",
@@ -4779,7 +4783,9 @@
 				"wrap": "wrap container group",
 				"unwrap": "unwrap remove container flatten",
 				"editComponent": "component open edit",
-				"hidePlacement": "hide show hidden visible placement"
+				"hidePlacement": "hide show hidden visible placement",
+				"makeComponent": "component extract reuse convert",
+				"newComponent": "component create add new empty"
 			},
 			"nothingToUndo": "Nothing to undo.",
 			"nothingToRedo": "Nothing to redo.",
@@ -4836,7 +4842,8 @@
 				"toggleBranch": "Toggle the whole branch",
 				"regions": "Move between editor regions",
 				"indent": "Indent the selected lines",
-				"outdent": "Outdent the selected lines"
+				"outdent": "Outdent the selected lines",
+				"layerMenu": "Open the layer's menu (Make Component, where a Placement is placed)"
 			},
 			"keyNames": {
 				"command": "Command",
@@ -4859,6 +4866,80 @@
 				"leftBracket": "Left bracket",
 				"rightBracket": "Right bracket"
 			}
+		},
+		"components": {
+			"cancel": "Cancel",
+			"makeTitle": "Make Component",
+			"newTitle": "New Component",
+			"makeIntro": "Its markup moves into a new Component and a Placement takes its place, so the page looks the same. What it reads here (the Entry's values, a Loop's items, the Props around it) comes in through Props of the new Component.",
+			"newIntro": "An empty Component: its markup opens in the HTML panel.",
+			"newPlacedIntro": "An empty Component, placed at the insert point: its markup opens in the HTML panel.",
+			"name": "Name",
+			"nameHelp": "Its tag in the markup, in PascalCase (PostCard): a capital letter, then letters and digits. It must be unique on the Site.",
+			"nameInvalid": "Write the name in PascalCase: a capital letter first, then letters and digits, with at least one lower-case letter (PostCard).",
+			"keyInvalid": "{key} can't name a Prop: start with a lower-case letter, then letters, digits or _.",
+			"keyTwice": "Two Props can't both be called {key}.",
+			"texts": "Fixed text",
+			"textsHelp": "Each copy of the Component can show its own text instead. The current text becomes the Prop's default.",
+			"turnIntoProp": "Turn the fixed text into a Prop",
+			"propKey": "Prop name",
+			"make": "Make Component",
+			"create": "Create Component",
+			"made": "Made the Component {name}: a Placement of it is here now.",
+			"created": "Created the Component {name}.",
+			"saveFirst": "Save the Draft first: it couldn't be saved.",
+			"newRow": "New Component…",
+			"newRowHint": "An empty Component, placed here",
+			"placementsHint": "Where this Component is placed",
+			"layerMenu": "Layer actions",
+			"placementsOf": "Placements of {name}",
+			"draftOnly": "Draft only",
+			"onThisPage": "On this page",
+			"createProp": "Create the Prop {name} ({type})",
+			"propCreated": "Created the Prop {name} ({type}).",
+			"nameTaken": "A Component called {name} is already on this Site, or a Module uses that name: choose another."
+		},
+		"props": {
+			"heading": "Props of {name}",
+			"help": "Each Placement gives its own values. Changes here rewrite the {block} block at the top of the markup.",
+			"none": "No Props yet.",
+			"add": "Add a Prop",
+			"newLabel": "New Prop",
+			"added": "Added the Prop {name}.",
+			"removed": "Removed the Prop {name}.",
+			"changed": "Changed the Prop {name}.",
+			"renamed": "Renamed the Prop to {name}.",
+			"retyped": "{name} is now a {type} Prop.",
+			"remove": "Remove the Prop {name}",
+			"name": "Name",
+			"nameHelp": "The markup reads it as {binding}.",
+			"keyInvalid": "Start with a lower-case letter, then letters, digits or _.",
+			"keyTaken": "Another Prop is called {name}.",
+			"type": "Field type",
+			"required": "Required",
+			"exposed": "Exposed to the Component script",
+			"default": "Default",
+			"defaultOn": "On by default",
+			"defaultInMarkup": "Its default is written in the {block} block.",
+			"defaultHelp": {
+				"text": "What a Placement shows when it gives no value.",
+				"link": "An address, such as /about.",
+				"media": "A file of the Media library, written media: then its id."
+			}
+		},
+		"bind": {
+			"linkLabel": "Link",
+			"imageLabel": "Image",
+			"choose": "Choose a Prop.",
+			"linkTitle": "Bind the link to a Prop",
+			"imageTitle": "Bind the image to a Prop",
+			"linkIntro": "Each Placement then gives its own address. A new Link Prop starts with this link's address as its default.",
+			"imageIntro": "Each Placement then gives its own image. A new Media Prop starts with this image as its default.",
+			"button": "Bind to Prop",
+			"linkHeading": "Link",
+			"imageHeading": "Image",
+			"help": "Let each Placement of the Component give its own value.",
+			"done": "Bound to {binding}."
 		}
 	},
 	"siteEmail": {

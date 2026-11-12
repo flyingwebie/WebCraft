@@ -202,29 +202,42 @@ export async function createComponent(
 	input: NewComponent,
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
 ): Promise<Component> {
+	return namingComponent(scope, input.name, () => scope.transaction((tx) => insertComponent(tx, input, sources)));
+}
+
+/**
+ * Makes a Component inside a transaction someone else runs (Make Component, a placed New
+ * Component, #134): the same checks as `createComponent`, the name checked again under the Site's
+ * Component lock (`lockComponents`), which every Component save, rename and delete takes, so no
+ * other save can take the name before this transaction ends. A nested transaction has no savepoint
+ * (`DataLayer.transaction` runs in the outer one), so a unique violation here can't be recovered
+ * inside it: the caller runs its whole transaction in `namingComponent`, which words the clash
+ * once that transaction has rolled back.
+ */
+export async function insertComponent(
+	scope: SiteScope,
+	input: NewComponent,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+): Promise<Component> {
 	const problems: ContentProblem[] = [];
 	const name = checkName(input.name, problems);
 	const props = await parseProps(scope, input.props ?? [], [], problems);
 	if (problems.length > 0) throw new ComponentInvalidError(problems);
 	await checkNameFree(scope, name, sources);
-	return naming(scope, name, () =>
-		scope.transaction(async (tx) => {
-			await lockComponents(tx);
-			await checkNameUnused(tx, name);
-			const now = tx.now();
-			const draft: ComponentVersion = { props, tree: EMPTY_TREE };
-			const row = await tx.insert(components, {
-				name,
-				draft,
-				createdAt: now,
-				updatedAt: now,
-				updatedBy: personIdOf(tx.access.actor),
-				updatedVia: clientNameOf(tx.access.via),
-			});
-			await tx.audit("component.create", { componentId: row.id, name });
-			return toComponent(row);
-		}),
-	);
+	await lockComponents(scope);
+	await checkNameUnused(scope, name);
+	const now = scope.now();
+	const draft: ComponentVersion = { props, tree: EMPTY_TREE };
+	const row = await scope.insert(components, {
+		name,
+		draft,
+		createdAt: now,
+		updatedAt: now,
+		updatedBy: personIdOf(scope.access.actor),
+		updatedVia: clientNameOf(scope.access.via),
+	});
+	await scope.audit("component.create", { componentId: row.id, name });
+	return toComponent(row);
 }
 
 /** The Components of the scope's Site (its own, then those of the Modules running there), by name. */
@@ -465,7 +478,7 @@ export async function renameComponent(
 	const problems: ContentProblem[] = [];
 	const name = checkName(input, problems);
 	if (problems.length > 0) throw new ComponentInvalidError(problems);
-	return naming(scope, name, () =>
+	return namingComponent(scope, name, () =>
 		scope.transaction(async (tx) => {
 			await lockComponents(tx);
 			const row = await lockComponent(tx, componentId, sources);
@@ -679,9 +692,14 @@ async function checkNameUnused(scope: SiteScope, name: string): Promise<void> {
 
 /**
  * Runs a save, turning another Component's name into `ComponentNameTakenError`. The save's
- * transaction has rolled back by then, so the Component that took the name meanwhile can be read.
+ * transaction has rolled back by then, so the Component that took the name meanwhile can be read:
+ * run it around the outermost transaction, never inside one (a nested transaction has no savepoint).
  */
-async function naming<Result>(scope: SiteScope, name: string, save: () => Promise<Result>): Promise<Result> {
+export async function namingComponent<Result>(
+	scope: SiteScope,
+	name: string,
+	save: () => Promise<Result>,
+): Promise<Result> {
 	try {
 		return await save();
 	} catch (error) {

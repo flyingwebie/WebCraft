@@ -5,6 +5,7 @@ import {
 	CODE_MODE_SCRIPT_PATH,
 	CODE_MODE_STYLESHEET_PATH,
 	CONSENT_CATEGORIES,
+	componentSourceTarget,
 	EDIT_MODE_PATH,
 	type EditSession,
 	editModePolicy,
@@ -15,6 +16,8 @@ import {
 	LIBRARIES_PER_SITE,
 	MEDIA_TEXT_MAX_LENGTH,
 	MediaTooLargeError,
+	madeTexts,
+	newComponentPlace,
 	PASTE_MAX_LENGTH,
 	type PageEditing,
 	RateLimitedError,
@@ -22,6 +25,7 @@ import {
 	SCRIPT_MAX_LENGTH,
 	type SiteHost,
 	type SiteScope,
+	treePath,
 } from "@webcraft/core";
 import { BODY_LIMITS } from "@webcraft/renderer";
 import { z } from "zod";
@@ -258,6 +262,22 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 		const scope = await services.codeMode.access(session);
 		return json(200, await services.codeMode.saveCss(scope, parse(codeSaveCss, body)));
 	},
+	/**
+	 * Make Component (#134): moves an element or Placement of a Template's or Component's Draft into a
+	 * new Component, with Props for what it read there, and places it instead, in one step
+	 * (`components.make`).
+	 */
+	"code/makeComponent": async (services, session, body) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, await services.components.make(scope, parse(codeMakeComponent, body)));
+	},
+	/** New Component (#134): an empty Component, placed at the insert point when `place` is given (`components.create`). */
+	"code/createComponent": async (services, session, body) => {
+		const scope = await services.codeMode.access(session);
+		const { place, ...input } = parse(codeCreateComponent, body);
+		if (place) return json(200, await services.components.createPlaced(scope, input, place));
+		return json(200, { component: await services.components.create(scope, input) });
+	},
 	/** Makes a Class of the Design system's Draft from a name the HTML panel doesn't know. */
 	"code/createClass": async (services, session, body) => {
 		const scope = await services.codeMode.access(session);
@@ -426,6 +446,16 @@ const reviewSubmission = z.object({
 const codeRef = z.string().max(1000).nullable();
 
 const codeSource = z.object({ path: z.string().max(2000), ref: codeRef });
+
+/** Make Component and New Component (#134): the Management API's inputs, as Code mode sends them. */
+const codeMakeComponent = z.object({
+	name: z.string().max(200),
+	source: componentSourceTarget,
+	path: treePath,
+	node: z.unknown(),
+	texts: madeTexts.optional(),
+});
+const codeCreateComponent = z.object({ name: z.string().max(200), place: newComponentPlace.optional() });
 
 /** The longest Template markup Code mode sends, in characters, as the Management API takes it. */
 const MARKUP_MAX_LENGTH = 2_000_000;
