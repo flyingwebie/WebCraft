@@ -479,6 +479,22 @@ describe("Components", () => {
 		api.components.get({ siteId: target.siteId, componentId: await componentIn(target) }),
 	);
 	isolation.refuses("components.create", (api, { siteId }) => api.components.create({ siteId, name: newName() }));
+	isolation.refuses("components.make", async (api, target) => {
+		const { api: superadmin } = await install.superadmin();
+		const componentId = await componentIn(target);
+		const { component } = await superadmin.components.saveDraft({
+			siteId: target.siteId,
+			componentId,
+			tree: tree(element("p")),
+		});
+		return api.components.make({
+			siteId: target.siteId,
+			name: newName(),
+			source: { kind: "component", componentId },
+			path: [0],
+			node: component.draft.tree.nodes[0],
+		});
+	});
 	isolation.refuses("components.saveDraft", async (api, target) =>
 		api.components.saveDraft({
 			siteId: target.siteId,

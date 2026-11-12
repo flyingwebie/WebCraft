@@ -4907,7 +4907,7 @@
 			"defaultHelp": {
 				"text": "Ciò che una Placement mostra quando non indica un valore.",
 				"link": "Un indirizzo, come /chi-siamo.",
-				"media": "Un file della libreria Media, scritto media:<id>."
+				"media": "Un file della libreria Media, scritto media: seguito dal suo id."
 			}
 		},
 		"bind": {

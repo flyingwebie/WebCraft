@@ -4907,7 +4907,7 @@
 			"defaultHelp": {
 				"text": "What a Placement shows when it gives no value.",
 				"link": "An address, such as /about.",
-				"media": "A file of the Media library, written media:<id>."
+				"media": "A file of the Media library, written media: then its id."
 			}
 		},
 		"bind": {
