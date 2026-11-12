@@ -493,10 +493,12 @@ for (const theme of THEMES)
 			await page.keyboard.press("Shift+F6");
 			await waitForFocusRegion(page, "tree");
 			expect(await focused(alpha)).toBe(true);
-			await page.keyboard.press("Shift+F6");
-			await waitForFocusRegion(page, "topbar");
-			await page.keyboard.press("F6");
-			await waitForFocusRegion(page, "tree");
+			for (let cycle = 0; cycle < 3; cycle++) {
+				await page.keyboard.press("Shift+F6");
+				await waitForFocusRegion(page, "topbar");
+				await page.keyboard.press("F6");
+				await waitForFocusRegion(page, "tree");
+			}
 			await alpha.press("ControlOrMeta+i");
 			const dialog = page.getByRole("dialog");
 			await dialog.waitFor();
@@ -519,6 +521,7 @@ for (const theme of THEMES)
 			await page.waitForURL((url) =>
 				canvas === "builder" ? url.pathname === "/stories/first" : url.pathname.includes("/builder/"),
 			);
+			if (canvas === "live") expect(new URL(page.url()).searchParams.get("element")).toBe("beta");
 			await waitForFocusRegion(page, "tree");
 			expect(await focused(page.getByRole("treeitem", { name: /^Beta/ }))).toBe(true);
 			// Destination controls finish loading after the selected row; measure their settled styling.
@@ -539,4 +542,34 @@ for (const theme of THEMES)
 		await page.keyboard.press("F6");
 		await waitForFocusRegion(page, "tree");
 		expect(await focused(tree.getByRole("treeitem", { name: /^Berry/ }))).toBe(true);
+	});
+
+for (const theme of THEMES)
+	test(`cross-canvas navigation waits for the current layer's delayed selection metadata (${theme})`, async () => {
+		const { page, tree } = await openEditor(theme, "live");
+		await tree.getByRole("treeitem", { name: /^Alpha/ }).click();
+		await page.waitForLoadState("networkidle");
+		const held = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		await page.route("**/_webcraft/edit/api/code/open", async (route) => {
+			const response = await route.fetch();
+			if ((route.request().postDataJSON() as { ref?: string }).ref === "content#beta") {
+				held.resolve();
+				await release.promise;
+			}
+			await route.fulfill({ response });
+		});
+		try {
+			await tree.getByRole("treeitem", { name: /^Beta/ }).click();
+			await held.promise;
+			await page.getByRole("button", { name: "Open in builder", exact: true }).click();
+			release.resolve();
+			await page.waitForURL((url) => url.pathname.includes("/builder/"));
+			expect(new URL(page.url()).searchParams.get("element")).toBe("beta");
+			await waitForFocusRegion(page, "tree");
+			expect(await focused(page.getByRole("treeitem", { name: /^Beta/ }))).toBe(true);
+		} finally {
+			release.resolve();
+			await page.unrouteAll({ behavior: "wait" });
+		}
 	});

@@ -252,6 +252,7 @@ export function codeMode(
 	let savedMarkup = "";
 	let selectedRef: string | null = null;
 	let openRun = 0;
+	let selectionPending: Promise<void> = Promise.resolve();
 	let markupInputRun = 0;
 	type Locations = { key: string; start: number; end: number }[];
 	let located: { ref: string; text: string; locations: Locations; pending: Promise<void> } | undefined;
@@ -582,8 +583,11 @@ export function codeMode(
 		openBuilderButton.disabled = true;
 		try {
 			const revision = inputRevision;
+			await settleSelection();
 			const sourceBefore = opened.ref;
 			if (!(await panelsAdapter.depart())) return;
+			// Flushing an action can start the selected row's metadata read; navigate with that row.
+			await settleSelection();
 			if (jsDirty() && !(await saveScript(undefined))) return;
 			if (opened.ref !== sourceBefore || htmlDirty() || jsDirty()) return;
 			const ref = selectedRef ?? opened.ref;
@@ -1240,7 +1244,20 @@ export function codeMode(
 	// ---------------------------------------------------------------------------------------------
 	// Selecting: the HTML panel
 
-	async function select(ref: string, fromPanels = false): Promise<void> {
+	function select(ref: string, fromPanels = false): Promise<void> {
+		selectionPending = selectSource(ref, fromPanels);
+		return selectionPending;
+	}
+
+	async function settleSelection(): Promise<void> {
+		for (;;) {
+			const pending = selectionPending;
+			await pending;
+			if (pending === selectionPending) return;
+		}
+	}
+
+	async function selectSource(ref: string, fromPanels: boolean): Promise<void> {
 		cancel(caretTimer);
 		if (!fromPanels) inspectorRef = undefined;
 		if (!ref) return;

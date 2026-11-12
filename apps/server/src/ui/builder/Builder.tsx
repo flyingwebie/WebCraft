@@ -809,6 +809,10 @@ export function Builder({
 	};
 	const regionLayout = useRef({ fit, showDrawer });
 	regionLayout.current = { fit, showDrawer };
+	const [regionFocus, setRegionFocus] = useState<(() => void) | null>(null);
+	useLayoutEffect(() => {
+		regionFocus?.();
+	}, [regionFocus]);
 	useLayoutEffect(
 		() =>
 			editorAccessibility(document).registerRegionLayout({
@@ -821,11 +825,12 @@ export function Builder({
 					if (fit.covered) return;
 					if (fit.layout === "drawers") {
 						showDrawer(name === "tree" ? "layers" : name === "inspector" ? "inspector" : null);
-						afterRender(focus);
+						// A layout effect belongs to this commit; an earlier passive effect cannot consume it.
+						setRegionFocus(() => focus);
 					} else focus();
 				},
 			}),
-		[afterRender],
+		[],
 	);
 
 	// Below the smallest width, a notice covers the builder: nothing under it closes or can be reached,
