@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
+import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { openDraft } from "../harness/co-editing.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
@@ -16,6 +17,30 @@ beforeAll(async () => {
 });
 afterAll(async () => {
 	await install.close();
+});
+
+test("Management API Page layout settings preserve omitted switches and allowed Components", async () => {
+	const siteId = (await install.createSite(workspaceId, { slug: "layout-settings" })).id;
+	const { component } = await staff.api.components.create({ siteId, name: "Hero" });
+	const { secret } = await createApiToken(staff, { workspaceId, name: "Layout settings" });
+	const { api } = tokenClient(install, secret);
+	expect(await api.pageLayouts.configure({ siteId, enabled: true })).toEqual({
+		enabled: true,
+		allowedComponents: [],
+	});
+	expect(await api.pageLayouts.configure({ siteId, allowedComponents: [component.id] })).toEqual({
+		enabled: true,
+		allowedComponents: [component.id],
+	});
+	expect(await api.pageLayouts.configure({ siteId, enabled: false })).toEqual({
+		enabled: false,
+		allowedComponents: [component.id],
+	});
+	expect(await api.pageLayouts.configure({ siteId, allowedComponents: [] })).toEqual({
+		enabled: false,
+		allowedComponents: [],
+	});
+	expect(await api.pageLayouts.settings({ siteId })).toEqual({ enabled: false, allowedComponents: [] });
 });
 
 test("a Page layout survives Content saves and publishes its Component Props", async () => {

@@ -73,7 +73,10 @@ export async function configureLayout(scope: SiteScope, change: { enabled?: bool
 	return scope.transaction(async (tx) => {
 		await lockComponents(tx);
 		const current = await layoutSettings(tx);
-		const next = { ...current, ...change };
+		const next = {
+			enabled: change.enabled ?? current.enabled,
+			allowedComponents: change.allowedComponents ?? current.allowedComponents,
+		};
 		const catalogue = await siteComponents(tx, "draft", tx.componentSources);
 		for (const id of next.allowedComponents)
 			if (!catalogue.version(id))
