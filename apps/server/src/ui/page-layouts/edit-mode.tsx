@@ -9,6 +9,7 @@ import { type LayerAction, type LayerRow, LayersPanel } from "../builder/LayersP
 import type { Catalogue } from "../builder/model.ts";
 import { FieldValueList } from "../content/FieldValues.tsx";
 import { loadMedia } from "../content/loaders.ts";
+import { toolsHost } from "../edit-mode/host.ts";
 import { AdminIntl, useT } from "../i18n.tsx";
 import type { MediaItem } from "../media/preview.ts";
 import { type LayoutState, type PageLayoutController, pageLayoutController } from "./controller.ts";
@@ -84,7 +85,12 @@ function LayoutEditor({
 		previous.current = panel;
 	}, [panel, phone, launcher]);
 	useEffect(() => {
-		if (!panel || !focusRequest || focusRequest === handledFocus.current) return;
+		if (!focusRequest || focusRequest === handledFocus.current) return;
+		if (!panel) {
+			// Nothing is open to take it: the request is spent, so a panel opened later doesn't answer it.
+			handledFocus.current = focusRequest;
+			return;
+		}
 		const frame = requestAnimationFrame(() => {
 			handledFocus.current = focusRequest;
 			if (phone) {
@@ -345,25 +351,8 @@ async function mount(kit: BarKit, language: "en" | "it", styles: string) {
 	if (!response.ok) return;
 	const initial = response.data as LayoutState;
 	if (!initial.canArrange) return;
-	const view = kit.doc.defaultView;
-	if (!view) return;
-	const host = kit.doc.createElement("div");
-	host.id = "webcraft-page-layout";
-	kit.doc.body.append(host);
-	const shadow = host.attachShadow({ mode: "open" });
-	const link = kit.doc.createElement("link");
-	link.rel = "stylesheet";
-	link.href = styles;
-	shadow.append(link);
-	const container = kit.doc.createElement("div");
-	shadow.append(container);
-	const scheme = view.matchMedia("(prefers-color-scheme: dark)");
-	const theme = () => {
-		container.classList.toggle("dark", scheme.matches);
-		container.classList.toggle("light", !scheme.matches);
-	};
-	theme();
-	scheme.addEventListener("change", theme);
+	const container = toolsHost(kit, "webcraft-page-layout", styles);
+	if (!container) return;
 	const controller = pageLayoutController(kit, initial, entryId);
 	const button = kit.button({ type: "button", class: "control" }, kit.word("pageLayout.title"));
 	kit.root.querySelector(".bar")?.append(button);

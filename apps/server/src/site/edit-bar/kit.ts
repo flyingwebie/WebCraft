@@ -1,6 +1,7 @@
 import type { DraftClient, Json } from "@webcraft/core/draft-document";
 import type { HistoryTarget } from "../../ui/builder/commands.ts";
 import type { PageLayoutController } from "../../ui/page-layouts/controller.ts";
+
 /**
  * What the editing bar hands its parts (the image popover, Loop item tools, Page details): the
  * browser functions it kept before any Site script ran, its words, its requests and its shared
@@ -135,6 +136,42 @@ export type BarKit = {
 	openImage?(region: HTMLElement): void;
 	/** One of the page's shared Drafts (`entry:<id>`, `globals`), once it is open; null before or without it. */
 	shared(item: string): SharedDraft | null;
+	/** Edit mode's Undo history, once its owner handed it over (`webcraft:edit-history`); null before or without one. */
+	history(): EditHistory | null;
+};
+
+/**
+ * Edit mode's Undo history (ADR 0036) as the bar, the Command menu and the keys use it: the one
+ * history's target (Undo, Redo, whether each can run, the step each would take), whose Undo and Redo
+ * first finish what the person is still typing. The bar hands it on as the `detail` of a
+ * `webcraft:edit-history` event on the document once the history's module is mounted (null takes it
+ * away), and keeps it for parts that load later (`BarKit.history`).
+ */
+export type EditHistory = HistoryTarget & {
+	/** Called when availability or labels change; answers what stops it. */
+	subscribe(listener: () => void): () => void;
+};
+
+/**
+ * What only the bar does, for the Command menu's Actions (#139). The menu's own module is handed this
+ * with the kit when it mounts.
+ */
+export type BarCommands = {
+	/** The bar's search button: hidden until the menu sets its name, tooltip and keys, and opens from it. */
+	button: HTMLButtonElement;
+	/**
+	 * Saves what is still on its way to the Draft (text being typed, a Page layout change, the shared
+	 * Drafts' batches) and waits for it; false when something wasn't saved (the bar has said what).
+	 */
+	settle(): Promise<boolean>;
+	/** Save Draft: settles, then says the Draft is saved. */
+	save(): Promise<void>;
+	/** Opens the bar's Publish menu (Changes, with "Submit for review", for those who can't publish). */
+	publish(): void;
+	/** Turns editing in place on (Edit) or off (Preview). */
+	edit(on: boolean): void;
+	/** Ends Edit mode and shows the page as visitors see it. */
+	leave(): void;
 };
 
 /**
@@ -181,15 +218,6 @@ export type HistoryButton = {
 	/** The keys, for `aria-keyshortcuts`. */
 	keys: string;
 	enabled: boolean;
-};
-
-/**
- * Edit mode's Undo history (ADR 0036) as the Command menu and the keys use it: the one history's
- * target, whose Undo and Redo first finish what the person is still typing.
- */
-export type EditHistory = HistoryTarget & {
-	/** Called when availability or labels change; answers what stops it. */
-	subscribe(listener: () => void): () => void;
 };
 
 /** What the Undo history's module (`ui/edit-history`) gives the bar back. */

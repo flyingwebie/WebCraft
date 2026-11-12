@@ -9,6 +9,7 @@ import { editorAccessibility } from "../../ui/builder/editor-accessibility.ts";
 import { EDITOR_WIDTHS, editorFit, focusInto } from "../../ui/builder/editor-fit.ts";
 import { declareMissingProp } from "../../ui/builder/prop-quick-fix.ts";
 import { renderedRanges } from "../../ui/builder/rendered-ranges.ts";
+import { COMMAND_MENU_MIN_WIDTH } from "../../ui/edit-mode/width.ts";
 
 import { type CodeModeConfig, codeMode } from "../code-mode/code.ts";
 import { CODE_STYLES } from "../code-mode/styles.ts";
@@ -62,22 +63,25 @@ async function makeAssets(): Promise<EditBarAssets> {
 	const pageStyles = await asset("page", "css", PAGE_STYLES, "text/css; charset=utf-8");
 	const drafts = await asset("drafts", "js", await draftsModule(), "text/javascript; charset=utf-8");
 	const body = await asset("body", "js", await bodyModule(), "text/javascript; charset=utf-8");
-	const layoutStyles = await asset(
-		"layout",
+	// Edit mode's own tools (the Page layout's and the Command menu) share one stylesheet, each in a
+	// shadow root of its own. The Command menu's dialogs lie over the editing bar, as Code mode's do.
+	const toolsStyles = await asset(
+		"tools",
 		"css",
-		`${(await panelsStyles()).replaceAll(":root", ":host")}\n:host {font:14px system-ui,sans-serif} :focus-visible {outline:2px solid var(--primary,#2563eb);outline-offset:3px} @media(pointer:coarse),(max-width:640px){button,[role=treeitem],input,select{min-height:44px}button{min-width:44px}}`,
+		`${(await panelsStyles()).replaceAll(":root", ":host")}\n:host {font:14px system-ui,sans-serif} :focus-visible {outline:2px solid var(--primary,#2563eb);outline-offset:3px} @media(pointer:coarse),(max-width:640px){button,[role=treeitem],input,select{min-height:44px}button{min-width:44px}} :host(#webcraft-edit-commands) [data-slot=dialog-overlay]{z-index:2147483000} :host(#webcraft-edit-commands) [data-slot=dialog-content]{z-index:2147483001;max-height:80vh;overflow:auto}`,
 		"text/css; charset=utf-8",
 	);
-	const layout = await asset("layout", "js", await layoutModule(), "text/javascript; charset=utf-8");
+	const tools = await asset("tools", "js", await toolsModule(), "text/javascript; charset=utf-8");
 	const history = await asset("history", "js", await historyModule(drafts.path), "text/javascript; charset=utf-8");
 	const config: EditingBarConfig = {
 		history: history.path,
-		layout: layout.path,
-		layoutStyles: layoutStyles.path,
+		tools: tools.path,
+		toolsStyles: toolsStyles.path,
 		styles: barStyles.path,
 		drafts: drafts.path,
 		body: body.path,
 		codeMinWidth: EDITOR_WIDTHS.min,
+		menuMinWidth: COMMAND_MENU_MIN_WIDTH,
 	};
 	// The bar and its parts, each a self-contained function, in one file: the parts are made by the bar.
 	const parts = `{ images: ${imageTools.toString()}, loops: ${loopTools.toString()}, details: ${pageDetailsPanel.toString()}, accessibility: ${editorAccessibility.toString()} }`;
@@ -99,7 +103,7 @@ async function makeAssets(): Promise<EditBarAssets> {
 		drafts,
 		body,
 		byName: new Map(
-			[script, pageStyles, barStyles, codeScript, codeStyles, drafts, body, panels, layout, layoutStyles, history].map(
+			[script, pageStyles, barStyles, codeScript, codeStyles, drafts, body, panels, tools, toolsStyles, history].map(
 				(file) => [file.name, file],
 			),
 		),
@@ -203,8 +207,13 @@ async function panelsStyles(): Promise<string> {
 	return optimize(compiled.build(scanner.scan()), { minify: true }).code;
 }
 
-async function layoutModule(): Promise<string> {
-	const entry = Bun.resolveSync("@webcraft/server/editor/page-layouts", dirname(fileURLToPath(import.meta.url)));
+/**
+ * Edit mode's own tools as one ES module (`ui/edit-mode/tools.ts`): the Page layout's and the Command
+ * menu, sharing one copy of what they are both made with. Loaded, each hands itself to the editing bar
+ * in an event.
+ */
+async function toolsModule(): Promise<string> {
+	const entry = Bun.resolveSync("@webcraft/server/editor/edit-tools", dirname(fileURLToPath(import.meta.url)));
 	const built = await Bun.build({
 		entrypoints: [entry],
 		target: "browser",
@@ -213,6 +222,6 @@ async function layoutModule(): Promise<string> {
 		define: { "process.env.NODE_ENV": JSON.stringify("production") },
 	});
 	const output = built.outputs[0];
-	if (!built.success || !output) throw new Error(`Page layout tools could not be built: ${built.logs.join("; ")}`);
+	if (!built.success || !output) throw new Error(`Edit mode's tools couldn't be built: ${built.logs.join("; ")}`);
 	return output.text();
 }

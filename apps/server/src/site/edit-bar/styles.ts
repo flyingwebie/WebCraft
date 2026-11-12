@@ -145,8 +145,11 @@ svg { flex: none; }
 	box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
 }
 .start, .middle, .end { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+/* When the bar is tight, the Site's name and the page's title give way: nothing lies over anything else. */
 .start { flex: 1 1 auto; }
-.end { flex: 1 1 auto; justify-content: flex-end; }
+.middle { flex: none; }
+.end { flex: 1 0 auto; justify-content: flex-end; }
+.pages, .page-title { min-width: 0; }
 .logo {
 	display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 0.375rem;
 	background: var(--bar-text); color: var(--bar); font-weight: 700;
@@ -175,6 +178,7 @@ svg { flex: none; }
 .segment { color: var(--bar-muted); height: 2rem; }
 .segment[aria-pressed="true"] { background: var(--bar-control-hover); color: var(--bar-text); }
 .icon-only { padding: 0 0.5rem; }
+.search { justify-content: center; }
 .language { display: inline-flex; align-items: center; gap: 0.375rem; color: var(--bar-text); white-space: nowrap; }
 .publish { background: var(--bar-text); color: var(--bar); font-weight: 600; }
 .publish:hover { background: #e4e4e7; }
@@ -515,7 +519,7 @@ dialog::backdrop { background: rgba(9, 9, 11, 0.5); }
 	.picker-item, .sheet-row, .menu [role="menuitem"], .switch-field .switch, .loop-add, .tool-link {
 		min-height: 44px;
 	}
-	.tool, .icon-button, .avatar, .more { min-width: 44px; min-height: 44px; }
+	.tool, .icon-button, .avatar, .more, .search { min-width: 44px; min-height: 44px; }
 	.chooser-option, .check-field { min-height: 44px; }
 	.check-field input { width: 1.5rem; height: 1.5rem; }
 	.switch { min-width: 44px; }

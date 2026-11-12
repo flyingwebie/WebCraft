@@ -1,9 +1,11 @@
 import type { editorAccessibility } from "../../ui/builder/editor-accessibility.ts";
 import type { PageLayoutController } from "../../ui/page-layouts/controller.ts";
 import type {
+	BarCommands,
 	BarKit,
 	BodyTools,
 	DetailsPanel,
+	EditHistory,
 	HistoryHost,
 	HistoryTools,
 	ImageTools,
@@ -19,16 +21,19 @@ import type {
 /**
  * What the editing bar's script is given when it is made: the addresses of its own stylesheet and of
  * the module that opens the page's Drafts live (Co-editing), of the Undo history's module (ADR 0036),
- * and the narrowest window Code mode opens in (`EDITOR_WIDTHS.min`, #138).
+ * the module of Edit mode's own tools (the Page layout's and the Command menu, with their stylesheet),
+ * the narrowest window Code mode opens in (`EDITOR_WIDTHS.min`, #138) and the narrowest the Command
+ * menu is offered in (#139).
  */
 export type EditingBarConfig = {
 	styles: string;
 	drafts: string;
 	history: string;
 	body: string;
-	layout: string;
-	layoutStyles: string;
+	tools: string;
+	toolsStyles: string;
 	codeMinWidth: number;
+	menuMinWidth: number;
 };
 
 /**
@@ -263,6 +268,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		],
 		remove: ["M3 6h18", "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6", "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"],
 		add: ["M5 12h14", "M12 5v14"],
+		search: ["m21 21-4.34-4.34", "M11 3a8 8 0 1 0 0 16 8 8 0 1 0 0-16"],
 		more: [
 			"M12 11a1 1 0 1 0 0 2 1 1 0 1 0 0-2",
 			"M19 11a1 1 0 1 0 0 2 1 1 0 1 0 0-2",
@@ -295,6 +301,11 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	doc.addEventListener("webcraft:history-departure", (event) => {
 		codeDeparture = (event as CustomEvent<HistoryTools["departure"]>).detail;
 	});
+	/** Edit mode's Undo history, once its owner hands it over: kept for the Command menu, which loads later. */
+	let history: EditHistory | null = null;
+	doc.addEventListener("webcraft:edit-history", (event) => {
+		history = (event as CustomEvent<EditHistory | null>).detail ?? null;
+	});
 	let ended = false;
 
 	let host: HTMLElement;
@@ -319,6 +330,8 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	let openPopup: Popup | null = null;
 	let publishPopup: Popup;
 	let savedTimer = 0;
+	/** What the Command menu's Actions ask of the bar (#139). */
+	let commands: BarCommands;
 	/** The bar's parts, made once it starts. */
 	let kit: BarKit;
 	let images: ImageTools | null = null;
@@ -329,6 +342,8 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	let detailsButton: HTMLButtonElement | null = null;
 	/** Phones get a compact bar and bottom sheets instead of popovers and the drawer. */
 	const phoneWidth = win.matchMedia("(max-width: 640px)");
+	/** The Command menu is offered from this width up; narrower windows have the bar's own menu and sheets. */
+	const menuWidth = win.matchMedia(`(min-width: ${config.menuMinWidth}px)`);
 	const visual = win.visualViewport;
 	const DialogElement = win.HTMLDialogElement;
 
@@ -436,8 +451,16 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		kit.openImage = images.open;
 		setUpRegions();
 		loadBody();
-		if (!coding) loadHistory();
-		if (!coding && state.page.layout) loadLayout();
+		// Code mode has its own panels, Command menu and Undo history. Otherwise the history loads on
+		// every page, and Edit mode's tools for a Page's layout, and for the Command menu once the window
+		// is wide enough for it.
+		if (!coding) {
+			loadHistory();
+			// Their own words follow the bar's Admin language, which this first `state` request answers.
+			const language = (answer.data as { adminLanguage: string }).adminLanguage;
+			if (state.page.layout || menuWidth.matches) loadTools(language);
+			else menuWidth.addEventListener("change", () => loadTools(language), { once: true });
+		}
 		openDrafts();
 		every(() => void refresh(), 60_000);
 		doc.addEventListener("visibilitychange", () => {
@@ -714,11 +737,27 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			if (action === "publish" && !publishButton.disabled) openPanel(publishPopup);
 			else if (action === "safeMode") void switchSafe(!safe);
 			else if (action === "preview") void switchCode(false, true);
-			else if (action === "leave")
-				void call("end", {}).then(() => {
-					win.location.reload();
-				});
+			else if (action === "leave") void endEditMode();
 		});
+		// The Command menu's button (#139): its module names it, gives it its keys and shows it.
+		const searchButton = button(
+			{ class: "control icon-only search", "aria-haspopup": "dialog", hidden: "" },
+			icon("search"),
+		);
+		commands = {
+			button: searchButton,
+			settle,
+			async save() {
+				if (!(await settle())) return;
+				announce(word("savedToDraft"));
+				await refresh();
+			},
+			publish() {
+				if (!publishButton.disabled) openPanel(publishPopup);
+			},
+			edit: (on) => void setMode(on),
+			leave: () => void endEditMode(),
+		};
 
 		const account = button(
 			{ class: "avatar", "aria-haspopup": "menu", "aria-expanded": "false" },
@@ -732,10 +771,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			focus: () => focusMenuItem(accountMenu, 0),
 			render() {
 				const endItem = button({ role: "menuitem", tabindex: "-1", class: "menu-row" }, icon("end"), word("end"));
-				endItem.addEventListener("click", async () => {
-					await call("end", {});
-					win.location.reload();
-				});
+				endItem.addEventListener("click", () => void endEditMode());
 				const safeItem = button(
 					{ role: "menuitem", tabindex: "-1", class: "menu-row" },
 					icon("shield"),
@@ -804,6 +840,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				"div",
 				{ class: "end" },
 				othersList,
+				searchButton,
 				language,
 				languageMenu,
 				...(detailsButton ? [detailsButton] : []),
@@ -1013,6 +1050,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			},
 			pickImage: () => Promise.resolve(null),
 			shared: (item) => sharedDraft(item),
+			history: () => history,
 		};
 		return made;
 	}
@@ -1142,19 +1180,34 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		}
 	}
 
-	function loadLayout(): void {
+	/**
+	 * Loads the module of Edit mode's own tools, once: each hands itself over in an event. The Page
+	 * layout's are for a Page; the Command menu (#139) is everyone's.
+	 */
+	function loadTools(language: string): void {
+		if (state?.page.layout)
+			doc.addEventListener(
+				"webcraft:layout-tools",
+				(event) => {
+					const module = (event as CustomEvent<{ mount(kit: BarKit, language: string, styles: string): Promise<void> }>)
+						.detail;
+					void module.mount(kit, language, config.toolsStyles);
+				},
+				{ once: true },
+			);
 		doc.addEventListener(
-			"webcraft:layout-tools",
+			"webcraft:edit-commands",
 			(event) => {
-				const module = (event as CustomEvent<{ mount(kit: BarKit, language: string, styles: string): Promise<void> }>)
-					.detail;
-				void module.mount(kit, (state as State & { adminLanguage: string }).adminLanguage, config.layoutStyles);
+				const module = (
+					event as CustomEvent<{ mount(kit: BarKit, language: string, styles: string, commands: BarCommands): void }>
+				).detail;
+				module.mount(kit, language, config.toolsStyles, commands);
 			},
 			{ once: true },
 		);
 		const script = doc.createElement("script");
 		script.type = "module";
-		script.src = config.layout;
+		script.src = config.tools;
 		doc.head.append(script);
 	}
 
@@ -1418,10 +1471,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			icon("forward"),
 		);
 		rows.append(el("li", {}, admin));
-		row("end", word("end"), null, async () => {
-			await call("end", {});
-			win.location.reload();
-		});
+		row("end", word("end"), null, () => void endEditMode());
 		const count = s.changes.length;
 		const labels = s.changes.map((change) => change.label ?? word(`builtIns.${change.key}`)).join(" · ");
 		const publish = button(
@@ -1493,6 +1543,31 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			content: panel,
 		});
 		panel.querySelector<HTMLElement>("button")?.focus();
+	}
+
+	/** Ends Edit mode for this browser, then shows the page as visitors see it. */
+	async function endEditMode(): Promise<void> {
+		await call("end", {});
+		win.location.reload();
+	}
+
+	/**
+	 * Saves what is still on its way to the Draft and waits for it: text being typed, a Page layout
+	 * change, and the shared Drafts' batches. False when something wasn't saved; what refused it has
+	 * said so already, except a shared Draft that only never answered.
+	 */
+	async function settle(): Promise<boolean> {
+		await Promise.all(regions.map((region) => save(region)));
+		if (regions.some((region) => region.isConnected && textIn(region) !== lastSaved.get(region))) return false;
+		if (layoutTools && !(await layoutTools.finish())) return false;
+		for (const [item, link] of drafts) {
+			if (link.client.status() !== "saving") continue;
+			const refusals = link.refusals;
+			if (await sharedDraft(item)?.saved()) continue;
+			if (link.refusals === refusals) announce(word("saveFailed", { reason: errorText("generic") }), "interrupt");
+			return false;
+		}
+		return true;
 	}
 
 	/** Turns Safe mode on or off for this browser, then shows the page again. */
