@@ -96,6 +96,16 @@ describe("the fragments", () => {
 		expect(parts.regions).toEqual([]);
 	});
 
+	test("a remainder that isn't a page path, such as one naming another host, is a plain 404", async () => {
+		// `//other.example/shop` read as an address names another host: it is no path of this Site.
+		for (const path of ["/_wc/filter//other.example/shop", "/_wc/filter//shop", "/_wc/filter/shop//x"]) {
+			const response = await get(path);
+			expect({ path, status: response.status }).toEqual({ path, status: 404 });
+			expect(await response.text()).toBe("Not Found");
+			expectSiteHeaders(response);
+		}
+	});
+
 	test("the Staging address answers them only to the people reviewing it", async () => {
 		const visitor = stagingVisitor(install, "bakery");
 		const response = await visitor.page("/_wc/filter/shop?category=bread");
