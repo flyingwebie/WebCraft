@@ -628,14 +628,15 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		}
 
 		// Undo and Redo step through the person's own history (ADR 0036). Code mode shows its own.
-		const historyGroup = el("div", { class: "segments history", role: "group", "aria-label": word("undoHistory") });
-		if (!coding) {
-			for (const name of ["undo", "redo"] as const) {
-				const step = button({ class: "segment icon-only", "aria-label": word(name) }, icon(name));
-				step.addEventListener("click", () => void historyTools?.target[name]());
-				historyButtons[name].push(step);
-				historyGroup.append(step);
-			}
+		const historyGroup = coding
+			? null
+			: el("div", { class: "segments history", role: "group", "aria-label": word("undoHistory") });
+		for (const name of ["undo", "redo"] as const) {
+			if (!historyGroup) break;
+			const step = button({ class: "segment icon-only", "aria-label": word(name) }, icon(name));
+			step.addEventListener("click", () => void historyTools?.target[name]());
+			historyButtons[name].push(step);
+			historyGroup.append(step);
 		}
 
 		// With more than one language, the page in each of them is a menu away.
@@ -798,7 +799,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				...(safeChip ? [safeChip] : []),
 				savedNote,
 			),
-			el("div", { class: "middle" }, modes, devices, ...(coding ? [] : [historyGroup])),
+			el("div", { class: "middle" }, modes, devices, ...(historyGroup ? [historyGroup] : [])),
 			el(
 				"div",
 				{ class: "end" },
@@ -863,6 +864,8 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				event.altKey ||
 				(link.target && link.target !== "_self") ||
 				link.hasAttribute("download") ||
+				// A link in text being edited is text: the browser doesn't follow it either.
+				link.isContentEditable ||
 				link.origin !== win.location.origin ||
 				(link.pathname === win.location.pathname && link.search === win.location.search)
 			)
@@ -1395,7 +1398,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				null,
 				then(() => details?.open(from)),
 			);
-		const steps = coding ? undefined : historyTools;
+		const steps = historyTools;
 		if (steps) {
 			const now = steps.buttons();
 			for (const name of ["undo", "redo"] as const) {

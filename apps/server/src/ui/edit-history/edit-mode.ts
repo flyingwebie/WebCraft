@@ -23,7 +23,7 @@ import { historyWords } from "../builder/history-words.ts";
 import { ariaKeys, matches, withKeys } from "../builder/shortcuts.ts";
 import type { LayoutStep, PageLayoutController } from "../page-layouts/controller.ts";
 
-/** A request the server refused, by its code: the history words it when a step is skipped. */
+/** A request the server refused, with its code, as the history reads it when it skips a step. */
 class Refused extends Error {
 	readonly code: string;
 	constructor(code: string) {
