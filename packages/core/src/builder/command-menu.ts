@@ -44,6 +44,7 @@ export type CommandMenuData = {
 	/**
 	 * The Site's own Components, each with what places it directly (its Placements' holders, in their
 	 * Draft or published version): Go to lists them when a Placement's "on N pages" badge is clicked.
+	 * Components are Structure: empty for anyone who may not change it (`structure.edit`).
 	 */
 	components: { id: string; name: string; usedIn: ComponentUse[] }[];
 };
@@ -78,8 +79,10 @@ export async function commandMenuData(scope: SiteScope, sources: ComponentSource
 			});
 	}
 	pages.sort((a, b) => (a.path === "/" ? -1 : b.path === "/" ? 1 : a.path.localeCompare(b.path)));
-	const components = (await listComponents(scope, sources))
-		.filter((component) => component.module === null)
-		.map((component) => ({ id: component.id, name: component.name, usedIn: component.usage.usedIn }));
+	const components = permissions.includes("structure.edit")
+		? (await listComponents(scope, sources))
+				.filter((component) => component.module === null)
+				.map((component) => ({ id: component.id, name: component.name, usedIn: component.usage.usedIn }))
+		: [];
 	return { permissions, pages, postTypes, components };
 }

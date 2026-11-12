@@ -154,6 +154,18 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 		const scope = await services.codeMode.access(session);
 		return json(200, await services.builder.commandMenu(scope));
 	},
+	/**
+	 * What the Command menu needs in Edit mode (#139), for everyone in it: the Permissions the person
+	 * holds on the Site (`can()`), Go to's Pages and Entries, and, only for those who may change
+	 * Structure, its Components. Templates and Components open in the Builder, which is on the admin:
+	 * `siteId` and `adminOrigin` say where.
+	 */
+	commandMenu: async (services, session) =>
+		json(200, {
+			...(await services.builder.commandMenu(session.scope)),
+			siteId: session.scope.site.id,
+			adminOrigin: services.config.adminOrigin,
+		}),
 	"code/editorService": async (services, session, body) => {
 		const scope = await services.codeMode.access(session);
 		const { method, input } = parse(
