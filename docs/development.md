@@ -2021,7 +2021,7 @@ git config core.hooksPath .githooks
 export WEBCRAFT_DENYLIST_FILE=~/.config/webcraft/reference-denylist.txt   # in your shell profile
 ```
 
-Without a list the check is skipped locally with a warning and fails in CI.
+Without a list the check is skipped locally with a warning and fails in CI. With one, it fails (exit 2) whenever it couldn't look: files that can't be searched or listed, a commit range that can't be read (a base this repository doesn't have). Files git takes for binary are searched like any other. `tests/ci/denylist-check.test.ts` runs the script in a repository of its own, with a made-up list.
 
 ## CI
 

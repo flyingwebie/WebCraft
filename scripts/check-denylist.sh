@@ -69,23 +69,41 @@ fi
 set -e
 
 matches=$(mktemp)
-trap 'rm -f "$patterns" "$matches"' EXIT INT TERM
+scan=$(mktemp)
+trap 'rm -f "$patterns" "$matches" "$scan"' EXIT INT TERM
 sep=$(printf '\001')
 
-# Prints "path:line" for each matching line of the tracked (or staged) files; never the text.
+# A check that couldn't look fails: "nothing found" is only said of what was really searched.
+could_not_look() {
+	echo "check-denylist: $1, so nothing can be said about them." >&2
+	exit 2
+}
+
+# Prints "path:line" for each matching line of the tracked (or staged) files; never the text. Files
+# git takes for binary are searched like any other (-a). git grep exits 1 when nothing matches, and
+# with anything higher when it couldn't search.
 scan_files() {
-	git grep -I -n -i -E -z "$@" -f "$patterns" -- . 2>/dev/null |
-		tr '\000' "$sep" | cut -d "$sep" -f 1,2 | tr "$sep" ':' || true
+	status=0
+	git grep -a -n -i -E -z "$@" -f "$patterns" -- . >"$scan" 2>/dev/null || status=$?
+	[ "$status" -le 1 ] || could_not_look "the tracked files couldn't be searched (is this a git repository?)"
+	tr '\000' "$sep" <"$scan" | cut -d "$sep" -f 1,2 | tr "$sep" ':'
+}
+
+# Prints "file name: path" for each of the given paths (one per line) that matches.
+scan_names() {
+	printf '%s\n' "$1" | grep -i -E -f "$patterns" | sed 's/^/file name: /' || true
 }
 
 case "$files" in
 worktree)
 	scan_files >>"$matches"
-	git ls-files | grep -i -E -f "$patterns" | sed 's/^/file name: /' >>"$matches" || true
+	names=$(git ls-files) || could_not_look "the tracked files couldn't be listed"
+	scan_names "$names" >>"$matches"
 	;;
 staged)
 	scan_files --cached >>"$matches"
-	git diff --cached --name-only --diff-filter=ACR | grep -i -E -f "$patterns" | sed 's/^/file name: /' >>"$matches" || true
+	names=$(git diff --cached --name-only --diff-filter=ACR) || could_not_look "the staged files couldn't be listed"
+	scan_names "$names" >>"$matches"
 	;;
 esac
 
@@ -100,8 +118,11 @@ if [ -n "$range" ]; then
 	case "$range" in
 	0000000000000000000000000000000000000000..*) range=${range#*..} ;; # a new branch: every commit on it
 	esac
-	for commit in $(git rev-list "$range"); do
-		if git log -1 --format=%B "$commit" | grep -q -i -E -f "$patterns"; then
+	# A range whose base this repository doesn't have (a branch pushed over) can't be read.
+	commits=$(git rev-list "$range" 2>/dev/null) || could_not_look "the commits of $range couldn't be read"
+	for commit in $commits; do
+		message=$(git log -1 --format=%B "$commit") || could_not_look "the message of commit $commit couldn't be read"
+		if printf '%s\n' "$message" | grep -q -i -E -f "$patterns"; then
 			echo "the message of commit $commit" >>"$matches"
 		fi
 	done
