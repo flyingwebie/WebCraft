@@ -23,8 +23,9 @@ const secret = z.string().max(300).optional();
  * A Site's Webhooks (spec story 139): signed calls to outside addresses when something happens on the
  * Site, sent by the worker with retries and kept in a delivery log. Site settings: everyone who sees
  * the Site reads them (people without `structure.edit` see each URL's origin only), Staff change them
- * (`structure.edit`); a change applies at once and is recorded in the Audit log. Adding one, and
- * changing where it goes, what it receives or its secret, are Sensitive actions (`webhook.change`).
+ * and read the delivery log (`structure.edit`); a change applies at once and is recorded in the Audit
+ * log. Adding one, and changing where it goes, what it receives or its secret, are Sensitive actions
+ * (`webhook.change`).
  */
 export const webhooks = {
 	/** The Site's Webhooks, oldest first, and the events a Webhook can receive. */
@@ -86,6 +87,8 @@ export const webhooks = {
 	 * A Webhook's delivery log, newest first, 20 at a time (up to 100): each delivery's body as sent,
 	 * its status and every attempt (when, how long, the receiver's status and the start of its
 	 * answer, or what went wrong). `next` asks for the following page. Deliveries are kept 30 days.
+	 * Staff only (`structure.edit`): a body can hold what a visitor sent in a Form, and an answer
+	 * whatever the receiver said.
 	 */
 	deliveries: signedIn
 		.input(
@@ -96,10 +99,10 @@ export const webhooks = {
 				limit: z.number().int().min(1).max(100).default(20),
 			}),
 		)
-		.handler(async ({ context, input }) => {
-			const site = await context.services.data.site(context.access, input.siteId, "site.view");
-			return await context.services.webhooks.deliveries(site, input.webhookId, input);
-		}),
+		.use(onSite("structure.edit"))
+		.handler(
+			async ({ context, input }) => await context.services.webhooks.deliveries(context.site, input.webhookId, input),
+		),
 
 	/**
 	 * Switches a Webhook on or off. Off, it receives nothing, and deliveries waiting for an attempt

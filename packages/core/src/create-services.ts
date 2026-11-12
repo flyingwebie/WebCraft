@@ -379,6 +379,7 @@ export async function createInstallServices(
 		email,
 		log,
 		clock,
+		rateLimits,
 		ai: ports.ai,
 		aiKeys,
 		fetch: createGuardedFetch({

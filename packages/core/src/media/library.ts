@@ -14,6 +14,7 @@ import type { InstallSettings } from "../install-settings.ts";
 import type { JobQueue } from "../jobs/define.ts";
 import type { Logger } from "../log.ts";
 import { actingPerson, can, personIdOf } from "../permissions/can.ts";
+import { RateLimitedError, type RateLimitRule, type RateLimits } from "../rate-limits.ts";
 import type { SiteScope, WorkspaceScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError } from "../tenancy/errors.ts";
 import { canSuggestAltText, suggestAltText } from "./alt-text.ts";
@@ -29,7 +30,7 @@ import {
 	MediaTypeRefusedError,
 } from "./errors.ts";
 import type { VariantFormat } from "./images.ts";
-import { fetchForImport, MEDIA_IMPORT_TIMEOUT_MS } from "./import.ts";
+import { fetchForImport, MEDIA_IMPORT_LIMITS, MEDIA_IMPORT_TIMEOUT_MS } from "./import.ts";
 import type { InstallStorage } from "./install-storage.ts";
 import { mediaProcess } from "./jobs.ts";
 import type { MediaKind } from "./kinds.ts";
@@ -191,9 +192,16 @@ export type MediaLibrary = {
 	/**
 	 * Import from URL: fetches the file at a public address through the guarded fetcher (refusing
 	 * addresses inside a network after DNS and after each redirect, at most 3 redirects, 30 seconds,
-	 * the Install's largest file), then takes it exactly as an upload.
+	 * the Install's largest file), then takes it exactly as an upload. The whole file is held in memory
+	 * meanwhile, so each import counts against its person's limit and its Site's
+	 * (`MEDIA_IMPORT_LIMITS`), refused past either (`RateLimitedError`) before anything is fetched.
+	 * `uncounted` is for an Import's own files, which the worker fetches one at a time.
 	 */
-	importUrl(scope: SiteScope, address: string, options?: { folderId?: string | null }): Promise<MediaItem>;
+	importUrl(
+		scope: SiteScope,
+		address: string,
+		options?: { folderId?: string | null; uncounted?: boolean },
+	): Promise<MediaItem>;
 	list(scope: SiteScope, query?: MediaQuery): Promise<{ items: MediaItem[]; total: number }>;
 	get(scope: SiteScope, mediaId: string, language?: string): Promise<MediaItem>;
 	/** Changes texts or the folder: a person's own upload, or any with `media.manage`. */
@@ -264,6 +272,8 @@ export function createMediaLibrary(options: {
 	email: Email;
 	log: Logger;
 	clock: Clock;
+	/** Counts Imports from URL against `MEDIA_IMPORT_LIMITS`. */
+	rateLimits: RateLimits;
 	/** AI providers, for "Suggest alt text". */
 	ai: AiProviders;
 	/** The AI keys calls go through, with what they cost. */
@@ -301,6 +311,14 @@ export function createMediaLibrary(options: {
 			if (isUniqueViolation(error, "media_folders_site_id_name_unique")) throw new MediaFolderTakenError();
 			throw error;
 		}
+	};
+
+	/** Counts one Import from URL under `key`, refusing it once the rule's window is used up. */
+	const countImport = async (key: string, rule: RateLimitRule) => {
+		const tally = await options.rateLimits.tally(key, rule);
+		if (tally.within) return;
+		const waitMs = tally.resetsAt.getTime() - options.clock.now().getTime();
+		throw new RateLimitedError(Math.max(1, Math.ceil(waitMs / 1000)));
 	};
 
 	/**
@@ -396,12 +414,19 @@ export function createMediaLibrary(options: {
 		},
 
 		async importUrl(scope, address, importOptions = {}) {
+			if (!importOptions.uncounted) {
+				// The person first: someone past their own limit never uses up the Site's for everyone else.
+				await countImport(`media-import:person:${actingPerson(scope.access.actor)}`, MEDIA_IMPORT_LIMITS.person);
+				await countImport(`media-import:site:${scope.site.id}`, MEDIA_IMPORT_LIMITS.site);
+			}
 			const folderId = importOptions.folderId ? (await findFolder(scope, importOptions.folderId)).id : null;
 			const { maxFileBytes } = await settings.media();
-			const fetched = await fetchForImport(options.fetch, address, {
-				maxBytes: maxFileBytes,
-				timeoutMs: options.importTimeoutMs ?? MEDIA_IMPORT_TIMEOUT_MS,
-			});
+			const fetched = await fetchForImport(
+				options.fetch,
+				address,
+				{ maxBytes: maxFileBytes, timeoutMs: options.importTimeoutMs ?? MEDIA_IMPORT_TIMEOUT_MS },
+				options.log,
+			);
 			return library.upload(scope, { ...fetched, folderId, importedFrom: fetched.host });
 		},
 

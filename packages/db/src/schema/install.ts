@@ -48,6 +48,12 @@ export const installSettings = pgTable(
 		 */
 		aiPrivateEndpoints: boolean("ai_private_endpoints").notNull().default(false),
 		/**
+		 * Whether a Site's own mail server may be inside the Install's own network (an internal relay).
+		 * Off unless the Superadmin switches it on: Staff name that server's host and port, so without it
+		 * only addresses on the public internet are connected to.
+		 */
+		siteSmtpPrivateServers: boolean("site_smtp_private_servers").notNull().default(false),
+		/**
 		 * Whether publishing saves Revisions anywhere on the Install. On unless the Superadmin switches it
 		 * off; Revisions saved before stay until the usual retention removes them.
 		 */

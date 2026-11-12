@@ -5182,7 +5182,7 @@
 		"/webhooks/deliveries": {
 			"post": {
 				"operationId": "webhooks.deliveries",
-				"summary": "A Webhook's delivery log, newest first.",
+				"summary": "A Webhook's delivery log, newest first (Staff only).",
 				"tags": ["webhooks"],
 				"requestBody": {
 					"required": true,
@@ -5234,7 +5234,7 @@
 				},
 				"x-webcraft-access": "read",
 				"x-webcraft-toolsets": ["siteSettings"],
-				"x-webcraft-permissions": ["site.view"]
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/webhooks/setEnabled": {

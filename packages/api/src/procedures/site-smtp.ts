@@ -57,7 +57,10 @@ export const siteSmtp = {
 	/**
 	 * Sends a test email at once, as the Site's mail would go with the settings in the form (which may
 	 * not be saved yet), and answers whether the server took it, with its reply. Without a password the
-	 * stored one is used; without a server it goes through the Install SMTP under the Site's name.
+	 * stored one is used; without a server it goes through the Install SMTP under the Site's name. The
+	 * server's host must resolve to addresses on the public internet (unless the Superadmin lets Sites
+	 * use servers inside the Install's network); otherwise, and when nothing answers there as a mail
+	 * server, `response` is one fixed reason, never what was found.
 	 */
 	sendTest: signedIn
 		.input(z.object({ siteId: id, to: email, ...settings }))

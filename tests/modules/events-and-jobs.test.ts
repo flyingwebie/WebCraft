@@ -433,6 +433,8 @@ describe("email", () => {
 		const site = await install.createSite(workspaceId);
 		// Someone who just signed in: setting a Site's SMTP is a Sensitive action.
 		const { browser: signedIn } = await install.createStaff({ workspaces: [workspaceId] });
+		// A Site's own server must be on the public internet (`tests/email/site-smtp-network.test.ts`).
+		install.dns.answer("smtp.client.example", ["93.184.216.40"]);
 		await signedIn.api.siteSmtp.update({
 			siteId: site.id,
 			fromName: "The Site's mail",

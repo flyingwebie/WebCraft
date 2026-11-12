@@ -4,6 +4,7 @@ import type { AdminLanguageCode } from "../admin-languages.ts";
 
 import type { Clock } from "../clock.ts";
 import type { InstallConfig } from "../config.ts";
+import type { Dns } from "../dns.ts";
 import type { InstallSettings } from "../install-settings.ts";
 import type { JobQueue } from "../jobs/define.ts";
 import type { Logger } from "../log.ts";
@@ -99,6 +100,8 @@ export type EmailOptions = {
 	mailer: Mailer;
 	clock: Clock;
 	log: Logger;
+	/** DNS, to check where a Site's own mail server is before anything is sent to it. */
+	dns: Dns;
 	config: InstallConfig;
 	settings: InstallSettings;
 	/** The data layer, for a Site's mail settings and who to tell when its server fails. */

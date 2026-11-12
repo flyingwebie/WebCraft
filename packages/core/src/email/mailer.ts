@@ -11,6 +11,12 @@ export type SmtpConnection = {
 	security: SmtpSecurity;
 	username: string | null;
 	password: string | null;
+	/**
+	 * The address to connect to, when the sender checked where `host` resolves (a Site's own server):
+	 * the Mailer connects there, never resolving the name again, and `host` stays the name TLS asks for
+	 * and checks the certificate against. Absent, the Mailer resolves `host` itself.
+	 */
+	connectTo?: string;
 };
 
 /** A file sent with an email, such as a Report's PDF. */
@@ -73,10 +79,17 @@ export class SmtpDeliveryError extends Error {
 	 * `550 No such user`). Trying again won't help, and it says nothing about the server itself.
 	 */
 	readonly recipientRejected: boolean;
+	/**
+	 * Whether `response` is a mail server's own SMTP reply (three digits first, such as
+	 * `535 Authentication failed`). Otherwise nothing answered as a mail server: the connection or TLS
+	 * failed, it timed out, or whatever is there said something else.
+	 */
+	readonly replied: boolean;
 
 	constructor(response: string, options: { recipientRejected?: boolean; cause?: unknown } = {}) {
 		super(`The email was not sent: ${response}`, { cause: options.cause });
 		this.response = response;
 		this.recipientRejected = options.recipientRejected ?? false;
+		this.replied = /^\d{3}(?:[ -]|$)/.test(response);
 	}
 }

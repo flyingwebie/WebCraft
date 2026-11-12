@@ -1,0 +1,1 @@
+ALTER TABLE "install_settings" ADD COLUMN "site_smtp_private_servers" boolean DEFAULT false NOT NULL;

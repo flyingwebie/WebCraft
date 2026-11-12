@@ -252,6 +252,46 @@ describe("files the source refuses", () => {
 			),
 		).toBe("xml");
 	});
+
+	/** An export file with one item holding `inside`, and `beside` next to it in the channel. */
+	const exportWith = (inside: string, beside = "") =>
+		`<rss version="2.0" xmlns:wp="http://wordpress.org/export/1.2/"><channel><wp:wxr_version>1.2</wp:wxr_version>${beside}<item><title>Loaf</title>${inside}</item></channel></rss>`;
+
+	/** Uploads a large file in the largest parts, lets the worker survey it and answers the file. */
+	const surveyedLarge = async (text: string) => {
+		const uploaded = await uploadExport(staff.api, siteId, text, { partBytes: 8 * 1024 * 1024 });
+		expect((await install.drainJobs()).failed).toEqual([]);
+		return (await staff.api.imports.file({ siteId, fileId: uploaded.id })).file;
+	};
+
+	test("elements nested deeply outside any item, or inside a comment that is skipped (audit A4-6)", async () => {
+		const deep = `${"<x>".repeat(40)}${"</x>".repeat(40)}`;
+		expect(await refusal(exportWith("", deep))).toBe("xml");
+		expect(await refusal(exportWith(`<wp:comment>${deep}</wp:comment>`))).toBe("xml");
+	});
+
+	test("an item of nothing but elements or attributes, which holds almost no text (audit A4-6)", async () => {
+		// Two megabytes of empty elements: half a million objects for one item.
+		const elements = await surveyedLarge(exportWith("<a/>".repeat(520_000)));
+		expect([elements.status, elements.refusal?.code]).toEqual(["refused", "itemTooLarge"]);
+
+		const attributes = await surveyedLarge(exportWith('<a b="" c="" d="" e=""/>'.repeat(225_000)));
+		expect([attributes.status, attributes.refusal?.code]).toEqual(["refused", "itemTooLarge"]);
+
+		// An item as full as real ones get (thousands of custom fields) is read as before.
+		const field = "<wp:postmeta><wp:meta_key>_price</wp:meta_key><wp:meta_value>4.50</wp:meta_value></wp:postmeta>";
+		const real = await surveyedLarge(exportWith(`<wp:post_type>post</wp:post_type>${field.repeat(5_000)}`));
+		expect(real.status).toBe("ready");
+	});
+
+	test("one tag longer than an export ever writes: its attributes are held before they can be counted (audit A4-6)", async () => {
+		const attributes = Array.from({ length: 140_000 }, (_, number) => ` k${number}=""`).join("");
+		expect(attributes.length).toBeGreaterThan(1024 * 1024);
+
+		const file = await surveyedLarge(exportWith(`<a${attributes}/>`));
+
+		expect([file.status, file.refusal?.code]).toEqual(["refused", "valueTooLarge"]);
+	});
 });
 
 describe("who uploads", () => {

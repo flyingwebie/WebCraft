@@ -9,13 +9,17 @@ const SOCKET_TIMEOUT_MS = 30_000;
 
 /**
  * The real Mailer: sends over SMTP with Nodemailer, one connection per email. Web (test emails) and
- * worker (every other email) both use it.
+ * worker (every other email) both use it. `ca` makes it trust a certificate authority a test made
+ * instead of the usual ones, as the outgoing HTTP adapters' `ca` does.
  */
-export function createSmtpMailer(): Mailer {
+export function createSmtpMailer(options: { ca?: string } = {}): Mailer {
 	return {
 		async send(email, smtp) {
 			const transport = nodemailer.createTransport({
-				host: smtp.host,
+				...(options.ca === undefined ? {} : { tls: { ca: options.ca } }),
+				// A checked address is connected to as it is; TLS still asks for the server by its name.
+				host: smtp.connectTo ?? smtp.host,
+				...(smtp.connectTo === undefined ? {} : { servername: smtp.host }),
 				port: smtp.port,
 				secure: smtp.security === "tls",
 				requireTLS: smtp.security === "starttls",

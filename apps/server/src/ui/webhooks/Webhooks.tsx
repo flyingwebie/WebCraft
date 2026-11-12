@@ -71,8 +71,9 @@ export type WebhooksData = {
 /**
  * Site › Webhooks (Site settings): calls to other systems when something happens on the Site, each
  * signed, retried and kept in a delivery log for 30 days. Staff add, change, test and remove them
- * (`structure.edit`); a change applies at once. Anyone else who opens it (an Owner following the
- * email about a Webhook switched off) sees each Webhook's origin, its status and its delivery log.
+ * and read the delivery log (`structure.edit`); a change applies at once. Anyone else who opens it
+ * (an Owner following the email about a Webhook switched off) sees each Webhook's origin, its status
+ * and how its last delivery went: `data.log` is null for them.
  */
 export function WebhooksPage({ siteId, data, canEdit }: { siteId: string; data: WebhooksData; canEdit: boolean }) {
 	const t = useT();
@@ -103,7 +104,7 @@ export function WebhooksPage({ siteId, data, canEdit }: { siteId: string; data: 
 					canEdit={canEdit}
 					onSecret={setShownSecret}
 				/>
-				{data.log ? <DeliveryLog siteId={siteId} log={data.log} canEdit={canEdit} /> : null}
+				{data.log ? <DeliveryLog siteId={siteId} log={data.log} /> : null}
 				{canEdit ? <Verifying /> : null}
 				<p className="text-muted-foreground text-sm">{t("webhooks.appliesAtOnce")}</p>
 			</div>
@@ -194,14 +195,16 @@ function WebhookList({
 											) : (
 												<span className="text-muted-foreground text-sm">{t("webhooks.noDeliveries")}</span>
 											)}
-											<Link
-												to="/sites/$siteId/webhooks"
-												params={{ siteId }}
-												search={{ webhook: webhook.id }}
-												className="inline-flex min-h-6 items-center text-sm underline underline-offset-4"
-											>
-												{t("webhooks.openLog", { name: webhook.name })}
-											</Link>
+											{canEdit ? (
+												<Link
+													to="/sites/$siteId/webhooks"
+													params={{ siteId }}
+													search={{ webhook: webhook.id }}
+													className="inline-flex min-h-6 items-center text-sm underline underline-offset-4"
+												>
+													{t("webhooks.openLog", { name: webhook.name })}
+												</Link>
+											) : null}
 										</div>
 									</TableCell>
 									{canEdit ? (
@@ -769,15 +772,7 @@ function RemoveWebhookDialog({
 }
 
 /** A Webhook's delivery log: newest first, each delivery's attempts and body, Redeliver for a failed one. */
-function DeliveryLog({
-	siteId,
-	log,
-	canEdit,
-}: {
-	siteId: string;
-	log: NonNullable<WebhooksData["log"]>;
-	canEdit: boolean;
-}) {
+function DeliveryLog({ siteId, log }: { siteId: string; log: NonNullable<WebhooksData["log"]> }) {
 	const t = useT();
 	const { webhook, page, before } = log;
 	return (
@@ -807,7 +802,7 @@ function DeliveryLog({
 					<ul className="grid gap-2">
 						{page.deliveries.map((delivery) => (
 							<li key={delivery.id}>
-								<Delivery siteId={siteId} webhook={webhook} delivery={delivery} canEdit={canEdit} />
+								<Delivery siteId={siteId} webhook={webhook} delivery={delivery} />
 							</li>
 						))}
 					</ul>
@@ -835,17 +830,7 @@ function DeliveryLog({
 	);
 }
 
-function Delivery({
-	siteId,
-	webhook,
-	delivery,
-	canEdit,
-}: {
-	siteId: string;
-	webhook: WebhookView;
-	delivery: DeliveryView;
-	canEdit: boolean;
-}) {
+function Delivery({ siteId, webhook, delivery }: { siteId: string; webhook: WebhookView; delivery: DeliveryView }) {
 	const t = useT();
 	const router = useRouter();
 	const [busy, setBusy] = useState(false);
@@ -932,7 +917,7 @@ function Delivery({
 						{prettyJson(delivery.body)}
 					</pre>
 				</div>
-				{canEdit && delivery.status === "failed" && !delivery.test ? (
+				{delivery.status === "failed" && !delivery.test ? (
 					<div>
 						<Button variant="outline" size="sm" onClick={redeliver} disabled={busy || webhook.status !== "on"}>
 							<RotateCwIcon aria-hidden="true" />

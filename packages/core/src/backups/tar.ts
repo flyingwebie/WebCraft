@@ -163,7 +163,8 @@ function readPath(block: Uint8Array): string {
 	return prefix ? `${prefix}/${name}` : name;
 }
 
-function parsePax(body: Uint8Array): Map<string, string> {
+/** The records of a pax header (`<length> <key>=<value>\n` each), by key: `path`, `size`. */
+export function parsePax(body: Uint8Array): Map<string, string> {
 	const records = new Map<string, string>();
 	let offset = 0;
 	while (offset < body.length) {

@@ -108,13 +108,23 @@ function webStream(readable: Readable): ReadableStream<Uint8Array> {
 const ZLIB_FLUSH = { flush: constants.Z_SYNC_FLUSH, finishFlush: constants.Z_SYNC_FLUSH };
 const BROTLI_FLUSH = { flush: constants.BROTLI_OPERATION_FLUSH, finishFlush: constants.BROTLI_OPERATION_FLUSH };
 
-/** The body decoded from its `Content-Encoding` (gzip, deflate, br); as it came for any other. */
+/** The most content codings an answer may be wrapped in: each one gets a decoder with buffers of its own. */
+const MAX_CONTENT_CODINGS = 5;
+
+/**
+ * The body decoded from its `Content-Encoding` (gzip, deflate, br); as it came for any other. An
+ * answer that lists more than `MAX_CONTENT_CODINGS` fails the call: a server could otherwise make it
+ * build thousands of decoders with one header.
+ */
 function decoded(incoming: IncomingMessage): Readable {
 	const codings = (incoming.headers["content-encoding"] ?? "")
 		.split(",")
 		.map((coding) => coding.trim().toLowerCase())
 		.filter((coding) => coding !== "" && coding !== "identity")
 		.reverse();
+	if (codings.length > MAX_CONTENT_CODINGS) {
+		throw new Error(`The answer lists ${codings.length} content codings; at most ${MAX_CONTENT_CODINGS} are decoded.`);
+	}
 	const decoders: Transform[] = [];
 	for (const coding of codings) {
 		if (coding === "gzip" || coding === "x-gzip") decoders.push(createGunzip(ZLIB_FLUSH));

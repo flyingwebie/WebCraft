@@ -1211,10 +1211,8 @@ describe("Webhooks", () => {
 	isolation.refuses("webhooks.remove", async (api, target) =>
 		api.webhooks.remove({ siteId: target.siteId, webhookId: await webhookIn(target) }),
 	);
-	isolation.refuses(
-		"webhooks.deliveries",
-		async (api, target) => api.webhooks.deliveries({ siteId: target.siteId, webhookId: await webhookIn(target) }),
-		{ as: ["staff", "owner"] },
+	isolation.refuses("webhooks.deliveries", async (api, target) =>
+		api.webhooks.deliveries({ siteId: target.siteId, webhookId: await webhookIn(target) }),
 	);
 	isolation.refuses("webhooks.test", async (api, target) =>
 		api.webhooks.test({ siteId: target.siteId, webhookId: await webhookIn(target) }),

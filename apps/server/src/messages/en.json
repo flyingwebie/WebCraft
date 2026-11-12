@@ -795,6 +795,14 @@
 		"save": "Save",
 		"discard": "Discard",
 		"saved": "Saved.",
+		"siteServers": {
+			"heading": "Sites' own mail servers",
+			"intro": "A Site can send its email through a server of its own, which Staff set on Site › Email.",
+			"allowPrivate": "Let Sites use mail servers inside this Install's own network",
+			"allowPrivateHelp": "For a mail relay the agency runs on its own servers. Off, a Site's server must be on the public internet: Staff choose its host and port, so its test email could otherwise reach anything on that network.",
+			"save": "Save this setting",
+			"saved": "The setting is saved."
+		},
 		"branding": {
 			"heading": "Install branding",
 			"intro": "What every System email carries.",
@@ -6900,6 +6908,9 @@
 			},
 			"siteSmtp": {
 				"change": "Site email settings changed"
+			},
+			"siteSmtpPrivateServers": {
+				"change": "Sites' use of mail servers inside the network changed"
 			},
 			"staff": {
 				"changeWorkspaces": "Staff member's Workspaces changed",
