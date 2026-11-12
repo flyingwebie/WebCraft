@@ -224,6 +224,8 @@ export async function importSite(
 			missingPeople,
 			undefined,
 			modulePropFields(moduleComponents),
+			// An archive is input: what its rows hold is checked and cleaned as a save would.
+			true,
 		);
 		for (const [index, table] of manifest.tables.entries()) {
 			const here = target.get(table.name);
