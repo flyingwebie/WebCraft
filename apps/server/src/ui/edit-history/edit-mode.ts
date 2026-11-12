@@ -23,6 +23,15 @@ import { historyWords } from "../builder/history-words.ts";
 import { ariaKeys, matches, withKeys } from "../builder/shortcuts.ts";
 import type { LayoutStep, PageLayoutController } from "../page-layouts/controller.ts";
 
+/** A request the server refused, by its code: the history words it when a step is skipped. */
+class Refused extends Error {
+	readonly code: string;
+	constructor(code: string) {
+		super(code);
+		this.code = code;
+	}
+}
+
 /** Where a key press keeps the browser's own undo: dialogs, and what the history doesn't hold. */
 const OWN_UNDO = "[role=dialog], dialog, [data-wc-type=body], [data-wc-item^='loop:']";
 
@@ -100,18 +109,28 @@ async function mount(kit: BarKit, host: HistoryHost): Promise<HistoryTools> {
 		await host.finish();
 		await order.idle();
 	};
+	/**
+	 * One step back or forward, once what the person was typing is a step itself (a refused input says
+	 * so itself, and the history then moves from the last one accepted). Text typed in a Placement on
+	 * the page is drawn again when its step moves: focus is put back in it, unless it went elsewhere.
+	 */
+	const step = async (move: () => Promise<void>) => {
+		const active = kit.doc.activeElement;
+		const typing = active instanceof HTMLElement && active.matches("[data-wc-placement-prop]") ? active.dataset : null;
+		await settled();
+		await move();
+		if (!typing || !layout) return;
+		await layout.finish();
+		if (kit.doc.activeElement !== kit.doc.body) return;
+		const placement = CSS.escape(typing.wcPlacement ?? "");
+		const prop = CSS.escape(typing.wcPlacementProp ?? "");
+		kit.doc.querySelector<HTMLElement>(`[data-wc-placement="${placement}"][data-wc-placement-prop="${prop}"]`)?.focus();
+	};
 	const shared = historyCommandTarget(history);
 	const target: EditHistory = {
 		...shared,
-		// A refused input says so itself; the history then takes back the last step that was accepted.
-		undo: async () => {
-			await settled();
-			await history.undo();
-		},
-		redo: async () => {
-			await settled();
-			await history.redo();
-		},
+		undo: () => step(() => history.undo()),
+		redo: () => step(() => history.redo()),
 		canUndo: () => kit.editing() && shared.canUndo(),
 		canRedo: () => kit.editing() && shared.canRedo(),
 		subscribe: (listener) => history.subscribe(listener),
@@ -149,22 +168,28 @@ async function mount(kit: BarKit, host: HistoryHost): Promise<HistoryTools> {
 		void (redo ? target.redo() : target.undo());
 	});
 
-	await connectHistory(
-		siteId,
-		async <T>(method: "transferHistory" | "claimHistory" | "reverseHistory", input: object) => {
-			// The handoff is every Edit mode person's; CSS and scripts are taken back with Code mode's own
-			// request, which only those who may change Structure are answered.
-			const action = {
-				transferHistory: "history/transfer",
-				claimHistory: "history/claim",
-				reverseHistory: "code/reverseHistory",
-			};
-			const answer = await kit.call(action[method], input);
-			if (!answer.ok) throw Object.assign(new Error(answer.code), { code: answer.code });
-			return answer.data as T;
-		},
-		true,
-	);
+	try {
+		await connectHistory(
+			siteId,
+			async <T>(method: "transferHistory" | "claimHistory" | "reverseHistory", input: object) => {
+				// The handoff is every Edit mode person's; CSS and scripts are taken back with Code mode's
+				// own request, which only those who may change Structure are answered.
+				const action = {
+					transferHistory: "history/transfer",
+					claimHistory: "history/claim",
+					reverseHistory: "code/reverseHistory",
+				};
+				const answer = await kit.call(action[method], input);
+				if (!answer.ok) throw new Refused(answer.code);
+				return answer.data as T;
+			},
+			true,
+		);
+	} catch (error) {
+		// A handoff that couldn't be claimed leaves this page's history empty; it works from here on.
+		if (!(error instanceof Refused)) throw error;
+		editorAccessibility(kit.doc).announce(kit.errorText(error.code), "interrupt");
+	}
 
 	return {
 		target,
@@ -179,8 +204,8 @@ async function mount(kit: BarKit, host: HistoryHost): Promise<HistoryTools> {
 					place.record(() => {
 						history.record({
 							resource: change.resource,
-							before: change.before as Json,
-							after: change.after as Json,
+							before: change.before,
+							after: change.after,
 							label,
 							location: { siteId, draft: change.resource, panel: "page", ref: shown.field, title: title() },
 						});

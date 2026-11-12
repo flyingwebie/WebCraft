@@ -618,6 +618,21 @@ test("the history goes along to another page of the Site, says where a step was 
 		const about = await site.api.pageLayouts.get({ siteId: site.siteId, entryId: site.aboutId });
 		expect(about.placements.map((p) => p.values.heading)).toEqual(["East"]);
 
+		// Text typed in a Placement on the page, the keys pressed while still in it: the step is made and
+		// taken back, and focus is in that text again once the page has drawn it as it was.
+		const north = page.locator('main [data-wc-placement="north"][data-wc-placement-prop="heading"]');
+		await north.click();
+		await page.keyboard.press("End");
+		await page.keyboard.type(" Cork");
+		await page.keyboard.press("ControlOrMeta+z");
+		await said(page, "Undid Props Hero · North");
+		await north.filter({ hasText: /^North$/ }).waitFor();
+		await page.waitForFunction(() =>
+			document.activeElement?.matches('[data-wc-placement="north"][data-wc-placement-prop]'),
+		);
+		expect(await redoButton(page).getAttribute("title")).toStartWith("Redo Props Hero · North (");
+		expect((await site.read()).placements).toEqual(["North", "South"]);
+
 		// Loading the page again is a new tab's worth of history: none.
 		await page.reload();
 		await layoutButton(page).waitFor();

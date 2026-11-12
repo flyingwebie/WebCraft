@@ -1,4 +1,4 @@
-import type { DraftClient } from "@webcraft/core/draft-document";
+import type { DraftClient, Json } from "@webcraft/core/draft-document";
 import type { HistoryTarget } from "../../ui/builder/commands.ts";
 import type { PageLayoutController } from "../../ui/page-layouts/controller.ts";
 /**
@@ -162,7 +162,7 @@ export type SharedDraft = {
 };
 
 /** The exact change a save made to a Draft, as the `save` edit request answers it (`RegionHistory` on the server). */
-export type SavedChange = { resource: string; before: unknown; after: unknown };
+export type SavedChange = { resource: string; before: Json; after: Json };
 
 /** A place kept in the Undo history for an own action while its save is on its way. */
 export type HistoryPlace = {
