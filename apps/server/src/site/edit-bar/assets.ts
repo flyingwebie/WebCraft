@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { compile, optimize } from "@tailwindcss/node";
 import { Scanner } from "@tailwindcss/oxide";
 import { componentScriptSettings } from "../../ui/builder/component-script-settings.ts";
+import { EDITOR_WIDTHS, editorFit, focusInto, nextDrawer } from "../../ui/builder/editor-fit.ts";
 import { renderedRanges } from "../../ui/builder/rendered-ranges.ts";
 
 import { type CodeModeConfig, codeMode } from "../code-mode/code.ts";
@@ -57,15 +58,22 @@ async function makeAssets(): Promise<EditBarAssets> {
 	const pageStyles = await asset("page", "css", PAGE_STYLES, "text/css; charset=utf-8");
 	const drafts = await asset("drafts", "js", await draftsModule(), "text/javascript; charset=utf-8");
 	const body = await asset("body", "js", await bodyModule(), "text/javascript; charset=utf-8");
-	const config: EditingBarConfig = { styles: barStyles.path, drafts: drafts.path, body: body.path };
+	const config: EditingBarConfig = {
+		styles: barStyles.path,
+		drafts: drafts.path,
+		body: body.path,
+		codeMinWidth: EDITOR_WIDTHS.min,
+	};
 	// The bar and its parts, each a self-contained function, in one file: the parts are made by the bar.
 	const parts = `{ images: ${imageTools.toString()}, loops: ${loopTools.toString()}, details: ${pageDetailsPanel.toString()} }`;
 	const source = `(${editingBar.toString()})(${JSON.stringify(config)}, ${parts});\n`;
 	const script = await asset("bar", "js", source, "text/javascript; charset=utf-8");
 	const codeStyles = await asset("code", "css", `${await panelsStyles()}\n${CODE_STYLES}`, "text/css; charset=utf-8");
 	const panels = await asset("panels", "js", await panelsModule(drafts.path), "text/javascript; charset=utf-8");
-	const codeConfig: CodeModeConfig = { styles: codeStyles.path, panels: panels.path };
-	const codeSource = `(${codeMode.toString()})(${JSON.stringify(codeConfig)}, ${componentScriptSettings.toString()}, ${renderedRanges.toString()});\n`;
+	const codeConfig: CodeModeConfig = { styles: codeStyles.path, panels: panels.path, widths: EDITOR_WIDTHS };
+	// The window-width rules shared with the Builder, each a self-contained function.
+	const fitting = `{ editorFit: ${editorFit.toString()}, nextDrawer: ${nextDrawer.toString()}, focusInto: ${focusInto.toString()} }`;
+	const codeSource = `(${codeMode.toString()})(${JSON.stringify(codeConfig)}, ${componentScriptSettings.toString()}, ${renderedRanges.toString()}, ${fitting});\n`;
 	const codeScript = await asset("code", "js", codeSource, "text/javascript; charset=utf-8");
 	return {
 		script,

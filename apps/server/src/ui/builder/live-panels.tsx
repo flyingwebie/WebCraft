@@ -946,7 +946,7 @@ function SourcePanels({
 						bridge.cssHost,
 					)
 				: null}
-			<aside className="editor-left" aria-label={t("builder.layers.heading")}>
+			<aside id="wc-code-layers" tabIndex={-1} className="editor-left" aria-label={t("builder.layers.heading")}>
 				<fieldset disabled={!writable}>
 					<InsertToolbar
 						where={node && !canHoldChildren(node) ? "after" : where}
@@ -1037,7 +1037,7 @@ function SourcePanels({
 					/>
 				</fieldset>
 			</aside>
-			<aside className="editor-right" aria-label={t("builder.inspector.heading")}>
+			<aside id="wc-code-inspector" tabIndex={-1} className="editor-right" aria-label={t("builder.inspector.heading")}>
 				<fieldset disabled={!writable}>
 					<Inspector
 						departure={oneOffDeparture}
