@@ -1,4 +1,5 @@
 import { type GuardedFetch, GuardedFetchError, type GuardedFetchProblem } from "../guarded-fetch.ts";
+import type { Logger } from "../log.ts";
 
 /** How long Import from URL waits for a whole file: the most the guarded fetcher allows. */
 export const MEDIA_IMPORT_TIMEOUT_MS = 30_000;
@@ -19,6 +20,21 @@ export class MediaImportRefusedError extends Error {
 	}
 }
 
+/**
+ * What Import from URL answers for each of the guarded fetcher's problems: one fixed sentence, naming
+ * no host, address or limit. The fetcher's own words say which address a host resolves to, which
+ * would map the server's network for whoever asks; they go to the log only.
+ */
+const REFUSALS: Record<GuardedFetchProblem, string> = {
+	scheme: "Only http and https addresses without credentials can be imported.",
+	host: "Files can't be fetched from that host.",
+	address: "Files are only fetched from addresses on the public internet.",
+	redirects: "The address redirected too many times.",
+	timeout: "The server took too long to send the file.",
+	size: "The file is larger than the largest file this Install takes.",
+	unreachable: "The server didn't answer.",
+};
+
 /** A file fetched for Import from URL: its bytes, the name it goes by, and the host it came from. */
 export type ImportedFile = { data: Uint8Array; fileName: string; host: string };
 
@@ -26,18 +42,20 @@ export type ImportedFile = { data: Uint8Array; fileName: string; host: string };
  * Fetches a file a person named by its address, through the guarded fetcher: any host on the public
  * internet, each connection pinned to the address checked, at most 3 redirects (each checked again),
  * within `timeoutMs` and at most `maxBytes`. Its name comes from the server's `Content-Disposition`,
- * else the last part of the address it finally came from.
+ * else the last part of the address it finally came from. A refusal is logged with the fetcher's
+ * reason and answered with `REFUSALS`' sentence for its problem.
  */
 export async function fetchForImport(
 	fetch: GuardedFetch,
 	address: string,
 	limits: { maxBytes: number; timeoutMs: number },
+	log: Logger,
 ): Promise<ImportedFile> {
 	let url: URL;
 	try {
 		url = new URL(address);
 	} catch {
-		throw new MediaImportRefusedError("scheme", "That isn't an http or https address.");
+		throw new MediaImportRefusedError("scheme", REFUSALS.scheme);
 	}
 	let response: Response;
 	try {
@@ -47,8 +65,9 @@ export async function fetchForImport(
 			timeoutMs: limits.timeoutMs,
 		});
 	} catch (error) {
-		if (error instanceof GuardedFetchError) throw new MediaImportRefusedError(error.problem, error.message);
-		throw error;
+		if (!(error instanceof GuardedFetchError)) throw error;
+		log.warn("Import from URL was refused", { host: url.hostname, problem: error.problem, reason: error.message });
+		throw new MediaImportRefusedError(error.problem, REFUSALS[error.problem]);
 	}
 	if (!response.ok) {
 		throw new MediaImportRefusedError("status", `The server answered ${response.status}.`, response.status);

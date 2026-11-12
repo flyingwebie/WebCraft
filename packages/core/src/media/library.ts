@@ -398,10 +398,12 @@ export function createMediaLibrary(options: {
 		async importUrl(scope, address, importOptions = {}) {
 			const folderId = importOptions.folderId ? (await findFolder(scope, importOptions.folderId)).id : null;
 			const { maxFileBytes } = await settings.media();
-			const fetched = await fetchForImport(options.fetch, address, {
-				maxBytes: maxFileBytes,
-				timeoutMs: options.importTimeoutMs ?? MEDIA_IMPORT_TIMEOUT_MS,
-			});
+			const fetched = await fetchForImport(
+				options.fetch,
+				address,
+				{ maxBytes: maxFileBytes, timeoutMs: options.importTimeoutMs ?? MEDIA_IMPORT_TIMEOUT_MS },
+				options.log,
+			);
 			return library.upload(scope, { ...fetched, folderId, importedFrom: fetched.host });
 		},
 

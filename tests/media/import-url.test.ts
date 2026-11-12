@@ -120,6 +120,61 @@ describe("Import from URL", () => {
 		expect(await refused("https://nowhere.example/a.jpg", "address")).toEqual([]);
 	});
 
+	test("never tells the caller which address a host resolves to; the log keeps it (audit A4-3)", async () => {
+		// A service name only the server's own network knows: its answer would map that network.
+		install.dns.answer("postgres", ["172.18.0.3"]);
+		const refusal = (url: string) =>
+			author.api.media.importUrl({ siteId, url }).then(
+				() => {
+					throw new Error(`${url} was imported.`);
+				},
+				(error: { code?: string; message?: string; data?: unknown }) => ({
+					code: error.code,
+					message: error.message,
+					data: error.data,
+				}),
+			);
+
+		const loggedBefore = install.logs.length;
+		const inside = await refusal("http://postgres/");
+		const nowhere = await refusal("http://no-such-service/");
+
+		expect(inside).toMatchObject({ code: "MEDIA_IMPORT_REFUSED", data: { problem: "address" } });
+		expect(JSON.stringify(inside)).not.toContain("172.18.0.3");
+		// A name that resolves inside the network and one that doesn't resolve read the same.
+		expect(nowhere).toEqual(inside);
+
+		const logged = install.logs.slice(loggedBefore).filter((line) => line.msg === "Import from URL was refused");
+		expect(logged.map((line) => [line.level, line.host, line.problem])).toEqual([
+			["warn", "postgres", "address"],
+			["warn", "no-such-service", "address"],
+		]);
+		expect(String(logged[0]?.reason)).toContain("172.18.0.3");
+	});
+
+	test("answers one fixed sentence for each refusal, naming no host, address or limit", async () => {
+		install.http.respond("GET", "https://photos.example/elsewhere", {
+			status: 302,
+			headers: { location: "https://db.internal.example/dump" },
+		});
+		install.dns.answer("db.internal.example", ["10.9.8.7"]);
+		install.http.respond("GET", "https://photos.example/again", { status: 302, headers: { location: "/again" } });
+		const messageOf = (url: string) =>
+			author.api.media.importUrl({ siteId, url }).then(
+				() => "imported",
+				(error: { message?: string }) => error.message,
+			);
+
+		expect(await messageOf("ftp://photos.example/a.jpg")).toBe(
+			"Only http and https addresses without credentials can be imported.",
+		);
+		expect(await messageOf("https://photos.example/elsewhere")).toBe(
+			"Files are only fetched from addresses on the public internet.",
+		);
+		expect(await messageOf("https://photos.example/again")).toBe("The address redirected too many times.");
+		expect(await messageOf("https://photos.example/nothing-here")).toBe("The server didn't answer.");
+	});
+
 	test("refuses a redirect to an address inside a network, after the redirect", async () => {
 		install.http.respond("GET", "https://photos.example/to-metadata", {
 			status: 301,
