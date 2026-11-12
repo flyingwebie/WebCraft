@@ -233,6 +233,21 @@ test("a post's body is read only once its Form is known to take posts from that 
 	expect(over.wasRead()).toBe(false);
 });
 
+test("a Form's message once sent is answered for one visitor: an address asks for 60 such pages a minute", async () => {
+	const site = await siteWithForm("sent", { perMinute: 5, perHour: 30 });
+	const visitor = formVisitor(install);
+	const sent = `${site.page}?wc-sent=1`;
+
+	for (let asked = 0; asked < 60; asked++) expect((await visitor.open(sent)).status).toBe(200);
+	const tooMany = await visitor.open(sent);
+
+	expect(tooMany.status).toBe(429);
+	expect(tooMany.response.headers.get("retry-after")).toBe("60");
+	expectSiteHeaders(tooMany.response);
+	// The page itself comes from the page cache, as ever.
+	expect((await visitor.open(site.page)).status).toBe(200);
+});
+
 test("a page's token passes the time trap for a day: a post with an older one is kept as spam", async () => {
 	const site = await siteWithForm("stale", { perMinute: 5, perHour: 30 });
 	const visitor = formVisitor(install);
