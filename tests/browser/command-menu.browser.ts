@@ -446,3 +446,66 @@ describe("the Command menu's actions on a selection", () => {
 		await waitForFocus(page, "button", /Command menu/);
 	});
 });
+
+describe("the Command menu at narrow windows (#138)", () => {
+	/** How many rows the header's controls wrap onto. */
+	async function headerRows(page: Page): Promise<number> {
+		return page
+			.locator("header")
+			.first()
+			.evaluate((header) => {
+				const tops = [...header.querySelectorAll("button, a, select")]
+					.filter((each) => each.getClientRects().length > 0)
+					.map((each) => Math.round(each.getBoundingClientRect().top / 24));
+				return new Set(tops).size;
+			});
+	}
+
+	test("the Builder's button fits the drawer layout's header, and nothing opens the menu under the notice", async () => {
+		const page = await builderPage();
+		await page.setViewportSize({ width: 1024, height: 900 });
+		await page.getByRole("button", { name: "Layers", exact: true }).waitFor();
+		expect(await headerRows(page)).toBeLessThanOrEqual(2);
+		await page.getByRole("button", { name: "Command menu" }).click();
+		const menu = menuOf(page);
+		await menu.waitFor();
+		await page.keyboard.press("Escape");
+		await menu.waitFor({ state: "hidden" });
+
+		await page.setViewportSize({ width: 900, height: 900 });
+		await page.getByRole("dialog", { name: "Code mode needs a window at least 1024px wide" }).waitFor();
+		for (const key of ["ControlOrMeta+k", "ControlOrMeta+p", "ControlOrMeta+i", "ControlOrMeta+/"])
+			await page.keyboard.press(key);
+		await page.waitForTimeout(300);
+		expect(await menu.count()).toBe(0);
+		expect(await page.getByRole("dialog", { name: "Keyboard shortcuts" }).count()).toBe(0);
+
+		await page.setViewportSize({ width: 1100, height: 900 });
+		await page
+			.getByRole("dialog", { name: "Code mode needs a window at least 1024px wide" })
+			.waitFor({ state: "hidden" });
+		await page.keyboard.press("ControlOrMeta+k");
+		await menu.waitFor();
+	});
+
+	test("Code mode's button sits in its top line, and nothing opens the menu under the notice", async () => {
+		const page = await codeModePage();
+		await page.setViewportSize({ width: 1024, height: 900 });
+		const button = page.getByRole("button", { name: "Command menu" });
+		await button.waitFor();
+		const apple = await onApple(page);
+		expect(await button.getAttribute("title")).toBe(apple ? "Command menu (⌘K)" : "Command menu (Ctrl+K)");
+		await button.click();
+		const menu = menuOf(page);
+		await menu.waitFor();
+		await page.keyboard.press("Escape");
+		await menu.waitFor({ state: "hidden" });
+		await waitForFocus(page, "button", /Command menu/);
+
+		await page.setViewportSize({ width: 900, height: 900 });
+		await page.getByRole("dialog", { name: "Code mode needs a window at least 1024px wide" }).waitFor();
+		await page.keyboard.press("ControlOrMeta+k");
+		await page.waitForTimeout(300);
+		expect(await menu.count()).toBe(0);
+	});
+});
