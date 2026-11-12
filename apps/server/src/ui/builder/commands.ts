@@ -102,7 +102,11 @@ export type EditorCommandTarget = {
 	unwrap?(): void;
 	editComponent?(): void;
 	toggleHidden?(): void;
-	/** Commands other tickets add (#134 Make Component, New Component). */
+	/** Make Component (#134): asks for a name and moves the selected element or Placement into a new Component. */
+	makeComponent?(): void;
+	/** New Component (#134): asks for a name and opens the new, empty Component's markup. */
+	newComponent?(): void;
+	/** Commands other tickets add. */
 	extra?: readonly Command[];
 };
 
@@ -208,6 +212,13 @@ export function editorCommands(target: EditorCommandTarget, t: T): Command[] {
 			() => target.preview?.(),
 			{ canvases: ["code"], permission: "site.view" },
 		);
+	if (target.newComponent)
+		add(
+			"newComponent",
+			words("builder.commandMenu.actions.newComponent"),
+			t("builder.commandMenu.keywords.newComponent"),
+			() => target.newComponent?.(),
+		);
 	if (target.leave)
 		add(
 			"leave",
@@ -279,6 +290,14 @@ export function editorCommands(target: EditorCommandTarget, t: T): Command[] {
 					() => target.wrap?.(kind),
 					on,
 				);
+		if (target.makeComponent && selected.kind !== "other")
+			add(
+				"makeComponent",
+				words("builder.commandMenu.actions.makeComponent"),
+				t("builder.commandMenu.keywords.makeComponent"),
+				() => target.makeComponent?.(),
+				on,
+			);
 		if (target.unwrap && selected.canUnwrap)
 			add(
 				"unwrap",

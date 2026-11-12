@@ -554,10 +554,10 @@ test("a Component: its fixed text becomes a Prop, saved with it, the text as its
 	await page.frameLocator("iframe[title^='Canvas']").getByText("Closed on Sundays").waitFor();
 	await layer(page, /^“Closed on Sundays”/).click();
 
-	await page.getByRole("button", { name: "Make it a Prop" }).click();
-	const dialog = page.getByRole("dialog", { name: "Make it a Prop" });
+	await page.getByRole("button", { name: "Bind to Prop" }).click();
+	const dialog = page.getByRole("dialog", { name: "Bind to Prop" });
 	await dialog.getByRole("textbox", { name: "Label" }).fill("Message");
-	await dialog.getByRole("button", { name: "Make it a Prop" }).click();
+	await dialog.getByRole("button", { name: "Bind to Prop" }).click();
 	await expectAnnounced(page, "The text now reads {{ props.message }}.");
 	// The Prop's default is the text, so the canvas shows the same words.
 	await page.frameLocator("iframe[title^='Canvas']").getByText("Closed on Sundays").waitFor();

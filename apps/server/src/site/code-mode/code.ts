@@ -1,9 +1,11 @@
 import type { Json } from "@webcraft/core/draft-document";
+import type { propsBlockAt } from "@webcraft/renderer/builder";
 import type { codeKeyEdit } from "../../ui/builder/code-keys.ts";
 import type { componentScriptSettings } from "../../ui/builder/component-script-settings.ts";
 import type { editorAccessibility } from "../../ui/builder/editor-accessibility.ts";
 import type { EditorDrawer, EditorFit, editorFit, focusInto } from "../../ui/builder/editor-fit.ts";
 import type { EditorHistory } from "../../ui/builder/editor-history.ts";
+import type { declareMissingProp } from "../../ui/builder/prop-quick-fix.ts";
 import type { renderedRanges } from "../../ui/builder/rendered-ranges.ts";
 /**
  * What Code mode's script is given when it is made: the address of its own stylesheet and of the
@@ -38,6 +40,7 @@ export function codeMode(
 	accessibility: typeof editorAccessibility,
 	editCodeKey: typeof codeKeyEdit,
 	fitting: CodeModeFitting,
+	propFix: { declare: typeof declareMissingProp; blockAt: typeof propsBlockAt },
 ): void {
 	type Words = { [key: string]: string | Words };
 	type Answer = { ok: true; data: unknown } | { ok: false; code: string; data: Record<string, unknown> };
@@ -1732,6 +1735,14 @@ export function codeMode(
 					make.addEventListener("click", () => void createClass(unknown));
 					item.append(make);
 				}
+				// `{{ props.x }}` with no Prop x: declare it in the {{@props}} block, its type guessed from where it is read (#134).
+				const prop = /There is no Prop named ([A-Za-z_][A-Za-z0-9_]*) on this Component/.exec(problem.message)?.[1];
+				if (prop) {
+					const { type } = propFix.declare(html.get(), prop, propFix.blockAt);
+					const make = button({ class: "small secondary" }, word("createProp", { name: prop, type }));
+					make.addEventListener("click", () => createProp(prop));
+					item.append(make);
+				}
 				return item;
 			}),
 		);
@@ -1759,6 +1770,17 @@ export function codeMode(
 	function setStatusText(text: string): void {
 		savedNote = text;
 		setStatus();
+	}
+
+	/**
+	 * Declares a Prop in the markup's `{{@props}}` block (adding the block when there is none), as
+	 * typing it would: the HTML panel then saves it with the rest, through the same checks.
+	 */
+	function createProp(name: string): void {
+		const { type, at, text } = propFix.declare(html.get(), name, propFix.blockAt);
+		html.insert(text, at, at);
+		announce(word("propCreated", { name, type }));
+		setStatusText(word("propCreated", { name, type }));
 	}
 
 	async function createClass(name: string): Promise<void> {

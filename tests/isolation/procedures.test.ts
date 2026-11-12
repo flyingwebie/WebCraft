@@ -479,6 +479,30 @@ describe("Components", () => {
 		api.components.get({ siteId: target.siteId, componentId: await componentIn(target) }),
 	);
 	isolation.refuses("components.create", (api, { siteId }) => api.components.create({ siteId, name: newName() }));
+	// New Component, placed (#134): the same procedure placing the new Component in a Component of the Site.
+	isolation.refuses("components.create", async (api, target) =>
+		api.components.create({
+			siteId: target.siteId,
+			name: newName(),
+			place: { source: { kind: "component", componentId: await componentIn(target) }, path: [0], list: [] },
+		}),
+	);
+	isolation.refuses("components.make", async (api, target) => {
+		const { api: superadmin } = await install.superadmin();
+		const componentId = await componentIn(target);
+		const { component } = await superadmin.components.saveDraft({
+			siteId: target.siteId,
+			componentId,
+			tree: tree(element("p")),
+		});
+		return api.components.make({
+			siteId: target.siteId,
+			name: newName(),
+			source: { kind: "component", componentId },
+			path: [0],
+			node: component.draft.tree.nodes[0],
+		});
+	});
 	isolation.refuses("components.saveDraft", async (api, target) =>
 		api.components.saveDraft({
 			siteId: target.siteId,

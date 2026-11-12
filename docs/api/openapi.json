@@ -6345,7 +6345,7 @@
 		"/components/create": {
 			"post": {
 				"operationId": "components.create",
-				"summary": "Creates a Component with its name and Props.",
+				"summary": "Creates a Component with its name and Props, optionally placing it in a Template or Component.",
 				"tags": ["components"],
 				"requestBody": {
 					"required": true,
@@ -6718,9 +6718,230 @@
 											},
 											"required": ["key", "label", "type"]
 										}
+									},
+									"place": {
+										"type": "object",
+										"properties": {
+											"source": {
+												"anyOf": [
+													{
+														"type": "object",
+														"properties": {
+															"kind": {
+																"const": "siteTemplate"
+															}
+														},
+														"required": ["kind"]
+													},
+													{
+														"type": "object",
+														"properties": {
+															"kind": {
+																"const": "searchTemplate"
+															}
+														},
+														"required": ["kind"]
+													},
+													{
+														"type": "object",
+														"properties": {
+															"kind": {
+																"const": "entryTemplate"
+															},
+															"postTypeId": {
+																"type": "string",
+																"format": "uuid"
+															}
+														},
+														"required": ["kind", "postTypeId"]
+													},
+													{
+														"type": "object",
+														"properties": {
+															"kind": {
+																"const": "archiveTemplate"
+															},
+															"postTypeId": {
+																"type": "string",
+																"format": "uuid"
+															}
+														},
+														"required": ["kind", "postTypeId"]
+													},
+													{
+														"type": "object",
+														"properties": {
+															"kind": {
+																"const": "component"
+															},
+															"componentId": {
+																"type": "string",
+																"format": "uuid"
+															}
+														},
+														"required": ["kind", "componentId"]
+													}
+												]
+											},
+											"path": {
+												"type": "array",
+												"minItems": 1,
+												"maxItems": 201,
+												"items": {
+													"type": "integer",
+													"minimum": 0,
+													"maximum": 100000
+												}
+											},
+											"list": {
+												"type": "array",
+												"maxItems": 100000,
+												"items": {}
+											}
+										},
+										"required": ["source", "path", "list"]
 									}
 								},
 								"required": ["siteId", "name"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
+		"/components/make": {
+			"post": {
+				"operationId": "components.make",
+				"summary": "Moves an element of a Template or Component into a new Component and places it there instead.",
+				"tags": ["components"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"name": {
+										"type": "string",
+										"maxLength": 200
+									},
+									"source": {
+										"anyOf": [
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "siteTemplate"
+													}
+												},
+												"required": ["kind"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "searchTemplate"
+													}
+												},
+												"required": ["kind"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "entryTemplate"
+													},
+													"postTypeId": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "postTypeId"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "archiveTemplate"
+													},
+													"postTypeId": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "postTypeId"]
+											},
+											{
+												"type": "object",
+												"properties": {
+													"kind": {
+														"const": "component"
+													},
+													"componentId": {
+														"type": "string",
+														"format": "uuid"
+													}
+												},
+												"required": ["kind", "componentId"]
+											}
+										]
+									},
+									"path": {
+										"type": "array",
+										"minItems": 1,
+										"maxItems": 201,
+										"items": {
+											"type": "integer",
+											"minimum": 0,
+											"maximum": 100000
+										}
+									},
+									"node": {},
+									"texts": {
+										"type": "array",
+										"maxItems": 200,
+										"items": {
+											"type": "object",
+											"properties": {
+												"index": {
+													"type": "integer",
+													"minimum": 0,
+													"maximum": 100000
+												},
+												"key": {
+													"type": "string",
+													"maxLength": 64
+												}
+											},
+											"required": ["index", "key"]
+										}
+									}
+								},
+								"required": ["siteId", "name", "source", "path"]
 							}
 						}
 					}

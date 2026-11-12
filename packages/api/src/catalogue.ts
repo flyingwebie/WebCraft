@@ -225,7 +225,12 @@ export const PROCEDURES = {
 	"builder.saveCss": internal(),
 	"components.list": read("Lists the Site's Components and those of its Modules, with where each is used."),
 	"components.get": read("One Component: its Draft and published Props and tree, and where it is used."),
-	"components.create": write("Creates a Component with its name and Props."),
+	"components.create": write(
+		"Creates a Component with its name and Props, optionally placing it in a Template or Component.",
+	),
+	"components.make": write(
+		"Moves an element of a Template or Component into a new Component and places it there instead.",
+	),
 	"components.saveDraft": write("Saves a Component's Draft: its Props and element tree."),
 	"components.getMarkup": read("A Component as Template markup, Draft and published."),
 	"components.saveMarkup": write("Saves a Component's Draft from Template markup."),

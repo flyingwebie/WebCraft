@@ -46,6 +46,8 @@ export type MenuState = {
 	step?: { item: string; mode: "insert" | "wrap" };
 	/** Insert lists only this group (the insert toolbar's Component button). */
 	only?: InsertItem["group"];
+	/** Go to lists only this Component's Placements (a Placement's "on N pages" badge, #134). */
+	placements?: string;
 };
 
 /** How Insert puts things in the tree: the insert toolbar's rules (Inside/After, the place-marker line). */
@@ -64,7 +66,12 @@ export type InsertTarget = {
 	onWrap?(wrapper: TreeNode): string | undefined;
 	/** Shows (or hides) the insert toolbar's place-marker line. */
 	onPreview?(show: boolean, where: "inside" | "after"): void;
+	/** New Component (#134): asks for a name, then places the new, empty Component at the insert point. */
+	onNewComponent?(where: "inside" | "after"): void;
 };
+
+/** Insert's own row for New Component, among the Components (the insert toolbar's Component button). */
+const NEW_COMPONENT = "insert:new-component";
 
 /** The element focus was in, looking through shadow roots (Code mode draws in one). */
 export function deepActiveElement(): HTMLElement | null {
@@ -291,18 +298,38 @@ export function CommandMenu({
 	const insertCommands = useMemo<Command[]>(() => {
 		if (!insert) return [];
 		const groupName = (item: InsertItem) => t(`builder.insert.groups.${item.group}`);
-		return items.map((item) => ({
-			id: `insert:${item.id}`,
-			tab: "insert",
-			group: groupName(item),
-			label: item.label,
-			hint: item.hint,
-			keywords: [item.id, item.hint],
-			permission: "structure.edit",
-			canvases: ["code", "builder"],
-			focus: "row",
-			run: () => {},
-		}));
+		const create: Command[] = insert.onNewComponent
+			? [
+					{
+						id: NEW_COMPONENT,
+						tab: "insert",
+						group: t("builder.insert.groups.components"),
+						label: t("builder.components.newRow"),
+						hint: t("builder.components.newRowHint"),
+						keywords: [t("builder.commandMenu.keywords.newComponent")],
+						permission: "structure.edit",
+						canvases: ["code", "builder"],
+						run: () => {},
+					},
+				]
+			: [];
+		return [
+			...create,
+			...items.map(
+				(item): Command => ({
+					id: `insert:${item.id}`,
+					tab: "insert",
+					group: groupName(item),
+					label: item.label,
+					hint: item.hint,
+					keywords: [item.id, item.hint],
+					permission: "structure.edit",
+					canvases: ["code", "builder"],
+					focus: "row",
+					run: () => {},
+				}),
+			),
+		];
 	}, [insert, items, t]);
 
 	const all = tab === "actions" ? actions : tab === "goTo" ? (goTo ?? []) : insertCommands;
@@ -312,12 +339,14 @@ export function CommandMenu({
 		const only = state?.only;
 		/** Where an item stands in the short list (every Component where the toolbar's Component button is). */
 		const rank = (command: Command) => {
+			// New Component leads the Components the toolbar's Component button lists; typing finds it too.
+			if (command.id === NEW_COMPONENT) return only === "components" ? -0.5 : -1;
 			const item = items.find((each) => `insert:${each.id}` === command.id);
 			if (!item) return -1;
 			if (only) return item.group === only ? 0 : -1;
 			return SHORT_LIST.indexOf(item.group === "components" ? "components" : item.id);
 		};
-		const short = (command: Command) => rank(command) >= 0;
+		const short = (command: Command) => rank(command) >= 0 || (command.id === NEW_COMPONENT && only === "components");
 		return {
 			recent: found.recent.filter(short),
 			results: found.results.filter(short).sort((a, b) => rank(a) - rank(b)),
@@ -396,6 +425,13 @@ export function CommandMenu({
 	const run = (command: Command, inverse = false) => {
 		if (command.disabled) return;
 		setRecent(rememberCommand(command.id));
+		if (command.id === NEW_COMPONENT && insert?.onNewComponent) {
+			const create = insert.onNewComponent;
+			const way = inverse ? (where === "inside" ? "after" : insert.canInside ? "inside" : "after") : where;
+			pending.current = () => create(way);
+			close();
+			return;
+		}
 		if (command.tab === "insert" && insert) {
 			const item = items.find((each) => `insert:${each.id}` === command.id);
 			if (!item) return;

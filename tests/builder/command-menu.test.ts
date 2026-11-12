@@ -29,6 +29,13 @@ test("Go to lists Pages, each Post Type's Entries, Templates and the Site's own 
 	const { postType } = await api.postTypes.create({ siteId, name: "Stories", urlPattern: "/stories/{slug}" });
 	await api.entries.create({ siteId, postTypeId: postType.id, title: "First tale" });
 	const { component } = await api.components.create({ siteId, name: "Hero" });
+	const { component: card } = await api.components.create({ siteId, name: "Card" });
+	// A Placement's "on N pages" badge lists what places its Component (#134).
+	const { template } = await api.templates.saveEntryTemplateMarkup({
+		siteId,
+		postTypeId: postType.id,
+		markup: "<article><Card /></article>",
+	});
 
 	const menu = await api.builder.commandMenu({ siteId });
 
@@ -45,7 +52,16 @@ test("Go to lists Pages, each Post Type's Entries, Templates and the Site's own 
 			entries: [{ id: expect.any(String), title: "First tale", path: "/stories/first-tale" }],
 		},
 	]);
-	expect(menu.components).toEqual([{ id: component.id, name: "Hero" }]);
+	expect(menu.components).toEqual([
+		{
+			id: card.id,
+			name: "Card",
+			usedIn: [
+				{ kind: "template", id: template.id, templateKind: "entry", postTypeId: postType.id, versions: ["draft"] },
+			],
+		},
+		{ id: component.id, name: "Hero", usedIn: [] },
+	]);
 
 	const coding = await openCodeMode(install, staff, siteId, "/");
 	const response = await coding.edit("code/commandMenu", { path: "/" });

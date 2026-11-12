@@ -1,3 +1,4 @@
+import type { FieldInput } from "@webcraft/core";
 import {
 	type Attribute,
 	attributeProblem,
@@ -17,12 +18,14 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "@webcraft/ui/co
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { Textarea } from "@webcraft/ui/components/textarea.tsx";
-import { PlusIcon, TypeIcon, XIcon } from "lucide-react";
+import { BlocksIcon, LinkIcon, PlusIcon, TypeIcon, XIcon } from "lucide-react";
 import { type ReactNode, useEffect, useId, useState } from "react";
 
 import { useT } from "../i18n.tsx";
 import { Tabs } from "../Tabs.tsx";
+import type { BindKind } from "./BindPropDialog.tsx";
 import { type Catalogue, excerpt, layerName, readParts, type Selection, writeParts } from "./model.ts";
+import { PropsSection } from "./PropsSection.tsx";
 import { StylePanel } from "./StylePanel.tsx";
 import { isFixedText, type NodePath, nodeAt, pathKey } from "./tree.ts";
 
@@ -48,7 +51,19 @@ export function Inspector({
 	onEditComponent,
 	cssInDock = false,
 	departure,
+	component,
+	onPropsChange,
+	onMakeComponent,
+	onBindProp,
 }: {
+	/** A Component's name and Props, when the source is a Component: the Props section edits them (#134). */
+	component?: { name: string; props: readonly FieldInput[] } | null;
+	/** Writes the Component's Props (which rewrites its `{{@props}}` block); answers why not. */
+	onPropsChange?(props: FieldInput[], announcement: string): string | undefined;
+	/** Make Component (#134) for the selected element or Placement. */
+	onMakeComponent?(): void;
+	/** Bind to Prop (#134) for a link's address or an image's file. */
+	onBindProp?(path: NodePath, kind: BindKind, trigger: HTMLElement): void;
 	cssInDock?: boolean;
 	departure?: { current: (() => Promise<boolean>) | null };
 	onEditComponent?(): void;
@@ -85,6 +100,7 @@ export function Inspector({
 				fixedTextAction={fixedTextAction}
 				onReplace={onReplace}
 				onMakeEditable={onMakeEditable}
+				onBindProp={onBindProp}
 			/>
 		);
 		body =
@@ -128,6 +144,17 @@ export function Inspector({
 					<Button type="button" onClick={onEditComponent}>
 						{t("builder.inspector.editComponent")}
 					</Button>
+				) : null}
+				{onMakeComponent && (node?.type === "element" || node?.type === "component") ? (
+					<Button type="button" variant="outline" className="mt-3" onClick={onMakeComponent}>
+						<BlocksIcon aria-hidden="true" />
+						{t("builder.components.makeTitle")}
+					</Button>
+				) : null}
+				{component && onPropsChange ? (
+					<div className="mt-4">
+						<PropsSection name={component.name} props={component.props} onChange={onPropsChange} />
+					</div>
 				) : null}
 			</div>
 		</div>
@@ -214,6 +241,7 @@ function Settings({
 	fixedTextAction,
 	onReplace,
 	onMakeEditable,
+	onBindProp,
 }: {
 	node: TreeNode;
 	path: NodePath;
@@ -221,6 +249,7 @@ function Settings({
 	fixedTextAction: "prop" | "field" | "global";
 	onReplace(path: NodePath, node: TreeNode, announcement: string): string | undefined;
 	onMakeEditable(path: NodePath, trigger: HTMLElement): void;
+	onBindProp?(path: NodePath, kind: BindKind, trigger: HTMLElement): void;
 }) {
 	const t = useT();
 	const id = useId();
@@ -279,6 +308,26 @@ function Settings({
 						}}
 					/>
 					<AttributesEditor attributes={node.attributes} onChange={(attributes) => replace({ ...node, attributes })} />
+					{onBindProp && (node.tag === "a" || node.tag === "img") ? (
+						<section aria-labelledby={`${id}-bind`} className="grid gap-2">
+							<h3 id={`${id}-bind`} className="text-sm font-semibold">
+								{node.tag === "a" ? t("builder.bind.linkHeading") : t("builder.bind.imageHeading")}
+							</h3>
+							<p className="text-muted-foreground text-xs">{t("builder.bind.help")}</p>
+							<Button
+								type="button"
+								variant="outline"
+								className="justify-self-start"
+								onClick={(event) => onBindProp(path, node.tag === "a" ? "link" : "media", event.currentTarget)}
+							>
+								<LinkIcon aria-hidden="true" />
+								{t("builder.bind.button")}
+								<span className="sr-only">
+									{`: ${node.tag === "a" ? t("builder.bind.linkHeading") : t("builder.bind.imageHeading")}`}
+								</span>
+							</Button>
+						</section>
+					) : null}
 					{fixed.length > 0 ? (
 						<section aria-labelledby={`${id}-fixed`} className="grid gap-2">
 							<h3 id={`${id}-fixed`} className="text-sm font-semibold">
