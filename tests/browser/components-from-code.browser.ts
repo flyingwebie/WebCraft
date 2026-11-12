@@ -281,15 +281,17 @@ describe("the Command menu and the Builder", () => {
 		);
 
 		// `{{ props.price }}` has no Prop: the quick fix declares it, its type guessed from where it is read.
-		const typed = (await html.inputValue()).replace(">Menu<", ">Menu {{ props.price.url }}<");
+		// Blank lines before the block are still the block, as the server reads it: no second block is made.
+		const typed = `\n\n${(await html.inputValue()).replace(">Menu<", ">Menu {{ props.price.url }}<")}`;
 		await html.fill(typed);
 		const fix = page.getByRole("button", { name: "Create the Prop price (link)" });
 		await fix.waitFor();
 		await fix.click();
-		await eventually(
+		const fixed = await eventually(
 			() => html.inputValue(),
 			(text) => text.includes("  price: link\n{{/props}}"),
 		);
+		expect(fixed.split("{{@props}}").length).toBe(2);
 		await page.keyboard.press("ControlOrMeta+s");
 		const saved = await eventually(
 			() => api.components.get({ siteId, componentId: component.id }),
