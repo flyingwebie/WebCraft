@@ -44,6 +44,8 @@ export type Member = SiteAccess & {
 	since: Date;
 	/** Whether the person looking may change or remove them: they hold at least the Member's access. */
 	manageable: boolean;
+	/** Their account is deactivated: they can't sign in and reach nothing until it is reactivated. */
+	deactivated: boolean;
 };
 
 export type MemberInvite = SiteAccess & {
@@ -260,6 +262,7 @@ export function createMembers({ database, email }: { database: Database; email: 
 						role: memberships.role,
 						allSites: memberships.allSites,
 						since: memberships.createdAt,
+						deactivatedAt: people.deactivatedAt,
 					})
 					.from(memberships)
 					.innerJoin(people, eq(people.id, memberships.personId))
@@ -309,6 +312,7 @@ export function createMembers({ database, email }: { database: Database; email: 
 					...siteAccess(access.sites, known),
 					since: row.since,
 					manageable: holdsAccess(actor, workspaceId, access),
+					deactivated: row.deactivatedAt !== null,
 				};
 			});
 
@@ -447,7 +451,7 @@ export function createMembers({ database, email }: { database: Database; email: 
 				return { membership, to };
 			});
 			const [person] = await db
-				.select({ name: people.name, email: people.email })
+				.select({ name: people.name, email: people.email, deactivatedAt: people.deactivatedAt })
 				.from(people)
 				.where(eq(people.id, personId));
 			return {
@@ -458,6 +462,7 @@ export function createMembers({ database, email }: { database: Database; email: 
 				...siteAccess(to.sites, await workspaceSites(scope)),
 				since: membership.createdAt,
 				manageable: true,
+				deactivated: Boolean(person?.deactivatedAt),
 			};
 		},
 

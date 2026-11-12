@@ -118,6 +118,7 @@ import type { SiteScripts } from "./site-scripts/index.ts";
 import type { SiteTransfer } from "./site-transfer/index.ts";
 import type { SocialCardRenderer } from "./social-cards/renderer.ts";
 import type { Staging } from "./staging/index.ts";
+import type { AccountsService } from "./tenancy/accounts.ts";
 import type {
 	Access,
 	DataLayer,
@@ -673,6 +674,8 @@ export type InstallServices = InstallPorts & {
 	members: MembersService;
 	/** Staff: inviting them, their Workspaces, pending invites. */
 	staff: StaffService;
+	/** Deactivating and reactivating people's accounts (the Superadmin). */
+	accounts: AccountsService;
 	/** Invite links (Staff and Member invites): what they offer, and accepting them. */
 	invites: InvitesService;
 	/**

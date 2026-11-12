@@ -41,6 +41,18 @@ export const staff = {
 		}),
 
 	/**
+	 * Ends a Staff member's role (a Sensitive action): their sessions, API tokens, AI clients and CLI
+	 * sign-ins end and the invites they sent are withdrawn, at once. Their account stays, reaching
+	 * nothing; `accounts.deactivate` ends their sign-in too.
+	 */
+	remove: onInstall("staff.manage")
+		.use(sensitive("staff.remove"))
+		.input(z.object({ personId: id }))
+		.handler(async ({ context, input }) => ({
+			ended: await context.services.staff.remove(context.install, input.personId),
+		})),
+
+	/**
 	 * Resets a Staff member's two-factor authentication when they lost it: their authenticator app,
 	 * passkeys and backup codes go, every session of theirs ends, and they are emailed.
 	 */

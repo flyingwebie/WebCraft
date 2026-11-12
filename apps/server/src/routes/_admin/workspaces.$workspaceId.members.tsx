@@ -28,13 +28,16 @@ import {
 	ShieldAlertIcon,
 	ShieldCheckIcon,
 	ShieldOffIcon,
+	UserCheckIcon,
 	UserCogIcon,
 	UserMinusIcon,
+	UserXIcon,
 	VenetianMaskIcon,
 } from "lucide-react";
 import { type RefObject, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { type AccountChange, AccountChangeDialog } from "../../ui/accounts/AccountDialogs.tsx";
 import { getApi } from "../../ui/api.ts";
 import { errorMessage } from "../../ui/errors.ts";
 import { formatUtcDate } from "../../ui/format.ts";
@@ -90,6 +93,8 @@ function MembersPage() {
 
 	const canInvite = place.permissions.includes("member.invite") && data.offer.length > 0;
 	const canReset = place.permissions.includes("twoFactor.reset");
+	// The Superadmin deactivates anyone's account, here too; never their own.
+	const canDeactivate = shell.permissions.includes("account.deactivate");
 	// Staff and the Superadmin impersonate the Workspace's Members, never while impersonating already.
 	const canImpersonate = place.permissions.includes("impersonation.start") && !shell.impersonation;
 	const methodsOf = new Map(data.twoFactor.members.map((member) => [member.personId, member.methods]));
@@ -192,6 +197,11 @@ function MembersPage() {
 																	{member.id === person.id ? (
 																		<span className="text-muted-foreground font-normal"> ({t("members.you")})</span>
 																	) : null}
+																	{member.deactivated ? (
+																		<Badge variant="outline" className="ms-2">
+																			{t("accounts.deactivated")}
+																		</Badge>
+																	) : null}
 																</span>
 																<span className="text-muted-foreground block text-xs">{member.email}</span>
 															</div>
@@ -217,7 +227,16 @@ function MembersPage() {
 																mayResetTwoFactor={
 																	canReset && member.id !== person.id && (methodsOf.get(member.id) ?? []).length > 0
 																}
-																impersonator={canImpersonate && member.id !== person.id ? person.name : null}
+																impersonator={
+																	canImpersonate && member.id !== person.id && !member.deactivated ? person.name : null
+																}
+																accountChange={
+																	canDeactivate && member.id !== person.id
+																		? member.deactivated
+																			? "reactivate"
+																			: "deactivate"
+																		: null
+																}
 															/>
 														) : null}
 													</TableCell>
@@ -273,6 +292,7 @@ function MemberActions({
 	isYou,
 	mayResetTwoFactor,
 	impersonator,
+	accountChange,
 }: {
 	member: Member;
 	workspace: { id: string; name: string };
@@ -282,10 +302,13 @@ function MemberActions({
 	mayResetTwoFactor: boolean;
 	/** The name of the person who may impersonate this Member (the viewer), or null when they may not. */
 	impersonator: string | null;
+	/** What the viewer (the Superadmin) may do about the Member's account, or null. */
+	accountChange: Extract<AccountChange, "deactivate" | "reactivate"> | null;
 }) {
 	const t = useT();
 	const trigger = useRef<HTMLButtonElement>(null);
 	const [impersonating, setImpersonating] = useState(false);
+	const [changingAccount, setChangingAccount] = useState(false);
 	const [changing, setChanging] = useState(false);
 	const [removing, setRemoving] = useState(false);
 	const [resetting, setResetting] = useState(false);
@@ -315,12 +338,33 @@ function MemberActions({
 							{t("twoFactor.reset.menu")}
 						</DropdownMenuItem>
 					) : null}
+					{accountChange === "reactivate" ? (
+						<DropdownMenuItem onClick={() => setChangingAccount(true)}>
+							<UserCheckIcon aria-hidden="true" />
+							{t("accounts.reactivate.button")}
+						</DropdownMenuItem>
+					) : null}
+					{accountChange === "deactivate" ? (
+						<DropdownMenuItem variant="destructive" onClick={() => setChangingAccount(true)}>
+							<UserXIcon aria-hidden="true" />
+							{t("accounts.deactivate.button")}
+						</DropdownMenuItem>
+					) : null}
 					<DropdownMenuItem variant="destructive" onClick={() => setRemoving(true)}>
 						<UserMinusIcon aria-hidden="true" />
 						{t("members.remove")}
 					</DropdownMenuItem>
 				</DropdownMenuContent>
 			</DropdownMenu>
+			{accountChange ? (
+				<AccountChangeDialog
+					change={accountChange}
+					person={member}
+					open={changingAccount}
+					onOpenChange={setChangingAccount}
+					finalFocus={trigger}
+				/>
+			) : null}
 			{impersonator ? (
 				<ImpersonateDialog
 					person={member}

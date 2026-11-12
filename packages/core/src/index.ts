@@ -425,6 +425,11 @@ export {
 	stagingPage,
 	stagingWords,
 } from "./staging/index.ts";
+export {
+	AccountDeactivationRefusedError,
+	type AccountsService,
+	type DeactivationRefusal,
+} from "./tenancy/accounts.ts";
 export type {
 	Access,
 	BackgroundScope,
@@ -478,6 +483,7 @@ export {
 	SlugTakenError,
 } from "./tenancy/sites.ts";
 export {
+	type AccessEnded,
 	type StaffInvite,
 	type StaffMember,
 	StaffNotFoundError,

@@ -20,6 +20,7 @@
 		"WORKSPACE_NOT_FOUND": "There is no such Workspace, or you can't reach it.",
 		"SITE_NOT_FOUND": "There is no such Site, or you can't reach it.",
 		"STAFF_NOT_FOUND": "There is no such Staff member.",
+		"ACCOUNT_DEACTIVATION_REFUSED": "This account can't be deactivated: the Install needs a Superadmin who can sign in, and nobody deactivates their own account.",
 		"INVITE_INVALID": "This invite link doesn't work any more. Ask for a new invite.",
 		"PASSWORD_RESET_INVALID": "This reset link doesn't work any more. Ask for a new one.",
 		"SLUG_TAKEN": "Another Site already has this slug.",
@@ -1024,6 +1025,35 @@
 			"close": "Close"
 		},
 		"created": "Workspace {name} created."
+	},
+	"accounts": {
+		"deactivated": "Deactivated",
+		"cancel": "Cancel",
+		"close": "Close",
+		"removeStaff": {
+			"button": "Remove from Staff",
+			"buttonOf": "Remove from Staff: {name}",
+			"title": "Remove {name} from Staff?",
+			"body": "{name} stops being Staff. Their sessions, API tokens, AI clients and CLI sign-ins end now, and the invites they sent are withdrawn. Their account stays and reaches nothing: deactivate it too if they shouldn't sign in. What they made stays theirs.",
+			"confirm": "Remove from Staff",
+			"done": "{name} is no longer Staff."
+		},
+		"deactivate": {
+			"button": "Deactivate account",
+			"buttonOf": "Deactivate account of {name}",
+			"title": "Deactivate {name}'s account?",
+			"body": "{name} can no longer sign in. Their sessions, API tokens, AI clients and CLI sign-ins end now, and the invites they sent are withdrawn. What they made stays theirs, and you can reactivate the account later.",
+			"confirm": "Deactivate account",
+			"done": "{name}'s account is deactivated."
+		},
+		"reactivate": {
+			"button": "Reactivate account",
+			"buttonOf": "Reactivate account of {name}",
+			"title": "Reactivate {name}'s account?",
+			"body": "{name} can sign in again, with the password, two-factor authentication and roles they had. API tokens and AI clients that ended stay ended.",
+			"confirm": "Reactivate account",
+			"done": "{name}'s account is active again."
+		}
 	},
 	"staff": {
 		"pageTitle": "Staff",
@@ -6657,7 +6687,9 @@
 		"moduleAction": "{module}: {action}",
 		"actions": {
 			"account": {
-				"lock": "Account locked after wrong passwords"
+				"deactivate": "Account deactivated",
+				"lock": "Wrong passwords or codes stopped for a while",
+				"reactivate": "Account reactivated"
 			},
 			"aiClient": {
 				"approve": "AI client approved",
@@ -6863,7 +6895,8 @@
 				"update": "Outside script changed"
 			},
 			"password": {
-				"change": "Password changed"
+				"change": "Password changed",
+				"reset": "Password reset"
 			},
 			"postType": {
 				"create": "Post Type created",
@@ -6932,6 +6965,7 @@
 				"changeWorkspaces": "Staff member's Workspaces changed",
 				"invite": "Staff member invited",
 				"join": "Staff member joined",
+				"remove": "Staff member removed",
 				"revokeInvite": "Staff invite revoked"
 			},
 			"stagingPassword": {

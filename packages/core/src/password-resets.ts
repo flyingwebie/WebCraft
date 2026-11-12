@@ -93,7 +93,7 @@ export function createPasswordResets({
 
 	const personByEmail = async (address: string) => {
 		const [person] = await db
-			.select({ id: people.id, email: people.email })
+			.select({ id: people.id, email: people.email, deactivatedAt: people.deactivatedAt })
 			.from(people)
 			.where(eq(people.email, normaliseEmail(address)));
 		return person ?? null;
@@ -117,7 +117,8 @@ export function createPasswordResets({
 			// Links past their end are cleared as new ones are asked for, so the table never fills up.
 			await db.delete(passwordResets).where(lte(passwordResets.expiresAt, now));
 			const person = await personByEmail(address);
-			if (!person) return;
+			// A deactivated account gets no link: it couldn't sign in with a new password either.
+			if (!person || person.deactivatedAt) return;
 			if (!(await rateLimits.count(`password-reset:person:${person.id}`, PASSWORD_RESET_PERSON_LIMIT))) {
 				log.warn("A person was asked a reset link for too often: no more are sent this hour", {
 					personId: person.id,

@@ -20,6 +20,7 @@
 		"WORKSPACE_NOT_FOUND": "Questo Workspace non esiste, o non puoi raggiungerlo.",
 		"SITE_NOT_FOUND": "Questo Site non esiste, o non puoi raggiungerlo.",
 		"STAFF_NOT_FOUND": "Questa persona non fa parte dello Staff.",
+		"ACCOUNT_DEACTIVATION_REFUSED": "Questo account non può essere disattivato: all'Install serve un Superadmin che possa accedere, e nessuno disattiva il proprio account.",
 		"INVITE_INVALID": "Questo link di invito non funziona più. Chiedi un nuovo invito.",
 		"PASSWORD_RESET_INVALID": "Questo link di reimpostazione non funziona più. Chiedine uno nuovo.",
 		"SLUG_TAKEN": "Un altro Site ha già questo slug.",
@@ -1024,6 +1025,35 @@
 			"close": "Chiudi"
 		},
 		"created": "Workspace {name} creato."
+	},
+	"accounts": {
+		"deactivated": "Disattivato",
+		"cancel": "Annulla",
+		"close": "Chiudi",
+		"removeStaff": {
+			"button": "Rimuovi dallo Staff",
+			"buttonOf": "Rimuovi dallo Staff: {name}",
+			"title": "Rimuovere {name} dallo Staff?",
+			"body": "{name} non fa più parte dello Staff. Le sue sessioni, i token API, i client AI e gli accessi dalla CLI terminano subito, e gli inviti che ha inviato vengono ritirati. L'account resta e non raggiunge nulla: disattivalo se non deve più accedere. Ciò che ha creato resta suo.",
+			"confirm": "Rimuovi dallo Staff",
+			"done": "{name} non fa più parte dello Staff."
+		},
+		"deactivate": {
+			"button": "Disattiva account",
+			"buttonOf": "Disattiva account di {name}",
+			"title": "Disattivare l'account di {name}?",
+			"body": "{name} non potrà più accedere. Le sue sessioni, i token API, i client AI e gli accessi dalla CLI terminano subito, e gli inviti che ha inviato vengono ritirati. Ciò che ha creato resta suo, e potrai riattivare l'account in seguito.",
+			"confirm": "Disattiva account",
+			"done": "L'account di {name} è disattivato."
+		},
+		"reactivate": {
+			"button": "Riattiva account",
+			"buttonOf": "Riattiva account di {name}",
+			"title": "Riattivare l'account di {name}?",
+			"body": "{name} potrà accedere di nuovo, con la password, l'autenticazione a due fattori e i ruoli che aveva. I token API e i client AI terminati restano terminati.",
+			"confirm": "Riattiva account",
+			"done": "L'account di {name} è di nuovo attivo."
+		}
 	},
 	"staff": {
 		"pageTitle": "Staff",
@@ -6657,7 +6687,9 @@
 		"moduleAction": "{module}: {action}",
 		"actions": {
 			"account": {
-				"lock": "Account bloccato dopo password errate"
+				"deactivate": "Account disattivato",
+				"lock": "Password o codici sbagliati fermati per un po'",
+				"reactivate": "Account riattivato"
 			},
 			"aiClient": {
 				"approve": "Client AI approvato",
@@ -6863,7 +6895,8 @@
 				"update": "Script esterno modificato"
 			},
 			"password": {
-				"change": "Password modificata"
+				"change": "Password modificata",
+				"reset": "Password reimpostata"
 			},
 			"postType": {
 				"create": "Tipo di contenuto creato",
@@ -6932,6 +6965,7 @@
 				"changeWorkspaces": "Workspace di un membro dello Staff modificati",
 				"invite": "Membro dello Staff invitato",
 				"join": "Membro dello Staff entrato",
+				"remove": "Membro dello Staff rimosso",
 				"revokeInvite": "Invito dello Staff revocato"
 			},
 			"stagingPassword": {

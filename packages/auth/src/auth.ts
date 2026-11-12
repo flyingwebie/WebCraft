@@ -4,7 +4,7 @@ import { type BetterAuthPlugin, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthEndpoint } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
-import { and, desc, eq, gt, ne } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, ne } from "drizzle-orm";
 import * as z from "zod";
 
 import { type AccountLock, AccountLockedError, createLockout } from "./lockout.ts";
@@ -219,6 +219,19 @@ export type Auth = {
 		newPassword: string,
 		also?: (tx: Transaction, result: { signedOutSessions: number }) => Promise<void>,
 	): Promise<{ signedOutSessions: number }>;
+	/**
+	 * Ends every session of a person and any sign-in waiting for their second step, inside the
+	 * caller's transaction (their role ended, or their account was deactivated). Answers how many
+	 * sessions ended.
+	 */
+	endSessions(tx: Database["db"] | Transaction, personId: string): Promise<number>;
+	/**
+	 * Deactivates a person's account (`at`) or reactivates it (null), inside the caller's
+	 * transaction. No session starts for a deactivated person: signing in answers them like an address
+	 * nobody signs in with, and their passkeys are refused. Their password and second factors are
+	 * kept, for when they are reactivated.
+	 */
+	setDeactivated(tx: Database["db"] | Transaction, personId: string, at: Date | null): Promise<void>;
 	/** Creates a person who signs in with an email and password, inside the caller's transaction. */
 	createPerson(tx: Transaction, person: NewPerson): Promise<{ personId: string }>;
 
@@ -349,6 +362,7 @@ export function createAuth(options: AuthOptions): Auth {
 		}
 		const handle = credential.response.userHandle;
 		if (handle && handle !== base64url(new TextEncoder().encode(stored.personId))) return refuse("user handle differs");
+		if (await isDeactivated(stored.personId)) return refuse("account deactivated");
 		try {
 			const use = await verifyAssertion(credential, { challenge, rp: relyingParty(), during: purpose }, stored);
 			if (!(await passkeys.recordUse(stored, use))) return refuse("used meanwhile");
@@ -377,6 +391,13 @@ export function createAuth(options: AuthOptions): Auth {
 		await sessionStarted(personId, response.token, clientAddress);
 		return answer.getSetCookie();
 	};
+	const isDeactivated = async (personId: string) => {
+		const [person] = await database.db
+			.select({ deactivatedAt: people.deactivatedAt })
+			.from(people)
+			.where(eq(people.id, personId));
+		return !person || person.deactivatedAt !== null;
+	};
 	const lockout = createLockout({
 		database,
 		clock,
@@ -400,31 +421,37 @@ export function createAuth(options: AuthOptions): Auth {
 
 	return {
 		async signIn({ email, password }, { headers, clientAddress }) {
+			// Every refusal answers the same and costs a password hash, so the answer never tells which
+			// addresses have an account. A deactivated account is refused like an address nobody signs
+			// in with.
+			const refuse = async (): Promise<never> => {
+				await hashPassword(password);
+				throw new InvalidCredentialsError();
+			};
 			const [person] = await database.db
 				.select({ id: people.id })
 				.from(people)
-				.where(eq(people.email, normaliseEmail(email)));
+				.where(and(eq(people.email, normaliseEmail(email)), isNull(people.deactivatedAt)));
+			if (!person) return refuse();
 			const origin = { network: await options.networkOf(clientAddress) };
-			// While passwords from this network are stopped, not even the right one gets in. The answer
-			// is the same as for a wrong password, and costs a password hash like one, so it never tells
-			// which addresses have an account; the person learns of it from its email.
-			if (person) {
-				try {
-					await lockout.attempts.assertAllowed(person.id, origin);
-				} catch (error) {
-					if (!(error instanceof AccountLockedError)) throw error;
-					await hashPassword(password);
-					throw new InvalidCredentialsError();
-				}
+			// While passwords from this network are stopped, not even the right one gets in; the person
+			// learns of it from its email.
+			try {
+				await lockout.attempts.assertAllowed(person.id, origin);
+			} catch (error) {
+				if (!(error instanceof AccountLockedError)) throw error;
+				return refuse();
 			}
-			const methods = person ? await factors.secondStepMethods(person.id) : [];
-			if (person && methods.length > 0) {
-				if (!(await passwordMatches(database, person.id, password))) {
-					await lockout.attempts.recordFailure(person.id, origin, clientAddress).catch((lockError: unknown) => {
-						if (!(lockError instanceof AccountLockedError)) throw lockError;
-					});
-					throw new InvalidCredentialsError();
-				}
+			/** A wrong password: counted, and the one that stops the network answers like any other. */
+			const wrong = async (): Promise<never> => {
+				await lockout.attempts.recordFailure(person.id, origin, clientAddress).catch((lockError: unknown) => {
+					if (!(lockError instanceof AccountLockedError)) throw lockError;
+				});
+				throw new InvalidCredentialsError();
+			};
+			const methods = await factors.secondStepMethods(person.id);
+			if (methods.length > 0) {
+				if (!(await passwordMatches(database, person.id, password))) return wrong();
 				await lockout.attempts.recordSuccess(person.id, origin);
 				// The count of wrong codes goes on until the second step is right, so a guesser who knows
 				// the password can't start it again by signing in between wrong codes.
@@ -440,22 +467,14 @@ export function createAuth(options: AuthOptions): Auth {
 				await lockout.attempts.recordSuccess(response.user.id, origin);
 				return { personId: response.user.id, secondStep: null, setCookie: answer.getSetCookie() };
 			} catch (error) {
-				if (error instanceof APIError && (error.statusCode === 401 || error.statusCode === 400)) {
-					if (person) {
-						// The wrong password that stops the network answers like any other.
-						await lockout.attempts.recordFailure(person.id, origin, clientAddress).catch((lockError: unknown) => {
-							if (!(lockError instanceof AccountLockedError)) throw lockError;
-						});
-					}
-					throw new InvalidCredentialsError();
-				}
+				if (error instanceof APIError && (error.statusCode === 401 || error.statusCode === 400)) return wrong();
 				throw error;
 			}
 		},
 
 		async secondStep({ method, code }, request) {
 			const personId = await pending.personOf(request.headers);
-			if (!personId) throw new SignInExpiredError();
+			if (!personId || (await isDeactivated(personId))) throw new SignInExpiredError();
 			await lockout.secondStep.assertAllowed(personId);
 			const accepted =
 				method === "authenticator"
@@ -617,6 +636,16 @@ export function createAuth(options: AuthOptions): Auth {
 				await also?.(tx, result);
 				return result;
 			});
+		},
+
+		async endSessions(tx, personId) {
+			const ended = await tx.delete(sessions).where(eq(sessions.personId, personId)).returning({ id: sessions.id });
+			await pending.endFor(tx, personId);
+			return ended.length;
+		},
+
+		async setDeactivated(tx, personId, at) {
+			await tx.update(people).set({ deactivatedAt: at, updatedAt: clock.now() }).where(eq(people.id, personId));
 		},
 
 		createPerson(tx, person) {

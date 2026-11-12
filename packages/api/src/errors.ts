@@ -14,6 +14,7 @@ import {
 } from "@webcraft/auth";
 import {
 	AccessNotHeldError,
+	AccountDeactivationRefusedError,
 	AiCapReachedError,
 	AiKeyInvalidError,
 	AiKeyMissingError,
@@ -1060,6 +1061,14 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof ModuleFailedError) {
 		return new ORPCError("MODULE_FAILED", { status: 500, message: error.message, cause: error });
+	}
+	if (error instanceof AccountDeactivationRefusedError) {
+		return new ORPCError("ACCOUNT_DEACTIVATION_REFUSED", {
+			status: 409,
+			message: error.message,
+			data: { reason: error.reason },
+			cause: error,
+		});
 	}
 	if (error instanceof StaffNotFoundError) {
 		return new ORPCError("STAFF_NOT_FOUND", { status: 404, message: error.message, cause: error });

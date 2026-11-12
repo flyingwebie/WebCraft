@@ -20,7 +20,7 @@ export type PendingSignIns = {
 	/** Ends the request's waiting sign-in, if any, and answers the `Set-Cookie` line that clears its cookie. */
 	finish(headers: Headers): Promise<string>;
 	/** Ends every sign-in waiting for the person's second step: the password that started them is no longer theirs. */
-	endFor(tx: Transaction, personId: string): Promise<void>;
+	endFor(tx: Database["db"] | Transaction, personId: string): Promise<void>;
 };
 
 export function createPendingSignIns({

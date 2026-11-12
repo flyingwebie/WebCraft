@@ -27,6 +27,9 @@ type Fixture = {
 	/** A Member whose access is changed, and one who is removed. */
 	changedMemberId: string;
 	removedMemberId: string;
+	/** A Staff member whose role is ended, and a Member whose account is deactivated, then reactivated. */
+	removedStaffId: string;
+	deactivatedMemberId: string;
 	/** An AI client's authorization request, as it sends the person to the approval page. */
 	authorization: Record<string, string>;
 	/** Staff with an authenticator app, for the actions that need one of the person's own. */
@@ -64,6 +67,9 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 	"staff.invite": (api, { next }) => api.staff.invite({ email: `invited-${next()}@agency.example`, workspaces: "all" }),
 	"staff.changeWorkspaces": (api, { staffId, workspaceId }) =>
 		api.staff.setWorkspaces({ personId: staffId, workspaces: [workspaceId] }),
+	"staff.remove": (api, { removedStaffId }) => api.staff.remove({ personId: removedStaffId }),
+	"account.deactivate": (api, { deactivatedMemberId }) => api.accounts.deactivate({ personId: deactivatedMemberId }),
+	"account.reactivate": (api, { deactivatedMemberId }) => api.accounts.reactivate({ personId: deactivatedMemberId }),
 	"member.invite": (api, { workspaceId, next }) =>
 		api.members.invite({ workspaceId, email: `invited-member-${next()}@client.example`, role: "author", sites: "all" }),
 	"member.changeAccess": (api, { workspaceId, changedMemberId }) =>
@@ -132,6 +138,8 @@ beforeAll(async () => {
 	const { secret } = await addAuthenticator(install, impersonator.browser);
 	const changed = await install.createMember({ workspaceId: workspace.id, role: "author" });
 	const removed = await install.createMember({ workspaceId: workspace.id, role: "author" });
+	const removedStaff = await install.createStaff({ workspaces: [workspace.id] });
+	const deactivated = await install.createMember({ workspaceId: workspace.id, role: "author" });
 	const client = await registerClient(install);
 	const { challenge } = await pkcePair();
 	const admin = await install.superadmin();
@@ -155,6 +163,8 @@ beforeAll(async () => {
 		siteImportId: uploaded.id,
 		changedMemberId: changed.personId,
 		removedMemberId: removed.personId,
+		removedStaffId: removedStaff.personId,
+		deactivatedMemberId: deactivated.personId,
 		next: () => ++made,
 	};
 });

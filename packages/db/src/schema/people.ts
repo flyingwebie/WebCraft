@@ -30,6 +30,11 @@ export const people = pgTable(
 		 * later"; null or past: it shows while the person has no second factor.
 		 */
 		twoFactorReminderUntil: timestamp("two_factor_reminder_until", { withTimezone: true }),
+		/**
+		 * When the Superadmin deactivated the account, or null: a deactivated person can't sign in and
+		 * holds no role anywhere until reactivated. The row stays, so what they made stays theirs.
+		 */
+		deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},

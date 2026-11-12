@@ -168,6 +168,7 @@ import { createSiteScripts } from "./site-scripts/index.ts";
 import { createSiteTransfer } from "./site-transfer/index.ts";
 import { socialCardsAfterAudit } from "./social-cards/jobs.ts";
 import { createStaging } from "./staging/index.ts";
+import { createAccounts } from "./tenancy/accounts.ts";
 import { createDataLayer } from "./tenancy/data-layer.ts";
 import { createInvites } from "./tenancy/invites.ts";
 import { createMembers } from "./tenancy/members.ts";
@@ -705,7 +706,8 @@ export async function createInstallServices(
 		builder: createBuilder({ config, sources: componentSources, pages: sitePages }),
 		memberships,
 		members,
-		staff: createStaff({ email }),
+		staff: createStaff({ email, auth }),
+		accounts: createAccounts({ auth }),
 		invites: createInvites({ database, auth, settings, clock, memberships }),
 		audit: createAuditLog({ database, data, clock }),
 		email,

@@ -20,8 +20,10 @@ export const PERMISSIONS = {
 	/** Install settings and the Master key confirmation. */
 	"install.manage": ["install"],
 	"workspace.create": ["install"],
-	/** Invite Staff, choose their Workspaces, revoke Staff invites. */
+	/** Invite Staff, choose their Workspaces, revoke Staff invites, end a Staff role. */
 	"staff.manage": ["install"],
+	/** Deactivate anyone's account, Staff or Member, and reactivate it (the Superadmin). */
+	"account.deactivate": ["install"],
 	/** Read the Audit log: the whole Install's, or one Workspace's. */
 	"audit.view": ["install", "workspace"],
 	/** Approve Modules (what they ask for), withdraw approvals, and read the Module log. */

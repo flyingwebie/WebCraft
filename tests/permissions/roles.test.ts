@@ -35,6 +35,7 @@ describe("the role table", () => {
 				"install.manage",
 				"workspace.create",
 				"staff.manage",
+				"account.deactivate",
 				"audit.view",
 				"module.approve",
 				"installHealth.manage",

@@ -1,6 +1,7 @@
 import type { RouterClient } from "@orpc/server";
 import { access } from "./procedures/access.ts";
 import { accessibilityStatement } from "./procedures/accessibility-statement.ts";
+import { accounts } from "./procedures/accounts.ts";
 import { aiKeys, sharedAiKeys } from "./procedures/ai-keys.ts";
 import { apiTokens } from "./procedures/api-tokens.ts";
 import { audit } from "./procedures/audit.ts";
@@ -112,6 +113,7 @@ export const apiRouter = {
 	history,
 	members,
 	staff,
+	accounts,
 	invites,
 	audit,
 	errorLog,
