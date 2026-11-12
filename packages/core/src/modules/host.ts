@@ -54,6 +54,7 @@ import { type AddedPermission, can, personIdOf } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { RateLimits } from "../rate-limits.ts";
 import type { NotedMiss, RedirectPaths } from "../site-pages/redirects.ts";
+import { MODULE_ROUTE_POLICY } from "../site-scripts/policy.ts";
 import type { Access, InstallScope, Site, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError, SiteNotFoundError, WorkspaceNotFoundError } from "../tenancy/errors.ts";
 import {
@@ -1103,6 +1104,8 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			// Never cached as a page; a Module lets browsers keep its answer only by saying so itself.
 			if (!headers.has("cache-control")) headers.set("cache-control", "no-store");
 			headers.set("x-content-type-options", "nosniff");
+			// WebCraft's policy, whatever the Module set: nothing it answers runs on the Site's origin.
+			headers.set("content-security-policy", MODULE_ROUTE_POLICY);
 			return new Response(request.method === "HEAD" ? null : response.body, {
 				status: response.status,
 				statusText: response.statusText,

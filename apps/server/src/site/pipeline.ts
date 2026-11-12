@@ -269,8 +269,12 @@ async function filterFragments(
 	host: SiteHost,
 ): Promise<Response> {
 	const url = new URL(request.url);
-	let target = new URL(`${url.pathname.slice(FILTER_FRAGMENTS_PATH.length) || "/"}${url.search}`, url.origin);
 	const headers = { "cache-control": "no-store", "x-robots-tag": "noindex", ...addressHeaders(host) };
+	// The rest of the path is a page's path on this Site. Read as an address, `//other.example/shop`
+	// would name another host, so anything that isn't a path of whole segments is no page.
+	const path = url.pathname.slice(FILTER_FRAGMENTS_PATH.length) || "/";
+	if (pathSegments(path) === undefined) return plainText(404, "Not Found", headers);
+	let target = new URL(`${path}${url.search}`, url.origin);
 	// A plain form's fields go on to their normal address once; a page's first page once more.
 	for (let hop = 0; hop < 3; hop++) {
 		const inner = new Request(target, { headers: request.headers });

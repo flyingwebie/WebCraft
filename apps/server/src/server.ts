@@ -4,15 +4,19 @@
 import { createStartHandler, defaultStreamHandler } from "@tanstack/react-start/server";
 import { createServerEntry } from "@tanstack/react-start/server-entry";
 
+import type { AdminApp } from "./admin/security-headers.ts";
 import { serveStaticFiles } from "./admin/static-files.ts";
 import { createWebHandler } from "./handler.ts";
 import { startWebServices } from "./web-services.ts";
 
-const renderAdmin = createStartHandler(defaultStreamHandler);
+const render = createStartHandler(defaultStreamHandler);
+
+// The router gives the page's inline scripts the nonce the page's policy names (`router.tsx`).
+const renderAdmin: AdminApp = async (request, { nonce }) => render(request, { context: { nonce } });
 
 const adminApp = import.meta.env.PROD
 	? serveStaticFiles(new URL("../client/", import.meta.url), renderAdmin)
-	: async (request: Request) => renderAdmin(request);
+	: renderAdmin;
 
 const handler = createWebHandler({ services: await startWebServices(), adminApp });
 

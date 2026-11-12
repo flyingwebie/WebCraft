@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { expectSiteHeaders, policyOf } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 import { sample } from "./sample/index.ts";
 
@@ -118,6 +119,29 @@ describe("a Module's Site routes", () => {
 		expect(await answer.json()).toEqual({ cookie: null });
 		expect(new Map(editing.browser.cookies)).toEqual(new Map([...held, ["sample-seen", "1"]]));
 		expect((await editing.edit("state", { path: "/" })).status).toBe(200);
+	});
+
+	test("answer under WebCraft's policy, never the Module's own: nothing in an answer runs on the Site's origin", async () => {
+		const site = await newSite();
+		// The same origin as Edit mode: a script in a route's answer could act as whoever is editing (audit A3-4).
+		const editing = await openEditMode(install, staff, site.id);
+
+		for (const browser of [editing.browser, install.browser({ origin: new URL(site.url("/")).origin })]) {
+			const answer = await browser.request(site.url("/_wc/m/sample/page"));
+			expect(answer.status).toBe(200);
+			expect(answer.headers.get("content-type")).toBe("text/html; charset=utf-8");
+			expectSiteHeaders(answer);
+			const policy = policyOf(answer);
+			expect(policy.get("default-src")).toEqual(["'none'"]);
+			expect(policy.has("sandbox")).toBe(true);
+			expect(policy.get("sandbox")).toEqual([]);
+			expect(policy.has("script-src")).toBe(false);
+			expect(answer.headers.get("content-security-policy")).not.toContain("unsafe-inline");
+		}
+		// An answer that is data carries it too.
+		const data = await install.request(site.url("/_wc/m/sample/notes"));
+		expect(policyOf(data).get("default-src")).toEqual(["'none'"]);
+		expectSiteHeaders(data);
 	});
 
 	test("that fail answer a plain 500 and leave the reason in the Module log", async () => {

@@ -1,4 +1,4 @@
-import { cleanRichText } from "@webcraft/renderer/rich-text";
+import { cleanRichText, richTextToText } from "@webcraft/renderer/rich-text";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import {
 	Dialog,
@@ -57,10 +57,18 @@ function textToHtml(text: string): string {
 		.join("");
 }
 
+/** The box's HTML as a save keeps it: cleaned against the rich text allowlist, nothing once no text is left. */
+function keptHtml(html: string): string {
+	const cleaned = cleanRichText(html);
+	return richTextToText(cleaned).trim() === "" ? "" : cleaned;
+}
+
 /**
  * A rich text Field's editor: formatted text (bold, italic, links, lists, quotes) in a text box with
- * a toolbar. Pasted HTML goes through the same cleaner the server uses on save, so what shows here is
- * what is kept. Keyboard shortcuts work as in any text box (Ctrl or ⌘ with B and I).
+ * a toolbar. Everything goes through the same cleaner the server uses on save: the value the box
+ * starts with (it may come from a shared Draft, which holds what other editors sent), what is pasted,
+ * and what the box hands on, so what shows here is what is kept and nothing else is ever put in the
+ * page. Keyboard shortcuts work as in any text box (Ctrl or ⌘ with B and I).
  */
 export function RichTextEditor({
 	id,
@@ -83,7 +91,7 @@ export function RichTextEditor({
 	const editor = useRef<HTMLDivElement>(null);
 	// The editor owns its text once it shows: React writes the starting value once and never again,
 	// so typing never moves the caret.
-	const [initial] = useState(() => value ?? "");
+	const [initial] = useState(() => cleanRichText(value ?? ""));
 	const [linking, setLinking] = useState(false);
 	const selection = useRef<Range | null>(null);
 	const linkButton = useRef<HTMLButtonElement>(null);
@@ -99,7 +107,7 @@ export function RichTextEditor({
 				child.replaceWith(paragraph);
 			}
 		}
-		onChange(element.innerHTML);
+		onChange(keptHtml(element.innerHTML));
 	};
 
 	const run = (command: Command) => {
@@ -128,7 +136,9 @@ export function RichTextEditor({
 		}
 		// The cleaner keeps only addresses the renderer allows (http, https, mailto, tel, paths, #anchors).
 		const link = cleanRichText(`<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`);
-		const href = /href="([^"]*)"/.exec(link)?.[1]?.replace(/&amp;/g, "&") ?? "#";
+		// The address as the cleaner kept it, read back by the browser's own parser, never un-escaped by hand.
+		const kept = new DOMParser().parseFromString(link, "text/html").querySelector("a");
+		const href = kept?.getAttribute("href") ?? "#";
 		if (current && !current.isCollapsed) exec("createLink", href);
 		else exec("insertHTML", link);
 		changed();
@@ -177,7 +187,7 @@ export function RichTextEditor({
 				contentEditable
 				suppressContentEditableWarning
 				className="focus-visible:ring-ring/50 min-h-28 rounded-b-md px-3 py-2 text-sm outline-none focus-visible:ring-3 [&_a]:underline [&_blockquote]:border-s-2 [&_blockquote]:ps-3 [&_ol]:list-decimal [&_ol]:ps-6 [&_p]:my-1.5 [&_ul]:list-disc [&_ul]:ps-6"
-				// biome-ignore lint/security/noDangerouslySetInnerHtml: rich text the server cleaned on save (an allowlist of elements).
+				// biome-ignore lint/security/noDangerouslySetInnerHtml: `initial` is cleaned here, as it is made (an allowlist of elements).
 				dangerouslySetInnerHTML={{ __html: initial }}
 				onFocus={() => exec("defaultParagraphSeparator", "p")}
 				onInput={changed}

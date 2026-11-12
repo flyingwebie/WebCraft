@@ -48,6 +48,12 @@ export { escapeAttribute, escapeText, safeUrl } from "./escape.ts";
 export type RenderOptions = {
 	/** Components actually rendered, including Body Blocks and nested Placements. */
 	shownComponents?: Set<string>;
+	/**
+	 * Collects the Components whose Placements got a root on the page (`data-wc-component`): the ones
+	 * whose scripts the page loads. Kept as each root is written, never read back from the HTML, where
+	 * text someone wrote could read like one.
+	 */
+	rootedComponents?: Set<string>;
 	/** Site template only: an optional footer link, inserted once across its Components. */
 	footer?: () => string;
 	/** Internal, resolved markup used only by quality Checks. Never visitor output. */
@@ -565,7 +571,10 @@ function renderPlacement(node: PlacementNode, options: RenderOptions, state: Ren
 	if (html.trim()) options.shownComponents?.add(node.component);
 	// Empty Placements are still reachable editing destinations, without adding a page element.
 	if (!html.trim() && inner.codeSource) return `<!--wc-code-empty ${markToken(inner.codeSource)}-->`;
-	return shown.root ? withRootAttributes(html, shown.root) : html;
+	if (!shown.root) return html;
+	const rooted = withRootAttributes(html, shown.root);
+	if (rooted !== html) options.rootedComponents?.add(node.component);
+	return rooted;
 }
 
 /**
