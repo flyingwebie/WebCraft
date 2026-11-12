@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import type { FieldInput } from "@webcraft/core";
+import type { CommandMenuData, FieldInput, Permission } from "@webcraft/core";
 import type { Json } from "@webcraft/core/draft-document";
 import { type ElementTree, hasText, type TreeNode } from "@webcraft/renderer/builder";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
@@ -34,20 +34,32 @@ import { errorCode, errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
 import { BuilderNavigation, type ReturnPage } from "./BuilderNavigation.tsx";
 import { Canvas, type CanvasTarget, type CanvasWidth } from "./Canvas.tsx";
+import { CommandMenu, CommandMenuButton, type MenuState, ShortcutsDialog, useEditorKeys } from "./CommandMenu.tsx";
 import { ComponentScriptPanel } from "./ComponentScriptPanel.tsx";
 import { CssPanel, type CssPanelPort } from "./CssPanel.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
+import { type EditorCommandTarget, editorCommands, type WrapKind } from "./commands.ts";
 import { FixedTextDialog, type MadeEditable } from "./FixedTextDialog.tsx";
 import { type FixedTextLocation, rememberFixedText, resolveFixedText } from "./fixed-text.ts";
-import { InsertDialog, type InsertWhere } from "./InsertDialog.tsx";
+import { goToCommands } from "./go-to.ts";
 import { InsertToolbar } from "./InsertToolbar.tsx";
 import { Inspector } from "./Inspector.tsx";
+import { elementBuilder, type InsertWhere, insertItems, insertNow } from "./insert-items.tsx";
 import { type DropPosition, type LayerAction, LayersPanel, rowKey } from "./LayersPanel.tsx";
 import { type LayerClipboard, layerLocation, runLayerAction } from "./layer-actions.ts";
 import { type MarkupProblem, MarkupView } from "./MarkupView.tsx";
-import { type BuilderDoc, type BuilderTarget, layerName, type Opened, type Selection, targetTitle } from "./model.ts";
+import {
+	type BuilderDoc,
+	type BuilderTarget,
+	layerName,
+	type Opened,
+	type Selection,
+	targetPath,
+	targetTitle,
+} from "./model.ts";
 import { publishDraft, saveDraft } from "./save.ts";
 import { selectionKey, selectionOf } from "./selection-ref.ts";
+import { ariaKeys, withKeys } from "./shortcuts.ts";
 import {
 	type Changed,
 	canHoldChildren,
@@ -65,6 +77,8 @@ import {
 	replaceAt,
 	placeBy as sharedPlaceBy,
 	treeProblem,
+	unwrapAt,
+	wrapAt,
 } from "./tree.ts";
 
 /** The most steps undo goes back. */
@@ -141,8 +155,13 @@ export function Builder({
 	const [showFixed, setShowFixed] = useState(true);
 	const [showChecks, setShowChecks] = useState(false);
 	const [announcement, announce] = useAnnouncement();
-	const [insertOpen, setInsertOpen] = useState(false);
-	const [quickInsert, setQuickInsert] = useState<string | null>(null);
+	const [menu, setMenu] = useState<MenuState | null>(null);
+	const [shortcutsOpen, setShortcutsOpen] = useState(false);
+	const [menuData, setMenuData] = useState<CommandMenuData | null>(null);
+	const [renameRequest, setRenameRequest] = useState(0);
+	const [siteCssRequest, setSiteCssRequest] = useState(0);
+	const [viewRequest, setViewRequest] = useState(0);
+	const [confirmPublish, setConfirmPublish] = useState(false);
 	const [insertWhere, setInsertWhere] = useState<InsertWhere>("inside");
 	const [fixedTextAt, setFixedTextAt] = useState<FixedTextLocation | null>(null);
 	const [conflict, setConflict] = useState<{ version: string | null } | null>(null);
@@ -151,7 +170,6 @@ export function Builder({
 	const [focusLayers, setFocusLayers] = useState(0);
 	/** What Cut and Copy took: the layers, and the unsaved one-off styles of the elements in them. */
 	const clipboard = useRef<LayerClipboard | null>(null);
-	const insertTrigger = useRef<HTMLButtonElement | null>(null);
 	const fixedTextTrigger = useRef<HTMLElement | null>(null);
 	const docRef = useRef(doc);
 	docRef.current = doc;
@@ -441,8 +459,8 @@ export function Builder({
 		announce(t("builder.redone"));
 	}, [announce, t, writeShared]);
 
-	const insert = (nodes: TreeNode[]): string | undefined => {
-		const place = insertionPlace(doc.tree, selection, insertWhere);
+	const insert = (nodes: TreeNode[], way: InsertWhere = insertWhere): string | undefined => {
+		const place = insertionPlace(doc.tree, selection, way);
 		const made = insertAt(doc.tree, place, nodes);
 		const name = nameAt(made.tree, made.path);
 		return apply(
@@ -761,7 +779,8 @@ export function Builder({
 		return () => window.removeEventListener("beforeunload", warn);
 	}, [dirty]);
 
-	// Ctrl/⌘ S saves; Ctrl/⌘ Z and Shift+Z (or Y) undo and redo, outside text being typed; Ctrl/⌘ I inserts.
+	// Ctrl/⌘ S saves; Ctrl/⌘ Z and Shift+Z (or Y) undo and redo, outside text being typed. The Command
+	// menu's keys (⌘K, ⌘P, ⌘I, ⌘/) and the selected layer's (⌘D, ⌫, Esc) are `useEditorKeys`'.
 	const keys = useRef({ save, undo, redo });
 	keys.current = { save, undo, redo };
 	const shortcut = useRef<(event: KeyboardEvent) => void>(() => {});
@@ -780,9 +799,6 @@ export function Builder({
 				event.preventDefault();
 				if (key === "y" || event.shiftKey) keys.current.redo();
 				else keys.current.undo();
-			} else if (key === "i") {
-				event.preventDefault();
-				setInsertOpen(true);
 			}
 		};
 		shortcut.current = onKey;
@@ -791,11 +807,156 @@ export function Builder({
 	}, []);
 
 	const openInsert = () => {
-		setQuickInsert(null);
 		const node = selection?.kind === "node" ? nodeAt(doc.tree, selection.path) : undefined;
 		setInsertWhere(node && canHoldChildren(node) ? "inside" : "after");
-		setInsertOpen(true);
+		setMenu({ tab: "insert" });
 	};
+
+	// ---------------------------------------------------------------------------------------------
+	// The Command menu (#131): the same commands as Code mode's, for this canvas
+
+	const loadMenu = useCallback(async () => {
+		try {
+			setMenuData(await (await getApi()).builder.commandMenu({ siteId }));
+		} catch (failure) {
+			announce(t(errorMessage(failure)));
+		}
+	}, [siteId, announce, t]);
+	useEffect(() => {
+		void loadMenu();
+	}, [loadMenu]);
+	const menuTab = menu?.tab;
+	useEffect(() => {
+		if (menuTab === "goTo") void loadMenu();
+	}, [menuTab, loadMenu]);
+	/** `can()`'s answer for the Site, from the server; opening the Builder already needed `structure.edit`. */
+	const can = useCallback(
+		(permission: Permission) =>
+			menuData ? (menuData.permissions as readonly Permission[]).includes(permission) : permission === "structure.edit",
+		[menuData],
+	);
+	const leaveFor = (url: () => Promise<string> | string) => {
+		void depart().then(async (saved) => {
+			if (!saved) return;
+			try {
+				window.location.assign(await url());
+			} catch (failure) {
+				announce(t(errorMessage(failure)));
+			}
+		});
+	};
+	/** Every layer on the way to it opens. */
+	const reveal = (path: NodePath) =>
+		setCollapsed((before) => {
+			const next = new Set(before);
+			for (let length = 1; length < path.length; length += 2) {
+				const owner = path.slice(0, length);
+				const ownerNode = nodeAt(doc.tree, owner);
+				if (ownerNode) next.delete(rowKey(ownerNode, owner));
+			}
+			return next;
+		});
+	const selectPath = (path: NodePath) => {
+		setSelection({ kind: "node", path });
+		reveal(path);
+		announce(t("builder.selected", { name: nameAt(doc.tree, path) }));
+	};
+	const selectParent = () => {
+		if (selection?.kind !== "node") return;
+		if (selection.path.length > 1) selectPath(selection.path.slice(0, -2));
+		else announce(t("builder.commandMenu.noParent", { name: nameAt(doc.tree, selection.path) }));
+	};
+	const wrapSelected = (wrapper: TreeNode): string | undefined => {
+		if (selection?.kind !== "node") return t("builder.moves.refused.gone", { name: "" });
+		const name = nameAt(doc.tree, selection.path);
+		const wrapped = wrapAt(doc.tree, selection.path, wrapper);
+		if ("refused" in wrapped) return t("builder.moves.refused.gone", { name });
+		return apply(
+			{ ...doc, tree: wrapped.tree },
+			{ kind: "node", path: wrapped.path },
+			t("builder.commandMenu.wrapped", { name, what: layerName(t, wrapper, catalogue).name }),
+		);
+	};
+	const wrap = (kind: WrapKind) => {
+		if (kind === "loop" || kind === "condition") {
+			setMenu({ tab: "insert", step: { item: kind === "loop" ? "command-loop" : "command-if", mode: "wrap" } });
+			return;
+		}
+		const made = elementBuilder(doc.tree)(kind, [], kind === "a" ? { href: "/" } : {});
+		if (!wrapSelected(made)) setFocusLayers((count) => count + 1);
+	};
+	const unwrap = () => {
+		if (selection?.kind !== "node") return;
+		const name = nameAt(doc.tree, selection.path);
+		const result = unwrapAt(doc.tree, selection.path);
+		if ("refused" in result) announce(t("builder.commandMenu.cannotUnwrap", { name }));
+		else
+			apply(
+				{ ...doc, tree: result.tree },
+				{ kind: "node", path: result.path },
+				t("builder.commandMenu.unwrapped", { name }),
+			);
+	};
+	const go = {
+		page: (path: string) =>
+			leaveFor(async () => (await (await getApi()).editMode.open({ siteId, path, code: true })).url),
+		builder: (next: BuilderTarget) => leaveFor(() => `/builder/${siteId}/${targetPath(next)}`),
+		layer: (_ref: string, path: NodePath) => selectPath(path),
+	};
+	const commandSelected = selection?.kind === "node" ? nodeAt(doc.tree, selection.path) : undefined;
+	const commandTarget: EditorCommandTarget = {
+		canvas: "builder",
+		selection: commandSelected
+			? {
+					kind:
+						commandSelected.type === "element"
+							? "element"
+							: commandSelected.type === "component"
+								? "placement"
+								: "other",
+					name: layerName(t, commandSelected, catalogue).name,
+					hidden: commandSelected.type === "component" ? !!commandSelected.hidden : undefined,
+					canUnwrap: commandSelected.type !== "component" && (childLists(commandSelected)[0]?.length ?? 0) > 0,
+				}
+			: null,
+		// Today's local history; #136 replaces it with the tab's own-step history.
+		history: {
+			undo: () => (history.current.past.length ? undo() : announce(t("builder.commandMenu.nothingToUndo"))),
+			redo: () => (history.current.future.length ? redo() : announce(t("builder.commandMenu.nothingToRedo"))),
+			canUndo: () => history.current.past.length > 0,
+			canRedo: () => history.current.future.length > 0,
+		},
+		save: () => void save(),
+		publish: () => setConfirmPublish(true),
+		switchCanvas: () => setViewRequest((count) => count + 1),
+		openSiteCss: () => setSiteCssRequest((count) => count + 1),
+		layer: (action) =>
+			action === "parent" ? selectParent() : action === "rename" ? setRenameRequest((count) => count + 1) : act(action),
+		wrap,
+		unwrap,
+		...(commandSelected?.type === "component"
+			? {
+					editComponent: () => go.builder({ kind: "component", componentId: commandSelected.component }),
+					toggleHidden: () => {
+						if (selection?.kind === "node")
+							replace(
+								selection.path,
+								{ ...commandSelected, hidden: !commandSelected.hidden },
+								t("builder.inspector.changed"),
+							);
+					},
+				}
+			: {}),
+	};
+	const editorKeys = useEditorKeys({
+		enabled: conflict === null && fixedTextAt === null && !confirmPublish,
+		menu,
+		setMenu,
+		openShortcuts: () => setShortcutsOpen(true),
+		element: commandSelected
+			? { duplicate: () => act("duplicate"), delete: () => act("delete"), parent: selectParent }
+			: null,
+	});
 
 	const oneOffOf = (elementId: string, classIds: readonly string[]) =>
 		doc.styles[elementId] ??
@@ -852,8 +1013,10 @@ export function Builder({
 					returnPage={returnPage}
 					selection={selection ? selectionKey(doc.tree, selection) : null}
 					beforeLeave={depart}
+					viewRequest={viewRequest}
 				/>
 				<div className="ms-auto flex flex-wrap items-center gap-1">
+					<CommandMenuButton onOpen={() => setMenu({ tab: "actions" })} />
 					<fieldset className="flex rounded-md border p-0.5">
 						<legend className="sr-only">{t("builder.width.label")}</legend>
 						{widths.map(({ width: each, icon: Icon }) => (
@@ -906,8 +1069,8 @@ export function Builder({
 						size="icon-sm"
 						variant="ghost"
 						aria-label={t("builder.undo")}
-						title={t("builder.undo")}
-						aria-keyshortcuts="Control+Z"
+						title={withKeys(t("builder.undo"), "editor.undo")}
+						aria-keyshortcuts={ariaKeys("editor.undo")}
 						disabled={history.current.past.length === 0}
 						onClick={undo}
 					>
@@ -918,8 +1081,8 @@ export function Builder({
 						size="icon-sm"
 						variant="ghost"
 						aria-label={t("builder.redo")}
-						title={t("builder.redo")}
-						aria-keyshortcuts="Control+Shift+Z"
+						title={withKeys(t("builder.redo"), "editor.redo")}
+						aria-keyshortcuts={ariaKeys("editor.redo")}
 						disabled={history.current.future.length === 0}
 						onClick={redo}
 					>
@@ -929,7 +1092,8 @@ export function Builder({
 						type="button"
 						size="sm"
 						variant="outline"
-						aria-keyshortcuts="Control+S"
+						aria-keyshortcuts={ariaKeys("editor.save")}
+						title={withKeys(t("builder.save"), "editor.save")}
 						disabled={busy !== null || (!dirty && shared.status === "saved") || (!!documentId && !shared.writable)}
 						onClick={() => void save()}
 					>
@@ -956,10 +1120,14 @@ export function Builder({
 							where={insertWhere}
 							canInside={!!selectedNode && canHoldChildren(selectedNode)}
 							onWhere={setInsertWhere}
-							onPick={(item, button) => {
-								setQuickInsert(item);
-								insertTrigger.current = button;
-								setInsertOpen(true);
+							onPick={(item) => {
+								if (item === null) return setMenu({ tab: "insert" });
+								if (item === "components") return setMenu({ tab: "insert", only: "components" });
+								const found = insertItems(t, doc.tree, catalogue).find((each) => each.id === item);
+								if (!found) return;
+								const nodes = insertNow(found, doc.tree, catalogue);
+								if (!nodes) setMenu({ tab: "insert", step: { item, mode: "insert" } });
+								else if (!insert(nodes)) setFocusLayers((count) => count + 1);
 							}}
 						/>
 						<LayersPanel
@@ -997,10 +1165,8 @@ export function Builder({
 							}}
 							onDrop={dropOn}
 							focusRequest={focusLayers}
-							onInsert={() => {
-								insertTrigger.current = document.activeElement as HTMLButtonElement;
-								openInsert();
-							}}
+							renameRequest={renameRequest}
+							onInsert={openInsert}
 						/>
 					</section>
 				}
@@ -1084,19 +1250,13 @@ export function Builder({
 							setFocusLayers((count) => count + 1);
 							const node = nodeAt(doc.tree, path);
 							if (node) announce(t("builder.selected", { name: layerName(t, node, catalogue).name }));
-							// Every layer on the way to it opens.
-							setCollapsed((before) => {
-								const next = new Set(before);
-								for (let length = 1; length < path.length; length += 2) {
-									const owner = path.slice(0, length);
-									const ownerNode = nodeAt(doc.tree, owner);
-									if (ownerNode) next.delete(rowKey(ownerNode, owner));
-								}
-								return next;
-							});
+							reveal(path);
 						}}
 						onMove={canvasMove}
-						onShortcut={(event) => shortcut.current(event)}
+						onShortcut={(event) => {
+							shortcut.current(event);
+							editorKeys(event);
+						}}
 					/>
 				</section>
 				{
@@ -1165,6 +1325,7 @@ export function Builder({
 					</section>
 				}
 				<div
+					data-code-panel=""
 					className={`grid min-h-0 overflow-auto border-t md:grid-cols-2 lg:col-start-2 lg:row-start-2 ${target.kind === "component" ? "xl:grid-cols-3" : ""}`}
 				>
 					<section aria-label="HTML" className="flex min-h-0 flex-col">
@@ -1205,6 +1366,7 @@ export function Builder({
 							catalogue={catalogue}
 							editable={!documentId || shared.writable}
 							designVersion={designVersion}
+							showSiteCss={siteCssRequest}
 							onClasses={(classes, message) =>
 								selection?.kind === "node" && selectedNode?.type === "element"
 									? replace(selection.path, { ...selectedNode, classes }, message)
@@ -1229,20 +1391,49 @@ export function Builder({
 
 				<Announcer message={announcement} />
 			</main>
-			<InsertDialog
-				quick={quickInsert}
-				open={insertOpen}
-				onOpenChange={setInsertOpen}
-				finalFocus={insertTrigger}
-				siteId={siteId}
-				tree={doc.tree}
-				catalogue={catalogue}
-				where={insertWhere}
-				canInside={selectedNodeForInsert ? canHoldChildren(selectedNodeForInsert) : selection?.kind === "list"}
-				hasSelection={selection?.kind === "node"}
-				onWhere={setInsertWhere}
-				onInsert={insert}
+			<CommandMenu
+				canvas="builder"
+				state={menu}
+				onState={setMenu}
+				can={can}
+				actions={editorCommands(commandTarget, t)}
+				goTo={menuData ? goToCommands(t, menuData, [{ ref: "builder", tree: doc.tree, catalogue }], go) : null}
+				insert={{
+					siteId,
+					tree: doc.tree,
+					catalogue,
+					where: insertWhere === "inside" ? "inside" : "after",
+					canInside: selectedNodeForInsert ? canHoldChildren(selectedNodeForInsert) : selection?.kind === "list",
+					onWhere: setInsertWhere,
+					selected: selectedNodeForInsert ? layerName(t, selectedNodeForInsert, catalogue).name : null,
+					onInsert: (nodes, way) => insert(nodes, way),
+					onWrap: wrapSelected,
+				}}
+				onRowFocus={() => setFocusLayers((count) => count + 1)}
 			/>
+			<ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} can={can} />
+			<Dialog open={confirmPublish} onOpenChange={setConfirmPublish}>
+				<DialogContent closeLabel={t("builder.commandMenu.close")}>
+					<DialogHeader>
+						<DialogTitle>{t("builder.commandMenu.publishConfirm.title", { name: title })}</DialogTitle>
+						<DialogDescription>{t("builder.commandMenu.publishConfirm.body")}</DialogDescription>
+					</DialogHeader>
+					<DialogFooter>
+						<Button type="button" variant="outline" onClick={() => setConfirmPublish(false)}>
+							{t("builder.commandMenu.publishConfirm.cancel")}
+						</Button>
+						<Button
+							type="button"
+							onClick={() => {
+								setConfirmPublish(false);
+								void publish();
+							}}
+						>
+							{t("builder.commandMenu.publishConfirm.confirm")}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 			{fixedTextAt ? (
 				<FixedTextDialog
 					open

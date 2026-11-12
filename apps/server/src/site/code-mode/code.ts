@@ -426,6 +426,29 @@ export function codeMode(
 				showInsertion();
 			},
 			hover: setHover,
+			// What only Code mode's own panels and the editing bar do, for the Command menu (#131).
+			commands: {
+				safeMode: doc.querySelector('meta[name="webcraft-safe-mode"]')?.getAttribute("content") === "on",
+				async save() {
+					await saveHtml(null);
+					if (jsDirty()) await saveScript(undefined);
+				},
+				openBuilder: () => void openBuilder(),
+				showPanels: () => showPanels(true),
+				openPageScript() {
+					showPanels(true);
+					switchScript(scripts?.page ? "page" : "site");
+					jsEditor.area.focus();
+				},
+				async leaveTo(url: string) {
+					if (panelsAdapter && !(await panelsAdapter.depart())) return;
+					if (jsDirty() && !(await saveScript(undefined))) return;
+					win.location.assign(url);
+				},
+				bar(action: "publish" | "safeMode" | "preview" | "leave") {
+					doc.dispatchEvent(new CustomEvent("webcraft:edit-command", { detail: { action } }));
+				},
+			},
 		});
 		panelsAdapter?.select(selectedRef ?? opened?.ref ?? null);
 		editorReady();
@@ -623,7 +646,8 @@ export function codeMode(
 
 		openBuilderButton = button({ class: "secondary", disabled: "" }, word("openBuilder"));
 		openBuilderButton.addEventListener("click", () => void openBuilder());
-		const panels = el("div", { class: "panels", id: newId("panels") });
+		// Keys that act on the selected layer (⌘D, ⌫, Esc) leave the code panels alone.
+		const panels = el("div", { class: "panels", id: newId("panels"), "data-code-panel": "" });
 		panels.append(buildHtmlPanel(), buildCssPanel(), buildJsPanel());
 		toggleButton.setAttribute("aria-controls", panels.id);
 		shell = el(

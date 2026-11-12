@@ -57,10 +57,12 @@ import { listFilters } from "../filters/filters.ts";
 import { siteFormList } from "../forms/forms.ts";
 import type { SitePages } from "../site-pages/index.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
+import { type CommandMenuData, commandMenuData } from "./command-menu.ts";
 import { type BuilderDestinations, builderDestinations } from "./navigation.ts";
 import { adminMediaPath, renderPreview } from "./preview.ts";
 import { type BuilderSource, type BuilderTarget, readSource } from "./sources.ts";
 
+export { COMMAND_PERMISSIONS, type CommandMenuData, type GoToPage } from "./command-menu.ts";
 export { CANVAS_SOURCE, type CanvasPlaceholder } from "./preview.ts";
 export type { BuilderTarget } from "./sources.ts";
 
@@ -127,6 +129,11 @@ export type BuilderOpened = {
 export type BuilderPreview = { html: string; css: string; checks: import("@webcraft/renderer").QualityCheck[] };
 
 export type Builder = {
+	/**
+	 * What the Command menu needs on either canvas: the Permissions the person holds on the Site
+	 * (checked with `can()`), and Go to's Pages, Entries by Post Type, Templates and Components.
+	 */
+	commandMenu(scope: SiteScope): Promise<CommandMenuData>;
 	destinations(scope: SiteScope, target: BuilderTarget, entryId?: string): Promise<BuilderDestinations>;
 	/** Opens a Template or Component (open the Site with `structure.edit`). */
 	open(scope: SiteScope, target: BuilderTarget): Promise<BuilderOpened>;
@@ -177,6 +184,7 @@ export function createBuilder(options: {
 }): Builder {
 	const { sources } = options;
 	return {
+		commandMenu: (scope) => commandMenuData(scope, sources),
 		async destinations(scope, target, entryId) {
 			const found = await builderDestinations(
 				scope,

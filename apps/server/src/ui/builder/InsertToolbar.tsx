@@ -1,6 +1,6 @@
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { useT } from "../i18n.tsx";
-import type { InsertWhere } from "./InsertDialog.tsx";
+import type { InsertWhere } from "./insert-items.tsx";
 
 export function InsertToolbar({
 	where,

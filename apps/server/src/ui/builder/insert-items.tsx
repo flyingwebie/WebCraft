@@ -1,39 +1,42 @@
 import { type ElementTree, elementProblem, readExpression, type TreeNode } from "@webcraft/renderer/builder";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@webcraft/ui/components/dialog.tsx";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
-import { Label } from "@webcraft/ui/components/label.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
-import { type FormEvent, type KeyboardEvent, type RefObject, useEffect, useId, useRef, useState } from "react";
+import { type FormEvent, useState } from "react";
 
-import type { MessageKey } from "../i18n.tsx";
-import { useT } from "../i18n.tsx";
+import type { MessageKey, useT } from "../i18n.tsx";
+import { useT as useTranslator } from "../i18n.tsx";
 import { MediaPicker } from "../media/MediaPicker.tsx";
 import { type Catalogue, readParts } from "./model.ts";
 import { newElement, withNewIds } from "./tree.ts";
 
+type T = ReturnType<typeof useT>;
+
 /** Where a new layer goes: inside the selected one (at its end), after it, or before it. */
 export type InsertWhere = "inside" | "after" | "before";
 
-type Step = "image" | "value" | "component" | "loop" | "form" | "popup" | "filter" | "pagination" | "condition" | "tag";
+export type InsertStepKind =
+	| "image"
+	| "value"
+	| "component"
+	| "loop"
+	| "form"
+	| "popup"
+	| "filter"
+	| "pagination"
+	| "condition"
+	| "tag";
 
-/** One thing the insert menu offers. */
-type Item = {
+/** One thing Insert offers: one set of insert rules for the Command menu and the insert toolbar. */
+export type InsertItem = {
 	id: string;
-	group: "sections" | "text" | "media" | "values" | "commands" | "components" | "other";
+	group: "sections" | "text" | "media" | "values" | "commands" | "components" | "elements" | "other";
 	label: string;
 	/** What it is, for screen readers and the search. */
 	hint: string;
 	build?: () => TreeNode[];
-	step?: Step;
+	step?: InsertStepKind;
 	/** For a Component: its id. */
 	componentId?: string;
 };
@@ -42,58 +45,36 @@ const SECTION_TAGS = ["section", "header", "nav", "main", "article", "aside", "f
 const HEADINGS = ["h1", "h2", "h3", "h4", "h5", "h6"];
 
 /**
- * The insert menu: semantic elements first (sections, headings, text, lists, links, a link styled as
- * a button, figures, Media images, tables), then values, Template commands from the registry,
- * Components, text and comments, and any other element by its tag. A box to type in filters them
- * (a combobox over a list box); what needs a choice (a Media image, a value, a Component's Props, a
- * Loop, a Form, a Condition's test, a tag) asks for it next. Only what this kind of tree may hold is
- * offered; the Layers panel refuses what would nest wrongly where it goes.
+ * What Insert shows before anything is typed: the insert toolbar's five items (a heading, a
+ * paragraph, an image, a Loop, a Component), plus Section and every heading level.
  */
-export function InsertDialog({
-	open,
-	onOpenChange,
-	finalFocus,
-	siteId,
-	tree,
-	catalogue,
-	where,
-	canInside,
-	hasSelection,
-	onWhere,
-	onInsert,
-	quick,
-}: {
-	quick?: string | null;
-	open: boolean;
-	onOpenChange(open: boolean): void;
-	finalFocus: RefObject<HTMLElement | null>;
-	siteId: string;
-	tree: ElementTree;
-	catalogue: Catalogue;
-	where: InsertWhere;
-	canInside: boolean;
-	hasSelection: boolean;
-	onWhere(where: InsertWhere): void;
-	/** Puts nodes in the tree; answers why not, when the tree would refuse them there. */
-	onInsert(nodes: TreeNode[]): string | undefined;
-}) {
-	const t = useT();
-	const id = useId();
-	const [query, setQuery] = useState("");
-	const [active, setActive] = useState(0);
-	const [step, setStep] = useState<Item | null>(null);
-	const [problem, setProblem] = useState<string | null>(null);
-	const allowed = new Set(catalogue.elements);
-	const commands = new Set(catalogue.commands);
+export const SHORT_LIST = ["h2", "p", "image", "command-loop", "components", "section", "h1", "h3", "h4", "h5", "h6"];
 
-	const element = (tag: string, children: TreeNode[] = [], attributes: Record<string, string> = {}): TreeNode => {
+/** Builds an element for the tree, with fresh ids and plain-text attributes. */
+export function elementBuilder(tree: ElementTree) {
+	return (tag: string, children: TreeNode[] = [], attributes: Record<string, string> = {}): TreeNode => {
 		const made = newElement(tree, tag, children);
 		return {
 			...made,
 			attributes: Object.entries(attributes).map(([name, value]) => ({ name, value: [{ type: "text", text: value }] })),
 		};
 	};
+}
+
+/**
+ * Everything Insert offers where this kind of tree may hold it: semantic elements first (sections,
+ * headings, text, lists, links, a link styled as a button, figures, Media images, tables), then
+ * values, Template commands, Components, text and comments, and every other allowed HTML element by
+ * its tag. What needs a choice (a Media image, a value, a Component's required Props, a Loop, a
+ * Form, a Condition's test, a tag) asks for it next (`InsertStep`).
+ */
+export function insertItems(t: T, tree: ElementTree, catalogue: Catalogue): InsertItem[] {
+	const allowed = new Set(catalogue.elements);
+	const commands = new Set(catalogue.commands);
+	const element = elementBuilder(tree);
 	const words = (key: MessageKey) => ({ type: "text", text: t(key) }) as TreeNode;
+	type Item = InsertItem;
+	type Step = InsertStepKind;
 	const items: Item[] = [
 		...SECTION_TAGS.filter((tag) => allowed.has(tag)).map((tag) => ({
 			id: tag,
@@ -268,186 +249,35 @@ export function InsertDialog({
 			step: "tag",
 		},
 	];
-	const needle = query.trim().toLowerCase();
-	const shown = needle
-		? items.filter((item) => `${item.label} ${item.hint} ${item.id}`.toLowerCase().includes(needle))
-		: quick === "components"
-			? items.filter((item) => item.group === "components")
-			: items;
-	const current = shown[Math.min(active, shown.length - 1)];
+	const named = new Set(items.map((item) => item.id));
+	const elements = [...allowed]
+		.filter((tag) => !named.has(tag))
+		.sort()
+		.map(
+			(tag): Item => ({
+				id: `tag-${tag}`,
+				group: "elements",
+				label: `<${tag}>`,
+				hint: tag,
+				build: () => [element(tag)],
+			}),
+		);
+	return [...items, ...elements];
+}
 
-	const close = () => {
-		onOpenChange(false);
-		setQuery("");
-		setStep(null);
-		setProblem(null);
-		setActive(0);
-	};
-	const insert = (nodes: TreeNode[]) => {
-		const refused = onInsert(nodes);
-		if (refused) {
-			setProblem(refused);
-			return;
-		}
-		close();
-	};
-	const choose = (item: Item) => {
-		if (item.componentId) {
-			const component = catalogue.components.find((each) => each.id === item.componentId);
-			if (component && !component.props.some((prop) => prop.required)) {
-				insert(withNewIds(tree, [{ type: "component", id: "new", component: component.id, props: [] }]));
-				return;
-			}
-		}
-		setProblem(null);
-		if (item.build) insert(item.build());
-		else setStep(item);
-	};
-
-	const chosenQuick = useRef(false);
-	const quickItem = quick ? items.find((item) => item.id === quick) : undefined;
-	// A quick choice uses this very same insert list and its questions.
-	useEffect(() => {
-		if (!open) {
-			chosenQuick.current = false;
-			return;
-		}
-		if (chosenQuick.current || !quick) return;
-		chosenQuick.current = true;
-		const item = items.find((each) => each.id === quick);
-		if (item) choose(item);
-	});
-
-	const keyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-		if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-			event.preventDefault();
-			const move = event.key === "ArrowDown" ? 1 : -1;
-			setActive((before) =>
-				shown.length === 0 ? 0 : (Math.min(before, shown.length - 1) + move + shown.length) % shown.length,
-			);
-		} else if (event.key === "Home" || event.key === "End") {
-			event.preventDefault();
-			setActive(event.key === "Home" ? 0 : Math.max(0, shown.length - 1));
-		} else if (event.key === "Enter") {
-			event.preventDefault();
-			if (current) choose(current);
-		}
-	};
-
-	// Choices needing no input don't open a modal, even for a single frame.
-	if (quickItem?.build && !problem) return null;
-	return (
-		<Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
-			<DialogContent closeLabel={t("builder.insert.close")} finalFocus={finalFocus} className="sm:max-w-lg">
-				<DialogHeader>
-					<DialogTitle>{step ? step.label : t("builder.insert.title")}</DialogTitle>
-					<DialogDescription>{step ? step.hint : t("builder.insert.intro")}</DialogDescription>
-				</DialogHeader>
-				{hasSelection ? (
-					<fieldset className="grid gap-2">
-						<legend className="mb-1 text-sm font-medium">{t("builder.insert.where")}</legend>
-						<div className="flex flex-wrap gap-4">
-							{(["inside", "after", "before"] as const).map((option) => (
-								<div key={option} className="flex items-center gap-2">
-									<input
-										type="radio"
-										id={`${id}-where-${option}`}
-										name={`${id}-where`}
-										value={option}
-										checked={where === option}
-										disabled={option === "inside" && !canInside}
-										onChange={() => onWhere(option)}
-										className="accent-primary size-4"
-									/>
-									<Label htmlFor={`${id}-where-${option}`}>{t(`builder.insert.whereOptions.${option}`)}</Label>
-								</div>
-							))}
-						</div>
-					</fieldset>
-				) : null}
-				{step ? (
-					<StepForm
-						step={step}
-						siteId={siteId}
-						catalogue={catalogue}
-						allowed={allowed}
-						build={element}
-						onBack={() => {
-							setStep(null);
-							setProblem(null);
-						}}
-						onInsert={insert}
-						problem={problem}
-						tree={tree}
-						baseId={id}
-					/>
-				) : (
-					<div className="grid gap-2">
-						<Input
-							role="combobox"
-							aria-label={t("builder.insert.search")}
-							aria-expanded="true"
-							aria-controls={`${id}-list`}
-							aria-autocomplete="list"
-							aria-activedescendant={current ? `${id}-${current.id}` : undefined}
-							aria-describedby={problem ? `${id}-problem` : undefined}
-							placeholder={t("builder.insert.searchPlaceholder")}
-							value={query}
-							autoComplete="off"
-							onChange={(event) => {
-								setQuery(event.target.value);
-								setActive(0);
-							}}
-							onKeyDown={keyDown}
-						/>
-						<div
-							id={`${id}-list`}
-							role="listbox"
-							aria-label={t("builder.insert.title")}
-							className="grid max-h-80 overflow-y-auto rounded-md border p-1"
-						>
-							{shown.map((item, index) => {
-								const previous = shown[index - 1];
-								return (
-									<div key={item.id} role="presentation">
-										{previous?.group !== item.group ? (
-											<p
-												role="presentation"
-												className="text-muted-foreground px-2 pt-2 pb-1 text-xs font-medium uppercase"
-											>
-												{t(`builder.insert.groups.${item.group}`)}
-											</p>
-										) : null}
-										<div
-											id={`${id}-${item.id}`}
-											role="option"
-											tabIndex={-1}
-											aria-selected={item === current}
-											className="aria-selected:bg-accent aria-selected:text-accent-foreground flex cursor-default items-baseline justify-between gap-3 rounded-sm px-2 py-1.5 text-sm"
-											onMouseDown={(event) => event.preventDefault()}
-											onMouseMove={() => setActive(index)}
-											onClick={() => choose(item)}
-											onKeyDown={() => {}}
-										>
-											<span>{item.label}</span>
-											<span className="text-muted-foreground truncate font-mono text-xs">{item.hint}</span>
-										</div>
-									</div>
-								);
-							})}
-						</div>
-						<p id={`${id}-problem`} role="status" className="text-destructive text-sm empty:hidden">
-							{shown.length === 0 ? t("builder.insert.none") : (problem ?? "")}
-						</p>
-					</div>
-				)}
-			</DialogContent>
-		</Dialog>
-	);
+/** A Component with no required Prop goes in at once; anything else asks first. */
+export function insertNow(item: InsertItem, tree: ElementTree, catalogue: Catalogue): TreeNode[] | null {
+	if (item.componentId) {
+		const component = catalogue.components.find((each) => each.id === item.componentId);
+		if (component && !component.props.some((prop) => prop.required))
+			return withNewIds(tree, [{ type: "component", id: "new", component: component.id, props: [] }]);
+		return null;
+	}
+	return item.build ? item.build() : null;
 }
 
 /** What an insert that needs a choice asks for, then the node it makes. */
-function StepForm({
+export function InsertStep({
 	step: chosen,
 	siteId: site,
 	catalogue: offered,
@@ -459,7 +289,7 @@ function StepForm({
 	tree: current,
 	baseId,
 }: {
-	step: Item;
+	step: InsertItem;
 	siteId: string;
 	catalogue: Catalogue;
 	allowed: ReadonlySet<string>;
@@ -470,7 +300,7 @@ function StepForm({
 	tree: ElementTree;
 	baseId: string;
 }) {
-	const t = useT();
+	const t = useTranslator();
 	const [text, setText] = useState("");
 	const [choice, setChoice] = useState("");
 	const [alias, setAlias] = useState("item");
@@ -735,12 +565,12 @@ function StepForm({
 				</Field>
 			) : null}
 			{message ? <FieldError>{message}</FieldError> : null}
-			<DialogFooter>
+			<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
 				<Button type="button" variant="outline" onClick={onBack}>
 					{t("builder.insert.back")}
 				</Button>
 				<Button type="submit">{t("builder.insert.submit")}</Button>
-			</DialogFooter>
+			</div>
 		</form>
 	);
 }

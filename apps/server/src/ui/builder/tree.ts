@@ -259,6 +259,30 @@ export function replaceAt(tree: ElementTree, path: NodePath, node: TreeNode): El
 	return changeList(tree, place, (nodes) => nodes.map((each, index) => (index === place.index ? node : each)));
 }
 
+/**
+ * The tree with the node at `path` inside `wrapper` (an element, a Loop or a Condition's first
+ * branch, made empty), where the node was; the wrapper's path is the same.
+ */
+export function wrapAt(tree: ElementTree, path: NodePath, wrapper: TreeNode): Changed | Refused {
+	const node = nodeAt(tree, path);
+	if (!node) return { refused: "gone" };
+	let made: TreeNode;
+	if (wrapper.type === "element") made = { ...wrapper, children: [node] };
+	else if (wrapper.type === "loop") made = { ...wrapper, children: [node] };
+	else if (wrapper.type === "condition" && wrapper.branches[0])
+		made = { ...wrapper, branches: [{ ...wrapper.branches[0], children: [node] }, ...wrapper.branches.slice(1)] };
+	else return { refused: "cannot-wrap" };
+	return { tree: replaceAt(tree, path, made), path };
+}
+
+/** The tree with the node at `path` replaced by what it holds (its first list); its first child's path. */
+export function unwrapAt(tree: ElementTree, path: NodePath): Changed | Refused {
+	const node = nodeAt(tree, path);
+	const inside = node ? childLists(node)[0] : undefined;
+	if (!node || !inside?.length || node.type === "component") return { refused: "nothing-inside" };
+	return insertAt(removeAt(tree, path), placeOf(path), inside);
+}
+
 /** The index of the nearest node before (`-1`) or after (`1`) one in its list that isn't formatting. */
 function neighbour(nodes: readonly TreeNode[], index: number, step: -1 | 1): number | undefined {
 	for (let at = index + step; at >= 0 && at < nodes.length; at += step) {
