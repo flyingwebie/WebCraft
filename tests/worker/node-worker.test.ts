@@ -9,6 +9,8 @@ import { createTestInstall, type LocalSmtpServer, startSmtpServer, type TestInst
 import { goLive } from "../harness/staging.ts";
 
 const WORKER = new URL("../../apps/worker/src/main.ts", import.meta.url).pathname;
+/** These tests read the worker's JSON log lines, whatever format the checkout's own `.env` asks for. */
+const JSON_LINES = { WEBCRAFT_LOG_FORMAT: "json" };
 
 let install: TestInstall;
 let pingTarget: ReturnType<typeof Bun.serve>;
@@ -31,7 +33,7 @@ test("the worker process runs on Node and works the sample job", async () => {
 	await install.jobs.send(samplePing, { url });
 
 	const worker = Bun.spawn(["node", WORKER], {
-		env: { ...process.env, ...install.env },
+		env: { ...process.env, ...install.env, ...JSON_LINES },
 		stdout: "pipe",
 		stderr: "pipe",
 	});
@@ -65,7 +67,7 @@ test("the worker sends a queued System email through the Install SMTP, signing i
 	expect(queued?.status).toBe("queued");
 
 	const worker = Bun.spawn(["node", WORKER], {
-		env: { ...process.env, ...install.env },
+		env: { ...process.env, ...install.env, ...JSON_LINES },
 		stdout: "pipe",
 		stderr: "pipe",
 	});
@@ -104,7 +106,7 @@ test("the worker cleans an uploaded photo on Node, then makes its AVIF and WebP 
 	});
 
 	const worker = Bun.spawn(["node", WORKER], {
-		env: { ...process.env, ...install.env },
+		env: { ...process.env, ...install.env, ...JSON_LINES },
 		stdout: "pipe",
 		stderr: "pipe",
 	});
@@ -133,7 +135,7 @@ test("the worker says when the database drops connections it had open: a flappin
 	const url = `http://127.0.0.1:${pingTarget.port}/before-the-drop`;
 	await install.jobs.send(samplePing, { url });
 	const worker = Bun.spawn(["node", WORKER], {
-		env: { ...process.env, ...install.env },
+		env: { ...process.env, ...install.env, ...JSON_LINES },
 		stdout: "pipe",
 		stderr: "pipe",
 	});
@@ -237,7 +239,7 @@ test("on a database fresh from the migrate step, with no job queue made yet, the
 	try {
 		await fresh.migrate();
 		const worker = Bun.spawn(["node", WORKER], {
-			env: { ...process.env, ...fresh.env },
+			env: { ...process.env, ...fresh.env, ...JSON_LINES },
 			stdout: "pipe",
 			stderr: "pipe",
 		});
