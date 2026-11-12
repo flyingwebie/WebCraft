@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { taggedTranslation } from "../harness/fake-ai.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
-import { answerOf, approveAiClient, connectMcp, refusalOf } from "../harness/mcp.ts";
+import { answerOf, approveAiClient, connectMcp } from "../harness/mcp.ts";
 import { freshBread, requestsInto, translatedSite, visit } from "./support.ts";
 
 let install: TestInstall;
