@@ -25,7 +25,7 @@ import {
 	Undo2Icon,
 	UploadIcon,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useAfterRender } from "../after-render.ts";
 import { getApi } from "../api.ts";
@@ -39,7 +39,8 @@ import { Canvas, type CanvasTarget, type CanvasWidth } from "./Canvas.tsx";
 import { ComponentScriptPanel } from "./ComponentScriptPanel.tsx";
 import { CssPanel, type CssPanelPort } from "./CssPanel.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
-import { type EditorDrawer, focusInto, nextDrawer, useEditorFit } from "./editor-fit.ts";
+import { editorAccessibility } from "./editor-accessibility.ts";
+import { type EditorDrawer, focusInto, useEditorFit } from "./editor-fit.ts";
 import { FixedTextDialog, type MadeEditable } from "./FixedTextDialog.tsx";
 import { type FixedTextLocation, rememberFixedText, resolveFixedText } from "./fixed-text.ts";
 import { InsertDialog, type InsertWhere } from "./InsertDialog.tsx";
@@ -806,14 +807,26 @@ export function Builder({
 			else document.getElementById("main")?.focus();
 		});
 	};
-	// F6 (#138, the drawer layout only): the tree, then the Inspector, then neither; Shift+F6 backwards.
-	// #137's F6 order for every region will take this over, opening the drawers with `showDrawer`
-	// (`editor-fit.ts`; docs/development.md › The visual builder › Window width).
-	const drawerKey = (event: KeyboardEvent) => {
-		if (fit.layout !== "drawers" || fit.covered || document.querySelector("[data-slot=dialog-content]")) return;
-		event.preventDefault();
-		showDrawer(nextDrawer(drawer, event.shiftKey), true);
-	};
+	const regionLayout = useRef({ fit, showDrawer });
+	regionLayout.current = { fit, showDrawer };
+	useLayoutEffect(
+		() =>
+			editorAccessibility(document).registerRegionLayout({
+				hiddenRegions: () =>
+					regionLayout.current.fit.layout === "drawers" && !regionLayout.current.fit.covered
+						? ["tree", "inspector"]
+						: [],
+				reveal(name, focus) {
+					const { fit, showDrawer } = regionLayout.current;
+					if (fit.covered) return;
+					if (fit.layout === "drawers") {
+						showDrawer(name === "tree" ? "layers" : name === "inspector" ? "inspector" : null);
+						afterRender(focus);
+					} else focus();
+				},
+			}),
+		[afterRender],
+	);
 
 	// Below the smallest width, a notice covers the builder: nothing under it closes or can be reached,
 	// and focus goes back where it was once the window is wide enough again.
@@ -839,15 +852,11 @@ export function Builder({
 		};
 	}, [fit.covered]);
 
-	const keys = useRef({ save, undo, redo, drawerKey });
-	keys.current = { save, undo, redo, drawerKey };
+	const keys = useRef({ save, undo, redo });
+	keys.current = { save, undo, redo };
 	const shortcut = useRef<(event: KeyboardEvent) => void>(() => {});
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
-			if (event.key === "F6" && !event.ctrlKey && !event.metaKey && !event.altKey) {
-				keys.current.drawerKey(event);
-				return;
-			}
 			if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
 			const key = event.key.toLowerCase();
 			if (key === "s") {
@@ -1221,7 +1230,9 @@ export function Builder({
 							});
 						}}
 						onMove={canvasMove}
-						onShortcut={(event) => shortcut.current(event)}
+						onShortcut={(event) => {
+							if (!editorAccessibility(document).handleRegionKey(event)) shortcut.current(event);
+						}}
 					/>
 				</section>
 				{

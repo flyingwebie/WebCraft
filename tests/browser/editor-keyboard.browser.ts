@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import type { Locator } from "playwright";
+import type { Locator, Page } from "playwright";
 import { expectNoAxeViolations } from "./checks.ts";
 import {
 	type BrowserInstall,
@@ -50,6 +50,14 @@ async function openEditor(theme: Theme, canvas: "builder" | "live") {
 }
 async function focused(locator: Locator) {
 	return locator.evaluate((element) => (element.getRootNode() as Document | ShadowRoot).activeElement === element);
+}
+
+async function waitForFocusRegion(page: Page, region: string) {
+	await page.waitForFunction((region) => {
+		let active = document.activeElement;
+		while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+		return active?.closest<HTMLElement>("[data-editor-region]")?.dataset.editorRegion === region;
+	}, region);
 }
 
 for (const theme of THEMES)
@@ -462,3 +470,73 @@ for (const theme of THEMES)
 			});
 		});
 	}
+
+for (const theme of THEMES)
+	for (const canvas of ["builder", "live"] as const) {
+		test(`drawer F6 memory and cross-canvas action focus on ${canvas} (${theme})`, async () => {
+			const { page, tree } = await openEditor(theme, canvas);
+			const alpha = tree.getByRole("treeitem", { name: /^Alpha/ });
+			await alpha.click();
+			const label = page.getByLabel("Layer label", { exact: true });
+			await label.focus();
+			await page.setViewportSize({ width: 1100, height: 900 });
+			await page.getByRole("button", { name: "Settings", exact: true }).waitFor();
+			expect(await focused(label)).toBe(true);
+			await page.keyboard.press("F6");
+			await waitForFocusRegion(page, "html");
+			expect(await page.getByRole("button", { name: "Settings", exact: true }).getAttribute("aria-expanded")).toBe(
+				"false",
+			);
+			await page.keyboard.press("Shift+F6");
+			await waitForFocusRegion(page, "inspector");
+			expect(await focused(label)).toBe(true);
+			await page.keyboard.press("Shift+F6");
+			await waitForFocusRegion(page, "tree");
+			expect(await focused(alpha)).toBe(true);
+			await page.keyboard.press("Shift+F6");
+			await waitForFocusRegion(page, "topbar");
+			await page.keyboard.press("F6");
+			await waitForFocusRegion(page, "tree");
+			await alpha.press("ControlOrMeta+i");
+			const dialog = page.getByRole("dialog");
+			await dialog.waitFor();
+			await dialog.getByRole("combobox").first().focus();
+			await page.keyboard.press("F6");
+			expect(
+				await dialog.evaluate((dialog) =>
+					dialog.contains((dialog.getRootNode() as Document | ShadowRoot).activeElement),
+				),
+			).toBe(true);
+			await page.keyboard.press("Escape");
+			await dialog.waitFor({ state: "hidden" });
+			await alpha.press("Delete");
+			const beta = tree.getByRole("treeitem", { name: /^Beta/ });
+			await waitForFocusRegion(page, "tree");
+			expect(await focused(beta)).toBe(true);
+			await page
+				.getByRole("button", { name: canvas === "builder" ? "View on a page" : "Open in builder", exact: true })
+				.click();
+			await page.waitForURL((url) =>
+				canvas === "builder" ? url.pathname === "/stories/first" : url.pathname.includes("/builder/"),
+			);
+			await waitForFocusRegion(page, "tree");
+			expect(await focused(page.getByRole("treeitem", { name: /^Beta/ }))).toBe(true);
+			// Destination controls finish loading after the selected row; measure their settled styling.
+			await page.waitForLoadState("networkidle");
+			await expectNoAxeViolations(page, `drawer keyboard ${canvas} ${theme}`, [], {
+				exclude: ["iframe[title^='Canvas']"],
+			});
+		});
+	}
+
+for (const theme of THEMES)
+	test(`F6 reaches the tree from the real Builder preview iframe (${theme})`, async () => {
+		const { page, tree } = await openEditor(theme, "builder");
+		await page.frameLocator("iframe[title^='Canvas']").getByText("Two", { exact: true }).click();
+		expect(await page.locator("iframe[title^='Canvas']").evaluate((frame) => document.activeElement === frame)).toBe(
+			true,
+		);
+		await page.keyboard.press("F6");
+		await waitForFocusRegion(page, "tree");
+		expect(await focused(tree.getByRole("treeitem", { name: /^Berry/ }))).toBe(true);
+	});

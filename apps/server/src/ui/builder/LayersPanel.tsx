@@ -27,6 +27,7 @@ import {
 import { type DragEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { useAfterRender } from "../after-render.ts";
 import { useT } from "../i18n.tsx";
+import { editorAccessibility } from "./editor-accessibility.ts";
 import { type Catalogue, layerName, listName, type Selection } from "./model.ts";
 import {
 	canHoldChildren,
@@ -275,7 +276,8 @@ export function LayersPanel({
 		}
 		const row = list.current?.querySelector<HTMLElement>(`[data-row-key="${CSS.escape(focusKey ?? "")}"]`);
 		handledRequest.current = focusRequest;
-		(row ?? insertButton.current)?.focus();
+		const target = row ?? insertButton.current;
+		if (target) editorAccessibility(target.ownerDocument).focusSelectedRow();
 	}, [allRows, selectedAt, selectedKey, selection, focusKey, collapsed, onToggle, renaming, focusRequest]);
 
 	const select = (row: LayerRow, focus = true) => {
@@ -547,7 +549,7 @@ export function LayersPanel({
 					<div
 						ref={list}
 						role="tree"
-						data-selection-hidden={selectedKey && !selectedRow ? "" : undefined}
+						data-selection-hidden={selection && !selectedRow ? "" : undefined}
 						aria-labelledby="layers-heading"
 						aria-describedby="layers-keys"
 						onKeyDown={onKeyDown}

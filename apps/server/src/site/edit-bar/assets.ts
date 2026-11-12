@@ -5,7 +5,7 @@ import { Scanner } from "@tailwindcss/oxide";
 import { codeKeyEdit } from "../../ui/builder/code-keys.ts";
 import { componentScriptSettings } from "../../ui/builder/component-script-settings.ts";
 import { editorAccessibility } from "../../ui/builder/editor-accessibility.ts";
-import { EDITOR_WIDTHS, editorFit, focusInto, nextDrawer } from "../../ui/builder/editor-fit.ts";
+import { EDITOR_WIDTHS, editorFit, focusInto } from "../../ui/builder/editor-fit.ts";
 import { renderedRanges } from "../../ui/builder/rendered-ranges.ts";
 
 import { type CodeModeConfig, codeMode } from "../code-mode/code.ts";
@@ -74,7 +74,7 @@ async function makeAssets(): Promise<EditBarAssets> {
 	const panels = await asset("panels", "js", await panelsModule(drafts.path), "text/javascript; charset=utf-8");
 	const codeConfig: CodeModeConfig = { styles: codeStyles.path, panels: panels.path, widths: EDITOR_WIDTHS };
 	// The window-width rules shared with the Builder, each a self-contained function.
-	const fitting = `{ editorFit: ${editorFit.toString()}, nextDrawer: ${nextDrawer.toString()}, focusInto: ${focusInto.toString()} }`;
+	const fitting = `{ editorFit: ${editorFit.toString()}, focusInto: ${focusInto.toString()} }`;
 	const codeSource = `(${codeMode.toString()})(${JSON.stringify(codeConfig)}, ${componentScriptSettings.toString()}, ${renderedRanges.toString()}, ${editorAccessibility.toString()}, ${codeKeyEdit.toString()}, ${fitting});\n`;
 	const codeScript = await asset("code", "js", codeSource, "text/javascript; charset=utf-8");
 	return {

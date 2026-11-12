@@ -1,7 +1,15 @@
 export type EditorRegion = "tree" | "inspector" | "html" | "css" | "js" | "topbar";
 export type AnnouncementPriority = "polite" | "interrupt" | "silent";
+export type EditorRegionLayout = {
+	/** Mounted regions which this layout can reveal, such as closed drawers. */
+	hiddenRegions(): readonly EditorRegion[];
+	reveal(name: EditorRegion, focus: () => void): void;
+};
 export type EditorAccessibility = {
 	announce(text: string, priority?: AnnouncementPriority): void;
+	registerRegionLayout(layout: EditorRegionLayout): () => void;
+	/** The preview iframe forwards its keys here; the document listener uses the same controller. */
+	handleRegionKey(event: KeyboardEvent): boolean;
 	focusRegion(name: EditorRegion): void;
 	focusSelectedRow(): void;
 	selectedRow(): HTMLElement | null;
@@ -14,6 +22,8 @@ export function editorAccessibility(doc: Document): EditorAccessibility {
 	if (owner.webcraftEditorAccessibility) return owner.webcraftEditorAccessibility;
 	const order = ["tree", "inspector", "html", "css", "js", "topbar"] as const;
 	const memory = new Map<string, { element: HTMLElement; selector: string | null }>();
+	const watchedRoots = new WeakSet<ShadowRoot>();
+	let layout: EditorRegionLayout | undefined;
 	const deep = (root: Document | ShadowRoot): Element | null => {
 		const active = root.activeElement;
 		return active?.shadowRoot ? (deep(active.shadowRoot) ?? active) : active;
@@ -21,7 +31,14 @@ export function editorAccessibility(doc: Document): EditorAccessibility {
 	const all = (selector: string, root: Document | ShadowRoot | HTMLElement = doc): HTMLElement[] => {
 		const result = [...root.querySelectorAll<HTMLElement>(selector)];
 		for (const element of root.querySelectorAll("*"))
-			if (element.shadowRoot) result.push(...all(selector, element.shadowRoot));
+			if (element.shadowRoot) {
+				// Focus moving within a shadow root can leave the document's retargeted focus unchanged.
+				if (!watchedRoots.has(element.shadowRoot)) {
+					watchedRoots.add(element.shadowRoot);
+					element.shadowRoot.addEventListener("focusin", remember, true);
+				}
+				result.push(...all(selector, element.shadowRoot));
+			}
 		return result;
 	};
 	const visible = (element: HTMLElement): boolean => {
@@ -48,30 +65,38 @@ export function editorAccessibility(doc: Document): EditorAccessibility {
 			null
 		);
 	};
-	const focusRegion = (name: EditorRegion) => {
+	const reveal = (name: EditorRegion, focus: () => void) => {
 		if (modal()) return;
-		const region = regions().find((each) => each.dataset.editorRegion === name);
-		if (!region) return;
-		const remembered = memory.get(name);
-		const previous = remembered?.element.isConnected
-			? remembered.element
-			: remembered?.selector
-				? region.querySelector<HTMLElement>(remembered.selector)
-				: null;
-		const preferred =
-			name === "tree"
-				? (selectedRow() ?? region.querySelector<HTMLElement>('[role="treeitem"][tabindex="0"]'))
-				: region.querySelector<HTMLElement>("[data-editor-default-focus]");
-		const target =
-			previous && region.contains(previous) && usable(previous)
-				? previous
-				: preferred && usable(preferred)
-					? preferred
-					: [...region.querySelectorAll<HTMLElement>("button, input, select, textarea, a[href], [tabindex]")].find(
-							(each) => each.tabIndex >= 0 && usable(each),
-						);
-		target?.focus();
+		const ready = () => {
+			if (!modal()) focus();
+		};
+		if (layout) layout.reveal(name, ready);
+		else ready();
 	};
+	const focusRegion = (name: EditorRegion) =>
+		reveal(name, () => {
+			const region = regions().find((each) => each.dataset.editorRegion === name);
+			if (!region) return;
+			const remembered = memory.get(name);
+			const previous = remembered?.element.isConnected
+				? remembered.element
+				: remembered?.selector
+					? region.querySelector<HTMLElement>(remembered.selector)
+					: null;
+			const preferred =
+				name === "tree"
+					? (selectedRow() ?? region.querySelector<HTMLElement>('[role="treeitem"][tabindex="0"]'))
+					: region.querySelector<HTMLElement>("[data-editor-default-focus]");
+			const target =
+				previous && region.contains(previous) && usable(previous)
+					? previous
+					: preferred && usable(preferred)
+						? preferred
+						: [...region.querySelectorAll<HTMLElement>("button, input, select, textarea, a[href], [tabindex]")].find(
+								(each) => each.tabIndex >= 0 && usable(each),
+							);
+			target?.focus();
+		});
 	const remember = () => {
 		const active = deep(doc);
 		if (!(active instanceof HTMLElement)) return;
@@ -84,30 +109,31 @@ export function editorAccessibility(doc: Document): EditorAccessibility {
 				});
 			}
 	};
+	const handleRegionKey = (event: KeyboardEvent) => {
+		remember();
+		if (event.key !== "F6" || event.altKey || event.ctrlKey || event.metaKey) return false;
+		if (!all("[data-editor-region]").length) return false;
+		event.preventDefault();
+		event.stopPropagation();
+		if (modal()) return true;
+		const hidden = layout?.hiddenRegions() ?? [];
+		const available = all("[data-editor-region]").filter(
+			(region) => visible(region) || hidden.includes(region.dataset.editorRegion as EditorRegion),
+		);
+		const active = deep(doc);
+		const names = order.filter((name) => available.some((region) => region.dataset.editorRegion === name));
+		const current = available.find((region) => active && region.contains(active))?.dataset.editorRegion;
+		const index = names.indexOf(current as EditorRegion);
+		const next =
+			index < 0
+				? names[event.shiftKey ? names.length - 1 : 0]
+				: names[(index + (event.shiftKey ? -1 : 1) + names.length) % names.length];
+		if (next) focusRegion(next);
+		return true;
+	};
 	doc.addEventListener("focusin", remember, true);
 	doc.addEventListener("pointerdown", remember, true);
-	doc.addEventListener(
-		"keydown",
-		(event) => {
-			remember();
-			if (event.key !== "F6" || event.altKey || event.ctrlKey || event.metaKey) return;
-			if (!all("[data-editor-region]").length) return;
-			event.preventDefault();
-			event.stopPropagation();
-			if (modal()) return;
-			const available = regions();
-			const active = deep(doc);
-			const names = order.filter((name) => available.some((region) => region.dataset.editorRegion === name));
-			const current = available.find((region) => active && region.contains(active))?.dataset.editorRegion;
-			const index = names.indexOf(current as EditorRegion);
-			const next =
-				index < 0
-					? names[event.shiftKey ? names.length - 1 : 0]
-					: names[(index + (event.shiftKey ? -1 : 1) + names.length) % names.length];
-			if (next) focusRegion(next);
-		},
-		true,
-	);
+	doc.addEventListener("keydown", handleRegionKey, true);
 	const messages = doc.createElement("div");
 	messages.dataset.editorMessages = "";
 	messages.className = "sr-only wc-editor-messages";
@@ -132,10 +158,17 @@ export function editorAccessibility(doc: Document): EditorAccessibility {
 			// Alternating whitespace makes repeated actions observable without delaying or reordering them.
 			target.textContent = `${text}${++count % 2 ? "\u00a0" : ""}`;
 		},
+		registerRegionLayout(next) {
+			layout = next;
+			return () => {
+				if (layout === next) layout = undefined;
+			};
+		},
+		handleRegionKey,
 		focusRegion,
 		selectedRow,
 		focusSelectedRow() {
-			if (!modal()) selectedRow()?.focus();
+			reveal("tree", () => selectedRow()?.focus());
 		},
 	};
 	owner.webcraftEditorAccessibility = api;

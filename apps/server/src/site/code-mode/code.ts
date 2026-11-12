@@ -1,7 +1,7 @@
 import type { codeKeyEdit } from "../../ui/builder/code-keys.ts";
 import type { componentScriptSettings } from "../../ui/builder/component-script-settings.ts";
 import type { editorAccessibility } from "../../ui/builder/editor-accessibility.ts";
-import type { EditorDrawer, EditorFit, editorFit, focusInto, nextDrawer } from "../../ui/builder/editor-fit.ts";
+import type { EditorDrawer, EditorFit, editorFit, focusInto } from "../../ui/builder/editor-fit.ts";
 import type { renderedRanges } from "../../ui/builder/rendered-ranges.ts";
 /**
  * What Code mode's script is given when it is made: the address of its own stylesheet and of the
@@ -11,7 +11,6 @@ export type CodeModeConfig = { styles: string; panels: string; widths: { min: nu
 /** The window-width rules Code mode shares with the Builder (`editor-fit.ts`), each self-contained. */
 export type CodeModeFitting = {
 	editorFit: typeof editorFit;
-	nextDrawer: typeof nextDrawer;
 	focusInto: typeof focusInto;
 };
 
@@ -815,15 +814,14 @@ export function codeMode(
 			host.style.setProperty("--wc-code-dock", `${Math.ceil(shell.getBoundingClientRect().height)}px`);
 		new ResizeObserver(measureDock).observe(shell);
 		measureDock();
-		// F6 (#138, the drawer layout only): the tree, then the Inspector, then neither; Shift+F6 backwards.
-		// #137's F6 order for every region will take this over, opening the drawers with `setDrawer`
-		// (`editor-fit.ts`; docs/development.md › Code mode › Window width).
-		win.addEventListener("keydown", (event) => {
-			if (event.key !== "F6" || event.ctrlKey || event.metaKey || event.altKey) return;
-			if (fit?.layout !== "drawers" || fit.covered || !dialog.hidden) return;
-			if (root.querySelector("[data-slot=dialog-content]")) return;
-			event.preventDefault();
-			setDrawer(fitting.nextDrawer(drawer, event.shiftKey), true);
+		accessibility(doc).registerRegionLayout({
+			hiddenRegions: () => (fit?.layout === "drawers" && !fit.covered ? ["tree", "inspector"] : []),
+			reveal(name, focus) {
+				if (fit?.covered) return;
+				if (fit?.layout === "drawers")
+					setDrawer(name === "tree" ? "layers" : name === "inspector" ? "inspector" : null, false);
+				focus();
+			},
 		});
 		setStatus();
 	}
