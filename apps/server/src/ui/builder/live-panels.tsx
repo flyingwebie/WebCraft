@@ -1,4 +1,4 @@
-import type { CommandMenuData, FieldInput, Permission } from "@webcraft/core";
+import type { CommandMenuData, FieldInput, MadeComponent, Permission } from "@webcraft/core";
 import { type Json, reverseChange, sameValue } from "@webcraft/core/draft-document";
 import type { ElementTree, TreeNode } from "@webcraft/renderer/builder";
 import { DialogContainer } from "@webcraft/ui/components/dialog.tsx";
@@ -27,6 +27,7 @@ import { FixedTextDialog } from "./FixedTextDialog.tsx";
 import { type FixedTextLocation, rememberFixedText, resolveFixedText } from "./fixed-text.ts";
 import { goToCommands } from "./go-to.ts";
 import { historyLanguage } from "./history-language.ts";
+import { recordSourceHistory } from "./history-receipt.ts";
 import { inspectorHistoryTab, revealInspectorHistory } from "./history-reveal.ts";
 import { connectHistory } from "./history-transport.ts";
 import { InsertToolbar } from "./InsertToolbar.tsx";
@@ -35,6 +36,7 @@ import { elementBuilder, type InsertWhere, insertItems, insertNow } from "./inse
 import { type LayerAction, type LayerSource, LayersPanel, rowKey } from "./LayersPanel.tsx";
 import { type LayerClipboard, layerLocation, runLayerAction } from "./layer-actions.ts";
 import { type BuilderTarget, layerName, type Opened, type Selection, targetPath } from "./model.ts";
+import { identifyNewProps } from "./prop-identities.ts";
 import { hoveredRow, selectionKey, selectionOf } from "./selection-ref.ts";
 import { serverChangeArrived } from "./server-change.ts";
 import { ariaKeys, withKeys } from "./shortcuts.ts";
@@ -124,9 +126,6 @@ function currentDraft(source: PanelSource, shared?: SharedDraft): Pick<Opened, "
 			}
 		: { tree: draft as unknown as ElementTree, props: null };
 }
-
-/** What Make Component and New Component answer (#134): the Component and its Placement. */
-type MadeComponent = { component: { id: string; name: string }; placement: { id: string; path: number[] } };
 
 /** Save one-off styles against the version of the tree being printed, never a later version. */
 async function saveOneOffStyles(
@@ -1383,26 +1382,45 @@ function SourcePanels({
 	const componentChosen = async (choice: { name: string; texts: { index: number; key: string }[] }) => {
 		const prompt = componentPrompt;
 		if (!prompt) return undefined;
+		const history = editorHistory();
+		const location: HistoryLocation = {
+			siteId: source.siteId,
+			ref: source.ref,
+			title: source.name ?? document.title,
+			selection: selectedHistoryKey,
+			panel: "tree",
+		};
 		try {
 			if (shared && !(await shared.flush())) return t(`coEditing.status.${shared.status}`);
 			if (prompt.mode === "make" && prompt.path) {
 				// The node as the shared Draft has it now: the server refuses it if someone changed it meanwhile.
 				const now = nodeAt(currentDraft(source, shared).tree, prompt.path);
-				const made = await bridge.call<MadeComponent>("code/makeComponent", {
-					name: choice.name,
-					source: source.target,
-					path: prompt.path,
-					node: now,
-					texts: choice.texts,
+				const label = t("editorHistory.makeComponent", { name: choice.name });
+				const made = await history.compound(label, async (step) => {
+					const made = await bridge.call<MadeComponent>("code/makeComponent", {
+						name: choice.name,
+						source: source.target,
+						path: prompt.path,
+						node: now,
+						texts: choice.texts,
+					});
+					recordSourceHistory(history, made.sourceChange, label, location, step);
+					return made;
 				});
 				announce(t("builder.components.made", { name: made.component.name }));
 				void selectMade(made, false);
 				return undefined;
 			}
 			if (prompt.mode === "new" && prompt.place) {
-				const made = await bridge.call<MadeComponent>("code/createComponent", {
-					name: choice.name,
-					place: { source: source.target, path: prompt.place.path, list: prompt.place.list },
+				const label = t("editorHistory.createComponent", { name: choice.name });
+				const place = prompt.place;
+				const made = await history.compound(label, async (step) => {
+					const made = await bridge.call<MadeComponent>("code/createComponent", {
+						name: choice.name,
+						place: { source: source.target, path: place.path, list: place.list },
+					});
+					recordSourceHistory(history, made.sourceChange, label, location, step);
+					return made;
 				});
 				announce(t("builder.components.created", { name: made.component.name }));
 				void selectMade(made, true);
@@ -1435,8 +1453,10 @@ function SourcePanels({
 		| FieldInput[]
 		| null;
 	/** Writes the Component's Props (the HTML panel's `{{@props}}` block follows); answers why not. */
-	const changeProps = (props: FieldInput[], message: string, tree?: ElementTree): string | undefined => {
+	const changeProps = (input: FieldInput[], message: string, tree?: ElementTree): string | undefined => {
 		if (!writable) return t("coEditing.status.readOnly");
+		const props = identifyNewProps(input);
+		const before = shared?.draft() ?? null;
 		const changed = shared?.change((current) => ({
 			...(current as Record<string, Json>),
 			props: props as unknown as Json,
@@ -1447,6 +1467,21 @@ function SourcePanels({
 			announce(problem);
 			return problem;
 		}
+		editorHistory().record({
+			resource: `draft:${source.siteId}:${kind}:${sourceId}`,
+			before,
+			after: shared?.draft() ?? null,
+			label: message,
+			location: {
+				siteId: source.siteId,
+				draft: `draft:${source.siteId}:${kind}:${sourceId}`,
+				ref: source.ref,
+				selection: selectedHistoryKey,
+				panel: "inspector",
+				inspectorTab: inspectorHistoryTab(),
+				title: source.name ?? document.title,
+			},
+		});
 		onTree(currentDraft(source, shared).tree);
 		announce(message);
 		void shared?.flush().then((saved) => {
@@ -1468,7 +1503,7 @@ function SourcePanels({
 		const next = replaceAt(current, bind.path, { ...element, attributes });
 		const message = t("builder.bind.done", { binding: `{{ ${made.path} }}` });
 		if (made.props) return changeProps(made.props, message, next);
-		return apply(next, { kind: "node", path: bind.path }, message);
+		return apply(next, { kind: "node", path: bind.path }, message, false, undefined, "inspector");
 	};
 	const commandTarget: EditorCommandTarget = {
 		canvas: "code",
@@ -1802,9 +1837,10 @@ function SourcePanels({
 						const next = replaceAt(current, path, { type: "value", path: made.path });
 						const message = t("builder.fixedText.made", { binding: `{{ ${made.path} }}` });
 						if (made.props) {
+							const props = identifyNewProps(made.props);
 							const changed = shared?.change((current) => ({
 								...(current as Record<string, Json>),
-								props: made.props as unknown as Json,
+								props: props as unknown as Json,
 								tree: next as unknown as Json,
 							}));
 							if (!changed) {

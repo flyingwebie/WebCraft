@@ -3,6 +3,10 @@ import type { MessageKey, useT } from "../i18n.tsx";
 
 type Translate = ReturnType<typeof useT>;
 const actions = [
+	["builder.props.added", "addProp"],
+	["builder.props.removed", "removeProp"],
+	["builder.props.changed", "editProp"],
+	["builder.props.renamed", "rename"],
 	["builder.layers.renamed", "rename"],
 	["builder.moves.moved", "move"],
 	["builder.moves.dropped", "move"],

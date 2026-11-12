@@ -7873,6 +7873,11 @@
 		"reviewPublish": "Review and publish Popup"
 	},
 	"editorHistory": {
+		"makeComponent": "Make Component {name}",
+		"createComponent": "Create Component {name}",
+		"addProp": "Add Prop {name}",
+		"removeProp": "Remove Prop {name}",
+		"editProp": "Edit Prop {name}",
 		"wrap": "Wrap {name}",
 		"unwrap": "Unwrap {name}",
 		"undid": "Undid {label}",

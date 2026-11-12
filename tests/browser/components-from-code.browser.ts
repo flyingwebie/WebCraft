@@ -154,6 +154,19 @@ for (const theme of THEMES) {
 			await layer(page, /^Promo/)
 				.and(page.locator("[aria-selected=true]"))
 				.waitFor();
+
+			// The Template's extraction is one own step; its Component remains an unplaced Draft.
+			await page.getByRole("button", { name: "Undo", exact: true }).click();
+			await expectAnnounced(page, "Undid Make Component Promo");
+			const reversed = await api.templates.getSiteTemplateMarkup({ siteId });
+			expect(reversed.markup?.draft).toContain("Fresh today</h2>");
+			expect(reversed.markup?.draft).toContain("See the menu</a>");
+			expect(reversed.markup?.draft).not.toContain("<Promo ");
+			expect((await api.components.get({ siteId, componentId: promo?.id ?? "" })).component.published).toBeNull();
+			expect(await page.getByRole("button", { name: "Undo", exact: true }).isDisabled()).toBe(true);
+			await page.getByRole("button", { name: "Redo", exact: true }).click();
+			await expectAnnounced(page, "Redid Make Component Promo");
+			expect((await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft).toContain("<Promo ");
 		});
 
 		test("New Component from the insert toolbar's Component button goes at the insert point; its markup opens", async () => {

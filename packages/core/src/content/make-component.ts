@@ -119,6 +119,8 @@ export type MadeComponent = {
 	placement: { id: string; path: number[] };
 	/** The source's Draft version after the change. */
 	version: string;
+	/** The accepted source change, without unrelated writes arriving before the caller receives it. */
+	sourceChange: { kind: "component" | "template"; id: string; before: ElementTree; after: ElementTree };
 };
 
 /** Moves the node at `input.path` into a new Component and places it there instead. */
@@ -156,8 +158,18 @@ export async function makeComponent(
 				component: component.id,
 				props: [...extracted.values, ...texts.values],
 			};
-			const version = await writeTarget(tx, input.source, replaced(source.tree, input.path, placement), sources);
-			return { component: saved, placement: { id: placement.id, path: [...input.path] }, version };
+			const written = await writeTarget(tx, input.source, replaced(source.tree, input.path, placement), sources);
+			return {
+				component: saved,
+				placement: { id: placement.id, path: [...input.path] },
+				version: written.version,
+				sourceChange: {
+					kind: input.source.kind === "component" ? "component" : "template",
+					id: written.id,
+					before: source.tree,
+					after: written.tree,
+				},
+			};
 		}),
 	);
 }
@@ -183,8 +195,18 @@ export async function createPlacedComponent(
 				component: component.id,
 				props: [],
 			};
-			const version = await writeTarget(tx, place.source, inserted(source.tree, place.path, placement), sources);
-			return { component, placement: { id: placement.id, path: [...place.path] }, version };
+			const written = await writeTarget(tx, place.source, inserted(source.tree, place.path, placement), sources);
+			return {
+				component,
+				placement: { id: placement.id, path: [...place.path] },
+				version: written.version,
+				sourceChange: {
+					kind: place.source.kind === "component" ? "component" : "template",
+					id: written.id,
+					before: source.tree,
+					after: written.tree,
+				},
+			};
 		}),
 	);
 }
@@ -236,25 +258,26 @@ async function readTarget(
 	};
 }
 
-/** Saves the source's new tree through its own saver; answers its Draft's version. */
+/** Saves through the source's usual saver and returns its canonical tree and identity. */
 async function writeTarget(
 	scope: SiteScope,
 	target: ComponentSourceTarget,
 	tree: ElementTree,
 	sources: ComponentSources,
-): Promise<string> {
-	switch (target.kind) {
-		case "component":
-			return componentVersion((await saveComponentDraft(scope, target.componentId, { tree }, sources)).draft);
-		case "siteTemplate":
-			return draftVersion((await saveSiteTemplate(scope, tree, sources)).draft);
-		case "searchTemplate":
-			return draftVersion((await saveSearchTemplate(scope, tree, sources)).draft);
-		case "entryTemplate":
-			return draftVersion((await saveEntryTemplate(scope, target.postTypeId, tree, sources)).draft);
-		case "archiveTemplate":
-			return draftVersion((await saveArchiveTemplate(scope, target.postTypeId, tree, sources)).draft);
+): Promise<{ id: string; version: string; tree: ElementTree }> {
+	if (target.kind === "component") {
+		const saved = await saveComponentDraft(scope, target.componentId, { tree }, sources);
+		return { id: saved.id, version: componentVersion(saved.draft), tree: saved.draft.tree };
 	}
+	const saved =
+		target.kind === "siteTemplate"
+			? await saveSiteTemplate(scope, tree, sources)
+			: target.kind === "searchTemplate"
+				? await saveSearchTemplate(scope, tree, sources)
+				: target.kind === "entryTemplate"
+					? await saveEntryTemplate(scope, target.postTypeId, tree, sources)
+					: await saveArchiveTemplate(scope, target.postTypeId, tree, sources);
+	return { id: saved.id, version: draftVersion(saved.draft), tree: saved.draft };
 }
 
 // ---------------------------------------------------------------------------------------------------

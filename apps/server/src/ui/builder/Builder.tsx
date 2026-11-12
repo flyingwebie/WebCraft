@@ -50,6 +50,7 @@ import { FixedTextDialog, type MadeEditable } from "./FixedTextDialog.tsx";
 import { type FixedTextLocation, rememberFixedText, resolveFixedText } from "./fixed-text.ts";
 import { goToCommands } from "./go-to.ts";
 import { historyLanguage } from "./history-language.ts";
+import { recordSourceHistory } from "./history-receipt.ts";
 import { inspectorHistoryTab, revealInspectorHistory } from "./history-reveal.ts";
 import { connectHistory } from "./history-transport.ts";
 import { InsertToolbar } from "./InsertToolbar.tsx";
@@ -67,6 +68,7 @@ import {
 	targetPath,
 	targetTitle,
 } from "./model.ts";
+import { identifyNewProps } from "./prop-identities.ts";
 import { publishDraft, saveDraft } from "./save.ts";
 import { selectionKey, selectionOf } from "./selection-ref.ts";
 import { serverChangeArrived } from "./server-change.ts";
@@ -523,13 +525,14 @@ export function Builder({
 	/** Applies a change, kept for undo, once the tree still keeps every rule; answers why not. */
 	const apply = useCallback(
 		(
-			next: BuilderDoc,
+			input: BuilderDoc,
 			select: Selection | null,
 			message: string,
 			finish = false,
 			compoundStep?: number,
 			panel: HistoryLocation["panel"] = "tree",
 		): string | undefined => {
+			const next = input.props ? { ...input, props: identifyNewProps(input.props) } : input;
 			const problem = treeProblem(next.tree, allows);
 			if (problem) {
 				announce(problem.message, "interrupt");
@@ -1293,13 +1296,19 @@ export function Builder({
 			if (!(await depart())) return t("builder.components.saveFirst");
 			const api = await getApi();
 			if (prompt.mode === "make" && prompt.path) {
-				const made = await api.components.make({
-					siteId,
-					name: choice.name,
-					source: target,
-					path: [...prompt.path],
-					node: nodeAt(docRef.current.tree, prompt.path),
-					texts: choice.texts,
+				const label = t("editorHistory.makeComponent", { name: choice.name });
+				const path = prompt.path;
+				const made = await history.compound(label, async (step) => {
+					const made = await api.components.make({
+						siteId,
+						name: choice.name,
+						source: target,
+						path: [...path],
+						node: nodeAt(docRef.current.tree, path),
+						texts: choice.texts,
+					});
+					recordSourceHistory(history, made.sourceChange, label, historyLocation(selection, "tree"), step);
+					return made;
 				});
 				announce(t("builder.components.made", { name: made.component.name }));
 				void serverChangeArrived(() => docRef.current.tree, made.placement.id).then(() => {
@@ -1308,23 +1317,33 @@ export function Builder({
 				});
 				return undefined;
 			}
-			const made = await api.components.create({
-				siteId,
-				name: choice.name,
-				...(prompt.mode === "new" && prompt.place
-					? { place: { source: target, path: [...prompt.place.path], list: [...prompt.place.list] } }
-					: {}),
+			const label = t("editorHistory.createComponent", { name: choice.name });
+			const made = await history.compound(label, async (step) => {
+				const made = await api.components.create({
+					siteId,
+					name: choice.name,
+					...(prompt.mode === "new" && prompt.place
+						? { place: { source: target, path: [...prompt.place.path], list: [...prompt.place.list] } }
+						: {}),
+				});
+				if ("sourceChange" in made)
+					recordSourceHistory(history, made.sourceChange, label, historyLocation(selection, "tree"), step);
+				return made;
 			});
 			announce(t("builder.components.created", { name: made.component.name }));
 			// The new, empty Component's markup opens in the HTML panel: the Builder opens it.
-			window.location.assign(`/builder/${siteId}/${targetPath({ kind: "component", componentId: made.component.id })}`);
+			const destination = await history.departure(
+				`/builder/${siteId}/${targetPath({ kind: "component", componentId: made.component.id })}`,
+			);
+			if (destination) window.location.assign(destination);
 			return undefined;
 		} catch (failure) {
 			return componentRefusal(failure, t);
 		}
 	};
 	/** The Props section writes the Component's Props with its tree, as one change. */
-	const changeProps = (props: FieldInput[], message: string) => apply({ ...docRef.current, props }, selection, message);
+	const changeProps = (props: FieldInput[], message: string) =>
+		apply({ ...docRef.current, props }, selection, message, false, undefined, "inspector");
 	const bound = (made: Bound): string | undefined => {
 		if (!bind) return t("builder.fixedText.changed");
 		const current = docRef.current;
@@ -1343,6 +1362,9 @@ export function Builder({
 			},
 			{ kind: "node", path: bind.path },
 			t("builder.bind.done", { binding: `{{ ${made.path} }}` }),
+			false,
+			undefined,
+			"inspector",
 		);
 	};
 

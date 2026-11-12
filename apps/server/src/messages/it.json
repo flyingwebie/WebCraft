@@ -7873,6 +7873,11 @@
 		"reviewPublish": "Rivedi e pubblica il Popup"
 	},
 	"editorHistory": {
+		"makeComponent": "Crea Componente da {name}",
+		"createComponent": "Crea Componente {name}",
+		"addProp": "Aggiungi Prop {name}",
+		"removeProp": "Rimuovi Prop {name}",
+		"editProp": "Modifica Prop {name}",
 		"wrap": "Raggruppa {name}",
 		"unwrap": "Rimuovi il contenitore {name}",
 		"undid": "Annullato {label}",

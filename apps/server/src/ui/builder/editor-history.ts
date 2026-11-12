@@ -36,7 +36,7 @@ export class EditorHistory {
 	private pending = Promise.resolve();
 	private grouping: string | undefined;
 	private compounds = new Map<number, Step>();
-	private actions = new Set<Promise<void>>();
+	private actions = new Set<Promise<unknown>>();
 	private label = (message: string) => message;
 	private words = (key: string, label: string, _title?: string) => `${key} ${label}`;
 	private fallback?: (resource: string) => Promise<HistoryPort | undefined>;
@@ -193,7 +193,7 @@ export class EditorHistory {
 		const step = this.past.find((step) => step.id === id);
 		if (step) step.changes = step.changes.filter((change) => !change.resource.startsWith("input:"));
 	}
-	async compound(label: string, action: (step: number) => Promise<void>) {
+	async compound<T>(label: string, action: (step: number) => Promise<T>): Promise<T> {
 		this.boundary();
 		const step: Step = {
 			id: ++this.serial,
@@ -206,7 +206,7 @@ export class EditorHistory {
 		const finished = action(step.id);
 		this.actions.add(finished);
 		try {
-			await finished;
+			return await finished;
 		} finally {
 			this.compounds.delete(step.id);
 			this.actions.delete(finished);
