@@ -307,6 +307,32 @@ describe("Make Component", () => {
 		expect(await componentNames()).toEqual(names);
 	});
 
+	test("two people making Components of one name at once: one is made, the other is told the name is taken", async () => {
+		const { postTypeId } = await entryPage(
+			"<article><div><h2>{{ title }}</h2></div><div><p>{{ summary }}</p></div></article>",
+		);
+		const article = (await entryTemplate(postTypeId)).nodes[0] as { children: unknown[] };
+		const other = (await install.createStaff({ workspaces: [workspaceId] })).browser;
+		const make = (browser: TestBrowser, index: number) =>
+			browser.api.components
+				.make({
+					siteId,
+					name: "SameName",
+					source: { kind: "entryTemplate", postTypeId },
+					path: [0, 0, index],
+					node: article.children[index],
+				})
+				.then(
+					() => "made",
+					(error: { code?: string }) => error.code,
+				);
+
+		const outcomes = await Promise.all([make(staff, 0), make(other, 1)]);
+
+		expect(outcomes.sort()).toEqual(["COMPONENT_NAME_TAKEN", "made"]);
+		expect((await componentNames()).filter((name) => name === "SameName")).toHaveLength(1);
+	});
+
 	test("only people who may change the Structure make Components", async () => {
 		const { postTypeId } = await entryPage("<article><div><h2>{{ title }}</h2></div></article>");
 		const node = ((await entryTemplate(postTypeId)).nodes[0] as { children: unknown[] }).children[0];
