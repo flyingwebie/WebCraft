@@ -8,7 +8,10 @@ import {
 	retainedValueIdentity,
 	retainedValues,
 } from "@webcraft/renderer";
+import type { ContentProblem } from "../content/errors.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
+import { type FieldInput, parseFields } from "../content/fields.ts";
+import { sameJson } from "../content/json.ts";
 import { readRetainedContract } from "../content/prop-contracts.ts";
 import { readPropJson, readPropText } from "../content/props.ts";
 import { POPUP_FIELDS } from "../popups/index.ts";
@@ -406,15 +409,32 @@ export function createRowRemapper(
 		if (kind === "entry") {
 			for (const placement of list(record(content.layout).placements)) {
 				const p = record(placement);
+				if (typeof p.component !== "string")
+					throw new ArchiveRefusedError("damaged", "A Page Placement needs its Component source.");
 				for (const snapshot of [p, ...list(p.retained).map(record)]) {
 					if (!Array.isArray(snapshot.props))
 						throw new ArchiveRefusedError("damaged", "A Page Placement needs its Prop source contracts.");
-					for (const field of snapshot.props) {
-						try {
-							readRetainedContract(field, String(record(field).id));
-						} catch (error) {
-							throw new ArchiveRefusedError("damaged", (error as Error).message);
+					if (UUID.test(p.component)) {
+						for (const field of snapshot.props) {
+							try {
+								readRetainedContract(field, String(record(field).id));
+							} catch (error) {
+								throw new ArchiveRefusedError("damaged", (error as Error).message);
+							}
 						}
+					} else {
+						// Module declarations use their source keys and Field types, not own-Component ids.
+						if (!moduleProps.has(p.component))
+							throw new ArchiveRefusedError("damaged", "A Module Page Placement needs its source declaration.");
+						const problems: ContentProblem[] = [];
+						const parsed = parseFields(snapshot.props as FieldInput[], problems, {
+							owner: "moduleComponent",
+							postTypeKeys: new Set(),
+							reservedKeys: new Set(),
+							listName: "props",
+						});
+						if (problems.length || !sameJson(parsed, snapshot.props))
+							throw new ArchiveRefusedError("damaged", "Invalid Module Page Prop source contract.");
 					}
 					await values(snapshot.values, snapshot.props, context);
 					await definitions(snapshot.props, context);

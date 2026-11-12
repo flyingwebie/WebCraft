@@ -355,6 +355,8 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 	};
 	connect();
 	const leaving = (event: BeforeUnloadEvent) => {
+		const active = kit.doc.activeElement as HTMLElement | null;
+		if (active?.matches("[data-wc-placement-prop]")) active.blur();
 		for (const flush of flushers) flush();
 		if (queued || busy) {
 			event.preventDefault();

@@ -348,7 +348,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	// Talking to the Site's Edit mode endpoint
 
 	async function call(action: string, body: object): Promise<Answer> {
-		if (["publish", "review/submit", "undo"].includes(action) && layoutTools && !(await layoutTools.finish()))
+		if (["publish", "review/submit", "undo", "end"].includes(action) && layoutTools && !(await layoutTools.finish()))
 			return { ok: false, code: "generic" };
 		try {
 			const response = await send(`/_webcraft/edit/api/${action}`, {

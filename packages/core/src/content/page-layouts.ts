@@ -177,6 +177,14 @@ export async function writePageLayout(
 	const catalogue = await siteComponents(scope, "published", scope.componentSources);
 	const drafts = permissions.structure ? await siteComponents(scope, "draft", scope.componentSources) : null;
 	const site = await siteLanguages(scope);
+	const activeModules = new Set(
+		(await scope.componentSources.moduleComponentsAt(scope)).map((component) => component.id),
+	);
+	const retainedModules = new Set(
+		(await scope.componentSources.retainedModuleComponentsAt(scope))
+			.filter((component) => !activeModules.has(component.id))
+			.map((component) => component.id),
+	);
 	const ids = new Set<string>();
 	const placements: PagePlacement[] = [];
 	for (const raw of own.placements) {
@@ -200,6 +208,11 @@ export async function writePageLayout(
 		if (!permissions.structure && !!p.locked !== !!old?.locked) refuse("Only Staff can lock a Placement.");
 		if (old?.locked && !permissions.structure && !!p.hidden !== !!old.hidden)
 			refuse("A locked Placement cannot be hidden.");
+		if (
+			retainedModules.has(p.component) &&
+			(!old || !sameJson(p.values, (nodeView({ values: old.values }) as { values: DocumentJson }).values))
+		)
+			refuse("Restore the compatible source Module before adding its Placements or editing its Props.");
 		const props = old?.props ?? version.props;
 		if (!sameJson(p.props, props)) refuse("Prop declarations belong to the Component.");
 		validateValues(object(p.values), props);

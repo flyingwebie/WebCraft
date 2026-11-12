@@ -30,10 +30,13 @@ export function PageLayoutSettings({
 		};
 	}, [siteId, t, announce]);
 	async function save(change: { enabled?: boolean; allowedComponents?: string[] }) {
+		const before = settings;
 		setBusy(true);
+		if (before) setSettings({ ...before, ...change });
 		try {
 			setSettings(await (await getApi()).pageLayouts.configure({ siteId, ...change }));
 		} catch (error) {
+			setSettings(before);
 			announce(t(errorMessage(error)), "interrupt");
 		} finally {
 			setBusy(false);

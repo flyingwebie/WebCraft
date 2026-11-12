@@ -1,13 +1,15 @@
-import { afterAll, beforeAll, expect, test } from "bun:test";
+import { afterEach, beforeEach, expect, test } from "bun:test";
 import type { Page } from "playwright";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall, THEMES, type Theme } from "./harness.ts";
 
 let install: BrowserInstall;
-beforeAll(async () => {
+// Each case signs into its own Site as different people. Keep the real authentication quota
+// isolated too: Edit-mode entry tokens and sign-ins share the same per-address rate limit.
+beforeEach(async () => {
 	install = await startBrowserInstall();
 });
-afterAll(async () => {
+afterEach(async () => {
 	await install.close();
 });
 
@@ -105,8 +107,8 @@ for (const theme of THEMES) {
 				(await site.staff.api.pageLayouts.get({ siteId: site.siteId, entryId: site.entryId })).placements[0]?.values,
 			).toEqual({ heading: "Inline Cork", count: 7 });
 			await page.getByRole("button", { name: "Page layout", exact: true }).click();
-			await page.getByRole("button", { name: "Hide", exact: true }).click();
-			await page.locator('main [data-wc-hidden-placement="true"]').waitFor();
+			await page.getByRole("button", { name: "Hide or show", exact: true }).click();
+			await page.locator('main [data-wc-page-placement][data-wc-hidden-placement="true"]').waitFor();
 			await page.getByRole("button", { name: "Close", exact: true }).click();
 			await page.getByRole("button", { name: "Preview", exact: true }).click();
 			await page.waitForFunction(() => !document.querySelector('main [contenteditable="true"]'));
@@ -147,6 +149,10 @@ for (const theme of THEMES) {
 			expect(await rows.nth(1).getAttribute("aria-selected")).toBe("true");
 			await page.keyboard.press("F6");
 			await page.locator('[data-editor-region="inspector"]').getByLabel("Heading", { exact: true }).waitFor();
+			await page.waitForFunction(() => {
+				const shadow = document.querySelector("#webcraft-page-layout")?.shadowRoot;
+				return shadow?.querySelector('[data-editor-region="inspector"]')?.contains(shadow.activeElement ?? null);
+			});
 			await page.keyboard.press("Shift+F6");
 			await tree.waitFor();
 			await rows.filter({ hasText: "Hero · Locked" }).click();
@@ -190,7 +196,7 @@ for (const theme of THEMES) {
 			await dialog.getByLabel("Heading", { exact: true }).press("Tab");
 			await page.locator("h1").filter({ hasText: "Phone North" }).waitFor();
 			await expectNoAxeViolations(page, `Page layout phone Props ${theme}`);
-			await dialog.getByRole("button", { name: "Move", exact: true }).tap();
+			await dialog.getByRole("button", { name: "Move Placement", exact: true }).tap();
 			await page.getByRole("tree").waitFor();
 			await page.getByRole("button", { name: "Insert", exact: true }).tap();
 			const picker = page.getByRole("dialog");
@@ -276,16 +282,17 @@ for (const theme of THEMES) {
 			await expectNoAxeViolations(page, `Page layout settings ${theme}`);
 			await page.goto(install.adminUrl(`/sites/${site.siteId}`));
 			await page.getByRole("button", { name: "Edit on site" }).click();
+			await page.waitForURL((url) => url.hostname !== new URL(install.adminUrl("/")).hostname);
 			await page.getByRole("button", { name: "Page layout", exact: true }).click();
 			const locked = page.waitForResponse(
 				(response) => response.url().endsWith("/layout/save") && response.status() === 200,
 			);
-			await page.getByRole("button", { name: "Lock", exact: true }).click();
+			await page.getByRole("button", { name: "Lock or unlock", exact: true }).click();
 			await locked;
 			const member = await enter(theme, site);
 			try {
 				await member.getByRole("button", { name: "Page layout", exact: true }).click();
-				expect(await member.getByRole("button", { name: "Lock", exact: true }).count()).toBe(0);
+				expect(await member.getByRole("button", { name: "Lock or unlock", exact: true }).count()).toBe(0);
 				expect(
 					await member
 						.getByRole("group", { name: /Hero ·/ })
