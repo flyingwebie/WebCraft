@@ -21320,7 +21320,7 @@
 		"/reports/create": {
 			"post": {
 				"operationId": "reports.create",
-				"summary": "Sets up a Report of a Dashboard: its schedule, language, recipients and review.",
+				"summary": "Sets up a Report of a Dashboard: its schedule, language, recipients and review (recipients: Sensitive, admin only).",
 				"tags": ["reports"],
 				"requestBody": {
 					"required": true,
@@ -21399,7 +21399,7 @@
 		"/reports/update": {
 			"post": {
 				"operationId": "reports.update",
-				"summary": "Changes a Report's name, schedule, language, recipients, review or whether it goes out.",
+				"summary": "Changes a Report's name, schedule, language, recipients, review or whether it goes out (recipients: Sensitive, admin only).",
 				"tags": ["reports"],
 				"requestBody": {
 					"required": true,
@@ -21478,7 +21478,7 @@
 		"/reports/setRecipients": {
 			"post": {
 				"operationId": "reports.setRecipients",
-				"summary": "Changes who a Report goes to.",
+				"summary": "Changes who a Report goes to (Sensitive: admin only).",
 				"tags": ["reports"],
 				"requestBody": {
 					"required": true,

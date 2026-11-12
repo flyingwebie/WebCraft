@@ -22,6 +22,8 @@ type Fixture = {
 	formId: string;
 	/** A Dashboard of the Site, to make Share links to. */
 	dashboardId: string;
+	/** A Report of that Dashboard, to change who receives it. */
+	reportId: string;
 	/** A Site export the Superadmin uploaded into the Workspace, ready to be imported. */
 	siteImportId: string;
 	/** A Member whose access is changed, and one who is removed. */
@@ -106,6 +108,8 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 			key: "sk-test-key-for-the-sensitive-action",
 		}),
 	"stagingPassword.change": (api, { siteId }) => api.staging.setPassword({ siteId, password: "a review password" }),
+	"reportRecipients.change": (api, { siteId, reportId, next }) =>
+		api.reports.setRecipients({ siteId, reportId, recipients: [`client-${next()}@client.example`] }),
 	"shareLink.change": (api, { siteId, dashboardId, next }) =>
 		api.shareLinks.create({ siteId, dashboardId, name: `Client link ${next()}` }),
 	"impersonation.start": (api, { changedMemberId }) => api.impersonation.start({ personId: changedMemberId }),
@@ -151,6 +155,16 @@ beforeAll(async () => {
 	}));
 	const { dashboard } = await admin.api.dashboards.create({ siteId: site.id, name: "Overview" });
 	const { form } = await admin.api.forms.create({ siteId: site.id, name: "Contact" });
+	const { report } = await admin.api.reports.create({
+		siteId: site.id,
+		dashboardId: dashboard.id,
+		name: "Weekly",
+		schedule: "weekly",
+		language: "en",
+		recipients: [],
+		review: false,
+		active: true,
+	});
 	const uploaded = await uploadArchive(admin, workspace.id, await exportedArchive(install, admin, site.id));
 	let made = 0;
 	fixture = {
@@ -161,6 +175,7 @@ beforeAll(async () => {
 		siteId: site.id,
 		formId: form.id,
 		dashboardId: dashboard.id,
+		reportId: report.id,
 		siteImportId: uploaded.id,
 		changedMemberId: changed.personId,
 		removedMemberId: removed.personId,
@@ -244,6 +259,7 @@ describe("each Sensitive action", () => {
 			"stagingPassword.change",
 			"shareLink.change",
 			"contentApi.open",
+			"reportRecipients.change",
 		];
 		expect(answers).toEqual(
 			Object.fromEntries(

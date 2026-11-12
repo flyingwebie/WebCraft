@@ -66,6 +66,13 @@ export const SENSITIVE_ACTIONS = {
 	 * Submission without the Submissions Toolset. Their words and the Auto-reply stay a plain change.
 	 */
 	"formRecipients.change": "sends Form Submissions to an outside address",
+	/**
+	 * Changing who receives a Report: making one with recipients, or adding or removing an address.
+	 * Each Report sends a Dashboard's figures to its recipients. Never for an API token or AI client,
+	 * which could otherwise send a client's figures to any address. Checked in core where recipients
+	 * are written; the Report's other settings stay a plain change.
+	 */
+	"reportRecipients.change": "sends a Dashboard's figures to an outside address",
 	/** A Site's CAPTCHA for its Forms: its secret key is a secret. */
 	"formCaptcha.change": "changes a secret",
 	/** A Site's email settings: its own mail server's password is a secret, and it decides where the Site's mail comes from. */

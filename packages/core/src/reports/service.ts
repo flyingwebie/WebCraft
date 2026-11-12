@@ -18,6 +18,7 @@ import type { Logger } from "../log.ts";
 import type { People } from "../people.ts";
 import { actingPerson, can, personIdOf } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
+import { assertSensitiveActionAllowed } from "../permissions/sensitive.ts";
 import type {
 	Access,
 	BackgroundScope,
@@ -266,6 +267,18 @@ function checkedRecipients(recipients: readonly string[]): string[] {
 		throw new ReportInvalidError("recipients", `A Report goes to at most ${MAX_RECIPIENTS} recipients.`);
 	}
 	return found;
+}
+
+/**
+ * Changing who receives a Report is a Sensitive action (`reportRecipients.change`): it sends a
+ * Dashboard's figures to an email address. Checked where recipients are written (making a Report,
+ * `update`, `setRecipients`), so every other Report change stays available to API clients. The same
+ * addresses again change nothing. Call it after the Permission check.
+ */
+function assertRecipientsChangeAllowed(access: Access, before: readonly string[], after: readonly string[], now: Date) {
+	const had = new Set(before);
+	if (after.length === had.size && after.every((address) => had.has(address))) return;
+	assertSensitiveActionAllowed(access, "reportRecipients.change", now);
 }
 
 function checkedLanguage(language: string): string {
@@ -593,6 +606,7 @@ export function createReports(deps: ReportsDeps): Reports {
 			const language = checkedLanguage(input.language);
 			const recipients = checkedRecipients(input.recipients);
 			const now = clock.now();
+			assertRecipientsChangeAllowed(access, [], recipients, now);
 			const scope = scoped(opened);
 			const row = await scope.transaction(async (tx) => {
 				const made = await tx.insert(reports, {
@@ -628,10 +642,12 @@ export function createReports(deps: ReportsDeps): Reports {
 			const schedule = input.schedule ?? (current.schedule as ReportSchedule);
 			const active = input.active ?? current.active;
 			const now = clock.now();
+			const recipients = input.recipients === undefined ? undefined : checkedRecipients(input.recipients);
+			if (recipients) assertRecipientsChangeAllowed(access, recipientsOf(current.recipients), recipients, now);
 			const set = {
 				...(input.name !== undefined ? { name: checkedName(input.name) } : {}),
 				...(input.language !== undefined ? { language: checkedLanguage(input.language) } : {}),
-				...(input.recipients !== undefined ? { recipients: checkedRecipients(input.recipients) } : {}),
+				...(recipients !== undefined ? { recipients } : {}),
 				...(input.review !== undefined ? { review: input.review } : {}),
 				schedule,
 				active,
@@ -663,6 +679,7 @@ export function createReports(deps: ReportsDeps): Reports {
 			const opened = await openPlace(data, access, place, "reportRecipients.edit");
 			const current = await reportOf(opened, reportId);
 			const checked = checkedRecipients(recipients);
+			assertRecipientsChangeAllowed(access, recipientsOf(current.recipients), checked, clock.now());
 			const scope = scoped(opened);
 			const [row] = await scope.transaction(async (tx) => {
 				const updated = await tx.update(

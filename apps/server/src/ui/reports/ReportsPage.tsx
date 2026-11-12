@@ -50,6 +50,7 @@ import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { formatUtc, formatUtcDate } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
+import { useSensitiveAction } from "../identity-check.tsx";
 import { PageHeader } from "../PageHeader.tsx";
 import {
 	downloadPdf,
@@ -442,6 +443,7 @@ function ReportDialog({
 	const [recipients, setRecipients] = useState(report?.recipients.join("\n") ?? "");
 	const [review, setReview] = useState(report?.review ?? false);
 	const [active, setActive] = useState(report?.active ?? true);
+	const runSensitive = useSensitiveAction();
 	const [problem, setProblem] = useState<Problem | null>(null);
 	const [busy, setBusy] = useState(false);
 	const save = async (event: FormEvent) => {
@@ -451,8 +453,12 @@ function ReportDialog({
 		const fields = { name, schedule, language, recipients: recipientsFrom(recipients), review, active };
 		try {
 			const api = await getApi();
-			if (report) await api.reports.update({ ...place, reportId: report.id, ...fields });
-			else await api.reports.create({ ...place, dashboardId, ...fields });
+			// Changing who receives it is a Sensitive action: "Confirm it's you" when the last check is old.
+			await runSensitive(() =>
+				report
+					? api.reports.update({ ...place, reportId: report.id, ...fields })
+					: api.reports.create({ ...place, dashboardId, ...fields }),
+			);
 			toast.success(t(report ? "reports.saved" : "reports.created", { name: name.trim() }));
 			onClose();
 			await router.invalidate();
@@ -599,6 +605,7 @@ function RecipientsDialog({
 	const router = useRouter();
 	const id = useId();
 	const [recipients, setRecipients] = useState(report.recipients.join("\n"));
+	const runSensitive = useSensitiveAction();
 	const [problem, setProblem] = useState<Problem | null>(null);
 	const [busy, setBusy] = useState(false);
 	const save = async (event: FormEvent) => {
@@ -606,11 +613,11 @@ function RecipientsDialog({
 		setBusy(true);
 		setProblem(null);
 		try {
-			await (await getApi()).reports.setRecipients({
-				...place,
-				reportId: report.id,
-				recipients: recipientsFrom(recipients),
-			});
+			const api = await getApi();
+			// A Sensitive action: "Confirm it's you" when the last check is old.
+			await runSensitive(() =>
+				api.reports.setRecipients({ ...place, reportId: report.id, recipients: recipientsFrom(recipients) }),
+			);
 			toast.success(t("reports.recipientsSaved", { name: report.name }));
 			onClose();
 			await router.invalidate();

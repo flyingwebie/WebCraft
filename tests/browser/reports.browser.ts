@@ -1,5 +1,6 @@
 // Reports and Share links in a real browser (#104): a Dashboard's Reports page with its history (as
-// Staff and as an Owner), the Report dialog and a Report's menu, a Report held for review, the Share
+// Staff and as an Owner), the Report dialog and a Report's menu, an Owner changing recipients
+// ("Confirm it's you": a Sensitive action), a Report held for review, the Share
 // dialog with a link made from the keyboard, and the Share link's own page at phone and desktop widths
 // and its password page (also after a wrong password), in light and dark.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
@@ -144,6 +145,30 @@ for (const theme of THEMES) {
 				"menu",
 				`A Report's menu (${theme})`,
 			);
+		});
+
+		test("an Owner changing who gets a Report confirms it's you first, from the keyboard", async () => {
+			const page = await install.newPage(theme);
+			await install.signInWithOldIdentityCheck(page, owner, 20);
+			await page.goto(install.adminUrl(reportsPath()));
+			await page.waitForLoadState("networkidle");
+			await page.getByRole("button", { name: "Actions for Weekly results" }).click();
+			await page.getByRole("menuitem", { name: "Change recipients" }).click();
+			const dialog = page.getByRole("dialog", { name: "Recipients of Weekly results" });
+			await dialog.getByRole("textbox").fill(`client@bakery.example\nmanager-${theme}@bakery.example`);
+			await dialog.getByRole("button", { name: "Save" }).focus();
+			await page.keyboard.press("Enter");
+
+			const check = page.getByRole("dialog", { name: "Confirm it's you" });
+			await check.waitFor();
+			await page.waitForFunction(() => document.activeElement?.id === "identity-check-password");
+			await expectNoAxeViolations(page, `Reports › Confirm it's you (${theme})`, ["region"]);
+			await page.keyboard.type(owner.password);
+			await page.keyboard.press("Enter");
+			await page.getByText("The recipients of Weekly results were saved.").waitFor();
+
+			const { reports } = await (await install.install.superadmin()).api.reports.list({ siteId, dashboardId });
+			expect(reports.find((found) => found.id === reportId)?.recipients).toContain(`manager-${theme}@bakery.example`);
 		});
 
 		test("a Report waiting for review", async () => {

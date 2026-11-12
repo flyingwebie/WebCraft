@@ -485,9 +485,13 @@ export const PROCEDURES = {
 	),
 	"dashboardTemplates.delete": write("Deletes a Dashboard template."),
 	"reports.list": read("Lists a Dashboard's Reports: schedule, language, recipients and when each goes out next."),
-	"reports.create": write("Sets up a Report of a Dashboard: its schedule, language, recipients and review."),
-	"reports.update": write("Changes a Report's name, schedule, language, recipients, review or whether it goes out."),
-	"reports.setRecipients": write("Changes who a Report goes to."),
+	"reports.create": write(
+		"Sets up a Report of a Dashboard: its schedule, language, recipients and review (recipients: Sensitive, admin only).",
+	),
+	"reports.update": write(
+		"Changes a Report's name, schedule, language, recipients, review or whether it goes out (recipients: Sensitive, admin only).",
+	),
+	"reports.setRecipients": write("Changes who a Report goes to (Sensitive: admin only)."),
 	"reports.delete": write("Deletes a Report and its history."),
 	"reports.sendTest": internal(),
 	"reports.history": read("A Report's history, newest first: each one made, its state and its emails."),
