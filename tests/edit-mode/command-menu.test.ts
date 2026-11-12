@@ -117,8 +117,10 @@ test("a Member is refused Templates, Components and Structure, on the Site and i
 		expectSiteHeaders(refused);
 		expect([action, refused.status]).toEqual([action, 403]);
 	}
-	// Page layout settings are Structure too: refused, and left as they were.
-	await expectRefused(editing.edit("layout/configure", { enabled: true }), "ENTRY_INVALID");
+	// Page layout settings are Structure too: refused as any other missing Permission is, and left as they were.
+	const settings = await editing.edit("layout/configure", { enabled: true });
+	expect(settings.status).toBe(403);
+	await expectRefused(Promise.resolve(settings), "FORBIDDEN");
 	expect(await staff.api.pageLayouts.settings({ siteId })).toEqual({ enabled: false, allowedComponents: [] });
 
 	const api = editor.api;

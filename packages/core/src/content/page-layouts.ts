@@ -7,6 +7,7 @@ import { valueChanges } from "../co-editing/value-changes.ts";
 import { nodeView } from "../co-editing/view.ts";
 import { can, personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
+import { PermissionDeniedError } from "../tenancy/errors.ts";
 import { listComponents, lockComponents, siteComponents } from "./components.ts";
 import { listEntries } from "./entries.ts";
 import { DraftChangedError, EntryInvalidError, PageNotFoundError } from "./errors.ts";
@@ -66,10 +67,8 @@ export async function layoutSettings(scope: SiteScope) {
 	return { enabled: row?.enabled ?? false, allowedComponents: row?.allowedComponents ?? [] };
 }
 export async function configureLayout(scope: SiteScope, change: { enabled?: boolean; allowedComponents?: string[] }) {
-	if (!layoutPermissions(scope).structure)
-		throw new EntryInvalidError([
-			{ at: "layout", message: "Changing Page layout settings requires Structure permission." },
-		]);
+	// Page layout settings are Structure, whichever way the Site was opened (Edit mode opens it to edit Content).
+	if (!layoutPermissions(scope).structure) throw new PermissionDeniedError("structure.edit");
 	return scope.transaction(async (tx) => {
 		await lockComponents(tx);
 		const current = await layoutSettings(tx);
