@@ -1590,6 +1590,8 @@
 		"edit": "Modifica",
 		"preview": "Anteprima",
 		"codeButton": "Codice",
+		"codeTooNarrow": "La modalità codice richiede una finestra larga almeno 1024px",
+		"codeTooNarrowText": "Allarga la finestra per usarla. Sei ancora in modalità modifica.",
 		"devices": "Larghezza del dispositivo",
 		"desktop": "Desktop",
 		"tablet": "Tablet",
@@ -1858,7 +1860,11 @@
 			"archiveTemplate": "{name} · Template archivio",
 			"searchTemplate": "Template ricerca",
 			"skipToLayers": "Vai ai livelli",
-			"editorNavigation": "Navigazione dell’editor"
+			"editorNavigation": "Navigazione dell’editor",
+			"layers": "Livelli",
+			"inspector": "Impostazioni",
+			"tooNarrow": "La modalità codice richiede una finestra larga almeno 1024px",
+			"tooNarrowText": "Allarga la finestra per continuare: niente viene chiuso o perso."
 		},
 		"alsoEditing": "Stanno modificando anche questa pagina",
 		"inReview": "In revisione",
@@ -4242,6 +4248,10 @@
 			"desktop": "Larghezza desktop",
 			"tablet": "Larghezza tablet (768 px)",
 			"phone": "Larghezza telefono (390 px)"
+		},
+		"tooNarrow": {
+			"title": "La modalità codice richiede una finestra larga almeno 1024px",
+			"text": "Lo stesso vale per il Builder. Allarga la finestra per continuare (niente viene chiuso o perso), oppure torna indietro."
 		},
 		"theme": {
 			"dark": "Anteprima scura",

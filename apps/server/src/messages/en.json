@@ -1590,6 +1590,8 @@
 		"edit": "Edit",
 		"preview": "Preview",
 		"codeButton": "Code",
+		"codeTooNarrow": "Code mode needs a window at least 1024px wide",
+		"codeTooNarrowText": "Make the window wider to use it. You're still in Edit mode.",
 		"devices": "Device width",
 		"desktop": "Desktop",
 		"tablet": "Tablet",
@@ -1858,7 +1860,11 @@
 			"archiveTemplate": "{name} · Archive template",
 			"searchTemplate": "Search template",
 			"skipToLayers": "Skip to Layers",
-			"editorNavigation": "Editor navigation"
+			"editorNavigation": "Editor navigation",
+			"layers": "Layers",
+			"inspector": "Settings",
+			"tooNarrow": "Code mode needs a window at least 1024px wide",
+			"tooNarrowText": "Make the window wider to carry on: nothing is closed or lost."
 		},
 		"alsoEditing": "Also editing this page",
 		"inReview": "In review",
@@ -4242,6 +4248,10 @@
 			"desktop": "Desktop width",
 			"tablet": "Tablet width (768 px)",
 			"phone": "Phone width (390 px)"
+		},
+		"tooNarrow": {
+			"title": "Code mode needs a window at least 1024px wide",
+			"text": "So does the Builder. Make the window wider to carry on (nothing is closed or lost), or go back."
 		},
 		"theme": {
 			"dark": "Dark preview",

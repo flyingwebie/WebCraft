@@ -14,9 +14,10 @@ import type {
 
 /**
  * What the editing bar's script is given when it is made: the addresses of its own stylesheet and of
- * the module that opens the page's Drafts live (Co-editing).
+ * the module that opens the page's Drafts live (Co-editing), and the narrowest window Code mode opens
+ * in (`EDITOR_WIDTHS.min`, #138).
  */
-export type EditingBarConfig = { styles: string; drafts: string; body: string };
+export type EditingBarConfig = { styles: string; drafts: string; body: string; codeMinWidth: number };
 
 /**
  * The bar's parts, each one self-contained function served in the same script (`assets.ts`): the
@@ -273,6 +274,8 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	let root: ShadowRoot;
 	/** The element in the shadow root everything the bar shows goes in. */
 	let layer: HTMLElement;
+	/** Turns Code mode on, unless the window is too narrow for it (then a notice says so). */
+	let startCode: (from: HTMLElement) => void = () => {};
 	let bar: HTMLElement;
 
 	let chip: HTMLElement;
@@ -549,10 +552,13 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		};
 		modeEdit.addEventListener("click", () => (coding ? void switchCode(false) : setMode(true)));
 		modePreview.addEventListener("click", () => (coding ? void switchCode(false, true) : setMode(false)));
+		startCode = (from: HTMLElement) => {
+			if (!codeTooNarrow(from)) void switchCode(true);
+		};
 		if (s.canCode || coding) {
 			const modeCode = button({ class: "segment", "aria-pressed": String(coding) }, icon("code"), word("codeButton"));
 			modeCode.addEventListener("click", () => {
-				if (!coding) void switchCode(true);
+				if (!coding) startCode(modeCode);
 			});
 			modes.append(modeCode);
 		}
@@ -833,7 +839,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		if ((state?.canCode || coding) && first.kind !== "library") {
 			const codeButton = button({ class: "secondary small" }, icon("code"), word("openScript"));
 			const kind = first.kind === "component" ? `component:${first.componentId ?? ""}` : first.kind;
-			codeButton.addEventListener("click", () => void openScript(kind));
+			codeButton.addEventListener("click", () => void openScript(kind, codeButton));
 			actions.push(codeButton);
 		}
 		const dismiss = button({ class: "icon-button", "aria-label": word("dismissNotice") }, icon("close"));
@@ -1163,6 +1169,13 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				null,
 				then(() => setMode(!editing)),
 			);
+			if (s.canCode)
+				row(
+					"code",
+					word("codeButton"),
+					null,
+					then(() => startCode(from)),
+				);
 		}
 		if (s.languages.length > 1) {
 			row(
@@ -1274,7 +1287,8 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	 * Opens the failed script in Code mode's JS panel: Code mode on, the panel told which script
 	 * (`site`, `page`, or `component:<id>` for a Component's).
 	 */
-	async function openScript(kind: string): Promise<void> {
+	async function openScript(kind: string, from: HTMLElement): Promise<void> {
+		if (!coding && codeTooNarrow(from)) return;
 		if (!coding) {
 			const answer = await call("code/start", {});
 			if (!answer.ok) return;
@@ -1285,6 +1299,36 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			// Code mode still opens; the JS panel shows the page's script.
 		}
 		win.location.reload();
+	}
+
+	/**
+	 * Below the narrowest window Code mode opens in (the window's width only, as it is now), the Code
+	 * switch says so in a short notice under the control pressed, and Edit mode stays on.
+	 */
+	function codeTooNarrow(from: HTMLElement): boolean {
+		if (win.matchMedia(`(min-width: ${config.codeMinWidth}px)`).matches) return false;
+		const title = el("h2", { id: "wc-code-too-narrow" }, word("codeTooNarrow"));
+		const close = button({ class: "secondary small" }, word("close"));
+		close.addEventListener("click", () => closePopup(true));
+		const panel = el(
+			"div",
+			{ class: "popup dialog", role: "dialog", "aria-labelledby": title.id, tabindex: "-1" },
+			title,
+			el("p", { class: "intro" }, word("codeTooNarrowText")),
+			el("div", { class: "confirm-actions" }, close),
+		);
+		layer.append(panel);
+		const popup: Popup = { trigger: from as HTMLButtonElement, panel, focus: () => panel.focus() };
+		openPanel(popup);
+		// Made for this one time: gone once closed, so no second notice stays in the bar.
+		const gone = new MutationObserver(() => {
+			if (!panel.hidden) return;
+			gone.disconnect();
+			panel.remove();
+			from.removeAttribute("aria-expanded");
+		});
+		gone.observe(panel, { attributes: true, attributeFilter: ["hidden"] });
+		return true;
 	}
 
 	function buildHint(): HTMLElement | null {
