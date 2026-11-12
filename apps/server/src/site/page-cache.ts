@@ -31,6 +31,8 @@ export type PageCache = {
 	get(siteId: string, generation: number, key: string, now: Date): CachedPage | undefined;
 	/** Keeps a page; false when it is a variant past the Site's limit, and wasn't kept. */
 	set(siteId: string, generation: number, key: string, page: CachedPage, options?: { variant?: boolean }): boolean;
+	/** Whether the Site still has room for another variant: past its limit, `set` keeps none. */
+	takesVariants(siteId: string): boolean;
 	/** What the Filters of the page at `path` (an origin and a path) read, as the last render found. */
 	reader(siteId: string, generation: number, path: string): StateReader | undefined;
 	setReader(siteId: string, generation: number, path: string, reader: StateReader): void;
@@ -88,6 +90,10 @@ export function createPageCache(options: { maxBytes?: number; maxVariants?: numb
 			pages.delete(cacheKey);
 			pages.set(cacheKey, page);
 			return { html: page.html, etag: page.etag, headers: page.headers };
+		},
+
+		takesVariants(siteId) {
+			return (variants.get(siteId) ?? 0) < maxVariants;
 		},
 
 		set(siteId, generation, key, page, { variant = false } = {}) {

@@ -739,6 +739,8 @@ export function createTranslations(options: TranslationsOptions): Translations {
 				},
 				job,
 				force,
+				// Re-translate asks the provider itself, whatever the cache holds for these words.
+				true,
 			);
 			const value = values.get(path);
 			if (!value) return;

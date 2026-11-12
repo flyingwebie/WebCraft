@@ -1,6 +1,7 @@
 import {
 	FORM_POST_MAX_BYTES,
 	type FormPostAnswer,
+	type FormPostBody,
 	type InstallServices,
 	readLimitedBody,
 	SENT_PARAMETER,
@@ -26,7 +27,9 @@ import { editSessionOf } from "./edit-mode.ts";
  * token proves the post came after a page of this Site was handed out, and how long after.
  *
  * A Form with file fields posts `multipart/form-data`, up to `FORM_UPLOAD_POST_MAX_BYTES` in all; its
- * other fields still take no more than a post without files. The forms script sends the same posts
+ * other fields still take no more than a post without files, and neither does a `multipart/form-data`
+ * post to a Form without file fields. A post's body is read only once `services.forms.receive` knows
+ * the Form and that it takes posts from the address (`FormPost.body`). The forms script sends the same posts
  * with `fetch` and a header of its own (`FORM_SCRIPT_HEADER`), and is answered in JSON: sent (with the
  * Form's message, or the Page to go to) or the errors to show; anything else and it posts the Form as
  * the browser would.
@@ -58,10 +61,11 @@ export async function formPost(
 		return plainText(415, "Unsupported Media Type", addressHeaders);
 	}
 	const fromScript = request.headers.get(FORM_SCRIPT_HEADER) === "1";
-	const read = type === "multipart/form-data" ? await readMultipart(request) : await readUrlEncoded(request);
 	const answer = await services.forms.receive(host, formId, {
-		fields: read?.fields ?? null,
-		...(read?.files ? { files: read.files } : {}),
+		body: (takesFiles) =>
+			type === "multipart/form-data"
+				? readMultipart(request, takesFiles ? FORM_UPLOAD_POST_MAX_BYTES : FORM_POST_MAX_BYTES)
+				: readUrlEncoded(request),
 		clientAddress: clientAddress(request, services.config),
 		referer: request.headers.get("referer"),
 		via: host.address === "staging" ? "staging" : "domain",
@@ -72,6 +76,12 @@ export async function formPost(
 	switch (answer.kind) {
 		case "notFound":
 			return plainText(404, "Not Found", addressHeaders);
+		case "refused":
+			return plainText(429, "Too Many Requests", {
+				"retry-after": String(answer.retryAfterSeconds),
+				...NO_STORE,
+				...addressHeaders,
+			});
 		case "tooLarge":
 			return plainText(413, "Payload Too Large", addressHeaders);
 		case "sent":
@@ -191,24 +201,19 @@ function scriptAnswer(
 	);
 }
 
-type ReadPost = {
-	fields: Map<string, string[]>;
-	files?: Map<string, { name: string; bytes: Uint8Array }[]>;
-} | null;
-
 /** A urlencoded post's fields, or null when it is larger than any Form takes. */
-async function readUrlEncoded(request: Request): Promise<ReadPost> {
+async function readUrlEncoded(request: Request): Promise<FormPostBody | null> {
 	const body = await readLimitedBody(request, FORM_POST_MAX_BYTES);
 	return body === null ? null : { fields: fieldsOf(new TextDecoder().decode(body)) };
 }
 
 /**
- * A post with files: its fields and files, or null when it is larger than any Form takes, or its
- * fields besides the files are larger than a post without files may be. A file field left empty sends
- * a part with no name and no bytes, which counts as no file.
+ * A post with files: its fields and files, or null when it is larger than `limit` bytes (what its
+ * Form takes), or its fields besides the files are larger than a post without files may be. A file
+ * field left empty sends a part with no name and no bytes, which counts as no file.
  */
-async function readMultipart(request: Request): Promise<ReadPost> {
-	const body = await readLimitedBody(request, FORM_UPLOAD_POST_MAX_BYTES);
+async function readMultipart(request: Request, limit: number): Promise<FormPostBody | null> {
+	const body = await readLimitedBody(request, limit);
 	if (body === null) return null;
 	let data: FormData;
 	try {

@@ -170,13 +170,15 @@ describe("Toolsets", () => {
 		}
 	});
 
-	test("only the Forms Module's Submissions procedures are in the Submissions Toolset", () => {
+	test("only what reads Submissions, or decides who is sent them, is in the Submissions Toolset", () => {
 		const inSubmissions = [...tools.values()]
 			.filter((tool) => (tool._meta?.["webcraft/toolsets"] as string[] | undefined)?.includes?.("submissions"))
 			.map((tool) => tool.name)
 			.sort();
 		expect(inSubmissions).toEqual(
 			[
+				"forms_publish_emails",
+				"forms_save_emails",
 				"forms_submissions_delete",
 				"forms_submissions_export",
 				"forms_submissions_get",

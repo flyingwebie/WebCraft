@@ -250,7 +250,7 @@ describe("sending files", () => {
 		expect(await none.text()).toContain('<a href="#wc-form-1-cv">Your CV: Choose a file.</a>');
 	});
 
-	test("a post larger than any Form takes is answered 413 and kept as spam, its files never kept", async () => {
+	test("a post larger than any Form takes is answered 413, and nothing of it is kept", async () => {
 		const before = (await submissions(owner).submissions.list({ siteId, formId, folder: "spam" })).total;
 		const huge = new Uint8Array(33 * 1024 * 1024);
 		huge.set(new TextEncoder().encode("%PDF-1.4\n"));
@@ -258,15 +258,16 @@ describe("sending files", () => {
 		const response = await send({ cv: [cv("huge.pdf", huge)] });
 
 		expect(response.status).toBe(413);
-		const spam = await submissions(owner).submissions.list({ siteId, formId, folder: "spam" });
-		expect(spam.total).toBe(before + 1);
-		expect(spam.submissions[0]).toMatchObject({ spamReason: "size", values: [] });
+		expect((await submissions(owner).submissions.list({ siteId, formId, folder: "spam" })).total).toBe(before);
 	});
 
 	test("multipart text has the same byte cap as a post without files, including UTF-8", async () => {
+		const before = (await submissions(owner).submissions.list({ siteId, formId, folder: "spam" })).total;
+
 		const response = await send({ cv: [cv()] }, { name: "é".repeat(270_000) });
+
 		expect(response.status).toBe(413);
-		expect(await newest("spam")).toMatchObject({ spamReason: "size", values: [] });
+		expect((await submissions(owner).submissions.list({ siteId, formId, folder: "spam" })).total).toBe(before);
 	});
 
 	test("spam keeps a file's name and size, never its bytes", async () => {

@@ -19,6 +19,7 @@ import { languageName } from "../content/DraftParts.tsx";
 import { errorMessage } from "../errors.ts";
 import { formatUtc } from "../format.ts";
 import { useT } from "../i18n.tsx";
+import { useSensitiveAction } from "../identity-check.tsx";
 import { RevisionsOff } from "./HistoryCard.tsx";
 import {
 	attributionText,
@@ -366,6 +367,7 @@ function RestoreDialog({
 	editor: LinkProps | null;
 }) {
 	const t = useT();
+	const runSensitive = useSensitiveAction();
 	const router = useRouter();
 	const navigate = useNavigate();
 	const [open, setOpen] = useState(false);
@@ -378,7 +380,8 @@ function RestoreDialog({
 		setError(null);
 		try {
 			const api = await getApi();
-			await api.history.restore({ siteId, item, copy: { type: copy.type, id: copy.id } });
+			// Restoring a Form's emails with other recipients is a Sensitive action.
+			await runSensitive(() => api.history.restore({ siteId, item, copy: { type: copy.type, id: copy.id } }));
 			setOpen(false);
 			toast.success(t("history.restore.done"));
 			if (editor) await navigate(editor);

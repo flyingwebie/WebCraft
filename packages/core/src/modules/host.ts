@@ -510,9 +510,7 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 	const statusOf = (module: LoadedModule, granted: readonly string[] | undefined): ModuleStatus => {
 		if (!module.runnable) return "cannot-run";
 		if (granted === undefined) return "waiting";
-		return isCovered(module.manifest, granted, module.siteScript?.beforeConsent === true)
-			? "approved"
-			: "update-waiting";
+		return isCovered(module, granted) ? "approved" : "update-waiting";
 	};
 
 	const isApproved = async (module: RunnableModule) =>
@@ -855,7 +853,7 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 								language,
 							)
 						: { permissions: [], uses: [], outsideHosts: [], siteScript: null },
-					adds: additionsView(module, language),
+					adds: additionsView(module, approval?.granted ?? null, language),
 					partitions: module.runnable ? await partitions.views(module, language) : [],
 				});
 			}
@@ -866,7 +864,7 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			const module = find(moduleId);
 			if (!module.runnable) throw new ModuleCannotRunError(module.problem);
 			if (module.manifest.version !== version) throw new ModuleChangedError(module.manifest.version);
-			const granted = consentItems(module.manifest, module.siteScript?.beforeConsent === true);
+			const granted = consentItems(module);
 			const values = { version, granted, approvedAt: scope.now(), approvedBy: personIdOf(scope.access.actor) };
 			await scope.transaction(async (tx) => {
 				await tx.db

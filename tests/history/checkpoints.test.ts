@@ -6,7 +6,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { HistoryItem } from "@webcraft/core";
 
-import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { createTestInstall, TEST_PASSWORD, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { type HistorySite, historySite } from "./support.ts";
 
 let install: TestInstall;
@@ -234,6 +234,8 @@ describe("every kind of Draft", () => {
 			},
 		];
 		for (const kind of kinds) {
+			// Setting who receives a Form's Submissions is a Sensitive action; changing the subject after isn't.
+			await staff.api.session.confirmIdentity({ password: TEST_PASSWORD });
 			await kind.save("one");
 			await install.clock.advance(MINUTE);
 			const item = await kind.save("two");

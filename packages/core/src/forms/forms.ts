@@ -22,6 +22,7 @@ import { noteDraftChange } from "../history/checkpoints.ts";
 import { saveRevision } from "../history/copies.ts";
 import { isUuid } from "../ids.ts";
 import { personIdOf } from "../permissions/can.ts";
+import { assertSensitiveActionAllowed } from "../permissions/sensitive.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 import { type FormVersionInput, newFormVersion, readFormVersion, storedFormVersion } from "./definition.ts";
 import { type FormEmailsInput, readFormEmails, storedFormEmails } from "./emails.ts";
@@ -196,13 +197,12 @@ export async function saveFormEmails(scope: SiteScope, formId: string, input: Fo
 	return scope.transaction(async (tx) => {
 		const row = await lockForm(tx, formId);
 		const problems: ContentProblem[] = [];
-		const emails = readFormEmails(
-			input,
-			storedFormEmails(row.emailsDraft),
-			storedFormVersion(row.draft).fields,
-			problems,
-		);
+		const current = storedFormEmails(row.emailsDraft);
+		const emails = readFormEmails(input, current, storedFormVersion(row.draft).fields, problems);
 		if (problems.length > 0) throw new FormInvalidError(problems);
+		// Who receives the Form's Submissions is a Sensitive action, whichever way the Draft is written.
+		const receivers = receiversChange(current, emails);
+		if (receivers) assertSensitiveActionAllowed(tx.access, "formRecipients.change", tx.now());
 		const [updated] = await tx.update(
 			forms,
 			{
@@ -216,8 +216,34 @@ export async function saveFormEmails(scope: SiteScope, formId: string, input: Fo
 		);
 		if (!updated) throw new FormNotFoundError();
 		await noteEmailsChange(tx, row, emails);
+		if (receivers) {
+			await tx.audit("formRecipients.change", { formId: row.id, key: row.key, name: row.name, ...receivers });
+		}
 		return toForm(updated);
 	});
+}
+
+/**
+ * What a change to a Form's emails does to who receives its Submissions: the addresses it adds and
+ * removes, over every Notification's recipients and routes. Null when each Notification keeps its
+ * recipients and routing as they are (its words may change).
+ */
+function receiversChange(before: FormEmails, after: FormEmails): { added: string[]; removed: string[] } | null {
+	const receiving = (emails: FormEmails) =>
+		emails.notifications.map(({ recipients, routing }) => ({ recipients, routing }));
+	if (sameJson(receiving(before), receiving(after))) return null;
+	const addresses = (emails: FormEmails) =>
+		new Set(
+			emails.notifications.flatMap(({ recipients, routing }) => [
+				...recipients,
+				...(routing?.routes.flatMap((route) => route.recipients) ?? []),
+			]),
+		);
+	const [had, has] = [addresses(before), addresses(after)];
+	return {
+		added: [...has].filter((address) => !had.has(address)).sort(),
+		removed: [...had].filter((address) => !has.has(address)).sort(),
+	};
 }
 
 /**

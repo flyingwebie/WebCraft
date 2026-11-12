@@ -9,8 +9,11 @@ import type { WidgetAnswerView } from "./views.ts";
 
 const BOM = "﻿";
 
-/** Characters that start a formula in spreadsheet programs. */
-const FORMULA_START = /^[=+\-@\t\r]/;
+/**
+ * Characters that start a formula in spreadsheet programs, their full-width forms too (＝ ＋ － ＠),
+ * which programs reading East Asian text take the same way.
+ */
+const FORMULA_START = /^[=+\-@\t\r＝＋－＠]/;
 
 /** A cell, quoted, its quotes doubled, a formula's start made text. */
 export function csvCell(value: string | number): string {
