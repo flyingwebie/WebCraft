@@ -7,6 +7,7 @@ import { z } from "zod";
 import { type AuditVia, recordAudit } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import type { Email } from "./email/index.ts";
+import { clientNetwork } from "./ip-ranges.ts";
 import { defineJob, type JobQueue } from "./jobs/define.ts";
 import type { Logger } from "./log.ts";
 import { RateLimitedError, type RateLimitRule, type RateLimits } from "./rate-limits.ts";
@@ -101,8 +102,9 @@ export function createPasswordResets({
 
 	return {
 		async request(address, clientAddress) {
+			// Per network, as wrong passwords are counted: an IPv6 client is its /64, not one address of it.
 			const within = await rateLimits.tally(
-				`password-reset:address:${clientAddress ?? "unknown"}`,
+				`password-reset:address:${clientNetwork(clientAddress)}`,
 				PASSWORD_RESET_ADDRESS_LIMIT,
 			);
 			if (!within.within) {

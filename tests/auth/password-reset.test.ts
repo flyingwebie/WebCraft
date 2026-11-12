@@ -132,6 +132,18 @@ describe("asking for a reset link", () => {
 		await expect(request("someone-else@client.example", browser)).resolves.toEqual({ ok: true });
 	});
 
+	test("counts an IPv6 client by its /64, not by each address of it", async () => {
+		for (let asked = 0; asked < 5; asked++) {
+			await request(`someone-${asked}@client.example`, install.browser({ address: `2001:db8:5:5::${asked + 1}` }));
+		}
+		await expect(
+			request("someone-else@client.example", install.browser({ address: "2001:db8:5:5:ffff::9" })),
+		).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+		await expect(
+			request("someone-else@client.example", install.browser({ address: "2001:db8:5:6::1" })),
+		).resolves.toEqual({ ok: true });
+	});
+
 	test("is in the person's Admin language", async () => {
 		const person = await newPerson();
 		await person.browser.api.me.updatePreferences({ adminLanguage: "it" });
