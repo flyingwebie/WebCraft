@@ -22,7 +22,13 @@ export type BuilderDestinations = {
 	reason: "noHomePage" | "noSearchPage" | "noEntries" | "noAddress" | "notPlaced" | "saveFirst" | null;
 };
 
-export async function builderDestinations(scope: SiteScope, sources: ComponentSources, target: BuilderTarget, entryId?: string): Promise<BuilderDestinations> {
+export async function builderDestinations(
+	scope: SiteScope,
+	sources: ComponentSources,
+	render: (path: string) => Promise<string | null>,
+	target: BuilderTarget,
+	entryId?: string,
+): Promise<BuilderDestinations> {
 	const source = await readSource(scope, target, sources);
 	const site = await siteLanguages(scope);
 	const languages = { language: site.defaultLanguage, defaultLanguage: site.defaultLanguage };
@@ -54,16 +60,24 @@ export async function builderDestinations(scope: SiteScope, sources: ComponentSo
 	let reason: BuilderDestinations["reason"] = null;
 	if (target.kind === "siteTemplate" || target.kind === "searchTemplate") {
 		const page = target.kind === "siteTemplate" ? special.homePage : special.searchPage;
-		if (page) addEntry(page.id, [target.kind === "siteTemplate" ? "site" : "content"]);
-		reason = target.kind === "siteTemplate" ? "noHomePage" : "noSearchPage";
+		if (page && (target.kind === "siteTemplate" || source.template))
+			addEntry(page.id, [target.kind === "siteTemplate" ? "site" : "content"]);
+		reason = page
+			? target.kind === "searchTemplate" && !source.template
+				? "saveFirst"
+				: "noAddress"
+			: target.kind === "siteTemplate"
+				? "noHomePage"
+				: "noSearchPage";
 	} else if (target.kind === "entryTemplate") {
 		const entry = rows.find((row) => row.postTypeId === target.postTypeId && (!entryId || row.id === entryId));
 		if (entryId && !entry) throw new EntryNotFoundError();
 		picked = entry?.id ?? null;
 		if (entry) addEntry(entry.id, ["content"]);
-		reason = entry ? "noAddress" : "noEntries";
+		reason = entry ? (source.template ? "noAddress" : "saveFirst") : "noEntries";
 	} else if (target.kind === "archiveTemplate") {
-		if (source.template && source.postType) add(pathText(archiveAddressOf(source.postType)), source.postType.name, ["content"]);
+		if (source.template && source.postType)
+			add(pathText(archiveAddressOf(source.postType)), source.postType.name, ["content"]);
 		reason = "saveFirst";
 	} else {
 		const catalogue = await siteComponents(scope, "draft", sources);
@@ -84,7 +98,8 @@ export async function builderDestinations(scope: SiteScope, sources: ComponentSo
 			visit(tree.nodes, root, 0);
 			return found;
 		};
-		for (const template of await scope.select(templates)) {
+		const allTemplates = await scope.select(templates);
+		for (const template of allTemplates) {
 			const refs = refsIn(template.draft as ElementTree, template.kind === "site" ? "site" : "content");
 			if (!refs.length) continue;
 			if (template.kind === "search") {
@@ -93,10 +108,36 @@ export async function builderDestinations(scope: SiteScope, sources: ComponentSo
 				const type = types.find((type) => type.id === template.postTypeId);
 				if (type && !isPagePostType(type)) add(pathText(archiveAddressOf(type)), type.name, refs);
 			} else {
-				for (const row of rows) if (template.kind === "site" || (row.postTypeId === template.postTypeId && row.id !== special.searchPage?.id)) addEntry(row.id, refs);
+				if (template.kind === "site")
+					for (const archive of allTemplates.filter((each) => each.kind === "archive")) {
+						const type = types.find((type) => type.id === archive.postTypeId);
+						if (type && !isPagePostType(type)) add(pathText(archiveAddressOf(type)), type.name, refs);
+					}
+				for (const row of rows)
+					if (template.kind === "site" || (row.postTypeId === template.postTypeId && row.id !== special.searchPage?.id))
+						addEntry(row.id, refs);
 			}
 		}
 		reason = "notPlaced";
 	}
-	return { pages, entryId: picked, reason: pages.length ? null : reason };
+	// The real renderer resolves routing, visibility, conditional branches and nested Composition.
+	// A structural reference alone is insufficient: its branch may not appear on this page.
+	const reachable: typeof pages = [];
+	for (const page of pages) {
+		const html = await render(page.path);
+		if (html === null) continue;
+		const refs =
+			target.kind === "component"
+				? page.refs.filter(
+						(ref) =>
+							html.includes(`<!--wc-code-empty ${encodeURIComponent(ref).replace(/-/g, "%2D")}-->`) ||
+							html.includes(`data-wc-code="${ref}#`) ||
+							html.includes(`data-wc-code="${ref}/`) ||
+							html.includes(`<!--wc-code-start ${encodeURIComponent(ref).replace(/-/g, "%2D")}%23`) ||
+							html.includes(`<!--wc-code-start ${ref}#`),
+					)
+				: page.refs;
+		if (refs.length) reachable.push({ ...page, refs });
+	}
+	return { pages: reachable, entryId: picked, reason: reachable.length ? null : reason };
 }

@@ -26,8 +26,8 @@ import {
 import { and, desc, eq } from "drizzle-orm";
 
 import type { ComponentSources } from "../content/components.ts";
-import { EntryNotFoundError } from "../content/errors.ts";
 import { entryStatus, entryValues } from "../content/entries.ts";
+import { EntryNotFoundError } from "../content/errors.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
 import { linksIn } from "../content/field-values.ts";
 import { globalsVersion } from "../content/globals.ts";
@@ -227,7 +227,11 @@ async function sampleEntry(
 	site: Parts,
 	entryId?: string,
 ): Promise<{ root: Parts; current: string; values: unknown } | undefined> {
-	const row = await scope.first(entries, and(eq(entries.postTypeId, postType.id), entryId ? eq(entries.id, entryId) : undefined), { orderBy: [desc(entries.updatedAt)] });
+	const row = await scope.first(
+		entries,
+		and(eq(entries.postTypeId, postType.id), entryId ? eq(entries.id, entryId) : undefined),
+		{ orderBy: [desc(entries.updatedAt), entries.id] },
+	);
 	if (!row && entryId) throw new EntryNotFoundError();
 	if (!row) return undefined;
 	const version = storedVersion(row.draft);

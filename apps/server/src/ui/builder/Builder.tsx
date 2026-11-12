@@ -33,8 +33,8 @@ import { Announcer, useAnnouncement } from "../content/reorder.tsx";
 import { errorCode, errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
 import { BuilderNavigation, type ReturnPage } from "./BuilderNavigation.tsx";
-import { selectionKey, selectionOf } from "./selection-ref.ts";
 import { Canvas, type CanvasTarget, type CanvasWidth } from "./Canvas.tsx";
+import { ComponentScriptPanel } from "./ComponentScriptPanel.tsx";
 import { CssPanel, type CssPanelPort } from "./CssPanel.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
 import { FixedTextDialog, type MadeEditable } from "./FixedTextDialog.tsx";
@@ -47,6 +47,7 @@ import { type LayerClipboard, layerLocation, runLayerAction } from "./layer-acti
 import { type MarkupProblem, MarkupView } from "./MarkupView.tsx";
 import { type BuilderDoc, type BuilderTarget, layerName, type Opened, type Selection, targetTitle } from "./model.ts";
 import { publishDraft, saveDraft } from "./save.ts";
+import { selectionKey, selectionOf } from "./selection-ref.ts";
 import {
 	type Changed,
 	canHoldChildren,
@@ -77,11 +78,9 @@ function docOf(opened: Opened): BuilderDoc {
 }
 
 /**
- * The visual builder (#66): one Template or Component, full-screen, for Staff. Its own top bar (back
- * to the admin, the name, where its Draft stands, the Visual and Template markup views, the canvas's
- * width and light/dark preview, fixed text shown or not, undo and redo, Save and Publish), then the
- * Layers panel, the canvas and the selected layer's settings and styles. The builder and the Template
- * markup view edit the same shared Draft as Code mode.
+ * One Template or Component, full-screen, with shared Layers, Inspector and docked code panels.
+ * The preview canvas and Code mode on a real page edit the same shared Draft. The top bar owns
+ * preview data, navigation, history, saving and publishing.
  */
 export function Builder({
 	siteId,
@@ -90,6 +89,7 @@ export function Builder({
 	back,
 	select,
 	returnPage,
+	previewEntryId,
 }: {
 	siteId: string;
 	target: BuilderTarget;
@@ -98,6 +98,7 @@ export function Builder({
 	/** What is selected when the builder opens: where a Filter is placed (the Filter builder opens it so). */
 	select?: { filter: string } | { element: string };
 	returnPage?: ReturnPage;
+	previewEntryId?: string;
 }) {
 	const t = useT();
 	const navigate = useNavigate();
@@ -109,11 +110,21 @@ export function Builder({
 	const [selection, setSelection] = useState<Selection | null>(() => {
 		if (select && "element" in select) return selectionOf(initial.tree, select.element);
 		const path = select && "filter" in select ? pathOfFilter(initial.tree, select.filter) : undefined;
-		return path ? { kind: "node", path } : null;
+		return path ? { kind: "node", path } : initial.tree.nodes.length ? { kind: "node", path: [0] } : null;
 	});
-	const [entryId, setEntryId] = useState("");
-	const [locations, setLocations] = useState<{ text: string; ranges: { key: string; start: number; end: number }[] }>({ text: "", ranges: [] });
+	const oneOffDeparture = useRef<(() => Promise<boolean>) | null>(null);
+	const inputRevision = useRef(0);
+	const jsDeparture = useRef<(() => Promise<boolean>) | null>(null);
+	const cssDeparture = useRef<(() => Promise<boolean>) | null>(null);
+	const [entryId, setEntryId] = useState(previewEntryId ?? "");
+	const [locations, setLocations] = useState<{ text: string; ranges: { key: string; start: number; end: number }[] }>({
+		text: "",
+		ranges: [],
+	});
 
+	useEffect(() => {
+		if (!selection && doc.tree.nodes.length) setSelection({ kind: "node", path: [0] });
+	}, [selection, doc.tree]);
 	const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
 	const [grab, setGrab] = useState<{ doc: BuilderDoc; selection: Selection; past: BuilderDoc[] } | null>(null);
 	const [markup, setMarkup] = useState("");
@@ -203,8 +214,7 @@ export function Builder({
 			setGrab(null);
 			docRef.current = next;
 			setDoc(next);
-			if (markupVersion.current === appliedMarkupVersion.current)
-				void refreshMarkup(next);
+			if (markupVersion.current === appliedMarkupVersion.current) void refreshMarkup(next);
 			if (!Object.keys(next.styles).length) setSaved(JSON.stringify(next));
 		},
 		onRefused(refusal) {
@@ -246,15 +256,20 @@ export function Builder({
 	}, [doc, refreshMarkup]);
 	useEffect(() => {
 		let current = true;
-		void getApi().then((api) => api.builder.read({ siteId, target, markup })).then((read) => {
-			if (current && markupRef.current === markup) setLocations({ text: markup, ranges: read.locations });
-		}).catch(() => {});
-		return () => { current = false; };
+		void getApi()
+			.then((api) => api.builder.read({ siteId, target, markup }))
+			.then((read) => {
+				if (current && markupRef.current === markup) setLocations({ text: markup, ranges: read.locations });
+			})
+			.catch(() => {});
+		return () => {
+			current = false;
+		};
 	}, [siteId, target, markup]);
 
 	const dirty =
 		(documentId ? shared.status === "saving" || Object.keys(doc.styles).length > 0 : JSON.stringify(doc) !== saved) ||
-		(markup !== markupBase);
+		markup !== markupBase;
 
 	const writeShared = useCallback(
 		(next: BuilderDoc) => {
@@ -474,7 +489,6 @@ export function Builder({
 
 	// biome-ignore lint/correctness/useExhaustiveDependencies: a change to the Design system's Draft (`designVersion`) shows too.
 	useEffect(() => {
-		
 		let current = true;
 		const handle = setTimeout(async () => {
 			try {
@@ -568,7 +582,9 @@ export function Builder({
 			? { kind: "element", id: selectedNode.id }
 			: selectedNode?.type === "component"
 				? { kind: "placement", id: selectedNode.id }
-				: null;
+				: selection && selectionKey(doc.tree, selection)
+					? { kind: "structural", id: selectionKey(doc.tree, selection) ?? "" }
+					: null;
 	const fixedIds = useMemo(() => {
 		if (!showFixed) return [];
 		const ids: string[] = [];
@@ -596,16 +612,24 @@ export function Builder({
 	// ---------------------------------------------------------------------------------------------
 	// Views, saving and publishing
 
-
 	/** Saves the Draft; answers the builder reopened on what was saved, or null when it wasn't. */
+	const saveActive = useRef(false);
 	const save = async (over?: { version: string | null }): Promise<Opened | null> => {
+		if (saveActive.current) return null;
+		saveActive.current = true;
 		setBusy("save");
+		const revision = markupVersion.current;
+		const textAtStart = markupRef.current;
 		let started = docRef.current;
 		try {
+			if (cssDeparture.current && !(await cssDeparture.current())) return null;
+			if (jsDeparture.current && !(await jsDeparture.current())) return null;
 			const api = await getApi();
-			if (markup !== markupBase) {
-				const read = await api.builder.read({ siteId, target, markup, ...propsChange(started) });
-				const next = acceptMarkup(read, markup);
+			if (markupVersion.current !== revision) return null;
+			if (textAtStart !== markupBase) {
+				const read = await api.builder.read({ siteId, target, markup: textAtStart, ...propsChange(started) });
+				if (markupVersion.current !== revision) return null;
+				const next = acceptMarkup(read, textAtStart);
 				if (!next) return null;
 				started = next;
 			}
@@ -614,7 +638,7 @@ export function Builder({
 			if (documentId && Object.keys(started.styles).length === 0) {
 				setSaved(JSON.stringify(docOf(latest)));
 				announce(t("builder.saved", { name: title }));
-				return latest;
+				return markupVersion.current === revision && docRef.current === started ? latest : null;
 			}
 			// The snapshot and version must describe the same Draft; peers may edit while flushing.
 			const snapshot = documentId ? { ...started, tree: latest.tree, props: latest.props } : started;
@@ -636,6 +660,7 @@ export function Builder({
 			setConflict(null);
 			if (docRef.current === started) {
 				const next = docOf(fresh);
+				docRef.current = next;
 				setDoc(next);
 				setSaved(JSON.stringify(next));
 				setSelection((before) => (before?.kind === "node" && !nodeAt(next.tree, before.path) ? null : before));
@@ -647,7 +672,8 @@ export function Builder({
 				}
 				setSaved(JSON.stringify(docOf(fresh)));
 			}
-			{
+			if (markupVersion.current === revision) {
+				markupRef.current = stored.markup;
 				setMarkup(stored.markup);
 				setMarkupBase(stored.markup);
 			}
@@ -655,7 +681,7 @@ export function Builder({
 			setMarkupProblems([]);
 			toast.success(t("builder.saved", { name: title }));
 			announce(t("builder.saved", { name: title }));
-			return fresh;
+			return markupVersion.current === revision ? fresh : null;
 		} catch (failure) {
 			if (errorCode(failure) === "CHANGED_MEANWHILE") {
 				const version = (failure as { data?: { version?: string | null } }).data?.version ?? null;
@@ -666,6 +692,7 @@ export function Builder({
 			}
 			return null;
 		} finally {
+			saveActive.current = false;
 			setBusy(null);
 		}
 	};
@@ -677,9 +704,15 @@ export function Builder({
 		return () => clearTimeout(timer);
 	}, [doc.styles, documentId, dirty]);
 
+	const depart = async () => {
+		const revision = inputRevision.current;
+		if (oneOffDeparture.current && !(await oneOffDeparture.current())) return false;
+		return !!(await saveNow.current()) && inputRevision.current === revision;
+	};
+
 	const publish = async () => {
-		let current: Opened | null = opened;
-		if (dirty) current = await save();
+		if (oneOffDeparture.current && !(await oneOffDeparture.current())) return;
+		const current = await save();
 		if (!current) return;
 		if (target.kind !== "component" && !current.template) {
 			toast.error(t("builder.saveFirst"));
@@ -784,9 +817,23 @@ export function Builder({
 	const selectedNodeForInsert = selection?.kind === "node" ? nodeAt(doc.tree, selection.path) : undefined;
 
 	return (
-		<div className="bg-background flex h-svh flex-col">
+		<div
+			className="bg-background flex h-svh flex-col"
+			onInputCapture={() => inputRevision.current++}
+			onChangeCapture={() => inputRevision.current++}
+		>
 			<header className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
-				<Link onClick={(event) => { event.preventDefault(); void save().then((saved) => { if (saved) void navigate({ to: back.to, params: { siteId } }); }); }} to={back.to} params={{ siteId }} className={buttonVariants({ variant: "ghost", size: "sm" })}>
+				<Link
+					onClick={(event) => {
+						event.preventDefault();
+						void depart().then((saved) => {
+							if (saved) void navigate({ to: back.to, params: { siteId } });
+						});
+					}}
+					to={back.to}
+					params={{ siteId }}
+					className={buttonVariants({ variant: "ghost", size: "sm" })}
+				>
 					<ArrowLeftIcon aria-hidden="true" className="rtl:rotate-180" />
 					{back.label}
 				</Link>
@@ -796,9 +843,16 @@ export function Builder({
 					{status ? <StatusBadge status={status} /> : <Badge variant="outline">{t("builder.status.new")}</Badge>}
 					{dirty ? <Badge variant="secondary">{t("builder.status.unsaved")}</Badge> : null}
 				</div>
-				<BuilderNavigation siteId={siteId} target={target} entryId={entryId} onEntry={setEntryId}
-					returnPage={returnPage} selection={selection ? selectionKey(doc.tree, selection) : null}
-					beforeLeave={async () => !!(await save())} />
+				<BuilderNavigation
+					siteId={siteId}
+					target={target}
+					entryId={entryId}
+					onEntry={setEntryId}
+					revision={opened.version}
+					returnPage={returnPage}
+					selection={selection ? selectionKey(doc.tree, selection) : null}
+					beforeLeave={depart}
+				/>
 				<div className="ms-auto flex flex-wrap items-center gap-1">
 					<fieldset className="flex rounded-md border p-0.5">
 						<legend className="sr-only">{t("builder.width.label")}</legend>
@@ -896,7 +950,7 @@ export function Builder({
 				tabIndex={-1}
 				className="grid min-h-0 flex-1 outline-none lg:grid-cols-[16rem_minmax(0,1fr)_18rem] lg:grid-rows-[minmax(16rem,1fr)_minmax(15rem,35vh)]"
 			>
-				{(
+				{
 					<section aria-labelledby="layers-heading" className="flex min-h-0 flex-col border-e lg:row-span-2">
 						<InsertToolbar
 							where={insertWhere}
@@ -949,7 +1003,7 @@ export function Builder({
 							}}
 						/>
 					</section>
-				)}
+				}
 				<section aria-label={t("builder.canvas.label")} className="bg-muted flex min-h-0 flex-col">
 					{problems.length > 0 ? (
 						<div aria-live="polite" className="border-destructive/40 bg-destructive/5 border-b px-3 py-2 text-sm">
@@ -1022,9 +1076,11 @@ export function Builder({
 						fixedText={fixedIds}
 						placeholderWords={placeholderWords}
 						onSelect={(found) => {
-							const path = pathOfId(doc.tree, found.id);
+							const next = selectionOf(doc.tree, found.id);
+							if (!next) return;
+							setSelection(next);
+							const path = next.kind === "node" ? next.path : next.list.owner;
 							if (!path) return;
-							setSelection({ kind: "node", path });
 							setFocusLayers((count) => count + 1);
 							const node = nodeAt(doc.tree, path);
 							if (node) announce(t("builder.selected", { name: layerName(t, node, catalogue).name }));
@@ -1042,36 +1098,12 @@ export function Builder({
 						onMove={canvasMove}
 						onShortcut={(event) => shortcut.current(event)}
 					/>
-					{view === "visual" ? (
-						<section
-							aria-label={t("builder.css.heading")}
-							className="bg-background flex max-h-[45vh] min-h-56 flex-col overflow-auto border-t p-3"
-						>
-							<CssPanel
-								port={cssPort}
-								element={
-									selectedNode?.type === "element" ? { id: selectedNode.id, classes: selectedNode.classes } : null
-								}
-								catalogue={catalogue}
-								editable={!documentId || shared.writable}
-								designVersion={designVersion}
-								onClasses={(classes, message) =>
-									selection?.kind === "node" && selectedNode?.type === "element"
-										? replace(selection.path, { ...selectedNode, classes }, message)
-										: t("coEditing.status.readOnly")
-								}
-								refreshCatalogue={async () => {
-									// The same refresh as the Inspector's: the Builder's own ordered catalogue read.
-									await readOpened();
-									setDesignVersion((count) => count + 1);
-								}}
-							/>
-						</section>
-					) : null}
 				</section>
-				{(
+				{
 					<section aria-labelledby="inspector-heading" className="flex min-h-0 flex-col border-s lg:row-span-2">
 						<Inspector
+							departure={oneOffDeparture}
+							cssInDock
 							siteId={siteId}
 							tree={doc.tree}
 							selection={selection}
@@ -1131,14 +1163,26 @@ export function Builder({
 							}}
 						/>
 					</section>
-				)}
-				<div className="grid min-h-0 overflow-auto border-t lg:col-start-2 lg:row-start-2">
+				}
+				<div
+					className={`grid min-h-0 overflow-auto border-t md:grid-cols-2 lg:col-start-2 lg:row-start-2 ${target.kind === "component" ? "xl:grid-cols-3" : ""}`}
+				>
 					<section aria-label="HTML" className="flex min-h-0 flex-col">
-						<MarkupView value={markup} problems={markupProblems}
-							selected={locations.text === markup ? locations.ranges.find((range) => range.key === (selection ? selectionKey(doc.tree, selection) : null)) : undefined}
+						<MarkupView
+							value={markup}
+							problems={markupProblems}
+							selected={
+								locations.text === markup
+									? locations.ranges.find(
+											(range) => range.key === (selection ? selectionKey(doc.tree, selection) : null),
+										)
+									: undefined
+							}
 							onCaret={(offset) => {
 								if (locations.text !== markup) return;
-								const found = locations.ranges.filter((range) => range.start <= offset && offset < range.end).sort((a,b) => a.end-a.start-(b.end-b.start))[0];
+								const found = locations.ranges
+									.filter((range) => range.start <= offset && offset < range.end)
+									.sort((a, b) => a.end - a.start - (b.end - b.start))[0];
 								if (found) setSelection(selectionOf(doc.tree, found.key));
 							}}
 							onChange={(text) => {
@@ -1146,8 +1190,41 @@ export function Builder({
 								markupRef.current = text;
 								markupPending.current ??= shared.prepare();
 								setMarkup(text);
-							}} />
+							}}
+						/>
 					</section>
+					<section
+						aria-label={t("builder.css.heading")}
+						className="bg-background flex min-h-0 flex-col overflow-auto border-t p-3"
+					>
+						<CssPanel
+							port={cssPort}
+							departure={cssDeparture}
+							onEdit={() => inputRevision.current++}
+							element={selectedNode?.type === "element" ? { id: selectedNode.id, classes: selectedNode.classes } : null}
+							catalogue={catalogue}
+							editable={!documentId || shared.writable}
+							designVersion={designVersion}
+							onClasses={(classes, message) =>
+								selection?.kind === "node" && selectedNode?.type === "element"
+									? replace(selection.path, { ...selectedNode, classes }, message)
+									: t("coEditing.status.readOnly")
+							}
+							refreshCatalogue={async () => {
+								// The same refresh as the Inspector's: the Builder's own ordered catalogue read.
+								await readOpened();
+								setDesignVersion((count) => count + 1);
+							}}
+						/>
+					</section>
+					{target.kind === "component" ? (
+						<ComponentScriptPanel
+							siteId={siteId}
+							componentId={target.componentId}
+							name={title}
+							departure={jsDeparture}
+						/>
+					) : null}
 				</div>
 
 				<Announcer message={announcement} />

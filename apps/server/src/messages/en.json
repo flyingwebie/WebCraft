@@ -4683,7 +4683,8 @@
 			"noAddress": "No address for this Entry",
 			"notPlaced": "Not placed on any page",
 			"saveFirst": "Save the Template first"
-		}
+		},
+		"scriptPreview": "Scripts run on the page. Use View on a page to run this Draft in Code mode."
 	},
 	"siteEmail": {
 		"pageTitle": "Email (SMTP)",

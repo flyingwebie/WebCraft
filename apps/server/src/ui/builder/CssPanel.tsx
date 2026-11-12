@@ -82,6 +82,10 @@ export type CssPanelPort = {
  * answer can't change the tabs, the tree or the selection.
  */
 export type CssPanelProps = {
+	/** Await every pending CSS tab before leaving either canvas. False keeps the editor open. */
+	departure?: { current: (() => Promise<boolean>) | null };
+	/** Authored CSS changes, including layout buttons, invalidate a pending departure. */
+	onEdit?(): void;
 	port: CssPanelPort;
 	/** The selected element, with its Classes and token utilities in its order; null when no element is selected. */
 	element: { id: string; classes: readonly string[] } | null;
@@ -202,6 +206,8 @@ export function CssPanel({
 	onClasses,
 	refreshCatalogue,
 	designVersion = 0,
+	departure,
+	onEdit,
 }: CssPanelProps) {
 	const t = useT();
 	const id = useId();
@@ -220,6 +226,8 @@ export function CssPanel({
 	const [addName, setAddName] = useState("");
 	const [addProblem, setAddProblem] = useState<string | null>(null);
 	const [saving, setSaving] = useState(false);
+	const editRevision = useRef(0);
+	const saveActive = useRef(false);
 	const [suggest, setSuggest] = useState<{ from: number; to: number; items: Suggestion[]; active: number } | null>(
 		null,
 	);
@@ -342,6 +350,8 @@ export function CssPanel({
 	};
 
 	const change = (value: string) => {
+		editRevision.current++;
+		onEdit?.();
 		if (!draftBases.current.has(key))
 			draftBases.current.set(key, target.kind === "site" ? (data?.siteCss.version ?? null) : (chosen?.version ?? null));
 		setDrafts((before) => ({ ...before, [key]: value }));
@@ -412,8 +422,58 @@ export function CssPanel({
 		requestAnimationFrame(() => addButton.current?.focus());
 	};
 
+	const departureNow = useRef<() => Promise<boolean>>(async () => false);
+	departureNow.current = async () => {
+		if (saveActive.current) return false;
+		if (!Object.keys(drafts).length) return true;
+		saveActive.current = true;
+		const revision = editRevision.current;
+		const snapshot = drafts;
+		const versions = new Map<string, { before: string | null; after: string }>();
+		setSaving(true);
+		try {
+			for (const [draftKey, value] of Object.entries(snapshot)) {
+				const [classId = "", part = ""] = draftKey.split(":");
+				const which: CssTarget =
+					draftKey === SITE
+						? { kind: "site" }
+						: part === "styles" || part === "css"
+							? { kind: "class", classId, part }
+							: { kind: "class", classId, part: "breakpoint", breakpointId: part };
+				if (value === savedText(which, data, known)) continue;
+				const base = draftBases.current.get(draftKey) ?? null;
+				const own = versions.get(classId);
+				const saved = await port.save(which, value, own?.before === base ? own.after : base);
+				versions.set(classId, { before: base, after: saved.version });
+				draftBases.current.set(draftKey, saved.version);
+				setDrafts((before) => {
+					if (before[draftKey] !== value) return before;
+					const { [draftKey]: _, ...rest } = before;
+					return rest;
+				});
+			}
+			await read();
+			await refreshCatalogue();
+			setProblems([]);
+			return editRevision.current === revision;
+		} catch (failure) {
+			setProblems([{ message: t(errorMessage(failure)) }]);
+			return false;
+		} finally {
+			saveActive.current = false;
+			setSaving(false);
+		}
+	};
+	useEffect(() => {
+		if (!departure) return;
+		departure.current = () => departureNow.current();
+		return () => {
+			departure.current = null;
+		};
+	}, [departure]);
+
 	const save = async (over?: string) => {
-		if (saving || saved === null) return;
+		if (saveActive.current || saved === null) return;
 		if (hasLayer) {
 			setProblems([{ message: t("builder.css.noLayer") }]);
 			return;
@@ -425,12 +485,14 @@ export function CssPanel({
 				: target.kind === "site"
 					? (data?.siteCss.version ?? null)
 					: (chosen?.version ?? null));
+		saveActive.current = true;
 		const wasGenerated = target.kind === "class" && !!chosen?.generated && text !== saved;
 		setSaving(true);
 		try {
-			await port.save(target, text, version);
-			draftBases.current.delete(key);
+			const stored = await port.save(target, text, version);
+			draftBases.current.set(key, stored.version);
 			setDrafts((before) => {
+				if (before[key] !== text) return before;
 				const { [key]: _, ...rest } = before;
 				return rest;
 			});
@@ -448,6 +510,7 @@ export function CssPanel({
 				setProblems(refused.data.problems);
 			} else setProblems([{ message: t(errorMessage(failure)) }]);
 		} finally {
+			saveActive.current = false;
 			setSaving(false);
 		}
 	};

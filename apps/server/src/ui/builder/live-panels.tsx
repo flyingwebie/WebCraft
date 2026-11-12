@@ -51,6 +51,8 @@ export type LivePanelBridge = {
 	cssHost?: HTMLElement;
 	/** Shows unsaved CSS on the page, or (null) the Draft again. */
 	previewCss?(change: { target: CssTarget; text: string } | null): void;
+	/** A shared panel changed authored input without a native input event. */
+	edited?(): void;
 	language: "en" | "it";
 	call<T>(action: string, body: object): Promise<T>;
 	select(ref: string, inspectorRef?: string): void;
@@ -131,13 +133,22 @@ export function mount(bridge: LivePanelBridge) {
 	let selection: string | null = null;
 	let hovered: string | null = null;
 	const commands: PanelCommands = { save: async () => false, markup: async () => null };
+	const oneOffDeparture = { current: null as (() => Promise<boolean>) | null };
+	const cssDeparture = { current: null as (() => Promise<boolean>) | null };
 	const show = (ref: string | null) => {
 		selection = ref;
 		react.render(
 			<AdminIntl language={bridge.language}>
 				<EditorApiContext value={getApi}>
 					<DialogContainer value={container}>
-						<LivePanels bridge={bridge} selected={selection} hovered={hovered} commands={commands} />
+						<LivePanels
+							bridge={bridge}
+							selected={selection}
+							hovered={hovered}
+							commands={commands}
+							oneOffDeparture={oneOffDeparture}
+							cssDeparture={cssDeparture}
+						/>
 					</DialogContainer>
 				</EditorApiContext>
 			</AdminIntl>,
@@ -147,7 +158,11 @@ export function mount(bridge: LivePanelBridge) {
 	return {
 		select: show,
 		refresh: () => show(selection),
-		save: () => commands.save(),
+		depart: async () =>
+			(!oneOffDeparture.current || (await oneOffDeparture.current())) &&
+			(!cssDeparture.current || (await cssDeparture.current())) &&
+			(await commands.save()),
+		save: async () => (!cssDeparture.current || (await cssDeparture.current())) && (await commands.save()),
 		markup: (ref: string) => commands.markup(ref),
 		hover: (ref: string | null) => {
 			hovered = ref;
@@ -161,11 +176,15 @@ function LivePanels({
 	selected,
 	hovered,
 	commands,
+	oneOffDeparture,
+	cssDeparture,
 }: {
 	bridge: LivePanelBridge;
 	selected: string | null;
 	hovered: string | null;
 	commands: PanelCommands;
+	oneOffDeparture: { current: (() => Promise<boolean>) | null };
+	cssDeparture: { current: (() => Promise<boolean>) | null };
 }) {
 	const t = useT();
 	const [sources, setSources] = useState<Record<string, PanelSource>>({});
@@ -531,6 +550,8 @@ function LivePanels({
 			))}
 			{source ? (
 				<SourcePanels
+					oneOffDeparture={oneOffDeparture}
+					cssDeparture={cssDeparture}
 					bridge={bridge}
 					source={source}
 					designVersion={designVersion}
@@ -685,7 +706,11 @@ function SourcePanels({
 	creating,
 	onCreate,
 	designVersion,
+	oneOffDeparture,
+	cssDeparture,
 }: {
+	oneOffDeparture: { current: (() => Promise<boolean>) | null };
+	cssDeparture: { current: (() => Promise<boolean>) | null };
 	bridge: LivePanelBridge;
 	source: PanelSource;
 	designVersion: number;
@@ -899,6 +924,8 @@ function SourcePanels({
 			{bridge.cssHost
 				? createPortal(
 						<CssPanel
+							departure={cssDeparture}
+							onEdit={bridge.edited}
 							port={cssPort}
 							element={node?.type === "element" ? { id: node.id, classes: node.classes } : null}
 							catalogue={catalogue}
@@ -1013,6 +1040,8 @@ function SourcePanels({
 			<aside className="editor-right" aria-label={t("builder.inspector.heading")}>
 				<fieldset disabled={!writable}>
 					<Inspector
+						departure={oneOffDeparture}
+						cssInDock
 						key={source.opened.component?.id ?? source.ref}
 						onEditComponent={
 							node?.type === "component"

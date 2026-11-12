@@ -6,7 +6,13 @@
  */
 import type { MarkupNotice } from "@webcraft/renderer";
 import { readComponentMarkup, saveComponentMarkup } from "../content/components.ts";
-import { readTemplateMarkup, saveArchiveTemplateMarkup, saveSearchTemplateMarkup, saveEntryTemplateMarkup, saveSiteTemplateMarkup } from "../content/templates.ts";
+import {
+	readTemplateMarkup,
+	saveArchiveTemplateMarkup,
+	saveEntryTemplateMarkup,
+	saveSearchTemplateMarkup,
+	saveSiteTemplateMarkup,
+} from "../content/templates.ts";
 import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { draftStyles, draftTrees } from "../design-system/stylesheet.ts";
 import type { CodePreview, SiteHost } from "../site-pages/index.ts";
@@ -52,10 +58,18 @@ export async function previewMarkup(
 			);
 			return { ...template, source: { kind: "entryTemplate", tree: template.tree } } as const;
 		}
-		if (source.kind === "archiveTemplate" || source.kind === "searchTemplate") {
-			const target = source.kind === "archiveTemplate" ? { kind: "archive" as const, postTypeId: source.postTypeId! } : { kind: "search" as const };
-			const template = await readTemplateMarkup(scope, target, change.text, deps.sources);
-			return { ...template, source: { kind: source.kind, tree: template.tree } };
+		if (source.kind === "archiveTemplate" && source.postTypeId !== null) {
+			const template = await readTemplateMarkup(
+				scope,
+				{ kind: "archive", postTypeId: source.postTypeId },
+				change.text,
+				deps.sources,
+			);
+			return { ...template, source: { kind: "archiveTemplate", tree: template.tree } } as const;
+		}
+		if (source.kind === "searchTemplate") {
+			const template = await readTemplateMarkup(scope, { kind: "search" }, change.text, deps.sources);
+			return { ...template, source: { kind: "searchTemplate", tree: template.tree } } as const;
 		}
 
 		if (source.kind === "siteTemplate") {
@@ -94,10 +108,12 @@ export async function saveMarkup(
 		const saved = await saveEntryTemplateMarkup(scope, source.postTypeId, input.markup, deps.sources, base);
 		return { markup: saved.markup, version: saved.version, notices: saved.notices };
 	}
-	if (source.kind === "archiveTemplate" || source.kind === "searchTemplate") {
-		const saved = source.kind === "archiveTemplate"
-			? await saveArchiveTemplateMarkup(scope, source.postTypeId!, input.markup, deps.sources, base)
-			: await saveSearchTemplateMarkup(scope, input.markup, deps.sources, base);
+	if (source.kind === "archiveTemplate" && source.postTypeId !== null) {
+		const saved = await saveArchiveTemplateMarkup(scope, source.postTypeId, input.markup, deps.sources, base);
+		return { markup: saved.markup, version: saved.version, notices: saved.notices };
+	}
+	if (source.kind === "searchTemplate") {
+		const saved = await saveSearchTemplateMarkup(scope, input.markup, deps.sources, base);
 		return { markup: saved.markup, version: saved.version, notices: saved.notices };
 	}
 	if (source.kind === "siteTemplate") {

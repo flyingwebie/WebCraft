@@ -693,7 +693,7 @@ export async function createInstallServices(
 			mustSetUpTwoFactor: twoFactor.mustSetUp,
 		}),
 		codeMode: createCodeMode({ data, sources: componentSources, pages: sitePages }),
-		builder: createBuilder({ sources: componentSources }),
+		builder: createBuilder({ sources: componentSources, pages: sitePages }),
 		memberships,
 		members,
 		staff: createStaff({ email }),

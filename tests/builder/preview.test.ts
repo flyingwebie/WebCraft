@@ -96,16 +96,29 @@ describe("an Entry template", () => {
 	test("previews the picked Entry's Draft and refuses another Post Type's Entry", async () => {
 		const ownSite = (await install.createSite((await install.createWorkspace("Picker")).id, { slug: "picker" })).id;
 		const api = (await install.superadmin()).api;
-		const { postType } = await api.postTypes.create({ siteId: ownSite, name: "Stories", urlPattern: "/stories/{slug}", fields: [] });
+		const { postType } = await api.postTypes.create({
+			siteId: ownSite,
+			name: "Stories",
+			urlPattern: "/stories/{slug}",
+			fields: [],
+		});
 		const first = (await api.entries.create({ siteId: ownSite, postTypeId: postType.id, title: "First draft" })).entry;
 		await install.clock.advance(1000);
 		await api.entries.create({ siteId: ownSite, postTypeId: postType.id, title: "Newest draft" });
-		const input = { siteId: ownSite, target: { kind: "entryTemplate" as const, postTypeId: postType.id }, tree: tree(element("h1", [value("title")])) };
+		const input = {
+			siteId: ownSite,
+			target: { kind: "entryTemplate" as const, postTypeId: postType.id },
+			tree: tree(element("h1", [value("title")])),
+		};
 		expect((await api.builder.preview(input)).html).toContain("Newest draft");
 		expect((await api.builder.preview({ ...input, entryId: first.id })).html).toContain("First draft");
-		const other = (await api.postTypes.create({ siteId: ownSite, name: "Other", urlPattern: "/other/{slug}", fields: [] })).postType;
+		const other = (
+			await api.postTypes.create({ siteId: ownSite, name: "Other", urlPattern: "/other/{slug}", fields: [] })
+		).postType;
 		const foreign = (await api.entries.create({ siteId: ownSite, postTypeId: other.id, title: "Wrong" })).entry;
-		await expect(api.builder.preview({ ...input, entryId: foreign.id })).rejects.toMatchObject({ code: "ENTRY_NOT_FOUND" });
+		await expect(api.builder.preview({ ...input, entryId: foreign.id })).rejects.toMatchObject({
+			code: "ENTRY_NOT_FOUND",
+		});
 	});
 
 	test("shows a one-off style as the generated Class it will become, saving nothing", async () => {

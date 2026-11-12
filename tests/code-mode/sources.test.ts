@@ -4,11 +4,11 @@
 // Components placing it, and the "used on N pages" warning. The panel suggests what the markup may
 // read and place: Fields, Globals, Props, Components, Template commands, presets and Classes.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-
 import { answer, openCodeMode } from "../harness/code-mode.ts";
 import type { EditModeBrowser } from "../harness/edit-mode.ts";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { expectSafePage, expectSiteHeaders } from "../harness/site-safety.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -354,23 +354,57 @@ for (const kind of ["archive", "search"] as const) {
 		let path: string;
 		let templateId: string;
 		if (kind === "archive") {
-			const { postType } = await staff.api.postTypes.create({ siteId, name: "Stories", urlPattern: "/stories/{slug}", fields: [] });
-			const saved = await staff.api.templates.saveArchiveTemplateMarkup({ siteId, postTypeId: postType.id, markup: '<h1 data-wc-id="heading">Archive draft</h1>' });
+			const { postType } = await staff.api.postTypes.create({
+				siteId,
+				name: "Stories",
+				urlPattern: "/stories/{slug}",
+				fields: [],
+			});
+			const saved = await staff.api.templates.saveArchiveTemplateMarkup({
+				siteId,
+				postTypeId: postType.id,
+				markup: '<h1 data-wc-id="heading">Archive draft</h1>',
+			});
 			templateId = saved.template.id;
 			path = "/stories";
 		} else {
 			const pages = (await staff.api.postTypes.list({ siteId })).postTypes.find((item) => item.builtIn === "page");
-			const { entry: page } = await staff.api.entries.create({ siteId, postTypeId: pages!.id, title: "Find" });
+			const { entry: page } = await staff.api.entries.create({ siteId, postTypeId: pages?.id ?? "", title: "Find" });
 			await staff.api.pages.setSearchPage({ siteId, pageId: page.id });
-			templateId = (await staff.api.templates.saveSearchTemplateMarkup({ siteId, markup: '<h1 data-wc-id="heading">Search draft</h1>' })).template.id;
+			templateId = (
+				await staff.api.templates.saveSearchTemplateMarkup({
+					siteId,
+					markup: '<h1 data-wc-id="heading">Search draft</h1>',
+				})
+			).template.id;
 			path = "/find";
 		}
 		const coding = await openCodeMode(install, staff, siteId, path);
-		const opened = await answer<Source>(coding.edit("code/open", { path, ref: "content#heading" }));
+		await expectSafePage(await coding.page(path), "editMode");
+		const read = async <T>(request: Promise<Response>) => {
+			const response = await request;
+			expectSiteHeaders(response);
+			return answer<T>(response);
+		};
+		const opened = await read<Source>(coding.edit("code/open", { path, ref: "content#heading" }));
 		expect(opened.source).toMatchObject({ kind: `${kind}Template`, id: templateId });
-		const preview = await answer<{ html: string }>(coding.edit("code/preview", { path, markup: { ref: "content", text: '<h1 data-wc-id="heading">Pending preview</h1>' } }));
+		const preview = await read<{ html: string }>(
+			coding.edit("code/preview", {
+				path,
+				markup: { ref: "content", text: '<h1 data-wc-id="heading">Pending preview</h1>' },
+			}),
+		);
 		expect(preview.html).toContain("Pending preview");
-		await answer(coding.edit("code/save", { path, ref: "content", markup: '<h1 data-wc-id="heading">Saved through page</h1>', version: opened.version }));
-		expect((await answer<Source>(coding.edit("code/open", { path, ref: "content" }))).markup).toContain("Saved through page");
+		await read(
+			coding.edit("code/save", {
+				path,
+				ref: "content",
+				markup: '<h1 data-wc-id="heading">Saved through page</h1>',
+				version: opened.version,
+			}),
+		);
+		expect((await read<Source>(coding.edit("code/open", { path, ref: "content" }))).markup).toContain(
+			"Saved through page",
+		);
 	});
 }

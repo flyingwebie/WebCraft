@@ -2,8 +2,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { buttonVariants } from "@webcraft/ui/components/button.tsx";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
 import { LayoutTemplateIcon } from "lucide-react";
-
 import { getApi } from "../../ui/api.ts";
+import { BuilderNavigation } from "../../ui/builder/BuilderNavigation.tsx";
+import { targetFromPath } from "../../ui/builder/model.ts";
 import { StatusBadge } from "../../ui/content/DraftParts.tsx";
 import { HistoryLink } from "../../ui/history/HistoryLink.tsx";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
@@ -58,6 +59,7 @@ function TemplatesPage() {
 								: row.kind === "search"
 									? "search-template"
 									: `${row.kind}-template/${row.postType?.id ?? ""}`;
+						const target = targetFromPath(splat);
 						return (
 							<TableRow key={`${row.kind}-${row.postType?.id ?? ""}`}>
 								<TableCell>
@@ -86,6 +88,7 @@ function TemplatesPage() {
 													size="sm"
 												/>
 											) : null}
+											{target ? <BuilderNavigation siteId={siteId} target={target} list /> : null}
 											<Link
 												to="/builder/$siteId/$"
 												params={{ siteId, _splat: splat }}

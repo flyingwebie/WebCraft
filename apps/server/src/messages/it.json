@@ -4683,7 +4683,8 @@
 			"noAddress": "Nessun indirizzo per questa voce",
 			"notPlaced": "Non posizionato su alcuna pagina",
 			"saveFirst": "Salva prima il template"
-		}
+		},
+		"scriptPreview": "Gli script vengono eseguiti sulla pagina. Usa Visualizza su una pagina per eseguire questa bozza in modalità codice."
 	},
 	"siteEmail": {
 		"pageTitle": "Email (SMTP)",

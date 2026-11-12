@@ -545,6 +545,8 @@ function renderPlacement(node: PlacementNode, options: RenderOptions, state: Ren
 		paths: options.codeSource ? nodePaths(shown.tree) : undefined,
 	});
 	if (html.trim()) options.shownComponents?.add(node.component);
+	// Empty Placements are still reachable editing destinations, without adding a page element.
+	if (!html.trim() && inner.codeSource) return `<!--wc-code-empty ${markToken(inner.codeSource)}-->`;
 	return shown.root ? withRootAttributes(html, shown.root) : html;
 }
 

@@ -46,7 +46,11 @@ export function Inspector({
 	refreshCatalogue,
 	onMakeEditable,
 	onEditComponent,
+	cssInDock = false,
+	departure,
 }: {
+	cssInDock?: boolean;
+	departure?: { current: (() => Promise<boolean>) | null };
 	onEditComponent?(): void;
 	siteId: string;
 	tree: ElementTree;
@@ -95,6 +99,8 @@ export function Inspector({
 							label: t("builder.inspector.style"),
 							panel: (
 								<StylePanel
+									departure={departure}
+									classesInDock={cssInDock}
 									siteId={siteId}
 									catalogue={catalogue}
 									classIds={node.classes}

@@ -26,10 +26,21 @@ const NOT_THERE = new Set([
  */
 /** What is selected when it opens: where a Filter is placed (`?filter=<id>`, from the Filter builder). */
 const search = z.object({
+	entry: z.uuid().optional().catch(undefined),
 	element: z.string().max(128).optional().catch(undefined),
-	returnPath: z.string().max(2000).regex(/^\/(?![/\\])[^\s\\?#]*$/).optional().catch(undefined),
+	returnPath: z
+		.string()
+		.max(2000)
+		.regex(/^\/(?![/\\])[^\s\\?#]*$/)
+		.optional()
+		.catch(undefined),
 	returnTitle: z.string().max(300).optional().catch(undefined),
-	returnRef: z.string().max(1000).regex(/^(site|content)(?:\/[A-Za-z0-9_-]{1,64}){0,10}$/).optional().catch(undefined),
+	returnRef: z
+		.string()
+		.max(1000)
+		.regex(/^(site|content)(?:\/[A-Za-z0-9_-]{1,64}){0,10}$/)
+		.optional()
+		.catch(undefined),
 	filter: z.uuid().optional().catch(undefined),
 });
 
@@ -73,7 +84,7 @@ export const Route = createFileRoute("/builder/$siteId/$")({
 function BuilderPage() {
 	const t = useT();
 	const { site, target, opened } = Route.useLoaderData();
-	const { filter, element, returnPath, returnTitle, returnRef } = Route.useSearch();
+	const { entry, filter, element, returnPath, returnTitle, returnRef } = Route.useSearch();
 	if (!opened) {
 		return (
 			<main id="main" tabIndex={-1} className="mx-auto max-w-xl p-10 outline-none">
@@ -91,8 +102,11 @@ function BuilderPage() {
 			siteId={site.id}
 			target={target}
 			initial={opened}
+			previewEntryId={entry}
 			back={back}
-			returnPage={returnPath && returnRef ? { path: returnPath, title: returnTitle || returnPath, ref: returnRef } : undefined}
+			returnPage={
+				returnPath && returnRef ? { path: returnPath, title: returnTitle || returnPath, ref: returnRef } : undefined
+			}
 			{...(element ? { select: { element } } : filter ? { select: { filter } } : {})}
 		/>
 	);

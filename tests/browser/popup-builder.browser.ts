@@ -98,7 +98,6 @@ for (const theme of THEMES)
 		const review = page.getByRole("button", { name: "Review and publish Popup", exact: true });
 		await review.waitFor({ timeout: 5000 });
 		await expectNoAxeViolations(page, `Popup publication from the builder ${theme}`, ["region"], CANVAS);
-		await page.getByRole("button", { name: "Template markup", exact: true }).click();
 		await page.getByRole("textbox", { name: "Template markup", exact: true }).fill("<p>Revised Popup tree</p>");
 		await review.focus();
 		await page.keyboard.press("Enter");

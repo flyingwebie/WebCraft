@@ -2,6 +2,8 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compile, optimize } from "@tailwindcss/node";
 import { Scanner } from "@tailwindcss/oxide";
+import { componentScriptSettings } from "../../ui/builder/component-script-settings.ts";
+import { renderedRanges } from "../../ui/builder/rendered-ranges.ts";
 
 import { type CodeModeConfig, codeMode } from "../code-mode/code.ts";
 import { CODE_STYLES } from "../code-mode/styles.ts";
@@ -63,7 +65,7 @@ async function makeAssets(): Promise<EditBarAssets> {
 	const codeStyles = await asset("code", "css", `${await panelsStyles()}\n${CODE_STYLES}`, "text/css; charset=utf-8");
 	const panels = await asset("panels", "js", await panelsModule(drafts.path), "text/javascript; charset=utf-8");
 	const codeConfig: CodeModeConfig = { styles: codeStyles.path, panels: panels.path };
-	const codeSource = `(${codeMode.toString()})(${JSON.stringify(codeConfig)});\n`;
+	const codeSource = `(${codeMode.toString()})(${JSON.stringify(codeConfig)}, ${componentScriptSettings.toString()}, ${renderedRanges.toString()});\n`;
 	const codeScript = await asset("code", "js", codeSource, "text/javascript; charset=utf-8");
 	return {
 		script,

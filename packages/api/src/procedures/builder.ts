@@ -44,10 +44,12 @@ const draft = { tree: z.unknown(), styles, props: fieldInputs.optional() };
  */
 export const builder = {
 	/** Renderable editing destinations, including never-published Entries and repeated Component Placements. */
-	destinations: signedIn.input(z.object({ siteId: id, target, entryId: id.optional() })).handler(async ({ context, input }) => {
-		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
-		return context.services.builder.destinations(site, input.target, input.entryId);
-	}),
+	destinations: signedIn
+		.input(z.object({ siteId: id, target, entryId: id.optional() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return context.services.builder.destinations(site, input.target, input.entryId);
+		}),
 	/**
 	 * Opens a Template (`siteTemplate`, `searchTemplate`, a Post Type's `entryTemplate` or
 	 * `archiveTemplate`) or one of the Site's Components: its Draft's tree (empty while there is
@@ -65,11 +67,13 @@ export const builder = {
 	 * the Design system's Draft's stylesheet, pending one-off styles shown as the generated Classes
 	 * they will become. Refused with `TEMPLATE_INVALID` and each problem where it is, as a save would be.
 	 */
-	preview: signedIn.input(z.object({ siteId: id, target, ...draft, entryId: id.optional() })).handler(async ({ context, input }) => {
-		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
-		const { siteId: _, target: which, ...rest } = input;
-		return context.services.builder.preview(site, which, rest);
-	}),
+	preview: signedIn
+		.input(z.object({ siteId: id, target, ...draft, entryId: id.optional() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			const { siteId: _, target: which, ...rest } = input;
+			return context.services.builder.preview(site, which, rest);
+		}),
 
 	/**
 	 * The tree as Template markup, pending one-off styles as inline styles: the Template markup view,

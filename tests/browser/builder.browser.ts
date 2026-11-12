@@ -107,7 +107,7 @@ for (const theme of THEMES) {
 			const page = await builderPage(theme);
 			await layer(page, /^Post/).click();
 			await page.getByRole("tab", { name: "Style" }).click();
-			await page.getByRole("combobox", { name: "Add a Class" }).waitFor();
+			await page.getByRole("textbox", { name: "Declarations", exact: true }).waitFor();
 
 			await expectAccessibleScreen(page, `Builder (${theme})`, CANVAS);
 		});
@@ -154,7 +154,11 @@ describe("the Layers panel from the keyboard alone", () => {
 		expect(await announced(page)).toBe("Moved ul: 4 of 4 in Post.");
 		await page.keyboard.press("Alt+ArrowRight");
 		await page.keyboard.press("ControlOrMeta+s");
-		await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
+		await page
+			.locator("header")
+			.getByRole("button", { name: "Save", exact: true })
+			.and(page.locator("[disabled]"))
+			.waitFor();
 
 		expect(await draftMarkup()).toContain(
 			'<section data-wc-id="box"><ul data-wc-id="list"><li data-wc-id="one">One</li><li data-wc-id="three">Three</li>' +
@@ -178,7 +182,11 @@ describe("the Layers panel from the keyboard alone", () => {
 		await page.keyboard.press(" ");
 		expect(await announced(page)).toBe("Put down section: 3 of 4 in Post.");
 		await page.keyboard.press("ControlOrMeta+s");
-		await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
+		await page
+			.locator("header")
+			.getByRole("button", { name: "Save", exact: true })
+			.and(page.locator("[disabled]"))
+			.waitFor();
 
 		expect(await draftMarkup()).toContain('<section data-wc-id="box"></section><ul data-wc-id="list">');
 	});
@@ -210,7 +218,11 @@ describe("the Layers panel from the keyboard alone", () => {
 		expect(await announced(page)).toBe("Renamed Steps.");
 		await expect(layer(page, /^Steps/).getAttribute("aria-selected")).resolves.toBe("true");
 		await page.keyboard.press("ControlOrMeta+s");
-		await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
+		await page
+			.locator("header")
+			.getByRole("button", { name: "Save", exact: true })
+			.and(page.locator("[disabled]"))
+			.waitFor();
 
 		const markup = await draftMarkup();
 		expect(markup).toMatch(
@@ -250,7 +262,11 @@ describe("inserting", () => {
 		expect(await announced(page)).toBe("Inserted h2: 1 of 1 in section.");
 		await page.frameLocator("iframe[title^='Canvas']").getByRole("heading", { name: "Heading", level: 2 }).waitFor();
 		await page.keyboard.press("ControlOrMeta+s");
-		await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
+		await page
+			.locator("header")
+			.getByRole("button", { name: "Save", exact: true })
+			.and(page.locator("[disabled]"))
+			.waitFor();
 		expect(await draftMarkup()).toMatch(
 			/<section data-wc-id="box"><h2 data-wc-id="[A-Za-z0-9]{12}">Heading<\/h2><\/section>/,
 		);
@@ -295,7 +311,11 @@ test("a Media image, chosen from the Media library inside the insert menu", asyn
 	const src = await page.frameLocator("iframe[title^='Canvas']").locator("section img").getAttribute("src");
 	expect(src).toStartWith(`/api/media/${siteId}/`);
 	await page.keyboard.press("ControlOrMeta+s");
-	await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
+	await page
+		.locator("header")
+		.getByRole("button", { name: "Save", exact: true })
+		.and(page.locator("[disabled]"))
+		.waitFor();
 	expect(await draftMarkup()).toMatch(
 		/<section data-wc-id="box"><img src="media:[0-9a-f-]{36}" data-wc-id="[A-Za-z0-9]{12}"><\/section>/,
 	);
@@ -335,7 +355,11 @@ describe("the canvas", () => {
 
 		expect(await announced(page)).toBe("Moved li: 3 of 3 in ul.");
 		await page.keyboard.press("ControlOrMeta+s");
-		await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
+		await page
+			.locator("header")
+			.getByRole("button", { name: "Save", exact: true })
+			.and(page.locator("[disabled]"))
+			.waitFor();
 		expect(await draftMarkup()).toContain(
 			'<ul data-wc-id="list"><li data-wc-id="two">Two</li><li data-wc-id="three">Three</li><li data-wc-id="one">One</li></ul>',
 		);
@@ -357,17 +381,19 @@ describe("the Template markup view", () => {
 	test("shows the same Draft as text; what is typed there comes back as layers and saves the same Draft", async () => {
 		await resetTemplate();
 		const page = await builderPage();
-		await page.getByRole("button", { name: "Template markup" }).click();
 		const markup = page.getByRole("textbox", { name: "Template markup" });
 		expect(await markup.inputValue()).toBe(ENTRY_TEMPLATE);
 
 		await markup.fill(ENTRY_TEMPLATE.replace("Fresh from the oven", "Baked daily").replace("<li", "\n  <li"));
-		await page.getByRole("button", { name: "Visual" }).click();
+		await page.keyboard.press("ControlOrMeta+s");
 		await layer(page, /^“Baked daily”/).waitFor();
-		await page.getByRole("button", { name: "Template markup" }).click();
 		expect(await markup.inputValue()).toContain('<ul data-wc-id="list">\n  <li data-wc-id="one">');
 		await page.keyboard.press("ControlOrMeta+s");
-		await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
+		await page
+			.locator("header")
+			.getByRole("button", { name: "Save", exact: true })
+			.and(page.locator("[disabled]"))
+			.waitFor();
 
 		expect(await draftMarkup()).toBe(await markup.inputValue());
 	});
@@ -375,11 +401,10 @@ describe("the Template markup view", () => {
 	test("refuses markup it can't read, saying where, and stays", async () => {
 		await resetTemplate();
 		const page = await builderPage();
-		await page.getByRole("button", { name: "Template markup" }).click();
 		const markup = page.getByRole("textbox", { name: "Template markup" });
 		await markup.fill('<p data-wc-id="x">\n  <script>alert(1)</script>\n</p>');
 
-		await page.getByRole("button", { name: "Visual" }).click();
+		await page.keyboard.press("ControlOrMeta+s");
 
 		await page.getByRole("button", { name: "Line 2, column 3:" }).waitFor();
 		expect(await markup.isVisible()).toBe(true);
@@ -392,20 +417,27 @@ describe("the style panel", () => {
 		const page = await builderPage();
 		await layer(page, /^p/).click();
 		await page.getByRole("tab", { name: "Style" }).click();
-		const add = page.getByRole("combobox", { name: "Add a Class" });
+		const css = page.getByRole("region", { name: "CSS", exact: true });
+		await css.getByRole("button", { name: "Give this element a Class", exact: true }).click();
+		const add = css.getByRole("combobox", { name: "Class name" });
 
 		await add.fill("intro");
 		await add.press("Enter");
-		expect(await announced(page)).toBe("Added intro.");
+		await expectAnnounced(page, "Added intro to this element.");
+		await css.getByRole("button", { name: "Give this element a Class", exact: true }).click();
 		await add.fill("lead-text");
 		await add.press("Enter");
-		await expectAnnounced(page, "Created the Class lead-text in the Design system's Draft.");
+		await css.getByRole("tab", { name: ".lead-text", exact: true }).waitFor();
 		await page.getByRole("textbox", { name: "Declarations" }).fill("color: red");
 		await page.getByRole("button", { name: "Apply" }).click();
 		await expectAnnounced(page, "One-off style applied.");
 		expect(await announced(page)).toBe("One-off style applied.");
 		await page.keyboard.press("ControlOrMeta+s");
-		await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
+		await page
+			.locator("header")
+			.getByRole("button", { name: "Save", exact: true })
+			.and(page.locator("[disabled]"))
+			.waitFor();
 
 		expect(await draftMarkup()).toMatch(/<p class="intro lead-text style-[0-9a-f]{8}" data-wc-id="lead">/);
 	});
@@ -428,7 +460,11 @@ describe("fixed text", () => {
 		await dialog.getByRole("button", { name: "Make it a Field" }).click();
 		await expectAnnounced(page, "The text now reads {{ lead }}.");
 		await page.keyboard.press("ControlOrMeta+s");
-		await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
+		await page
+			.locator("header")
+			.getByRole("button", { name: "Save", exact: true })
+			.and(page.locator("[disabled]"))
+			.waitFor();
 
 		expect(await draftMarkup()).toContain('<p data-wc-id="lead">{{ lead }}</p>');
 		const { api } = await install.install.superadmin();
@@ -493,7 +529,11 @@ test("an attribute keeps literal {{ as text when it is edited, written as in Tem
 	await value.fill("Use \\{{ name }} &amp; more!");
 	await value.blur();
 	await page.keyboard.press("ControlOrMeta+s");
-	await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
+	await page
+		.locator("header")
+		.getByRole("button", { name: "Save", exact: true })
+		.and(page.locator("[disabled]"))
+		.waitFor();
 
 	expect(await draftMarkup()).toContain('<p title="Use \\{{ name }} &amp; more!" data-wc-id="lead">');
 });
@@ -520,7 +560,11 @@ test("a Component: its fixed text becomes a Prop, saved with it, the text as its
 	// The Prop's default is the text, so the canvas shows the same words.
 	await page.frameLocator("iframe[title^='Canvas']").getByText("Closed on Sundays").waitFor();
 	await page.keyboard.press("ControlOrMeta+s");
-	await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
+	await page
+		.locator("header")
+		.getByRole("button", { name: "Save", exact: true })
+		.and(page.locator("[disabled]"))
+		.waitFor();
 
 	const saved = await api.components.getMarkup({ siteId, componentId: component.id });
 	expect(saved.markup.draft.split("{{/props}}\n")[1]).toBe(
@@ -550,9 +594,9 @@ test("Publish saves, then publishes what visitors see", async () => {
 for (const theme of THEMES) {
 	test(`the Template markup view, ${theme}`, async () => {
 		const page = await builderPage(theme);
-		await page.getByRole("button", { name: "Template markup" }).click();
 		await page.getByRole("textbox", { name: "Template markup" }).waitFor();
 
+		await page.waitForLoadState("networkidle");
 		await expectAccessibleScreen(page, `Builder › Template markup (${theme})`, CANVAS);
 	});
 }
@@ -567,20 +611,22 @@ for (const theme of THEMES)
 		const page = await install.newPage(theme);
 		await install.signIn(page, staff);
 		await page.goto(install.adminUrl(`/builder/${siteId}/component/${component.id}`));
-		const button = page.getByRole("button", { name: "Template markup", exact: true });
-		await button.focus();
-		await page.keyboard.press("Enter");
+		await page.getByRole("textbox", { name: "Template markup" }).focus();
 		const markup = page.getByRole("textbox", { name: "Template markup" });
 		await markup.fill(
 			'{{@props}}\nheading: text exposed default="Preview words"\n{{/props}}\n<h2>{{ props.heading }}</h2>',
 		);
 		await page.frameLocator("iframe[title^='Canvas']").getByText("Preview words").waitFor();
+		await page.waitForLoadState("networkidle");
 		await expectAccessibleScreen(page, `Component Props ${theme}`, CANVAS);
-		await page.getByRole("button", { name: "Visual", exact: true }).focus();
-		await page.keyboard.press("Enter");
+		await page.getByRole("tree", { name: "Layers" }).getByRole("treeitem").first().focus();
 		await page.getByRole("tree", { name: "Layers" }).waitFor();
 		await page.keyboard.press("ControlOrMeta+s");
-		await page.getByRole("button", { name: "Save", exact: true }).and(page.locator("[disabled]")).waitFor();
+		await page
+			.locator("header")
+			.getByRole("button", { name: "Save", exact: true })
+			.and(page.locator("[disabled]"))
+			.waitFor();
 		const saved = await api.components.getMarkup({ siteId, componentId: component.id });
 		expect(saved.component.draft.props[0]).toMatchObject({ key: "heading", exposed: true, default: "Preview words" });
 	});

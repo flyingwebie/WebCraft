@@ -1,5 +1,6 @@
 import { VOID_ELEMENTS } from "@webcraft/renderer/builder";
 import { useEffect, useRef, useState } from "react";
+import { renderedRanges } from "./rendered-ranges.ts";
 
 import { type DropPosition, dropPositionAt } from "./tree.ts";
 
@@ -22,7 +23,7 @@ const CANVAS_CSS = `
 `;
 
 /** What the canvas outlines: an element of the tree, or a Placement (every element its Component shows). */
-export type CanvasTarget = { kind: "element" | "placement"; id: string };
+export type CanvasTarget = { kind: "element" | "placement" | "structural"; id: string };
 
 type Box = { top: number; left: number; width: number; height: number };
 
@@ -125,6 +126,17 @@ export function Canvas({
 		const targetAt = (x: number, y: number, skip?: Element[]): { target: CanvasTarget; element: Element } | null => {
 			for (const element of document.elementsFromPoint(x, y)) {
 				const tagged = element.closest("[data-wc-code]");
+				if (!skip && element !== tagged)
+					for (const { ref, range } of renderedRanges(document)) {
+						const target = targetOf(ref);
+						if (
+							target?.kind === "structural" &&
+							!ref.endsWith("/0") &&
+							range.intersectsNode(element) &&
+							(!tagged || !range.isPointInRange(tagged, 0))
+						)
+							return { target, element };
+					}
 				if (!tagged || skip?.some((each) => each === tagged || each.contains(tagged))) continue;
 				const target = targetOf(tagged.getAttribute("data-wc-code") ?? "");
 				if (target) return { target, element: rootOf(document, target, tagged) };
@@ -139,7 +151,7 @@ export function Canvas({
 		const onPointerDown = (event: PointerEvent) => {
 			const found = targetAt(event.clientX, event.clientY);
 			const current = callbacks.current.selected;
-			if (found && current && found.target.id === current.id && event.button === 0) {
+			if (found && current && current.kind !== "structural" && found.target.id === current.id && event.button === 0) {
 				drag.current = { from: current, x: event.clientX, y: event.clientY, moving: false };
 			}
 		};
@@ -249,7 +261,7 @@ export function Canvas({
 		const document = iframe?.contentDocument;
 		if (!ready || !iframe || !document) return;
 		const offset = { top: iframe.offsetTop, left: iframe.offsetLeft };
-		const measure = (elements: readonly Element[]): Box[] =>
+		const measure = (elements: readonly (Element | Range)[]): Box[] =>
 			elements.map((element) => {
 				const rect = element.getBoundingClientRect();
 				return {
@@ -262,8 +274,25 @@ export function Canvas({
 		const drop = dropAt.current;
 		const dropElement = drop ? elementsOf(document, drop.to)[0] : undefined;
 		setBoxes({
-			selected: selected ? measure(elementsOf(document, selected)) : [],
-			hover: hover.current && hover.current.id !== selected?.id ? measure(elementsOf(document, hover.current)) : [],
+			selected: selected
+				? measure(
+						selected.kind === "structural"
+							? renderedRanges(document)
+									.filter((each) => each.ref === `b#${selected.id}`)
+									.map((each) => each.range)
+							: elementsOf(document, selected),
+					)
+				: [],
+			hover:
+				hover.current && hover.current.id !== selected?.id
+					? measure(
+							hover.current.kind === "structural"
+								? renderedRanges(document)
+										.filter((each) => each.ref === `b#${hover.current?.id}`)
+										.map((each) => each.range)
+								: elementsOf(document, hover.current),
+						)
+					: [],
 			fixed: measure(fixedText.flatMap((id) => elementsOf(document, { kind: "element", id }))),
 			drop: drop && dropElement ? { box: measure([dropElement])[0] as Box, position: drop.position } : null,
 		});
@@ -348,6 +377,7 @@ function DropMark({ box, position }: { box: Box; position: DropPosition }) {
 
 /** The element or Placement an element of the canvas shows: `b#<id>`, or `b/<placement id>…`. */
 function targetOf(code: string): CanvasTarget | null {
+	if (code.startsWith("b#@")) return { kind: "structural", id: code.slice(2) };
 	if (code.startsWith("b#")) return { kind: "element", id: code.slice(2) };
 	if (code.startsWith("b/")) {
 		const id = code.slice(2).split(/[/#]/)[0];

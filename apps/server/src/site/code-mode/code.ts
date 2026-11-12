@@ -1,3 +1,5 @@
+import type { componentScriptSettings } from "../../ui/builder/component-script-settings.ts";
+import type { renderedRanges } from "../../ui/builder/rendered-ranges.ts";
 /** What Code mode's script is given when it is made: the address of its own stylesheet. */
 export type CodeModeConfig = { styles: string; panels: string };
 
@@ -16,7 +18,11 @@ export type CodeModeConfig = { styles: string; panels: string };
  * only when Staff press Run (or load the page again), their errors shown in the console. Everything
  * draws in a shadow root, styled by its own stylesheet file: nothing inline.
  */
-export function codeMode(config: CodeModeConfig): void {
+export function codeMode(
+	config: CodeModeConfig,
+	makeScriptSettings: typeof componentScriptSettings,
+	rangesOf: typeof renderedRanges,
+): void {
 	type Words = { [key: string]: string | Words };
 	type Answer = { ok: true; data: unknown } | { ok: false; code: string; data: Record<string, unknown> };
 	type Problem = { line: number; column: number; message: string };
@@ -89,12 +95,15 @@ export function codeMode(config: CodeModeConfig): void {
 
 	let inspectorRef: string | undefined;
 	let openBuilderButton: HTMLButtonElement;
+	let openingBuilder = false;
+	let inputRevision = 0;
 	let panelsAdapter:
 		| {
 				select(ref: string | null): void;
 				hover(ref: string | null): void;
 				refresh(): void;
 				save(): Promise<boolean>;
+				depart(): Promise<boolean>;
 				markup(ref: string): Promise<string | null>;
 		  }
 		| undefined;
@@ -283,8 +292,7 @@ export function codeMode(config: CodeModeConfig): void {
 	let jsNote: HTMLElement;
 	let jsUsage: HTMLElement;
 	let jsSettings: HTMLElement;
-	let jsConsent: HTMLSelectElement;
-	let jsLibraries: HTMLElement;
+	let scriptSettings: ReturnType<typeof componentScriptSettings>;
 	let consoleList: HTMLElement;
 	let scripts: Scripts | null = null;
 	let jsKind: ScriptKind = "page";
@@ -343,6 +351,7 @@ export function codeMode(config: CodeModeConfig): void {
 		panelsAdapter = module.mount({
 			root,
 			cssHost,
+			edited: () => inputRevision++,
 			language: (state.data as { adminLanguage?: string }).adminLanguage === "it" ? "it" : "en",
 			async call(action: string, body: object) {
 				const response = await call(action, { path, ...body });
@@ -419,6 +428,7 @@ export function codeMode(config: CodeModeConfig): void {
 			hover: setHover,
 		});
 		panelsAdapter?.select(selectedRef ?? opened?.ref ?? null);
+		editorReady();
 		openAskedScript();
 		await preview();
 	}
@@ -535,32 +545,63 @@ export function codeMode(config: CodeModeConfig): void {
 	// The panels
 
 	async function openBuilder(): Promise<void> {
-		if (!opened?.source.editable || !panelsAdapter || busy.size) return;
+		if (
+			!opened?.source.editable ||
+			!panelsAdapter ||
+			panelReady.get(opened.ref) !== true ||
+			busy.size ||
+			openingBuilder
+		)
+			return;
+		openingBuilder = true;
 		openBuilderButton.disabled = true;
 		try {
-			if (!(await panelsAdapter.save())) return;
+			const revision = inputRevision;
+			const sourceBefore = opened.ref;
+			if (!(await panelsAdapter.depart())) return;
 			if (jsDirty() && !(await saveScript(undefined))) return;
+			if (opened.ref !== sourceBefore || htmlDirty() || jsDirty()) return;
 			const ref = selectedRef ?? opened.ref;
 			const answer = await call("code/editor", { path, ref: requestRef(ref) });
 			if (!answer.ok) return;
-			const source = answer.data as { editable: boolean; siteId: string; adminOrigin: string; target: {kind: string; componentId?: string; postTypeId?: string} };
-			if (!source.editable) return;
+			const source = answer.data as {
+				editable: boolean;
+				siteId: string;
+				adminOrigin: string;
+				previewEntryId: string | null;
+				target: { kind: string; componentId?: string; postTypeId?: string };
+			};
+			if (
+				!source.editable ||
+				inputRevision !== revision ||
+				opened.ref !== sourceBefore ||
+				(selectedRef ?? opened.ref) !== ref ||
+				htmlDirty() ||
+				jsDirty()
+			)
+				return;
 			const target = source.target;
 			const kind = target.kind.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`);
 			const id = target.componentId ?? target.postTypeId;
 			const url = new URL(`/builder/${source.siteId}/${kind}${id ? `/${id}` : ""}`, source.adminOrigin);
 			const [sourceRef, key] = ref.split("#");
 			if (key) url.searchParams.set("element", key);
+			if (source.previewEntryId) url.searchParams.set("entry", source.previewEntryId);
 			url.searchParams.set("returnPath", path);
 			url.searchParams.set("returnTitle", doc.title.split(" · ")[0] ?? path);
 			url.searchParams.set("returnRef", sourceRef ?? opened.ref);
 			win.location.assign(url.href);
-		} finally { openBuilderButton.disabled = !opened?.source.editable; }
+		} finally {
+			openingBuilder = false;
+			editorReady();
+		}
 	}
 
 	function build(): void {
 		host = doc.createElement("webcraft-code-mode");
 		root = host.attachShadow({ mode: "open" });
+		// CSS and Inspector inputs can change while the last navigation request is in flight.
+		for (const event of ["input", "change"]) root.addEventListener(event, () => inputRevision++, true);
 		live = el("p", { role: "status", class: "sr-only" });
 		breadcrumb = el("ol", { class: "crumbs" });
 		usage = el("p", { class: "usage", hidden: "" });
@@ -580,7 +621,7 @@ export function codeMode(config: CodeModeConfig): void {
 		});
 		listbox.addEventListener("mousedown", (event) => event.preventDefault());
 
-		openBuilderButton = button({ class: "secondary" }, word("openBuilder"));
+		openBuilderButton = button({ class: "secondary", disabled: "" }, word("openBuilder"));
 		openBuilderButton.addEventListener("click", () => void openBuilder());
 		const panels = el("div", { class: "panels", id: newId("panels") });
 		panels.append(buildHtmlPanel(), buildCssPanel(), buildJsPanel());
@@ -780,23 +821,9 @@ export function codeMode(config: CodeModeConfig): void {
 		jsRun.addEventListener("click", () => void run());
 		jsNote = el("p", { class: "note", hidden: "" });
 		jsUsage = el("p", { class: "usage", hidden: "" });
-		const consentId = newId("consent");
-		jsConsent = el("select", { id: consentId, class: "picker" });
-		for (const category of ["necessary", "analytics", "marketing", "media"]) {
-			const name = `consent${category[0]?.toUpperCase()}${category.slice(1)}`;
-			jsConsent.append(el("option", { value: category }, word(name)));
-		}
-		jsConsent.addEventListener("change", () => setDirty("js"));
-		const librariesLabel = newId("libraries");
-		jsLibraries = el("div", { class: "checks", role: "group", "aria-labelledby": librariesLabel });
-		jsSettings = el(
-			"div",
-			{ class: "pickers", hidden: "" },
-			el("label", { for: consentId }, word("consentCategory")),
-			jsConsent,
-			el("span", { id: librariesLabel, class: "pickers-label" }, word("componentLibraries")),
-			jsLibraries,
-		);
+		scriptSettings = makeScriptSettings({ document: doc, word, changed: () => setDirty("js") });
+		jsSettings = scriptSettings.root;
+		jsSettings.hidden = true;
 		jsEditor = editor({
 			language: "js",
 			label: word("js"),
@@ -858,7 +885,7 @@ export function codeMode(config: CodeModeConfig): void {
 		const target = event.composedPath().find((node): node is Element => node instanceof Element);
 		const element = pageElement(event);
 		if (target && target !== element) {
-			for (const { ref, range } of renderedRanges()) {
+			for (const { ref, range } of rangesOf(doc)) {
 				if (!ref.endsWith("/0") && range.intersectsNode(target) && (!element || !range.isPointInRange(element, 0)))
 					return ref;
 			}
@@ -946,7 +973,7 @@ export function codeMode(config: CodeModeConfig): void {
 	/** A Placement can render several roots, including roots supplied by nested Components. */
 	function pageBoundsFor(ref: string): DOMRect | null {
 		if (ref.includes("#@")) {
-			const rects = renderedRanges()
+			const rects = rangesOf(doc)
 				.filter((each) => each.ref === ref)
 				.flatMap(({ range }) => [...range.getClientRects()]);
 			return boundsOf(rects);
@@ -962,30 +989,6 @@ export function codeMode(config: CodeModeConfig): void {
 				});
 		const roots = matches.filter((element) => !matches.some((other) => other !== element && other.contains(element)));
 		return boundsOf(roots.map((element) => element.getBoundingClientRect()));
-	}
-
-	function renderedRanges(): { ref: string; range: Range }[] {
-		const ranges: { ref: string; range: Range }[] = [];
-		const starts = new Map<string, Comment[]>();
-		const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_COMMENT);
-		for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-			const match = /^wc-code-(start|end) (\S+)$/.exec(node.nodeValue ?? "");
-			if (!match) continue;
-			const ref = decodeURIComponent(match[2] ?? "");
-			const stack = starts.get(ref) ?? [];
-			if (match[1] === "start") {
-				stack.push(node as Comment);
-				starts.set(ref, stack);
-			} else {
-				const start = stack.pop();
-				if (!start) continue;
-				const range = doc.createRange();
-				range.setStartAfter(start);
-				range.setEndBefore(node);
-				ranges.push({ ref, range });
-			}
-		}
-		return ranges;
 	}
 
 	function boundsOf(boxes: DOMRect[]): DOMRect | null {
@@ -1110,7 +1113,7 @@ export function codeMode(config: CodeModeConfig): void {
 		}
 		editorReady();
 		htmlTitle.textContent = sourceName(fresh.source.kind, fresh.source.name);
-		openBuilderButton.disabled = !fresh.source.editable;
+
 		html.area.setAttribute("aria-label", word("htmlOf", { name: currentName() }));
 		renderBreadcrumb();
 		renderUsage();
@@ -1133,6 +1136,7 @@ export function codeMode(config: CodeModeConfig): void {
 		html.root.setAttribute("aria-busy", String(!!opened?.source.editable && !editable));
 		html.readOnly(!editable);
 		htmlSave.disabled = !editable;
+		openBuilderButton.disabled = !editable || !panelsAdapter || openingBuilder;
 		htmlFormat.disabled = !editable;
 	}
 
@@ -1473,10 +1477,7 @@ export function codeMode(config: CodeModeConfig): void {
 
 	/** The Component tab's settings as the panel shows them now. */
 	function componentSettings(): { consentCategory: string; libraryIds: string[] } {
-		return {
-			consentCategory: jsConsent.value,
-			libraryIds: [...jsLibraries.querySelectorAll<HTMLInputElement>("input:checked")].map((box) => box.value),
-		};
+		return scriptSettings.get();
 	}
 
 	function jsDirty(): boolean {
@@ -1536,16 +1537,7 @@ export function codeMode(config: CodeModeConfig): void {
 	}
 
 	function showComponentSettings(component: ComponentScript): void {
-		jsConsent.value = component.consentCategory;
-		jsLibraries.replaceChildren();
-		if (component.libraries.length === 0) jsLibraries.append(el("span", { class: "muted" }, word("noLibraries")));
-		for (const library of component.libraries) {
-			const id = newId("library");
-			const box = el("input", { type: "checkbox", id, value: library.id });
-			box.checked = component.libraryIds.includes(library.id);
-			box.addEventListener("change", () => setDirty("js"));
-			jsLibraries.append(el("span", { class: "check" }, box, el("label", { for: id }, library.name)));
-		}
+		scriptSettings.set(component);
 		jsSettingsSaved = encode(componentSettings());
 	}
 
@@ -1557,11 +1549,13 @@ export function codeMode(config: CodeModeConfig): void {
 		if (component && !component.editable) return false;
 		busy.add(jsSave);
 		const code = jsEditor.get();
+		const settingsAtSave = componentSettings();
+		const kindAtSave = jsKind;
 		const answer = await call("code/saveScript", {
 			path,
 			kind: jsKind,
 			code,
-			...(component ? { componentId: component.componentId, ...componentSettings() } : {}),
+			...(component ? { componentId: component.componentId, ...settingsAtSave } : {}),
 			version: version === undefined || version === null ? script.version : version,
 		});
 		busy.delete(jsSave);
@@ -1569,11 +1563,15 @@ export function codeMode(config: CodeModeConfig): void {
 			const saved = answer.data as Script;
 			Object.assign(script, saved);
 			jsSaved = saved.code;
-			if (component) jsSettingsSaved = encode(componentSettings());
+			if (component) jsSettingsSaved = encode(settingsAtSave);
 			savedNote = word("savedName", { name: jsTitle.textContent ?? "" });
 			setStatusText(savedNote);
 			announce(savedNote);
-			return true;
+			return (
+				jsKind === kindAtSave &&
+				jsEditor.get() === code &&
+				(!component || encode(componentSettings()) === encode(settingsAtSave))
+			);
 		}
 		if (answer.code === "CHANGED_MEANWHILE") {
 			const choice = await ask(word("conflictTitle"), word("conflictText", { name: jsTitle.textContent ?? "" }), [

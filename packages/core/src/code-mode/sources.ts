@@ -31,7 +31,7 @@ import { listLoops } from "../content/loops.ts";
 import { getPostType } from "../content/post-types.ts";
 import { printPropDeclarations } from "../content/prop-markup.ts";
 import { RELATED_BUILT_INS } from "../content/render-values.ts";
-import { getArchiveTemplate, getSearchTemplate, getEntryTemplate, getSiteTemplate } from "../content/templates.ts";
+import { getArchiveTemplate, getEntryTemplate, getSearchTemplate, getSiteTemplate } from "../content/templates.ts";
 import { classCatalogue } from "../design-system/classes.ts";
 import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { EditPathInvalidError } from "../edit-mode/errors.ts";
@@ -160,13 +160,22 @@ async function rootOf(
 	const target = content.contentTemplate;
 	if (content.notFound || !target) throw new CodeSourceNotFoundError();
 	const postType = "postTypeId" in target ? await getPostType(scope, target.postTypeId) : null;
-	const template = target.kind === "searchTemplate" ? await getSearchTemplate(scope)
-		: target.kind === "archiveTemplate" ? await getArchiveTemplate(scope, target.postTypeId)
-		: await getEntryTemplate(scope, target.postTypeId);
+	const template =
+		target.kind === "searchTemplate"
+			? await getSearchTemplate(scope)
+			: target.kind === "archiveTemplate"
+				? await getArchiveTemplate(scope, target.postTypeId)
+				: await getEntryTemplate(scope, target.postTypeId);
 	if (!template) throw new CodeSourceNotFoundError();
-	return { kind: target.kind, id: template.id, name: postType?.name ?? null, editable: true,
-		tree: template.draft, draft: template.draft, postTypeId: postType?.id ?? null };
-
+	return {
+		kind: target.kind,
+		id: template.id,
+		name: postType?.name ?? null,
+		editable: true,
+		tree: template.draft,
+		draft: template.draft,
+		postTypeId: postType?.id ?? null,
+	};
 }
 
 /** A node of a tree by its id, with the elements and Placements around it, outermost first. */

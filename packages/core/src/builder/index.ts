@@ -1,4 +1,3 @@
-import { builderDestinations, type BuilderDestinations } from "./navigation.ts";
 import { popups } from "@webcraft/db/schema";
 /**
  * The visual builder (ADRs 0002, 0009, 0017): Staff build Templates and Components on a canvas, as
@@ -54,7 +53,9 @@ import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { draftStyles, draftTrees } from "../design-system/stylesheet.ts";
 import { listFilters } from "../filters/filters.ts";
 import { siteFormList } from "../forms/forms.ts";
+import type { SitePages } from "../site-pages/index.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
+import { type BuilderDestinations, builderDestinations } from "./navigation.ts";
 import { adminMediaPath, renderPreview } from "./preview.ts";
 import { type BuilderSource, type BuilderTarget, readSource } from "./sources.ts";
 
@@ -167,10 +168,11 @@ export type Builder = {
 	): Promise<{ text: string; version: string }>;
 };
 
-export function createBuilder(options: { sources: ComponentSources }): Builder {
+export function createBuilder(options: { sources: ComponentSources; pages: Pick<SitePages, "builderPage"> }): Builder {
 	const { sources } = options;
 	return {
-		destinations: (scope, target, entryId) => builderDestinations(scope, sources, target, entryId),
+		destinations: (scope, target, entryId) =>
+			builderDestinations(scope, sources, (path) => options.pages.builderPage(scope, path), target, entryId),
 		css: (scope, classIds) => classesCss(scope, classIds),
 		saveCss: (scope, input) => saveCss(scope, input),
 		async open(scope, target) {

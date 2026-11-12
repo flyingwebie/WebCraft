@@ -532,9 +532,13 @@ export async function readTemplateMarkup(
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
 ): Promise<{ tree: ElementTree; notices: MarkupNotice[]; designSystem: DesignSystem }> {
 	const rules =
-		target.kind === "entry" ? await entryTemplateTarget(scope, target.postTypeId)
-		: target.kind === "archive" ? await archiveTemplateTarget(scope, target.postTypeId)
-		: target.kind === "search" ? await searchTemplateTarget(scope) : await siteTemplateTarget(scope);
+		target.kind === "entry"
+			? await entryTemplateTarget(scope, target.postTypeId)
+			: target.kind === "archive"
+				? await archiveTemplateTarget(scope, target.postTypeId)
+				: target.kind === "search"
+					? await searchTemplateTarget(scope)
+					: await siteTemplateTarget(scope);
 	const designSystem = await draftDesignSystem(scope);
 	const catalogue = classCatalogue(designSystem);
 	const { tree, notices } = parseTemplateMarkup(markup, {

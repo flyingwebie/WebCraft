@@ -238,7 +238,7 @@ for (const theme of THEMES) {
 			});
 			await tree.getByRole("treeitem", { name: /^Before/ }).click();
 			await page.getByRole("tab", { name: "Style", exact: true }).click();
-			await page.getByRole("button", { name: "Edit the styles of peer-class", exact: true }).click();
+			await page.getByRole("tab", { name: ".peer-class", exact: true }).click();
 			await page.waitForLoadState("networkidle");
 			const captured = Promise.withResolvers<void>();
 			const release = Promise.withResolvers<void>();
@@ -264,15 +264,15 @@ for (const theme of THEMES) {
 				await api.designSystem.updateClass({ siteId, classId: peer.class.id, styles: "color: blue;" });
 				await captured.promise;
 				await api.designSystem.updateClass({ siteId, classId: peer.class.id, styles: "color: purple;" });
-				const value = page.getByRole("combobox", { name: "Value 1", exact: true });
-				for (let attempt = 0; attempt < 100 && (await value.inputValue()) !== "purple"; attempt++)
+				const value = page.getByRole("textbox", { name: "CSS: .peer-class", exact: true });
+				for (let attempt = 0; attempt < 100 && !(await value.inputValue()).includes("purple"); attempt++)
 					await page.waitForTimeout(50);
-				expect(await value.inputValue()).toBe("purple");
+				expect(await value.inputValue()).toContain("purple");
 				holdFresh = true;
 				release.resolve();
 				await delivered.promise;
 				await page.waitForTimeout(300);
-				expect(await value.inputValue()).toBe("purple");
+				expect(await value.inputValue()).toContain("purple");
 			} finally {
 				release.resolve();
 				releaseFresh.resolve();
@@ -289,13 +289,12 @@ for (const theme of THEMES) {
 			});
 			await tree.getByRole("treeitem", { name: /^Before/ }).click();
 			await page.getByRole("tab", { name: "Style", exact: true }).click();
-			await page.getByRole("button", { name: "Edit the styles of local-class", exact: true }).click();
-			await page.getByRole("combobox", { name: "Value 1", exact: true }).fill("green");
+			await page.getByRole("tab", { name: ".local-class", exact: true }).click();
+			await page.getByRole("textbox", { name: "CSS: .local-class", exact: true }).fill("color: green;");
 			const captured = Promise.withResolvers<void>();
 			const release = Promise.withResolvers<void>();
 			const delivered = Promise.withResolvers<void>();
-			await page.route(/\/(designSystem\/updateClass|code\/editorService)$/, async (route) => {
-				if (canvas === "live" && route.request().postDataJSON().method !== "classes.update") return route.continue();
+			await page.route(/\/(builder\/saveCss|code\/saveCss)$/, async (route) => {
 				const response = await route.fetch();
 				captured.resolve();
 				await release.promise;
@@ -303,18 +302,21 @@ for (const theme of THEMES) {
 				delivered.resolve();
 			});
 			try {
-				await page.getByRole("button", { name: "Save local-class", exact: true }).click();
+				await page
+					.getByRole("region", { name: "CSS", exact: true })
+					.getByRole("button", { name: "Save", exact: true })
+					.click();
 				await captured.promise;
 				await api.designSystem.updateClass({ siteId, classId: peer.class.id, styles: "color: purple;" });
-				await page.getByRole("button", { name: "Edit the styles of peer-class", exact: true }).click();
-				const value = page.getByRole("combobox", { name: "Value 1", exact: true });
-				for (let attempt = 0; attempt < 100 && (await value.inputValue()) !== "purple"; attempt++)
+				await page.getByRole("tab", { name: ".peer-class", exact: true }).click();
+				const value = page.getByRole("textbox", { name: "CSS: .peer-class", exact: true });
+				for (let attempt = 0; attempt < 100 && !(await value.inputValue()).includes("purple"); attempt++)
 					await page.waitForTimeout(50);
-				expect(await value.inputValue()).toBe("purple");
+				expect(await value.inputValue()).toContain("purple");
 				release.resolve();
 				await delivered.promise;
 				await page.waitForLoadState("networkidle");
-				expect(await value.inputValue()).toBe("purple");
+				expect(await value.inputValue()).toContain("purple");
 			} finally {
 				release.resolve();
 			}
@@ -325,12 +327,12 @@ for (const theme of THEMES) {
 			await api.designSystem.createClass({ siteId, name: "peer-class", styles: "font-weight: 600;" });
 			await tree.getByRole("treeitem", { name: /^Before/ }).click();
 			await page.getByRole("tab", { name: "Style", exact: true }).click();
-			await page.getByRole("combobox", { name: "Add a Class" }).fill("local-class");
+			await page.getByRole("button", { name: "Give this element a Class", exact: true }).click();
+			await page.getByRole("combobox", { name: "Class name" }).fill("local-class");
 			await page.waitForLoadState("networkidle");
 			const captured = Promise.withResolvers<void>();
 			const release = Promise.withResolvers<void>();
-			await page.route(/\/(designSystem\/createClass|code\/editorService)$/, async (route) => {
-				if (canvas === "live" && route.request().postDataJSON().method !== "classes.create") return route.continue();
+			await page.route(/\/(designSystem\/createClass|code\/createClass)$/, async (route) => {
 				const response = await route.fetch();
 				captured.resolve();
 				await release.promise;
@@ -1281,7 +1283,6 @@ for (const delayed of [false, true]) {
 		await page.frameLocator("iframe[title^='Canvas']").getByText("Fresh bread").waitFor();
 		const draftMarkup = async () =>
 			(await api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).markup?.draft ?? "";
-		await page.getByRole("button", { name: "Template markup", exact: true }).click();
 		const markup = page.getByRole("textbox", { name: "Template markup", exact: true });
 		const original = await markup.inputValue();
 		await markup.fill(`${original}<aside`);
@@ -1323,7 +1324,11 @@ for (const delayed of [false, true]) {
 		}
 		await page.frameLocator("iframe[title^='Canvas']").getByText("Second local text", { exact: true }).waitFor();
 		await page.keyboard.press("ControlOrMeta+s");
-		await page.getByRole("button", { name: "Save", exact: true }).and(page.locator("[disabled]")).waitFor();
+		await page
+			.locator("header")
+			.getByRole("button", { name: "Save", exact: true })
+			.and(page.locator("[disabled]"))
+			.waitFor();
 		expect(await draftMarkup()).toContain('data-wc-label="Remote"');
 		expect(await draftMarkup()).toContain("Second local text");
 	});

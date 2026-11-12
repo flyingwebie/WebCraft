@@ -20,6 +20,8 @@ import type { Catalogue } from "./model.ts";
  * as an inline style in Template markup does. Pages never carry inline styles.
  */
 export function StylePanel({
+	classesInDock = false,
+	departure,
 	siteId,
 	catalogue,
 	classIds,
@@ -28,6 +30,8 @@ export function StylePanel({
 	onOneOff,
 	refreshCatalogue,
 }: {
+	classesInDock?: boolean;
+	departure?: { current: (() => Promise<boolean>) | null };
 	siteId: string;
 	catalogue: Catalogue;
 	/** The element's Classes and token utilities, in order. */
@@ -48,6 +52,7 @@ export function StylePanel({
 	const [oneOffText, setOneOffText] = useState(oneOff);
 	const [oneOffProblem, setOneOffProblem] = useState<string | null>(null);
 	const [applyingOneOff, setApplyingOneOff] = useState(false);
+	const oneOffSaving = useRef(false);
 	const oneOffEdit = useRef(0);
 	const appliedOneOffEdit = useRef(0);
 	const current = useRef({ catalogue, classIds, onClasses, refreshCatalogue });
@@ -124,132 +129,148 @@ export function StylePanel({
 		}
 	};
 
-	const applyOneOff = async () => {
-		if (applyingOneOff) return;
+	const applyOneOff = async (): Promise<boolean> => {
+		if (oneOffSaving.current) return false;
 		const read = readInlineStyle(oneOffText);
 		if ("problem" in read) {
 			setOneOffProblem(read.problem);
-			return;
+			return false;
 		}
 		setOneOffProblem(null);
+		oneOffSaving.current = true;
 		setApplyingOneOff(true);
 		const revision = oneOffEdit.current;
 		try {
-			if (await onOneOff(read.declarations)) {
-				appliedOneOffEdit.current = revision;
-				if (oneOffEdit.current === revision) setOneOffText(read.declarations);
-			}
+			if (!(await onOneOff(read.declarations))) return false;
+			appliedOneOffEdit.current = revision;
+			if (oneOffEdit.current === revision) setOneOffText(read.declarations);
+			return oneOffEdit.current === revision;
 		} catch (failure) {
 			setOneOffProblem(t(errorMessage(failure)));
+			return false;
 		} finally {
+			oneOffSaving.current = false;
 			setApplyingOneOff(false);
 		}
 	};
+	const applyNow = useRef(applyOneOff);
+	applyNow.current = applyOneOff;
+	useEffect(() => {
+		if (!departure) return;
+		const flush = async () =>
+			!oneOffSaving.current && (oneOffEdit.current === appliedOneOffEdit.current || (await applyNow.current()));
+		departure.current = flush;
+		return () => {
+			if (departure.current === flush) departure.current = null;
+		};
+	}, [departure]);
 
 	return (
 		<div className="grid gap-6">
-			<section aria-labelledby={`${id}-classes`} className="grid gap-2">
-				<h3 id={`${id}-classes`} className="text-sm font-semibold">
-					{t("builder.style.classes")}
-				</h3>
-				{named.length === 0 ? (
-					<p className="text-muted-foreground text-sm">{t("builder.style.noClasses")}</p>
-				) : (
-					<ol className="grid gap-1">
-						{named.map((classId, index) => {
-							const name = nameOf(classId);
-							const own = catalogue.classes.some((each) => each.id === classId);
-							return (
-								<li key={classId} className="flex items-center gap-1 rounded-md border px-2 py-1 text-sm">
-									<span className="truncate font-mono">.{name}</span>
-									<span className="ms-auto flex shrink-0">
-										{own ? (
+			{!classesInDock ? (
+				<section aria-labelledby={`${id}-classes`} className="grid gap-2">
+					<h3 id={`${id}-classes`} className="text-sm font-semibold">
+						{t("builder.style.classes")}
+					</h3>
+					{named.length === 0 ? (
+						<p className="text-muted-foreground text-sm">{t("builder.style.noClasses")}</p>
+					) : (
+						<ol className="grid gap-1">
+							{named.map((classId, index) => {
+								const name = nameOf(classId);
+								const own = catalogue.classes.some((each) => each.id === classId);
+								return (
+									<li key={classId} className="flex items-center gap-1 rounded-md border px-2 py-1 text-sm">
+										<span className="truncate font-mono">.{name}</span>
+										<span className="ms-auto flex shrink-0">
+											{own ? (
+												<Button
+													type="button"
+													variant="ghost"
+													size="icon-sm"
+													aria-label={t("builder.style.edit", { name })}
+													aria-pressed={editing === classId}
+													onClick={() => setEditing(editing === classId ? null : classId)}
+												>
+													<PencilIcon aria-hidden="true" />
+												</Button>
+											) : null}
 											<Button
 												type="button"
 												variant="ghost"
 												size="icon-sm"
-												aria-label={t("builder.style.edit", { name })}
-												aria-pressed={editing === classId}
-												onClick={() => setEditing(editing === classId ? null : classId)}
+												disabled={index === 0}
+												aria-label={t("builder.style.moveUp", { name })}
+												onClick={() => move(index, -1)}
 											>
-												<PencilIcon aria-hidden="true" />
+												<ArrowUpIcon aria-hidden="true" />
 											</Button>
-										) : null}
-										<Button
-											type="button"
-											variant="ghost"
-											size="icon-sm"
-											disabled={index === 0}
-											aria-label={t("builder.style.moveUp", { name })}
-											onClick={() => move(index, -1)}
-										>
-											<ArrowUpIcon aria-hidden="true" />
-										</Button>
-										<Button
-											type="button"
-											variant="ghost"
-											size="icon-sm"
-											disabled={index === named.length - 1}
-											aria-label={t("builder.style.moveDown", { name })}
-											onClick={() => move(index, 1)}
-										>
-											<ArrowDownIcon aria-hidden="true" />
-										</Button>
-										<Button
-											type="button"
-											variant="ghost"
-											size="icon-sm"
-											aria-label={t("builder.style.remove", { name })}
-											onClick={() =>
-												onClasses(
-													[...named.filter((each) => each !== classId), ...generated],
-													t("builder.style.removed", { name }),
-												)
-											}
-										>
-											<XIcon aria-hidden="true" />
-										</Button>
-									</span>
-								</li>
-							);
-						})}
-					</ol>
-				)}
-				<form onSubmit={add} className="grid gap-2" noValidate>
-					<Field data-invalid={addProblem ? true : undefined}>
-						<FieldLabel htmlFor={`${id}-add`}>{t("builder.style.add")}</FieldLabel>
-						<div className="flex gap-2">
-							<Input
-								id={`${id}-add`}
-								list={`${id}-names`}
-								value={adding}
-								onChange={(event) => setAdding(event.target.value)}
-								className="font-mono"
-								spellCheck={false}
-								autoComplete="off"
-								aria-invalid={addProblem ? true : undefined}
-								aria-describedby={`${id}-add-help`}
-							/>
-							<Button type="submit" variant="outline">
-								{t("builder.style.addSubmit")}
-							</Button>
-						</div>
-						<datalist id={`${id}-names`}>
-							{catalogue.classes
-								.filter((each) => !each.generated)
-								.map((each) => (
+											<Button
+												type="button"
+												variant="ghost"
+												size="icon-sm"
+												disabled={index === named.length - 1}
+												aria-label={t("builder.style.moveDown", { name })}
+												onClick={() => move(index, 1)}
+											>
+												<ArrowDownIcon aria-hidden="true" />
+											</Button>
+											<Button
+												type="button"
+												variant="ghost"
+												size="icon-sm"
+												aria-label={t("builder.style.remove", { name })}
+												onClick={() =>
+													onClasses(
+														[...named.filter((each) => each !== classId), ...generated],
+														t("builder.style.removed", { name }),
+													)
+												}
+											>
+												<XIcon aria-hidden="true" />
+											</Button>
+										</span>
+									</li>
+								);
+							})}
+						</ol>
+					)}
+					<form onSubmit={add} className="grid gap-2" noValidate>
+						<Field data-invalid={addProblem ? true : undefined}>
+							<FieldLabel htmlFor={`${id}-add`}>{t("builder.style.add")}</FieldLabel>
+							<div className="flex gap-2">
+								<Input
+									id={`${id}-add`}
+									list={`${id}-names`}
+									value={adding}
+									onChange={(event) => setAdding(event.target.value)}
+									className="font-mono"
+									spellCheck={false}
+									autoComplete="off"
+									aria-invalid={addProblem ? true : undefined}
+									aria-describedby={`${id}-add-help`}
+								/>
+								<Button type="submit" variant="outline">
+									{t("builder.style.addSubmit")}
+								</Button>
+							</div>
+							<datalist id={`${id}-names`}>
+								{catalogue.classes
+									.filter((each) => !each.generated)
+									.map((each) => (
+										<option key={each.id} value={each.name} />
+									))}
+								{catalogue.utilities.map((each) => (
 									<option key={each.id} value={each.name} />
 								))}
-							{catalogue.utilities.map((each) => (
-								<option key={each.id} value={each.name} />
-							))}
-						</datalist>
-						<FieldDescription id={`${id}-add-help`}>{t("builder.style.addHelp")}</FieldDescription>
-						{addProblem ? <FieldError>{addProblem}</FieldError> : null}
-					</Field>
-				</form>
-			</section>
-			{editing && catalogue.classes.some((each) => each.id === editing) ? (
+							</datalist>
+							<FieldDescription id={`${id}-add-help`}>{t("builder.style.addHelp")}</FieldDescription>
+							{addProblem ? <FieldError>{addProblem}</FieldError> : null}
+						</Field>
+					</form>
+				</section>
+			) : null}
+			{!classesInDock && editing && catalogue.classes.some((each) => each.id === editing) ? (
 				<ClassEditor key={editing} siteId={siteId} catalogue={catalogue} classId={editing} onSaved={refreshCatalogue} />
 			) : null}
 			<section aria-labelledby={`${id}-one-off`} className="grid gap-2">

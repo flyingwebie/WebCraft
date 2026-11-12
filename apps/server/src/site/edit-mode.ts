@@ -875,12 +875,19 @@ async function enter(services: InstallServices, request: Request, host: SiteHost
 	if (code) {
 		const session = await services.editMode.session(host, entered.cookie);
 		if (!session) return plainText(403, "Code mode is unavailable.", headers);
-		try { await services.codeMode.access(session); }
-		catch { return plainText(403, "Code mode needs permission to edit Structure.", headers); }
+		if (!(await services.codeMode.openIfAllowed(session)))
+			return plainText(403, "Code mode needs permission to edit Structure.", headers);
 	}
 	const selection = query.get("selection");
-	const selected = code && selection && /^(site|content)(?:\/[A-Za-z0-9_-]{1,64}){0,10}(?:#(?:[A-Za-z0-9_-]{1,64}|@\d+(?:\.\d+)*)(?:\/\d+)?)?$/.test(selection)
-		? `#wc-selection=${encodeURIComponent(selection)}` : "";
+	const selected =
+		code &&
+		selection &&
+		selection.length <= 1000 &&
+		/^(site|content)(?:\/[A-Za-z0-9_-]{1,64}){0,10}(?:#(?:[A-Za-z0-9_-]{1,64}|@\d+(?:\.\d+)*)(?:\/\d+)?)?$/.test(
+			selection,
+		)
+			? `#wc-selection=${encodeURIComponent(selection)}`
+			: "";
 	const hostname = new URL(request.url).hostname;
 	const maxAge = Math.max(0, Math.floor((entered.expiresAt.getTime() - services.clock.now().getTime()) / 1000));
 	const answer = new Response(null, {

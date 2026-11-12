@@ -14,8 +14,8 @@ import { Input } from "@webcraft/ui/components/input.tsx";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
 import { ComponentIcon, PlusIcon } from "lucide-react";
 import { type FormEvent, useRef, useState } from "react";
-
 import { getApi } from "../../ui/api.ts";
+import { BuilderNavigation } from "../../ui/builder/BuilderNavigation.tsx";
 import { StatusBadge } from "../../ui/content/DraftParts.tsx";
 import { errorMessage } from "../../ui/errors.ts";
 import { HistoryLink } from "../../ui/history/HistoryLink.tsx";
@@ -83,6 +83,11 @@ function ComponentsPage() {
 								<TableCell className="text-end">
 									{component.module ? null : (
 										<span className="inline-flex flex-wrap justify-end gap-2">
+											<BuilderNavigation
+												siteId={siteId}
+												target={{ kind: "component", componentId: component.id }}
+												list
+											/>
 											<HistoryLink
 												siteId={siteId}
 												item={{ kind: "component", id: component.id }}

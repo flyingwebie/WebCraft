@@ -65,6 +65,7 @@ export type CodeMode = {
 		editable: boolean;
 		name: string | null;
 		pageLayout: { id: string; title: string } | null;
+		previewEntryId: string | null;
 		contentAvailable: boolean;
 	}>;
 	editorMarkup(
@@ -166,14 +167,17 @@ export function createCodeMode(options: {
 	/** Where Modules' Components come from. */
 	sources: ComponentSources;
 	/** The Site's pages, as the Site pipeline renders them. */
-	pages: Pick<SitePages, "render" | "notFound" | "pageContent">;
+	pages: Pick<SitePages, "render" | "notFound" | "pageContent" | "builderPage">;
 }): CodeMode {
 	const { data, pages } = options;
-	const deps: SourceDeps = { sources: options.sources, pageContent: (host, path) => pages.pageContent(host, path) };
-	const builder = createBuilder({ sources: options.sources });
+	const deps: SourceDeps = {
+		sources: options.sources,
+		pageContent: (host, path) => pages.pageContent(host, path, "draft"),
+	};
+	const builder = createBuilder({ sources: options.sources, pages });
 	const editorSource = async (scope: SiteScope, host: SiteHost, input: { path: string; ref: string | null }) => {
 		const opened = await (input.ref === null
-			? pages.pageContent(host, input.path).then((content) =>
+			? pages.pageContent(host, input.path, "draft").then((content) =>
 					openSource(scope, deps, host, input.path, {
 						root: content.contentTemplate && !content.notFound ? "content" : "site",
 						placements: [],
@@ -185,7 +189,7 @@ export function createCodeMode(options: {
 		const target: BuilderTarget =
 			source.kind === "component"
 				? { kind: "component", componentId: source.id ?? "" }
-				: (source.kind === "entryTemplate" || source.kind === "archiveTemplate")
+				: source.kind === "entryTemplate" || source.kind === "archiveTemplate"
 					? { kind: source.kind, postTypeId: source.postTypeId ?? "" }
 					: { kind: source.kind === "searchTemplate" ? "searchTemplate" : "siteTemplate" };
 		return { target, ref: opened.ref, source, catalogue, usage: opened.usage };
@@ -195,7 +199,8 @@ export function createCodeMode(options: {
 		async editor(scope, host, input) {
 			const { target, ref, source, catalogue, usage } = await editorSource(scope, host, input);
 			const opened = await builder.open(scope, source.editable ? target : { kind: "siteTemplate" });
-			const content = ref === "site" ? await pages.pageContent(host, input.path) : null;
+			const content =
+				ref === "site" || target.kind === "entryTemplate" ? await pages.pageContent(host, input.path, "draft") : null;
 			const page =
 				content?.entryId && !content.contentTemplate && !content.notFound
 					? await getEntry(scope, content.entryId, content.language)
@@ -205,6 +210,7 @@ export function createCodeMode(options: {
 				ref,
 				siteId: scope.site.id,
 				editable: source.editable,
+				previewEntryId: target.kind === "entryTemplate" ? (content?.entryId ?? null) : null,
 				name: source.name,
 				contentAvailable: !!content?.contentTemplate && !content.notFound,
 				pageLayout: page ? { id: page.id, title: page.draft.title } : null,
@@ -263,7 +269,7 @@ export function createCodeMode(options: {
 		async open(scope, host, input) {
 			if (input.ref !== null) return openSource(scope, deps, host, input.path, readCodeRef(input.ref));
 			// The page's content first, when a Template renders it; else the Site template around it.
-			const content = await pages.pageContent(host, input.path);
+			const content = await pages.pageContent(host, input.path, "draft");
 			const root = content.contentTemplate && !content.notFound ? "content" : "site";
 			return openSource(scope, deps, host, input.path, { root, placements: [], element: null });
 		},

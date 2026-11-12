@@ -186,11 +186,11 @@ for (const theme of THEMES) {
 		await page.locator("header p").filter({ hasText: "Paragraph" }).waitFor();
 		expect(await tree.getByRole("treeitem", { name: /^p$/ }).getAttribute("aria-selected")).toBe("true");
 		await tree.getByRole("treeitem", { name: /Greeting/ }).click();
-		await page.getByRole("tab", { name: "Style", exact: true }).click();
-		const addClass = page.getByRole("combobox", { name: "Add a Class" });
+		await page.getByRole("button", { name: "Give this element a Class", exact: true }).click();
+		const addClass = page.getByRole("combobox", { name: "Class name" });
 		await addClass.fill("greeting");
 		await addClass.press("Enter");
-		await page.getByRole("button", { name: "Edit the styles of greeting" }).waitFor();
+		await page.getByRole("tab", { name: ".greeting", exact: true }).waitFor();
 		await expectNoAxeViolations(page, `Code mode Layers (${theme})`);
 		// Incomplete authored HTML is refused; other HTTP failures and browser errors are unexpected.
 		const failed = await Promise.all(refusals);
@@ -456,12 +456,13 @@ test("Builder and Code mode edit the same live Draft", async () => {
 	expect((await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft).toContain('data-wc-label="From Code"');
 	// Let the preceding tree edit settle; the Class edit must propagate without another tree change.
 	await page.waitForTimeout(1000);
-	await builder.getByRole("tab", { name: "Style", exact: true }).click();
-	await builder.getByRole("button", { name: "Edit the styles of shared-ink" }).click();
-	await page.getByRole("tab", { name: "Style", exact: true }).click();
-	await page.getByRole("button", { name: "Edit the styles of shared-ink" }).click();
-	await page.getByLabel("Value 1", { exact: true }).fill("rgb(20, 30, 40)");
-	await page.getByRole("button", { name: "Save shared-ink", exact: true }).click();
+	await builder.getByRole("tab", { name: ".shared-ink", exact: true }).click();
+	await page.getByRole("tab", { name: ".shared-ink", exact: true }).click();
+	await page.getByRole("textbox", { name: "CSS: .shared-ink", exact: true }).fill("color: rgb(20, 30, 40);");
+	await page
+		.getByRole("region", { name: "CSS", exact: true })
+		.getByRole("button", { name: "Save", exact: true })
+		.click();
 	await page.waitForFunction(() => {
 		const paragraph = document.querySelector("header p");
 		return paragraph && getComputedStyle(paragraph).color === "rgb(20, 30, 40)";
@@ -471,8 +472,10 @@ test("Builder and Code mode edit the same live Draft", async () => {
 		const paragraph = frame?.contentDocument?.querySelector("header p");
 		return paragraph && frame?.contentWindow?.getComputedStyle(paragraph).color === "rgb(20, 30, 40)";
 	});
-	await builder.waitForFunction(
-		() => document.querySelector<HTMLInputElement>('input[aria-label="Value 1"]')?.value === "rgb(20, 30, 40)",
+	await builder.waitForFunction(() =>
+		document
+			.querySelector<HTMLTextAreaElement>('textarea[aria-label="CSS: .shared-ink"]')
+			?.value.includes("rgb(20, 30, 40)"),
 	);
 	await page.getByRole("region", { name: "HTML" }).getByRole("button", { name: "Save", exact: true }).click();
 	await page.getByText("Saved to Draft · Site template", { exact: true }).first().waitFor();
@@ -483,7 +486,6 @@ test("Builder and Code mode edit the same live Draft", async () => {
 		const paragraph = frame?.contentDocument?.querySelector("header p");
 		return paragraph && frame?.contentWindow?.getComputedStyle(paragraph).color === "rgb(1, 2, 3)";
 	});
-	await builder.getByRole("button", { name: "Template markup", exact: true }).click();
 	const builderHtml = builder.getByRole("textbox", { name: "Template markup", exact: true });
 	await builderHtml.fill((await builderHtml.inputValue()).replace("Together", "Written in Builder markup"));
 	await page.locator("header p", { hasText: "Written in Builder markup" }).waitFor();
