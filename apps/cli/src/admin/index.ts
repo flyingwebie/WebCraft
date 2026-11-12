@@ -38,7 +38,8 @@ export const ADMIN_USAGE = `Usage: webcraft admin <command>
 Server commands: run them on the server, with the Install's environment (the web image has webcraft).
 
   admin setup        Print a new one-time link to the setup wizard while the Install has no
-                     Superadmin (the web process prints one in its log each time it starts).
+                     Superadmin (the web process prints one in its log each time it starts). Only
+                     the newest link works, for 24 hours.
   admin doctor [--json]
                      Check the environment, the database, the Master key, storage, mail, the worker,
                      Backups and the update check, each OK, Warning or Failing, saying what to do.

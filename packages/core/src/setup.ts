@@ -1,7 +1,7 @@
 import { type Auth, normaliseEmail } from "@webcraft/auth";
 import type { Database, Transaction } from "@webcraft/db";
 import { installRoles, setupTokens } from "@webcraft/db/schema";
-import { desc, eq, notInArray, sql } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 
 import type { AdminLanguageCode } from "./admin-languages.ts";
 import { type AuditVia, recordAudit } from "./audit.ts";
@@ -40,7 +40,7 @@ export type InstallSetup = {
 	/**
 	 * A new one-time setup token and the wizard's link with it, while the Install has no Superadmin
 	 * (null once it has one): `webcraft admin setup`, for whoever can't find the web process's log.
-	 * The last 10 tokens made stay valid.
+	 * Only the newest token works, for 24 hours (`SETUP_TOKEN_MS`): making one retires the others.
 	 */
 	newSetupLink(): Promise<{ token: string; setupUrl: string } | null>;
 	/** Refuses a setup token that can't claim the Install: `SetupClosedError` or `SetupTokenInvalidError`. */
@@ -80,7 +80,9 @@ export class SetupClosedError extends Error {
 export class SetupTokenInvalidError extends Error {
 	override name = "SetupTokenInvalidError";
 	constructor() {
-		super("That setup token doesn't open this Install. Copy it again from the web process's log.");
+		super(
+			"That setup token doesn't open this Install: only the newest one works, for 24 hours. Copy it again from the web process's log, or make a new one with `webcraft admin setup`.",
+		);
 	}
 }
 
@@ -89,8 +91,12 @@ export class SetupStageError extends Error {
 	override name = "SetupStageError";
 }
 
-/** How many printed setup tokens stay valid; restarts beyond that retire the oldest. */
-const KEPT_TOKENS = 10;
+/**
+ * How long a setup token works. It is printed in the web process's log, and logs are kept and copied
+ * about, so an old one must not open an Install that was left unclaimed: after this, a restart or
+ * `webcraft admin setup` gives a new one.
+ */
+export const SETUP_TOKEN_MS = 24 * 60 * 60 * 1000;
 
 /** Serialises everything that can create the Superadmin, across processes (web and CLI). */
 const SETUP_LOCK = sql`select pg_advisory_xact_lock(hashtextextended('webcraft:install-setup', 0))`;
@@ -115,11 +121,17 @@ export function createInstallSetup({ database, auth, config, clock, log }: Setup
 		return row !== undefined;
 	};
 
-	const tokenExists = async (executor: Database["db"] | Transaction, token: string) => {
+	/** Whether a token opens the Install: it is the one made last, less than 24 hours ago. */
+	const tokenWorks = async (executor: Database["db"] | Transaction, token: string) => {
 		const [row] = await executor
 			.select({ tokenHash: setupTokens.tokenHash })
 			.from(setupTokens)
-			.where(eq(setupTokens.tokenHash, await hashToken(token)));
+			.where(
+				and(
+					eq(setupTokens.tokenHash, await hashToken(token)),
+					gt(setupTokens.createdAt, new Date(clock.now().getTime() - SETUP_TOKEN_MS)),
+				),
+			);
 		return row !== undefined;
 	};
 
@@ -159,13 +171,14 @@ export function createInstallSetup({ database, auth, config, clock, log }: Setup
 	const newSetupLink = async () => {
 		if (await superadminExists(db)) return null;
 		const token = newToken();
-		await db.insert(setupTokens).values({ tokenHash: await hashToken(token), createdAt: clock.now() });
-		const newest = db
-			.select({ tokenHash: setupTokens.tokenHash })
-			.from(setupTokens)
-			.orderBy(desc(setupTokens.createdAt))
-			.limit(KEPT_TOKENS);
-		await db.delete(setupTokens).where(notInArray(setupTokens.tokenHash, newest));
+		const tokenHash = await hashToken(token);
+		// Only the newest works: the one a restart or the command just made replaces every earlier one.
+		await db.transaction(async (tx) => {
+			// Two processes starting together take turns, so one token is left, not one each.
+			await tx.execute(SETUP_LOCK);
+			await tx.delete(setupTokens);
+			await tx.insert(setupTokens).values({ tokenHash, createdAt: clock.now() });
+		});
 		const setupUrl = new URL("/setup", config.adminOrigin);
 		setupUrl.searchParams.set("token", token);
 		return { token, setupUrl: setupUrl.toString() };
@@ -194,14 +207,14 @@ export function createInstallSetup({ database, auth, config, clock, log }: Setup
 
 		async checkToken(token) {
 			if (await superadminExists(db)) throw new SetupClosedError();
-			if (!(await tokenExists(db, token))) throw new SetupTokenInvalidError();
+			if (!(await tokenWorks(db, token))) throw new SetupTokenInvalidError();
 		},
 
 		async claim(token, account, via) {
 			const result = await createInLock(
 				account,
 				async (tx) => {
-					if (!(await tokenExists(tx, token))) throw new SetupTokenInvalidError();
+					if (!(await tokenWorks(tx, token))) throw new SetupTokenInvalidError();
 				},
 				false,
 				{ action: "install.claim", via },

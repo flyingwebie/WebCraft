@@ -6,7 +6,7 @@
 	},
 	"errors": {
 		"generic": "Qualcosa è andato storto. Riprova.",
-		"SETUP_TOKEN_INVALID": "Questo token di configurazione non apre questa Install. Copialo di nuovo dal log del processo web.",
+		"SETUP_TOKEN_INVALID": "Questo token di configurazione non apre questa Install: funziona solo il più recente, per 24 ore. Copialo di nuovo dal log del processo web, oppure creane uno nuovo con `webcraft admin setup`.",
 		"SETUP_CLOSED": "Questa Install ha già un Superadmin, quindi la configurazione guidata è chiusa.",
 		"PASSWORD_TOO_SHORT": "Usa almeno 12 caratteri.",
 		"PASSWORD_TOO_LONG": "Usa al massimo 128 caratteri.",

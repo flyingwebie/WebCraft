@@ -100,12 +100,40 @@ describe("the setup token", () => {
 		expect(await someoneElse.api.session.current()).toEqual({ person: null });
 	});
 
-	test("a token printed before the web process restarted still works", async () => {
+	// A token sits in logs, which are kept and copied about: it must not open the Install to whoever
+	// reads an old one (the report's A1-9).
+	test("only the newest token works: a restart prints a new one and the earlier one stops working", async () => {
 		const before = install.setupToken() ?? "";
 		await install.restart();
-		expect(install.setupToken()).not.toBe(before);
+		const newest = install.setupToken() ?? "";
+		expect(newest).not.toBe(before);
 
-		await install.browser().api.setup.claim({ token: before, ...account() });
+		await expect(install.browser().api.setup.checkToken({ token: before })).rejects.toMatchObject({
+			code: "SETUP_TOKEN_INVALID",
+		});
+		await expect(install.browser().api.setup.claim({ token: before, ...account() })).rejects.toMatchObject({
+			code: "SETUP_TOKEN_INVALID",
+		});
+		await install.browser().api.setup.claim({ token: newest, ...account() });
+	});
+
+	test("a token works for 24 hours; after that the Install is claimed with a new one", async () => {
+		const token = install.setupToken() ?? "";
+		await install.clock.advance(24 * 60 * 60 * 1000 - 60_000);
+		await install.browser().api.setup.checkToken({ token });
+
+		await install.clock.advance(60_000);
+		await expect(install.browser().api.setup.checkToken({ token })).rejects.toMatchObject({
+			code: "SETUP_TOKEN_INVALID",
+			status: 403,
+		});
+		await expect(install.browser().api.setup.claim({ token, ...account() })).rejects.toMatchObject({
+			code: "SETUP_TOKEN_INVALID",
+		});
+		expect(await install.browser().api.setup.state()).toMatchObject({ stage: "claim" });
+
+		await install.restart();
+		await install.browser().api.setup.claim({ token: install.setupToken() ?? "", ...account() });
 	});
 
 	test("once a Superadmin exists, a restart prints no new token", async () => {
