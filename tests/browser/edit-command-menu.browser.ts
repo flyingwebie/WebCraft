@@ -495,6 +495,8 @@ test("Staff see Templates and Components in Go to, and every Component in Insert
 	const staff = await site.local.createStaff({ workspaces: [site.workspaceId] });
 	const page = await enter("dark", site, staff.account);
 	await searchButton(page).waitFor();
+	// Staff's bar is the fullest (it has the Code switch too): nothing in it lies over anything else.
+	await expectNoAxeViolations(page, "Edit bar with the search button, Staff");
 	await page.keyboard.press("ControlOrMeta+p");
 	const menu = menuOf(page);
 	await menu.getByRole("option").first().waitFor();
@@ -683,6 +685,7 @@ test("the menu isn't offered in a window under 768px, and comes back when it wid
 
 	await page.setViewportSize({ width: 768, height: 800 });
 	await searchButton(page).waitFor();
+	await expectNoAxeViolations(page, "Edit bar with the search button, 768px");
 	await page.keyboard.press("ControlOrMeta+k");
 	await menuOf(page).waitFor();
 	// Narrowed while it is open, it closes.

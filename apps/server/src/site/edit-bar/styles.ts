@@ -145,8 +145,11 @@ svg { flex: none; }
 	box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
 }
 .start, .middle, .end { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+/* When the bar is tight, the Site's name and the page's title give way: nothing lies over anything else. */
 .start { flex: 1 1 auto; }
-.end { flex: 1 1 auto; justify-content: flex-end; }
+.middle { flex: none; }
+.end { flex: 1 0 auto; justify-content: flex-end; }
+.pages, .page-title { min-width: 0; }
 .logo {
 	display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 0.375rem;
 	background: var(--bar-text); color: var(--bar); font-weight: 700;
