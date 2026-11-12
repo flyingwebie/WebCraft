@@ -7,6 +7,7 @@ import {
 	IMPORT_PART_BYTES,
 	ImportUploadRefusedError,
 	type InstallServices,
+	limitBody,
 	MediaTooLargeError,
 	SiteImportUploadRefusedError,
 } from "@webcraft/core";
@@ -55,6 +56,11 @@ export function createAdminApi(
 	return async (request, { clientAddress }) => {
 		const handler = handlerFor();
 		const procedurePath = new URL(request.url).pathname.slice(ADMIN_API_PREFIX.length + 1).replaceAll("/", ".");
+		// An upload is read only from someone signed in: its limit is the largest file the Install takes,
+		// far more than anyone else may make the web process hold, and nobody else has one to send.
+		if (isUpload(request) && !(await services.auth.session({ headers: request.headers, clientAddress })).session) {
+			return refused(new ORPCError("UNAUTHORIZED", { message: "Sign in first." }));
+		}
 		const body = await bodyWithinLimit(services, request, procedurePath);
 		if (body instanceof Response) return body;
 		const { matched, response } = await handler.handle(body.request, {
@@ -106,21 +112,17 @@ const OWN_UPLOAD_LIMITS: Record<string, { maxFileBytes: number; refusal: () => E
  * into memory: an upload (a multipart body, the only kind that carries files) to its largest file
  * (the Install's largest Media file, unless the procedure has its own limit), and any other body to
  * `API_BODY_MAX_BYTES` (`PAYLOAD_TOO_LARGE`). A body that says it is larger is refused at once, and
- * one that doesn't say stops being read once it passes the limit.
+ * one that doesn't say stops being read once it passes the limit. Its callers check who sends an
+ * upload first (`/api/v1` its token, the admin's API its session).
  */
 export async function bodyWithinLimit(
 	services: InstallServices,
 	request: Request,
 	procedurePath: string,
 ): Promise<LimitedBody | Response> {
-	const multipart = request.headers.get("content-type")?.toLowerCase().startsWith("multipart/") ?? false;
+	const multipart = isUpload(request);
 	let limit = API_BODY_MAX_BYTES;
-	let refusal: () => Error = () =>
-		new ORPCError("PAYLOAD_TOO_LARGE", {
-			status: 413,
-			message: `A request without a file has at most ${API_BODY_MAX_BYTES} bytes.`,
-			data: { maxBytes: API_BODY_MAX_BYTES },
-		});
+	let refusal: () => Error = payloadTooLarge;
 	if (multipart) {
 		const own = Object.hasOwn(OWN_UPLOAD_LIMITS, procedurePath) ? OWN_UPLOAD_LIMITS[procedurePath] : undefined;
 		const maxFileBytes = own?.maxFileBytes ?? (await services.settings.media()).maxFileBytes;
@@ -128,64 +130,26 @@ export async function bodyWithinLimit(
 		refusal = own?.refusal ?? (() => new MediaTooLargeError(maxFileBytes));
 	}
 	const limited = limitBody(request, limit, refusal);
-	if ("refused" in limited) return tooLarge(limited.refused);
-	return { ...limited, tooLarge: () => tooLarge(refusal()) };
+	if ("refused" in limited) return refused(limited.refused);
+	return { ...limited, tooLarge: () => refused(refusal()) };
 }
 
-/**
- * Keeps a request's body to `limit` bytes before it is read into memory: a body that says it is
- * larger is refused at once (`refused`), and one that doesn't say stops being read once it passes the
- * limit, its reading failing with `refusal()` (`overflowed()` then says so). Edit mode's uploads use
- * it too, with the Install's largest Media file.
- */
-export function limitBody(
-	request: Request,
-	limit: number,
-	refusal: () => Error,
-): { request: Request; overflowed(): boolean } | { refused: Error } {
-	if (request.body === null) return { request, overflowed: () => false };
-	const declared = Number(request.headers.get("content-length"));
-	if (Number.isFinite(declared) && declared > limit) {
-		// Not waited for: a body cancelled half-read may never say it is done (Bun's never does).
-		request.body.cancel().catch(() => {});
-		return { refused: refusal() };
-	}
-	const reader = request.body.getReader();
-	let read = 0;
-	let overflowed = false;
-	const counted = new ReadableStream<Uint8Array>({
-		async pull(controller) {
-			const { done, value } = await reader.read();
-			if (done) {
-				controller.close();
-				return;
-			}
-			read += value.byteLength;
-			if (read > limit) {
-				overflowed = true;
-				reader.cancel().catch(() => {});
-				controller.error(refusal());
-				return;
-			}
-			controller.enqueue(value);
-		},
-		cancel: (reason) => reader.cancel(reason),
+/** How a body without a file over `API_BODY_MAX_BYTES` is refused (`PAYLOAD_TOO_LARGE`, 413). */
+export function payloadTooLarge(): ORPCError<"PAYLOAD_TOO_LARGE", { maxBytes: number }> {
+	return new ORPCError("PAYLOAD_TOO_LARGE", {
+		status: 413,
+		message: `A request without a file has at most ${API_BODY_MAX_BYTES} bytes.`,
+		data: { maxBytes: API_BODY_MAX_BYTES },
 	});
-	const headers = new Headers(request.headers);
-	headers.delete("content-length");
-	// A streamed body needs `duplex` in the Fetch standard; not every runtime's types know it yet.
-	const init: RequestInit & { duplex: "half" } = {
-		method: request.method,
-		headers,
-		body: counted,
-		signal: request.signal,
-		duplex: "half",
-	};
-	return { request: new Request(request.url, init), overflowed: () => overflowed };
 }
 
-/** A refused upload (`MEDIA_TOO_LARGE`, `IMPORT_FILE_REFUSED`), as a procedure answers it. */
-function tooLarge(error: Error): Response {
+/** Whether a request carries an upload: a multipart body, the only kind that carries files. */
+function isUpload(request: Request): boolean {
+	return request.headers.get("content-type")?.toLowerCase().startsWith("multipart/") ?? false;
+}
+
+/** A request refused before its procedure ran (`MEDIA_TOO_LARGE`, `UNAUTHORIZED`), as a procedure answers it. */
+function refused(error: Error): Response {
 	const answer = toApiError(error);
 	const { code, status, message, data } = answer instanceof ORPCError ? answer : new ORPCError("PAYLOAD_TOO_LARGE");
 	return Response.json(

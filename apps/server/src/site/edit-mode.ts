@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { limitBody, MULTIPART_ALLOWANCE, toApiError } from "@webcraft/api";
+import { API_BODY_MAX_BYTES, MULTIPART_ALLOWANCE, payloadTooLarge, toApiError } from "@webcraft/api";
 import {
 	type AdminLanguageCode,
 	CODE_MODE_SCRIPT_PATH,
@@ -17,6 +17,7 @@ import {
 	isCodeSelection,
 	isEditPageAddress,
 	LIBRARIES_PER_SITE,
+	limitBody,
 	MEDIA_TEXT_MAX_LENGTH,
 	MediaTooLargeError,
 	madeTexts,
@@ -750,8 +751,11 @@ async function editRequest(
 	return refusalsAsJson(async () => {
 		const contentType = request.headers.get("content-type") ?? "";
 		if (!/^application\/json(;|$)/i.test(contentType)) throw new BadEditRequest("Send the request as JSON.");
-		const body: unknown = await request.json().catch(() => {
-			throw new BadEditRequest("The request isn't valid JSON.");
+		// An edit request is a procedure's input under another name: no larger than one.
+		const limited = limitBody(request, API_BODY_MAX_BYTES, payloadTooLarge);
+		if ("refused" in limited) throw limited.refused;
+		const body: unknown = await limited.request.json().catch(() => {
+			throw limited.overflowed() ? payloadTooLarge() : new BadEditRequest("The request isn't valid JSON.");
 		});
 		return answer(services, session, body, request, host);
 	});

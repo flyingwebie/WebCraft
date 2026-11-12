@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { REPORT_PAGE_POLICY } from "@webcraft/core";
 
+import { chunkedBody, chunkedPost } from "../harness/bodies.ts";
 import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { reportedSite, views } from "./support.ts";
 
@@ -178,6 +179,27 @@ describe("a Share link", () => {
 			await givePassword(url, `guess ${tried}`, {}, `198.51.100.${100 + tried}`);
 		}
 		expect((await givePassword(url, "the right password", {}, "198.51.100.200")).status).toBe(429);
+	});
+
+	test("a password post that doesn't say its length stops being read at its limit", async () => {
+		const site = await newSite();
+		const { url } = await staff.api.shareLinks.create({
+			siteId: site.siteId,
+			dashboardId: site.dashboardId,
+			name: "Flooded",
+			password: "the right password",
+		});
+		const sent = chunkedBody(4 * 1024 * 1024);
+		const headers = {
+			"content-type": "application/x-www-form-urlencoded",
+			origin: new URL(url).origin,
+			"sec-fetch-site": "same-origin",
+		};
+
+		const answer = await install.request(fromAddress(chunkedPost(url, headers, sent.body), "198.51.100.60"));
+
+		expect(answer.status).toBe(413);
+		expect(sent.taken()).toBeLessThan(64 * 1024);
 	});
 
 	test("stops working once it expires or is revoked, and says no more than that", async () => {

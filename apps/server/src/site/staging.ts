@@ -3,6 +3,7 @@ import {
 	type InstallServices,
 	isEditPath,
 	RateLimitedError,
+	readLimitedBody,
 	type SiteHost,
 	STAGING_ENTER_PATH,
 	STAGING_PAGE_POLICY,
@@ -209,9 +210,9 @@ async function passwordPost(services: InstallServices, request: Request, host: S
 	if (!(await services.staging.hasPassword(host.site))) return plainText(404, "Not Found", PRIVATE);
 	const type = (request.headers.get("content-type") ?? "").split(";")[0]?.trim().toLowerCase();
 	if (type !== "application/x-www-form-urlencoded") return plainText(415, "Unsupported Media Type", PRIVATE);
-	const body = await readLimited(request, PASSWORD_POST_MAX_BYTES);
+	const body = await readLimitedBody(request, PASSWORD_POST_MAX_BYTES);
 	if (body === null) return plainText(413, "Payload Too Large", PRIVATE);
-	const form = new URLSearchParams(body);
+	const form = new URLSearchParams(new TextDecoder().decode(body));
 	const given = form.get("path") ?? "/";
 	const path = isEditPath(given) && !given.startsWith("/_") ? given : "/";
 	const address = clientAddress(request, services.config) ?? "unknown";
@@ -246,12 +247,4 @@ function fromStagingPages(request: Request): boolean {
 	} catch {
 		return false;
 	}
-}
-
-/** A request's body as text, or null when it is longer than `limit` bytes. */
-async function readLimited(request: Request, limit: number): Promise<string | null> {
-	const declared = Number(request.headers.get("content-length") ?? "0");
-	if (declared > limit) return null;
-	const bytes = new Uint8Array(await request.arrayBuffer());
-	return bytes.byteLength > limit ? null : new TextDecoder().decode(bytes);
 }

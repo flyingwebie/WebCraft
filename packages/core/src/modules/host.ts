@@ -53,6 +53,7 @@ import { withLogContext } from "../log.ts";
 import { type AddedPermission, can, personIdOf } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { RateLimits } from "../rate-limits.ts";
+import { readLimitedBody } from "../request-body.ts";
 import type { NotedMiss, RedirectPaths } from "../site-pages/redirects.ts";
 import { MODULE_ROUTE_POLICY } from "../site-scripts/policy.ts";
 import type { Access, InstallScope, Site, SiteScope } from "../tenancy/data-layer.ts";
@@ -1683,30 +1684,10 @@ function withoutWebCraftSetCookies(answer: Headers): Headers {
  * what comes), or null when it is bigger.
  */
 async function withLimitedBody(request: Request, limit: number): Promise<Request | null> {
-	const declared = Number(request.headers.get("content-length") ?? "0");
-	if (Number.isFinite(declared) && declared > limit) return null;
 	if (request.body === null) return request;
-	const reader = request.body.getReader();
-	const parts: Uint8Array[] = [];
-	let size = 0;
-	for (;;) {
-		const { done, value } = await reader.read();
-		if (done) break;
-		size += value.byteLength;
-		if (size > limit) {
-			await reader.cancel().catch(() => {});
-			return null;
-		}
-		parts.push(value);
-	}
-	const body = new Uint8Array(size);
-	let offset = 0;
-	for (const part of parts) {
-		body.set(part, offset);
-		offset += part.byteLength;
-	}
-	const copied = new Request(request.url, { method: request.method, headers: request.headers, body });
-	return copied;
+	const body = await readLimitedBody(request, limit);
+	if (body === null) return null;
+	return new Request(request.url, { method: request.method, headers: request.headers, body });
 }
 
 /** A Site route's parameters when its parts match the path's segments, or null. */

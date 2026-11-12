@@ -3,16 +3,8 @@
 // It serves the bundle `vite build` made from src/server.ts on Bun.
 import { createLogger, logSettings } from "@webcraft/core";
 
-import { setConnectionAddress } from "./client-address.ts";
-import type { UpgradeAnswer } from "./handler.ts";
-import { answerUpgrade, isUpgrade, type SocketData, socketHandlers } from "./socket-serving.ts";
+import { type ServerEntry, serveWeb } from "./serving.ts";
 import { checkWebSettings } from "./web-services.ts";
-
-type ServerEntry = {
-	fetch(request: Request): Response | Promise<Response>;
-	upgrade?(request: Request): Promise<UpgradeAnswer>;
-	stop?(): Promise<void>;
-};
 
 const log = createLogger({ fields: { process: "web" }, ...logSettings(process.env) });
 const bundle = new URL("../dist/server/server.js", import.meta.url);
@@ -29,16 +21,7 @@ try {
 	process.exit(1);
 }
 
-const server = Bun.serve<SocketData>({
-	port: Number(process.env.PORT ?? 3000),
-	fetch: (request, bun) => {
-		setConnectionAddress(request, bun.requestIP(request)?.address);
-		// Co-editing's sockets: the handler checks the upgrade (who, which Draft, from where) first.
-		if (isUpgrade(request) && entry.upgrade) return answerUpgrade(entry.upgrade, request, bun);
-		return entry.fetch(request);
-	},
-	websocket: socketHandlers,
-});
+const server = serveWeb(entry, { port: Number(process.env.PORT ?? 3000) });
 log.info("The web process is listening", { port: server.port });
 
 for (const signal of ["SIGTERM", "SIGINT"] as const) {

@@ -5,6 +5,7 @@ import {
 	type RateLimitRule,
 	REPORT_PAGE_POLICY,
 	type ReportExplore,
+	readLimitedBody,
 	shareGonePage,
 	sharePasswordPage,
 } from "@webcraft/core";
@@ -113,7 +114,7 @@ async function passwordPost(
 	if (!link.passwordHash) return plainText(405, "Method Not Allowed", { allow: "GET, HEAD", ...PRIVATE });
 	const type = (request.headers.get("content-type") ?? "").split(";")[0]?.trim().toLowerCase();
 	if (type !== "application/x-www-form-urlencoded") return plainText(415, "Unsupported Media Type", PRIVATE);
-	const body = await readLimited(request, PASSWORD_POST_MAX_BYTES);
+	const body = await readLimitedBody(request, PASSWORD_POST_MAX_BYTES);
 	if (body === null) return plainText(413, "Payload Too Large", PRIVATE);
 	const perAddress = await services.rateLimits.count(`share-password:${link.id}:${address}`, SHARE_PASSWORD_RATE_LIMIT);
 	const perLink =
@@ -127,7 +128,10 @@ async function passwordPost(
 		refused.headers.set("retry-after", String(SHARE_PASSWORD_RATE_LIMIT.windowMs / 1000));
 		return refused;
 	}
-	const access = await services.shareLinks.tryPassword(link, new URLSearchParams(body).get("password") ?? "");
+	const access = await services.shareLinks.tryPassword(
+		link,
+		new URLSearchParams(new TextDecoder().decode(body)).get("password") ?? "",
+	);
 	if (!access) {
 		const action = new URL(request.url).pathname;
 		return page(request, sharePasswordPage({ language: link.language, action, problem: "wrong" }), 403);
@@ -166,12 +170,4 @@ function fromItself(request: Request): boolean {
 	} catch {
 		return false;
 	}
-}
-
-/** A request's body as text, or null when it is longer than `limit` bytes. */
-async function readLimited(request: Request, limit: number): Promise<string | null> {
-	const declared = Number(request.headers.get("content-length") ?? "0");
-	if (declared > limit) return null;
-	const bytes = new Uint8Array(await request.arrayBuffer());
-	return bytes.byteLength > limit ? null : new TextDecoder().decode(bytes);
 }

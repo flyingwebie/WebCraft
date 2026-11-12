@@ -1,8 +1,15 @@
-import { type InstallServices, normaliseHostname, type SitemapLimits, withLogContext } from "@webcraft/core";
+import {
+	type InstallServices,
+	normaliseHostname,
+	type SitemapLimits,
+	underBodyCeiling,
+	withLogContext,
+} from "@webcraft/core";
 
 import { healthz, readyz } from "./admin/health.ts";
 import type { AdminApp } from "./admin/security-headers.ts";
 import { createAdminSide } from "./admin/side.ts";
+import { sameClient } from "./client-address.ts";
 import {
 	ADMIN_DRAFTS_PREFIX,
 	createDraftSockets,
@@ -85,8 +92,12 @@ export function createWebHandler({ services, adminApp, filterVariants, sitemapLi
 	};
 
 	// Every line a request writes, and the jobs it queues, carry its request id; so does its answer.
-	const handler = (request: Request): Promise<Response> => {
-		const requestId = requestIdOf(request, services.config);
+	// Every request's body comes under one ceiling (`request-body.ts` in `@webcraft/core`): a route
+	// reads more only by setting its own limit, and each side answers 413 for a body cut off there.
+	const handler = (incoming: Request): Promise<Response> => {
+		const requestId = requestIdOf(incoming, services.config);
+		const request = underBodyCeiling(incoming);
+		if (request !== incoming) sameClient(incoming, request);
 		return withLogContext({ requestId }, () => answer(request)).then((response) => withRequestId(response, requestId));
 	};
 

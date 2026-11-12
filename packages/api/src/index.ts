@@ -38,8 +38,8 @@ export {
 	ADMIN_API_PREFIX,
 	API_BODY_MAX_BYTES,
 	createAdminApi,
-	limitBody,
 	MULTIPART_ALLOWANCE,
+	payloadTooLarge,
 	type RequestFacts,
 } from "./rpc.ts";
 export { type PublicProcedurePath, TOOL_PLACES, type ToolPlace, toolPlaceOf } from "./toolsets.ts";

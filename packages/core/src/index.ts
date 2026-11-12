@@ -356,6 +356,15 @@ export {
 	SECRET_NAMES,
 } from "./redaction.ts";
 export * from "./reports/index.ts";
+export {
+	BodyTooLargeError,
+	bodyLimitedByRoute,
+	bodyOverflowed,
+	DEFAULT_BODY_MAX_BYTES,
+	limitBody,
+	readLimitedBody,
+	underBodyCeiling,
+} from "./request-body.ts";
 export { isRobot } from "./robots.ts";
 export * from "./search/index.ts";
 export * from "./secrets/index.ts";

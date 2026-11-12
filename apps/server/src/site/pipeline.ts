@@ -34,7 +34,7 @@ import { FILTER_FRAGMENTS_PATH } from "@webcraft/renderer";
 
 import { clientAddress, recordVisitorAddress, sameClient } from "../client-address.ts";
 import { matchesETag, mediaFileResponse } from "../media-response.ts";
-import { type Handler, json, notFound, plainText, readOnly } from "../responses.ts";
+import { type Handler, json, notFound, payloadTooLarge, plainText, readOnly, withinBodyCeiling } from "../responses.ts";
 import { consentRecordPost, isConsentPath } from "./consent.ts";
 import { contentApiAnswer, isContentApiPath } from "./content-api.ts";
 import { discoveryFile, stagingRobots } from "./discovery.ts";
@@ -97,7 +97,13 @@ export type SitePipelineOptions = {
 export function createSitePipeline(services: InstallServices, options: SitePipelineOptions = {}): Handler {
 	const cache = options.pageCache ?? createPageCache();
 	const limits = { ...SITEMAP_LIMITS, ...options.sitemapLimits };
-	return async (request) => {
+	return (request) =>
+		withinBodyCeiling(
+			request,
+			() => answer(request),
+			() => withSecurityHeaders(payloadTooLarge()),
+		);
+	async function answer(request: Request): Promise<Response> {
 		const url = new URL(request.url);
 		const hostname = normaliseHostname(url.hostname);
 		// Domain verification comes first: a domain waiting for DNS belongs to no Site yet.
@@ -113,7 +119,7 @@ export function createSitePipeline(services: InstallServices, options: SitePipel
 		// From here on the client address is the visitor's, as the Site's CDN gives it when it has one.
 		await recordVisitorAddress(request, services, host);
 		return withSecurityHeaders(await siteAnswer(services, cache, request, host, limits));
-	};
+	}
 }
 
 /** What a request on one of the Site's hostnames answers, before the security headers every answer gets. */

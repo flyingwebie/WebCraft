@@ -51,7 +51,7 @@ import {
 } from "@webcraft/core";
 import { createBoss, openDatabase } from "@webcraft/db";
 import type { AnyModuleDefinition } from "@webcraft/module-sdk";
-import { createWebHandler, type UpgradeAnswer, type WebHandler } from "@webcraft/server/handler";
+import { type AdminApp, createWebHandler, type UpgradeAnswer, type WebHandler } from "@webcraft/server/handler";
 import { createImageProcessor } from "@webcraft/worker/images";
 import type { PgBoss } from "pg-boss";
 import { createTestBrowser, fromAddress, type TestBrowser, type TestBrowserOptions } from "./browser.ts";
@@ -175,6 +175,12 @@ export type TestInstallOptions = {
 	 * Off unless given: other tests would get Health alerts among their emails.
 	 */
 	healthChecks?: boolean;
+	/**
+	 * What renders the admin's pages (TanStack Start in the real web process): nothing unless given, so
+	 * those requests get a 404. A test gives a stand-in to see what reaches the pages the web process
+	 * doesn't answer itself.
+	 */
+	adminApp?: AdminApp;
 };
 
 /** A person's account in a test, with the password they sign in with. */
@@ -555,6 +561,7 @@ export async function createTestInstall(options: TestInstallOptions = {}): Promi
 	let secrets = secretStore(env[MASTER_KEY_VARIABLE] ?? TEST_MASTER_KEY);
 	const handle = createWebHandler({
 		services,
+		adminApp: options.adminApp,
 		filterVariants: options.filterVariants,
 		sitemapLimits: options.sitemapLimits,
 	});
