@@ -181,6 +181,12 @@ export const oauthDeviceCodes = pgTable(
 		/** The resource its tokens will be for (RFC 8707). */
 		resource: text("resource").notNull(),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		/**
+		 * The client address the code was asked for from, if known: the approval page shows its network,
+		 * and a code that arrives in a link is only looked up for a browser on the same network. Gone
+		 * with the row, a day after the code's 10 minutes at the latest.
+		 */
+		requestedFrom: text("requested_from"),
 		expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 		/** How many seconds the client waits between polls: 5, and 5 more each time it polls too fast. */
 		intervalSeconds: integer("interval_seconds").notNull(),

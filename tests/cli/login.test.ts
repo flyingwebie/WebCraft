@@ -265,7 +265,9 @@ describe("the device authorization grant", () => {
 		const clientId = await deviceClient();
 		const late = await post("/oauth/device_authorization", { client_id: clientId });
 		await install.clock.advance(10 * 60 * 1000);
-		expect(await owner.browser.api.oauth.checkDevice({ userCode: String(late.body.user_code) })).toMatchObject({
+		expect(
+			await owner.browser.api.oauth.checkDevice({ userCode: String(late.body.user_code), typed: true }),
+		).toMatchObject({
 			check: { kind: "refused", problem: "expired" },
 		});
 		expect(
@@ -280,11 +282,11 @@ describe("the device authorization grant", () => {
 
 		const fresh = await post("/oauth/device_authorization", { client_id: clientId });
 		const userCode = String(fresh.body.user_code);
-		expect(await owner.browser.api.oauth.checkDevice({ userCode })).toMatchObject({
+		expect(await owner.browser.api.oauth.checkDevice({ userCode, typed: true })).toMatchObject({
 			check: { kind: "ask", request: { client: { name: "Kiosk" }, userCode } },
 		});
 		await owner.browser.api.oauth.denyDevice({ userCode });
-		expect(await owner.browser.api.oauth.checkDevice({ userCode })).toMatchObject({
+		expect(await owner.browser.api.oauth.checkDevice({ userCode, typed: true })).toMatchObject({
 			check: { kind: "refused", problem: "decided" },
 		});
 		await expect(approveDevice(owner.browser, userCode, { workspaceId })).rejects.toMatchObject({
@@ -292,12 +294,56 @@ describe("the device authorization grant", () => {
 		});
 	});
 
+	// Nothing a device sign-in says about itself can be trusted: anyone may register a client under
+	// any name. The approval shows what WebCraft itself knows, and a code that came in a link is
+	// shown only to a browser on the network that asked for it (the report's A1-6).
+	test("the approval says when the code was asked for and from which network", async () => {
+		const clientId = await deviceClient();
+		const fresh = await post("/oauth/device_authorization", { client_id: clientId });
+		const userCode = String(fresh.body.user_code);
+		await install.clock.advance(2 * 60 * 1000);
+
+		const { check } = await owner.browser.api.oauth.checkDevice({ userCode, typed: true });
+
+		expect(check).toEqual({
+			kind: "ask",
+			request: {
+				client: { id: clientId, name: "Kiosk" },
+				userCode,
+				requestedAt: new Date(install.clock.now().getTime() - 2 * 60 * 1000),
+				network: "10.230.0.*",
+				sameNetwork: false,
+			},
+		});
+	});
+
+	test("a code that arrives in a link isn't looked up for a browser on another network: the person types the code their own terminal shows", async () => {
+		const clientId = await deviceClient();
+		const fresh = await post("/oauth/device_authorization", { client_id: clientId });
+		const userCode = String(fresh.body.user_code);
+		const person = await install.createMember({ workspaceId, role: "editor" });
+
+		// Sent the link by someone else: nothing about the sign-in is shown, whatever name it carries.
+		expect(await person.browser.api.oauth.checkDevice({ userCode, typed: false })).toMatchObject({
+			check: { kind: "type" },
+		});
+		// Their own terminal, on their own network, opened the link.
+		const sameNetwork = await install.signIn(person.account, { address: "10.230.0.1" });
+		expect(await sameNetwork.api.oauth.checkDevice({ userCode, typed: false })).toMatchObject({
+			check: { kind: "ask", request: { client: { name: "Kiosk" }, userCode, sameNetwork: true } },
+		});
+		// Typed in, it is looked up from anywhere: that is what a device sign-in is for.
+		expect(await person.browser.api.oauth.checkDevice({ userCode, typed: true })).toMatchObject({
+			check: { kind: "ask", request: { userCode, sameNetwork: false } },
+		});
+	});
+
 	test("looking up user codes is limited per person, so they can't be guessed", async () => {
 		const guesser = await install.createMember({ workspaceId, role: "editor" });
 		for (let attempt = 0; attempt < 20; attempt++) {
-			await guesser.browser.api.oauth.checkDevice({ userCode: "BBBB-BBBB" });
+			await guesser.browser.api.oauth.checkDevice({ userCode: "BBBB-BBBB", typed: true });
 		}
-		await expect(guesser.browser.api.oauth.checkDevice({ userCode: "BBBB-BBBB" })).rejects.toMatchObject({
+		await expect(guesser.browser.api.oauth.checkDevice({ userCode: "BBBB-BBBB", typed: true })).rejects.toMatchObject({
 			code: "TOO_MANY_REQUESTS",
 		});
 		// Denying (or approving) a code counts the same: guessing one to deny someone's sign-in is hopeless too.

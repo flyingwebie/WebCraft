@@ -1,0 +1,1 @@
+ALTER TABLE "oauth_device_codes" ADD COLUMN "requested_from" text;

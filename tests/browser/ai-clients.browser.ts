@@ -190,6 +190,9 @@ for (const theme of THEMES) {
 			await page.getByRole("heading", { name: "Sign in webcraft CLI on build-box?" }).waitFor();
 			await page.getByText(code, { exact: true }).waitFor();
 			await page.getByText("Approve only a sign-in you started yourself").waitFor();
+			// What WebCraft itself knows about the sign-in, and that the name is the requester's own word.
+			await page.getByText("Asked for").waitFor();
+			await page.getByText("WebCraft can't check it").waitFor();
 			await expectAccessibleScreen(page, `Device sign-in, approval (${theme})`);
 
 			await page.getByRole("button", { name: "Approve webcraft CLI on build-box" }).focus();
@@ -200,11 +203,18 @@ for (const theme of THEMES) {
 			await expectNoAxeViolations(page, `Device sign-in, approved (${theme})`);
 		});
 
-		test("the code filled in from the address webcraft login shows", async () => {
+		test("a link carrying a code started on another network shows nothing of it: the person types their own code, then denies", async () => {
 			const code = await userCode();
 			const page = await install.newPage(theme);
 			await install.signIn(page, superadmin);
 			await page.goto(install.adminUrl(`/oauth/device?user_code=${code}`));
+			await page.getByText("Type the code your own terminal or device shows.").waitFor();
+			expect(await page.locator("main").textContent()).not.toContain("webcraft CLI on build-box");
+			expect(await page.getByRole("textbox", { name: "Code" }).inputValue()).toBe("");
+			await expectAccessibleScreen(page, `Device sign-in, a link from another network (${theme})`);
+
+			await page.getByRole("textbox", { name: "Code" }).fill(code);
+			await page.keyboard.press("Enter");
 			await page.getByRole("heading", { name: "Sign in webcraft CLI on build-box?" }).waitFor();
 			await page.getByRole("button", { name: "Deny" }).click();
 			await page.getByRole("heading", { name: "Sign-in denied" }).waitFor();

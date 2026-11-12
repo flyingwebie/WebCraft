@@ -11,6 +11,7 @@ import {
 } from "@webcraft/db/schema";
 import { and, asc, desc, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
 
+import { networkOf } from "./account.ts";
 import {
 	type ApiAccess,
 	type ApiClientLimits,
@@ -22,6 +23,7 @@ import {
 import { type AuditVia, recordAudit } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import { isUuid } from "./ids.ts";
+import { clientNetwork } from "./ip-ranges.ts";
 import type { People } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
 import { can, type GrantActor, type Reach } from "./permissions/can.ts";
@@ -236,7 +238,25 @@ export type DeviceAuthorizationAnswer = {
  * approved: no such code (`unknown`), too late (`expired`), or already approved or denied (`decided`).
  */
 export type DeviceCheck =
-	| { kind: "ask"; request: { client: { id: string; name: string }; userCode: string } }
+	| {
+			kind: "ask";
+			request: {
+				/** The client's name is whatever it registered under: anyone may choose any name. */
+				client: { id: string; name: string };
+				userCode: string;
+				/** What WebCraft itself knows: when the code was asked for, */
+				requestedAt: Date;
+				/** from which network (the address with its end hidden, null when unknown), */
+				network: string | null;
+				/** and whether that is the network of the browser looking it up. */
+				sameNetwork: boolean;
+			};
+	  }
+	/**
+	 * The code came in a link, to a browser on another network than the one that asked for it: nothing
+	 * about the sign-in is shown, and the person types the code their own terminal shows instead.
+	 */
+	| { kind: "type" }
 	| { kind: "refused"; problem: "unknown" | "expired" | "decided" };
 
 /** A user code that can't be approved or denied (any more): see `DeviceCheck`'s problems. */
@@ -301,7 +321,16 @@ export type OAuth = {
 	 * Looks up a user code the person typed on the approval page, at most `OAUTH_USER_CODE_LIMIT`
 	 * times per person (`RateLimitedError` past it).
 	 */
-	checkDevice(userCode: string, personId: string): Promise<DeviceCheck>;
+	checkDevice(
+		userCode: string,
+		personId: string,
+		from: {
+			/** The person typed the code (true), or it came filled in by a link (false). */
+			typed: boolean;
+			/** The client address of the person's browser. */
+			clientAddress: string | null;
+		},
+	): Promise<DeviceCheck>;
 	/**
 	 * Approves a user code as the person acting in `workspace`: makes the grant, which the client's
 	 * next poll exchanges for tokens. Logged as `aiClient.approve`. Throws `DeviceCodeInvalidError`;
@@ -928,6 +957,7 @@ export function createOAuth({
 						clientId: client.id,
 						resource: target,
 						createdAt: now,
+						requestedFrom: clientAddress,
 						expiresAt: new Date(now.getTime() + OAUTH_LIFETIMES.deviceMs),
 						intervalSeconds: DEVICE_POLL_INTERVAL_SECONDS,
 						status: "pending",
@@ -951,16 +981,24 @@ export function createOAuth({
 			}
 		},
 
-		async checkDevice(userCode, personId) {
+		async checkDevice(userCode, personId, { typed, clientAddress }) {
 			await countUserCode(personId);
 			const looked = await deviceByUserCode(db, userCode, clock.now());
 			if (!looked.ok) return { kind: "refused", problem: looked.problem };
 			const { found, letters } = looked;
+			const asked = clientNetwork(found.device.requestedFrom);
+			const sameNetwork = asked !== "unknown" && asked === clientNetwork(clientAddress);
+			// A link fills the code in for whoever opens it. Only the person at the terminal has the code
+			// to type; a link is trusted only on the network the sign-in was started from.
+			if (!typed && !sameNetwork) return { kind: "type" };
 			return {
 				kind: "ask",
 				request: {
 					client: { id: found.client.id, name: found.client.name },
 					userCode: `${letters.slice(0, 4)}-${letters.slice(4)}`,
+					requestedAt: found.device.createdAt,
+					network: networkOf(found.device.requestedFrom),
+					sameNetwork,
 				},
 			};
 		},

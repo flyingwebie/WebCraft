@@ -76,13 +76,18 @@ export const oauth = {
 	/**
 	 * Looks up the user code a device sign-in shows (`webcraft login`), as the person typed it on
 	 * `/oauth/device`: the client to approve (`ask`) or why it can't be (`refused`: `unknown`,
-	 * `expired`, `decided`), with the Workspaces and Toolsets on offer. At most 20 look-ups per person
+	 * `expired`, `decided`), with the Workspaces and Toolsets on offer. A code that came filled in by a
+	 * link (`typed: false`) is only looked up for a browser on the network the sign-in was started
+	 * from; anyone else is asked to type the code their own terminal shows (`type`). At most 20 look-ups per person
 	 * in 15 minutes, approving and denying included (`TOO_MANY_REQUESTS`), so codes can't be guessed.
 	 */
-	checkDevice: inAdminSession.input(z.object({ userCode })).handler(async ({ context, input }) => {
+	checkDevice: inAdminSession.input(z.object({ userCode, typed: z.boolean() })).handler(async ({ context, input }) => {
 		const { services } = context;
 		const actor = await actorOf(context);
-		const check = await services.oauth.checkDevice(input.userCode, context.person.id);
+		const check = await services.oauth.checkDevice(input.userCode, context.person.id, {
+			typed: input.typed,
+			clientAddress: context.clientAddress,
+		});
 		return { check, workspaces: await services.apiTokens.offer(actor), toolsets: toolsetOffer(services) };
 	}),
 
