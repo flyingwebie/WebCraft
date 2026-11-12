@@ -353,11 +353,11 @@ for (const theme of THEMES) {
 		const status = page.getByRole("status").filter({ hasText: "Renamed Message holder." });
 		await status.waitFor();
 		await tree.getByRole("treeitem", { name: /^“Closed on Sundays”/ }).click();
-		await page.getByRole("button", { name: "Make it a Prop", exact: true }).click();
-		const dialog = page.getByRole("dialog", { name: "Make it a Prop" });
+		await page.getByRole("button", { name: "Bind to Prop", exact: true }).click();
+		const dialog = page.getByRole("dialog", { name: "Bind to Prop" });
 		await dialog.getByRole("textbox", { name: "Label", exact: true }).fill("Message");
 		const announcement = await nextAnnouncement(status);
-		await dialog.getByRole("button", { name: "Make it a Prop", exact: true }).click();
+		await dialog.getByRole("button", { name: "Bind to Prop", exact: true }).click();
 		await dialog.waitFor({ state: "hidden" });
 		expect(await announcement.heard).toBe("The text now reads {{ props.message }}.");
 		let saved = await api.components.getMarkup({ siteId, componentId: component.id });
