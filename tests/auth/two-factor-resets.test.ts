@@ -97,6 +97,22 @@ describe("a Member's reset", () => {
 		expect((await elsewhere.laptop.api.session.current()).person).not.toBeNull();
 	});
 
+	test("never by Staff for someone who is also a Member of a Workspace they don't reach: one account, one second factor", async () => {
+		const staff = await install.createStaff({ workspaces: [workspaceId] });
+		const both = await install.createStaff({ workspaces: [workspaceId, otherWorkspaceId] });
+		const member = await memberWithTwoFactor();
+		await install.addMembership({ personId: member.personId, workspaceId: otherWorkspaceId, role: "owner" });
+
+		await expect(
+			staff.browser.api.members.resetTwoFactor({ workspaceId, personId: member.personId }),
+		).rejects.toMatchObject({ code: "FORBIDDEN", data: { permission: "twoFactor.reset" } });
+		expect((await member.laptop.api.session.current()).person).not.toBeNull();
+		expect(await member.laptop.api.me.twoFactor.get()).toMatchObject({ authenticator: { addedAt: expect.anything() } });
+
+		await both.browser.api.members.resetTwoFactor({ workspaceId, personId: member.personId });
+		expect((await member.laptop.api.session.current()).person).toBeNull();
+	});
+
 	test("never another Staff member or the Superadmin, and never by an Owner or Editor", async () => {
 		const staff = await install.createStaff({ workspaces: [workspaceId] });
 		const colleague = await install.createStaff({ workspaces: [workspaceId] });

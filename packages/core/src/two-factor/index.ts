@@ -24,9 +24,10 @@ import { type AuditDetails, type AuditVia, recordAudit } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import type { Email } from "../email/index.ts";
 import { writeSettingsRow } from "../install-settings.ts";
-import { actingPerson } from "../permissions/can.ts";
+import { actingPerson, can } from "../permissions/can.ts";
 import { STAFF_ROLE } from "../permissions/roles.ts";
 import type { Access, InstallScope, WorkspaceScope } from "../tenancy/data-layer.ts";
+import { PermissionDeniedError } from "../tenancy/errors.ts";
 import { MemberNotFoundError } from "../tenancy/members.ts";
 import { StaffNotFoundError } from "../tenancy/staff.ts";
 
@@ -109,7 +110,11 @@ export type TwoFactor = {
 	methodsOf(personIds: readonly string[]): Promise<Map<string, SecondFactorMethod[]>>;
 	/** The Members screen's column: open the Workspace with `member.manage`. */
 	workspaceStatus(scope: WorkspaceScope): Promise<WorkspaceTwoFactor>;
-	/** Resets a Member's two-factor authentication. Open the Workspace with `twoFactor.reset`. */
+	/**
+	 * Resets a Member's two-factor authentication. Open the Workspace with `twoFactor.reset`; it is
+	 * refused (`PermissionDeniedError`) unless the caller may reset it in every Workspace the person
+	 * belongs to, since one account's second factor guards them all.
+	 */
 	resetMember(scope: WorkspaceScope, personId: string): Promise<void>;
 	/** Resets a Staff member's two-factor authentication. Open the Install with `staff.manage`. */
 	resetStaff(scope: InstallScope, personId: string): Promise<void>;
@@ -401,6 +406,17 @@ export function createTwoFactor({
 		async resetMember(scope, personId) {
 			const member = await scope.first(memberships, eq(memberships.personId, personId));
 			if (!member) throw new MemberNotFoundError();
+			// A person has one account, so its second factor guards each of their Memberships: only
+			// someone who may reset it in every Workspace they belong to resets it (else the Superadmin).
+			const theirs = await db
+				.select({ workspaceId: memberships.workspaceId })
+				.from(memberships)
+				.where(eq(memberships.personId, personId));
+			for (const { workspaceId } of theirs) {
+				if (!can(scope.access.actor, "twoFactor.reset", { level: "workspace", workspaceId })) {
+					throw new PermissionDeniedError("twoFactor.reset");
+				}
+			}
 			await reset(personId, {
 				by: actingPerson(scope.access.actor),
 				via: scope.access.via,
