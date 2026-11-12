@@ -345,6 +345,8 @@ describe("through the Site's own SMTP", () => {
 	} as const;
 
 	test("the Site's mail goes through it, from its address, under the sender name it gives", async () => {
+		// A Site's own server must be on the public internet (`tests/email/site-smtp-network.test.ts`).
+		install.dns.answer(SITE_SERVER.host, ["93.184.216.40"]);
 		await confirmed(staff, staffAccount, () =>
 			staff.api.siteSmtp.update({ siteId, fromName: "Acme Bakery orders", replyTo: null, server: SITE_SERVER }),
 		);

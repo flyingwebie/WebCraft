@@ -43,7 +43,10 @@ export const smtpPassword = z.string().min(1).max(1024);
 
 /** The Install SMTP, for the Superadmin. */
 export const smtp = {
-	/** Its settings (the password only as set, with its last 4 characters) and how it has been doing. */
+	/**
+	 * Its settings (the password only as set, with its last 4 characters), how it has been doing, and
+	 * whether Sites may use mail servers inside the Install's own network (`sitePrivateServers`).
+	 */
 	get: emailAdmin.handler(async ({ context }) => installSmtpView(context.services)),
 
 	/** Sets it. The password is stored as a secret; leave it out to keep the stored one. */
@@ -73,12 +76,29 @@ export const smtp = {
 			});
 			return { status: result.status, response: result.response };
 		}),
+
+	/**
+	 * Lets Sites use mail servers inside the Install's own network (an internal relay), or stops it.
+	 * Off, a Site's own server must resolve to addresses on the public internet: Staff name its host
+	 * and port, and its test email would otherwise reach anything on that network.
+	 */
+	setSitePrivateServers: emailAdmin
+		.use(sensitive("installSmtp.change"))
+		.input(z.object({ on: z.boolean() }))
+		.handler(async ({ context, input }) => {
+			await context.services.email.installSmtp.setSitePrivateServers(context.install, input.on);
+			return { sitePrivateServers: input.on };
+		}),
 };
 
 async function installSmtpView(services: InstallServices) {
 	const { installSmtp } = services.email;
-	const [settings, health] = await Promise.all([installSmtp.read(), installSmtp.health()]);
-	return { settings, health };
+	const [settings, health, sitePrivateServers] = await Promise.all([
+		installSmtp.read(),
+		installSmtp.health(),
+		installSmtp.sitePrivateServers(),
+	]);
+	return { settings, health, sitePrivateServers };
 }
 
 /** The Email log, for the Superadmin. */

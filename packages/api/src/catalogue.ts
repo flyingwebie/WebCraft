@@ -134,6 +134,7 @@ export const PROCEDURES = {
 	"install.smtp.get": internal(),
 	"install.smtp.update": internal(),
 	"install.smtp.sendTest": internal(),
+	"install.smtp.setSitePrivateServers": internal(),
 	"install.emailBranding.get": internal(),
 	"install.emailBranding.update": internal(),
 	"install.emailLog.list": internal(),

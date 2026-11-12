@@ -4,6 +4,8 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import type { Clock } from "../clock.ts";
+import type { Dns } from "../dns.ts";
+import { checkedAddress, GuardedFetchError } from "../guarded-fetch.ts";
 import { defineJob, type JobQueue } from "../jobs/define.ts";
 import type { Logger } from "../log.ts";
 import { printedOnPurpose } from "../redaction.ts";
@@ -12,13 +14,20 @@ import { SecretNotSetError, type Secrets } from "../secrets/store.ts";
 import type { DataLayer } from "../tenancy/data-layer.ts";
 import { isSystemEmailType } from "./catalogue.ts";
 import type { EmailLogSmtp, RelatedItem } from "./email-log.ts";
-import { FAILING_AFTER, INSTALL_SMTP, INSTALL_SMTP_PASSWORD, type SmtpSettings } from "./install-smtp.ts";
+import {
+	FAILING_AFTER,
+	INSTALL_SMTP,
+	INSTALL_SMTP_PASSWORD,
+	type SmtpSettings,
+	sitePrivateServers,
+} from "./install-smtp.ts";
 import {
 	type EmailAttachment,
 	type EmailAttachmentRef,
 	type Mailer,
 	type MailerReceipt,
 	type OutgoingEmail,
+	type SmtpConnection,
 	SmtpDeliveryError,
 } from "./mailer.ts";
 
@@ -79,6 +88,8 @@ export type OutboxPorts = {
 	secrets: Secrets;
 	clock: Clock;
 	log: Logger;
+	/** Where a Site's own server is: its host is resolved and checked before every send. */
+	dns: Dns;
 	/** The data layer, for a Site's own server: read for the Site the queued email names. */
 	data?: DataLayer;
 	/** Told once when a server becomes Failing (its third failed send in a row), with its last answer. */
@@ -362,19 +373,51 @@ async function siteServer(data: DataLayer, siteId: string): Promise<ResolvedSmtp
 type Outcome = { ok: true; response: string } | { ok: false; response: string; recipientRejected: boolean };
 
 /**
+ * What a send through a Site's own server answers when it isn't made, or nothing there answers as a
+ * mail server: one fixed reason each. Staff name that server's host and port, so the details (where
+ * a name resolves, whether a port is open, what a service there says) go to the log only; otherwise
+ * Send test would map the Install's own network.
+ */
+const SITE_SERVER_REFUSALS = {
+	address: "The mail server's host doesn't resolve to an address on the public internet, so nothing was sent.",
+	unreachable: "The mail server couldn't be reached, or didn't answer as a mail server.",
+} as const;
+
+/**
  * Sends one email through an SMTP server, filling in its password from the secrets just for the
  * send. `password` (a password typed into the admin, for a test email) wins over the stored one.
  * Never throws: what went wrong is in the outcome, in words fit for the Email log.
+ *
+ * A Site's own server (`label: "site"`) is resolved first and must be on the public internet, unless
+ * the Superadmin lets Sites use servers inside the Install's network (`sitePrivateServers`); the
+ * Mailer then connects to the address checked, so a DNS answer that changes can't move it. The
+ * Install SMTP is the Superadmin's own, and is called as it is.
  */
 export async function send(
-	ports: Pick<OutboxPorts, "mailer" | "secrets" | "log">,
-	smtp: Pick<ResolvedSmtp, "settings" | "password">,
+	ports: Pick<OutboxPorts, "mailer" | "secrets" | "log" | "dns" | "database">,
+	smtp: Pick<ResolvedSmtp, "label" | "settings" | "password">,
 	email: OutgoingEmail,
 	typedPassword?: string,
 ): Promise<Outcome> {
 	const { mailer, secrets, log } = ports;
 	const { host, port, security, username } = smtp.settings;
-	const connection = { host, port, security, username };
+	const ownServer = smtp.label === "site";
+	let connection: Omit<SmtpConnection, "password"> = { host, port, security, username };
+	if (ownServer) {
+		try {
+			const privateNetwork = await sitePrivateServers(ports.database);
+			const address = await checkedAddress(host, ports.dns, { privateNetwork });
+			// A host given as an address is connected to as it is.
+			if (address !== host) connection = { ...connection, connectTo: address };
+		} catch (error) {
+			if (!(error instanceof GuardedFetchError)) throw error;
+			log.warn("A Site's own mail server isn't on the public internet, so nothing was sent to it", {
+				smtp: { host, port },
+				reason: error.message,
+			});
+			return { ok: false, response: SITE_SERVER_REFUSALS.address, recipientRejected: false };
+		}
+	}
 	const sendWith = (password: string | null): Promise<MailerReceipt> => mailer.send(email, { ...connection, password });
 	try {
 		let receipt: MailerReceipt;
@@ -391,6 +434,10 @@ export async function send(
 		return { ok: true, response: receipt.response };
 	} catch (error) {
 		if (error instanceof SmtpDeliveryError) {
+			if (ownServer && !error.replied) {
+				log.warn("A Site's own mail server couldn't be reached", { smtp: { host, port }, response: error.response });
+				return { ok: false, response: SITE_SERVER_REFUSALS.unreachable, recipientRejected: false };
+			}
 			return { ok: false, response: error.response, recipientRejected: error.recipientRejected };
 		}
 		// Not the server's answer: a password that can't be decrypted, a bug. Logged in full, and

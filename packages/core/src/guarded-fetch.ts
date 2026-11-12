@@ -177,6 +177,21 @@ async function checkTarget(
 	if (allowed !== "any" && !allowed.has(host)) {
 		throw new GuardedFetchError("host", `${host} isn't one of the hosts that may be called.`);
 	}
+	return checkedAddress(host, dns, { own, privateNetwork });
+}
+
+/**
+ * The address to connect to for a host (a name, or an IP address, in brackets or not): the first one
+ * it resolves to, once every one of them is on the public internet, or among `own`, or
+ * `privateNetwork` allows any. Refused with `GuardedFetchError` (`address`) otherwise, and when the
+ * name doesn't resolve. The guarded fetcher checks every hop with it; a caller that doesn't speak
+ * HTTP (a Site's own mail server) uses it directly, and connects to the address it answers.
+ */
+export async function checkedAddress(
+	host: string,
+	dns: Dns,
+	options: { own?: ReadonlySet<string>; privateNetwork?: boolean } = {},
+): Promise<string> {
 	const literal = host.startsWith("[") ? host.slice(1, -1) : host;
 	let addresses: string[];
 	if (isIP(literal)) {
@@ -190,9 +205,9 @@ async function checkTarget(
 	}
 	const [first] = addresses;
 	if (first === undefined) throw new GuardedFetchError("address", `${host} doesn't resolve.`);
-	const internal = privateNetwork
+	const internal = options.privateNetwork
 		? undefined
-		: addresses.find((address) => !isPublicAddress(address) && !own.has(canonicalAddress(address)));
+		: addresses.find((address) => !isPublicAddress(address) && !options.own?.has(canonicalAddress(address)));
 	if (internal !== undefined) {
 		throw new GuardedFetchError("address", `${host} resolves to ${internal}, inside the server's network.`);
 	}

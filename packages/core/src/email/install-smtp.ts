@@ -4,6 +4,7 @@ import { installSmtp, smtpHealth } from "@webcraft/db/schema";
 import { eq } from "drizzle-orm";
 
 import type { Clock } from "../clock.ts";
+import { readSettingsRow, writeSettingsRow } from "../install-settings.ts";
 import type { Logger } from "../log.ts";
 import { actingPerson } from "../permissions/can.ts";
 import type { SecretDescription, Secrets } from "../secrets/store.ts";
@@ -68,7 +69,23 @@ export type InstallSmtp = {
 	 * (`installSmtp.change`): open the Install with `install.manage` and check it first.
 	 */
 	update(scope: InstallScope, change: InstallSmtpChange): Promise<InstallSmtpSettings>;
+	/** Whether a Site's own mail server may be inside the Install's own network (`sitePrivateServers`). */
+	sitePrivateServers(): Promise<boolean>;
+	/**
+	 * Lets Sites use mail servers inside the Install's own network (an internal relay), or stops it,
+	 * and records it in the Audit log. A Sensitive action (`installSmtp.change`): open the Install
+	 * with `install.manage` and check it first.
+	 */
+	setSitePrivateServers(scope: InstallScope, on: boolean): Promise<void>;
 };
+
+/**
+ * Whether a Site's own mail server may be inside the Install's own network. Off unless the Superadmin
+ * switched it on: Staff name that server, so by default only the public internet is connected to.
+ */
+export async function sitePrivateServers(database: Database): Promise<boolean> {
+	return (await readSettingsRow(database.db))?.siteSmtpPrivateServers ?? false;
+}
 
 type Options = { database: Database; secrets: Secrets; clock: Clock; log: Logger };
 
@@ -123,6 +140,15 @@ export function createInstallSmtp({ database, secrets, clock, log }: Options): I
 			const saved = await read();
 			if (!saved) throw new Error("The Install SMTP was not saved.");
 			return saved;
+		},
+
+		sitePrivateServers: () => sitePrivateServers(database),
+
+		async setSitePrivateServers(scope, on) {
+			await scope.transaction(async (tx) => {
+				await writeSettingsRow(tx.db, { siteSmtpPrivateServers: on });
+				await tx.audit("siteSmtpPrivateServers.change", { on });
+			});
 		},
 	};
 }
