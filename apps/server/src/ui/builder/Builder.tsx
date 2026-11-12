@@ -300,6 +300,7 @@ export function Builder({
 				reveal: (location) => {
 					if (location.draft !== historyKey && !(location.panel === "js" && location.title === title)) return false;
 					if (location.selection) setSelection(selectionOf(docRef.current.tree, location.selection));
+					if (fit.layout === "drawers") setDrawer(location.panel === "inspector" ? "inspector" : "layers");
 					setCollapsed(new Set());
 					requestAnimationFrame(() => {
 						revealInspectorHistory(location.inspectorTab);
@@ -317,7 +318,7 @@ export function Builder({
 					return true;
 				},
 			}),
-		[history, historyKey, announce, title],
+		[history, historyKey, announce, title, fit.layout],
 	);
 	useEffect(
 		() =>
@@ -484,6 +485,7 @@ export function Builder({
 			message: string,
 			finish = false,
 			compoundStep?: number,
+			panel: HistoryLocation["panel"] = "tree",
 		): string | undefined => {
 			const problem = treeProblem(next.tree, allows);
 			if (problem) {
@@ -509,7 +511,7 @@ export function Builder({
 				after: documentId ? shared.draft() : (next.tree as unknown as Json),
 				label: message.replace(/\.$/, ""),
 				location: {
-					...historyLocation(select),
+					...historyLocation(select, panel),
 					selection:
 						selection &&
 						selectionKey(docRef.current.tree, selection) &&
@@ -532,7 +534,7 @@ export function Builder({
 					styleStep.current = history.record({
 						...change,
 						label: message.replace(/\.$/, ""),
-						location: historyLocation(select),
+						location: historyLocation(select, panel),
 					});
 			}
 			setDoc(next);
@@ -634,8 +636,13 @@ export function Builder({
 		);
 	};
 
-	const replace = (path: NodePath, node: TreeNode, message: string, step?: number) =>
-		apply({ ...doc, tree: replaceAt(doc.tree, path, node) }, { kind: "node", path }, message, false, step);
+	const replace = (
+		path: NodePath,
+		node: TreeNode,
+		message: string,
+		step?: number,
+		panel: HistoryLocation["panel"] = "tree",
+	) => apply({ ...doc, tree: replaceAt(doc.tree, path, node) }, { kind: "node", path }, message, false, step, panel);
 
 	const generatedIds = useMemo(
 		() => new Set(catalogue.classes.filter((each) => each.generated).map((each) => each.id)),
@@ -1459,10 +1466,11 @@ export function Builder({
 							catalogue={catalogue}
 							oneOffOf={oneOffOf}
 							fixedTextAction={fixedTextAction}
-							onReplace={replace}
+							onReplace={(path, node, message) => replace(path, node, message, undefined, "inspector")}
 							onClasses={(path, classIds, message) => {
 								const node = nodeAt(doc.tree, path);
-								if (node?.type === "element") replace(path, { ...node, classes: classIds }, message);
+								if (node?.type === "element")
+									replace(path, { ...node, classes: classIds }, message, undefined, "inspector");
 							}}
 							onOneOff={async (_path, elementId, declarations) => {
 								try {
@@ -1494,6 +1502,9 @@ export function Builder({
 												},
 												{ kind: "node", path },
 												declarations ? t("builder.style.oneOffApplied") : t("builder.style.oneOffRemoved"),
+												false,
+												undefined,
+												"inspector",
 											) === undefined
 										);
 									}
@@ -1565,7 +1576,7 @@ export function Builder({
 							designVersion={designVersion}
 							onClasses={(classes, message, step) =>
 								selection?.kind === "node" && selectedNode?.type === "element"
-									? replace(selection.path, { ...selectedNode, classes }, message, step)
+									? replace(selection.path, { ...selectedNode, classes }, message, step, "css")
 									: t("coEditing.status.readOnly")
 							}
 							refreshCatalogue={async () => {

@@ -244,6 +244,8 @@ for (const theme of THEMES) {
 				.waitFor();
 			await page.frameLocator("iframe[title^='Canvas']").locator('p[class^="style-"]').waitFor();
 			await page.getByRole("tab", { name: "Settings", exact: true }).click();
+			await page.setViewportSize({ width: 1170, height: 900 });
+			await page.locator("header").getByRole("button", { name: "Settings", exact: true, expanded: true }).click();
 			await html.focus();
 			await page.keyboard.press("ControlOrMeta+z");
 			await page.getByRole("status").filter({ hasText: "Undid Edit one-off style" }).first().waitFor();
@@ -257,6 +259,7 @@ for (const theme of THEMES) {
 			await page.keyboard.press("ControlOrMeta+z");
 			await page.frameLocator("iframe[title^='Canvas']").locator("p:not([class])").waitFor();
 			await page.keyboard.press("ControlOrMeta+z");
+			await page.getByRole("status").filter({ hasText: "Undid Edit HTML" }).first().waitFor();
 			await page.getByRole("treeitem", { name: /^p\b/ }).waitFor({ state: "hidden" });
 			const read = await api.templates.getEntryTemplateMarkup({ siteId: site.id, postTypeId: postType.id });
 			expect(read.markup?.draft).not.toContain("First");

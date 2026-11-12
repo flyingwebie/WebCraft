@@ -398,6 +398,7 @@ export function codeMode(
 					await switchScript("component");
 				}
 				showPanels(true);
+				if (fit?.layout === "drawers") setDrawer(panel === "inspector" ? "inspector" : "layers", false);
 				pageElementFor(ref)?.scrollIntoView({ block: "nearest" });
 				const area = panel === "js" ? jsEditor.area : panel === "html" ? html.area : cssHost;
 				area.scrollIntoView({ block: "nearest" });

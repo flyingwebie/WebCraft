@@ -11,7 +11,7 @@ import { AdminIntl, useT } from "../i18n.tsx";
 import { CssPanel, type CssPanelPort, type CssTarget } from "./CssPanel.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
 import { type EditorApi, EditorApiContext, EditorEnvironment } from "./editor-api.tsx";
-import { editorHistory } from "./editor-history.ts";
+import { editorHistory, type HistoryLocation } from "./editor-history.ts";
 import { FixedTextDialog } from "./FixedTextDialog.tsx";
 import { type FixedTextLocation, rememberFixedText, resolveFixedText } from "./fixed-text.ts";
 import { historyLanguage } from "./history-language.ts";
@@ -975,6 +975,7 @@ function SourcePanels({
 		message = t("builder.inspector.changed"),
 		finish = false,
 		step?: number,
+		panel: HistoryLocation["panel"] = "tree",
 	) => {
 		const problem = treeProblem(next, { elements: new Set(catalogue.elements), commands: new Set(catalogue.commands) });
 		const refusal = problem?.message ?? (!source.editable || creating ? t("coEditing.status.readOnly") : null);
@@ -1019,7 +1020,7 @@ function SourcePanels({
 								? selectionKey(next, nextSelection)
 								: null,
 					title: document.title,
-					panel: "tree",
+					panel,
 				},
 				group: grabCurrent ? "grab" : undefined,
 			});
@@ -1160,7 +1161,14 @@ function SourcePanels({
 							onClasses={(classes, message, step) => {
 								// The class list changes in the element's current shared document, as the Inspector's does.
 								if (selection?.kind !== "node" || node?.type !== "element") return t("coEditing.status.readOnly");
-								return apply(replaceAt(tree, selection.path, { ...node, classes }), selection, message, false, step);
+								return apply(
+									replaceAt(tree, selection.path, { ...node, classes }),
+									selection,
+									message,
+									false,
+									step,
+									"css",
+								);
 							}}
 							refreshCatalogue={async () => {
 								// The same refresh as the Inspector's: through the source's owner, in request order.
@@ -1297,10 +1305,13 @@ function SourcePanels({
 								.join(" ")
 						}
 						fixedTextAction={fixedAction}
-						onReplace={(path, node, message) => apply(replaceAt(tree, path, node), selection, message)}
+						onReplace={(path, node, message) =>
+							apply(replaceAt(tree, path, node), selection, message, false, undefined, "inspector")
+						}
 						onClasses={(path, classes, message) => {
 							const node = nodeAt(tree, path);
-							if (node?.type === "element") apply(replaceAt(tree, path, { ...node, classes }), selection, message);
+							if (node?.type === "element")
+								apply(replaceAt(tree, path, { ...node, classes }), selection, message, false, undefined, "inspector");
 						}}
 						onOneOff={async (_path, id, declarations) => {
 							try {

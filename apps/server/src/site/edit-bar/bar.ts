@@ -1397,7 +1397,10 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 									? word("changedByYou", { type })
 									: word("changedBy", { type, name: change.by.name })
 								: word("changed", { type });
-							const undo = button({ class: "link-button", "aria-label": word("undoChange", { label }) }, word("undo"));
+							const undo = button(
+								{ class: "link-button", "aria-label": word("revertChange", { label }) },
+								word("revert"),
+							);
 							undo.addEventListener("click", async () => {
 								undo.disabled = true;
 								const answer = await call("undo", { path, item: change.item, key: change.key });
