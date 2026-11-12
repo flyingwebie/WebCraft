@@ -429,6 +429,22 @@ export function CssPanel({
 		requestAnimationFrame(() => addButton.current?.focus());
 	};
 
+	/** Class pieces share a version. Carry our accepted write forward, without rebasing an older peer conflict. */
+	const acceptSave = (which: CssTarget, beforeVersion: string | null, afterVersion: string) => {
+		const savedKey = keyOf(which);
+		setDrafts((before) =>
+			Object.fromEntries(
+				Object.entries(before).map(([draftKey, pending]) => [
+					draftKey,
+					draftKey === savedKey ||
+					(which.kind === "class" && draftKey.startsWith(`${which.classId}:`) && pending.version === beforeVersion)
+						? { ...pending, version: afterVersion }
+						: pending,
+				]),
+			),
+		);
+	};
+
 	const departureNow = useRef<() => Promise<boolean>>(async () => false);
 	departureNow.current = async () => {
 		if (saveActive.current) return false;
@@ -450,11 +466,10 @@ export function CssPanel({
 				if (pending.text === savedText(which, data, known)) continue;
 				const base = pending.version;
 				const own = versions.get(classId);
-				const saved = await port.save(which, pending.text, own?.before === base ? own.after : base);
+				const version = own?.before === base ? own.after : base;
+				const saved = await port.save(which, pending.text, version);
 				versions.set(classId, { before: base, after: saved.version });
-				setDrafts((before) =>
-					before[draftKey] ? { ...before, [draftKey]: { ...before[draftKey], version: saved.version } } : before,
-				);
+				acceptSave(which, version, saved.version);
 			}
 			await read();
 			setDrafts((before) =>
@@ -500,7 +515,7 @@ export function CssPanel({
 		setSaving(true);
 		try {
 			const stored = await port.save(target, text, version);
-			setDrafts((before) => (before[key] ? { ...before, [key]: { ...before[key], version: stored.version } } : before));
+			acceptSave(target, version, stored.version);
 			await read();
 			setDrafts((before) => {
 				if (before[key]?.text !== text) return before;

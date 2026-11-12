@@ -52,6 +52,17 @@ for (const theme of THEMES)
 			code: "// Mine after reload",
 			consentCategory: "media",
 		});
+		await js.fill("// Temporary edit");
+		await api.components.saveScriptDraft({ siteId, componentId: component.id, code: "// Peer again after overwrite" });
+		await region.getByRole("button", { name: "Save", exact: true }).click();
+		await region.getByRole("button", { name: "Overwrite with mine", exact: true }).waitFor();
+		await js.fill("// Mine after reload");
+		await region.getByRole("button", { name: "Overwrite with mine", exact: true }).click();
+		await region.getByRole("button", { name: "Overwrite with mine", exact: true }).waitFor({ state: "hidden" });
+		expect((await api.components.getScript({ siteId, componentId: component.id })).script?.draft).toMatchObject({
+			code: "// Mine after reload",
+			consentCategory: "media",
+		});
 		await page.getByRole("link", { name: "Components", exact: true }).click();
 		await page.waitForURL((url) => url.pathname === `/sites/${siteId}/components`);
 	});
@@ -545,6 +556,8 @@ for (const canvas of ["preview", "live"] as const)
 		await page.getByRole("tab", { name: ".note", exact: true }).click();
 		await page.waitForLoadState("networkidle");
 		await page.getByRole("textbox", { name: "CSS: .note", exact: true }).fill("color: rgb(10, 11, 12);");
+		await page.getByRole("button", { name: "Own CSS", exact: true }).click();
+		await page.getByRole("textbox", { name: "CSS: .note, own CSS", exact: true }).fill("&:hover { opacity: 0.5; }");
 		const before = new URL(page.url()).pathname;
 		const after = canvas === "preview" ? "/stories/first" : builderPath;
 		const captured = Promise.withResolvers<void>();
@@ -552,6 +565,8 @@ for (const canvas of ["preview", "live"] as const)
 		await page.route(
 			canvas === "preview" ? "**/api/rpc/builder/saveCss" : "**/_webcraft/edit/api/code/saveCss",
 			async (route) => {
+				const input = route.request().postDataJSON();
+				if ((canvas === "preview" ? input.json.target : input.target).part !== "css") return route.continue();
 				const response = await route.fetch();
 				captured.resolve();
 				await release.promise;
@@ -561,6 +576,7 @@ for (const canvas of ["preview", "live"] as const)
 		try {
 			await action.click();
 			await captured.promise;
+			await page.getByRole("button", { name: "All widths", exact: true }).click();
 			await page.getByRole("button", { name: "Display: grid", exact: true }).click();
 			release.resolve();
 			await Promise.race([
@@ -579,6 +595,10 @@ for (const canvas of ["preview", "live"] as const)
 					: page.frameLocator("iframe[title^='Canvas']").locator("p.note");
 			await paragraph.waitFor();
 			expect(await paragraph.evaluate((node) => getComputedStyle(node).display)).toBe("grid");
+			const saved = (await api.designSystem.get({ siteId })).designSystem.draft.classes.find(
+				(each) => each.name === "note",
+			);
+			expect(saved?.css).toBe("&:hover { opacity: 0.5; }");
 		} finally {
 			release.resolve();
 		}

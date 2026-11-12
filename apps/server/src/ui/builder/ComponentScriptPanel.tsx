@@ -73,7 +73,7 @@ export function ComponentScriptPanel({
 	const save = async (over?: string): Promise<boolean> => {
 		const next = latest.current;
 		if (!next || saving.current) return false;
-		if (JSON.stringify(next) === saved) return true;
+		if (over === undefined && JSON.stringify(next) === saved) return true;
 		saving.current = true;
 		setBusy(true);
 		try {
