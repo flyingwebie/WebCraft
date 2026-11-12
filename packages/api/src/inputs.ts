@@ -52,6 +52,9 @@ export const signInCode = z.string().min(1).max(64);
 /** The id of a Workspace, Site, person or invite. */
 export const id = z.uuid();
 
+/** A Component's id: a UUID for the Site's own, `<module id>:<Name>` for a Module's. */
+export const componentId = z.union([id, z.string().regex(/^[a-z][a-z0-9-]{0,31}:[A-Z][A-Za-z0-9]{0,63}$/)]);
+
 /** Which Workspaces (or Sites) something reaches: `"all"`, including ones created later, or a list of ids. */
 export const reach = z.union([z.literal("all"), z.array(id).max(1000)]);
 

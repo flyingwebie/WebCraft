@@ -42,6 +42,10 @@ test("Management API Page layout settings preserve omitted switches and allowed 
 		allowedComponents: [],
 	});
 	expect(await api.pageLayouts.settings({ siteId })).toEqual({ enabled: false, allowedComponents: [] });
+	// An Allowed component is a Component's id: anything else is refused as input, as every id is.
+	await expect(api.pageLayouts.configure({ siteId, allowedComponents: ["not-a-component-id"] })).rejects.toMatchObject({
+		code: "BAD_REQUEST",
+	});
 });
 
 test("a Page layout survives Content saves and publishes its Component Props", async () => {

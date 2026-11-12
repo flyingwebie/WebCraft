@@ -13,13 +13,10 @@ import { z } from "zod";
 import { confirmationInput, confirmedPublish } from "../confirm.ts";
 import { signedIn } from "../context.ts";
 import { fieldInputs } from "../fields.ts";
-import { basedOn, id } from "../inputs.ts";
+import { basedOn, componentId, id } from "../inputs.ts";
 
 /** The longest Template markup one save takes, in characters. */
 const MARKUP_MAX_LENGTH = 2_000_000;
-
-/** A Component's id: a UUID for the Site's own, `<module id>:<Name>` for a Module's. */
-const componentId = z.union([id, z.string().regex(/^[a-z][a-z0-9-]{0,31}:[A-Z][A-Za-z0-9]{0,63}$/)]);
 
 /** A Component's name, its PascalCase tag; the server checks its form. */
 const componentName = z.string().max(200);
