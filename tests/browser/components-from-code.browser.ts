@@ -213,6 +213,34 @@ for (const theme of THEMES) {
 	});
 }
 
+test("Bind to Prop on an image in Code mode: the Component's Prop, the image reading it", async () => {
+	const { siteId, slug } = await site();
+	const { api } = await install.install.superadmin();
+	const { component } = await api.components.create({ siteId, name: "Photo" });
+	await api.components.saveMarkup({
+		siteId,
+		componentId: component.id,
+		markup: '<figure data-wc-id="figure"><img src="/bread.png" alt="Bread" data-wc-id="photo"></figure>',
+	});
+	await api.templates.saveSiteTemplateMarkup({
+		siteId,
+		markup: SITE_TEMPLATE.replace("</header>", '<Photo data-wc-id="photo-placement" /></header>'),
+	});
+	const page = await codeModePage("dark", siteId, slug);
+	await page.locator('img[data-wc-code$="#photo"]').click();
+	await page.getByRole("button", { name: /^Bind to Prop\s*:\s*Image$/ }).click();
+	const dialog = page.getByRole("dialog", { name: "Bind the image to a Prop" });
+	await dialog.waitFor();
+	await expectNoAxeViolations(page, "Bind the image to a Prop (Code mode, dark)", ["region"]);
+	await dialog.getByRole("button", { name: "Bind to Prop" }).click();
+	await dialog.waitFor({ state: "hidden" });
+	const saved = await eventually(
+		() => api.components.getMarkup({ siteId, componentId: component.id }),
+		(read) => read.markup.draft.includes('src="{{ props.image }}"'),
+	);
+	expect(saved.component.draft.props).toEqual([expect.objectContaining({ key: "image", type: "media" })]);
+});
+
 describe("the Command menu and the Builder", () => {
 	test("Make Component and New Component are Actions; the Props section, Bind to Prop and the quick fix", async () => {
 		const { siteId, slug } = await site();
@@ -236,7 +264,9 @@ describe("the Command menu and the Builder", () => {
 		await api.components.saveMarkup({
 			siteId,
 			componentId: component.id,
-			markup: '<article data-wc-id="card"><a href="/menu" data-wc-id="more">Menu</a></article>',
+			markup:
+				'<article data-wc-id="card"><a href="/menu" data-wc-id="more">Menu</a>' +
+				'<img src="/bread.png" alt="Bread" data-wc-id="photo"></article>',
 		});
 		const page = await testPage("light");
 		await install.signIn(page, staff);
@@ -280,6 +310,18 @@ describe("the Command menu and the Builder", () => {
 			(text) => text.includes('href="{{ props.link.url }}"') && text.includes("  link: link"),
 		);
 
+		// Bind to Prop on the image: a new Media Prop; the image then reads it.
+		await page.getByRole("tree", { name: "Layers" }).getByRole("treeitem", { name: /^img/ }).click();
+		await page.getByRole("button", { name: /^Bind to Prop\s*:\s*Image$/ }).click();
+		const image = page.getByRole("dialog", { name: "Bind the image to a Prop" });
+		await image.getByRole("textbox", { name: "Label" }).fill("Photo");
+		await image.getByRole("button", { name: "Bind to Prop" }).click();
+		await image.waitFor({ state: "hidden" });
+		await eventually(
+			() => html.inputValue(),
+			(text) => text.includes('src="{{ props.photo }}"') && text.includes("  photo: media"),
+		);
+
 		// `{{ props.price }}` has no Prop: the quick fix declares it, its type guessed from where it is read.
 		// Blank lines before the block are still the block, as the server reads it: no second block is made.
 		const typed = `\n\n${(await html.inputValue()).replace(">Menu<", ">Menu {{ props.price.url }}<")}`;
@@ -300,6 +342,7 @@ describe("the Command menu and the Builder", () => {
 		expect(saved.component.draft.props).toEqual([
 			expect.objectContaining({ key: "title", type: "text", required: true }),
 			expect.objectContaining({ key: "link", type: "link", default: { url: "/menu", text: "" } }),
+			expect.objectContaining({ key: "photo", type: "media" }),
 			expect.objectContaining({ key: "price", type: "link" }),
 		]);
 
@@ -313,7 +356,7 @@ describe("the Command menu and the Builder", () => {
 		await page.waitForTimeout(500);
 		expect(
 			(await api.components.get({ siteId, componentId: component.id })).component.draft.props.map((prop) => prop.type),
-		).toEqual(["text", "link", "link"]);
+		).toEqual(["text", "link", "media", "link"]);
 	});
 
 	test("Make Component from the Builder's Inspector: Props for the Entry's values, bound on the Placement", async () => {
