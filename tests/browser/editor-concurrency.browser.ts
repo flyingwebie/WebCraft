@@ -483,7 +483,10 @@ for (const theme of THEMES) {
 		await first.press("ArrowUp");
 		await first.press("ArrowDown");
 		await first.press("Space");
+		expect(await page.getByRole("button", { name: "Redo", exact: true }).isDisabled()).toBe(true);
 		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		// The previous Undo has the same announcement. Wait for this reversal to finish before reading its Draft.
+		await page.getByRole("button", { name: "Redo", exact: true }).and(page.locator(":not([disabled])")).waitFor();
 		await page.getByRole("status").filter({ hasText: "Undid Move First" }).first().waitFor();
 		const undone = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
 		expect(undone.indexOf('data-wc-id="greeting"')).toBeLessThan(undone.indexOf('data-wc-id="second"'));
