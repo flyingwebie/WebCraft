@@ -1352,7 +1352,7 @@ function SourcePanels({
 				can={can}
 				actions={editorCommands(commandTarget, t)}
 				goTo={
-					menuData
+					menu?.tab === "goTo" && menuData
 						? goToCommands(
 								t,
 								menuData,

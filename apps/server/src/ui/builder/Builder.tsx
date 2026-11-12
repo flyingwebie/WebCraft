@@ -1399,7 +1399,11 @@ export function Builder({
 				onState={setMenu}
 				can={can}
 				actions={editorCommands(commandTarget, t)}
-				goTo={menuData ? goToCommands(t, menuData, [{ ref: "builder", tree: doc.tree, catalogue }], go) : null}
+				goTo={
+					menu?.tab === "goTo" && menuData
+						? goToCommands(t, menuData, [{ ref: "builder", tree: doc.tree, catalogue }], go)
+						: null
+				}
 				insert={{
 					siteId,
 					tree: doc.tree,

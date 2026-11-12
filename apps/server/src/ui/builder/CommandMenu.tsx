@@ -225,7 +225,12 @@ export function CommandMenu({
 		focusRow.current = false;
 	}
 	wasOpen.current = open;
-	const items = useMemo(() => (insert ? insertItems(t, insert.tree, insert.catalogue) : []), [t, insert]);
+	// Insert's catalogue is made only while its tab is open.
+	const listing = open && tab === "insert";
+	const items = useMemo(
+		() => (insert && listing ? insertItems(t, insert.tree, insert.catalogue) : []),
+		[t, insert, listing],
+	);
 
 	// Opening a tab starts afresh; a question asked from outside (the toolbar, Wrap in) opens at once.
 	const stepKey = state?.step ? `${state.step.item}:${state.step.mode}` : "";
