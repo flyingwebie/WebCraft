@@ -5,7 +5,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import type { DocumentJson } from "@webcraft/core";
 
-import { openDraftInEditMode } from "../harness/co-editing.ts";
+import { openDraftInEditMode, upgradeDraftInEditMode } from "../harness/co-editing.ts";
 import { type EditModeBrowser, openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { goLive } from "../harness/staging.ts";
@@ -248,6 +248,50 @@ test("the server's own rules still refuse a Member's step that Staff have since 
 	}
 	const now = await staff.api.pageLayouts.get({ siteId: site.siteId, entryId: site.pageId });
 	expect(now.layout.placements.map((p) => p.id)).toEqual(["north"]);
+});
+
+test("a Member's step across a Placement Staff have since locked is refused, and Structure's Drafts stay closed", async () => {
+	const site = await bakery();
+	const editing = await openEditMode(install, editor, site.siteId, "/");
+	const start = (await (await editing.edit("layout/get", { entryId: site.pageId })).json()) as {
+		version: string;
+		layout: { placements: { id: string; locked?: boolean }[] };
+	};
+	const moved = await editing.edit("layout/save", {
+		entryId: site.pageId,
+		layout: { placements: [...start.layout.placements].reverse() },
+		basedOn: start.version,
+	});
+	expect(moved.status).toBe(200);
+	const after = (await moved.json()) as typeof start;
+	// Staff lock North where the Member put it: moving South back would cross a locked Placement.
+	await staff.api.pageLayouts.save({
+		siteId: site.siteId,
+		entryId: site.pageId,
+		basedOn: after.version,
+		layout: { placements: after.layout.placements.map((p) => (p.id === "north" ? { ...p, locked: true } : p)) },
+	});
+	const draft = await openDraftInEditMode(editing, { kind: "entry", id: site.pageId });
+	try {
+		const step = layoutChange(site.siteId, site.pageId, start.layout, after.layout);
+		expect((await draft.reverse(step.after, step.before)).ok).toBe(false);
+	} finally {
+		draft.close();
+	}
+	const now = await staff.api.pageLayouts.get({ siteId: site.siteId, entryId: site.pageId });
+	expect(now.layout.placements.map((p) => [p.id, !!p.locked])).toEqual([
+		["south", false],
+		["north", true],
+	]);
+
+	// A history someone handed a Member can't reach Structure: its Drafts don't open for them at all.
+	for (const item of [{ kind: "designSystem" }, { kind: "component", id: site.componentId }] as const) {
+		const refused = await upgradeDraftInEditMode(editing, item);
+		expect({ item: item.kind, refused: refused instanceof Response && refused.status }).toEqual({
+			item: item.kind,
+			refused: 403,
+		});
+	}
 });
 
 test("the history handoff belongs to the Edit mode session's person and Site, works once and expires", async () => {
