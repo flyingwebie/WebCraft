@@ -305,8 +305,12 @@ export const PROCEDURES = {
 	"contentApi.get": read(
 		"The Site's Content API: whether it is on, what it hides, its Content keys and where it answers.",
 	),
-	"contentApi.update": write("Switches the Site's Content API on or off and changes what it hides."),
-	"contentApi.keys.create": write("Makes a Content key for the Site's Content API; the key is answered once."),
+	"contentApi.update": write(
+		"Switches the Site's Content API on or off and changes what it hides (switching it on: Sensitive, admin only).",
+	),
+	"contentApi.keys.create": write(
+		"Makes a Content key for the Site's Content API; the key is answered once (Sensitive: admin only).",
+	),
 	"contentApi.keys.update": write("Renames a Content key or changes its origins."),
 	"contentApi.keys.revoke": write("Revokes a Content key at once."),
 	"designSystem.get": read("The Design system's Draft and published version."),

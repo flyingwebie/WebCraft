@@ -94,6 +94,13 @@ export const SENSITIVE_ACTIONS = {
 	"site.export": "carries a Site's data out of the Install",
 	/** Importing a Site export: it brings a Site's data and secrets in, and invites its Members. */
 	"site.import": "brings a Site's data and secrets into the Workspace",
+	/**
+	 * Making a Content key, or switching a Site's Content API on: a frontend holding a key reads the
+	 * Site's published Fields from outside, the ones no page shows too, and the key outlives whoever
+	 * made it. Never for an API token or AI client, which could otherwise mint a credential that keeps
+	 * working after it is revoked. Switching it off, hiding, renaming, origins and revoking stay plain.
+	 */
+	"contentApi.open": "creates a credential",
 	/** Creating an API token: a credential that acts as the person, outside the admin. */
 	"apiToken.create": "creates a credential",
 	/** Approving an AI client: its grant's tokens act as the person, outside the admin. */

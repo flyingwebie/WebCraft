@@ -121,6 +121,7 @@ describe("the document", () => {
 		expect(sensitive.sort()).toEqual(
 			[
 				["aiKeys.removeOwn", "aiKey.change"],
+				["contentApi.keys.create", "contentApi.open"],
 				["aiKeys.setOwn", "aiKey.change"],
 				["forms.captcha.set", "formCaptcha.change"],
 				["imports.connect", "import.connect"],

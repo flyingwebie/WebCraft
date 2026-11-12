@@ -104,6 +104,7 @@ const SENSITIVE_ACTION_CALLS: Record<SensitiveAction, (api: ApiClient, fixture: 
 		api.shareLinks.create({ siteId, dashboardId, name: `Client link ${next()}` }),
 	"impersonation.start": (api, { changedMemberId }) => api.impersonation.start({ personId: changedMemberId }),
 	"auditRetention.change": (api) => api.install.security.setAuditRetention({ days: 365 }),
+	"contentApi.open": (api, { siteId, next }) => api.contentApi.keys.create({ siteId, name: `Frontend ${next()}` }),
 	"apiToken.create": (api, { workspaceId, next }) => api.apiTokens.create({ workspaceId, name: `Token ${next()}` }),
 	"aiClient.approve": (api, { workspaceId, authorization }) =>
 		api.oauth.approve({ parameters: authorization, workspaceId }),
@@ -232,6 +233,7 @@ describe("each Sensitive action", () => {
 			"aiKey.change",
 			"stagingPassword.change",
 			"shareLink.change",
+			"contentApi.open",
 		];
 		expect(answers).toEqual(
 			Object.fromEntries(

@@ -12479,7 +12479,7 @@
 		"/contentApi/update": {
 			"post": {
 				"operationId": "contentApi.update",
-				"summary": "Switches the Site's Content API on or off and changes what it hides.",
+				"summary": "Switches the Site's Content API on or off and changes what it hides (switching it on: Sensitive, admin only).",
 				"tags": ["contentApi"],
 				"requestBody": {
 					"required": true,
@@ -12562,7 +12562,7 @@
 		"/contentApi/keys/create": {
 			"post": {
 				"operationId": "contentApi.keys.create",
-				"summary": "Makes a Content key for the Site's Content API; the key is answered once.",
+				"summary": "Makes a Content key for the Site's Content API; the key is answered once (Sensitive: admin only).",
 				"tags": ["contentApi"],
 				"requestBody": {
 					"required": true,
@@ -12612,7 +12612,8 @@
 				},
 				"x-webcraft-access": "write",
 				"x-webcraft-toolsets": ["siteSettings"],
-				"x-webcraft-permissions": ["structure.edit"]
+				"x-webcraft-permissions": ["structure.edit"],
+				"x-webcraft-sensitive": "contentApi.open"
 			}
 		},
 		"/contentApi/keys/update": {

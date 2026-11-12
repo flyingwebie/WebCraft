@@ -1,6 +1,7 @@
 // Site settings › Content API as the Management API serves it: Staff only (`structure.edit`), each
-// change applying at once and recorded in the Audit log (never a key itself), callable by Staff's API
-// tokens too (making a key isn't a Sensitive action: it reads only what the Site publishes).
+// change applying at once and recorded in the Audit log (never a key itself). Making a key and
+// switching it on are a Sensitive action (`contentApi.open`): a key reads the Site's Fields from
+// outside and outlives whoever made it, so API tokens and AI clients may do everything else only.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
@@ -49,17 +50,34 @@ describe("who", () => {
 		}
 	});
 
-	test("Staff's API tokens may change it (not a Sensitive action), and the key is answered to them once", async () => {
-		const { secret } = await createApiToken(staff, { workspaceId, name: "Deploy" });
+	test("Staff's API tokens may neither make a Content key nor switch the Content API on: each is a Sensitive action", async () => {
+		const { secret } = await createApiToken(staff, { workspaceId, name: "Deploy", toolsets: ["siteSettings"] });
+		const script = tokenClient(install, secret);
+		const otherSiteId = (await install.createSite(workspaceId, { name: "Acme Deli", slug: "deli" })).id;
+
+		await expect(
+			script.api.contentApi.keys.create({ siteId: otherSiteId, name: "From a script", origins: [] }),
+		).rejects.toMatchObject({ code: "SENSITIVE_ACTION_REFUSED", data: { action: "contentApi.open" } });
+		await expect(script.api.contentApi.update({ siteId: otherSiteId, enabled: true })).rejects.toMatchObject({
+			code: "SENSITIVE_ACTION_REFUSED",
+			data: { action: "contentApi.open" },
+		});
+		expect(await staff.api.contentApi.get({ siteId: otherSiteId })).toMatchObject({ enabled: false, keys: [] });
+	});
+
+	test("Staff's API tokens still read it, switch it off, hide what it shows, and rename or revoke a key", async () => {
+		const ownSiteId = (await install.createSite(workspaceId, { name: "Acme Patisserie", slug: "patisserie" })).id;
+		const { key } = await staff.api.contentApi.keys.create({ siteId: ownSiteId, name: "Staff's app" });
+		await staff.api.contentApi.update({ siteId: ownSiteId, enabled: true });
+		const { secret } = await createApiToken(staff, { workspaceId, name: "Tidy", toolsets: ["siteSettings"] });
 		const script = tokenClient(install, secret);
 
-		const made = await script.api.contentApi.keys.create({
-			siteId,
-			name: "From a script",
-			origins: ["https://app.example"],
-		});
-		expect(made.secret).toMatch(/^webcraft-ck_/);
-		expect((await script.api.contentApi.get({ siteId })).keys.map((key) => key.name)).toContain("From a script");
+		const listed = (await script.api.contentApi.get({ siteId: ownSiteId })).keys.map((found) => found.name);
+		expect(listed).toEqual(["Staff's app"]);
+		await script.api.contentApi.keys.update({ siteId: ownSiteId, keyId: key.id, name: "Renamed app" });
+		await script.api.contentApi.keys.revoke({ siteId: ownSiteId, keyId: key.id });
+		await script.api.contentApi.update({ siteId: ownSiteId, enabled: true, hidden: { globals: [] } });
+		expect(await script.api.contentApi.update({ siteId: ownSiteId, enabled: false })).toMatchObject({ enabled: false });
 	});
 });
 

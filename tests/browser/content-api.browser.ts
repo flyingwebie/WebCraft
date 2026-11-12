@@ -1,7 +1,8 @@
 // Site settings › Content API in a real browser: the switch and its addresses, the Content keys (a
 // working one with origins and use, a revoked one), making a key from the keyboard and the key shown
-// once, a refused origin said beside its field, editing and revoking a key, and what it shows (a Post
-// Type and Fields hidden, saved from the keyboard), in light and dark.
+// once, "Confirm it's you" before making one (a Sensitive action), a refused origin said beside its
+// field, editing and revoking a key, and what it shows (a Post Type and Fields hidden, saved from the
+// keyboard), in light and dark.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import type { TestAccount } from "../harness/index.ts";
@@ -95,6 +96,30 @@ for (const theme of THEMES) {
 			await shown.waitFor({ state: "hidden" });
 			await page.getByText(`Kiosk ${theme}`).waitFor();
 			await page.getByText("http://localhost:5173").first().waitFor();
+		});
+
+		test("making a key with an old identity check asks to confirm it's you first, from the keyboard", async () => {
+			const page = await install.newPage(theme);
+			await install.signInWithOldIdentityCheck(page, staff, 20);
+			await page.goto(install.adminUrl(`/sites/${siteId}/content-api`));
+			await page.waitForLoadState("networkidle");
+			await page.getByRole("button", { name: "New key" }).click();
+			const dialog = page.getByRole("dialog", { name: "New Content key" });
+			await dialog.getByLabel("Name").fill(`Confirmed ${theme}`);
+			await dialog.getByRole("button", { name: "Make key" }).focus();
+			await page.keyboard.press("Enter");
+
+			const check = page.getByRole("dialog", { name: "Confirm it's you" });
+			await check.waitFor();
+			await page.waitForFunction(() => document.activeElement?.id === "identity-check-password");
+			await expectNoAxeViolations(page, `Content API › Confirm it's you (${theme})`, ["region"]);
+			await page.keyboard.type(staff.password);
+			await page.keyboard.press("Enter");
+
+			const shown = page.getByRole("dialog", { name: `Confirmed ${theme} is ready` });
+			await shown.waitFor();
+			expect(await shown.getByLabel("Key").inputValue()).toMatch(/^webcraft-ck_/);
+			await shown.getByRole("button", { name: "Done" }).click();
 		});
 
 		test("an origin that isn't one is said beside its field", async () => {

@@ -1,7 +1,7 @@
 import { CONTENT_KEY_LIMITS } from "@webcraft/core";
 import { z } from "zod";
 
-import { onSite, signedIn } from "../context.ts";
+import { onSite, sensitive, signedIn } from "../context.ts";
 import { id } from "../inputs.ts";
 
 /** A Content key's name as typed; the server checks it (`CONTENT_API_INVALID`). */
@@ -20,8 +20,9 @@ const paths = z.array(z.string().max(300)).max(1_000);
  * A Site's Content API (ADR 0029, GLOSSARY.md › Content API): the read-only API frontends built
  * elsewhere call on the Site's domains at `/_content/v1/…`. Site settings, Staff only
  * (`structure.edit`): the switch (off by default), the Post Types and Fields it hides, and its
- * Content keys. Each change applies at once and is recorded in the Audit log. Making a key isn't a
- * Sensitive action: a key reads published content only, which the Site shows its visitors anyway.
+ * Content keys. Each change applies at once and is recorded in the Audit log. Making a key and
+ * switching the Content API on are the Sensitive action `contentApi.open`: a key reads the Site's
+ * Fields from outside, the ones no page shows too, and outlives whoever made it.
  */
 export const contentApi = {
 	/**
@@ -37,7 +38,8 @@ export const contentApi = {
 	/**
 	 * Switches the Content API on or off, and replaces each list of what it hides that is given:
 	 * `hidden.postTypes` (Post Type ids), `hidden.fields` (by Post Type id, its Fields' paths, such as
-	 * `summary` or `address.city`) and `hidden.globals` (the Globals' Field paths). Refused with
+	 * `summary` or `address.city`) and `hidden.globals` (the Globals' Field paths). Switching it on
+	 * needs a recent identity check (`contentApi.open`), never an API token or AI client. Refused with
 	 * `CONTENT_API_INVALID`, each problem at its place.
 	 */
 	update: signedIn
@@ -64,11 +66,13 @@ export const contentApi = {
 		/**
 		 * Makes a Content key with a name and the origins browsers on other sites may send it from
 		 * (exact origins such as `https://shop.example.com`; none by default: servers only). Answers
-		 * the key itself (`secret`) this once: it is never shown again.
+		 * the key itself (`secret`) this once: it is never shown again. A Sensitive action
+		 * (`contentApi.open`).
 		 */
 		create: signedIn
 			.input(z.object({ siteId: id, name, origins }))
 			.use(onSite("structure.edit"))
+			.use(sensitive("contentApi.open"))
 			.handler(
 				async ({ context, input }) =>
 					await context.services.contentApi.createKey(context.site, { name: input.name, origins: input.origins }),

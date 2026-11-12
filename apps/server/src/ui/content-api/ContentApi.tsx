@@ -34,6 +34,7 @@ import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { formatUtc } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
+import { useSensitiveAction } from "../identity-check.tsx";
 import { PageHeader } from "../PageHeader.tsx";
 
 type View = Awaited<ReturnType<ApiClient["contentApi"]["get"]>>;
@@ -70,12 +71,13 @@ function SwitchCard({ siteId, view }: { siteId: string; view: View }) {
 	const t = useT();
 	const id = useId();
 	const router = useRouter();
+	const runSensitive = useSensitiveAction();
 	const [busy, setBusy] = useState(false);
 	const toggle = async (enabled: boolean) => {
 		setBusy(true);
 		try {
-			const api = await getApi();
-			await api.contentApi.update({ siteId, enabled });
+			// Switching it on is a Sensitive action: "Confirm it's you" when the last check is old.
+			await runSensitive(async () => (await getApi()).contentApi.update({ siteId, enabled }));
 			toast.success(t(enabled ? "contentApi.switchedOn" : "contentApi.switchedOff"));
 			await router.invalidate();
 		} catch (failure) {
@@ -302,6 +304,7 @@ function KeyDialog({
 	const router = useRouter();
 	const [name, setName] = useState(existing?.name ?? "");
 	const [origins, setOrigins] = useState(existing?.origins.join("\n") ?? "");
+	const runSensitive = useSensitiveAction();
 	const [problems, setProblems] = useState<KeyProblem[]>([]);
 	const [busy, setBusy] = useState(false);
 	const submit = async (event: FormEvent) => {
@@ -323,7 +326,10 @@ function KeyDialog({
 				toast.success(t("contentApi.savedKey", { name: name.trim() }));
 				onClose();
 			} else {
-				const created = await api.contentApi.keys.create({ siteId, name: name.trim(), origins: lines });
+				// A Sensitive action: "Confirm it's you" when the last check is old.
+				const created = await runSensitive(() =>
+					api.contentApi.keys.create({ siteId, name: name.trim(), origins: lines }),
+				);
 				onClose();
 				onCreated({ name: created.key.name, secret: created.secret });
 			}

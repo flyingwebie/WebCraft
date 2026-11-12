@@ -7,6 +7,7 @@ import { storedFields } from "../content/fields.ts";
 import { clearPageCache } from "../content/page-cache.ts";
 import { listPostTypes } from "../content/post-types.ts";
 import { siteAddresses } from "../domains/addresses.ts";
+import { assertSensitiveActionAllowed } from "../permissions/sensitive.ts";
 import { stagingUrl } from "../site-pages/addresses.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { ContentApiInvalidError, type ContentKeyView, listContentKeys } from "./keys.ts";
@@ -80,7 +81,7 @@ export async function contentApiView(scope: SiteScope, config: InstallConfig): P
 /**
  * Changes a Site's Content API settings (open the Site with `structure.edit`): switches it on or off
  * and replaces the lists of hidden Post Types (ids) and Fields (paths, by Post Type id; the Globals'
- * own) that are given. It applies at once: the Site's page cache is cleared, so no answer the API
+ * own) that are given. Switching it on is the Sensitive action `contentApi.open`. It applies at once: the Site's page cache is cleared, so no answer the API
  * kept shows what is now hidden, and it is logged as `contentApi.change` with what changed.
  */
 export async function updateContentApi(
@@ -95,6 +96,8 @@ export async function updateContentApi(
 		const next = { enabled: current.enabled, hidden: { ...current.hidden } };
 		const changed: Record<string, unknown> = {};
 		if (change.enabled !== undefined && change.enabled !== current.enabled) {
+			// Switching it on opens the Site's content to every key it has: a Sensitive action.
+			if (change.enabled) assertSensitiveActionAllowed(tx.access, "contentApi.open", tx.now());
 			next.enabled = change.enabled;
 			changed.enabled = { from: current.enabled, to: change.enabled };
 		}
