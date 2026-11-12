@@ -18,6 +18,7 @@ import { type Handler, json, notFound, plainText, readOnly } from "../responses.
 import { BUILDER_CANVAS_PATH, builderCanvas } from "./builder-canvas.ts";
 import { CADDY_ASK_PATH, caddyAsk } from "./caddy-ask.ts";
 import { healthz, readyz } from "./health.ts";
+import { type AdminApp, withAdminHeaders } from "./security-headers.ts";
 
 /**
  * Everything served on the admin host. The web process answers its own paths first (`/healthz`,
@@ -27,13 +28,16 @@ import { healthz, readyz } from "./health.ts";
  * `/api/media/…`, Form uploads at `/api/forms/uploads/…`, the builder's canvas at
  * `/api/builder/canvas`); the admin app renders the rest,
  * the approval pages at `/oauth/authorize` and `/oauth/device` included.
+ *
+ * Every answer leaves with the admin's security headers (`withAdminHeaders`), an unexpected failure's
+ * included.
  */
-export function createAdminSide(services: InstallServices, adminApp?: Handler): Handler {
+export function createAdminSide(services: InstallServices, adminApp?: AdminApp): Handler {
 	const adminApi = createAdminApi(services);
 	const publicApi = createPublicApi(services);
 	const mcp = createMcpEndpoint(services);
 	const oauth = createOAuthEndpoints(services);
-	return async (request) => {
+	const answer: AdminApp = async (request, page) => {
 		const { pathname } = new URL(request.url);
 		switch (pathname) {
 			case "/healthz":
@@ -66,7 +70,7 @@ export function createAdminSide(services: InstallServices, adminApp?: Handler): 
 		const oauthAnswer = await oauth(request, { clientAddress: clientAddress(request, services.config) });
 		if (oauthAnswer) return oauthAnswer;
 		if ((pathname === APPROVAL_PAGE_PATH || pathname === DEVICE_PAGE_PATH) && adminApp) {
-			return neverFramed(await adminApp(request));
+			return neverStored(await adminApp(request, page));
 		}
 		if (pathname.startsWith(SITE_EXPORT_DOWNLOAD_PREFIX)) {
 			return readOnly(request, () =>
@@ -79,8 +83,16 @@ export function createAdminSide(services: InstallServices, adminApp?: Handler): 
 		if (pathname.startsWith(MEDIA_PREVIEW_PREFIX)) {
 			return readOnly(request, () => mediaPreview(services, request, pathname.slice(MEDIA_PREVIEW_PREFIX.length)));
 		}
-		return adminApp ? adminApp(request) : notFound();
+		return adminApp ? adminApp(request, page) : notFound();
 	};
+	return withAdminHeaders(services.config.adminOrigin, async (request, page) => {
+		try {
+			return await answer(request, page);
+		} catch (error) {
+			services.log.error("A request failed unexpectedly", { error, method: request.method, url: request.url });
+			return plainText(500, "Internal Server Error");
+		}
+	});
 }
 
 /** The approval page an AI client sends the person to (`routes/oauth.authorize.tsx`). */
@@ -89,11 +101,9 @@ const APPROVAL_PAGE_PATH = "/oauth/authorize";
 /** Where a device sign-in's code is approved (`routes/oauth.device.tsx`): `webcraft login` names it. */
 const DEVICE_PAGE_PATH = "/oauth/device";
 
-/** The approval page never shows inside another site's frame, where a click could be stolen. */
-function neverFramed(response: Response): Response {
+/** An approval page is made for one request to approve: no browser or proxy keeps a copy. */
+function neverStored(response: Response): Response {
 	const headers = new Headers(response.headers);
-	headers.set("x-frame-options", "DENY");
-	headers.set("content-security-policy", "frame-ancestors 'none'");
 	headers.set("cache-control", "no-store");
 	return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
