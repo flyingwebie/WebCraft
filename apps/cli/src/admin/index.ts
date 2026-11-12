@@ -23,6 +23,7 @@ import type { CliIo } from "../io.ts";
 import { backupCommand, checkUpdateCommand, migrateCommand, type RestoreOptions, restoreCommand } from "./backups.ts";
 import { doctorCommand, healthCommand, mediaMoveCommand, setupCommand } from "./checks.ts";
 import { createSuperadmin, parseCreateSuperadminOptions } from "./create-superadmin.ts";
+import { resetPassword } from "./reset-password.ts";
 import { resetTwoFactor } from "./reset-two-factor.ts";
 import { parseRotateKeyOptions, rotateKey } from "./rotate-key.ts";
 import {
@@ -84,6 +85,12 @@ Server commands: run them on the server, with the Install's environment (the web
                      theirs: their authenticator app, passkeys and backup codes are removed, they
                      are signed out everywhere and emailed, and they sign in with their password
                      and set it up again. Recorded in the Audit log as done by the command.
+  admin reset-password <email>
+                     Give a person a new password, such as a Superadmin whose reset email doesn't
+                     arrive. The password is asked twice on a terminal, or read from the first line
+                     of standard input; it is never taken from the command line. They are signed out
+                     everywhere, and still need their second factor to sign in. Recorded in the
+                     Audit log as done by the command.
 
 Site exports (ADR 0033), on the server too:
   site export <site id> [--to <file or folder>] [--passphrase] [--without-submissions]
@@ -179,6 +186,14 @@ async function dispatch(args: string[], io: CliIo, help: boolean, json: boolean)
 	}
 	if (command === "reset-2fa" && rest.length === 1 && !rest[0]?.startsWith("-")) {
 		return resetTwoFactor(rest[0] ?? "");
+	}
+	if (command === "reset-password") {
+		if (rest.some((arg) => arg === "--password" || arg.startsWith("--password="))) {
+			throw new ConfigError(
+				"The password is read from a prompt, or from standard input when there is no terminal, never on the command line.",
+			);
+		}
+		if (rest.length === 1 && !rest[0]?.startsWith("-")) return resetPassword(rest[0] ?? "");
 	}
 	if (command === "site" && rest[0] === "export") {
 		const options = parseSiteExportOptions(rest.slice(1));

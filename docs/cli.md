@@ -92,6 +92,7 @@ Run on the server with the Install's environment (`DATABASE_URL`, `WEBCRAFT_ADMI
 | `admin backup [--to …]`, `admin restore <archive>` | Backups (ADR 0032). |
 | `admin rotate-key` | Re-encrypts every secret under a new Master key. |
 | `admin reset-2fa <email>` | Resets a person's two-factor authentication. |
+| `admin reset-password <email>` | Gives a person a new password (asked twice on a terminal, or read from standard input), for a Superadmin whose reset email doesn't arrive. Their second factors stay. |
 | `admin check-update` | Reads the release feed now. |
 | `admin doctor [--json]` | Checks the settings, database, Master key, storage, mail, worker, Backups and the update check: OK, Warning or Failing, and what to do. Exits 1 when anything is Failing. |
 | `admin health [--worker]` | For health checks: the web process here answers `/readyz` (on `PORT`), or with `--worker` a worker checked in within 2 minutes. Exits 0 or 1. |

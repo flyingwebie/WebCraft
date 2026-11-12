@@ -286,6 +286,13 @@ export {
 	type TokenAnswer,
 } from "./oauth.ts";
 export {
+	PASSWORD_RESET_ADDRESS_LIMIT,
+	PASSWORD_RESET_MS,
+	PASSWORD_RESET_PERSON_LIMIT,
+	PasswordResetInvalidError,
+	type PasswordResets,
+} from "./password-resets.ts";
+export {
 	ADMIN_THEMES,
 	type AdminTheme,
 	isAdminTheme,

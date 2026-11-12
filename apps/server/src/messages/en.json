@@ -21,6 +21,7 @@
 		"SITE_NOT_FOUND": "There is no such Site, or you can't reach it.",
 		"STAFF_NOT_FOUND": "There is no such Staff member.",
 		"INVITE_INVALID": "This invite link doesn't work any more. Ask for a new invite.",
+		"PASSWORD_RESET_INVALID": "This reset link doesn't work any more. Ask for a new one.",
 		"SLUG_TAKEN": "Another Site already has this slug.",
 		"SLUG_INVALID": "Use 1 to 63 lower-case letters, digits and dashes, starting and ending with a letter or a digit.",
 		"SLUG_RESERVED": "This slug is kept for the Install itself. Choose another one.",
@@ -336,6 +337,7 @@
 		"email": "Email",
 		"password": "Password",
 		"submit": "Sign in",
+		"forgotPassword": "Forgot your password?",
 		"or": "or",
 		"withPasskey": "Sign in with a passkey",
 		"passkeyCancelled": "No passkey was used. Try again when you're ready.",
@@ -353,6 +355,39 @@
 			"useBackupCode": "Use a backup code instead",
 			"useAuthenticator": "Use your authenticator app instead",
 			"startOver": "Sign in again"
+		}
+	},
+	"forgotPassword": {
+		"pageTitle": "Reset your password",
+		"heading": "Reset your password",
+		"body": "Enter the email address you sign in with. We'll email you a link to choose a new password.",
+		"email": "Email",
+		"emailRequired": "Enter your email address.",
+		"submit": "Email me a link",
+		"backToSignIn": "Back to sign in",
+		"sent": {
+			"heading": "Check your email",
+			"body": "If {email} has an account here, a link to choose a new password is on its way. It works once, for 30 minutes.",
+			"help": "Nothing after a few minutes? Check your spam folder, or ask whoever runs this Install.",
+			"again": "Use another address"
+		}
+	},
+	"resetPassword": {
+		"pageTitle": "Choose a new password",
+		"heading": "Choose a new password",
+		"body": "You'll be signed out everywhere, then you sign in with the new password.",
+		"password": "New password",
+		"passwordHelp": "At least 12 characters.",
+		"submit": "Change password",
+		"done": {
+			"heading": "Your password is changed",
+			"body": "You are signed out everywhere. Sign in with your new password; if you use two-factor authentication, you still need it.",
+			"signIn": "Sign in"
+		},
+		"invalid": {
+			"heading": "This reset link doesn't work",
+			"body": "It was already used, replaced by a newer link, or is more than 30 minutes old.",
+			"again": "Ask for a new link"
 		}
 	},
 	"shell": {

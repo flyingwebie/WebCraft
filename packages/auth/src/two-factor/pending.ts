@@ -1,4 +1,4 @@
-import type { Database } from "@webcraft/db";
+import type { Database, Transaction } from "@webcraft/db";
 import { verifications } from "@webcraft/db/schema";
 import { and, eq, like, lt } from "drizzle-orm";
 
@@ -19,6 +19,8 @@ export type PendingSignIns = {
 	personOf(headers: Headers): Promise<string | null>;
 	/** Ends the request's waiting sign-in, if any, and answers the `Set-Cookie` line that clears its cookie. */
 	finish(headers: Headers): Promise<string>;
+	/** Ends every sign-in waiting for the person's second step: the password that started them is no longer theirs. */
+	endFor(tx: Transaction, personId: string): Promise<void>;
 };
 
 export function createPendingSignIns({
@@ -70,6 +72,12 @@ export function createPendingSignIns({
 			const token = tokenOf(headers);
 			if (token) await db.delete(verifications).where(eq(verifications.identifier, IDENTIFIER + (await sha256(token))));
 			return `${name}=; ${attributes}; Max-Age=0`;
+		},
+
+		async endFor(tx, personId) {
+			await tx
+				.delete(verifications)
+				.where(and(like(verifications.identifier, `${IDENTIFIER}%`), eq(verifications.value, personId)));
 		},
 	};
 }

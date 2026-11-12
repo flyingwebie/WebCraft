@@ -39,6 +39,7 @@ import { moduleLogPurge, moduleLogPurgeSchedule } from "../modules/module-log.ts
 import { modulePartitionsJob, modulePartitionsSchedule } from "../modules/partitions.ts";
 import { visitorSaltsPurge, visitorSaltsPurgeSchedule } from "../modules/visitors.ts";
 import { oauthPurge, oauthPurgeSchedule } from "../oauth-jobs.ts";
+import { passwordResetsSend } from "../password-resets.ts";
 import { rateLimitsPurge, rateLimitsPurgeSchedule } from "../rate-limits.ts";
 import {
 	reportsDue,
@@ -76,6 +77,7 @@ export const coreJobs = [
 	emailLogPurge,
 	rateLimitsPurge,
 	signInCountersPurge,
+	passwordResetsSend,
 	oauthPurge,
 	mediaProcess,
 	mediaVariants,

@@ -1,5 +1,5 @@
 import type { Database, Transaction } from "@webcraft/db";
-import { credentials, people, sessions, verifications } from "@webcraft/db/schema";
+import { credentials, people, sessions, signInThrottles, verifications } from "@webcraft/db/schema";
 import { type BetterAuthPlugin, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthEndpoint } from "better-auth/api";
@@ -202,6 +202,20 @@ export type Auth = {
 	 */
 	changePassword(
 		session: Session,
+		newPassword: string,
+		also?: (tx: Transaction, result: { signedOutSessions: number }) => Promise<void>,
+	): Promise<{ signedOutSessions: number }>;
+	/**
+	 * Gives a person a new password without their old one (password recovery: a reset link from
+	 * their email, or the server's `reset-password` command) and ends every session of theirs,
+	 * together. The counts of wrong passwords and the networks they signed in from are forgotten, and
+	 * a second step waiting on the old password ends; their second factors stay as they are, so the
+	 * next sign-in still needs one. Refuses a password the rules don't allow with
+	 * `PasswordRefusedError`, changing nothing. `also` runs in the same transaction (the link is used
+	 * up and the reset recorded there); when it throws, nothing changes.
+	 */
+	resetPassword(
+		personId: string,
 		newPassword: string,
 		also?: (tx: Transaction, result: { signedOutSessions: number }) => Promise<void>,
 	): Promise<{ signedOutSessions: number }>;
@@ -579,25 +593,26 @@ export function createAuth(options: AuthOptions): Auth {
 			const hash = await hashPassword(newPassword);
 			const now = clock.now();
 			return database.db.transaction(async (tx) => {
-				const changed = await tx
-					.update(credentials)
-					.set({ password: hash, updatedAt: now })
-					.where(and(eq(credentials.personId, session.personId), eq(credentials.providerId, PASSWORD_PROVIDER)))
-					.returning({ id: credentials.id });
-				if (changed.length === 0) {
-					await tx.insert(credentials).values({
-						personId: session.personId,
-						accountId: session.personId,
-						providerId: PASSWORD_PROVIDER,
-						password: hash,
-						createdAt: now,
-						updatedAt: now,
-					});
-				}
+				await storePassword(tx, session.personId, hash, now);
 				const ended = await tx
 					.delete(sessions)
 					.where(and(eq(sessions.personId, session.personId), ne(sessions.id, session.id)))
 					.returning({ id: sessions.id });
+				const result = { signedOutSessions: ended.length };
+				await also?.(tx, result);
+				return result;
+			});
+		},
+
+		async resetPassword(personId, newPassword, also) {
+			await assertNewPasswordAllowed(newPassword, options.passwordChecks);
+			const hash = await hashPassword(newPassword);
+			const now = clock.now();
+			return database.db.transaction(async (tx) => {
+				await storePassword(tx, personId, hash, now);
+				const ended = await tx.delete(sessions).where(eq(sessions.personId, personId)).returning({ id: sessions.id });
+				await tx.delete(signInThrottles).where(eq(signInThrottles.personId, personId));
+				await pending.endFor(tx, personId);
 				const result = { signedOutSessions: ended.length };
 				await also?.(tx, result);
 				return result;
@@ -689,6 +704,24 @@ const sessionStarter = {
 		),
 	},
 } satisfies BetterAuthPlugin;
+
+/** Stores a person's password hash: their one `credential` row, made when they have none. */
+async function storePassword(tx: Transaction, personId: string, hash: string, now: Date): Promise<void> {
+	const changed = await tx
+		.update(credentials)
+		.set({ password: hash, updatedAt: now })
+		.where(and(eq(credentials.personId, personId), eq(credentials.providerId, PASSWORD_PROVIDER)))
+		.returning({ id: credentials.id });
+	if (changed.length > 0) return;
+	await tx.insert(credentials).values({
+		personId,
+		accountId: personId,
+		providerId: PASSWORD_PROVIDER,
+		password: hash,
+		createdAt: now,
+		updatedAt: now,
+	});
+}
 
 /** Whether `password` is the person's password. People without one never match. */
 async function passwordMatches(database: Database, personId: string, password: string): Promise<boolean> {

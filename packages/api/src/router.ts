@@ -33,6 +33,7 @@ import { modules } from "./procedures/modules.ts";
 import { aiClients, oauth } from "./procedures/oauth.ts";
 import { pageLayouts } from "./procedures/page-layouts.ts";
 import { pages } from "./procedures/pages.ts";
+import { passwordReset } from "./procedures/password-reset.ts";
 import { popups } from "./procedures/popups.ts";
 import { postTypes } from "./procedures/post-types.ts";
 import { publishing } from "./procedures/publishing.ts";
@@ -64,6 +65,7 @@ export const apiRouter = {
 	checks,
 	setup,
 	session,
+	passwordReset,
 	shell,
 	me,
 	apiTokens,

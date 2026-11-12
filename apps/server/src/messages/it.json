@@ -21,6 +21,7 @@
 		"SITE_NOT_FOUND": "Questo Site non esiste, o non puoi raggiungerlo.",
 		"STAFF_NOT_FOUND": "Questa persona non fa parte dello Staff.",
 		"INVITE_INVALID": "Questo link di invito non funziona più. Chiedi un nuovo invito.",
+		"PASSWORD_RESET_INVALID": "Questo link di reimpostazione non funziona più. Chiedine uno nuovo.",
 		"SLUG_TAKEN": "Un altro Site ha già questo slug.",
 		"SLUG_INVALID": "Usa da 1 a 63 lettere minuscole, cifre e trattini, iniziando e finendo con una lettera o una cifra.",
 		"SLUG_RESERVED": "Questo slug è riservato all'Install. Scegline un altro.",
@@ -336,6 +337,7 @@
 		"email": "Email",
 		"password": "Password",
 		"submit": "Accedi",
+		"forgotPassword": "Password dimenticata?",
 		"or": "oppure",
 		"withPasskey": "Accedi con una passkey",
 		"passkeyCancelled": "Nessuna passkey è stata usata. Riprova quando vuoi.",
@@ -353,6 +355,39 @@
 			"useBackupCode": "Usa invece un codice di backup",
 			"useAuthenticator": "Usa invece l'app di autenticazione",
 			"startOver": "Accedi di nuovo"
+		}
+	},
+	"forgotPassword": {
+		"pageTitle": "Reimposta la password",
+		"heading": "Reimposta la password",
+		"body": "Inserisci l'indirizzo email con cui accedi. Ti invieremo un link per scegliere una nuova password.",
+		"email": "Email",
+		"emailRequired": "Inserisci il tuo indirizzo email.",
+		"submit": "Inviami un link",
+		"backToSignIn": "Torna all'accesso",
+		"sent": {
+			"heading": "Controlla la posta",
+			"body": "Se {email} ha un account qui, sta arrivando un link per scegliere una nuova password. Funziona una sola volta, per 30 minuti.",
+			"help": "Non arriva nulla dopo qualche minuto? Controlla la cartella dello spam oppure chiedi a chi gestisce questo Install.",
+			"again": "Usa un altro indirizzo"
+		}
+	},
+	"resetPassword": {
+		"pageTitle": "Scegli una nuova password",
+		"heading": "Scegli una nuova password",
+		"body": "Verrai disconnesso ovunque, poi accederai con la nuova password.",
+		"password": "Nuova password",
+		"passwordHelp": "Almeno 12 caratteri.",
+		"submit": "Cambia password",
+		"done": {
+			"heading": "La password è stata cambiata",
+			"body": "Sei stato disconnesso ovunque. Accedi con la nuova password; se usi l'autenticazione a due fattori, ti serve ancora.",
+			"signIn": "Accedi"
+		},
+		"invalid": {
+			"heading": "Questo link di reimpostazione non funziona",
+			"body": "È già stato usato, è stato sostituito da un link più recente oppure ha più di 30 minuti.",
+			"again": "Chiedi un nuovo link"
 		}
 	},
 	"shell": {

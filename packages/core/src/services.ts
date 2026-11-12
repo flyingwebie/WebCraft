@@ -102,6 +102,7 @@ import type { MasterKeyBackup } from "./master-key-backup.ts";
 import type { ImageProcessor, InstallStorage, MediaLibrary } from "./media/index.ts";
 import type { ModuleHost } from "./modules/host.ts";
 import type { OAuth } from "./oauth.ts";
+import type { PasswordResets } from "./password-resets.ts";
 import type { People } from "./people.ts";
 import type { PersonActor } from "./permissions/can.ts";
 import type { Popups } from "./popups/index.ts";
@@ -188,6 +189,8 @@ export type InstallServices = InstallPorts & {
 	auth: Auth;
 	/** A person's own account: their sessions and their password, recorded in the Audit log. */
 	account: Account;
+	/** Password recovery: reset links by email, and the server's `reset-password` command. */
+	passwordResets: PasswordResets;
 	/**
 	 * Two-factor authentication: a person's own second factors (recorded in the Audit log and
 	 * emailed to them), whether it is required of them, the switches that require it, and resets.

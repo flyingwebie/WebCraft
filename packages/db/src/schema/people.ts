@@ -68,6 +68,24 @@ export const signInThrottles = pgTable(
 );
 
 /**
+ * Password reset links people asked for by email (password recovery). Only the SHA-256 hash of a
+ * link's token is kept; a link works once, until `expires_at`, and a person has one at a time.
+ */
+export const passwordResets = pgTable(
+	"password_resets",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		personId: uuid("person_id")
+			.notNull()
+			.references(() => people.id, { onDelete: "cascade" }),
+		tokenHash: text("token_hash").notNull().unique(),
+		expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+	},
+	(table) => [index("password_resets_person_id_idx").on(table.personId)],
+);
+
+/**
  * Signed-in sessions in the admin. `started_at` and `last_active_at` come from WebCraft's clock and
  * decide how long a session lasts; `identity_checked_at` is when the person last proved who they
  * are in this session (signing in counts), which Sensitive actions need within the last 10 minutes.

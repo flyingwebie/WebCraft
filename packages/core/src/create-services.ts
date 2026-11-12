@@ -133,6 +133,7 @@ import { createMediaLibrary } from "./media/library.ts";
 import { FIRST_PARTY_MODULES } from "./modules/first-party.ts";
 import { createModuleHost, type ModuleHost } from "./modules/host.ts";
 import { createOAuth } from "./oauth.ts";
+import { createPasswordResets } from "./password-resets.ts";
 import { createPeople } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
 import { createPopups } from "./popups/index.ts";
@@ -474,6 +475,7 @@ export async function createInstallServices(
 		secrets: installSecrets,
 		auth,
 		account: createAccount({ database, auth, clock }),
+		passwordResets: createPasswordResets({ database, auth, clock, email, jobs: ports.jobs, rateLimits, log }),
 		twoFactor,
 		impersonation,
 		rateLimits,

@@ -126,6 +126,7 @@ import {
 	PageParentUnpublishedError,
 	PagesHaveNoEntryTemplateError,
 	PassphraseWrongError,
+	PasswordResetInvalidError,
 	PathTakenError,
 	PermissionDeniedError,
 	PersonNotFoundError,
@@ -1068,6 +1069,9 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof InviteInvalidError) {
 		return new ORPCError("INVITE_INVALID", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof PasswordResetInvalidError) {
+		return new ORPCError("PASSWORD_RESET_INVALID", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof InviteForAnotherAccountError) {
 		return new ORPCError("INVITE_OTHER_ACCOUNT", { status: 403, message: error.message, cause: error });
