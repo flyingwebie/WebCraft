@@ -1,11 +1,14 @@
+import { entries as entryRows } from "@webcraft/db/schema";
+import { asc, desc, eq } from "drizzle-orm";
 import { archiveParts } from "../content/archives.ts";
 import { type ComponentSources, listComponents } from "../content/components.ts";
 import { draftAddresses } from "../content/draft-paths.ts";
-import { listEntries } from "../content/entries.ts";
+import { publishedAddresses } from "../content/entry-paths.ts";
 import type { ComponentUse } from "../content/errors.ts";
 import { siteLanguages } from "../content/languages.ts";
 import { isPagePostType } from "../content/pages.ts";
 import { listPostTypes } from "../content/post-types.ts";
+import { readValue, storedVersion } from "../content/values.ts";
 import { can } from "../permissions/can.ts";
 import type { Permission } from "../permissions/roles.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
@@ -21,8 +24,8 @@ export const COMMAND_PERMISSIONS = [
 	"entry.publish",
 ] as const satisfies readonly Permission[];
 
-/** The most Entries Go to lists for one Post Type. */
-const GO_TO_ENTRIES = 200;
+/** The most Entries Go to lists for one Post Type: its newest. */
+export const GO_TO_ENTRIES = 200;
 
 /** One page Go to opens in Code mode, at its address on the Site. */
 export type GoToPage = { id: string; title: string; path: string };
@@ -57,17 +60,29 @@ export async function commandMenuData(scope: SiteScope, sources: ComponentSource
 	const pages: GoToPage[] = [];
 	const postTypes: CommandMenuData["postTypes"] = [];
 	for (const postType of await listPostTypes(scope)) {
-		const listed = (await listEntries(scope, postType.id)).slice(0, GO_TO_ENTRIES);
+		// Only what Go to shows is read, of only the Entries it lists: the menu opens for everyone in Edit
+		// mode, on Sites with any number of Entries.
+		const listed = await scope.select(entryRows, eq(entryRows.postTypeId, postType.id), {
+			orderBy: [desc(entryRows.createdAt), asc(entryRows.id)],
+			limit: GO_TO_ENTRIES,
+		});
+		const published = await publishedAddresses(
+			scope,
+			postType,
+			listed.filter((row) => row.published !== null).map((row) => row.id),
+			languages,
+		);
 		const drafts = await draftAddresses(
 			scope,
 			postType,
-			listed.filter((entry) => entry.path === null).map((entry) => entry.id),
+			listed.filter((row) => !published.has(row.id)).map((row) => row.id),
 			languages,
 		);
 		const entries: GoToPage[] = [];
-		for (const entry of listed) {
-			const path = entry.path ?? drafts.get(entry.id)?.path ?? null;
-			if (path !== null) entries.push({ id: entry.id, title: entry.draft.title, path });
+		for (const row of listed) {
+			const path = (published.get(row.id) ?? drafts.get(row.id))?.path ?? null;
+			const title = readValue(storedVersion(row.draft), { key: "title", ...languages }) ?? "";
+			if (path !== null) entries.push({ id: row.id, title, path });
 		}
 		if (isPagePostType(postType)) pages.push(...entries);
 		else
