@@ -72,6 +72,12 @@ export function createAdminApi(
 /** Room a multipart body needs beside its file: boundaries, part headers and the other fields. */
 export const MULTIPART_ALLOWANCE = 64 * 1024;
 
+/**
+ * The largest body a request without a file may have. Every procedure's input is far smaller: the
+ * largest, a design's history, is a string of 8 million characters, 24 MB at most as JSON.
+ */
+export const API_BODY_MAX_BYTES = 32 * 1024 * 1024;
+
 export type LimitedBody = { request: Request; overflowed(): boolean; tooLarge(): Response };
 
 /** The procedures whose uploads aren't Media, with the largest file each takes and how it refuses a larger one. */
@@ -96,9 +102,10 @@ const OWN_UPLOAD_LIMITS: Record<string, { maxFileBytes: number; refusal: () => E
 };
 
 /**
- * Keeps an upload (a multipart body, the only kind that carries files) to the largest file the
- * procedure at `procedurePath` (dotted) takes (the Install's largest Media file, unless it has its
- * own limit), before it is read into memory: a body that says it is larger is refused at once, and
+ * Keeps a request's body to what the procedure at `procedurePath` (dotted) takes, before it is read
+ * into memory: an upload (a multipart body, the only kind that carries files) to its largest file
+ * (the Install's largest Media file, unless the procedure has its own limit), and any other body to
+ * `API_BODY_MAX_BYTES` (`PAYLOAD_TOO_LARGE`). A body that says it is larger is refused at once, and
  * one that doesn't say stops being read once it passes the limit.
  */
 export async function bodyWithinLimit(
@@ -107,13 +114,20 @@ export async function bodyWithinLimit(
 	procedurePath: string,
 ): Promise<LimitedBody | Response> {
 	const multipart = request.headers.get("content-type")?.toLowerCase().startsWith("multipart/") ?? false;
-	if (!multipart || request.body === null) {
-		return { request, overflowed: () => false, tooLarge: () => tooLarge(new MediaTooLargeError(0)) };
+	let limit = API_BODY_MAX_BYTES;
+	let refusal: () => Error = () =>
+		new ORPCError("PAYLOAD_TOO_LARGE", {
+			status: 413,
+			message: `A request without a file has at most ${API_BODY_MAX_BYTES} bytes.`,
+			data: { maxBytes: API_BODY_MAX_BYTES },
+		});
+	if (multipart) {
+		const own = Object.hasOwn(OWN_UPLOAD_LIMITS, procedurePath) ? OWN_UPLOAD_LIMITS[procedurePath] : undefined;
+		const maxFileBytes = own?.maxFileBytes ?? (await services.settings.media()).maxFileBytes;
+		limit = maxFileBytes + MULTIPART_ALLOWANCE;
+		refusal = own?.refusal ?? (() => new MediaTooLargeError(maxFileBytes));
 	}
-	const own = Object.hasOwn(OWN_UPLOAD_LIMITS, procedurePath) ? OWN_UPLOAD_LIMITS[procedurePath] : undefined;
-	const maxFileBytes = own?.maxFileBytes ?? (await services.settings.media()).maxFileBytes;
-	const refusal = own?.refusal ?? (() => new MediaTooLargeError(maxFileBytes));
-	const limited = limitBody(request, maxFileBytes + MULTIPART_ALLOWANCE, refusal);
+	const limited = limitBody(request, limit, refusal);
 	if ("refused" in limited) return tooLarge(limited.refused);
 	return { ...limited, tooLarge: () => tooLarge(refusal()) };
 }

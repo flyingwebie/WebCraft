@@ -36,6 +36,7 @@ export {
 export { type ApiClient, type ApiRouter, apiRouter } from "./router.ts";
 export {
 	ADMIN_API_PREFIX,
+	API_BODY_MAX_BYTES,
 	createAdminApi,
 	limitBody,
 	MULTIPART_ALLOWANCE,
