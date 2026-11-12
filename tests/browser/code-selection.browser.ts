@@ -66,9 +66,9 @@ for (const theme of THEMES) {
 		await page.waitForURL((url) => url.hostname.startsWith(slug));
 		await page.getByRole("button", { name: "Code", exact: true }).click();
 		const tree = page.getByRole("tree", { name: "Layers" });
-		const greeting = tree.getByRole("treeitem", { name: /^Template greeting p$/ });
-		const notice = tree.getByRole("treeitem", { name: /^Notice message p$/ });
-		const other = tree.getByRole("treeitem", { name: /^Other (?:message|revised) p$/ });
+		const greeting = tree.getByRole("treeitem", { name: /^Template greeting p(?: from .+)?$/ });
+		const notice = tree.getByRole("treeitem", { name: /^Notice message p(?: from .+)?$/ });
+		const other = tree.getByRole("treeitem", { name: /^Other (?:message|revised) p(?: from .+)?$/ });
 		await notice.waitFor();
 		await greeting.click();
 		await page.getByRole("textbox", { name: "HTML of Site template", exact: true }).waitFor();
@@ -96,7 +96,7 @@ for (const theme of THEMES) {
 			componentId: otherId,
 			markup: '<p data-wc-id="message" data-wc-label="Other revised">Other revised text</p>',
 		});
-		await tree.getByRole("treeitem", { name: /^Other revised p$/ }).waitFor();
+		await tree.getByRole("treeitem", { name: /^Other revised p(?: from .+)?$/ }).waitFor();
 		await page.locator(".language-markup .line.hovered").filter({ hasText: "Other revised text" }).waitFor();
 		expect(await notice.getAttribute("aria-selected")).toBe("true");
 		expect(await html.inputValue()).toBe(unfinished);
@@ -171,7 +171,7 @@ for (const theme of THEMES) {
 		await page.waitForURL((url) => url.hostname.startsWith(slug));
 		await page.getByRole("button", { name: "Code", exact: true }).click();
 		const tree = page.getByRole("tree", { name: "Layers" });
-		const earlier = tree.getByRole("treeitem", { name: /^Earlier p$/ });
+		const earlier = tree.getByRole("treeitem", { name: /^Earlier p(?: from .+)?$/ });
 		await earlier.click();
 		await page
 			.getByRole("group", { name: "Which script", exact: true })
@@ -237,15 +237,17 @@ for (const theme of THEMES) {
 		await page.waitForURL((url) => url.hostname.startsWith(slug));
 		await page.getByRole("button", { name: "Code", exact: true }).click();
 		const tree = page.getByRole("tree", { name: "Layers" });
-		const row = tree.getByRole("treeitem", { name: /Loop hours.*×2/ });
+		const row = tree.getByRole("treeitem", { name: /Loop hours.*repeats 2 times/ });
 		await row.waitFor();
 		await page.waitForLoadState("networkidle");
-		await tree.getByRole("treeitem", { name: /^Before p$/ }).click();
+		await tree.getByRole("treeitem", { name: /^Before p(?: from .+)?$/ }).click();
 		await page.locator(".language-markup .line.marked").filter({ hasText: 'data-wc-id="before"' }).waitFor();
 		await row.hover();
 		await page.locator(".language-markup .line.hovered").filter({ hasText: "{{@loop hours}}" }).waitFor();
 		await expectOutline(page, "hover", 'header p[data-wc-code="site#day"]');
-		expect(await tree.getByRole("treeitem", { name: /^Before p$/ }).getAttribute("aria-selected")).toBe("true");
+		expect(await tree.getByRole("treeitem", { name: /^Before p(?: from .+)?$/ }).getAttribute("aria-selected")).toBe(
+			"true",
+		);
 		await row.click();
 		await page.locator(".language-markup .line.marked").filter({ hasText: "{{@loop hours}}" }).waitFor();
 		await expectOutline(page, "selected", 'header p[data-wc-code="site#day"]');
@@ -290,7 +292,7 @@ for (const theme of THEMES) {
 		await page.waitForURL((url) => url.hostname.startsWith(slug));
 		await page.getByRole("button", { name: "Code", exact: true }).click();
 		const tree = page.getByRole("tree", { name: "Layers" });
-		await tree.getByRole("treeitem", { name: /^Before p$/ }).click();
+		await tree.getByRole("treeitem", { name: /^Before p(?: from .+)?$/ }).click();
 		await page.waitForLoadState("networkidle");
 		const condition = tree.getByRole("treeitem", { name: /^If props.show/ }).last();
 		await condition.click();
@@ -493,7 +495,7 @@ for (const theme of THEMES) {
 		await page.waitForURL((url) => url.hostname.startsWith(slug));
 		await page.getByRole("button", { name: "Code", exact: true }).click();
 		const tree = page.getByRole("tree", { name: "Layers" });
-		await tree.getByRole("treeitem", { name: /^Before p$/ }).click();
+		await tree.getByRole("treeitem", { name: /^Before p(?: from .+)?$/ }).click();
 		await page.waitForLoadState("networkidle");
 		const html = page.getByRole("textbox", { name: /^HTML of / });
 		const original = await html.inputValue();

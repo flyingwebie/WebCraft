@@ -6,6 +6,7 @@
  */
 export const PAGE_STYLES = `
 webcraft-edit-bar { display: block !important; }
+.wc-editor-messages { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 html.wc-edit { padding-top: 3.5rem; scroll-padding-top: 4.5rem; }
 html.wc-edit-on [data-wc-field] {
 	outline: 1px dashed rgba(79, 70, 229, 0.6);
@@ -25,7 +26,7 @@ html.wc-code body { padding-bottom: calc(42vh + 1rem); margin-inline:16rem 18rem
 html.wc-code.wc-code-collapsed { scroll-padding-bottom: 6rem; }
 html.wc-code.wc-code-collapsed body { padding-bottom: 6rem; }
 html.wc-code [data-wc-code] { cursor: pointer; }
-html [data-wc-hidden-placement]:not([data-wc-hidden-placement] *) { opacity:.45; }
+html [data-wc-hidden-placement]:not([data-wc-hidden-placement] *) { opacity:.7; }
 .wc-outside-scripts {
 	margin: 2rem auto; max-width: 48rem; padding: 0.75rem 1rem;
 	border: 1px dashed #71717a; border-radius: 0.75rem;

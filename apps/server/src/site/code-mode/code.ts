@@ -1,4 +1,6 @@
+import type { codeKeyEdit } from "../../ui/builder/code-keys.ts";
 import type { componentScriptSettings } from "../../ui/builder/component-script-settings.ts";
+import type { editorAccessibility } from "../../ui/builder/editor-accessibility.ts";
 import type { renderedRanges } from "../../ui/builder/rendered-ranges.ts";
 /** What Code mode's script is given when it is made: the address of its own stylesheet. */
 export type CodeModeConfig = { styles: string; panels: string };
@@ -22,6 +24,8 @@ export function codeMode(
 	config: CodeModeConfig,
 	makeScriptSettings: typeof componentScriptSettings,
 	rangesOf: typeof renderedRanges,
+	accessibility: typeof editorAccessibility,
+	editCodeKey: typeof codeKeyEdit,
 ): void {
 	type Words = { [key: string]: string | Words };
 	type Answer = { ok: true; data: unknown } | { ok: false; code: string; data: Record<string, unknown> };
@@ -176,7 +180,7 @@ export function codeMode(
 	let words: Words = {};
 	let host: HTMLElement;
 	let root: ShadowRoot;
-	let live: HTMLElement;
+
 	let shell: HTMLElement;
 	let breadcrumb: HTMLElement;
 	let usage: HTMLElement;
@@ -350,6 +354,7 @@ export function codeMode(
 		const module = await import(config.panels);
 		panelsAdapter = module.mount({
 			root,
+			initialFocus: selectionHash,
 			cssHost,
 			edited: () => inputRevision++,
 			language: (state.data as { adminLanguage?: string }).adminLanguage === "it" ? "it" : "en",
@@ -417,7 +422,7 @@ export function codeMode(
 						html.root.append(
 							el(
 								"pre",
-								{ class: "source-context insertion-context insert-line", "aria-live": "polite" },
+								{ class: "source-context insertion-context insert-line", "aria-live": "off" },
 								`${context.label}\n${line}`,
 							),
 						);
@@ -521,11 +526,8 @@ export function codeMode(
 		return `wc-code-${stem}-${ids}`;
 	}
 
-	function announce(text: string): void {
-		live.textContent = "";
-		later(() => {
-			live.textContent = text;
-		}, 60);
+	function announce(text: string, priority: "polite" | "interrupt" = "polite"): void {
+		accessibility(doc).announce(text, priority);
 	}
 
 	function errorText(code: string): string {
@@ -602,7 +604,7 @@ export function codeMode(
 		root = host.attachShadow({ mode: "open" });
 		// CSS and Inspector inputs can change while the last navigation request is in flight.
 		for (const event of ["input", "change"]) root.addEventListener(event, () => inputRevision++, true);
-		live = el("p", { role: "status", class: "sr-only" });
+		accessibility(doc);
 		breadcrumb = el("ol", { class: "crumbs" });
 		usage = el("p", { class: "usage", hidden: "" });
 		toggleButton = button(
@@ -645,7 +647,6 @@ export function codeMode(
 				statusLine,
 				el("p", { class: "hint" }, word("clickHint"), " · ", word("keysHint")),
 			),
-			live,
 		);
 		selectedLabel = el("span", { class: "outline-label" });
 		selectedBox = el("div", { class: "outline selected", "aria-hidden": "true", hidden: "" }, selectedLabel);
@@ -656,6 +657,39 @@ export function codeMode(
 		shell.append(listbox, dialog);
 		root.append(el("link", { rel: "stylesheet", href: config.styles }), selectedBox, hoverBox, insertBox, shell);
 		doc.body.append(host);
+		const suppressPageControls = () => {
+			const skip = doc.querySelector<HTMLAnchorElement>("a.wc-skip-link");
+			if (skip && !skip.hasAttribute("data-editor-skip")) {
+				const navigation = el("nav", { "aria-label": word("editorNavigation") });
+				skip.before(navigation);
+				navigation.append(skip);
+				skip.dataset.editorSkip = "";
+				skip.textContent = word("skipToLayers");
+				skip.href = "#wc-editor-layers";
+				skip.tabIndex = 0;
+				skip.addEventListener("click", (event) => {
+					event.preventDefault();
+					accessibility(doc).focusRegion("tree");
+				});
+			}
+			// Hidden Placements are visible editing guides; the tree supplies their accessible identity.
+			for (const placement of doc.querySelectorAll("[data-wc-hidden-placement]"))
+				placement.setAttribute("aria-hidden", "true");
+			for (const control of doc.body.querySelectorAll<HTMLElement>(
+				"a[href], button, input, select, textarea, summary, iframe, audio[controls], video[controls], [contenteditable], [tabindex]",
+			)) {
+				if (control.closest("webcraft-edit-bar, webcraft-code-mode, [data-editor-skip]")) continue;
+				if (control.tabIndex !== -1) control.tabIndex = -1;
+			}
+		};
+		suppressPageControls();
+		const pageControls = new MutationObserver(suppressPageControls);
+		pageControls.observe(doc.body, {
+			childList: true,
+			subtree: true,
+			attributes: true,
+			attributeFilter: ["tabindex", "href", "contenteditable", "controls"],
+		});
 		doc.documentElement.classList.add("wc-code");
 		try {
 			if (win.localStorage.getItem(PANEL_KEY) === "hidden") showPanels(false);
@@ -787,7 +821,7 @@ export function codeMode(
 		});
 		return el(
 			"section",
-			{ class: "panel", "aria-labelledby": heading },
+			{ class: "panel", "aria-labelledby": heading, "data-editor-region": "html" },
 			panelHeader(heading, word("html"), "code", htmlTitle, htmlFormat, htmlSave),
 			html.root,
 			htmlProblems,
@@ -800,7 +834,7 @@ export function codeMode(
 		cssHost = el("div", { class: "css-host editor-panels dark" });
 		return el(
 			"section",
-			{ class: "panel", "aria-labelledby": heading },
+			{ class: "panel", "aria-labelledby": heading, "data-editor-region": "css" },
 			panelHeader(heading, word("css"), "brush", el("span", { class: "panel-sub" })),
 			cssHost,
 		);
@@ -838,7 +872,7 @@ export function codeMode(
 		const consoleHeading = newId("console");
 		return el(
 			"section",
-			{ class: "panel", "aria-labelledby": heading },
+			{ class: "panel", "aria-labelledby": heading, "data-editor-region": "js" },
 			panelHeader(
 				heading,
 				word("js"),
@@ -1018,7 +1052,7 @@ export function codeMode(
 	function swapPage(htmlText: string): void {
 		const fresh = parser.parseFromString(htmlText, "text/html");
 		const bar = doc.querySelector("body > webcraft-edit-bar");
-		const keep = new Set<Node>([host, ...(bar ? [bar] : [])]);
+		const keep = new Set<Node>([host, ...(bar ? [bar] : []), ...doc.querySelectorAll("body > [data-editor-messages]")]);
 		for (const child of [...doc.body.childNodes]) if (!keep.has(child)) child.remove();
 		const nodes = [...fresh.body.childNodes].map((node) => doc.importNode(node, true));
 		const skip = nodes.find((node) => node instanceof Element && node.matches("a.wc-skip-link"));
@@ -1292,7 +1326,7 @@ export function codeMode(
 		}
 		const reason = errorText(answer.code);
 		setStatusText(word("notSaved", { reason }));
-		announce(word("notSaved", { reason }));
+		announce(word("notSaved", { reason }), "interrupt");
 	}
 
 	/** Puts each block element of the HTML panel on its own line, changing nothing else (see `formatMarkup`). */
@@ -1584,6 +1618,7 @@ export function codeMode(
 			return false;
 		}
 		setStatusText(word("notSaved", { reason: errorText(answer.code) }));
+		announce(word("notSaved", { reason: errorText(answer.code) }), "interrupt");
 		return false;
 	}
 
@@ -2028,6 +2063,8 @@ export function codeMode(
 		const caretLine = el("div", { class: "caret-line", "aria-hidden": "true" });
 		const area = el("textarea", {
 			class: "source",
+			"data-editor-default-focus": "",
+			"data-editor-code": "",
 			spellcheck: "false",
 			autocapitalize: "off",
 			autocomplete: "off",
@@ -2134,7 +2171,10 @@ export function codeMode(
 			sync();
 			if (suggestion?.editor === self) placeSuggestions(self);
 		});
-		area.addEventListener("keyup", caretChanged);
+		area.addEventListener("keyup", (event) => {
+			// Focus arriving through region/Tab navigation is not a new caret selection.
+			if (event.key !== "F6" && event.key !== "Tab") caretChanged();
+		});
 		area.addEventListener("click", caretChanged);
 		area.addEventListener("focus", () => rootElement.classList.add("focused"));
 		area.addEventListener("blur", () => {
@@ -2165,7 +2205,11 @@ export function codeMode(
 						return;
 					case "Enter":
 					case "Tab":
-						event.preventDefault();
+						if (event.key === "Tab" && event.shiftKey) {
+							closeSuggestions();
+							return;
+						}
+						if (event.key !== "Tab") event.preventDefault();
 						void accept(open.active);
 						return;
 					case "Escape":
@@ -2187,13 +2231,11 @@ export function codeMode(
 				options.save();
 				return;
 			}
-			if (event.key === "Enter" && !event.shiftKey && !event.altKey && !area.readOnly) {
-				// A new line keeps the indentation of the one before.
-				const start = area.selectionStart;
-				const lineStart = area.value.lastIndexOf("\n", start - 1) + 1;
-				const indent = /^[ \t]*/.exec(area.value.slice(lineStart, start))?.[0] ?? "";
+			const edit = editCodeKey(event, area);
+			if (edit) {
 				event.preventDefault();
-				self.insert(`\n${indent}`);
+				self.insert(edit.text, 0, area.value.length);
+				area.setSelectionRange(edit.start, edit.end);
 			}
 		});
 

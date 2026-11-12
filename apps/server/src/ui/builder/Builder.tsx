@@ -24,12 +24,10 @@ import {
 	UploadIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { toast } from "sonner";
 import { getApi } from "../api.ts";
 import { Checks } from "../Checks.tsx";
 import { type SharedDraft, useSharedDraft } from "../co-editing/shared-draft.ts";
 import { StatusBadge } from "../content/DraftParts.tsx";
-import { Announcer, useAnnouncement } from "../content/reorder.tsx";
 import { errorCode, errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
 import { BuilderNavigation, type ReturnPage } from "./BuilderNavigation.tsx";
@@ -66,6 +64,7 @@ import {
 	placeBy as sharedPlaceBy,
 	treeProblem,
 } from "./tree.ts";
+import { useEditorAnnouncement } from "./use-editor-announcement.ts";
 
 /** The most steps undo goes back. */
 const HISTORY = 200;
@@ -140,7 +139,7 @@ export function Builder({
 	const [width, setWidth] = useState<CanvasWidth>("desktop");
 	const [showFixed, setShowFixed] = useState(true);
 	const [showChecks, setShowChecks] = useState(false);
-	const [announcement, announce] = useAnnouncement();
+	const [announcement, announce] = useEditorAnnouncement();
 	const [insertOpen, setInsertOpen] = useState(false);
 	const [quickInsert, setQuickInsert] = useState<string | null>(null);
 	const [insertWhere, setInsertWhere] = useState<InsertWhere>("inside");
@@ -148,7 +147,7 @@ export function Builder({
 	const [conflict, setConflict] = useState<{ version: string | null } | null>(null);
 	const [busy, setBusy] = useState<"save" | "publish" | "switch" | null>(null);
 	const [designVersion, setDesignVersion] = useState(0);
-	const [focusLayers, setFocusLayers] = useState(0);
+	const [focusLayers, setFocusLayers] = useState(select && "element" in select ? 1 : 0);
 	/** What Cut and Copy took: the layers, and the unsaved one-off styles of the elements in them. */
 	const clipboard = useRef<LayerClipboard | null>(null);
 	const insertTrigger = useRef<HTMLButtonElement | null>(null);
@@ -218,6 +217,7 @@ export function Builder({
 			if (!Object.keys(next.styles).length) setSaved(JSON.stringify(next));
 		},
 		onRefused(refusal) {
+			announce(t(errorMessage(refusal)), "interrupt");
 			setProblems(treeProblemsOf(refusal, t(errorMessage(refusal))));
 		},
 		onSettled: async () => {
@@ -335,11 +335,11 @@ export function Builder({
 		(next: BuilderDoc, select: Selection | null, message: string): string | undefined => {
 			const problem = treeProblem(next.tree, allows);
 			if (problem) {
-				announce(problem.message);
+				announce(problem.message, "interrupt");
 				return problem.message;
 			}
 			if (!writeShared(next)) {
-				announce(t(`coEditing.status.${shared.status}`));
+				announce(t(`coEditing.status.${shared.status}`), "interrupt");
 				return t(`coEditing.status.${shared.status}`);
 			}
 			history.current = {
@@ -365,7 +365,7 @@ export function Builder({
 
 	const applyMove = (result: Changed | Refused, name: string) => {
 		if ("refused" in result) {
-			announce(t(`builder.moves.refused.${result.refused as "first"}`, { name }));
+			announce(t(`builder.moves.refused.${result.refused as "first"}`, { name }), "interrupt");
 			return;
 		}
 		apply(
@@ -382,8 +382,9 @@ export function Builder({
 		const result = runLayerAction(action, { doc, selection, clipboard: clipboard.current, catalogue }, t);
 		if (!result) return;
 		if (result.clipboard) clipboard.current = result.clipboard;
-		if (result.change) apply(result.change.doc, result.change.selection, result.message);
-		else announce(result.message);
+		if (result.change) {
+			if (!apply(result.change.doc, result.change.selection, result.message)) setFocusLayers((count) => count + 1);
+		} else announce(result.message, result.refused ? "interrupt" : "polite");
 	};
 
 	const grabChange = (change: "pick" | "drop" | "cancel") => {
@@ -445,11 +446,13 @@ export function Builder({
 		const place = insertionPlace(doc.tree, selection, insertWhere);
 		const made = insertAt(doc.tree, place, nodes);
 		const name = nameAt(made.tree, made.path);
-		return apply(
+		const refusal = apply(
 			{ ...doc, tree: made.tree },
 			{ kind: "node", path: made.path },
 			t("builder.moves.inserted", { name, where: whereIs(made.tree, made.path) }),
 		);
+		if (!refusal) setFocusLayers((count) => count + 1);
+		return refusal;
 	};
 
 	const replace = (path: NodePath, node: TreeNode, message: string) =>
@@ -614,7 +617,7 @@ export function Builder({
 
 	/** Saves the Draft; answers the builder reopened on what was saved, or null when it wasn't. */
 	const saveActive = useRef(false);
-	const save = async (over?: { version: string | null }): Promise<Opened | null> => {
+	const save = async (over?: { version: string | null }, autosave = false): Promise<Opened | null> => {
 		if (saveActive.current) return null;
 		saveActive.current = true;
 		setBusy("save");
@@ -637,7 +640,7 @@ export function Builder({
 			const latest = documentId ? await readOpened() : opened;
 			if (documentId && Object.keys(started.styles).length === 0) {
 				setSaved(JSON.stringify(docOf(latest)));
-				announce(t("builder.saved", { name: title }));
+				announce(t("builder.saved", { name: title }), autosave ? "silent" : "polite");
 				return markupVersion.current === revision && docRef.current === started ? latest : null;
 			}
 			// The snapshot and version must describe the same Draft; peers may edit while flushing.
@@ -679,16 +682,15 @@ export function Builder({
 			}
 			setProblems([]);
 			setMarkupProblems([]);
-			toast.success(t("builder.saved", { name: title }));
-			announce(t("builder.saved", { name: title }));
+			announce(t("builder.saved", { name: title }), autosave ? "silent" : "polite");
 			return markupVersion.current === revision ? fresh : null;
 		} catch (failure) {
+			announce(t("builder.notSaved"), "interrupt");
 			if (errorCode(failure) === "CHANGED_MEANWHILE") {
 				const version = (failure as { data?: { version?: string | null } }).data?.version ?? null;
 				setConflict({ version });
 			} else {
 				setMarkupProblems(markupProblemsOf(failure, t(errorMessage(failure))));
-				toast.error(t("builder.notSaved"));
 			}
 			return null;
 		} finally {
@@ -700,7 +702,7 @@ export function Builder({
 	saveNow.current = save;
 	useEffect(() => {
 		if (!Object.keys(doc.styles).length && (documentId || !dirty)) return;
-		const timer = setTimeout(() => void saveNow.current(), 400);
+		const timer = setTimeout(() => void saveNow.current(undefined, true), 400);
 		return () => clearTimeout(timer);
 	}, [doc.styles, documentId, dirty]);
 
@@ -715,7 +717,7 @@ export function Builder({
 		const current = await save();
 		if (!current) return;
 		if (target.kind !== "component" && !current.template) {
-			toast.error(t("builder.saveFirst"));
+			announce(t("builder.saveFirst"), "interrupt");
 			return;
 		}
 		setBusy("publish");
@@ -727,11 +729,11 @@ export function Builder({
 			const api = await getApi();
 			await publishDraft(api, siteId, target, current.template?.id ?? null);
 			await readOpened();
-			toast.success(t("builder.published", { name: title }));
 			announce(t("builder.published", { name: title }));
 		} catch (failure) {
 			const listed = (failure as { data?: { problems?: { message: string }[] } }).data?.problems;
-			toast.error(listed?.length ? listed.map((each) => each.message).join(" ") : t(errorMessage(failure)));
+			const message = listed?.length ? listed.map((each) => each.message).join(" ") : t(errorMessage(failure));
+			announce(message, "interrupt");
 		} finally {
 			setBusy(null);
 		}
@@ -822,7 +824,7 @@ export function Builder({
 			onInputCapture={() => inputRevision.current++}
 			onChangeCapture={() => inputRevision.current++}
 		>
-			<header className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
+			<header data-editor-region="topbar" className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
 				<Link
 					onClick={(event) => {
 						event.preventDefault();
@@ -944,6 +946,9 @@ export function Builder({
 								: t("builder.publish")}
 					</Button>
 				</div>
+				<p aria-live="off" className="text-muted-foreground basis-full text-sm empty:hidden">
+					{announcement}
+				</p>
 			</header>
 			<main
 				id="main"
@@ -951,62 +956,68 @@ export function Builder({
 				className="grid min-h-0 flex-1 outline-none lg:grid-cols-[16rem_minmax(0,1fr)_18rem] lg:grid-rows-[minmax(16rem,1fr)_minmax(15rem,35vh)]"
 			>
 				{
-					<section aria-labelledby="layers-heading" className="flex min-h-0 flex-col border-e lg:row-span-2">
-						<InsertToolbar
-							where={insertWhere}
-							canInside={!!selectedNode && canHoldChildren(selectedNode)}
-							onWhere={setInsertWhere}
-							onPick={(item, button) => {
-								setQuickInsert(item);
-								insertTrigger.current = button;
-								setInsertOpen(true);
-							}}
-						/>
-						<LayersPanel
-							counts={preview ? loopCounts(new DOMParser().parseFromString(preview.html, "text/html")) : undefined}
-							onHidden={(path, hidden) => {
-								const node = nodeAt(doc.tree, path);
-								if (node?.type === "component") replace(path, { ...node, hidden }, t("builder.inspector.changed"));
-							}}
-							tree={doc.tree}
-							catalogue={catalogue}
-							selection={selection}
-							collapsed={collapsed}
-							grabbed={grab !== null}
-							canPaste={clipboard.current !== null}
-							onSelect={setSelection}
-							onToggle={(key, open) =>
-								setCollapsed((before) => {
-									const next = new Set(before);
-									if (open) next.delete(key);
-									else next.add(key);
-									return next;
-								})
-							}
-							onAction={act}
-							onGrab={grabChange}
-							onRename={(path, label) => {
-								const node = nodeAt(doc.tree, path);
-								if (node?.type !== "element" || (node.label ?? "") === label) return;
-								const { label: _, ...rest } = node;
-								replace(
-									path,
-									label.trim() ? { ...rest, label } : rest,
-									label.trim() ? t("builder.layers.renamed", { name: label }) : t("builder.layers.unnamed"),
-								);
-							}}
-							onDrop={dropOn}
-							focusRequest={focusLayers}
-							onInsert={() => {
-								insertTrigger.current = document.activeElement as HTMLButtonElement;
-								openInsert();
-							}}
-						/>
+					<section
+						data-editor-region="tree"
+						aria-labelledby="layers-heading"
+						className="flex min-h-0 flex-col border-e lg:row-span-2"
+					>
+						<fieldset disabled={!!documentId && !shared.writable} className="contents">
+							<InsertToolbar
+								where={insertWhere}
+								canInside={!!selectedNode && canHoldChildren(selectedNode)}
+								onWhere={setInsertWhere}
+								onPick={(item, button) => {
+									setQuickInsert(item);
+									insertTrigger.current = button;
+									setInsertOpen(true);
+								}}
+							/>
+							<LayersPanel
+								counts={preview ? loopCounts(new DOMParser().parseFromString(preview.html, "text/html")) : undefined}
+								onHidden={(path, hidden) => {
+									const node = nodeAt(doc.tree, path);
+									if (node?.type === "component") replace(path, { ...node, hidden }, t("builder.inspector.changed"));
+								}}
+								tree={doc.tree}
+								catalogue={catalogue}
+								selection={selection}
+								collapsed={collapsed}
+								grabbed={grab !== null}
+								canPaste={clipboard.current !== null}
+								onSelect={setSelection}
+								onToggle={(key, open) =>
+									setCollapsed((before) => {
+										const next = new Set(before);
+										if (open) next.delete(key);
+										else next.add(key);
+										return next;
+									})
+								}
+								onAction={act}
+								onGrab={grabChange}
+								onRename={(path, label) => {
+									const node = nodeAt(doc.tree, path);
+									if (node?.type !== "element" || (node.label ?? "") === label) return;
+									const { label: _, ...rest } = node;
+									replace(
+										path,
+										label.trim() ? { ...rest, label } : rest,
+										label.trim() ? t("builder.layers.renamed", { name: label }) : t("builder.layers.unnamed"),
+									);
+								}}
+								onDrop={dropOn}
+								focusRequest={focusLayers}
+								onInsert={() => {
+									insertTrigger.current = document.activeElement as HTMLButtonElement;
+									openInsert();
+								}}
+							/>
+						</fieldset>
 					</section>
 				}
 				<section aria-label={t("builder.canvas.label")} className="bg-muted flex min-h-0 flex-col">
 					{problems.length > 0 ? (
-						<div aria-live="polite" className="border-destructive/40 bg-destructive/5 border-b px-3 py-2 text-sm">
+						<div className="border-destructive/40 bg-destructive/5 border-b px-3 py-2 text-sm">
 							<p className="font-medium">{t("builder.problems")}</p>
 							<ul className="grid gap-1">
 								{problems.map((problem, index) => {
@@ -1081,7 +1092,6 @@ export function Builder({
 							setSelection(next);
 							const path = next.kind === "node" ? next.path : next.list.owner;
 							if (!path) return;
-							setFocusLayers((count) => count + 1);
 							const node = nodeAt(doc.tree, path);
 							if (node) announce(t("builder.selected", { name: layerName(t, node, catalogue).name }));
 							// Every layer on the way to it opens.
@@ -1100,7 +1110,11 @@ export function Builder({
 					/>
 				</section>
 				{
-					<section aria-labelledby="inspector-heading" className="flex min-h-0 flex-col border-s lg:row-span-2">
+					<section
+						data-editor-region="inspector"
+						aria-labelledby="inspector-heading"
+						className="flex min-h-0 flex-col border-s lg:row-span-2"
+					>
 						<Inspector
 							departure={oneOffDeparture}
 							cssInDock
@@ -1167,7 +1181,7 @@ export function Builder({
 				<div
 					className={`grid min-h-0 overflow-auto border-t md:grid-cols-2 lg:col-start-2 lg:row-start-2 ${target.kind === "component" ? "xl:grid-cols-3" : ""}`}
 				>
-					<section aria-label="HTML" className="flex min-h-0 flex-col">
+					<section data-editor-region="html" aria-label="HTML" className="flex min-h-0 flex-col">
 						<MarkupView
 							value={markup}
 							problems={markupProblems}
@@ -1194,6 +1208,7 @@ export function Builder({
 						/>
 					</section>
 					<section
+						data-editor-region="css"
 						aria-label={t("builder.css.heading")}
 						className="bg-background flex min-h-0 flex-col overflow-auto border-t p-3"
 					>
@@ -1226,8 +1241,6 @@ export function Builder({
 						/>
 					) : null}
 				</div>
-
-				<Announcer message={announcement} />
 			</main>
 			<InsertDialog
 				quick={quickInsert}

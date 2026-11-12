@@ -23,13 +23,13 @@ import {
 	XIcon,
 } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
-
-import { useAnnouncement } from "../content/reorder.tsx";
 import { CSS_PROPERTIES, declarationOf, withDeclarationOf } from "../design-system/declarations.ts";
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
+import { applyCodeKey } from "./apply-code-key.ts";
 import { CodeArea } from "./CodeArea.tsx";
 import type { Catalogue } from "./model.ts";
+import { useEditorAnnouncement } from "./use-editor-announcement.ts";
 
 /** Which CSS a save or preview changes: one piece of a Class, or the Site CSS. */
 export type CssTarget =
@@ -211,7 +211,7 @@ export function CssPanel({
 }: CssPanelProps) {
 	const t = useT();
 	const id = useId();
-	const [announcement, announce] = useAnnouncement();
+	const [announcement, announce] = useEditorAnnouncement();
 	const [data, setData] = useState<CssData | null>(null);
 	const [known, setKnown] = useState<ReadonlyMap<string, CssClass>>(new Map());
 	const [picked, setPicked] = useState<{ element: string | null; tab: string } | null>(null);
@@ -372,7 +372,7 @@ export function CssPanel({
 			classIds.filter((each) => each !== classId),
 			t("builder.css.removed", { name: `.${nameOf(classId)}` }),
 		);
-		announce(problem ?? t("builder.css.removed", { name: `.${nameOf(classId)}` }));
+		announce(problem ?? t("builder.css.removed", { name: `.${nameOf(classId)}` }), problem ? "interrupt" : "polite");
 		if (!problem && tab === classId) {
 			const at = classTabs.indexOf(classId);
 			const next = classTabs.filter((each) => each !== classId)[Math.max(0, at - 1)] ?? SITE;
@@ -384,14 +384,17 @@ export function CssPanel({
 	const removeUtility = (classId: string) => {
 		if (!editable) return;
 		const message = t("builder.css.tokenRemoved", { name: nameOf(classId) });
-		announce(
-			onClasses(
-				classIds.filter((each) => each !== classId),
-				message,
-			) ?? message,
+		const problem = onClasses(
+			classIds.filter((each) => each !== classId),
+			message,
 		);
+		announce(problem ?? message, problem ? "interrupt" : "polite");
 	};
 
+	const refuseAdd = (message: string) => {
+		setAddProblem(message);
+		announce(message, "interrupt");
+	};
 	const add = async (event: FormEvent) => {
 		event.preventDefault();
 		setAddProblem(null);
@@ -399,9 +402,9 @@ export function CssPanel({
 		if (!name || !element) return;
 		const found = catalogue.classes.find((each) => each.name === name);
 		if (found) {
-			if (classIds.includes(found.id)) return setAddProblem(t("builder.css.already", { name }));
+			if (classIds.includes(found.id)) return refuseAdd(t("builder.css.already", { name }));
 			const problem = onClasses([...classIds, found.id], t("builder.css.added", { name }));
-			if (problem) return setAddProblem(problem);
+			if (problem) return refuseAdd(problem);
 			lastClass.current = found.id;
 			setPicked({ element: elementId, tab: found.id });
 			announce(t("builder.css.added", { name }));
@@ -414,14 +417,14 @@ export function CssPanel({
 				if (now.element?.id !== elementId) return announce(t("builder.css.created", { name }));
 				if (!now.element.classes.includes(created.id)) {
 					const problem = now.onClasses([...now.element.classes, created.id], t("builder.css.created", { name }));
-					if (problem) return setAddProblem(problem);
+					if (problem) return refuseAdd(problem);
 				}
 				lastClass.current = created.id;
 				setPicked({ element: elementId, tab: created.id });
 				announce(t("builder.css.created", { name }));
 			} catch (failure) {
 				const listed = (failure as { data?: { problems?: Problem[] } }).data?.problems;
-				return setAddProblem(listed?.length ? listed.map((each) => each.message).join(" ") : t(errorMessage(failure)));
+				return refuseAdd(listed?.length ? listed.map((each) => each.message).join(" ") : t(errorMessage(failure)));
 			}
 		}
 		setAddName("");
@@ -492,6 +495,7 @@ export function CssPanel({
 			setProblems([]);
 			return editRevision.current === revision;
 		} catch (failure) {
+			announce(t(errorMessage(failure)), "interrupt");
 			setProblems([{ message: t(errorMessage(failure)) }]);
 			return false;
 		} finally {
@@ -512,6 +516,7 @@ export function CssPanel({
 		if (!dirty && over === undefined) return;
 		if (hasLayer) {
 			setProblems([{ message: t("builder.css.noLayer") }]);
+			announce(t("builder.css.noLayer"), "interrupt");
 			return;
 		}
 		const version =
@@ -542,9 +547,14 @@ export function CssPanel({
 			const refused = failure as { code?: string; data?: { version?: string; problems?: Problem[] } };
 			if (refused.code === "CHANGED_MEANWHILE" && refused.data?.version) {
 				setConflict({ key, version: refused.data.version });
+				announce(t("builder.css.conflict"), "interrupt");
 			} else if (refused.code === "DESIGN_SYSTEM_INVALID" && refused.data?.problems?.length) {
 				setProblems(refused.data.problems);
-			} else setProblems([{ message: t(errorMessage(failure)) }]);
+				announce(refused.data.problems.map((problem) => problem.message).join(" "), "interrupt");
+			} else {
+				setProblems([{ message: t(errorMessage(failure)) }]);
+				announce(t(errorMessage(failure)), "interrupt");
+			}
 		} finally {
 			saveActive.current = false;
 			setSaving(false);
@@ -577,6 +587,7 @@ export function CssPanel({
 		} catch (failure) {
 			const listed = (failure as { data?: { problems?: Problem[] } }).data?.problems;
 			setProblems(listed?.length ? listed : [{ message: t(errorMessage(failure)) }]);
+			announce(listed?.length ? listed.map((each) => each.message).join(" ") : t(errorMessage(failure)), "interrupt");
 		}
 	};
 
@@ -635,15 +646,18 @@ export function CssPanel({
 			suggestAt(text, event.currentTarget.selectionStart, true);
 			return;
 		}
-		if (!suggest) return;
+		if (!suggest || !["ArrowDown", "ArrowUp", "Enter", "Tab", "Escape"].includes(event.key)) {
+			applyCodeKey(event, change);
+			return;
+		}
 		if (event.key === "ArrowDown" || event.key === "ArrowUp") {
 			event.preventDefault();
 			const step = event.key === "ArrowDown" ? 1 : -1;
 			setSuggest({ ...suggest, active: (suggest.active + step + suggest.items.length) % suggest.items.length });
-		} else if (event.key === "Enter" || event.key === "Tab") {
+		} else if (event.key === "Enter" || (event.key === "Tab" && !event.shiftKey)) {
 			const item = suggest.items[suggest.active];
 			if (item) {
-				event.preventDefault();
+				if (event.key !== "Tab") event.preventDefault();
 				accept(item);
 			}
 		} else if (event.key === "Escape") {
@@ -856,7 +870,7 @@ export function CssPanel({
 						{t("builder.css.addHelp")}
 					</p>
 					{addProblem ? (
-						<p id={`${id}-add-problem`} role="alert" className="text-destructive w-full text-xs">
+						<p id={`${id}-add-problem`} aria-live="off" className="text-destructive w-full text-xs">
 							{addProblem}
 						</p>
 					) : null}
@@ -1012,7 +1026,7 @@ export function CssPanel({
 					</form>
 				) : null}
 				{conflict && conflict.key === key ? (
-					<div role="alert" className="border-destructive/40 grid gap-2 rounded-md border p-2">
+					<div aria-live="off" className="border-destructive/40 grid gap-2 rounded-md border p-2">
 						<p>{t("builder.css.conflict")}</p>
 						<div className="flex gap-2">
 							<Button type="button" size="sm" variant="outline" onClick={() => void reloadTheirs()}>
@@ -1105,7 +1119,7 @@ export function CssPanel({
 					</div>
 				) : null}
 			</div>
-			<p role="status" className="sr-only">
+			<p role="status" aria-live="off" className="sr-only">
 				{announcement}
 			</p>
 		</div>

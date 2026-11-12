@@ -93,12 +93,14 @@ function layer(page: Page, name: string | RegExp) {
 
 /** Waits until the live region says `text` (after a call to the server, it may take a moment). */
 async function expectAnnounced(page: Page, text: string): Promise<void> {
-	await page.getByRole("status").filter({ hasText: text }).first().waitFor({ timeout: 10_000 });
+	await page.locator("[data-editor-messages] > p").filter({ hasText: text }).first().waitFor({ timeout: 10_000 });
 }
 
 /** What the live region last said. */
 async function announced(page: Page): Promise<string> {
-	return ((await page.getByRole("status").filter({ hasText: /\S/ }).last().textContent()) ?? "").trim();
+	return (
+		(await page.locator("[data-editor-messages] > p").filter({ hasText: /\S/ }).last().textContent()) ?? ""
+	).trim();
 }
 
 for (const theme of THEMES) {

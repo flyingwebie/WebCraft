@@ -1856,7 +1856,9 @@
 			},
 			"openBuilder": "Open in builder",
 			"archiveTemplate": "{name} · Archive template",
-			"searchTemplate": "Search template"
+			"searchTemplate": "Search template",
+			"skipToLayers": "Skip to Layers",
+			"editorNavigation": "Editor navigation"
 		},
 		"alsoEditing": "Also editing this page",
 		"inReview": "In review",
@@ -4279,7 +4281,7 @@
 			"heading": "Layers",
 			"actions": "Selected layer",
 			"none": "Nothing here yet. Insert an element to start.",
-			"keys": "Arrows move through layers. Alt with the arrows moves the selected one (into the layer before, out of its parent). Space picks it up and puts it down; Escape puts it back. Ctrl X, C, V, D: cut, copy, paste, duplicate. Delete removes, F2 renames.",
+			"keys": "Arrows move through layers. Alt with the arrows moves the selected one (into the layer before, out of its parent). Space picks it up and puts it down; Escape puts it back. Ctrl X, C, V, D: cut, copy, paste, duplicate. Delete removes, F2 renames. Type letters to find a layer; * opens this level; Alt+Enter toggles the whole branch. F6 moves between editor regions.",
 			"action": {
 				"moveUp": "Move up",
 				"moveDown": "Move down",
@@ -4316,7 +4318,11 @@
 			"pageTemplate": "Page template · Main",
 			"componentSource": "Component · {name}",
 			"hidePlacement": "Hide placement",
-			"showPlacement": "Show placement"
+			"showPlacement": "Show placement",
+			"placementOf": "Placement of {name}",
+			"hiddenPlacement": "hidden placement",
+			"repeats": "repeats {count} times",
+			"from": "from {source}"
 		},
 		"moves": {
 			"moved": "Moved {name}: {where}.",

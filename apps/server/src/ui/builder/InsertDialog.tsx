@@ -14,9 +14,11 @@ import { Label } from "@webcraft/ui/components/label.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { type FormEvent, type KeyboardEvent, type RefObject, useEffect, useId, useRef, useState } from "react";
 
+import { useAfterRender } from "../after-render.ts";
 import type { MessageKey } from "../i18n.tsx";
 import { useT } from "../i18n.tsx";
 import { MediaPicker } from "../media/MediaPicker.tsx";
+import { editorAccessibility } from "./editor-accessibility.ts";
 import { type Catalogue, readParts } from "./model.ts";
 import { newElement, withNewIds } from "./tree.ts";
 
@@ -283,13 +285,18 @@ export function InsertDialog({
 		setProblem(null);
 		setActive(0);
 	};
+	const inserted = useRef(false);
+	const afterRender = useAfterRender();
 	const insert = (nodes: TreeNode[]) => {
 		const refused = onInsert(nodes);
 		if (refused) {
 			setProblem(refused);
+			editorAccessibility(document).announce(refused, "interrupt");
 			return;
 		}
+		inserted.current = true;
 		close();
+		afterRender(() => editorAccessibility(document).focusSelectedRow());
 	};
 	const choose = (item: Item) => {
 		if (item.componentId) {
@@ -338,7 +345,17 @@ export function InsertDialog({
 	if (quickItem?.build && !problem) return null;
 	return (
 		<Dialog open={open} onOpenChange={(next) => (next ? onOpenChange(true) : close())}>
-			<DialogContent closeLabel={t("builder.insert.close")} finalFocus={finalFocus} className="sm:max-w-lg">
+			<DialogContent
+				closeLabel={t("builder.insert.close")}
+				finalFocus={() => {
+					if (inserted.current) {
+						inserted.current = false;
+						return editorAccessibility(document).selectedRow() ?? false;
+					}
+					return finalFocus.current ?? false;
+				}}
+				className="sm:max-w-lg"
+			>
 				<DialogHeader>
 					<DialogTitle>{step ? step.label : t("builder.insert.title")}</DialogTitle>
 					<DialogDescription>{step ? step.hint : t("builder.insert.intro")}</DialogDescription>
@@ -436,7 +453,7 @@ export function InsertDialog({
 								);
 							})}
 						</div>
-						<p id={`${id}-problem`} role="status" className="text-destructive text-sm empty:hidden">
+						<p id={`${id}-problem`} className="text-destructive text-sm empty:hidden">
 							{shown.length === 0 ? t("builder.insert.none") : (problem ?? "")}
 						</p>
 					</div>
