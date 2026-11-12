@@ -339,6 +339,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 	// The embed script comes only with a video to play; the consent script with something held back.
 	const shown = { videos: 0, held: 0, settings: 0 };
 	const shownComponents = new Set<string>();
+	const rootedComponents = new Set<string>();
 	const loopItemsShown = { count: 0 };
 	// The regions of filtered Loops, numbered across both templates; the Filter script comes with a Filter.
 	const regions = new Map<string, number>();
@@ -381,6 +382,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		words,
 		shown,
 		shownComponents,
+		rootedComponents,
 		className: page.className,
 		media: page.media,
 		priorityImage: { given: false },
@@ -418,6 +420,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		words,
 		shown,
 		shownComponents,
+		rootedComponents,
 		className: page.className,
 		media: page.media,
 		outlet: () =>
@@ -452,6 +455,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		.map((item) => {
 			const inside = renderTree(item.tree, {
 				shownComponents,
+				rootedComponents,
 				values: page.values,
 				language: site.language,
 				words,
@@ -481,10 +485,14 @@ export function renderDocument(page: PageToRender): RenderedPage {
 			return `<template data-site="${escapeAttribute(page.popups?.siteId ?? "")}" data-popup-id="${item.id}" data-wc-popup="${escapeAttribute(JSON.stringify(item.config))}"><dialog class="wc-popup" data-layout="${escapeAttribute(config.layout)}" data-bar-position="${escapeAttribute(config.barPosition)}" data-bar-behavior="${escapeAttribute(config.barBehavior)}" data-animation="${escapeAttribute(item.config.animation)}" aria-labelledby="wc-popup-title-${item.id}"><button type="button" data-wc-popup-close aria-label="${close}">${close}</button>${heading}${inside}</dialog></template>${[item.config.trigger, ...item.config.additionalTriggers].some((t) => t.kind === "click") ? `<noscript>${section}</noscript>` : ""}`;
 		})
 		.join("");
-	// Component scripts, in the order of their Components' first Placement root on the page.
+	// Component scripts, in the order of their Components' first Placement root on the page. Which
+	// Components have a root is what the render kept as it wrote each one (`rootedComponents`); the
+	// HTML only gives their order, read from its tags alone (text is escaped, so it never makes one).
 	const rooted = new Set<string>();
-	for (const match of `${body}${popupHtml}`.matchAll(new RegExp(` ${COMPONENT_ROOT_ATTRIBUTE}="([^"]*)"`, "g")))
-		for (const id of (match[1] ?? "").split(" ")) if (id) rooted.add(id);
+	for (const tag of `${body}${popupHtml}`.matchAll(/<[a-z][a-z0-9-]*\b[^>]*>/g)) {
+		const ids = new RegExp(` ${COMPONENT_ROOT_ATTRIBUTE}="([^"]*)"`).exec(tag[0])?.[1] ?? "";
+		for (const id of ids.split(" ")) if (rootedComponents.has(id)) rooted.add(id);
+	}
 	const componentScripts = [...rooted].flatMap((id) => {
 		const script = page.componentScripts?.find((candidate) => candidate.componentId === id);
 		return script ? [script] : [];

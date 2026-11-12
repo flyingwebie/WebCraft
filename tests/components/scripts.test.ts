@@ -234,6 +234,24 @@ describe("a page with several Placements", () => {
 	});
 });
 
+describe("text that reads like a Placement's root", () => {
+	test("loads no Component script: only a root the page really shows does (audit A3-5)", async () => {
+		// The page places no Card; its Entry's title, which an Author writes, names Card as a root would.
+		const site = await bakery("<article><h1>{{ title }}</h1></article>");
+		const { siteId, componentId } = site;
+		await staff.api.components.saveScriptDraft({ siteId, componentId, code: "export default () => {};" });
+		await staff.api.components.publish({ siteId, componentId });
+		const title = `Bread data-wc-component="${componentId}" for all`;
+		await editor.api.entries.saveDraft({ siteId, entryId: site.entryId, title });
+		await editor.api.entries.publish({ siteId, entryId: site.entryId });
+
+		const html = await visit(site.origin);
+		expect(mainOf(html)).toContain(`<h1>${title}</h1>`);
+		expect(scriptSourcesIn(html).filter((src) => src.includes("/_wc/js/component/"))).toEqual([]);
+		expect(scriptTagsIn(html)).toEqual([]);
+	});
+});
+
 describe("where Component scripts run", () => {
 	let site: Awaited<ReturnType<typeof bakery>>;
 	const published = "export default (root) => { root.dataset.version = 'published'; };";
