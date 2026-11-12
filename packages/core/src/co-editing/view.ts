@@ -4,6 +4,36 @@ import { VALUE_KINDS } from "../history/parts.ts";
 import type { Json } from "./document.ts";
 
 /**
+ * What a Draft's shared document holds once a change to it is saved: the Draft as the save stored it
+ * (`documentView`), whatever the kind of item. An editor's socket takes any change, so the document
+ * must never keep what the save cleaned away or left out: rich text arrives at the other editors, at
+ * the ones who open it later and at the other web processes as the Draft's row holds it.
+ *
+ * One thing stays as it was typed, in values kept by key and language: whitespace at the ends of a
+ * text. The save trims it, and taking it out of the document would delete the space someone typed a
+ * moment ago, between two words.
+ */
+export function savedView(kind: HistoryItem["kind"], typed: Json, stored: unknown): Json {
+	const view = documentView(kind, stored);
+	return VALUE_KINDS.includes(kind) ? keepingTypedSpace(typed, view) : view;
+}
+
+/** `stored`, with each text that is `typed`'s trimmed kept as typed. */
+function keepingTypedSpace(typed: Json | undefined, stored: Json): Json {
+	if (typeof stored === "string") return typeof typed === "string" && typed.trim() === stored ? typed : stored;
+	if (Array.isArray(stored)) {
+		const list = Array.isArray(typed) ? typed : [];
+		return stored.map((item, index) => keepingTypedSpace(list[index], item));
+	}
+	const from = record(typed);
+	const own = record(stored);
+	if (!own) return stored;
+	return Object.fromEntries(
+		Object.entries(own).map(([key, value]) => [key, keepingTypedSpace(from?.[key] as Json | undefined, value as Json)]),
+	);
+}
+
+/**
  * What a Draft's shared document holds: the Draft as its table stores it, less what only the server
  * writes. Values kept by key and language (an Entry's, the Globals') keep each value without who
  * wrote it (`by`) or what it translates (`source`, also on a Body's Blocks): the server works those
