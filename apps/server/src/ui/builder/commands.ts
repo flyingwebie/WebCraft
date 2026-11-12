@@ -121,7 +121,10 @@ export function editorCommands(target: EditorCommandTarget, t: T): Command[] {
 		words("builder.commandMenu.actions.publish"),
 		t("builder.commandMenu.keywords.publish"),
 		() => target.publish(),
-		{ permission: "entry.publish" },
+		{
+			// Publishing in the Builder publishes Structure; Code mode's Publish publishes the page's Content.
+			permission: target.canvas === "builder" ? "structure.edit" : "entry.publish",
+		},
 	);
 	add(
 		"undo",

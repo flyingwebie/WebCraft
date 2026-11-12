@@ -31,6 +31,7 @@ import {
 	matches,
 	SHORTCUTS,
 	type ShortcutArea,
+	type SpokenKey,
 	shortcutSpoken,
 	shortcutText,
 	withKeys,
@@ -215,6 +216,9 @@ export function CommandMenu({
 	/** The command chosen: it runs once the menu has closed and focus has gone back. */
 	const pending = useRef<(() => void | Promise<void>) | null>(null);
 	const search = useRef<HTMLInputElement>(null);
+	const tabButtons = useRef(new Map<CommandTab, HTMLButtonElement>());
+	/** A tab chosen with the arrow keys keeps focus; any other way to a tab focuses the search box. */
+	const tabFocus = useRef<CommandTab | null>(null);
 
 	// Where the menu was opened from: focus goes back there. Remembered as it opens.
 	const wasOpen = useRef(false);
@@ -244,7 +248,13 @@ export function CommandMenu({
 		setCount("");
 		const wanted = state?.step ? items.find((item) => item.id === state.step?.item) : undefined;
 		setStep(wanted && state?.step ? { item: wanted, mode: state.step.mode } : null);
-		if (open) requestAnimationFrame(() => search.current?.focus());
+		if (!open) return;
+		requestAnimationFrame(() => {
+			const wanted = tabFocus.current;
+			tabFocus.current = null;
+			if (wanted) tabButtons.current.get(wanted)?.focus();
+			else search.current?.focus();
+		});
 	}, [open, tab, stepKey]);
 
 	const insertCommands = useMemo<Command[]>(() => {
@@ -328,12 +338,13 @@ export function CommandMenu({
 	};
 
 	const keysOf = (command: Command) => (command.shortcut ? shortcutText(command.shortcut) : "");
+	const keyWords = (name: SpokenKey) => t(`builder.commandMenu.keyNames.${name}`);
 	const spokenOf = (command: Command) =>
 		command.shortcut
 			? t("builder.commandMenu.optionKeys", {
 					label: command.label,
 					group: command.group,
-					keys: shortcutSpoken(command.shortcut),
+					keys: shortcutSpoken(command.shortcut, keyWords),
 				})
 			: t("builder.commandMenu.option", { label: command.label, group: command.group });
 	/** What a screen reader hears after the visible label: the group and the key ("Duplicate, Element, Command D"). */
@@ -442,7 +453,11 @@ export function CommandMenu({
 							type="button"
 							role="tab"
 							id={`${id}-tab-${each}`}
-							tabIndex={-1}
+							ref={(button) => {
+								if (button) tabButtons.current.set(each, button);
+								else tabButtons.current.delete(each);
+							}}
+							tabIndex={each === tab ? 0 : -1}
 							aria-selected={each === tab}
 							aria-controls={`${id}-panel`}
 							aria-keyshortcuts={ariaKeys(TAB_SHORTCUTS[each])}
@@ -450,6 +465,24 @@ export function CommandMenu({
 							className="aria-selected:bg-accent aria-selected:text-accent-foreground focus-visible:ring-ring/50 flex items-center gap-2 rounded-md px-2 py-1 text-sm font-medium outline-none focus-visible:ring-3"
 							onMouseDown={(event) => event.preventDefault()}
 							onClick={() => switchTab(each)}
+							onKeyDown={(event) => {
+								const at = COMMAND_TABS.indexOf(each);
+								const next =
+									event.key === "ArrowRight" || event.key === "ArrowLeft"
+										? COMMAND_TABS[
+												(at + (event.key === "ArrowRight" ? 1 : -1) + COMMAND_TABS.length) % COMMAND_TABS.length
+											]
+										: event.key === "Home"
+											? COMMAND_TABS[0]
+											: event.key === "End"
+												? COMMAND_TABS.at(-1)
+												: undefined;
+								if (!next) return;
+								event.preventDefault();
+								tabFocus.current = next;
+								if (next === tab) tabButtons.current.get(next)?.focus();
+								else switchTab(next);
+							}}
 						>
 							{t(`builder.commandMenu.tabs.${each}`)}
 							<span aria-hidden="true" className="text-muted-foreground text-xs">

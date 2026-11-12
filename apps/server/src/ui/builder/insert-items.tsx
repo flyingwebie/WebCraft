@@ -5,8 +5,7 @@ import { Input } from "@webcraft/ui/components/input.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { type FormEvent, useState } from "react";
 
-import type { MessageKey, useT } from "../i18n.tsx";
-import { useT as useTranslator } from "../i18n.tsx";
+import { type MessageKey, useT } from "../i18n.tsx";
 import { MediaPicker } from "../media/MediaPicker.tsx";
 import { type Catalogue, readParts } from "./model.ts";
 import { newElement, withNewIds } from "./tree.ts";
@@ -300,7 +299,7 @@ export function InsertStep({
 	tree: ElementTree;
 	baseId: string;
 }) {
-	const t = useTranslator();
+	const t = useT();
 	const [text, setText] = useState("");
 	const [choice, setChoice] = useState("");
 	const [alias, setAlias] = useState("item");

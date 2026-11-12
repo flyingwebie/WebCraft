@@ -4354,18 +4354,7 @@
 		},
 		"insert": {
 			"open": "Insert",
-			"close": "Close",
-			"title": "Insert",
-			"intro": "Semantic elements first. Type to filter, then press Enter.",
-			"search": "Find an element",
-			"searchPlaceholder": "Heading, list, Loop…",
-			"none": "Nothing matches.",
 			"where": "Where",
-			"whereOptions": {
-				"inside": "Inside the selected layer",
-				"after": "After it",
-				"before": "Before it"
-			},
 			"groups": {
 				"sections": "Sections",
 				"text": "Text",
@@ -4792,6 +4781,7 @@
 			"wrapped": "Wrapped {name} in {what}.",
 			"unwrapped": "Unwrapped {name}.",
 			"cannotUnwrap": "{name} holds nothing to unwrap.",
+			"cannotUnwrapBranches": "{name} has content in another branch (an Else, or an Empty state): unwrapping it would lose that, so it stays as it is.",
 			"publishConfirm": {
 				"title": "Publish {name}?",
 				"body": "Visitors see the published version at once, on every page that uses it.",
@@ -4835,6 +4825,23 @@
 				"toggle": "Open or close a layer",
 				"pick": "Pick a layer up, or put it down",
 				"putBack": "Put a picked-up layer back"
+			},
+			"keyNames": {
+				"command": "Command",
+				"control": "Control",
+				"shift": "Shift",
+				"option": "Option",
+				"alt": "Alt",
+				"up": "Up Arrow",
+				"down": "Down Arrow",
+				"left": "Left Arrow",
+				"right": "Right Arrow",
+				"enter": "Enter",
+				"delete": "Delete",
+				"forwardDelete": "Forward Delete",
+				"escape": "Escape",
+				"space": "Space",
+				"slash": "Slash"
 			}
 		}
 	},

@@ -64,10 +64,11 @@ import {
 } from "./model.ts";
 import { publishDraft, saveDraft } from "./save.ts";
 import { selectionKey, selectionOf } from "./selection-ref.ts";
-import { ariaKeys, withKeys } from "./shortcuts.ts";
+import { ariaKeys, matches, withKeys } from "./shortcuts.ts";
 import {
 	type Changed,
 	canHoldChildren,
+	canUnwrap,
 	childLists,
 	insertAt,
 	insertionPlace,
@@ -865,19 +866,20 @@ export function Builder({
 				keys.current.drawerKey(event);
 				return;
 			}
-			if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
-			const key = event.key.toLowerCase();
-			if (key === "s") {
+			// The shortcut registry decides which chords these are (`shortcuts.ts`).
+			if (matches(event, "editor.save")) {
 				event.preventDefault();
 				void keys.current.save();
 				return;
 			}
 			const typing = (event.target as HTMLElement | null)?.closest?.("input, textarea, select, [contenteditable]");
 			if (typing) return;
-			if (key === "z" || key === "y") {
+			if (matches(event, "editor.redo")) {
 				event.preventDefault();
-				if (key === "y" || event.shiftKey) keys.current.redo();
-				else keys.current.undo();
+				keys.current.redo();
+			} else if (matches(event, "editor.undo")) {
+				event.preventDefault();
+				keys.current.undo();
 			}
 		};
 		shortcut.current = onKey;
@@ -970,7 +972,15 @@ export function Builder({
 		if (selection?.kind !== "node") return;
 		const name = nameAt(doc.tree, selection.path);
 		const result = unwrapAt(doc.tree, selection.path);
-		if ("refused" in result) announce(t("builder.commandMenu.cannotUnwrap", { name }));
+		if ("refused" in result)
+			announce(
+				t(
+					result.refused === "other-branches"
+						? "builder.commandMenu.cannotUnwrapBranches"
+						: "builder.commandMenu.cannotUnwrap",
+					{ name },
+				),
+			);
 		else
 			apply(
 				{ ...doc, tree: result.tree },
@@ -997,7 +1007,7 @@ export function Builder({
 								: "other",
 					name: layerName(t, commandSelected, catalogue).name,
 					hidden: commandSelected.type === "component" ? !!commandSelected.hidden : undefined,
-					canUnwrap: commandSelected.type !== "component" && (childLists(commandSelected)[0]?.length ?? 0) > 0,
+					canUnwrap: canUnwrap(commandSelected),
 				}
 			: null,
 		// Today's local history; #136 replaces it with the tab's own-step history.

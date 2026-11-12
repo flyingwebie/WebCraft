@@ -27,6 +27,7 @@ import { hoveredRow, selectionKey, selectionOf } from "./selection-ref.ts";
 import { ariaKeys, withKeys } from "./shortcuts.ts";
 import {
 	canHoldChildren,
+	canUnwrap,
 	childLists,
 	insertAt,
 	insertionPlace,
@@ -1050,7 +1051,15 @@ function SourcePanels({
 		if (selection?.kind !== "node") return;
 		const name = nameIn(tree, selection.path);
 		const result = unwrapAt(tree, selection.path);
-		if ("refused" in result) announce(t("builder.commandMenu.cannotUnwrap", { name }));
+		if ("refused" in result)
+			announce(
+				t(
+					result.refused === "other-branches"
+						? "builder.commandMenu.cannotUnwrapBranches"
+						: "builder.commandMenu.cannotUnwrap",
+					{ name },
+				),
+			);
 		else apply(result.tree, { kind: "node", path: result.path }, t("builder.commandMenu.unwrapped", { name }));
 	};
 	const leaveTo = (url: string) => {
@@ -1070,7 +1079,7 @@ function SourcePanels({
 					kind: node.type === "element" ? "element" : node.type === "component" ? "placement" : "other",
 					name: layerName(t, node, catalogue).name,
 					hidden: node.type === "component" ? !!node.hidden : undefined,
-					canUnwrap: node.type !== "component" && (childLists(node)[0]?.length ?? 0) > 0,
+					canUnwrap: canUnwrap(node),
 				}
 			: null,
 		// Code mode keeps no Undo history yet: #136 supplies the tab's own-step history here.

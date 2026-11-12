@@ -275,11 +275,26 @@ export function wrapAt(tree: ElementTree, path: NodePath, wrapper: TreeNode): Ch
 	return { tree: replaceAt(tree, path, made), path };
 }
 
-/** The tree with the node at `path` replaced by what it holds (its first list); its first child's path. */
+/**
+ * Whether a node can be unwrapped without losing anything: it holds something in its first list, and
+ * none of its other lists (a Condition's other branches and Else, a Loop's Empty state) holds anything.
+ */
+export function canUnwrap(node: TreeNode): boolean {
+	if (node.type === "component") return false;
+	const [first, ...others] = childLists(node);
+	return (first?.length ?? 0) > 0 && others.every((list) => list.length === 0);
+}
+
+/**
+ * The tree with the node at `path` replaced by what it holds (its first list); its first child's path.
+ * Refused when another of its lists holds anything (`other-branches`): that would be lost.
+ */
 export function unwrapAt(tree: ElementTree, path: NodePath): Changed | Refused {
 	const node = nodeAt(tree, path);
-	const inside = node ? childLists(node)[0] : undefined;
-	if (!node || !inside?.length || node.type === "component") return { refused: "nothing-inside" };
+	if (!node) return { refused: "gone" };
+	const [inside, ...others] = childLists(node);
+	if (others.some((list) => list.length > 0)) return { refused: "other-branches" };
+	if (!inside?.length || node.type === "component") return { refused: "nothing-inside" };
 	return insertAt(removeAt(tree, path), placeOf(path), inside);
 }
 

@@ -4354,18 +4354,7 @@
 		},
 		"insert": {
 			"open": "Inserisci",
-			"close": "Chiudi",
-			"title": "Inserisci",
-			"intro": "Prima gli elementi semantici. Scrivi per filtrare, poi premi Invio.",
-			"search": "Trova un elemento",
-			"searchPlaceholder": "Titolo, elenco, Loop…",
-			"none": "Nessun risultato.",
 			"where": "Dove",
-			"whereOptions": {
-				"inside": "Dentro il livello selezionato",
-				"after": "Dopo",
-				"before": "Prima"
-			},
 			"groups": {
 				"sections": "Sezioni",
 				"text": "Testo",
@@ -4792,6 +4781,7 @@
 			"wrapped": "{name} racchiuso in {what}.",
 			"unwrapped": "Tolto il contenitore di {name}.",
 			"cannotUnwrap": "{name} non contiene niente da estrarre.",
+			"cannotUnwrapBranches": "{name} ha contenuti in un altro ramo (un Altrimenti o uno stato Vuoto): togliendo il contenitore andrebbero persi, quindi resta com'è.",
 			"publishConfirm": {
 				"title": "Pubblicare {name}?",
 				"body": "I visitatori vedono subito la versione pubblicata, in ogni pagina che la usa.",
@@ -4835,6 +4825,23 @@
 				"toggle": "Apri o chiudi un livello",
 				"pick": "Prendi un livello, o posalo",
 				"putBack": "Rimetti a posto un livello preso"
+			},
+			"keyNames": {
+				"command": "Comando",
+				"control": "Controllo",
+				"shift": "Maiuscole",
+				"option": "Opzione",
+				"alt": "Alt",
+				"up": "Freccia su",
+				"down": "Freccia giù",
+				"left": "Freccia sinistra",
+				"right": "Freccia destra",
+				"enter": "Invio",
+				"delete": "Elimina",
+				"forwardDelete": "Elimina avanti",
+				"escape": "Esc",
+				"space": "Spazio",
+				"slash": "Barra"
 			}
 		}
 	},

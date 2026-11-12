@@ -154,18 +154,38 @@ const SYMBOLS: Record<string, [apple: string, other: string]> = {
 	Escape: ["Esc", "Esc"],
 	" ": ["Space", "Space"],
 };
-const SPOKEN: Record<string, string> = {
-	ArrowUp: "Up Arrow",
-	ArrowDown: "Down Arrow",
-	ArrowLeft: "Left Arrow",
-	ArrowRight: "Right Arrow",
-	Enter: "Enter",
-	Backspace: "Delete",
-	Delete: "Forward Delete",
-	Escape: "Escape",
-	" ": "Space",
-	"/": "Slash",
+/** Which of the message catalogue's key names (`builder.commandMenu.keyNames.*`) a key is spoken as. */
+const SPOKEN: Record<string, SpokenKey> = {
+	ArrowUp: "up",
+	ArrowDown: "down",
+	ArrowLeft: "left",
+	ArrowRight: "right",
+	Enter: "enter",
+	Backspace: "delete",
+	Delete: "forwardDelete",
+	Escape: "escape",
+	" ": "space",
+	"/": "slash",
 };
+
+/** A key or modifier's spoken name, in the person's Admin language. */
+export type SpokenKey =
+	| "command"
+	| "control"
+	| "shift"
+	| "option"
+	| "alt"
+	| "up"
+	| "down"
+	| "left"
+	| "right"
+	| "enter"
+	| "delete"
+	| "forwardDelete"
+	| "escape"
+	| "space"
+	| "slash";
+export type KeyWords = (name: SpokenKey) => string;
 const ARIA: Record<string, string> = { " ": "Space", "/": "Slash" };
 
 function keyName(key: string): string {
@@ -179,13 +199,17 @@ export function chordText(chord: Chord, apple = onApple()): string {
 	return [chord.mod ? "Ctrl" : "", chord.shift ? "Shift" : "", chord.alt ? "Alt" : "", key].filter(Boolean).join("+");
 }
 
-/** A chord as a screen reader says it: "Command D", "Option Enter". */
-export function chordSpoken(chord: Chord, apple = onApple()): string {
+/**
+ * A chord as a screen reader says it, its key names from the message catalogue: "Command D",
+ * "Option Enter" in English, "Comando D" in Italian. Letters are said as themselves.
+ */
+export function chordSpoken(chord: Chord, words: KeyWords, apple = onApple()): string {
+	const named = SPOKEN[chord.key];
 	return [
-		chord.mod ? (apple ? "Command" : "Control") : "",
-		chord.shift ? "Shift" : "",
-		chord.alt ? (apple ? "Option" : "Alt") : "",
-		SPOKEN[chord.key] ?? keyName(chord.key),
+		chord.mod ? words(apple ? "command" : "control") : "",
+		chord.shift ? words("shift") : "",
+		chord.alt ? words(apple ? "option" : "alt") : "",
+		named ? words(named) : keyName(chord.key),
 	]
 		.filter(Boolean)
 		.join(" ");
@@ -198,9 +222,9 @@ export function shortcutText(id: ShortcutId, apple = onApple()): string {
 }
 
 /** The shortcut's keys as a screen reader says them (its first chord). */
-export function shortcutSpoken(id: ShortcutId, apple = onApple()): string {
+export function shortcutSpoken(id: ShortcutId, words: KeyWords, apple = onApple()): string {
 	const chord = shortcut(id)?.chords[0];
-	return chord ? chordSpoken(chord, apple) : "";
+	return chord ? chordSpoken(chord, words, apple) : "";
 }
 
 /** Every chord of a shortcut, for `aria-keyshortcuts`: `Meta+D` on Apple devices, `Control+D` elsewhere. */
