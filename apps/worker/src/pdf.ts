@@ -94,15 +94,21 @@ export function chromiumArguments(folder: string, output: string, page: string):
 /**
  * The page with its policy inside it: a file opened from disk has no headers to carry one, so the
  * page's own (no script, its styles by hash, `data:` images) is set by a `<meta>` element first thing.
+ * A page with no `<head>` to put it in is refused: Chromium runs without its sandbox here, and the
+ * policy is what keeps a page's scripts from running, so no page is printed without it.
  */
 export function withPolicy(html: string): string {
+	if (!html.includes(HEAD)) throw new PdfRenderError("failed", "The page has no place for its policy.");
 	const policy = REPORT_PAGE_POLICY.split(";")
 		.map((part) => part.trim())
 		// A `<meta>` policy can't say who may frame the page; nothing frames it here anyway.
 		.filter((part) => part !== "" && !part.startsWith("frame-ancestors"))
 		.join("; ");
-	return html.replace("<head>", `<head>\n<meta http-equiv="Content-Security-Policy" content="${policy}">`);
+	return html.replace(HEAD, `${HEAD}\n<meta http-equiv="Content-Security-Policy" content="${policy}">`);
 }
+
+/** Where the policy goes: the opening of the head, as WebCraft's own Report page writes it. */
+const HEAD = "<head>";
 
 /** Runs Chromium, stopping it and everything it started after `timeoutMs`. */
 function run(executable: string, args: string[], timeoutMs: number): Promise<void> {
