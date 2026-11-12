@@ -104,6 +104,7 @@ export function BuilderNavigation({
 			// A handoff can finish after another edit; the departure boundary must still be satisfied.
 			if (beforeLeave && !(await beforeLeave())) return;
 			const destination = await editorHistory().departure(url);
+			if (!destination) return;
 			if (beforeLeave && !(await beforeLeave())) return;
 			window.location.assign(destination);
 		} catch (error) {

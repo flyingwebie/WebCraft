@@ -1176,7 +1176,7 @@ export function Builder({
 			if (!saved) return;
 			try {
 				const destination = await history.departure(await url());
-				if (revision === inputRevision.current) window.location.assign(destination);
+				if (destination && revision === inputRevision.current) window.location.assign(destination);
 			} catch (failure) {
 				announce(t(errorMessage(failure)));
 			}

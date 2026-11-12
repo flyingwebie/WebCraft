@@ -341,6 +341,137 @@ test("Undo waits for a Component script to load after returning to the Builder",
 	}
 });
 
+for (const theme of THEMES) {
+	test(`keyboard edits during Go to's handoff keep the current Draft open, ${theme}`, async () => {
+		const workspace = await install.install.createWorkspace("Keyboard handoff");
+		const site = await install.install.createSite(workspace.id, {
+			name: "Keyboard handoff",
+			slug: `key-handoff-${theme}`,
+		});
+		const staff = await install.install.createStaff({ workspaces: [workspace.id] });
+		const api = staff.browser.api;
+		const { component } = await api.components.create({ siteId: site.id, name: "HandoffScript" });
+		const { postType } = await api.postTypes.create({ siteId: site.id, name: "Notes", urlPattern: "/notes/{slug}" });
+		await api.entries.create({ siteId: site.id, postTypeId: postType.id, title: "Destination" });
+		const page = await install.newPage(theme);
+		page.setDefaultTimeout(10000);
+		const held = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		try {
+			await install.signIn(page, staff.account);
+			const path = `/builder/${site.id}/component/${component.id}`;
+			await page.goto(install.adminUrl(path));
+			const js = page.getByRole("region", { name: "JS", exact: true }).getByRole("textbox");
+			await js.and(page.locator(":not([readonly])")).waitFor();
+			await js.fill("// Own");
+			const saved = page.waitForResponse("**/api/rpc/components/saveScriptDraft");
+			await js.press("ControlOrMeta+s");
+			await saved;
+			await page.route("**/api/rpc/editMode/open", async (route) => {
+				const response = await route.fetch();
+				held.resolve();
+				await release.promise;
+				await route.fulfill({ response });
+			});
+			await page.keyboard.press("ControlOrMeta+p");
+			const menu = page.getByRole("dialog", { name: "Command menu" });
+			await menu.getByRole("combobox").fill("Destination");
+			await menu.getByRole("option", { name: /^Destination/ }).click();
+			await held.promise;
+			await js.press("ControlOrMeta+a");
+			await js.press("ControlOrMeta+]");
+			const handedOff = page.waitForResponse("**/api/rpc/editMode/open");
+			release.resolve();
+			await handedOff;
+			await page.waitForLoadState("networkidle");
+			expect(new URL(page.url()).pathname).toBe(path);
+			expect(await js.inputValue()).toBe("  // Own");
+			const savedAgain = page.waitForResponse("**/api/rpc/components/saveScriptDraft");
+			await js.press("ControlOrMeta+s");
+			await savedAgain;
+			expect((await api.components.getScript({ siteId: site.id, componentId: component.id })).script?.draft.code).toBe(
+				"  // Own",
+			);
+		} finally {
+			release.resolve();
+			await page.unrouteAll({ behavior: "wait" });
+			await page.close();
+		}
+	});
+}
+
+for (const theme of THEMES)
+	for (const action of ["typing", "Undo"] as const) {
+		test(`${action} during a history transfer keeps the current Draft and history together, ${theme}`, async () => {
+			const workspace = await install.install.createWorkspace("History transfer");
+			const site = await install.install.createSite(workspace.id, {
+				name: "History transfer",
+				slug: `transfer-${theme}`,
+			});
+			const staff = await install.install.createStaff({ workspaces: [workspace.id] });
+			const api = staff.browser.api;
+			const { component } = await api.components.create({ siteId: site.id, name: "TransferScript" });
+			await api.components.saveMarkup({ siteId: site.id, componentId: component.id, markup: "<p>History</p>" });
+			await api.components.saveScriptDraft({ siteId: site.id, componentId: component.id, code: "// Original" });
+			const { postType } = await api.postTypes.create({ siteId: site.id, name: "Notes", urlPattern: "/notes/{slug}" });
+			await api.entries.create({ siteId: site.id, postTypeId: postType.id, title: "First" });
+			await api.templates.saveEntryTemplateMarkup({
+				siteId: site.id,
+				postTypeId: postType.id,
+				markup: "<TransferScript />",
+			});
+			const page = await install.newPage(theme);
+			page.setDefaultTimeout(10000);
+			const held = Promise.withResolvers<void>();
+			const release = Promise.withResolvers<void>();
+			try {
+				await install.signIn(page, staff.account);
+				const path = `/builder/${site.id}/component/${component.id}`;
+				await page.goto(install.adminUrl(path));
+				const js = page.getByRole("region", { name: "JS", exact: true }).getByRole("textbox");
+				await js.and(page.locator(":not([readonly])")).waitFor();
+				await js.fill("// Own");
+				await page.route("**/api/rpc/builder/transferHistory", async (route) => {
+					const response = await route.fetch();
+					held.resolve();
+					await release.promise;
+					await route.fulfill({ response });
+				});
+				await page.getByRole("button", { name: "View on a page", exact: true }).click();
+				await held.promise;
+				if (action === "typing") await js.fill("// Later");
+				else {
+					await js.press("ControlOrMeta+z");
+					await page.getByRole("status").filter({ hasText: "Undid Edit JS of TransferScript" }).first().waitFor();
+				}
+				const transferred = page.waitForResponse("**/api/rpc/builder/transferHistory");
+				release.resolve();
+				await transferred;
+				await page.waitForLoadState("networkidle");
+				expect(new URL(page.url()).pathname).toBe(path);
+				expect(await js.inputValue()).toBe(action === "typing" ? "// Later" : "// Original");
+				// A fresh handoff carries the latest step or Redo state, rather than the held snapshot.
+				await page.getByRole("button", { name: "View on a page", exact: true }).click();
+				await page.waitForURL((url) => url.pathname === "/notes/first");
+				const command = page.getByRole("button", { name: action === "typing" ? "Undo" : "Redo", exact: true });
+				await command.and(page.locator(":not([disabled])")).waitFor();
+				await command.click();
+				await page
+					.getByRole("status")
+					.filter({ hasText: `${action === "typing" ? "Undid" : "Redid"} Edit JS` })
+					.first()
+					.waitFor();
+				expect(
+					(await api.components.getScript({ siteId: site.id, componentId: component.id })).script?.draft.code,
+				).toBe("// Own");
+			} finally {
+				release.resolve();
+				await page.unrouteAll({ behavior: "wait" });
+				await page.close();
+			}
+		});
+	}
+
 test("typing bursts end on blur and retain only the last 200 steps", async () => {
 	const workspace = await install.install.createWorkspace("Bounded history");
 	const site = await install.install.createSite(workspace.id, { name: "Bounded history", slug: "bounded-history" });

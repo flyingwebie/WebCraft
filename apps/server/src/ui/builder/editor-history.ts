@@ -49,10 +49,13 @@ export class EditorHistory {
 		this.fallback = fallback;
 		this.transfer = transfer;
 	}
-	async departure(url: string) {
+	/** A newer own edit or history command cancels a handoff; the caller keeps this editor open. */
+	async departure(url: string): Promise<string | null> {
 		for (const listener of this.listeners) listener.finish?.();
+		const revision = this.revision;
 		await Promise.all([...this.actions].map((action) => action.catch(() => {})));
 		await this.pending;
+		if (revision !== this.revision) return null;
 		this.boundary();
 		if (!this.transfer || (!this.past.length && !this.future.length)) return url;
 		const serialise = (steps: Step[]) =>
@@ -60,6 +63,7 @@ export class EditorHistory {
 				.map((step) => ({ ...step, changes: step.changes.filter((change) => !change.resource.startsWith("input:")) }))
 				.filter((step) => step.changes.length);
 		const token = await this.transfer(JSON.stringify({ past: serialise(this.past), future: serialise(this.future) }));
+		if (revision !== this.revision) return null;
 		const destination = new URL(url, location.href);
 		if (destination.pathname.endsWith("/edit/enter")) destination.searchParams.set("history", token);
 		else {
@@ -223,6 +227,7 @@ export class EditorHistory {
 		if (this.busy) return;
 		for (const listener of this.listeners) listener.finish?.();
 		this.boundary();
+		if (source.length) this.revision++;
 		this.busy = true;
 		this.notify();
 		const notices: string[] = [];

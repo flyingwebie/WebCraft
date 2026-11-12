@@ -497,8 +497,8 @@ export function codeMode(
 					const revision = inputRevision;
 					if (panelsAdapter && !(await panelsAdapter.depart())) return;
 					if (jsDirty() && !(await saveScript(undefined))) return;
-					const destination = await panelsAdapter?.history.departure(url);
-					if (revision === inputRevision) win.location.assign(destination ?? url);
+					const destination = panelsAdapter ? await panelsAdapter.history.departure(url) : url;
+					if (destination && revision === inputRevision) win.location.assign(destination);
 				},
 				bar(action: "publish" | "safeMode" | "preview" | "leave") {
 					doc.dispatchEvent(new CustomEvent("webcraft:edit-command", { detail: { action } }));
@@ -529,7 +529,7 @@ export function codeMode(
 					if (!panelsAdapter || !(await panelsAdapter.depart()) || (jsDirty() && !(await saveScript(undefined))))
 						return;
 					const destination = await panelsAdapter.history.departure(link.href);
-					if (revision === inputRevision) win.location.assign(destination);
+					if (destination && revision === inputRevision) win.location.assign(destination);
 				})();
 			},
 			true,
@@ -743,7 +743,7 @@ export function codeMode(
 			url.searchParams.set("returnTitle", doc.title.split(" · ")[0] ?? path);
 			url.searchParams.set("returnRef", sourceRef ?? opened.ref);
 			const destination = await panelsAdapter.history.departure(url.href);
-			if (inputRevision !== revision) return;
+			if (!destination || inputRevision !== revision) return;
 			win.location.assign(destination);
 		} finally {
 			openingBuilder = false;
