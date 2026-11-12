@@ -1,5 +1,6 @@
 import { ADMIN_API_PREFIX, createAdminApi, createPublicApi, PUBLIC_API_PREFIX } from "@webcraft/api";
 import {
+	type Access,
 	FORM_UPLOADS_PATH,
 	type InstallServices,
 	mediaPolicy,
@@ -108,6 +109,21 @@ function neverStored(response: Response): Response {
 	return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
+/**
+ * The access a download checked by the session cookie acts with, as `signedIn` gives it to the
+ * procedures (`packages/api/src/context.ts`): the session's person, or whoever it impersonates. Null
+ * without a session, and for a person who must set up two-factor authentication and hasn't: they are
+ * refused everything but setting it up, a file's address they already hold included.
+ */
+async function downloadAccess(services: InstallServices, request: Request): Promise<Access | null> {
+	const { session } = await services.auth.session({
+		headers: request.headers,
+		clientAddress: clientAddress(request, services.config),
+	});
+	if (!session || (await services.twoFactor.mustSetUp(session.personId))) return null;
+	return (await services.impersonation.actingAs(session)).access;
+}
+
 /** Where the admin shows a Site's Media files (thumbnails and previews): `/api/media/<site id>/<name>`. */
 const MEDIA_PREVIEW_PREFIX = "/api/media/";
 
@@ -118,15 +134,11 @@ const MEDIA_PREVIEW_PREFIX = "/api/media/";
 async function mediaPreview(services: InstallServices, request: Request, rest: string): Promise<Response> {
 	const [siteId = "", name = "", ...more] = rest.split("/");
 	if (more.length > 0 || !name) return notFound();
-	const { session } = await services.auth.session({
-		headers: request.headers,
-		clientAddress: clientAddress(request, services.config),
-	});
-	if (!session) return notFound();
+	// As whoever the session acts as: the person it impersonates sees their own Sites' files only.
+	const access = await downloadAccess(services, request);
+	if (!access) return notFound();
 	let site: SiteScope;
 	try {
-		// As whoever the session acts as: the person it impersonates sees their own Sites' files only.
-		const { access } = await services.impersonation.actingAs(session);
 		site = await services.data.site(access, siteId, "site.view");
 	} catch (error) {
 		if (error instanceof SiteNotFoundError || error instanceof PermissionDeniedError) return notFound();
@@ -153,14 +165,10 @@ const UPLOAD_POLICY = "default-src 'none'; style-src 'unsafe-inline'; img-src da
 async function formUpload(services: InstallServices, request: Request, rest: string): Promise<Response> {
 	const [siteId = "", uploadId = "", ...more] = rest.split("/");
 	if (more.length > 0 || !uploadId) return notFound();
-	const { session } = await services.auth.session({
-		headers: request.headers,
-		clientAddress: clientAddress(request, services.config),
-	});
-	if (!session) return notFound();
+	const access = await downloadAccess(services, request);
+	if (!access) return notFound();
 	let site: SiteScope;
 	try {
-		const { access } = await services.impersonation.actingAs(session);
 		site = await services.data.site(access, siteId, "site.view");
 	} catch (error) {
 		if (error instanceof SiteNotFoundError || error instanceof PermissionDeniedError) return notFound();
@@ -218,15 +226,11 @@ function fromAdminPages(request: Request, adminHost: string): boolean {
 async function siteExportDownload(services: InstallServices, request: Request, rest: string): Promise<Response> {
 	const [siteId = "", exportId = "", ...more] = rest.split("/");
 	if (more.length > 0) return notFound();
-	const { session } = await services.auth.session({
-		headers: request.headers,
-		clientAddress: clientAddress(request, services.config),
-	});
-	if (!session) return notFound();
+	// As whoever the session acts as: someone impersonated may export only their own Sites.
+	const access = await downloadAccess(services, request);
+	if (!access) return notFound();
 	const url = new URL(request.url);
 	try {
-		// As whoever the session acts as: someone impersonated may export only their own Sites.
-		const { access } = await services.impersonation.actingAs(session);
 		const file = await services.siteTransfer.download(access, {
 			siteId,
 			exportId,
