@@ -44,6 +44,28 @@ function signInFirstStep(account: Pick<TestAccount, "email" | "password">) {
 }
 
 describe("adding an authenticator app", () => {
+	// The report's "Sloppy code": the secret was read once to check the code and again to save it, so
+	// starting over at that moment (a second tab, a double click) saved a secret the app doesn't hold,
+	// and the person was locked out of their own second step.
+	test("the secret that is saved is the one the code was checked against, even when adding is started again at that moment", async () => {
+		for (let round = 0; round < 20; round++) {
+			const { browser, account } = await newPerson();
+			const { secret } = await browser.api.me.twoFactor.startAuthenticator();
+			const [confirmed] = await Promise.allSettled([
+				browser.api.me.twoFactor.confirmAuthenticator({ code: totpCode(secret, install.clock.now()) }),
+				browser.api.me.twoFactor.startAuthenticator(),
+			]);
+			if (confirmed.status !== "fulfilled") continue;
+
+			// The app that was confirmed signs in.
+			const signedIn = await signInWithAuthenticator(install, account, secret);
+			expect({ round, person: (await signedIn.api.session.current()).person?.email }).toEqual({
+				round,
+				person: account.email,
+			});
+		}
+	});
+
 	test("shows a secret and its QR code's address, and adds the app once a code from it is right", async () => {
 		const { browser, account } = await newPerson();
 

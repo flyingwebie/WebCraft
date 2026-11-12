@@ -223,13 +223,15 @@ export function createSecondFactorStore({
 		): Promise<FactorChange & { backupCodes: string[] | null }> {
 			if (await hasAuthenticator(db, personId)) throw new AuthenticatorExistsError();
 			const now = clock.now();
-			const step = await keys.authenticatorSecret.useWith(personId, "pending", (secret) =>
-				matchingTotpStep(secret, code, now, null),
-			);
+			// Read once: the secret the code is checked against is the one saved. Adding started again at
+			// this moment (a second tab) writes another pending secret, which must never become the
+			// active one of an app that was confirmed with this one.
+			const step = await keys.authenticatorSecret.useWith(personId, "pending", async (secret) => {
+				const matched = await matchingTotpStep(secret, code, now, null);
+				if (matched !== null) await keys.authenticatorSecret.set(personId, "active", secret);
+				return matched;
+			});
 			if (step === null) throw new TwoFactorCodeInvalidError("setup");
-			await keys.authenticatorSecret.useWith(personId, "pending", (secret) =>
-				keys.authenticatorSecret.set(personId, "active", secret),
-			);
 			const result = await db.transaction(async (tx) => {
 				// One change to a person's second factors at a time.
 				await lockPerson(tx, personId);
