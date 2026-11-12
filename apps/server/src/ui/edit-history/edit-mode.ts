@@ -67,7 +67,12 @@ async function mount(kit: BarKit, host: HistoryHost): Promise<HistoryTools> {
 	history.configure({
 		// Edit mode's labels are worded where the action is made, in the person's Admin language.
 		label: (message) => message,
-		words: historyWords((key, values) => kit.word(`editorHistory.${key}`, values), kit.errorText),
+		// The bar words refusals for its own requests (publishing, saving); a step the server won't take
+		// back is simply refused.
+		words: historyWords(
+			(key, values) => kit.word(`editorHistory.${key}`, values),
+			() => kit.word("editorHistory.refused"),
+		),
 	});
 	const resourceOf = (item: string) => `draft:${siteId}:${item}`;
 	const title = () => kit.state().page.title || kit.state().page.path;

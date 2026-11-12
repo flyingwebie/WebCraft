@@ -23,7 +23,7 @@ afterEach(async () => {
  * A Site whose pages show the Globals' Tagline above their content, with a home Page ("Home") of two
  * Hero Placements, "North" and "South", which Members may arrange, and a second Page, "About".
  */
-async function bakery(slug: string) {
+async function bakery(slug: string, headings = ["North", "South"]) {
 	const local = install.install;
 	const staff = await local.superadmin();
 	const workspaceId = (await local.createWorkspace()).id;
@@ -72,7 +72,7 @@ async function bakery(slug: string) {
 		await api.entries.publish({ siteId, entryId: entry.id });
 		return entry.id;
 	};
-	const homeId = await page("Home", ["North", "South"]);
+	const homeId = await page("Home", headings);
 	await api.pages.setHomePage({ siteId, pageId: homeId });
 	const aboutId = await page("About", ["East"]);
 	const read = async () => {
@@ -88,11 +88,17 @@ async function bakery(slug: string) {
 	return { api, siteId, workspaceId, homeId, aboutId, componentId: component.id, member, read };
 }
 
-/** Opens the Site in Edit mode as `account`, on its home page. */
-async function enter(theme: Theme, siteId: string, account: TestAccount, phone = false): Promise<Page> {
-	const page = await install.newPage(theme, { touch: phone });
+/** Opens the Site in Edit mode as `account`, on its home page; `prepare` sets the page up before it loads anything. */
+async function enter(
+	theme: Theme,
+	siteId: string,
+	account: TestAccount,
+	options: { phone?: boolean; prepare?(page: Page): Promise<void> } = {},
+): Promise<Page> {
+	const page = await install.newPage(theme, { touch: options.phone });
 	page.setDefaultTimeout(10000);
-	if (phone) await page.setViewportSize({ width: 390, height: 844 });
+	if (options.phone) await page.setViewportSize({ width: 390, height: 844 });
+	await options.prepare?.(page);
 	await install.signIn(page, account);
 	await page.goto(install.adminUrl(`/sites/${siteId}`));
 	await page.getByRole("button", { name: "Edit on site" }).click();
@@ -227,3 +233,111 @@ for (const theme of THEMES) {
 		}
 	});
 }
+
+for (const theme of THEMES) {
+	test(`a Member and Staff on one Draft each undo only their own steps (${theme})`, async () => {
+		const site = await bakery(`history-peers-${theme}`);
+		const staff = (await install.install.createStaff({ workspaces: [site.workspaceId], name: "Sam Staff" })).account;
+		const member = await enter(theme, site.siteId, site.member.account);
+		const peer = await enter(theme, site.siteId, staff);
+		try {
+			// Their steps interleave on the same Page: Member, Staff, Member, Staff.
+			const inline = member.locator('main [data-wc-placement="north"][data-wc-placement-prop="heading"]');
+			await inline.fill("Member North");
+			await inline.press("Enter");
+			await nextUndo(member, "Props Hero · North");
+			await layoutButton(peer).click();
+			await peer.getByRole("treeitem", { name: /Hero · South/ }).click();
+			await peer.getByRole("button", { name: "Hide or show", exact: true }).click();
+			await nextUndo(peer, "Hide or show Hero · South");
+			await member.locator('main [data-wc-page-placement="south"][data-wc-hidden-placement="true"]').waitFor();
+			await typeTagline(member, "Member tagline");
+			await nextUndo(member, "Edit Tagline");
+			await tagline(peer)
+				.filter({ hasText: /^Member tagline$/ })
+				.waitFor();
+			await peer.getByRole("button", { name: "Props", exact: true }).click();
+			const heading = peer.locator('[data-editor-region="inspector"]').getByLabel("Heading", { exact: true });
+			await heading.fill("Staff South");
+			await heading.press("Tab");
+			await nextUndo(peer, "Props Hero · South");
+			expect(await site.read()).toEqual({
+				tagline: "Member tagline",
+				placements: ["Member North", "Staff South (hidden)"],
+			});
+
+			// The Member's history holds the Member's two steps and nothing of Staff's later ones.
+			await nextUndo(member, "Edit Tagline");
+			await member.keyboard.press("ControlOrMeta+z");
+			await said(member, "Undid Edit Tagline");
+			await nextUndo(member, "Props Hero · North");
+			await undoButton(member).click();
+			await said(member, "Undid Props Hero · North");
+			await nextUndo(member, null);
+			expect(await site.read()).toEqual({ tagline: "Baked daily", placements: ["North", "Staff South (hidden)"] });
+
+			// Staff see the Member's steps go, and take back their own two the same way.
+			await tagline(peer)
+				.filter({ hasText: /^Baked daily$/ })
+				.waitFor();
+			await nextUndo(peer, "Props Hero · South");
+			await undoButton(peer).click();
+			await said(peer, "Undid Props Hero · South");
+			await undoButton(peer).click();
+			await said(peer, "Undid Hide or show Hero · South");
+			await nextUndo(peer, null);
+			expect(await site.read()).toEqual({ tagline: "Baked daily", placements: ["North", "South"] });
+
+			// Each can make their own again; the other's Redo stays their own.
+			expect(await redoButton(member).getAttribute("title")).toStartWith("Redo Props Hero · North (");
+			expect(await redoButton(peer).getAttribute("title")).toStartWith("Redo Hide or show Hero · South (");
+			await redoButton(member).click();
+			await said(member, "Redid Props Hero · North");
+			expect(await site.read()).toEqual({ tagline: "Baked daily", placements: ["Member North", "South"] });
+			await expectAccessibleScreen(peer, `Edit mode Undo history beside a peer ${theme}`);
+		} catch (error) {
+			console.error(await debug(member), await debug(peer));
+			throw error;
+		} finally {
+			await member.close();
+			await peer.close();
+		}
+	});
+}
+
+test("a step that no longer applies, or that the server refuses, is skipped with its reason", async () => {
+	const site = await bakery("history-skipped");
+	const page = await enter("light", site.siteId, site.member.account);
+	try {
+		// Someone else writes the same value after the Member did: the Member's step would overwrite it.
+		await typeTagline(page, "Mine");
+		await nextUndo(page, "Edit Tagline");
+		await site.api.globals.saveDraft({ siteId: site.siteId, fields: { tagline: "Staff's" } });
+		await tagline(page)
+			.filter({ hasText: /^Staff's$/ })
+			.waitFor();
+		await undoButton(page).click();
+		await said(page, "Skipped Edit Tagline. This step overlaps a newer change or its target no longer exists.");
+		await nextUndo(page, null);
+		expect(await redoButton(page).isDisabled()).toBe(true);
+		expect((await site.read()).tagline).toBe("Staff's");
+
+		// The Member removes a Placement; Staff then stop allowing its Component. Putting it back would
+		// add one Members may not add: the server refuses, and the history says so.
+		await layoutButton(page).click();
+		await page.getByRole("treeitem", { name: /Hero · South/ }).click();
+		await page.getByRole("button", { name: "Remove", exact: true }).click();
+		await nextUndo(page, "Remove Hero · South");
+		await site.api.pageLayouts.configure({ siteId: site.siteId, allowedComponents: [] });
+		await page.keyboard.press("ControlOrMeta+z");
+		await said(page, "Skipped Remove Hero · South. The server refused this step.");
+		expect(await page.locator('[data-editor-messages] [role="alert"]').textContent()).toContain("Skipped Remove");
+		await nextUndo(page, null);
+		expect((await site.read()).placements).toEqual(["North"]);
+	} catch (error) {
+		console.error(await debug(page));
+		throw error;
+	} finally {
+		await page.close();
+	}
+});

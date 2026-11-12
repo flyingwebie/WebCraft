@@ -167,7 +167,10 @@ svg { flex: none; }
 .chip.draft { background: #422006; color: #fdba74; }
 .chip.safe { display: inline-flex; align-items: center; gap: 0.25rem; background: #052e16; color: #86efac; }
 .chip.safe svg { width: 14px; height: 14px; }
-.saved { color: var(--bar-muted); font-size: 13px; white-space: nowrap; }
+.saved {
+	min-width: 0; overflow: hidden; text-overflow: ellipsis;
+	color: var(--bar-muted); font-size: 13px; white-space: nowrap;
+}
 .segments { display: inline-flex; gap: 0.125rem; padding: 0.1875rem; border-radius: 0.625rem; background: #0f0f11; }
 .segment { color: var(--bar-muted); height: 2rem; }
 .segment[aria-pressed="true"] { background: var(--bar-control-hover); color: var(--bar-text); }
@@ -495,6 +498,9 @@ dialog::backdrop { background: rgba(9, 9, 11, 0.5); }
 .toolbar-wrap.above-keyboard .toolbar { width: calc(100vw - 0.75rem); overflow-x: auto; }
 .toolbar-wrap.above-keyboard .done { margin-inline-start: auto; }
 
+/* While the optional parts show, they give way first: the start group's site name and saved note shorten
+   before the modes, Undo and Redo, or the end group could run into one another. */
+@media (min-width: 1101px) { .middle, .end { flex-shrink: 0; } }
 @media (max-width: 1100px) { .optional { display: none; } }
 @media (max-width: 640px) {
 	.bar { padding: 0 0.5rem; gap: 0.25rem; }
