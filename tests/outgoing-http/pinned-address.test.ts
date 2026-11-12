@@ -46,6 +46,13 @@ function startServer(address: string, tls?: Parameters<typeof Bun.serve>[0]["tls
 					? new Response(Bun.gzipSync(text), { headers: { "content-encoding": "gzip" } })
 					: new Response(text);
 			}
+			if (url.pathname === "/stacked") {
+				// Compressed as many times as asked, and saying so: one coding per round.
+				const times = Number(url.searchParams.get("times"));
+				let stacked = new TextEncoder().encode("a stacked answer");
+				for (let round = 0; round < times; round++) stacked = Bun.gzipSync(stacked);
+				return new Response(stacked, { headers: { "content-encoding": Array(times).fill("gzip").join(", ") } });
+			}
 			return Response.json({ ...seen.at(-1), clientPort: server.requestIP(request)?.port });
 		},
 	});
@@ -175,6 +182,21 @@ describe.each(runtimes)("%s outgoing HTTP, pinned to an address", (_, call) => {
 		);
 
 		expect(outcome.body).toBe("a compressed answer ".repeat(50));
+	});
+});
+
+describe("Node (worker) outgoing HTTP, an answer compressed several times over", () => {
+	const stacked = (times: number) =>
+		node.call({ url: `http://pinned.test:${plain.port}/stacked?times=${times}`, connectTo: "127.0.0.1" });
+
+	test("is decoded through a few codings", async () => {
+		expect(answered(await stacked(3)).body).toBe("a stacked answer");
+	});
+
+	test("is refused past a handful: every coding listed would get a decoder of its own (audit A4, sloppy code)", async () => {
+		const outcome = await stacked(40);
+
+		expect(outcome).toMatchObject({ error: { message: expect.stringContaining("content codings") } });
 	});
 });
 
