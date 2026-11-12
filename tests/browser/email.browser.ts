@@ -89,6 +89,29 @@ for (const theme of THEMES) {
 			await expectAccessibleScreen(page, `Email (SMTP), refused (${theme})`);
 		});
 
+		test("letting Sites use mail servers inside the network, from the keyboard", async () => {
+			const page = await browserInstall.newPage(theme);
+			await browserInstall.signIn(page, superadmin);
+			await page.goto(browserInstall.adminUrl("/settings/email"));
+			await page.waitForLoadState("networkidle");
+			const api = (await browserInstall.install.signIn(superadmin)).api;
+			const allow = page.getByRole("checkbox", {
+				name: "Let Sites use mail servers inside this Install's own network",
+			});
+			// The other theme's run may have left it on.
+			const before = (await api.install.smtp.get()).sitePrivateServers;
+			expect(await allow.isChecked()).toBe(before);
+
+			await allow.focus();
+			await page.keyboard.press("Space");
+			await page.keyboard.press("Tab");
+			await page.keyboard.press("Enter");
+			await page.getByText("The setting is saved.").waitFor();
+
+			expect((await api.install.smtp.get()).sitePrivateServers).toBe(!before);
+			await expectAccessibleScreen(page, `Email (SMTP), Sites' own mail servers changed (${theme})`);
+		});
+
 		test("the Email log with sent, retrying and failed emails", async () => {
 			const page = await browserInstall.newPage(theme);
 			await browserInstall.signIn(page, superadmin);
