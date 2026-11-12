@@ -1661,7 +1661,8 @@
 			"title": "Title",
 			"slug": "Address",
 			"parent": "Parent page",
-			"seo": "SEO fields"
+			"seo": "SEO fields",
+			"layout": "Page layout"
 		},
 		"types": {
 			"text": "Text",
@@ -1679,7 +1680,8 @@
 			"repeater": "Repeater",
 			"parent": "Parent page",
 			"image": "Image",
-			"loopItems": "Loop items"
+			"loopItems": "Loop items",
+			"pageLayout": "Page layout"
 		},
 		"problems": {
 			"required": "This can't be empty.",

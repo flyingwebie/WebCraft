@@ -100,7 +100,7 @@ test("Author layout changes enter the existing Review and revisions without publ
 	const pageState = await editing.edit("state", { path: "/example" });
 	expectSiteHeaders(pageState);
 	const data = await pageState.json();
-	expect(JSON.stringify(data)).toContain("Page layout");
+	expect(data.changes).toContainEqual(expect.objectContaining({ key: "layout", label: null, type: "pageLayout" }));
 	expect(await expectSafePage(await install.request("https://layout-review.live.test/example"))).not.toContain(
 		"Awaiting review",
 	);

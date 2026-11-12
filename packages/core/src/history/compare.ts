@@ -129,7 +129,7 @@ async function valueParts(scope: SiteScope, state: ItemState, versions: unknown[
 		);
 		if (isPagePostType(postType)) {
 			if (versions.some((v) => storedVersion(v).layout))
-				builtIns.push({ key: "layout", label: "Page layout", field: null, shared: true });
+				builtIns.push({ key: "layout", label: null, field: null, shared: true });
 			builtIns.push({
 				key: "parent",
 				label: null,

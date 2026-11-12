@@ -171,7 +171,7 @@ function LayoutEditor({
 						void controller.drop(a, b + (position === "after" ? 1 : 0) - (a < b ? 1 : 0));
 					}}
 					onInsert={() => controller.openPicker()}
-					onHidden={() => void controller.action("hide")}
+					onHidden={(path) => void controller.action("hide", nodes[path[0] ?? -1]?.id ?? null)}
 				/>
 			</div>
 			<div data-picker hidden={panel !== "picker"} className="grid gap-2 p-4">
@@ -232,7 +232,7 @@ function LayoutEditor({
 			<aside
 				aria-labelledby="page-layout-title"
 				hidden={!panel}
-				className={`bg-background text-foreground fixed top-16 bottom-0 z-50 w-96 max-w-full overflow-auto border shadow-lg ${panel === "inspector" ? "right-0" : "left-0"}`}
+				className={`bg-background text-foreground fixed top-16 bottom-0 z-50 w-96 max-w-full overflow-auto border shadow-lg ${panel === "inspector" ? "end-0" : "start-0"}`}
 			>
 				{content}
 			</aside>

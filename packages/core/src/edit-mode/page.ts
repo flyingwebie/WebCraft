@@ -386,7 +386,7 @@ async function changesOf(
 				found.push({
 					item: nameOf(item),
 					key: "layout",
-					label: "Page layout",
+					label: null,
 					type: "pageLayout",
 					writer: row.updatedBy,
 				});

@@ -55,17 +55,7 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 		const p = state.layout.placements.find((p) => p.id === id);
 		return p ? readFieldValues(p.values as Record<string, DocumentJson>, p.props, state) : {};
 	};
-	const label = (id: string) => {
-		const p = state.layout.placements.find((p) => p.id === id);
-		if (!p) return "";
-		const name =
-			state.placements.find((p) => p.id === id)?.componentName ??
-			state.components.find((c) => c.id === p.component)?.name ??
-			"Component";
-		const field = p.props.find((f) => f.type === "text");
-		const text = field ? values(id)[field.key] : null;
-		return name + (typeof text === "string" && text.trim() ? ` · ${text.trim().slice(0, 100)}` : "");
-	};
+	const label = (id: string) => state.placements.find((p) => p.id === id)?.label ?? "";
 	function range(doc: Document): Range | null {
 		const comments = doc.createTreeWalker(doc.body, NodeFilter.SHOW_COMMENT);
 		let start: Node | null = null;
@@ -152,7 +142,12 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 		});
 		return pending;
 	}
-	async function save(next: LayoutState["layout"], title: string, before = state.layout, record = true, focus = false) {
+	async function save(
+		next: LayoutState["layout"],
+		title: string,
+		before = state.layout,
+		options: { record?: boolean; focus?: boolean; announce?: boolean } = {},
+	) {
 		if (sameValue(before, next)) return true;
 		busy = true;
 		emit();
@@ -171,13 +166,13 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 			return false;
 		}
 		state = result.data as LayoutState;
-		if (focus) focusRequest++;
-		if (record)
+		if (options.focus) focusRequest++;
+		if (options.record !== false)
 			for (const listener of finished)
 				listener({ before, after: state.layout, label: title, selection: selected, panel });
 		emit();
 		outline();
-		announce(title);
+		if (options.announce !== false) announce(title);
 		await kit.refresh();
 		await refreshPage();
 		return true;
@@ -199,9 +194,8 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 		if (id) kit.doc.querySelector(`[data-wc-page-placement="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "nearest" });
 		emit();
 	}
-	async function action(action: LayoutAction) {
-		if (!allowed(action)) return;
-		const id = selected;
+	async function action(action: LayoutAction, id = selected) {
+		if (!allowed(action, id)) return;
 		return enqueue(async () => {
 			if (!allowed(action, id, true)) return;
 			if (action !== "moveUp" && action !== "moveDown") finishGrab();
@@ -228,16 +222,12 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 				focusRequest++;
 			}
 			if (grabbed && (action === "moveUp" || action === "moveDown")) {
-				await save(next, kit.word("pageLayout.move"), state.layout, false, true);
+				await save(next, kit.word("pageLayout.move"), state.layout, { record: false, focus: true });
 				announce(`${title}, ${next.placements.findIndex((p) => p.id === selected) + 1} / ${next.placements.length}`);
 			} else
-				await save(
-					next,
-					`${kit.word(`pageLayout.${action}`)} ${title}`,
-					state.layout,
-					true,
-					action === "moveUp" || action === "moveDown" || action === "duplicate" || action === "delete",
-				);
+				await save(next, `${kit.word(`pageLayout.${action}`)} ${title}`, state.layout, {
+					focus: action === "moveUp" || action === "moveDown" || action === "duplicate" || action === "delete",
+				});
 		});
 	}
 	async function insert(componentId: string) {
@@ -254,7 +244,7 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 			selected = p.id;
 			panel = "tree";
 			focusRequest++;
-			await save(next, `${kit.word("pageLayout.add")} ${component.name}`, state.layout, true, true);
+			await save(next, `${kit.word("pageLayout.add")} ${component.name}`, state.layout, { focus: true });
 		});
 	}
 	async function prop(id: string, field: FieldDefinition, value: Json) {
@@ -265,7 +255,7 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 			const p = next.placements.find((p) => p.id === id);
 			if (!p?.props.some((f) => f.id === field.id && f.key === field.key && f.type === field.type)) return;
 			p.values = writeField(p.values as Record<string, DocumentJson>, field, value, state);
-			await save(next, `${kit.word("pageLayout.props")} ${label(id)}`);
+			await save(next, `${kit.word("pageLayout.props")} ${label(id)}`, state.layout, { announce: false });
 		});
 	}
 	function attachInline() {
@@ -388,7 +378,7 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 					(a, b) =>
 						(positions.get(a.id) ?? Number.POSITIVE_INFINITY) - (positions.get(b.id) ?? Number.POSITIVE_INFINITY),
 				);
-				await save(next, kit.word("pageLayout.move"), state.layout, false, true);
+				await save(next, kit.word("pageLayout.move"), state.layout, { record: false, focus: true });
 			} else finishGrab();
 			emit();
 		});
@@ -461,7 +451,7 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 				const [moving] = next.placements.splice(sourceAt, 1);
 				if (!moving) return;
 				next.placements.splice(targetAt + (from < to ? 1 : 0) - (sourceAt < targetAt ? 1 : 0), 0, moving);
-				await save(next, kit.word("pageLayout.move"), state.layout, true, true);
+				await save(next, kit.word("pageLayout.move"), state.layout, { focus: true });
 			});
 		},
 		subscribe(listener: () => void) {

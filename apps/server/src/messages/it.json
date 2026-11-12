@@ -1661,7 +1661,8 @@
 			"title": "Titolo",
 			"slug": "Indirizzo",
 			"parent": "Pagina superiore",
-			"seo": "Campi SEO"
+			"seo": "Campi SEO",
+			"layout": "Layout della Pagina"
 		},
 		"types": {
 			"text": "Testo",
@@ -1679,7 +1680,8 @@
 			"repeater": "Ripetitore",
 			"parent": "Pagina superiore",
 			"image": "Immagine",
-			"loopItems": "Elementi del Loop"
+			"loopItems": "Elementi del Loop",
+			"pageLayout": "Layout della Pagina"
 		},
 		"problems": {
 			"required": "Non può essere vuoto.",

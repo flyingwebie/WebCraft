@@ -339,3 +339,46 @@ for (const theme of THEMES) {
 		}
 	});
 }
+
+for (const theme of THEMES) {
+	test(`a Page row's visibility button targets that Placement without changing selection (${theme})`, async () => {
+		const site = await fixture(`layout-eye-${theme}`, ["North", "South"]);
+		const page = await enter(theme, site);
+		try {
+			await page.getByRole("button", { name: "Page layout", exact: true }).click();
+			const north = page.getByRole("treeitem", { name: /Hero · North/ });
+			const south = page.getByRole("treeitem", { name: /Hero · South/ });
+			await north.click();
+			const saved = page.waitForResponse((response) => response.url().endsWith("/layout/save") && response.ok());
+			await south.getByRole("button", { name: "Hide placement", exact: true }).click();
+			await saved;
+			const state = await site.staff.api.pageLayouts.get({ siteId: site.siteId, entryId: site.entryId });
+			expect(state.layout.placements.map((placement) => !!placement.hidden)).toEqual([false, true]);
+			expect(await north.getAttribute("aria-selected")).toBe("true");
+			await south.getByRole("button", { name: "Show placement", exact: true }).waitFor();
+		} finally {
+			await page.close();
+		}
+	});
+
+	test(`successful Page Prop autosaves leave the shared announcement quiet (${theme})`, async () => {
+		const site = await fixture(`layout-quiet-${theme}`);
+		const page = await enter(theme, site);
+		try {
+			await page.getByRole("button", { name: "Page layout", exact: true }).click();
+			await page.getByRole("button", { name: "Props", exact: true }).click();
+			const heading = page.locator('[data-editor-region="inspector"]').getByLabel("Heading", { exact: true });
+			await heading.focus();
+			const messages = page.locator("[data-editor-messages]");
+			const before = await messages.textContent();
+			await heading.fill("Quietly saved");
+			await heading.press("Tab");
+			await page.locator("h1").filter({ hasText: "Quietly saved" }).waitFor();
+			expect(await messages.textContent()).toBe(before);
+			await page.getByRole("button", { name: "Hide or show", exact: true }).click();
+			await messages.filter({ hasText: "Hide or show Hero · Quietly saved" }).waitFor();
+		} finally {
+			await page.close();
+		}
+	});
+}
