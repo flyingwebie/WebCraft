@@ -5,6 +5,7 @@
 // Site's own pages, refuses big bodies, and limits each address.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
+import { ipv6Network } from "../harness/addresses.ts";
 import { analyticsApi, analyticsVisitor, COLLECT_PATH, dayOf, liveSite } from "../harness/analytics.ts";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
@@ -174,6 +175,19 @@ describe("the collection path", () => {
 		expect(big.status).toBe(413);
 		expect(notOne.status).toBe(400);
 		expect(await totalsOf(site.siteId)).toMatchObject({ pageviews: 0 });
+	});
+
+	test("limits an IPv6 connection by its /64, whichever of its addresses each event comes from", async () => {
+		const site = await newSite();
+		const network = ipv6Network();
+
+		for (let sent = 0; sent < 120; sent++) {
+			const visitor = analyticsVisitor(install, site.origin, { address: network(sent + 1) });
+			expect((await visitor.view("/")).status).toBe(204);
+		}
+
+		expect((await analyticsVisitor(install, site.origin, { address: network(121) }).view("/")).status).toBe(429);
+		expect((await analyticsVisitor(install, site.origin, { address: ipv6Network()(1) }).view("/")).status).toBe(204);
 	});
 
 	test("limits each address, with Retry-After, and never keeps the address for it", async () => {

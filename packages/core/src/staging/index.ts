@@ -34,6 +34,13 @@ export const STAGING_PASSWORD_ACCESS_MS = 7 * 24 * 60 * 60 * 1000;
 /** How many passwords one client address may try on one Site's Staging address a minute, as many as signing in. */
 export const STAGING_PASSWORD_RATE_LIMIT: RateLimitRule = { limit: 10, windowMs: 60_000 };
 
+/**
+ * How many passwords anyone may try on one Site's Staging address an hour, from every address
+ * together: guessing from many addresses is slow too, and each try costs the web process a password
+ * hash. As many as a Share link's password takes.
+ */
+export const STAGING_PASSWORD_SITE_LIMIT: RateLimitRule = { limit: 50, windowMs: 60 * 60_000 };
+
 export { STAGING_PASSWORD_MAX_LENGTH, STAGING_PASSWORD_MIN_LENGTH } from "./password-rules.ts";
 
 /** A Site with no Staging address (the Install has no sites domain) can't be opened there. */

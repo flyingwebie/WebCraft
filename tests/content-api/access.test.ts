@@ -3,7 +3,7 @@
 // key (429 with Retry-After), each key counting its use per day; and the Staging address, which
 // answers published content to a key without its sign-in.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-
+import { ipv6Network } from "../harness/addresses.ts";
 import { createTestInstall, fromAddress, type TestInstall } from "../harness/index.ts";
 import { type Bakery, bakery, contentClient } from "./support.ts";
 
@@ -133,6 +133,20 @@ describe("browsers on other sites (CORS)", () => {
 });
 
 describe("rate limits", () => {
+	test("an IPv6 connection is counted by its /64, whichever of its addresses each request comes from", async () => {
+		const network = ipv6Network();
+		for (let count = 0; count < 120; count++) {
+			expect((await site.frontend({ address: network(count + 1) }).get("/languages")).status).toBe(200);
+		}
+
+		const refused = await site.frontend({ address: network(121) }).get("/languages");
+
+		expect(refused.status).toBe(429);
+		expect(await refused.json()).toMatchObject({ code: "TOO_MANY_REQUESTS", data: { limit: "address" } });
+		expect((await site.frontend({ address: ipv6Network()(1) }).get("/languages")).status).toBe(200);
+		await install.clock.advance(60_000);
+	});
+
 	test("120 requests a minute per client address and Site, whatever the key; then 429 with Retry-After until the minute ends", async () => {
 		const address = "203.0.113.120";
 		const frontend = site.frontend({ address });

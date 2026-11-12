@@ -4,6 +4,7 @@ import { lt, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import type { Clock } from "./clock.ts";
+import { ipRangeText, parseIpRange } from "./ip-ranges.ts";
 import { defineJob } from "./jobs/define.ts";
 import { defineSchedule } from "./jobs/schedules.ts";
 import type { Logger } from "./log.ts";
@@ -32,28 +33,49 @@ export class RateLimitedError extends Error {
 	}
 }
 
+/**
+ * Who a limit per client address counts, as the last part of its counter's key: an IPv4 address as it
+ * is, and an IPv6 address by its /64 (`2001:db8:0:1::/64`). One IPv6 connection has a whole /64 of its
+ * own, 2^64 addresses, and may send each request from another: counted one by one, no limit would
+ * hold. An address the web process couldn't tell (null) is `unknown`: those share one count.
+ *
+ * Every limit per client address is counted through here (`hit`, and `count` and `tally` given an
+ * address): never write an address into a key yourself.
+ */
+function addressSubject(address: string | null): string {
+	if (address === null) return "unknown";
+	const network = parseIpRange(`${address}/${IPV6_CLIENT_PREFIX}`);
+	return network?.family === 6 ? ipRangeText(network) : address;
+}
+
+/** The part of an IPv6 address that names one connection: the /64 a provider gives it. */
+const IPV6_CLIENT_PREFIX = 64;
+
 /** Where a key stands after one more request: `within` the limit or not, what is left, and when the window ends. */
 export type RateLimitTally = { within: boolean; limit: number; remaining: number; resetsAt: Date };
 
 export type RateLimits = {
 	/**
-	 * Counts one request against a limit for one subject, such as a client address (null: one the
-	 * web process can't tell; those share one count). Throws `RateLimitedError` once the subject has
-	 * used up the limit in the current window; the refused requests count too.
+	 * Counts one request against a named limit for the client address it came from (null: one the web
+	 * process can't tell; those share one count; an IPv6 client counts by its /64). Throws
+	 * `RateLimitedError` once the address has used up the limit in the current window; the refused
+	 * requests count too.
 	 */
-	hit(name: RateLimitName, subject: string | null): Promise<void>;
+	hit(name: RateLimitName, address: string | null): Promise<void>;
 	/**
-	 * Counts one request against a limit of a feature's own (a Form's per-address limits), under a key
-	 * it makes (`form:<id>:minute:<address>`), and answers whether it is within the limit. Requests
-	 * beyond it count too.
+	 * Counts one request against a limit of a feature's own, under a key it makes, and answers whether
+	 * it is within the limit. Requests beyond it count too. A limit per client address gives the
+	 * address apart from the key (`count("form:<id>:minute", rule, address)`; null for one the web
+	 * process couldn't tell), never inside it: the limiter decides who that address counts as (an IPv6
+	 * client by its /64) and adds it to the key.
 	 */
-	count(key: string, rule: RateLimitRule): Promise<boolean>;
+	count(key: string, rule: RateLimitRule, address?: string | null): Promise<boolean>;
 	/**
 	 * Counts one request under `key` like `count`, and answers where the key stands: whether this
 	 * request is within the limit, how many more the window allows and when it ends (for `RateLimit`
 	 * and `Retry-After` headers). API tokens' limits use it.
 	 */
-	tally(key: string, rule: RateLimitRule): Promise<RateLimitTally>;
+	tally(key: string, rule: RateLimitRule, address?: string | null): Promise<RateLimitTally>;
 	/** Deletes the counters whose window ended; answers how many. */
 	purge(): Promise<number>;
 };
@@ -69,7 +91,9 @@ export function createRateLimits({
 	log: Logger;
 	/**
 	 * The key counters are kept under (HMAC-SHA256, derived from the Master key): a counter's key
-	 * names a client address, which is never kept, so the table holds only a keyed hash of it.
+	 * names a client address, which the table never keeps, so it holds only a keyed hash of it. (The
+	 * one warning `hit` writes when an address uses up the `auth` limit does name the address, in the
+	 * log: whoever runs the Install must be able to see who is guessing.)
 	 */
 	keyHash: CryptoKey;
 }): RateLimits {
@@ -98,14 +122,17 @@ export function createRateLimits({
 			.returning({ hits: rateLimits.hits, windowEndsAt: rateLimits.windowEndsAt });
 		return counter;
 	};
+	/** A counter's key: the feature's own, and who the address counts as when the limit is per client address. */
+	const keyFor = (key: string, address: string | null | undefined) =>
+		address === undefined ? key : `${key}:${addressSubject(address)}`;
 	return {
-		async count(key, rule) {
-			const counter = await counted(key, rule);
+		async count(key, rule, address) {
+			const counter = await counted(keyFor(key, address), rule);
 			return !counter || counter.hits <= rule.limit;
 		},
 
-		async tally(key, rule) {
-			const counter = await counted(key, rule);
+		async tally(key, rule, address) {
+			const counter = await counted(keyFor(key, address), rule);
 			const hits = counter?.hits ?? 1;
 			return {
 				within: hits <= rule.limit,
@@ -115,15 +142,15 @@ export function createRateLimits({
 			};
 		},
 
-		async hit(name, subject) {
+		async hit(name, address) {
 			const rule: RateLimitRule = RATE_LIMITS[name];
 			const now = clock.now();
-			const counter = await counted(`${name}:${subject ?? "unknown"}`, rule);
+			const counter = await counted(keyFor(name, address), rule);
 			if (!counter || counter.hits <= rule.limit) return;
 			if (counter.hits === rule.limit + 1) {
 				log.warn("Too many requests from one client address: refused until the limit's window ends", {
 					limit: name,
-					clientAddress: subject,
+					clientAddress: address,
 					until: counter.windowEndsAt,
 				});
 			}

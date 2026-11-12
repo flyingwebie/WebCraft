@@ -368,8 +368,7 @@ async function visitorPage(
 	const withinSearchLimit = async () => {
 		if (counted) return true;
 		counted = true;
-		const address = clientAddress(request, services.config) ?? "unknown";
-		return services.rateLimits.count(`search:${host.site.id}:${address}`, SEARCH_RATE_LIMIT);
+		return withinSearchRate(services, request, host);
 	};
 	// The same path is another page on each of the Site's addresses (its language, its links), each
 	// page of a paginated Loop another page, and each choice of its Filters another.
@@ -451,10 +450,7 @@ async function beforePage(
 	const search = searchQueryIn(url.searchParams);
 	const searchPage = search !== "" && (await services.sitePages.isSearchPage(host, pathname));
 	if (searchPage) {
-		const address = clientAddress(request, services.config) ?? "unknown";
-		if (!(await services.rateLimits.count(`search:${host.site.id}:${address}`, SEARCH_RATE_LIMIT))) {
-			return { response: tooManySearches(host) };
-		}
+		if (!(await withinSearchRate(services, request, host))) return { response: tooManySearches(host) };
 	}
 	return { segments, search, searchPage };
 }
@@ -679,10 +675,22 @@ function tooMany(host: SiteHost, limit: { windowMs: number }): Response {
  */
 const UNKEPT_PAGE_LIMIT = { limit: 60, windowMs: 60_000 } as const;
 
+/** Counts a search against the client address's limit on the Site: whether it is within it. */
+function withinSearchRate(services: InstallServices, request: Request, host: SiteHost): Promise<boolean> {
+	return services.rateLimits.count(
+		`search:${host.site.id}`,
+		SEARCH_RATE_LIMIT,
+		clientAddress(request, services.config),
+	);
+}
+
 /** Counts a page nobody keeps against the client address's limit: whether it is within it. */
 function withinUnkeptLimit(services: InstallServices, request: Request, host: SiteHost): Promise<boolean> {
-	const address = clientAddress(request, services.config) ?? "unknown";
-	return services.rateLimits.count(`unkept:${host.site.id}:${address}`, UNKEPT_PAGE_LIMIT);
+	return services.rateLimits.count(
+		`unkept:${host.site.id}`,
+		UNKEPT_PAGE_LIMIT,
+		clientAddress(request, services.config),
+	);
 }
 
 /**

@@ -52,11 +52,11 @@ export function isShareHost(services: InstallServices, hostname: string): boolea
 export async function shareAnswer(services: InstallServices, request: Request): Promise<Response> {
 	const url = new URL(request.url);
 	const token = /^\/([A-Za-z0-9_-]{43})$/.exec(url.pathname)?.[1];
-	const address = clientAddress(request, services.config) ?? "unknown";
+	const address = clientAddress(request, services.config);
 	if (request.method !== "GET" && request.method !== "HEAD" && request.method !== "POST") {
 		return plainText(405, "Method Not Allowed", { allow: "GET, HEAD, POST", ...PRIVATE });
 	}
-	if (!(await services.rateLimits.count(`share:${address}`, SHARE_PAGE_RATE_LIMIT))) {
+	if (!(await services.rateLimits.count("share", SHARE_PAGE_RATE_LIMIT, address))) {
 		return plainText(429, "Too many requests. Wait a minute, then try again.", {
 			...PRIVATE,
 			"retry-after": String(SHARE_PAGE_RATE_LIMIT.windowMs / 1000),
@@ -107,7 +107,7 @@ async function passwordPost(
 	services: InstallServices,
 	request: Request,
 	link: OpenShareLink,
-	address: string,
+	address: string | null,
 	cookieName: string,
 ): Promise<Response> {
 	if (!fromItself(request)) return plainText(403, "Forbidden", PRIVATE);
@@ -116,7 +116,7 @@ async function passwordPost(
 	if (type !== "application/x-www-form-urlencoded") return plainText(415, "Unsupported Media Type", PRIVATE);
 	const body = await readLimitedBody(request, PASSWORD_POST_MAX_BYTES);
 	if (body === null) return plainText(413, "Payload Too Large", PRIVATE);
-	const perAddress = await services.rateLimits.count(`share-password:${link.id}:${address}`, SHARE_PASSWORD_RATE_LIMIT);
+	const perAddress = await services.rateLimits.count(`share-password:${link.id}`, SHARE_PASSWORD_RATE_LIMIT, address);
 	const perLink =
 		perAddress && (await services.rateLimits.count(`share-password:${link.id}`, SHARE_PASSWORD_LINK_LIMIT));
 	if (!perAddress || !perLink) {
