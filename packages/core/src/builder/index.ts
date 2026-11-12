@@ -32,6 +32,7 @@ import {
 import { eq } from "drizzle-orm";
 import { type CodeCss, type CssTarget, classesCss, saveCss } from "../code-mode/css.ts";
 import { valuesOf } from "../code-mode/sources.ts";
+import type { InstallConfig } from "../config.ts";
 import { type Component, type ComponentSources, getComponent, listComponents } from "../content/components.ts";
 import { ComponentInvalidError } from "../content/errors.ts";
 import type { FieldDefinition, FieldInput } from "../content/field-types.ts";
@@ -51,6 +52,7 @@ import type { Template } from "../content/templates.ts";
 import { type ClassCatalogue, classCatalogue } from "../design-system/classes.ts";
 import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { draftStyles, draftTrees } from "../design-system/stylesheet.ts";
+import { siteAddresses } from "../domains/addresses.ts";
 import { listFilters } from "../filters/filters.ts";
 import { siteFormList } from "../forms/forms.ts";
 import type { SitePages } from "../site-pages/index.ts";
@@ -168,11 +170,25 @@ export type Builder = {
 	): Promise<{ text: string; version: string }>;
 };
 
-export function createBuilder(options: { sources: ComponentSources; pages: Pick<SitePages, "builderPage"> }): Builder {
+export function createBuilder(options: {
+	config: InstallConfig;
+	sources: ComponentSources;
+	pages: Pick<SitePages, "builderPage">;
+}): Builder {
 	const { sources } = options;
 	return {
-		destinations: (scope, target, entryId) =>
-			builderDestinations(scope, sources, (path) => options.pages.builderPage(scope, path), target, entryId),
+		async destinations(scope, target, entryId) {
+			const found = await builderDestinations(
+				scope,
+				sources,
+				(path) => options.pages.builderPage(scope, path),
+				target,
+				entryId,
+			);
+			return found.pages.length && !(await siteAddresses(scope.db, options.config, scope.site))
+				? { ...found, pages: [], reason: "noAddress" }
+				: found;
+		},
 		css: (scope, classIds) => classesCss(scope, classIds),
 		saveCss: (scope, input) => saveCss(scope, input),
 		async open(scope, target) {

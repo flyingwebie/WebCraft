@@ -11,6 +11,100 @@ afterEach(async () => {
 });
 
 for (const theme of THEMES)
+	test(`Builder Component script conflicts retain local edits and offer both recovery choices (${theme})`, async () => {
+		const local = install.install;
+		const { api } = await local.superadmin();
+		const workspace = await local.createWorkspace();
+		const { id: siteId } = await local.createSite(workspace.id);
+		const staff = (await local.createStaff({ workspaces: [workspace.id] })).account;
+		const { component } = await api.components.create({ siteId, name: "Notice" });
+		await api.components.saveScriptDraft({ siteId, componentId: component.id, code: "// Original" });
+		const page = await install.newPage(theme);
+		page.setDefaultTimeout(10000);
+		await install.signIn(page, staff);
+		await page.goto(install.adminUrl(`/builder/${siteId}/component/${component.id}`));
+		const region = page.getByRole("region", { name: "JS", exact: true });
+		const js = region.getByRole("textbox", { name: "JS: Notice · Component script" });
+		await js.and(page.locator(":not([readonly])")).waitFor();
+		await js.fill("// Mine before reload");
+		await region.getByRole("combobox", { name: "Consent category" }).selectOption("analytics");
+		await api.components.saveScriptDraft({
+			siteId,
+			componentId: component.id,
+			code: "// Peer",
+			consentCategory: "marketing",
+		});
+		await region.getByRole("button", { name: "Save", exact: true }).click();
+		await region.getByRole("button", { name: "Reload theirs", exact: true }).waitFor();
+		expect(await js.inputValue()).toBe("// Mine before reload");
+		expect(await region.getByRole("combobox", { name: "Consent category" }).inputValue()).toBe("analytics");
+		await region.getByRole("button", { name: "Reload theirs", exact: true }).click();
+		await region.getByRole("button", { name: "Reload theirs", exact: true }).waitFor({ state: "hidden" });
+		expect(await js.inputValue()).toBe("// Peer");
+		expect(await region.getByRole("combobox", { name: "Consent category" }).inputValue()).toBe("marketing");
+		await js.fill("// Mine after reload");
+		await region.getByRole("combobox", { name: "Consent category" }).selectOption("media");
+		await api.components.saveScriptDraft({ siteId, componentId: component.id, code: "// Peer again" });
+		await region.getByRole("button", { name: "Save", exact: true }).click();
+		await region.getByRole("button", { name: "Overwrite with mine", exact: true }).click();
+		await region.getByRole("button", { name: "Overwrite with mine", exact: true }).waitFor({ state: "hidden" });
+		expect((await api.components.getScript({ siteId, componentId: component.id })).script?.draft).toMatchObject({
+			code: "// Mine after reload",
+			consentCategory: "media",
+		});
+		await page.getByRole("link", { name: "Components", exact: true }).click();
+		await page.waitForURL((url) => url.pathname === `/sites/${siteId}/components`);
+	});
+
+for (const canvas of ["preview", "live"] as const)
+	test(`CSS edited after a saved peer update can leave the ${canvas} canvas`, async () => {
+		const local = install.install;
+		const { api } = await local.superadmin();
+		const workspace = await local.createWorkspace();
+		const { id: siteId } = await local.createSite(workspace.id);
+		const staff = (await local.createStaff({ workspaces: [workspace.id] })).account;
+		const { postType } = await api.postTypes.create({ siteId, name: "Stories", urlPattern: "/stories/{slug}" });
+		await api.entries.create({ siteId, postTypeId: postType.id, title: "First" });
+		const made = await api.designSystem.createClass({ siteId, name: "note", styles: "color: rgb(1, 2, 3);" });
+		await api.templates.saveEntryTemplateMarkup({
+			siteId,
+			postTypeId: postType.id,
+			markup: '<p data-wc-id="note" class="note">Hello</p>',
+		});
+		const page = await install.newPage(canvas === "preview" ? "light" : "dark");
+		page.setDefaultTimeout(10000);
+		await install.signIn(page, staff);
+		const builderPath = `/builder/${siteId}/entry-template/${postType.id}`;
+		await page.goto(install.adminUrl(builderPath));
+		if (canvas === "live") {
+			await page.getByRole("button", { name: "View on a page", exact: true }).click();
+			await page.waitForURL((url) => url.pathname === "/stories/first");
+		}
+		await page.getByRole("tab", { name: ".note", exact: true }).click();
+		const region = page.getByRole("region", { name: "CSS", exact: true });
+		const css = region.getByRole("textbox", { name: "CSS: .note", exact: true });
+		await css.fill("color: rgb(4, 5, 6);");
+		await region.getByRole("button", { name: "Save", exact: true }).click();
+		await region.getByRole("status").filter({ hasText: "Saved" }).waitFor();
+		await api.designSystem.updateClass({ siteId, classId: made.class.id, styles: "color: rgb(7, 8, 9);" });
+		for (let tries = 0; tries < 40 && !(await css.inputValue()).includes("rgb(7, 8, 9)"); tries++)
+			await page.waitForTimeout(100);
+		expect(await css.inputValue()).toBe("color: rgb(7, 8, 9);");
+		await css.fill("color: rgb(10, 11, 12);");
+		await page
+			.getByRole("button", {
+				name: canvas === "preview" ? "View on a page" : "Open in builder",
+				exact: true,
+			})
+			.click();
+		await page.waitForURL((url) => url.pathname === (canvas === "preview" ? "/stories/first" : builderPath));
+		const saved = (await api.designSystem.get({ siteId })).designSystem.draft.classes.find(
+			(each) => each.id === made.class.id,
+		);
+		expect(saved?.styles).toBe("color: rgb(10, 11, 12);");
+	});
+
+for (const theme of THEMES)
 	test(`docked HTML, Entry picker and same-tab round trip preserve pending edits and selection (${theme})`, async () => {
 		const local = install.install;
 		const { api } = await local.superadmin();
@@ -387,11 +481,11 @@ test("CSS typed during the final Builder flush keeps the unfinished input on the
 	const view = page.getByRole("button", { name: "View on a page", exact: true });
 	await view.and(page.locator(":enabled")).waitFor();
 	await page.waitForLoadState("networkidle");
+	const css = page.getByRole("textbox", { name: "CSS: Site CSS", exact: true });
+	await css.fill("p { color: rgb(1, 2, 3); }");
 	const captured = Promise.withResolvers<void>();
 	const release = Promise.withResolvers<void>();
-	let reads = 0;
-	await page.route("**/api/rpc/builder/open", async (route) => {
-		if (++reads !== 2) return route.continue();
+	await page.route("**/api/rpc/builder/saveCss", async (route) => {
 		const response = await route.fetch();
 		captured.resolve();
 		await release.promise;
@@ -400,7 +494,6 @@ test("CSS typed during the final Builder flush keeps the unfinished input on the
 	try {
 		await view.click();
 		await captured.promise;
-		const css = page.getByRole("textbox", { name: "CSS: Site CSS", exact: true });
 		await css.fill("p { color:");
 		release.resolve();
 		await Promise.race([
@@ -451,15 +544,14 @@ for (const canvas of ["preview", "live"] as const)
 		await action.and(page.locator(":enabled")).waitFor();
 		await page.getByRole("tab", { name: ".note", exact: true }).click();
 		await page.waitForLoadState("networkidle");
+		await page.getByRole("textbox", { name: "CSS: .note", exact: true }).fill("color: rgb(10, 11, 12);");
 		const before = new URL(page.url()).pathname;
 		const after = canvas === "preview" ? "/stories/first" : builderPath;
 		const captured = Promise.withResolvers<void>();
 		const release = Promise.withResolvers<void>();
-		let reads = 0;
 		await page.route(
-			canvas === "preview" ? "**/api/rpc/builder/open" : "**/_webcraft/edit/api/code/editor",
+			canvas === "preview" ? "**/api/rpc/builder/saveCss" : "**/_webcraft/edit/api/code/saveCss",
 			async (route) => {
-				if (canvas === "preview" && ++reads !== 2) return route.continue();
 				const response = await route.fetch();
 				captured.resolve();
 				await release.promise;

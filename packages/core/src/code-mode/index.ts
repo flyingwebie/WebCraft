@@ -10,6 +10,7 @@
 import type { MarkupLocations, MarkupNotice, QualityCheck } from "@webcraft/renderer";
 
 import { type BuilderDraft, type BuilderOpened, type BuilderTarget, createBuilder } from "../builder/index.ts";
+import type { InstallConfig } from "../config.ts";
 import type { ComponentSources } from "../content/components.ts";
 import { getEntry } from "../content/entries.ts";
 import { loopCatalogue } from "../content/loops.ts";
@@ -163,6 +164,7 @@ export type CodeMode = {
 };
 
 export function createCodeMode(options: {
+	config: InstallConfig;
 	data: DataLayer;
 	/** Where Modules' Components come from. */
 	sources: ComponentSources;
@@ -174,7 +176,7 @@ export function createCodeMode(options: {
 		sources: options.sources,
 		pageContent: (host, path) => pages.pageContent(host, path, "draft"),
 	};
-	const builder = createBuilder({ sources: options.sources, pages });
+	const builder = createBuilder({ config: options.config, sources: options.sources, pages });
 	const editorSource = async (scope: SiteScope, host: SiteHost, input: { path: string; ref: string | null }) => {
 		const opened = await (input.ref === null
 			? pages.pageContent(host, input.path, "draft").then((content) =>

@@ -11,6 +11,7 @@ import {
 	type FieldInput,
 	type InstallServices,
 	isAdminLanguage,
+	isCodeSelection,
 	LIBRARIES_PER_SITE,
 	MEDIA_TEXT_MAX_LENGTH,
 	MediaTooLargeError,
@@ -880,14 +881,7 @@ async function enter(services: InstallServices, request: Request, host: SiteHost
 	}
 	const selection = query.get("selection");
 	const selected =
-		code &&
-		selection &&
-		selection.length <= 1000 &&
-		/^(site|content)(?:\/[A-Za-z0-9_-]{1,64}){0,10}(?:#(?:[A-Za-z0-9_-]{1,64}|@\d+(?:\.\d+)*)(?:\/\d+)?)?$/.test(
-			selection,
-		)
-			? `#wc-selection=${encodeURIComponent(selection)}`
-			: "";
+		code && selection && isCodeSelection(selection) ? `#wc-selection=${encodeURIComponent(selection)}` : "";
 	const hostname = new URL(request.url).hostname;
 	const maxAge = Math.max(0, Math.floor((entered.expiresAt.getTime() - services.clock.now().getTime()) / 1000));
 	const answer = new Response(null, {

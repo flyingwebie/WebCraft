@@ -75,7 +75,13 @@ export {
 export { EDIT_MEDIA_PAGE, type EditMediaItem, type EditMediaQuery } from "./media.ts";
 export type { PageChange, PageState } from "./page.ts";
 export type { PageDetails, PageDetailsChange } from "./page-details.ts";
-export { CODE_MODE_SCRIPT_PATH, CODE_MODE_STYLESHEET_PATH, EDIT_MODE_PATH, isEditPath } from "./paths.ts";
+export {
+	CODE_MODE_SCRIPT_PATH,
+	CODE_MODE_STYLESHEET_PATH,
+	EDIT_MODE_PATH,
+	isCodeSelection,
+	isEditPath,
+} from "./paths.ts";
 export type { EditItem, ImageChange, RegionChange, SavedImage, SavedRegion } from "./regions.ts";
 
 /** How long an "Edit on site" link works after it is made. */

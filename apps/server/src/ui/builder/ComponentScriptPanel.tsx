@@ -24,10 +24,12 @@ export function ComponentScriptPanel({
 	const [version, setVersion] = useState<string | null>(null);
 	const [saved, setSaved] = useState("");
 	const [message, setMessage] = useState("");
+	const [conflict, setConflict] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
 	const saving = useRef(false);
 	const settingsHost = useRef<HTMLDivElement>(null);
 	const latest = useRef(draft);
+	const reloadScript = useRef<() => Promise<boolean>>(async () => false);
 	latest.current = draft;
 	const title = t("editBar.codeMode.componentScript", { name });
 	useEffect(() => {
@@ -43,29 +45,32 @@ export function ComponentScriptPanel({
 			},
 		});
 		settingsHost.current?.replaceChildren(controls.root);
-		void getApi()
-			.then(async (api) => {
-				const [{ script }, { libraries }] = await Promise.all([
-					api.components.getScript({ siteId, componentId }),
-					api.libraries.list({ siteId }),
-				]);
-				if (!current) return;
-				const next = script?.draft ?? { code: "", consentCategory: "necessary" as const, libraryIds: [] };
-				latest.current = next;
-				setDraft(next);
-				setVersion(script?.version ?? null);
-				setSaved(JSON.stringify(next));
-				controls.set({ ...next, libraries });
-			})
-			.catch((error) => {
-				if (current) setMessage(t(errorMessage(error)));
-			});
+		const load = async () => {
+			const before = latest.current;
+			const api = await getApi();
+			const [{ script }, { libraries }] = await Promise.all([
+				api.components.getScript({ siteId, componentId }),
+				api.libraries.list({ siteId }),
+			]);
+			if (!current || latest.current !== before) return false;
+			const next = script?.draft ?? { code: "", consentCategory: "necessary" as const, libraryIds: [] };
+			latest.current = next;
+			setDraft(next);
+			setVersion(script?.version ?? null);
+			setSaved(JSON.stringify(next));
+			controls.set({ ...next, libraries });
+			return true;
+		};
+		reloadScript.current = load;
+		void load().catch((error) => {
+			if (current) setMessage(t(errorMessage(error)));
+		});
 		return () => {
 			current = false;
 			controls.root.remove();
 		};
 	}, [siteId, componentId, t]);
-	const save = async (): Promise<boolean> => {
+	const save = async (over?: string): Promise<boolean> => {
 		const next = latest.current;
 		if (!next || saving.current) return false;
 		if (JSON.stringify(next) === saved) return true;
@@ -76,15 +81,36 @@ export function ComponentScriptPanel({
 				siteId,
 				componentId,
 				...next,
-				basedOn: version,
+				basedOn: over ?? version,
 			});
 			setVersion(script.version);
 			setSaved(JSON.stringify(next));
+			setConflict(null);
 			setMessage(t("editBar.codeMode.savedName", { name: title }));
 			return latest.current === next;
 		} catch (error) {
-			setMessage(t(errorMessage(error)));
+			const refused = error as { code?: string; data?: { version?: string } };
+			if (refused.code === "CHANGED_MEANWHILE" && refused.data?.version) {
+				setConflict(refused.data.version);
+				setMessage("");
+			} else setMessage(t(errorMessage(error)));
 			return false;
+		} finally {
+			saving.current = false;
+			setBusy(false);
+		}
+	};
+	const reload = async () => {
+		if (saving.current) return;
+		saving.current = true;
+		setBusy(true);
+		try {
+			if (await reloadScript.current()) {
+				setConflict(null);
+				setMessage("");
+			}
+		} catch (error) {
+			setMessage(t(errorMessage(error)));
 		} finally {
 			saving.current = false;
 			setBusy(false);
@@ -112,6 +138,19 @@ export function ComponentScriptPanel({
 				</Button>
 			</div>
 			<div ref={settingsHost} />
+			{conflict !== null ? (
+				<div role="alert" className="grid gap-2 text-sm">
+					<p>{t("editBar.codeMode.conflictText", { name: title })}</p>
+					<div className="flex flex-wrap gap-2">
+						<Button size="sm" variant="outline" disabled={busy} onClick={() => void reload()}>
+							{t("editBar.codeMode.reload")}
+						</Button>
+						<Button size="sm" variant="destructive" disabled={busy} onClick={() => void save(conflict)}>
+							{t("editBar.codeMode.overwrite")}
+						</Button>
+					</div>
+				</div>
+			) : null}
 			<Textarea
 				aria-label={t("editBar.codeMode.jsOf", { name: title })}
 				value={draft?.code ?? ""}

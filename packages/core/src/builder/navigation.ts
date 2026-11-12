@@ -128,14 +128,19 @@ export async function builderDestinations(
 		if (html === null) continue;
 		const refs =
 			target.kind === "component"
-				? page.refs.filter(
-						(ref) =>
-							html.includes(`<!--wc-code-empty ${encodeURIComponent(ref).replace(/-/g, "%2D")}-->`) ||
+				? page.refs.filter((ref) => {
+						const encoded = encodeURIComponent(ref).replace(/-/g, "%2D");
+						return (
+							html.includes(`<!--wc-code-empty ${encoded}-->`) ||
+							html.includes(`<!--wc-code-empty ${encoded}%2F`) ||
 							html.includes(`data-wc-code="${ref}#`) ||
 							html.includes(`data-wc-code="${ref}/`) ||
-							html.includes(`<!--wc-code-start ${encodeURIComponent(ref).replace(/-/g, "%2D")}%23`) ||
-							html.includes(`<!--wc-code-start ${ref}#`),
-					)
+							html.includes(`<!--wc-code-start ${encoded}%23`) ||
+							html.includes(`<!--wc-code-start ${encoded}%2F`) ||
+							html.includes(`<!--wc-code-start ${ref}#`) ||
+							html.includes(`<!--wc-code-start ${ref}/`)
+						);
+					})
 				: page.refs;
 		if (refs.length) reachable.push({ ...page, refs });
 	}

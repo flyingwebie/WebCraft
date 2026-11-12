@@ -59,9 +59,9 @@ test("destinations follow the picked Draft Entry, nested repeated Placements and
 	if (!destination) throw new Error("Destination missing");
 	const coding = await openCodeMode(install, staff, siteId, destination.path);
 	await expectSafePage(await coding.page(destination.path), "editMode");
-	const opened = await answer<{ target: unknown }>(
-		coding.edit("code/editor", { path: destination.path, ref: destination.refs[1] }),
-	);
+	const response = await coding.edit("code/editor", { path: destination.path, ref: destination.refs[1] });
+	expectSiteHeaders(response);
+	const opened = await answer<{ target: unknown }>(response);
 	expect(opened.target).toEqual({ kind: "component", componentId: component.id });
 	await api.templates.saveArchiveTemplateMarkup({ siteId, postTypeId: postType.id, markup: "<h1>Archive</h1>" });
 	expect(
@@ -128,3 +128,73 @@ test("an empty Component placed on a real page remains an editing destination", 
 		target: { kind: "component", componentId: component.id },
 	});
 });
+
+test("a Builder destination needs a Site address as well as a rendered page", async () => {
+	const bare = await createTestInstall({ sitesDomain: null });
+	try {
+		const workspace = await bare.createWorkspace();
+		const site = await bare.createSite(workspace.id);
+		const { api } = await bare.superadmin();
+		const pageType = (await api.postTypes.list({ siteId: site.id })).postTypes.find((type) => type.builtIn === "page");
+		if (!pageType) throw new Error("Page Post Type missing");
+		const { entry } = await api.entries.create({ siteId: site.id, postTypeId: pageType.id, title: "Welcome" });
+		await api.pages.setHomePage({ siteId: site.id, pageId: entry.id });
+		await expect(api.editMode.open({ siteId: site.id, path: "/", code: true })).rejects.toMatchObject({
+			code: "EDIT_MODE_UNAVAILABLE",
+		});
+		expect(await api.builder.destinations({ siteId: site.id, target: { kind: "siteTemplate" } })).toMatchObject({
+			pages: [],
+			reason: "noAddress",
+		});
+		await api.domains.add({ siteId: site.id, name: "builder-address.example" });
+		expect(await api.builder.destinations({ siteId: site.id, target: { kind: "siteTemplate" } })).toMatchObject({
+			pages: [],
+			reason: "noAddress",
+		});
+		bare.connectDomain("builder-address.example");
+		await bare.clock.advance(60_000);
+		expect((await bare.drainJobs()).failed).toEqual([]);
+		expect(await api.builder.destinations({ siteId: site.id, target: { kind: "siteTemplate" } })).toMatchObject({
+			pages: [{ path: "/", refs: ["site"] }],
+			reason: null,
+		});
+		const opened = await api.editMode.open({ siteId: site.id, path: "/", code: true });
+		expect(new URL(opened.url).origin).toBe("https://builder-address.example");
+	} finally {
+		await bare.close();
+	}
+});
+
+for (const innerMarkup of ["", "Nested words"])
+	test(`a Component containing only ${innerMarkup ? "a text-only" : "an empty"} Component remains reachable`, async () => {
+		const siteId = (await install.createSite(workspaceId)).id;
+		const api = staff.api;
+		const { postType } = await api.postTypes.create({ siteId, name: "Stories", urlPattern: "/stories/{slug}" });
+		await api.entries.create({ siteId, postTypeId: postType.id, title: "First" });
+		const { component: inner } = await api.components.create({ siteId, name: "Inner" });
+		if (innerMarkup) await api.components.saveMarkup({ siteId, componentId: inner.id, markup: innerMarkup });
+		const { component: outer } = await api.components.create({ siteId, name: "Outer" });
+		await api.components.saveMarkup({ siteId, componentId: outer.id, markup: '<Inner data-wc-id="inner" />' });
+		await api.templates.saveEntryTemplateMarkup({
+			siteId,
+			postTypeId: postType.id,
+			markup: '<Outer data-wc-id="outer" />',
+		});
+		const coding = await openCodeMode(install, staff, siteId, "/stories/first");
+		await expectSafePage(await coding.page("/stories/first"), "editMode");
+		const response = await coding.edit("code/editor", { path: "/stories/first", ref: "content/outer" });
+		expectSiteHeaders(response);
+		expect(await answer<{ target: unknown }>(response)).toMatchObject({
+			target: { kind: "component", componentId: outer.id },
+		});
+		for (const [componentId, ref] of [
+			[inner.id, "content/outer/inner"],
+			[outer.id, "content/outer"],
+		] as const) {
+			const found = await api.builder.destinations({ siteId, target: { kind: "component", componentId } });
+			expect(found).toMatchObject({
+				pages: [{ path: "/stories/first", title: "First", refs: [ref] }],
+				reason: null,
+			});
+		}
+	});

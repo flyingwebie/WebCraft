@@ -20,3 +20,13 @@ export const CODE_MODE_SCRIPT_PATH = `${EDIT_MODE_PATH}js/`;
 export function isEditPath(path: string): boolean {
 	return path.length <= 2000 && /^\/(?![/\\])[^\s\\?#]*$/.test(path);
 }
+
+/** A Code-mode source/Placement chain and optional stored or derived selection carried between canvases. */
+export function isCodeSelection(selection: string): boolean {
+	return (
+		selection.length <= 1000 &&
+		/^(site|content)(?:\/[A-Za-z0-9_-]{1,64}){0,10}(?:#(?:[A-Za-z0-9_-]{1,64}|@\d+(?:\.\d+)*)(?:\/\d+)?)?$/.test(
+			selection,
+		)
+	);
+}

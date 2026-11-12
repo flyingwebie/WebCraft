@@ -135,6 +135,7 @@ export {
 	type EditSession,
 	type EnteredEditMode,
 	type ImageChange,
+	isCodeSelection,
 	isEditPath,
 	LoopItemRestoreRefusedError,
 	type PageChange,

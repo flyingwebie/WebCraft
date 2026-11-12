@@ -216,9 +216,8 @@ export function CssPanel({
 	const [known, setKnown] = useState<ReadonlyMap<string, CssClass>>(new Map());
 	const [picked, setPicked] = useState<{ element: string | null; tab: string } | null>(null);
 	const [view, setView] = useState<View>("all");
-	const [drafts, setDrafts] = useState<Readonly<Record<string, string>>>({});
-	/** The version each piece had when its unsaved text was started: a save names it, so it never overwrites a newer one unasked. */
-	const draftBases = useRef(new Map<string, string | null>());
+	/** Each pending piece keeps the version it was started from, until that text has been saved. */
+	const [drafts, setDrafts] = useState<Readonly<Record<string, { text: string; version: string | null }>>>({});
 	const [problems, setProblems] = useState<Problem[]>([]);
 	const [conflict, setConflict] = useState<{ key: string; version: string } | null>(null);
 	const [renaming, setRenaming] = useState<{ classId: string; name: string } | null>(null);
@@ -276,8 +275,8 @@ export function CssPanel({
 					: { kind: "class", classId: tab, part: "breakpoint", breakpointId: shownView };
 	const key = keyOf(target);
 	const saved = savedText(target, data, known);
-	const text = drafts[key] ?? saved ?? "";
-	const dirty = drafts[key] !== undefined && drafts[key] !== saved;
+	const text = drafts[key]?.text ?? saved ?? "";
+	const dirty = drafts[key] !== undefined && drafts[key]?.text !== saved;
 	const hasLayer = /@layer\b/i.test(text);
 
 	const read = useCallback(async () => {
@@ -352,9 +351,17 @@ export function CssPanel({
 	const change = (value: string) => {
 		editRevision.current++;
 		onEdit?.();
-		if (!draftBases.current.has(key))
-			draftBases.current.set(key, target.kind === "site" ? (data?.siteCss.version ?? null) : (chosen?.version ?? null));
-		setDrafts((before) => ({ ...before, [key]: value }));
+		setDrafts((before) => ({
+			...before,
+			[key]: {
+				text: value,
+				version: before[key]
+					? before[key].version
+					: target.kind === "site"
+						? (data?.siteCss.version ?? null)
+						: (chosen?.version ?? null),
+			},
+		}));
 		if (tab !== SITE) lastClass.current = tab;
 		setProblems(/@layer\b/i.test(value) ? [{ message: t("builder.css.noLayer") }] : []);
 	};
@@ -432,7 +439,7 @@ export function CssPanel({
 		const versions = new Map<string, { before: string | null; after: string }>();
 		setSaving(true);
 		try {
-			for (const [draftKey, value] of Object.entries(snapshot)) {
+			for (const [draftKey, pending] of Object.entries(snapshot)) {
 				const [classId = "", part = ""] = draftKey.split(":");
 				const which: CssTarget =
 					draftKey === SITE
@@ -440,19 +447,21 @@ export function CssPanel({
 						: part === "styles" || part === "css"
 							? { kind: "class", classId, part }
 							: { kind: "class", classId, part: "breakpoint", breakpointId: part };
-				if (value === savedText(which, data, known)) continue;
-				const base = draftBases.current.get(draftKey) ?? null;
+				if (pending.text === savedText(which, data, known)) continue;
+				const base = pending.version;
 				const own = versions.get(classId);
-				const saved = await port.save(which, value, own?.before === base ? own.after : base);
+				const saved = await port.save(which, pending.text, own?.before === base ? own.after : base);
 				versions.set(classId, { before: base, after: saved.version });
-				draftBases.current.set(draftKey, saved.version);
-				setDrafts((before) => {
-					if (before[draftKey] !== value) return before;
-					const { [draftKey]: _, ...rest } = before;
-					return rest;
-				});
+				setDrafts((before) =>
+					before[draftKey] ? { ...before, [draftKey]: { ...before[draftKey], version: saved.version } } : before,
+				);
 			}
 			await read();
+			setDrafts((before) =>
+				Object.fromEntries(
+					Object.entries(before).filter(([draftKey, pending]) => pending.text !== snapshot[draftKey]?.text),
+				),
+			);
 			await refreshCatalogue();
 			setProblems([]);
 			return editRevision.current === revision;
@@ -474,14 +483,15 @@ export function CssPanel({
 
 	const save = async (over?: string) => {
 		if (saveActive.current || saved === null) return;
+		if (!dirty && over === undefined) return;
 		if (hasLayer) {
 			setProblems([{ message: t("builder.css.noLayer") }]);
 			return;
 		}
 		const version =
 			over ??
-			(draftBases.current.has(key)
-				? (draftBases.current.get(key) ?? null)
+			(drafts[key]
+				? drafts[key].version
 				: target.kind === "site"
 					? (data?.siteCss.version ?? null)
 					: (chosen?.version ?? null));
@@ -490,15 +500,15 @@ export function CssPanel({
 		setSaving(true);
 		try {
 			const stored = await port.save(target, text, version);
-			draftBases.current.set(key, stored.version);
+			setDrafts((before) => (before[key] ? { ...before, [key]: { ...before[key], version: stored.version } } : before));
+			await read();
 			setDrafts((before) => {
-				if (before[key] !== text) return before;
+				if (before[key]?.text !== text) return before;
 				const { [key]: _, ...rest } = before;
 				return rest;
 			});
 			setProblems([]);
 			setConflict(null);
-			await read();
 			announce(t("builder.css.saved", { name: label }));
 			await refreshCatalogue();
 			if (wasGenerated && chosen) setRenaming({ classId: chosen.id, name: chosen.name });
@@ -516,7 +526,6 @@ export function CssPanel({
 	};
 
 	const reloadTheirs = async () => {
-		draftBases.current.delete(key);
 		setDrafts((before) => {
 			const { [key]: _, ...rest } = before;
 			return rest;

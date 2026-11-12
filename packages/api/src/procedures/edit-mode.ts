@@ -1,3 +1,4 @@
+import { isCodeSelection } from "@webcraft/core";
 import { z } from "zod";
 
 import { inAdminSession, notWhileImpersonating } from "../context.ts";
@@ -21,13 +22,7 @@ export const editMode = {
 				path: z.string().max(2000).default("/"),
 				safeMode: z.boolean().default(false),
 				code: z.boolean().default(false),
-				selection: z
-					.string()
-					.max(1000)
-					.regex(
-						/^(site|content)(?:\/[A-Za-z0-9_-]{1,64}){0,10}(?:#(?:[A-Za-z0-9_-]{1,64}|@\d+(?:\.\d+)*)(?:\/\d+)?)?$/,
-					)
-					.optional(),
+				selection: z.string().refine(isCodeSelection).optional(),
 			}),
 		)
 		.handler(async ({ context, input }) => {
