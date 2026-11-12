@@ -12,6 +12,11 @@ export const people = pgTable(
 		id: uuid("id").primaryKey().defaultRandom(),
 		name: text("name").notNull(),
 		email: text("email").notNull().unique(),
+		/**
+		 * The sign-in library's own column, which its model requires: always false, never read.
+		 * WebCraft doesn't verify addresses by a flag; an address is proved by the invite link or reset
+		 * link sent to it.
+		 */
 		emailVerified: boolean("email_verified").notNull().default(false),
 		image: text("image"),
 		/** The person's Admin language, such as `it`. Null follows the Install's default Admin language. */
