@@ -23,14 +23,20 @@ jobs:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile
       - run: bun run lint
-      - run: bun run typecheck
+      # `bun run typecheck`, one package at a time: every package's tsc at once runs the runner out of memory.
+      - run: bun x turbo run typecheck --concurrency=1 && bun x tsc -p tsconfig.json
       - run: bun run build
       # Blocks dependencies whose licence isn't compatible with AGPL-3.0-or-later (ADR 0012).
       - run: bun run check:licences
 
   test:
-    name: Tests
+    # The suite in four parts, each on its own runner: all of it in one process runs the runner out of memory.
+    name: Tests (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     services:
       postgres:
         image: postgres:18
@@ -58,11 +64,16 @@ jobs:
       # libheif's encoder, so the Media tests can make a HEIC photo the way phones take them.
       - run: sudo apt-get update && sudo apt-get install --yes libheif-examples libheif-plugin-x265
       - run: bun install --frozen-lockfile
-      - run: bun run test
+      - run: bun test --timeout 30000 --shard=${{ matrix.shard }}/4
 
   browser:
-    name: Accessibility (browser)
+    # In four parts, each on its own runner: every browser file in one process runs the runner out of memory.
+    name: Accessibility (browser) (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     services:
       postgres:
         image: postgres:18
@@ -89,7 +100,7 @@ jobs:
       - run: bunx playwright install --with-deps chromium
         working-directory: tests
       # axe-core (WCAG 2.2 A and AA) and keyboard checks on every admin screen, light and dark.
-      - run: bun run test:browser
+      - run: bun test --timeout 120000 --shard=${{ matrix.shard }}/4 ./tests/browser/*.browser.ts
 
   deploy:
     name: Deploy files (Compose smoke test)
