@@ -470,6 +470,24 @@ for (const theme of THEMES) {
 		expect(stored.indexOf('data-wc-id="greeting"')).toBeLessThan(stored.indexOf('data-wc-id="second"'));
 		expect(await first.getAttribute("aria-selected")).toBe("true");
 		expect(await first.getAttribute("data-grabbed")).not.toBe("true");
+		expect(await page.getByRole("button", { name: "Undo", exact: true }).isDisabled()).toBe(true);
+		await first.press("Space");
+		await first.press("ArrowDown");
+		await first.press("ControlOrMeta+z");
+		await page.getByRole("status").filter({ hasText: "Undid Move First" }).first().waitFor();
+		const interrupted = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+		expect(interrupted.indexOf('data-wc-id="greeting"')).toBeLessThan(interrupted.indexOf('data-wc-id="second"'));
+		expect(await page.getByRole("button", { name: "Undo", exact: true }).isDisabled()).toBe(true);
+		await first.press("Space");
+		await first.press("ArrowDown");
+		await first.press("ArrowUp");
+		await first.press("ArrowDown");
+		await first.press("Space");
+		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		await page.getByRole("status").filter({ hasText: "Undid Move First" }).first().waitFor();
+		const undone = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+		expect(undone.indexOf('data-wc-id="greeting"')).toBeLessThan(undone.indexOf('data-wc-id="second"'));
+		expect(await page.getByRole("button", { name: "Undo", exact: true }).isDisabled()).toBe(true);
 	});
 
 	for (const canvas of ["preview", "live"] as const) {
@@ -509,6 +527,11 @@ for (const theme of THEMES) {
 			expect(stored).toContain('data-wc-label="Peer header"');
 			expect(stored.indexOf('data-wc-id="second"')).toBeLessThan(stored.indexOf('data-wc-id="greeting"'));
 			expect(await first.getAttribute("data-grabbed")).not.toBe("true");
+			await page.getByRole("button", { name: "Undo", exact: true }).click();
+			await page.getByRole("status").filter({ hasText: "Undid Move First" }).first().waitFor();
+			const undone = (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+			expect(undone).toContain('data-wc-label="Peer header"');
+			expect(undone.indexOf('data-wc-id="greeting"')).toBeLessThan(undone.indexOf('data-wc-id="second"'));
 		});
 	}
 

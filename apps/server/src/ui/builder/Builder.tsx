@@ -145,7 +145,18 @@ export function Builder({
 		if (!selection && doc.tree.nodes.length) setSelection({ kind: "node", path: [0] });
 	}, [selection, doc.tree]);
 	const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
-	const [grab, setGrab] = useState<{ doc: BuilderDoc; selection: Selection; past?: never } | null>(null);
+	const [grab, setGrab] = useState<{
+		doc: BuilderDoc;
+		selection: Selection;
+		before?: Json;
+		complete?(): void;
+	} | null>(null);
+	const finishGrab = useCallback(() => {
+		const complete = grab?.complete;
+		if (grab) grab.complete = undefined;
+		complete?.();
+		setGrab(null);
+	}, [grab]);
 	const [markup, setMarkup] = useState("");
 	const [markupBase, setMarkupBase] = useState("");
 	const [markupProblems, setMarkupProblems] = useState<MarkupProblem[]>([]);
@@ -244,7 +255,7 @@ export function Builder({
 				props: component ? (component.props as unknown as FieldInput[]) : null,
 			};
 			if (JSON.stringify(next) === JSON.stringify(docRef.current)) return;
-			setGrab(null);
+			finishGrab();
 			docRef.current = next;
 			setDoc(next);
 			if (markupVersion.current === appliedMarkupVersion.current) void refreshMarkup(next);
@@ -287,15 +298,15 @@ export function Builder({
 						setDoc(next);
 						return { ok: true, before, after };
 					}
-					if (!(await shared.flush())) return { ok: false, code: "HISTORY_UNAVAILABLE" };
 					return shared.reverse(from, to);
 				},
 			}),
-		[history, historyKey, shared.flush, shared.reverse, documentId],
+		[history, historyKey, shared.reverse, documentId],
 	);
 	useEffect(
 		() =>
 			history.listen({
+				finish: finishGrab,
 				announce,
 				reveal: (location) => {
 					if (location.draft !== historyKey && !(location.panel === "js" && location.title === title)) return false;
@@ -318,7 +329,7 @@ export function Builder({
 					return true;
 				},
 			}),
-		[history, historyKey, announce, title, fit.layout],
+		[history, historyKey, announce, title, fit.layout, finishGrab],
 	);
 	useEffect(
 		() =>
@@ -492,19 +503,12 @@ export function Builder({
 				announce(problem.message);
 				return problem.message;
 			}
-			if (grab && !finish) {
-				setDoc(next);
-				docRef.current = next;
-				setSelection(select);
-				announce(message);
-				return;
-			}
 			const before = documentId ? shared.draft() : (docRef.current.tree as unknown as Json);
 			if (!writeShared(next)) {
 				announce(t(`coEditing.status.${shared.status}`));
 				return t(`coEditing.status.${shared.status}`);
 			}
-			const step = history.record({
+			const change = {
 				step: compoundStep,
 				resource: historyKey,
 				before,
@@ -523,8 +527,19 @@ export function Builder({
 									? selectionKey(docRef.current.tree, selection)
 									: null,
 				},
-				group: grab ? "grab" : undefined,
-			});
+			};
+			let step: number | undefined;
+			if (grab && !finish) {
+				// Movement remains live to peers. Only its completed gesture enters history.
+				grab.before ??= before;
+				const initial = grab.before;
+				grab.complete = () => {
+					history.record({ ...change, before: initial });
+				};
+			} else {
+				step = history.record({ ...change, before: grab?.before ?? before });
+				if (grab) grab.complete = undefined;
+			}
 			if (!sameValue(docRef.current.styles, next.styles)) {
 				const change = { resource: `styles:${historyKey}`, before: docRef.current.styles, after: next.styles };
 				if (step) {
@@ -602,6 +617,9 @@ export function Builder({
 			setGrab(null);
 			announce(t("builder.moves.dropped", { name, where: whereIs(doc.tree, selection.path) }));
 		} else if (grab) {
+			if (!writeShared(grab.doc)) return;
+			grab.complete = undefined;
+			docRef.current = grab.doc;
 			setDoc(grab.doc);
 			setSelection(grab.selection);
 			setGrab(null);

@@ -169,6 +169,18 @@ for (const theme of THEMES) {
 		});
 		const page = await install.newPage(theme);
 		page.setDefaultTimeout(10000);
+		const opening = Promise.withResolvers<void>();
+		let holding = true;
+		const deliver: (() => void)[] = [];
+		await page.routeWebSocket(/\/_webcraft\/edit\/drafts\/template\//, (socket) => {
+			const upstream = socket.connectToServer();
+			upstream.onMessage((message) => {
+				if (holding) {
+					deliver.push(() => socket.send(message));
+					opening.resolve();
+				} else socket.send(message);
+			});
+		});
 		try {
 			await install.signIn(page, staff.account);
 			page.on("pageerror", (error) => console.error(error.stack));
@@ -178,8 +190,11 @@ for (const theme of THEMES) {
 			await html.fill((await html.inputValue()).replace("Before</p>", "After</p>"));
 			await page.getByRole("button", { name: "View on a page", exact: true }).click();
 			await page.waitForURL((url) => url.pathname === "/stories/first");
+			await opening.promise;
 			await page.getByRole("button", { name: "Undo", exact: true }).and(page.locator(":not([disabled])")).waitFor();
 			await page.getByRole("button", { name: "Undo", exact: true }).click();
+			holding = false;
+			for (const send of deliver.splice(0)) send();
 			await page.locator('p[data-wc-code="content#lead"]').filter({ hasText: "Before" }).waitFor();
 			await page.getByRole("button", { name: "Redo", exact: true }).click();
 			await page.locator('p[data-wc-code="content#lead"]').filter({ hasText: "After" }).waitFor();
@@ -268,6 +283,57 @@ for (const theme of THEMES) {
 		}
 	});
 }
+
+test("Undo waits for a Component script to load after returning to the Builder", async () => {
+	const workspace = await install.install.createWorkspace("Script navigation");
+	const site = await install.install.createSite(workspace.id, { name: "Script navigation", slug: "script-navigation" });
+	const staff = await install.install.createStaff({ workspaces: [workspace.id] });
+	const api = staff.browser.api;
+	const { component } = await api.components.create({ siteId: site.id, name: "ScriptHistory" });
+	await api.components.saveMarkup({ siteId: site.id, componentId: component.id, markup: "<p>Script history</p>" });
+	await api.components.saveScriptDraft({ siteId: site.id, componentId: component.id, code: "// Original" });
+	const { postType } = await api.postTypes.create({ siteId: site.id, name: "Notes", urlPattern: "/notes/{slug}" });
+	await api.entries.create({ siteId: site.id, postTypeId: postType.id, title: "First" });
+	await api.templates.saveEntryTemplateMarkup({
+		siteId: site.id,
+		postTypeId: postType.id,
+		markup: "<ScriptHistory />",
+	});
+	const page = await install.newPage("light");
+	page.setDefaultTimeout(10000);
+	const held = Promise.withResolvers<void>();
+	const release = Promise.withResolvers<void>();
+	try {
+		await install.signIn(page, staff.account);
+		await page.goto(install.adminUrl(`/builder/${site.id}/component/${component.id}`));
+		const js = page.getByRole("region", { name: "JS", exact: true }).getByRole("textbox");
+		await js.and(page.locator(":not([readonly])")).waitFor();
+		await js.fill("// Own");
+		await page.getByRole("button", { name: "View on a page", exact: true }).click();
+		await page.waitForURL((url) => url.pathname === "/notes/first");
+		await page.route("**/api/rpc/components/getScript", async (route) => {
+			const response = await route.fetch();
+			held.resolve();
+			await release.promise;
+			await route.fulfill({ response });
+		});
+		await page.getByRole("button", { name: "Open in builder", exact: true }).click();
+		await page.waitForURL((url) => url.pathname.includes(`/component/${component.id}`));
+		await held.promise;
+		await page.getByRole("button", { name: "Undo", exact: true }).and(page.locator(":not([disabled])")).waitFor();
+		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		release.resolve();
+		await page.getByRole("status").filter({ hasText: "Undid Edit JS of ScriptHistory" }).first().waitFor();
+		expect(await js.inputValue()).toBe("// Original");
+		expect((await api.components.getScript({ siteId: site.id, componentId: component.id })).script?.draft.code).toBe(
+			"// Original",
+		);
+	} finally {
+		release.resolve();
+		await page.unrouteAll({ behavior: "wait" });
+		await page.close();
+	}
+});
 
 test("typing bursts end on blur and retain only the last 200 steps", async () => {
 	const workspace = await install.install.createWorkspace("Bounded history");

@@ -846,12 +846,9 @@ function DraftConnection({
 	useEffect(
 		() =>
 			history.register(key, {
-				reverse: async (from, to) => {
-					if (!(await shared.flush())) return { ok: false, code: "HISTORY_UNAVAILABLE" };
-					return shared.reverse(from, to);
-				},
+				reverse: shared.reverse,
 			}),
-		[history, key, shared.flush, shared.reverse],
+		[history, key, shared.reverse],
 	);
 	const statusChanged = useRef(onStatus);
 	statusChanged.current = onStatus;
@@ -935,7 +932,16 @@ function SourcePanels({
 		selection: Selection | null;
 		source: string;
 		remoteRevision: number;
+		before?: Json;
+		complete?(): void;
 	} | null>(null);
+	const finishGrab = useCallback(() => {
+		const complete = grabbed?.complete;
+		if (grabbed) grabbed.complete = undefined;
+		complete?.();
+		setGrabbed(null);
+	}, [grabbed]);
+	useEffect(() => editorHistory().listen({ finish: finishGrab }), [finishGrab]);
 	const sourceId = source.opened.component?.id ?? source.opened.template?.id ?? source.ref;
 	const currentSource = useRef(sourceId);
 	currentSource.current = sourceId;
@@ -948,10 +954,10 @@ function SourcePanels({
 	const kind = source.opened.component ? "component" : "template";
 	useEffect(() => {
 		if (grabbed && !grabCurrent) {
-			setGrabbed(null);
+			finishGrab();
 			announce(t("builder.moves.cancelUnavailable"));
 		}
-	}, [grabbed, grabCurrent, announce, t]);
+	}, [grabbed, grabCurrent, announce, t, finishGrab]);
 	useEffect(() => {
 		setCatalogue(source.opened.catalogue);
 	}, [source.opened.catalogue]);
@@ -983,12 +989,6 @@ function SourcePanels({
 			announce(refusal);
 			return refusal;
 		}
-		if (grabCurrent && !finish) {
-			setSelection(nextSelection);
-			onTree(next);
-			announce(message);
-			return;
-		}
 		const before = shared?.draft() ?? null;
 		const changed = shared?.change((current) =>
 			kind === "component"
@@ -1001,8 +1001,8 @@ function SourcePanels({
 			announce(message);
 			return message;
 		}
-		if (shared && changed)
-			editorHistory().record({
+		if (shared && changed) {
+			const change = {
 				step,
 				resource: `draft:${source.siteId}:${kind}:${sourceId}`,
 				before,
@@ -1022,8 +1022,18 @@ function SourcePanels({
 					title: document.title,
 					panel,
 				},
-				group: grabCurrent ? "grab" : undefined,
-			});
+			};
+			if (grabbed && grabCurrent && !finish) {
+				grabbed.before ??= before;
+				const initial = grabbed.before;
+				grabbed.complete = () => {
+					editorHistory().record({ ...change, before: initial });
+				};
+			} else {
+				editorHistory().record({ ...change, before: grabCurrent && finish ? (grabbed?.before ?? before) : before });
+				if (grabbed) grabbed.complete = undefined;
+			}
+		}
 		setSelection(nextSelection);
 		const selectedNode = nextSelection?.kind === "node" ? nodeAt(next, nextSelection.path) : null;
 		selectedId.current = nextSelection ? selectionKey(next, nextSelection) : null;
@@ -1243,6 +1253,7 @@ function SourcePanels({
 							} else {
 								if (grabbed && grabCurrent)
 									apply(grabbed.tree, grabbed.selection, t("builder.moves.putBack", { name }));
+								if (grabbed) grabbed.complete = undefined;
 								setGrabbed(null);
 							}
 						}}

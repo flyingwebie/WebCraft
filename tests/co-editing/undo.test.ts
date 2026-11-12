@@ -49,6 +49,30 @@ test("two tabs undo their own text while keeping the other tab's text", async ()
 	}
 });
 
+test("Undo waits for an in-flight own save before reversing it", async () => {
+	const site = await coEditingSite(install);
+	const saved = await site.staff.api.templates.saveEntryTemplateMarkup({
+		siteId: site.siteId,
+		postTypeId: site.postTypeId,
+		markup: '<p data-wc-id="lead">Original</p>',
+	});
+	const editor = await openDraft(install, site.staff, site.siteId, { kind: "template", id: saved.template.id });
+	try {
+		const before = editor.draft();
+		const after = JSON.parse(JSON.stringify(before).replace("Original", "Changed")) as DocumentJson;
+		editor.change(after);
+		expect((await editor.reverse(after, before)).ok).toBe(true);
+		const read = await site.staff.api.templates.getEntryTemplateMarkup({
+			siteId: site.siteId,
+			postTypeId: site.postTypeId,
+		});
+		expect(read.markup?.draft).toContain("Original");
+		expect(read.markup?.draft).not.toContain("Changed");
+	} finally {
+		editor.close();
+	}
+});
+
 test("a newer edit to the same value makes a step obsolete, and refused inverses do not report success", async () => {
 	const site = await coEditingSite(install);
 	const saved = await site.staff.api.templates.saveEntryTemplateMarkup({

@@ -61,7 +61,7 @@ export function ComponentScriptPanel({
 			history.register(historyKey, {
 				reverse: async (from, to) => {
 					const started = Date.now();
-					while (saving.current && Date.now() - started < 10000)
+					while ((saving.current || !latest.current) && Date.now() - started < 10000)
 						await new Promise((resolve) => setTimeout(resolve, 20));
 					if (saving.current || !latest.current) return { ok: false, code: "HISTORY_UNAVAILABLE" };
 					const api = await getApi();

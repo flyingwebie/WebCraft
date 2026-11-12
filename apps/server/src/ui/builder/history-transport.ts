@@ -61,9 +61,6 @@ async function reverseDraft(resource: string, from: Json, to: Json, siteMode: bo
 	);
 	socket.addEventListener("close", () => ends?.closed());
 	try {
-		const start = Date.now();
-		while (draft.status() === "connecting" && Date.now() - start < 10_000)
-			await new Promise((resolve) => setTimeout(resolve, 20));
 		return await draft.reverse(from, to);
 	} finally {
 		draft.close();

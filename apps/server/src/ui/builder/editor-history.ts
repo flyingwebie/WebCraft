@@ -15,6 +15,8 @@ export type HistoryPort = { reverse(from: Json, to: Json): Promise<HistoryResult
 type Change = { resource: string; before: Json; after: Json };
 type Step = { id: number; label: string; location: HistoryLocation; changes: Change[]; group?: string; at: number };
 type Listener = {
+	/** Complete an in-progress gesture before another command or editor navigation. */
+	finish?(): void;
 	reveal?(location: HistoryLocation): boolean | Promise<boolean>;
 	announce?(message: string, refused?: boolean): void;
 };
@@ -48,6 +50,7 @@ export class EditorHistory {
 		this.transfer = transfer;
 	}
 	async departure(url: string) {
+		for (const listener of this.listeners) listener.finish?.();
 		await Promise.all([...this.actions].map((action) => action.catch(() => {})));
 		await this.pending;
 		this.boundary();
@@ -218,6 +221,7 @@ export class EditorHistory {
 	}
 	private async travel(source: Step[], destination: Step[], verb: string) {
 		if (this.busy) return;
+		for (const listener of this.listeners) listener.finish?.();
 		this.boundary();
 		this.busy = true;
 		this.notify();
