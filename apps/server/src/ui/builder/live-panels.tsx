@@ -486,6 +486,7 @@ function LivePanels({
 		let pendingRef: string | undefined;
 		let step: number | undefined;
 		let previousText = area.value;
+		const classReceipts = new Set<Promise<void>>();
 		const resourceOf = (source: PanelSource) =>
 			`draft:${source.siteId}:${source.opened.component ? "component" : "template"}:${source.opened.component?.id ?? source.opened.template?.id}`;
 		const begin = () => {
@@ -513,6 +514,9 @@ function LivePanels({
 					"code/editorRead",
 					{ ref, markup },
 				);
+				// A Class can already exist on the server while its response is delayed. Record its
+				// creation before the dependent tree so Undo removes the reference before the Class.
+				while (classReceipts.size) await Promise.all([...classReceipts]);
 				if (run !== generation) return false;
 				if (!shared) {
 					const saved = await bridge.call<{ history: { resource: string; before: Json; after: Json }[] }>("code/save", {
@@ -645,22 +649,31 @@ function LivePanels({
 				const { source, ref } = begin();
 				if (!source || !ref) return false;
 				const creatingStep = step;
-				const made = await bridge.call<ClassReceipt>("code/createClass", { name });
-				const change = {
-					resource: `draft:${source.siteId}:designSystem`,
-					before: made.history.before as unknown as Json,
-					after: made.history.after as unknown as Json,
+				const receive = async () => {
+					const made = await bridge.call<ClassReceipt>("code/createClass", { name });
+					const change = {
+						resource: `draft:${source.siteId}:designSystem`,
+						before: made.history.before as unknown as Json,
+						after: made.history.after as unknown as Json,
+					};
+					// Completing an unknown Class belongs to the HTML action that named it. A person may
+					// already have undone that input while the request was in flight: keep its receipt then
+					// as a new own action, rather than silently leaving the created Class outside history.
+					if (!history.attach(creatingStep, change))
+						history.record({
+							step: creation,
+							...change,
+							label: t("editorHistory.createClass", { name }),
+							location: { siteId: source.siteId, ref, panel: "html", title: source.name ?? document.title },
+						});
 				};
-				// Completing an unknown Class belongs to the HTML action that named it. A person may
-				// already have undone that input while the request was in flight: keep its receipt then
-				// as a new own action, rather than silently leaving the created Class outside history.
-				if (!history.attach(creatingStep, change))
-					history.record({
-						step: creation,
-						...change,
-						label: t("editorHistory.createClass", { name }),
-						location: { siteId: source.siteId, ref, panel: "html", title: source.name ?? document.title },
-					});
+				const receipt = receive();
+				classReceipts.add(receipt);
+				try {
+					await receipt;
+				} finally {
+					classReceipts.delete(receipt);
+				}
 				await commit();
 				return true;
 			});
