@@ -618,7 +618,8 @@
 			"repeat": "Ripeti la nuova password",
 			"mismatch": "Le password non coincidono.",
 			"save": "Cambia password",
-			"saved": "Password cambiata. Le altre sessioni sono state disconnesse."
+			"saved": "Password cambiata. Le altre sessioni sono state disconnesse.",
+			"stillActive": "Ancora attivi: {tokens, plural, one {# token API} other {# token API}} e {clients, plural, one {# client AI} other {# client AI}}. Una nuova password non li termina: revoca quelli che non riconosci in Token API e Client AI qui sotto."
 		},
 		"sessions": {
 			"heading": "Sessioni",

@@ -453,16 +453,7 @@ export async function revokeTokensOutOfReach(
 	now: Date,
 	by: { personId: string | null; via: AuditVia },
 ): Promise<number> {
-	const active = await executor
-		.select()
-		.from(apiTokens)
-		.where(
-			and(
-				eq(apiTokens.personId, personId),
-				isNull(apiTokens.revokedAt),
-				or(isNull(apiTokens.expiresAt), gt(apiTokens.expiresAt, now)),
-			),
-		);
+	const active = await workingTokens(executor, personId, now);
 	if (active.length === 0) return 0;
 	const actor = await loadPersonActor(executor, personId);
 	const listed = await listedSites(
@@ -474,6 +465,43 @@ export async function revokeTokensOutOfReach(
 		const siteIds = (listed.get(token.id) ?? []).map((site) => site.id);
 		if (reaches(actor, token, siteIds)) continue;
 		if (await revokeForAccess(executor, token, now, by)) revoked++;
+	}
+	return revoked;
+}
+
+/** The person's tokens that work now: not revoked, not expired. */
+function workingTokens(executor: Executor, personId: string, now: Date) {
+	return executor
+		.select()
+		.from(apiTokens)
+		.where(
+			and(
+				eq(apiTokens.personId, personId),
+				isNull(apiTokens.revokedAt),
+				or(isNull(apiTokens.expiresAt), gt(apiTokens.expiresAt, now)),
+			),
+		);
+}
+
+/** How many API tokens of the person work now, for telling them what a password change leaves active. */
+export async function countActiveTokens(executor: Executor, personId: string, now: Date): Promise<number> {
+	return (await workingTokens(executor, personId, now)).length;
+}
+
+/**
+ * Revokes every working token of the person, logging `apiToken.revoke` with `reason: "reset"` as
+ * `by` did it: their two-factor authentication was reset because someone else may have had the
+ * account, and a token made with it acts as them just the same. Call it inside that transaction.
+ */
+export async function revokeEveryToken(
+	executor: Executor,
+	personId: string,
+	now: Date,
+	by: { personId: string | null; via: AuditVia },
+): Promise<number> {
+	let revoked = 0;
+	for (const token of await workingTokens(executor, personId, now)) {
+		if (await revokeForAccess(executor, token, now, by, "reset")) revoked++;
 	}
 	return revoked;
 }
@@ -512,10 +540,11 @@ async function revokeForAccess(
 	token: Pick<TokenRow, "id" | "name" | "personId" | "workspaceId">,
 	now: Date,
 	by: { personId: string | null; via: AuditVia },
+	reason: "access" | "reset" = "access",
 ): Promise<boolean> {
 	const revoked = await executor
 		.update(apiTokens)
-		.set({ revokedAt: now, revokedReason: "access" })
+		.set({ revokedAt: now, revokedReason: reason })
 		.where(and(eq(apiTokens.id, token.id), isNull(apiTokens.revokedAt)))
 		.returning({ id: apiTokens.id });
 	if (revoked.length === 0) return false;
@@ -525,7 +554,7 @@ async function revokeForAccess(
 		workspaceId: token.workspaceId,
 		siteId: null,
 		action: "apiToken.revoke",
-		details: { tokenId: token.id, name: token.name, owner: token.personId, reason: "access" },
+		details: { tokenId: token.id, name: token.name, owner: token.personId, reason },
 	});
 	return true;
 }

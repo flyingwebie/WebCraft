@@ -109,6 +109,7 @@ export const en: EmailWording = {
 				resetBy
 					? `${resetBy} reset the two-factor authentication of your account on ${installName}. Sign in with your password and set it up again.`
 					: `The two-factor authentication of your account on ${installName} was reset with a command on the server. Sign in with your password and set it up again.`,
+				"You were signed out everywhere, and your API tokens and AI clients were ended too: make them again once you are back in.",
 				"If you didn't ask for it, tell whoever runs this Install at once.",
 			],
 			action: { label: "Sign in", path: "/sign-in" },

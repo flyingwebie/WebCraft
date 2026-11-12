@@ -2,7 +2,6 @@ export type { StatementForm, StatementSettings } from "./accessibility/statement
 export {
 	type Account,
 	describeUserAgent,
-	networkOf,
 	SessionNotFoundError,
 	type SessionView,
 } from "./account.ts";
@@ -238,6 +237,7 @@ export {
 	type IpRange,
 	inIpRange,
 	ipRangeText,
+	networkOf,
 	PRIVATE_RANGES,
 	parseIpAddress,
 	parseIpRange,

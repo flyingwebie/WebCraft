@@ -229,10 +229,17 @@ function PasswordCard() {
 		setError(null);
 		try {
 			const api = await getApi();
-			await runSensitive(() => api.me.changePassword({ newPassword: password }));
+			const changed = await runSensitive(() => api.me.changePassword({ newPassword: password }));
 			setPassword("");
 			setRepeat("");
 			toast.success(t("account.password.saved"));
+			// Other browsers are signed out; tokens and AI clients made with the account are not.
+			if (changed.activeApiTokens + changed.activeAiClients > 0) {
+				toast.warning(
+					t("account.password.stillActive", { tokens: changed.activeApiTokens, clients: changed.activeAiClients }),
+					{ duration: 20_000 },
+				);
+			}
 			await router.invalidate();
 		} catch (failure) {
 			setError({ field: "password", message: errorMessage(failure) });

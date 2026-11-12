@@ -2,12 +2,14 @@ import type { AccountLock, Auth, Session } from "@webcraft/auth";
 import type { Database, Transaction } from "@webcraft/db";
 import { z } from "zod";
 
+import { countActiveTokens } from "./api-tokens.ts";
 import { type AuditDetails, recordAudit } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import type { Email } from "./email/index.ts";
-import { clientNetwork } from "./ip-ranges.ts";
+import { clientNetwork, networkOf } from "./ip-ranges.ts";
 import { defineJob } from "./jobs/define.ts";
 import { defineSchedule } from "./jobs/schedules.ts";
+import { countActiveGrants } from "./oauth.ts";
 import { actingPerson } from "./permissions/can.ts";
 import type { RateLimitRule, RateLimits } from "./rate-limits.ts";
 import type { Access } from "./tenancy/data-layer.ts";
@@ -38,6 +40,13 @@ export class SessionNotFoundError extends Error {
 	}
 }
 
+/**
+ * What changing a password did and didn't end: other sessions are signed out; API tokens and AI
+ * clients (CLI sign-ins too) go on working, so the person is told how many there are and can revoke
+ * the ones they don't recognise.
+ */
+export type PasswordChanged = { signedOutSessions: number; activeApiTokens: number; activeAiClients: number };
+
 /** A person's own account: their sessions and their password. */
 export type Account = {
 	/**
@@ -56,7 +65,7 @@ export type Account = {
 	 * Changes the person's password, ends their other sessions, and records it (never the password).
 	 * A Sensitive action: the procedure checks the recent identity check first.
 	 */
-	changePassword(access: Access, current: Session, newPassword: string): Promise<{ signedOutSessions: number }>;
+	changePassword(access: Access, current: Session, newPassword: string): Promise<PasswordChanged>;
 };
 
 export function createAccount({ database, auth, clock }: { database: Database; auth: Auth; clock: Clock }): Account {
@@ -95,10 +104,16 @@ export function createAccount({ database, auth, clock }: { database: Database; a
 			return { revoked };
 		},
 
-		changePassword(access, current, newPassword) {
-			return auth.changePassword(current, newPassword, (tx, { signedOutSessions }) =>
-				audit(tx, access, "password.change", { signedOutSessions }),
-			);
+		async changePassword(access, current, newPassword) {
+			let left = { activeApiTokens: 0, activeAiClients: 0 };
+			const { signedOutSessions } = await auth.changePassword(current, newPassword, async (tx, changed) => {
+				left = {
+					activeApiTokens: await countActiveTokens(tx, current.personId, clock.now()),
+					activeAiClients: await countActiveGrants(tx, current.personId),
+				};
+				await audit(tx, access, "password.change", { ...changed, ...left });
+			});
+			return { signedOutSessions, ...left };
 		},
 	};
 }
@@ -209,25 +224,4 @@ const SYSTEMS: readonly [RegExp, string][] = [
 
 function firstMatch(text: string, table: readonly [RegExp, string][]): string | null {
 	return table.find(([pattern]) => pattern.test(text))?.[1] ?? null;
-}
-
-/**
- * The network an address belongs to, with the end hidden: the first three parts of an IPv4
- * address, or the first three groups of an IPv6 address (its site prefix). Null for no address.
- */
-export function networkOf(address: string | null): string | null {
-	if (!address) return null;
-	const ipv4 = address.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.\d{1,3}$/);
-	if (ipv4) return `${ipv4[1]}.${ipv4[2]}.${ipv4[3]}.*`;
-	if (!address.includes(":")) return null;
-	const [head = "", tail] = address.split("::");
-	const left = head ? head.split(":") : [];
-	const right = tail ? tail.split(":") : [];
-	const groups =
-		tail === undefined ? left : [...left, ...Array(Math.max(0, 8 - left.length - right.length)).fill("0"), ...right];
-	if (groups.length !== 8 || !groups.every((group) => /^[0-9a-f]{1,4}$/i.test(group))) return null;
-	return `${groups
-		.slice(0, 3)
-		.map((group) => group.toLowerCase().replace(/^0+(?=.)/, ""))
-		.join(":")}:*`;
 }

@@ -13,6 +13,7 @@ import {
 	type TestBrowser,
 	type TestInstall,
 } from "../harness/index.ts";
+import { approveAiClient } from "../harness/mcp.ts";
 import { addAuthenticator, signInWithAuthenticator } from "../harness/two-factor.ts";
 
 const MINUTE = 60 * 1000;
@@ -274,5 +275,28 @@ describe("choosing a new password with the link", () => {
 		await expect(
 			install.browser({ address }).api.session.signIn({ email: person.email, password: NEW_PASSWORD }),
 		).resolves.toMatchObject({ person: { email: person.email } });
+	});
+});
+
+describe("changing your own password", () => {
+	// Signing other browsers out reads as "whoever had my password is out". A token or AI client made
+	// with the account goes on working, so the answer says how many there are (the report's A1-7).
+	test("says how many API tokens and AI clients stay active, so the person can revoke them", async () => {
+		const person = await newPerson();
+		const elsewhere = await install.signIn(person);
+		const { secret } = await createApiToken(person.browser, { workspaceId, name: "Deploy" });
+		await approveAiClient(install, person.browser, { workspaceId });
+
+		await person.browser.api.session.confirmIdentity({ password: person.password });
+		const answer = await person.browser.api.me.changePassword({ newPassword: NEW_PASSWORD });
+
+		expect(answer).toEqual({ signedOutSessions: 1, activeApiTokens: 1, activeAiClients: 1 });
+		expect((await elsewhere.api.session.current()).person).toBeNull();
+		await tokenClient(install, secret).api.workspaces.get({ workspaceId });
+		const admin = await install.superadmin();
+		const entry = (await admin.api.audit.list({ limit: 5 })).entries.find(
+			(found) => found.action === "password.change",
+		);
+		expect(entry).toMatchObject({ details: { signedOutSessions: 1, activeApiTokens: 1, activeAiClients: 1 } });
 	});
 });

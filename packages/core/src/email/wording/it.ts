@@ -104,6 +104,7 @@ export const it: EmailWording = {
 				resetBy
 					? `${resetBy} ha reimpostato l'autenticazione a due fattori del tuo account su ${installName}. Accedi con la password e configurala di nuovo.`
 					: `L'autenticazione a due fattori del tuo account su ${installName} è stata reimpostata con un comando sul server. Accedi con la password e configurala di nuovo.`,
+				"Sei stato disconnesso ovunque, e anche i tuoi token API e i client AI sono stati terminati: ricreali quando sarai di nuovo dentro.",
 				"Se non l'hai chiesto tu, avvisa subito chi gestisce questa Install.",
 			],
 			action: { label: "Accedi", path: "/sign-in" },

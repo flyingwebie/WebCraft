@@ -618,7 +618,8 @@
 			"repeat": "Repeat the new password",
 			"mismatch": "The passwords don't match.",
 			"save": "Change password",
-			"saved": "Password changed. Your other sessions were signed out."
+			"saved": "Password changed. Your other sessions were signed out.",
+			"stillActive": "Still active: {tokens, plural, one {# API token} other {# API tokens}} and {clients, plural, one {# AI client} other {# AI clients}}. A new password doesn't end them: revoke any you don't recognise under API tokens and AI clients below."
 		},
 		"sessions": {
 			"heading": "Sessions",

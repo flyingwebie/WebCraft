@@ -45,7 +45,10 @@ export const apiTokens = pgTable(
 		/** When a request last used it, at most once a minute. */
 		lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
 		revokedAt: timestamp("revoked_at", { withTimezone: true }),
-		/** `person` (its person revoked it) or `access` (its person no longer reaches what it was made for). */
+		/**
+		 * `person` (its person revoked it), `access` (its person no longer reaches what it was made for)
+		 * or `reset` (their two-factor authentication was reset).
+		 */
 		revokedReason: text("revoked_reason"),
 	},
 	(table) => [

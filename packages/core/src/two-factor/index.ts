@@ -20,10 +20,12 @@ import {
 } from "@webcraft/db/schema";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 
+import { revokeEveryToken } from "../api-tokens.ts";
 import { type AuditDetails, type AuditVia, recordAudit } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import type { Email } from "../email/index.ts";
 import { writeSettingsRow } from "../install-settings.ts";
+import { revokeEveryGrant } from "../oauth.ts";
 import { actingPerson } from "../permissions/can.ts";
 import { STAFF_ROLE } from "../permissions/roles.ts";
 import type { Access, InstallScope, WorkspaceScope } from "../tenancy/data-layer.ts";
@@ -249,16 +251,21 @@ export function createTwoFactor({
 		{ by, via, workspaceId }: { by: string | null; via: AuditVia; workspaceId: string | null },
 	) => {
 		const [person] = await db.select({ email: people.email }).from(people).where(eq(people.id, personId));
-		await auth.resetSecondFactors(personId, (tx, change) =>
-			recordAudit(tx, clock.now(), {
+		await auth.resetSecondFactors(personId, async (tx, change) => {
+			// A reset answers "someone else may have had this account": the API tokens and AI clients
+			// made with it act as the person just the same, so they end with the sessions.
+			const now = clock.now();
+			const revokedTokens = await revokeEveryToken(tx, personId, now, { personId: by, via });
+			const revokedAiClients = await revokeEveryGrant(tx, personId, now, { personId: by, via });
+			await recordAudit(tx, now, {
 				personId: by,
 				via,
 				workspaceId,
 				siteId: null,
 				action: "twoFactor.reset",
-				details: { personId, email: person?.email ?? null, ...change },
-			}),
-		);
+				details: { personId, email: person?.email ?? null, ...change, revokedTokens, revokedAiClients },
+			});
+		});
 		const resetBy = by ? await nameOf(by) : null;
 		await email.send({
 			type: "two-factor-reset",

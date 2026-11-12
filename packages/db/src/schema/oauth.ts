@@ -88,7 +88,8 @@ export const oauthGrants = pgTable(
 		revokedAt: timestamp("revoked_at", { withTimezone: true }),
 		/**
 		 * `person` (its person revoked it), `access` (its person no longer reaches what it was made for)
-		 * or `reuse` (a used code or refresh token came back: someone else may hold them).
+		 * `reuse` (a used code or refresh token came back: someone else may hold them) or `reset` (their
+		 * person's two-factor authentication was reset).
 		 */
 		revokedReason: text("revoked_reason"),
 	},

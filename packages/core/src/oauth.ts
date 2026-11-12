@@ -11,7 +11,6 @@ import {
 } from "@webcraft/db/schema";
 import { and, asc, desc, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
 
-import { networkOf } from "./account.ts";
 import {
 	type ApiAccess,
 	type ApiClientLimits,
@@ -23,7 +22,7 @@ import {
 import { type AuditVia, recordAudit } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import { isUuid } from "./ids.ts";
-import { clientNetwork } from "./ip-ranges.ts";
+import { clientNetwork, networkOf } from "./ip-ranges.ts";
 import type { People } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
 import { can, type GrantActor, type Reach } from "./permissions/can.ts";
@@ -1209,7 +1208,7 @@ async function revokeGrant(
 	executor: Executor,
 	grant: Pick<GrantRow, "id" | "clientName" | "personId" | "workspaceId">,
 	now: Date,
-	reason: "person" | "client" | "access" | "reuse",
+	reason: "person" | "client" | "access" | "reuse" | "reset",
 	by: { personId: string | null; via: AuditVia } = {
 		personId: null,
 		via: { kind: "aiClient", name: grant.clientName },
@@ -1241,6 +1240,37 @@ async function revokeGrant(
  * logging `aiClient.revoke` with `reason: "access"` as `by` did it. Call it inside the transaction
  * of the change that took their access, beside `revokeTokensOutOfReach`.
  */
+/** How many AI clients (and CLI sign-ins) of the person work now, for telling them what a password change leaves active. */
+export async function countActiveGrants(executor: Executor, personId: string): Promise<number> {
+	const active = await executor
+		.select({ id: oauthGrants.id })
+		.from(oauthGrants)
+		.where(and(eq(oauthGrants.personId, personId), isNull(oauthGrants.revokedAt)));
+	return active.length;
+}
+
+/**
+ * Revokes every grant of the person, logging `aiClient.revoke` with `reason: "reset"` as `by` did
+ * it: their two-factor authentication was reset because someone else may have had the account, and
+ * a client approved with it acts as them just the same. Call it inside that transaction.
+ */
+export async function revokeEveryGrant(
+	executor: Executor,
+	personId: string,
+	now: Date,
+	by: { personId: string | null; via: AuditVia },
+): Promise<number> {
+	const active = await executor
+		.select()
+		.from(oauthGrants)
+		.where(and(eq(oauthGrants.personId, personId), isNull(oauthGrants.revokedAt)));
+	let revoked = 0;
+	for (const grant of active) {
+		if (await revokeGrant(executor, grant, now, "reset", by)) revoked++;
+	}
+	return revoked;
+}
+
 export async function revokeGrantsOutOfReach(
 	executor: Executor,
 	personId: string,

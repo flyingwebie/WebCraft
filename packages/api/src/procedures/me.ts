@@ -56,20 +56,16 @@ export const me = {
 
 	/**
 	 * Changes the person's password (a Sensitive action) and signs out their other sessions; this
-	 * browser stays signed in.
+	 * browser stays signed in. Their API tokens and AI clients go on working: the answer says how many
+	 * there are, for the admin to point at.
 	 */
 	changePassword: inAdminSession
 		.use(notWhileImpersonating("password"))
 		.use(sensitive("password.change"))
 		.input(z.object({ newPassword: password }))
-		.handler(async ({ context, input }) => {
-			const { signedOutSessions } = await context.services.account.changePassword(
-				context.access,
-				context.session,
-				input.newPassword,
-			);
-			return { signedOutSessions };
-		}),
+		.handler(({ context, input }) =>
+			context.services.account.changePassword(context.access, context.session, input.newPassword),
+		),
 
 	/**
 	 * Two-factor authentication: the person's authenticator app, passkeys and backup codes. Adding or

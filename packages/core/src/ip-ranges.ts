@@ -78,6 +78,27 @@ export function clientNetwork(address: string | null): string {
 	return ipRangeText({ family: 6, network: parsed.value & mask(6, 64), prefix: 64 });
 }
 
+/**
+ * The network an address belongs to, with the end hidden: the first three parts of an IPv4
+ * address, or the first three groups of an IPv6 address (its site prefix). Null for no address.
+ */
+export function networkOf(address: string | null): string | null {
+	if (!address) return null;
+	const ipv4 = address.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.\d{1,3}$/);
+	if (ipv4) return `${ipv4[1]}.${ipv4[2]}.${ipv4[3]}.*`;
+	if (!address.includes(":")) return null;
+	const [head = "", tail] = address.split("::");
+	const left = head ? head.split(":") : [];
+	const right = tail ? tail.split(":") : [];
+	const groups =
+		tail === undefined ? left : [...left, ...Array(Math.max(0, 8 - left.length - right.length)).fill("0"), ...right];
+	if (groups.length !== 8 || !groups.every((group) => /^[0-9a-f]{1,4}$/i.test(group))) return null;
+	return `${groups
+		.slice(0, 3)
+		.map((group) => group.toLowerCase().replace(/^0+(?=.)/, ""))
+		.join(":")}:*`;
+}
+
 function mask(family: 4 | 6, prefix: number): bigint {
 	const bits = BigInt(BITS[family]);
 	const all = (1n << bits) - 1n;
