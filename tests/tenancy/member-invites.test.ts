@@ -399,3 +399,71 @@ describe("Member invite links", () => {
 		expect(invites.find((pending) => pending.id === invite.id)).toMatchObject({ manageable: false });
 	});
 });
+
+describe("an invite whose inviter lost the access it grants", () => {
+	test("stops working when the inviter is removed from the Workspace", async () => {
+		const owner = await install.createMember({ workspaceId: acme.id, role: "owner" });
+		await owner.browser.api.members.invite({
+			workspaceId: acme.id,
+			email: "left-behind@acmeltd.example",
+			role: "owner",
+			sites: "all",
+		});
+		const token = await tokenFor("left-behind@acmeltd.example");
+
+		await staff.browser.api.members.remove({ workspaceId: acme.id, personId: owner.personId });
+
+		await expect(install.browser().api.invites.get({ token })).rejects.toMatchObject({ code: "INVITE_INVALID" });
+		await expect(
+			install.browser().api.invites.accept({ token, name: "Left", password: TEST_PASSWORD, adminLanguage: "en" }),
+		).rejects.toMatchObject({ code: "INVITE_INVALID" });
+		const { members } = await staff.browser.api.members.list({ workspaceId: acme.id });
+		expect(members.map((member) => member.email)).not.toContain("left-behind@acmeltd.example");
+	});
+
+	test("stops working when the inviter no longer holds it: an Owner of every Site moved to one", async () => {
+		const owner = await install.createMember({ workspaceId: acme.id, role: "owner" });
+		const existing = await install.createMember({
+			workspaceId: (await install.createWorkspace("Elsewhere")).id,
+			role: "author",
+		});
+		await owner.browser.api.members.invite({
+			workspaceId: acme.id,
+			email: existing.account.email,
+			role: "editor",
+			sites: "all",
+		});
+		const token = await tokenFor(existing.account.email);
+
+		await staff.browser.api.members.changeAccess({
+			workspaceId: acme.id,
+			personId: owner.personId,
+			role: "owner",
+			sites: [bakery.id],
+		});
+
+		await expect(existing.browser.api.invites.join({ token })).rejects.toMatchObject({ code: "INVITE_INVALID" });
+		await expect(existing.browser.api.workspaces.get({ workspaceId: acme.id })).rejects.toMatchObject({
+			code: "WORKSPACE_NOT_FOUND",
+		});
+	});
+
+	test("works again once someone who holds it sends it again: the invite is theirs now", async () => {
+		const owner = await install.createMember({ workspaceId: acme.id, role: "owner" });
+		const { invite } = await owner.browser.api.members.invite({
+			workspaceId: acme.id,
+			email: "taken-over@acmeltd.example",
+			role: "author",
+			sites: [careers.id],
+		});
+		await staff.browser.api.members.remove({ workspaceId: acme.id, personId: owner.personId });
+
+		await staff.browser.api.members.resendInvite({ workspaceId: acme.id, inviteId: invite.id });
+		const token = await tokenFor("taken-over@acmeltd.example");
+
+		expect(await install.browser().api.invites.get({ token })).toMatchObject({ invitedBy: "Ciara Byrne" });
+		await install.browser().api.invites.accept({ token, name: "Taken", password: TEST_PASSWORD, adminLanguage: "en" });
+		const { members } = await staff.browser.api.members.list({ workspaceId: acme.id });
+		expect(members.find((member) => member.email === "taken-over@acmeltd.example")).toMatchObject({ role: "author" });
+	});
+});

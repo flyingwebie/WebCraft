@@ -16,6 +16,8 @@ import type { AdminLanguageCode } from "../admin-languages.ts";
 import { type AuditVia, recordAudit } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import type { InstallSettings } from "../install-settings.ts";
+import { loadPersonActor } from "../permissions/actors.ts";
+import { can, holdsAccess, INSTALL } from "../permissions/can.ts";
 import { ASSIGNED_ROLES, isWorkspaceRole } from "../permissions/roles.ts";
 import { hashToken } from "../tokens.ts";
 import { type MembershipsService, StaffMembershipError } from "./memberships.ts";
@@ -99,13 +101,36 @@ export function createInvites(options: InvitesOptions): InvitesService {
 	const { database, auth, settings, clock, memberships } = options;
 	const { db } = database;
 
+	/**
+	 * Whether whoever sent an invite may still grant what it grants. Nobody grants more than they
+	 * hold, when the invite is accepted as when it was sent: an inviter removed, moved to fewer Sites
+	 * or a lesser role, or no longer Staff of the Workspace since, leaves an invite that doesn't work
+	 * until someone who holds it sends it again (which makes it theirs).
+	 */
+	const inviterStillGrants = async (executor: Executor, invite: InviteRow): Promise<boolean> => {
+		if (!invite.invitedBy) return false;
+		const inviter = await loadPersonActor(executor, invite.invitedBy);
+		const { workspaceId } = invite;
+		if (!workspaceId) return can(inviter, "staff.manage", INSTALL);
+		if (!can(inviter, "member.invite", { level: "workspace", workspaceId })) return false;
+		const sites = invite.allSites
+			? "all"
+			: (
+					await executor
+						.select({ siteId: inviteSites.siteId })
+						.from(inviteSites)
+						.where(and(eq(inviteSites.inviteId, invite.id), eq(inviteSites.workspaceId, workspaceId)))
+				).map((row) => row.siteId);
+		return holdsAccess(inviter, workspaceId, { role: invite.role, sites });
+	};
+
 	/** The invite a token opens, if it still works. */
 	const findInvite = async (executor: Executor, token: string) => {
 		const [row] = await executor
 			.select()
 			.from(invites)
 			.where(and(eq(invites.tokenHash, await hashToken(token)), gt(invites.expiresAt, clock.now())));
-		return row;
+		return row && (await inviterStillGrants(executor, row)) ? row : undefined;
 	};
 
 	/**

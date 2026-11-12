@@ -112,7 +112,11 @@ export type MembersService = {
 	 * Superadmin (`StaffMembershipError`), and people who are already Members (`AlreadyMemberError`).
 	 */
 	invite(scope: WorkspaceScope, input: { email: string; role: string; sites: Reach }): Promise<MemberInvite>;
-	/** Sends a pending invite again with a new link, valid for 7 more days; the earlier link stops working. */
+	/**
+	 * Sends a pending invite again with a new link, valid for 7 more days; the earlier link stops
+	 * working. The invite is the sender's from then on (an invite works only while its inviter holds
+	 * what it grants).
+	 */
 	resendInvite(scope: WorkspaceScope, inviteId: string): Promise<MemberInvite>;
 	/** Withdraws a pending invite: its link stops working. */
 	revokeInvite(scope: WorkspaceScope, inviteId: string): Promise<void>;
@@ -393,11 +397,14 @@ export function createMembers({ database, email }: { database: Database; email: 
 			const role = invite.role;
 			if (!isWorkspaceRole(role)) throw new InviteInvalidError();
 			const token = newToken();
+			// Sending it again makes it the sender's: they hold what it grants, and it works for as long as they do.
+			const sender = personIdOf(scope.access.actor);
 			const resent = await scope.transaction(async (tx) => {
 				const [updated] = await tx.update(
 					invites,
 					{
 						tokenHash: await hashToken(token),
+						invitedBy: sender,
 						expiresAt: new Date(tx.now().getTime() + INVITE_LIFETIME_MS),
 					},
 					eq(invites.id, invite.id),
@@ -406,9 +413,12 @@ export function createMembers({ database, email }: { database: Database; email: 
 				await tx.audit("member.resendInvite", { email: invite.email });
 				return updated;
 			});
-			const inviterName =
-				(await personName(invite.invitedBy)) ?? (await personName(personIdOf(scope.access.actor))) ?? "WebCraft";
-			await sendInvite(scope, { id: invite.id, email: invite.email, role }, inviterName, token);
+			await sendInvite(
+				scope,
+				{ id: invite.id, email: invite.email, role },
+				(await personName(sender)) ?? "WebCraft",
+				token,
+			);
 			return inviteView(scope, resent);
 		},
 
