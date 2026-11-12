@@ -524,8 +524,13 @@ test("CSS typed during the final Builder flush keeps the unfinished input on the
 	}
 });
 
-for (const canvas of ["preview", "live"] as const)
-	test(`a CSS layout action during departure stays on the ${canvas} canvas until saved`, async () => {
+for (const [part, canvas] of [
+	["existing part", "preview"],
+	["existing part", "live"],
+	["new breakpoint", "preview"],
+	["new breakpoint", "live"],
+] as const)
+	test(`a CSS layout action during departure stays on the ${canvas} canvas until saved (${part})`, async () => {
 		const local = install.install;
 		const { api } = await local.superadmin();
 		const workspace = await local.createWorkspace();
@@ -534,6 +539,9 @@ for (const canvas of ["preview", "live"] as const)
 		const { postType } = await api.postTypes.create({ siteId, name: "Stories", urlPattern: "/stories/{slug}" });
 		await api.entries.create({ siteId, postTypeId: postType.id, title: "First" });
 		await api.designSystem.createClass({ siteId, name: "note", styles: "color: rgb(7, 8, 9);" });
+		const { designSystem } = await api.designSystem.get({ siteId });
+		const breakpoint = [...designSystem.draft.tokens.breakpoints].sort((a, b) => a.width - b.width)[0];
+		if (!breakpoint) throw new Error("Default breakpoint missing");
 		await api.templates.saveEntryTemplateMarkup({
 			siteId,
 			postTypeId: postType.id,
@@ -541,6 +549,7 @@ for (const canvas of ["preview", "live"] as const)
 		});
 		const page = await install.newPage(canvas === "preview" ? "light" : "dark");
 		page.setDefaultTimeout(10000);
+		if (part === "new breakpoint") await page.setViewportSize({ width: 1920, height: 1080 });
 		await install.signIn(page, staff);
 		const builderPath = `/builder/${siteId}/entry-template/${postType.id}`;
 		await page.goto(install.adminUrl(builderPath));
@@ -562,6 +571,16 @@ for (const canvas of ["preview", "live"] as const)
 		const after = canvas === "preview" ? "/stories/first" : builderPath;
 		const captured = Promise.withResolvers<void>();
 		const release = Promise.withResolvers<void>();
+		const releaseReads = Promise.withResolvers<void>();
+		if (part === "new breakpoint")
+			await page.route(
+				canvas === "preview" ? "**/api/rpc/builder/css" : "**/_webcraft/edit/api/code/css",
+				async (route) => {
+					const response = await route.fetch();
+					await releaseReads.promise;
+					await route.fulfill({ response });
+				},
+			);
 		await page.route(
 			canvas === "preview" ? "**/api/rpc/builder/saveCss" : "**/_webcraft/edit/api/code/saveCss",
 			async (route) => {
@@ -576,17 +595,21 @@ for (const canvas of ["preview", "live"] as const)
 		try {
 			await action.click();
 			await captured.promise;
-			await page.getByRole("button", { name: "All widths", exact: true }).click();
+			await page
+				.getByRole("button", {
+					name: part === "existing part" ? "All widths" : `${breakpoint.name} (${breakpoint.width}px)`,
+					exact: true,
+				})
+				.click();
 			await page.getByRole("button", { name: "Display: grid", exact: true }).click();
 			release.resolve();
+			releaseReads.resolve();
 			await Promise.race([
 				action.and(page.locator(":enabled")).waitFor(),
 				page.waitForURL((url) => url.pathname === after),
 			]);
 			expect(new URL(page.url()).pathname).toBe(before);
-			expect(await page.getByRole("textbox", { name: "CSS: .note", exact: true }).inputValue()).toContain(
-				"display: grid;",
-			);
+			expect(await page.getByRole("textbox", { name: /^CSS: \.note/ }).inputValue()).toContain("display: grid;");
 			await action.click();
 			await page.waitForURL((url) => url.pathname === after);
 			const paragraph =
@@ -601,5 +624,6 @@ for (const canvas of ["preview", "live"] as const)
 			expect(saved?.css).toBe("&:hover { opacity: 0.5; }");
 		} finally {
 			release.resolve();
+			releaseReads.resolve();
 		}
 	});

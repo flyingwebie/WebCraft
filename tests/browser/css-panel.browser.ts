@@ -442,7 +442,10 @@ describe("review follow-ups", () => {
 			const region = cssRegion(page);
 
 			await region.getByRole("button", { name: "Own CSS" }).click();
-			await region.getByRole("textbox", { name: "CSS: .hero-title, own CSS" }).waitFor();
+			await region
+				.getByRole("textbox", { name: "CSS: .hero-title, own CSS" })
+				.and(page.locator(":not([readonly])"))
+				.waitFor();
 
 			const editor = region.locator("[data-code-area]");
 			expect(await editor.locator("[data-gutter] > span").allTextContents()).toEqual(["1", "2", "3"]);

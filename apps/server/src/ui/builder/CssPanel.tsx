@@ -432,6 +432,17 @@ export function CssPanel({
 	/** Class pieces share a version. Carry our accepted write forward, without rebasing an older peer conflict. */
 	const acceptSave = (which: CssTarget, beforeVersion: string | null, afterVersion: string) => {
 		const savedKey = keyOf(which);
+		if (which.kind === "class") {
+			// A newly edited part starts from our acknowledged version, even while the refresh is slow.
+			classRuns.current.set(which.classId, ++readRun.current);
+			setKnown((before) => {
+				const current = before.get(which.classId);
+				if (!current || current.version !== beforeVersion) return before;
+				const next = new Map(before);
+				next.set(which.classId, { ...current, version: afterVersion });
+				return next;
+			});
+		}
 		setDrafts((before) =>
 			Object.fromEntries(
 				Object.entries(before).map(([draftKey, pending]) => [
