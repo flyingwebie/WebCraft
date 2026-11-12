@@ -1,6 +1,6 @@
 import { type Ref, type TextareaHTMLAttributes, useMemo, useRef } from "react";
-
 import { type CssTokenKind, cssLines } from "./css-tokens.ts";
+import { editorHistory } from "./editor-history.ts";
 
 /** The colour of each kind of CSS piece, in light and dark (each at least 4.5:1 on the editor's background). */
 const TOKEN_CLASS: Record<CssTokenKind, string> = {
@@ -88,6 +88,10 @@ export function CodeArea({
 				</pre>
 				<textarea
 					{...textarea}
+					onBlur={(event) => {
+						editorHistory().boundary();
+						textarea.onBlur?.(event);
+					}}
 					ref={ref}
 					value={value}
 					wrap="off"

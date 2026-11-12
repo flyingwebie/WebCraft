@@ -57,6 +57,7 @@ import { listFilters } from "../filters/filters.ts";
 import { siteFormList } from "../forms/forms.ts";
 import type { SitePages } from "../site-pages/index.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
+import { claimHistory, reverseHttpHistory, transferHistory } from "./history.ts";
 import { type BuilderDestinations, builderDestinations } from "./navigation.ts";
 import { adminMediaPath, renderPreview } from "./preview.ts";
 import { type BuilderSource, type BuilderTarget, readSource } from "./sources.ts";
@@ -127,6 +128,10 @@ export type BuilderOpened = {
 export type BuilderPreview = { html: string; css: string; checks: import("@webcraft/renderer").QualityCheck[] };
 
 export type Builder = {
+	historyDesign: typeof draftDesignSystem;
+	transferHistory: typeof transferHistory;
+	claimHistory: typeof claimHistory;
+	reverseHistory: typeof reverseHttpHistory;
 	destinations(scope: SiteScope, target: BuilderTarget, entryId?: string): Promise<BuilderDestinations>;
 	/** Opens a Template or Component (open the Site with `structure.edit`). */
 	open(scope: SiteScope, target: BuilderTarget): Promise<BuilderOpened>;
@@ -177,6 +182,10 @@ export function createBuilder(options: {
 }): Builder {
 	const { sources } = options;
 	return {
+		transferHistory,
+		claimHistory,
+		reverseHistory: reverseHttpHistory,
+		historyDesign: draftDesignSystem,
 		async destinations(scope, target, entryId) {
 			const found = await builderDestinations(
 				scope,

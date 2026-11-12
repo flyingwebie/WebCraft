@@ -120,6 +120,25 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 			adminOrigin: services.config.adminOrigin,
 		});
 	},
+	"code/historyDesign": async (services, session) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, await services.builder.historyDesign(scope));
+	},
+	"code/transferHistory": async (services, session, body) => {
+		const scope = await services.codeMode.access(session);
+		const input = parse(z.object({ payload: z.string().max(8_000_000) }), body);
+		return json(200, await services.builder.transferHistory(scope, input.payload));
+	},
+	"code/claimHistory": async (services, session, body) => {
+		const scope = await services.codeMode.access(session);
+		const input = parse(z.object({ token: z.string().max(100) }), body);
+		return json(200, await services.builder.claimHistory(scope, input.token));
+	},
+	"code/reverseHistory": async (services, session, body) => {
+		const scope = await services.codeMode.access(session);
+		const input = parse(z.object({ resource: z.string().max(1000), from: z.json(), to: z.json() }), body);
+		return json(200, await services.builder.reverseHistory(scope, input.resource, input.from, input.to));
+	},
 	"code/editorService": async (services, session, body) => {
 		const scope = await services.codeMode.access(session);
 		const { method, input } = parse(
@@ -880,13 +899,21 @@ async function enter(services: InstallServices, request: Request, host: SiteHost
 			return plainText(403, "Code mode needs permission to edit Structure.", headers);
 	}
 	const selection = query.get("selection");
+	const history = new URL(request.url).searchParams.get("history");
 	const selected =
 		code && selection && isCodeSelection(selection) ? `#wc-selection=${encodeURIComponent(selection)}` : "";
 	const hostname = new URL(request.url).hostname;
 	const maxAge = Math.max(0, Math.floor((entered.expiresAt.getTime() - services.clock.now().getTime()) / 1000));
 	const answer = new Response(null, {
 		status: 303,
-		headers: { location: entered.path + selected, "cache-control": "no-store", ...headers },
+		headers: {
+			location:
+				entered.path +
+				selected +
+				(history && /^[A-Za-z0-9_-]{43}$/.test(history) ? `${selected ? "&" : "#"}wc-history=${history}` : ""),
+			"cache-control": "no-store",
+			...headers,
+		},
 	});
 	answer.headers.append("set-cookie", editCookie(hostname, entered.cookie, maxAge));
 	if (code) answer.headers.append("set-cookie", siteCookie(hostname, "code", "on", maxAge));

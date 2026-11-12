@@ -242,9 +242,9 @@ describe("the Layers panel from the keyboard alone", () => {
 
 		await page.keyboard.press("ControlOrMeta+z");
 		await layer(page, /^section/).waitFor();
-		expect(await announced(page)).toBe("Undone.");
+		await expectAnnounced(page, "Undid Delete section");
 		await page.keyboard.press("ControlOrMeta+Shift+z");
-		expect(await announced(page)).toBe("Redone.");
+		await expectAnnounced(page, "Redid Delete section");
 		await expect(layer(page, /^section/).count()).resolves.toBe(0);
 	});
 });

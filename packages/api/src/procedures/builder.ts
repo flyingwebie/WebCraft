@@ -1,3 +1,4 @@
+import type { DocumentJson } from "@webcraft/core";
 import { CSS_MAX_LENGTH, TREE_LIMITS } from "@webcraft/renderer";
 import { z } from "zod";
 
@@ -43,6 +44,33 @@ const draft = { tree: z.unknown(), styles, props: fieldInputs.optional() };
  * `components.saveMarkup`, so the builder and Template markup are two views of one Draft.
  */
 export const builder = {
+	historyDesign: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
+		const scope = await context.services.data.site(context.access, input.siteId, "structure.edit");
+		return context.services.builder.historyDesign(scope);
+	}),
+	transferHistory: signedIn
+		.input(z.object({ siteId: id, payload: z.string().max(8_000_000) }))
+		.handler(async ({ context, input }) => {
+			const scope = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return context.services.builder.transferHistory(scope, input.payload);
+		}),
+	claimHistory: signedIn
+		.input(z.object({ siteId: id, token: z.string().max(100) }))
+		.handler(async ({ context, input }) => {
+			const scope = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return context.services.builder.claimHistory(scope, input.token);
+		}),
+	reverseHistory: signedIn
+		.input(z.object({ siteId: id, resource: z.string().max(1000), from: z.json(), to: z.json() }))
+		.handler(async ({ context, input }) => {
+			const scope = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return context.services.builder.reverseHistory(
+				scope,
+				input.resource,
+				input.from as DocumentJson,
+				input.to as DocumentJson,
+			);
+		}),
 	/** Renderable editing destinations, including never-published Entries and repeated Component Placements. */
 	destinations: signedIn
 		.input(z.object({ siteId: id, target, entryId: id.optional() }))

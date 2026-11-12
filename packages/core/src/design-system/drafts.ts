@@ -272,6 +272,24 @@ export async function changeDraft(
 	});
 }
 
+/** Restores the stored document shape, retaining stable Class ids for co-editing and history.
+ * The same CSS parser, reference/use checks and locked write as an ordinary edit still apply. */
+export async function saveDesignSystemDocument(scope: SiteScope, content: unknown): Promise<void> {
+	await scope.transaction(async (tx) => {
+		const locked = await lockDesignSystem(tx);
+		const source = readDesignSystem(content);
+		const next = applyChange(locked.draft, editable(source), true);
+		next.classes = next.classes.map((each) => ({
+			...each,
+			generated: source.classes.find((saved) => saved.id === each.id)?.generated ?? false,
+		}));
+		await refuseRemovingUsed(tx, locked.draft, next);
+		const problems = designSystemProblems(next);
+		if (problems.length) throw new DesignSystemInvalidError(problems);
+		await writeDraft(tx, locked, next);
+	});
+}
+
 /**
  * A Draft with a change applied, saving nothing: what Code mode previews while Staff type CSS. Throws
  * `DesignSystemInvalidError` as saving the change would.
@@ -289,7 +307,7 @@ export function withChange(current: DesignSystem, change: DesignSystemChange): D
  * with today's names, keeps the stored references. Throws `DesignSystemInvalidError` with every
  * problem in the CSS.
  */
-function applyChange(current: DesignSystem, change: DesignSystemChange): DesignSystem {
+function applyChange(current: DesignSystem, change: DesignSystemChange, restoreIds = false): DesignSystem {
 	const problems: DesignSystemProblem[] = [];
 	const before = designSystemNames(current);
 	const tokens = change.tokens ? withTokenIds(change.tokens) : current.tokens;
@@ -298,7 +316,7 @@ function applyChange(current: DesignSystem, change: DesignSystemChange): DesignS
 	const existing = new Map(current.classes.map((each) => [each.id, each]));
 	const skeleton: DesignClass[] = inputs
 		? inputs.map((input, index) => {
-				if (input.id !== undefined && !existing.has(input.id)) {
+				if (input.id !== undefined && !existing.has(input.id) && !restoreIds) {
 					problems.push({
 						at: `classes[${index}].id`,
 						message: "There is no Class with this id: leave the id out for a new Class.",

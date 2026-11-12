@@ -1,4 +1,6 @@
+import type { Json } from "@webcraft/core/draft-document";
 import type { componentScriptSettings } from "../../ui/builder/component-script-settings.ts";
+import type { EditorHistory } from "../../ui/builder/editor-history.ts";
 import type { renderedRanges } from "../../ui/builder/rendered-ranges.ts";
 /** What Code mode's script is given when it is made: the address of its own stylesheet. */
 export type CodeModeConfig = { styles: string; panels: string };
@@ -99,6 +101,7 @@ export function codeMode(
 	let inputRevision = 0;
 	let panelsAdapter:
 		| {
+				history: EditorHistory;
 				select(ref: string | null): void;
 				hover(ref: string | null): void;
 				refresh(): void;
@@ -297,6 +300,7 @@ export function codeMode(
 	let scripts: Scripts | null = null;
 	let jsKind: ScriptKind = "page";
 	let jsSaved = "";
+	let previousScript: Json = "";
 	let componentScriptLoadRun = 0;
 	/** The Component tab's settings as last saved (its Consent category and Libraries), to tell a change. */
 	let jsSettingsSaved = "";
@@ -344,11 +348,13 @@ export function codeMode(
 		words = ((state.data as { words?: Words }).words?.codeMode as Words | undefined) ?? {};
 		build();
 		for (const line of pending.splice(0)) logLine("error", line);
+		const historyToken = new URLSearchParams(win.location.hash.slice(1)).get("wc-history");
 		const selectionHash = new URLSearchParams(win.location.hash.slice(1)).get("wc-selection");
-		if (selectionHash) win.history.replaceState(null, "", win.location.pathname + win.location.search);
+		if (selectionHash || historyToken) win.history.replaceState(null, "", win.location.pathname + win.location.search);
 		await Promise.all([open(selectionHash), loadScripts()]);
 		const module = await import(config.panels);
 		panelsAdapter = module.mount({
+			historyToken,
 			root,
 			cssHost,
 			edited: () => inputRevision++,
@@ -361,6 +367,17 @@ export function codeMode(
 			select: (ref: string, inspect?: string) => {
 				inspectorRef = inspect;
 				void select(ref, true);
+			},
+			revealHistory: async (ref: string, panel: string, resource?: string) => {
+				await select(ref, true);
+				if (panel === "js" && resource?.split(":")[2] === "component") {
+					await loadComponentScript(ref);
+					await switchScript("component");
+				}
+				showPanels(true);
+				pageElementFor(ref)?.scrollIntoView({ block: "nearest" });
+				const area = panel === "js" ? jsEditor.area : panel === "html" ? html.area : cssHost;
+				area.scrollIntoView({ block: "nearest" });
 			},
 			changed(ref: string, markup: string, preserveAuthored = false) {
 				if (opened?.ref === ref && !preserveAuthored) {
@@ -427,6 +444,68 @@ export function codeMode(
 			},
 			hover: setHover,
 		});
+		doc.addEventListener(
+			"click",
+			(event) => {
+				const link = event.composedPath().find((node) => node instanceof HTMLAnchorElement) as
+					| HTMLAnchorElement
+					| undefined;
+				if (
+					!link ||
+					event.defaultPrevented ||
+					event.ctrlKey ||
+					event.metaKey ||
+					event.shiftKey ||
+					event.altKey ||
+					link.target ||
+					link.origin !== location.origin ||
+					!link.closest('[role="menu"]')
+				)
+					return;
+				event.preventDefault();
+				void (async () => {
+					const revision = inputRevision;
+					if (!panelsAdapter || !(await panelsAdapter.depart()) || (jsDirty() && !(await saveScript(undefined))))
+						return;
+					const destination = await panelsAdapter.history.departure(link.href);
+					if (revision === inputRevision) win.location.assign(destination);
+				})();
+			},
+			true,
+		);
+		panelsAdapter?.history.listen({
+			announce: (message) => {
+				announce(message);
+				schedulePreview();
+			},
+			reveal: async (location) => {
+				const [kind, , which, id] = location.resource?.split(":") ?? [];
+				if (
+					kind !== "script" ||
+					(which !== "page" && which !== "site") ||
+					(which === "page" && id !== scripts?.page?.entryId)
+				)
+					return false;
+				await switchScript(which);
+				showPanels(true);
+				return true;
+			},
+		});
+		const undoButton = button({ class: "small", "aria-label": word("undo") }, word("undo"));
+		const redoButton = button({ class: "small", "aria-label": word("redo") }, word("redo"));
+		undoButton.addEventListener("click", () => void panelsAdapter?.history.undo());
+		redoButton.addEventListener("click", () => void panelsAdapter?.history.redo());
+		root.querySelector(".topline")?.append(undoButton, redoButton);
+		const refreshHistory = () => {
+			const state = panelsAdapter?.history.state();
+			undoButton.disabled = !state?.undo || state.busy;
+			redoButton.disabled = !state?.redo || state.busy;
+			undoButton.title = `${word("undo")} ${state?.undo ?? ""}`.trim();
+			redoButton.title = `${word("redo")} ${state?.redo ?? ""}`.trim();
+		};
+		panelsAdapter?.history.subscribe(refreshHistory);
+		refreshHistory();
+
 		panelsAdapter?.select(selectedRef ?? opened?.ref ?? null);
 		editorReady();
 		openAskedScript();
@@ -590,7 +669,9 @@ export function codeMode(
 			url.searchParams.set("returnPath", path);
 			url.searchParams.set("returnTitle", doc.title.split(" · ")[0] ?? path);
 			url.searchParams.set("returnRef", sourceRef ?? opened.ref);
-			win.location.assign(url.href);
+			const destination = await panelsAdapter.history.departure(url.href);
+			if (inputRevision !== revision) return;
+			win.location.assign(destination);
 		} finally {
 			openingBuilder = false;
 			editorReady();
@@ -704,6 +785,14 @@ export function codeMode(
 			const bottom = target.getBoundingClientRect().bottom;
 			const top = shell.getBoundingClientRect().top - 8;
 			if (bottom > top) win.scrollBy({ top: bottom - top, behavior: "instant" });
+		});
+		root.addEventListener("focusout", () => panelsAdapter?.history.boundary());
+		win.addEventListener("keydown", (event) => {
+			if (!(event.ctrlKey || event.metaKey) || event.altKey || !panelsAdapter || event.defaultPrevented) return;
+			const key = event.key.toLowerCase();
+			if (key !== "z" && key !== "y") return;
+			event.preventDefault();
+			void (key === "y" || event.shiftKey ? panelsAdapter.history.redo() : panelsAdapter.history.undo());
 		});
 		root.addEventListener("keydown", (event) => {
 			const key = (event as KeyboardEvent).key;
@@ -821,13 +910,23 @@ export function codeMode(
 		jsRun.addEventListener("click", () => void run());
 		jsNote = el("p", { class: "note", hidden: "" });
 		jsUsage = el("p", { class: "usage", hidden: "" });
-		scriptSettings = makeScriptSettings({ document: doc, word, changed: () => setDirty("js") });
+		scriptSettings = makeScriptSettings({
+			document: doc,
+			word,
+			changed: () => {
+				recordScript(false);
+				setDirty("js");
+			},
+		});
 		jsSettings = scriptSettings.root;
 		jsSettings.hidden = true;
 		jsEditor = editor({
 			language: "js",
 			label: word("js"),
-			onInput: () => setDirty("js"),
+			onInput: () => {
+				recordScript(true);
+				setDirty("js");
+			},
 			onCaret: () => undefined,
 			suggest: () => null,
 			save: () => void saveScript(null),
@@ -1462,7 +1561,9 @@ export function codeMode(
 		showScript();
 	}
 
-	function switchScript(kind: ScriptKind): void {
+	async function switchScript(kind: ScriptKind): Promise<void> {
+		if (jsDirty() && !(await saveScript(undefined))) return;
+		panelsAdapter?.history.boundary();
 		if (kind === "page" && !scripts?.page) return;
 		if (kind === "component" && !scripts?.component) return;
 		jsKind = kind;
@@ -1526,6 +1627,7 @@ export function codeMode(
 		if (onComponent) showComponentSettings(component);
 		jsSaved = script?.code ?? "";
 		jsEditor.set(jsSaved);
+		previousScript = jsKind === "component" ? { code: jsEditor.get(), ...componentSettings() } : jsEditor.get();
 		const editable = !onComponent || component.editable;
 		jsEditor.readOnly(!editable);
 		jsSave.disabled = !editable;
@@ -1539,6 +1641,55 @@ export function codeMode(
 	function showComponentSettings(component: ComponentScript): void {
 		scriptSettings.set(component);
 		jsSettingsSaved = encode(componentSettings());
+	}
+
+	function recordScript(typing: boolean): void {
+		const history = panelsAdapter?.history;
+		if (!history?.siteId) return;
+		const kind = jsKind;
+		const componentId = scripts?.component?.componentId;
+		const id = kind === "component" ? componentId : kind === "page" ? scripts?.page?.entryId : "";
+		const resource = `script:${history.siteId}:${kind}:${id ?? ""}`;
+		const after: Json = kind === "component" ? { code: jsEditor.get(), ...componentSettings() } : jsEditor.get();
+		history.record({
+			resource,
+			before: previousScript,
+			after,
+			label: `${word("editScript")} ${jsTitle.textContent ?? ""}`,
+			location: {
+				siteId: history.siteId,
+				title: doc.title,
+				panel: "js",
+				ref: selectedRef ?? undefined,
+				draft: kind === "component" ? `draft:${history.siteId}:component:${componentId}` : undefined,
+			},
+			group: typing ? resource : undefined,
+		});
+		previousScript = after;
+		history.register(resource, {
+			reverse: async (from, to) => {
+				const current = jsKind === kind && (kind !== "component" || scripts?.component?.componentId === componentId);
+				const started = Date.now();
+				while (busy.has(jsSave) && Date.now() - started < 10000) await new Promise((resolve) => later(resolve, 20));
+				if (busy.has(jsSave)) return { ok: false, code: "HISTORY_UNAVAILABLE" };
+				if (current && jsDirty()) {
+					const before: Json = kind === "component" ? { code: jsEditor.get(), ...componentSettings() } : jsEditor.get();
+					const after = history.reverseValue(from, to, before);
+					if (typeof after === "string") jsEditor.set(after, true);
+					else if (after && typeof after === "object" && !Array.isArray(after)) {
+						jsEditor.set(String(after.code), true);
+						if (scripts?.component) scriptSettings.set({ ...scripts.component, ...after } as ComponentScript);
+					}
+					previousScript = after;
+					setDirty("js");
+					return { ok: true, before, after };
+				}
+				const answer = await call("code/reverseHistory", { resource, from, to });
+				if (!answer.ok) return { ok: false, code: answer.code };
+				if (current) await loadScripts();
+				return answer.data as { ok: true; before: Json; after: Json };
+			},
+		});
 	}
 
 	async function saveScript(version: string | null | undefined): Promise<boolean> {

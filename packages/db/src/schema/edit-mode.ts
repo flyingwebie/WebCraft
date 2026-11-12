@@ -76,3 +76,25 @@ export const editSessions = pgTable(
 		index("edit_sessions_expires_at_idx").on(table.expiresAt),
 	],
 );
+
+/** Ephemeral, single-use editor navigation payloads; reload never claims one again. */
+export const editorHistoryTransfers = pgTable(
+	"editor_history_transfers",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		workspaceId: uuid("workspace_id").notNull(),
+		siteId: uuid("site_id").notNull(),
+		personId: uuid("person_id").references(() => people.id, { onDelete: "cascade" }),
+		tokenHash: text("token_hash").notNull().unique(),
+		payload: text("payload").notNull(),
+		expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+	},
+	(table) => [
+		foreignKey({
+			name: "editor_history_transfers_site_fkey",
+			columns: [table.workspaceId, table.siteId],
+			foreignColumns: [sites.workspaceId, sites.id],
+		}).onDelete("cascade"),
+		index("editor_history_transfers_expires_idx").on(table.expiresAt),
+	],
+);

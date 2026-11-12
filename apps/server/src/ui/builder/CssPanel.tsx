@@ -1,3 +1,4 @@
+import { reverseChange } from "@webcraft/core/draft-document";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
@@ -29,6 +30,7 @@ import { CSS_PROPERTIES, declarationOf, withDeclarationOf } from "../design-syst
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
 import { CodeArea } from "./CodeArea.tsx";
+import { editorHistory, type HistoryLocation } from "./editor-history.ts";
 import type { Catalogue } from "./model.ts";
 
 /** Which CSS a save or preview changes: one piece of a Class, or the Site CSS. */
@@ -69,7 +71,7 @@ export type CssPanelPort = {
 	/** Saves one piece, based on the version it was read at. */
 	save(target: CssTarget, text: string, version: string | null): Promise<{ text: string; version: string }>;
 	/** Makes an empty Class in the Design system's Draft. */
-	createClass(name: string): Promise<{ id: string; name: string }>;
+	createClass(name: string, step?: number): Promise<{ id: string; name: string }>;
 	/** Renames a Class (a Generated Class that became a normal one). */
 	renameClass(classId: string, name: string): Promise<void>;
 	/** Shows unsaved CSS on the canvas, or (null) the Draft again. Optional: a canvas may only show saved CSS. */
@@ -82,6 +84,7 @@ export type CssPanelPort = {
  * answer can't change the tabs, the tree or the selection.
  */
 export type CssPanelProps = {
+	historyLocation?: HistoryLocation;
 	/** Await every pending CSS tab before leaving either canvas. False keeps the editor open. */
 	departure?: { current: (() => Promise<boolean>) | null };
 	/** Authored CSS changes, including layout buttons, invalidate a pending departure. */
@@ -96,7 +99,7 @@ export type CssPanelProps = {
 	/** The element comes from a Module's Component: the panel says why its Classes can't change. */
 	fromModule?: boolean;
 	/** Changes the element's class list through its current shared document; answers why not, if it can't. */
-	onClasses(classIds: string[], announcement: string): string | undefined;
+	onClasses(classIds: string[], announcement: string, step?: number): string | undefined;
 	/**
 	 * Reads the canvas's Class catalogue again, through its source's owner, after the panel made,
 	 * renamed or restyled a Class: the panel never hands the canvas a Class copy of its own.
@@ -198,6 +201,7 @@ const COLUMNS = /^repeat\(\s*(\d+)\s*,\s*(?:minmax\(\s*0\s*,\s*1fr\s*\)|1fr)\s*\
  * layer each tab's CSS lands in.
  */
 export function CssPanel({
+	historyLocation,
 	port,
 	element,
 	catalogue,
@@ -348,7 +352,82 @@ export function CssPanel({
 		if (focus) tabRefs.current.get(next)?.focus();
 	};
 
+	const history = editorHistory();
+	const historyPorts = useRef(new Map<string, () => void>());
+	useEffect(
+		() => () => {
+			for (const dispose of historyPorts.current.values()) dispose();
+		},
+		[],
+	);
+	const historyAccept = useRef<(which: CssTarget, before: string | null, after: string) => void>(() => {});
+	const historyResource = `css:${historyLocation?.siteId ?? ""}:${JSON.stringify(target)}`;
+	const pendingHistory = useRef(drafts);
+	pendingHistory.current = drafts;
+	const saveInProgress = useRef(saving);
+	saveInProgress.current = saving;
+	useEffect(() => {
+		if (!historyLocation) return;
+		const which = target;
+		historyPorts.current.get(historyResource)?.();
+		historyPorts.current.set(
+			historyResource,
+			history.register(historyResource, {
+				reverse: async (from, to) => {
+					const started = Date.now();
+					while (saveInProgress.current && Date.now() - started < 10000)
+						await new Promise((resolve) => setTimeout(resolve, 20));
+					if (saveInProgress.current) return { ok: false, code: "HISTORY_UNAVAILABLE" };
+					const fresh = await port.read(which.kind === "class" ? [which.classId] : []);
+					const each = which.kind === "class" ? fresh.classes.find((c) => c.id === which.classId) : null;
+					const stored = savedText(which, fresh, new Map(fresh.classes.map((c) => [c.id, c])));
+					if (stored === null) return { ok: false, code: "HISTORY_OBSOLETE" };
+					const pending = pendingHistory.current[key];
+					const before = pending?.text ?? stored;
+					let after: string;
+					try {
+						after = reverseChange(from, to, before) as string;
+					} catch {
+						return { ok: false, code: "HISTORY_OBSOLETE" };
+					}
+					const version = which.kind === "site" ? fresh.siteCss.version : (each?.version ?? null);
+					if (!pending || pending.text === stored) {
+						const stored = await port.save(which, after, version);
+						historyAccept.current(which, version, stored.version);
+						setDrafts((drafts) => {
+							if (drafts[key] && drafts[key].text !== before) return drafts;
+							const { [key]: _, ...rest } = drafts;
+							return rest;
+						});
+						await read();
+						await refreshCatalogue();
+					} else {
+						pendingHistory.current = { ...pendingHistory.current, [key]: { text: after, version: pending.version } };
+						setDrafts(pendingHistory.current);
+					}
+					setPicked({ element: elementId, tab: which.kind === "site" ? SITE : which.classId });
+					setView(
+						which.kind === "site" || which.part === "styles"
+							? "all"
+							: which.part === "css"
+								? "own"
+								: which.breakpointId,
+					);
+					return { ok: true, before, after };
+				},
+			}),
+		);
+	}, [historyResource, historyLocation, port, key, elementId, read, refreshCatalogue, target, history]);
 	const change = (value: string) => {
+		if (historyLocation)
+			history.record({
+				resource: historyResource,
+				before: text,
+				after: value,
+				label: t("editorHistory.css", { name: label }),
+				location: { ...historyLocation, panel: "css" },
+				group: historyResource,
+			});
 		editRevision.current++;
 		onEdit?.();
 		setDrafts((before) => ({
@@ -407,18 +486,24 @@ export function CssPanel({
 			announce(t("builder.css.added", { name }));
 		} else {
 			try {
-				const created = await port.createClass(name);
-				await refreshCatalogue();
-				// Added to the element's class list as it is now, never to the one read before the request.
-				const now = latest.current;
-				if (now.element?.id !== elementId) return announce(t("builder.css.created", { name }));
-				if (!now.element.classes.includes(created.id)) {
-					const problem = now.onClasses([...now.element.classes, created.id], t("builder.css.created", { name }));
-					if (problem) return setAddProblem(problem);
-				}
-				lastClass.current = created.id;
-				setPicked({ element: elementId, tab: created.id });
-				announce(t("builder.css.created", { name }));
+				await history.compound(t("builder.css.created", { name }).replace(/\.$/, ""), async (step) => {
+					const created = await port.createClass(name, step);
+					await refreshCatalogue();
+					// Added to the element's class list as it is now, never to the one read before the request.
+					const now = latest.current;
+					if (now.element?.id !== elementId) return announce(t("builder.css.created", { name }));
+					if (!now.element.classes.includes(created.id)) {
+						const problem = now.onClasses(
+							[...now.element.classes, created.id],
+							t("builder.css.created", { name }),
+							step,
+						);
+						if (problem) return setAddProblem(problem);
+					}
+					lastClass.current = created.id;
+					setPicked({ element: elementId, tab: created.id });
+					announce(t("builder.css.created", { name }));
+				});
 			} catch (failure) {
 				const listed = (failure as { data?: { problems?: Problem[] } }).data?.problems;
 				return setAddProblem(listed?.length ? listed.map((each) => each.message).join(" ") : t(errorMessage(failure)));
@@ -456,6 +541,7 @@ export function CssPanel({
 		);
 	};
 
+	historyAccept.current = acceptSave;
 	const departureNow = useRef<() => Promise<boolean>>(async () => false);
 	departureNow.current = async () => {
 		if (saveActive.current) return false;

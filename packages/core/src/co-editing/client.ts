@@ -1,5 +1,4 @@
 import * as Y from "yjs";
-
 import { changeDocument, copyDocument, type Json, mergeChange, readDocument } from "./document.ts";
 import {
 	decodeFrame,
@@ -10,6 +9,7 @@ import {
 	SEND_EVERY_MS,
 	type ServerMessage,
 } from "./protocol.ts";
+import { reverseChange } from "./reverse.ts";
 
 /**
  * An editor's side of a shared document (ADR 0025): its own copy of the document, which its person
@@ -53,6 +53,8 @@ export type DraftEvents = {
 };
 
 export type DraftClient = {
+	/** Applies an own-step inverse, awaiting its actual acknowledgement (including refusal resets). */
+	reverse(from: Json, to: Json): Promise<{ ok: true; before: Json; after: Json } | { ok: false; code: string }>;
 	/** The Draft as this editor's copy holds it now. */
 	draft(): Json;
 	/**
@@ -124,6 +126,7 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 	let place: string | null = null;
 	/** The Draft as the server last confirmed it: a fresh document gets the changes made since. */
 	let confirmed: Json = null;
+	let lastRefusal: DraftRefused | null = null;
 
 	const setStatus = (next: DraftStatus) => {
 		if (currentStatus === next) return;
@@ -235,6 +238,7 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 					setStatus(settled());
 					return;
 				case "refused":
+					lastRefusal = message;
 					// The server drops the change for everyone and sends its whole document next.
 					resetting = true;
 					afterRefusal = true;
@@ -275,7 +279,9 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 				return;
 			case "changed":
 				Y.applyUpdate(doc, frame.data, FROM_SERVER);
-				options.onChange?.(readDocument(doc), "remote");
+				// A peer can write while this socket is opening. Keep the delta in Yjs, but
+				// do not expose an incomplete document before its first full state arrives.
+				if (synced) options.onChange?.(readDocument(doc), "remote");
 				return;
 			case "sync": {
 				if (resetting) return;
@@ -312,6 +318,28 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 	const canEdit = () => !ended && !closedForGood && mayEdit && synced && settled() !== "readOnly" && !resetting;
 	return {
 		draft: () => readDocument(doc),
+		async reverse(from, to) {
+			if (!canEdit() || settled() !== "saved") return { ok: false, code: "HISTORY_UNAVAILABLE" };
+			const refusal = lastRefusal;
+			const before = readDocument(doc);
+			let after: Json;
+			try {
+				after = reverseChange(from, to, before);
+			} catch {
+				return { ok: false, code: "HISTORY_OBSOLETE" };
+			}
+			if (JSON.stringify(before) === JSON.stringify(after)) return { ok: false, code: "HISTORY_OBSOLETE" };
+			changeDocument(doc, after);
+			options.onChange?.(readDocument(doc), "local");
+			flush();
+			const start = Date.now();
+			while (settled() === "saving" || resetting) {
+				if (Date.now() - start > 10_000) return { ok: false, code: "HISTORY_UNAVAILABLE" };
+				await new Promise((resolve) => setTimeout(resolve, 10));
+			}
+			if (lastRefusal !== refusal) return { ok: false, code: lastRefusal?.code ?? "HISTORY_UNAVAILABLE" };
+			return settled() === "saved" ? { ok: true, before, after } : { ok: false, code: "HISTORY_UNAVAILABLE" };
+		},
 		change(next) {
 			if (!canEdit()) return false;
 			const value = typeof next === "function" ? next(readDocument(doc)) : next;

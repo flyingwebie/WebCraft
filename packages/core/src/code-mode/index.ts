@@ -295,7 +295,7 @@ export function createCodeMode(options: {
 		saveCss: (scope, input) => saveCss(scope, input),
 		createClass: (scope, name) => makeClass(scope, name),
 		scripts: (scope, host, path, ref) => readScripts(scope, deps, host, path, ref),
-		saveScript: (scope, host, input) => saveScript(scope, pages, host, input),
+		saveScript: (scope, host, input) => saveScript(scope, deps, host, input),
 		saveComponentScript: (scope, input) => saveComponentScriptFromPanel(scope, deps, input),
 		draftScript,
 	};

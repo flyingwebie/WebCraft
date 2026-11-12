@@ -1602,8 +1602,8 @@
 		"publishIntro": "I visitatori vedranno queste modifiche dopo la pubblicazione.",
 		"authorIntro": "Le tue modifiche sono salvate nella bozza. Inviale in revisione quando sono pronte: le pubblica un Editor o un Owner.",
 		"nothingToPublish": "Non ci sono modifiche in questa pagina.",
-		"undo": "Annulla",
-		"undoChange": "Annulla {label}",
+		"undo": "Ripristina",
+		"undoChange": "Ripristina {label}",
 		"changedByYou": "{type} modificato · tu",
 		"changedBy": "{type} modificato · {name}",
 		"changed": "{type} modificato",
@@ -1856,7 +1856,10 @@
 			},
 			"openBuilder": "Apri nel Builder",
 			"archiveTemplate": "{name} · Template archivio",
-			"searchTemplate": "Template ricerca"
+			"searchTemplate": "Template ricerca",
+			"undo": "Annulla",
+			"redo": "Ripeti",
+			"editScript": "Modifica JS di"
 		},
 		"alsoEditing": "Stanno modificando anche questa pagina",
 		"inReview": "In revisione",
@@ -7611,5 +7614,29 @@
 		"barPosition": "Posizione della barra",
 		"barBehavior": "Flusso della pagina",
 		"reviewPublish": "Rivedi e pubblica il Popup"
+	},
+	"editorHistory": {
+		"undid": "Annullato {label}",
+		"redid": "Ripetuto {label}",
+		"skipped": "Saltato {label}.",
+		"HISTORY_OBSOLETE": "Questo passaggio si sovrappone a una modifica più recente o la destinazione non esiste più.",
+		"HISTORY_UNAVAILABLE": "La bozza non è disponibile per la modifica.",
+		"refused": "Il server ha rifiutato questo passaggio.",
+		"html": "Modifica HTML di {name}",
+		"css": "Modifica CSS di {name}",
+		"js": "Modifica JS di {name}",
+		"undo": "Annulla {label}",
+		"redo": "Ripeti {label}",
+		"on": "{message} su {title}",
+		"move": "Sposta {name}",
+		"rename": "Rinomina {name}",
+		"delete": "Elimina {name}",
+		"cut": "Taglia {name}",
+		"duplicate": "Duplica {name}",
+		"paste": "Incolla {name}",
+		"insert": "Inserisci {name}",
+		"createClass": "Crea classe {name}",
+		"oneOff": "Modifica stile singolo",
+		"HISTORY_PARTIAL": "Non è stato possibile ripristinare parte di questo passaggio. Controlla la bozza prima di continuare."
 	}
 }

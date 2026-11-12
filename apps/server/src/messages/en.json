@@ -1602,8 +1602,8 @@
 		"publishIntro": "Visitors see these changes once you publish.",
 		"authorIntro": "Your changes are saved to the Draft. Submit them for review when they're ready: an Editor or Owner publishes them.",
 		"nothingToPublish": "There are no changes on this page.",
-		"undo": "Undo",
-		"undoChange": "Undo {label}",
+		"undo": "Revert",
+		"undoChange": "Revert {label}",
 		"changedByYou": "{type} changed · you",
 		"changedBy": "{type} changed · {name}",
 		"changed": "{type} changed",
@@ -1856,7 +1856,10 @@
 			},
 			"openBuilder": "Open in builder",
 			"archiveTemplate": "{name} · Archive template",
-			"searchTemplate": "Search template"
+			"searchTemplate": "Search template",
+			"undo": "Undo",
+			"redo": "Redo",
+			"editScript": "Edit JS of"
 		},
 		"alsoEditing": "Also editing this page",
 		"inReview": "In review",
@@ -7611,5 +7614,29 @@
 		"barPosition": "Bar position",
 		"barBehavior": "Page flow",
 		"reviewPublish": "Review and publish Popup"
+	},
+	"editorHistory": {
+		"undid": "Undid {label}",
+		"redid": "Redid {label}",
+		"skipped": "Skipped {label}.",
+		"HISTORY_OBSOLETE": "This step overlaps a newer change or its target no longer exists.",
+		"HISTORY_UNAVAILABLE": "The Draft is not available for editing.",
+		"refused": "The server refused this step.",
+		"html": "Edit HTML of {name}",
+		"css": "Edit CSS of {name}",
+		"js": "Edit JS of {name}",
+		"undo": "Undo {label}",
+		"redo": "Redo {label}",
+		"on": "{message} on {title}",
+		"move": "Move {name}",
+		"rename": "Rename {name}",
+		"delete": "Delete {name}",
+		"cut": "Cut {name}",
+		"duplicate": "Duplicate {name}",
+		"paste": "Paste {name}",
+		"insert": "Insert {name}",
+		"createClass": "Create Class {name}",
+		"oneOff": "Edit one-off style",
+		"HISTORY_PARTIAL": "Part of this step could not be restored. Review the Draft before continuing."
 	}
 }

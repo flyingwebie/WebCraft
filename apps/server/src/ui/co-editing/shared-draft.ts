@@ -22,6 +22,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export type PublishedBy = Extract<ServerMessage, { type: "published" }>["by"];
 
 export type SharedDraft = {
+	reverse: DraftClient["reverse"];
 	status: DraftStatus;
 	/** Who has it open (this editor included, `self`), and API clients that changed it a moment ago. */
 	participants: Participant[];
@@ -167,8 +168,13 @@ export function useSharedDraft(options: {
 		return false;
 	}, []);
 	const read = useCallback(() => client.current?.draft() ?? null, []);
+	const reverse = useCallback(async (...args: Parameters<DraftClient["reverse"]>) => {
+		const result = (await client.current?.reverse(...args)) ?? { ok: false as const, code: "HISTORY_UNAVAILABLE" };
+		if (result.ok) handlers.current.onRemote(client.current?.draft() ?? result.after);
+		return result;
+	}, []);
 	const prepare = useCallback(() => client.current?.prepare() ?? null, []);
 
 	const writable = editable && (status === "saved" || status === "saving" || status === "offline");
-	return { status, participants, editable, writable, draft: read, change, prepare, place, flush };
+	return { reverse, status, participants, editable, writable, draft: read, change, prepare, place, flush };
 }

@@ -4,3 +4,5 @@
 export * from "./client.ts";
 export * from "./document.ts";
 export * from "./protocol.ts";
+
+export * from "./reverse.ts";

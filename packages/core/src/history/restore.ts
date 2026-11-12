@@ -1,5 +1,4 @@
 import { scripts, templates } from "@webcraft/db/schema";
-import { readDesignSystem } from "@webcraft/renderer";
 import { eq } from "drizzle-orm";
 
 import { restoreConsentTextDraft } from "../consent/text.ts";
@@ -11,7 +10,7 @@ import { restoreGlobalsDraft } from "../content/globals.ts";
 import { restoreLoopDraft } from "../content/loops.ts";
 import { saveScriptDraft } from "../content/scripts.ts";
 import { saveArchiveTemplate, saveEntryTemplate, saveSearchTemplate, saveSiteTemplate } from "../content/templates.ts";
-import { editable, saveDesignSystemDraft } from "../design-system/drafts.ts";
+import { saveDesignSystemDocument } from "../design-system/drafts.ts";
 import { saveFilterDraft } from "../filters/filters.ts";
 import { saveFormDraft, saveFormEmails } from "../forms/forms.ts";
 import { popupRow, restorePopupContent, savePopupDraft } from "../popups/index.ts";
@@ -115,14 +114,7 @@ export async function writeItemDraft(
 			return;
 		}
 		case "designSystem": {
-			const { tokens, classes, baseStyles, customCss, darkMode } = editable(readDesignSystem(content));
-			await saveDesignSystemDraft(scope, {
-				tokens,
-				classes: classes.map(({ generated: _, ...each }) => each),
-				baseStyles,
-				customCss,
-				darkMode,
-			});
+			await saveDesignSystemDocument(scope, content);
 			return;
 		}
 	}

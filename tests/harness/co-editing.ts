@@ -27,6 +27,7 @@ export type DraftItem =
 
 /** One editor with a Draft open. */
 export type TestEditor = {
+	reverse: DraftClient["reverse"];
 	/** The Draft as this editor's copy of the document holds it now. */
 	draft(): DocumentJson;
 	/** Changes the Draft as the editor's person does: the JSON it should become, or a function of what it holds. */
@@ -161,6 +162,7 @@ export async function editorOver(upgrade: () => Promise<UpgradeAnswer>): Promise
 	await open();
 
 	const editor: TestEditor = {
+		reverse: (...args) => client.reverse(...args),
 		draft: () => client.draft(),
 		change: (next) => client.change(next),
 		place: (at) => client.place(at),

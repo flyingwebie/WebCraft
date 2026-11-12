@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { FieldInput } from "@webcraft/core";
-import type { Json } from "@webcraft/core/draft-document";
+import { type Json, reverseChange, sameValue } from "@webcraft/core/draft-document";
 import { type ElementTree, hasText, type TreeNode } from "@webcraft/renderer/builder";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button, buttonVariants } from "@webcraft/ui/components/button.tsx";
@@ -37,8 +37,12 @@ import { Canvas, type CanvasTarget, type CanvasWidth } from "./Canvas.tsx";
 import { ComponentScriptPanel } from "./ComponentScriptPanel.tsx";
 import { CssPanel, type CssPanelPort } from "./CssPanel.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
+import { editorHistory, type HistoryLocation } from "./editor-history.ts";
 import { FixedTextDialog, type MadeEditable } from "./FixedTextDialog.tsx";
 import { type FixedTextLocation, rememberFixedText, resolveFixedText } from "./fixed-text.ts";
+import { historyLanguage } from "./history-language.ts";
+import { inspectorHistoryTab, revealInspectorHistory } from "./history-reveal.ts";
+import { connectHistory } from "./history-transport.ts";
 import { InsertDialog, type InsertWhere } from "./InsertDialog.tsx";
 import { InsertToolbar } from "./InsertToolbar.tsx";
 import { Inspector } from "./Inspector.tsx";
@@ -66,9 +70,6 @@ import {
 	placeBy as sharedPlaceBy,
 	treeProblem,
 } from "./tree.ts";
-
-/** The most steps undo goes back. */
-const HISTORY = 200;
 
 /** A problem of a tree the server refused, where it is (`nodes[0].children[2]`, `styles.<element id>`). */
 type TreeProblem = { at: string; message: string };
@@ -105,13 +106,26 @@ export function Builder({
 	const [opened, setOpened] = useState(initial);
 	const [doc, setDoc] = useState<BuilderDoc>(() => docOf(initial));
 	const [saved, setSaved] = useState(() => JSON.stringify(docOf(initial)));
-	const history = useRef<{ past: BuilderDoc[]; future: BuilderDoc[] }>({ past: [], future: [] });
+	const history = editorHistory();
+	useEffect(() => {
+		void connectHistory(siteId, async (method, input) => {
+			const api = await getApi();
+			return api.builder[method]({ siteId, ...input } as never) as never;
+		});
+	}, [siteId]);
+	const markupStep = useRef<number | undefined>(undefined);
+	const styleStep = useRef<number | undefined>(undefined);
 	const [, setHistoryVersion] = useState(0);
 	const [selection, setSelection] = useState<Selection | null>(() => {
 		if (select && "element" in select) return selectionOf(initial.tree, select.element);
 		const path = select && "filter" in select ? pathOfFilter(initial.tree, select.filter) : undefined;
 		return path ? { kind: "node", path } : initial.tree.nodes.length ? { kind: "node", path: [0] } : null;
 	});
+	const selectedHistoryKey = selection ? selectionKey(doc.tree, selection) : null;
+	// biome-ignore lint/correctness/useExhaustiveDependencies: a new selection ends a typing group.
+	useEffect(() => {
+		history.boundary();
+	}, [history, selectedHistoryKey]);
 	const oneOffDeparture = useRef<(() => Promise<boolean>) | null>(null);
 	const inputRevision = useRef(0);
 	const jsDeparture = useRef<(() => Promise<boolean>) | null>(null);
@@ -126,7 +140,7 @@ export function Builder({
 		if (!selection && doc.tree.nodes.length) setSelection({ kind: "node", path: [0] });
 	}, [selection, doc.tree]);
 	const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
-	const [grab, setGrab] = useState<{ doc: BuilderDoc; selection: Selection; past: BuilderDoc[] } | null>(null);
+	const [grab, setGrab] = useState<{ doc: BuilderDoc; selection: Selection; past?: never } | null>(null);
 	const [markup, setMarkup] = useState("");
 	const [markupBase, setMarkupBase] = useState("");
 	const [markupProblems, setMarkupProblems] = useState<MarkupProblem[]>([]);
@@ -207,10 +221,6 @@ export function Builder({
 				props: component ? (component.props as unknown as FieldInput[]) : null,
 			};
 			if (JSON.stringify(next) === JSON.stringify(docRef.current)) return;
-			// Old snapshots cannot safely undo another person's work. The tab-wide history (#136)
-			// replaces these local Builder steps; until then discard inapplicable snapshots.
-			if (history.current.past.length) announce(t("builder.historyChanged"));
-			history.current = { past: [], future: [] };
 			setGrab(null);
 			docRef.current = next;
 			setDoc(next);
@@ -228,6 +238,102 @@ export function Builder({
 			}
 		},
 	});
+	const historyKey = `draft:${siteId}:${opened.component ? "component" : "template"}:${documentId ?? `new-${JSON.stringify(target)}`}`;
+	const historyLocation = useCallback(
+		(selected: Selection | null = selection, panel: HistoryLocation["panel"] = "tree"): HistoryLocation => ({
+			siteId,
+			draft: historyKey,
+			inspectorTab: inspectorHistoryTab(),
+			title,
+			selection: selected ? selectionKey(docRef.current.tree, selected) : null,
+			panel,
+		}),
+		[siteId, historyKey, title, selection],
+	);
+	useEffect(() => history.subscribe(() => setHistoryVersion((count) => count + 1)), [history]);
+	history.configure(historyLanguage(t));
+	useEffect(
+		() =>
+			history.register(historyKey, {
+				reverse: async (from, to) => {
+					if (!documentId) {
+						const before = docRef.current.tree as unknown as Json;
+						const after = reverseChange(from, to, before);
+						const next = { ...docRef.current, tree: after as unknown as ElementTree };
+						docRef.current = next;
+						setDoc(next);
+						return { ok: true, before, after };
+					}
+					if (!(await shared.flush())) return { ok: false, code: "HISTORY_UNAVAILABLE" };
+					return shared.reverse(from, to);
+				},
+			}),
+		[history, historyKey, shared.flush, shared.reverse, documentId],
+	);
+	useEffect(
+		() =>
+			history.listen({
+				announce,
+				reveal: (location) => {
+					if (location.draft !== historyKey && !(location.panel === "js" && location.title === title)) return false;
+					if (location.selection) setSelection(selectionOf(docRef.current.tree, location.selection));
+					setCollapsed(new Set());
+					requestAnimationFrame(() => {
+						revealInspectorHistory(location.inspectorTab);
+						document.querySelector('[role="treeitem"][aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+						if (location.selection)
+							for (const frame of document.querySelectorAll<HTMLIFrameElement>('iframe[title^="Canvas"]'))
+								frame.contentDocument
+									?.querySelector(`[data-wc-code="b#${CSS.escape(location.selection)}"]`)
+									?.scrollIntoView({ block: "nearest" });
+						if (["html", "css", "js"].includes(location.panel))
+							document
+								.querySelector(`section[aria-label="${location.panel.toUpperCase()}"]`)
+								?.scrollIntoView({ block: "nearest" });
+					});
+					return true;
+				},
+			}),
+		[history, historyKey, announce, title],
+	);
+	useEffect(
+		() =>
+			history.register(`input:${historyKey}`, {
+				reverse: async (from, to) => {
+					const before = markupRef.current;
+					let after: string;
+					try {
+						after = reverseChange(from, to, before) as string;
+					} catch {
+						return { ok: false, code: "HISTORY_OBSOLETE" };
+					}
+					markupPending.current?.cancel();
+					markupPending.current = null;
+					markupVersion.current++;
+					appliedMarkupVersion.current = markupVersion.current;
+					markupRef.current = after;
+					setMarkup(after);
+					setMarkupBase(after);
+					setMarkupProblems([]);
+					return { ok: true, before, after };
+				},
+			}),
+		[history, historyKey],
+	);
+	useEffect(
+		() =>
+			history.register(`styles:${historyKey}`, {
+				reverse: async (from, to) => {
+					const before = docRef.current.styles;
+					const after = reverseChange(from, to, before) as Record<string, string>;
+					const next = { ...docRef.current, styles: after };
+					docRef.current = next;
+					setDoc(next);
+					return { ok: true, before, after };
+				},
+			}),
+		[history, historyKey],
+	);
 	const refreshMarkup = useCallback(
 		async (next: BuilderDoc) => {
 			const version = markupVersion.current;
@@ -304,18 +410,35 @@ export function Builder({
 								props: next.props as unknown as Json,
 							}
 						: (next.tree as unknown as Json);
+				const before = shared.draft();
 				if (!pending.apply(value, { keep: true })) {
 					markupPending.current = null;
 					return null;
 				}
 				markupPending.current = pending;
 				const merged = shared.draft();
+				history.attach(markupStep.current, { resource: historyKey, before, after: merged });
 				next = {
 					...next,
 					tree: (target.kind === "component" ? (merged as { tree: Json }).tree : merged) as unknown as ElementTree,
 					props: target.kind === "component" ? (merged as unknown as { props: FieldInput[] }).props : null,
 				};
 			}
+			if (!documentId)
+				history.attach(markupStep.current, {
+					resource: historyKey,
+					before: docRef.current.tree as unknown as Json,
+					after: next.tree as unknown as Json,
+				});
+			if (!sameValue(docRef.current.styles, next.styles)) {
+				history.attach(markupStep.current, {
+					resource: `styles:${historyKey}`,
+					before: docRef.current.styles,
+					after: next.styles,
+				});
+				styleStep.current = markupStep.current;
+			}
+			history.settleInput(markupStep.current);
 			docRef.current = next;
 			setDoc(next);
 			appliedMarkupVersion.current = markupVersion.current;
@@ -323,7 +446,7 @@ export function Builder({
 			void refreshMarkup(next);
 			return next;
 		},
-		[documentId, shared.prepare, shared.draft, target.kind, refreshMarkup],
+		[documentId, shared.prepare, shared.draft, target.kind, refreshMarkup, history, historyKey],
 	);
 	useEffect(() => () => markupPending.current?.cancel(), []);
 
@@ -332,28 +455,83 @@ export function Builder({
 
 	/** Applies a change, kept for undo, once the tree still keeps every rule; answers why not. */
 	const apply = useCallback(
-		(next: BuilderDoc, select: Selection | null, message: string): string | undefined => {
+		(
+			next: BuilderDoc,
+			select: Selection | null,
+			message: string,
+			finish = false,
+			compoundStep?: number,
+		): string | undefined => {
 			const problem = treeProblem(next.tree, allows);
 			if (problem) {
 				announce(problem.message);
 				return problem.message;
 			}
+			if (grab && !finish) {
+				setDoc(next);
+				docRef.current = next;
+				setSelection(select);
+				announce(message);
+				return;
+			}
+			const before = documentId ? shared.draft() : (docRef.current.tree as unknown as Json);
 			if (!writeShared(next)) {
 				announce(t(`coEditing.status.${shared.status}`));
 				return t(`coEditing.status.${shared.status}`);
 			}
-			history.current = {
-				past: [...history.current.past.slice(-HISTORY + 1), docRef.current],
-				future: [],
-			};
-			setHistoryVersion((count) => count + 1);
+			const step = history.record({
+				step: compoundStep,
+				resource: historyKey,
+				before,
+				after: documentId ? shared.draft() : (next.tree as unknown as Json),
+				label: message.replace(/\.$/, ""),
+				location: {
+					...historyLocation(select),
+					selection:
+						selection &&
+						selectionKey(docRef.current.tree, selection) &&
+						!selectionOf(next.tree, selectionKey(docRef.current.tree, selection) ?? "")
+							? selectionKey(docRef.current.tree, selection)
+							: select
+								? selectionKey(next.tree, select)
+								: selection
+									? selectionKey(docRef.current.tree, selection)
+									: null,
+				},
+				group: grab ? "grab" : undefined,
+			});
+			if (!sameValue(docRef.current.styles, next.styles)) {
+				const change = { resource: `styles:${historyKey}`, before: docRef.current.styles, after: next.styles };
+				if (step) {
+					history.attach(step, change);
+					styleStep.current = step;
+				} else
+					styleStep.current = history.record({
+						...change,
+						label: message.replace(/\.$/, ""),
+						location: historyLocation(select),
+					});
+			}
 			setDoc(next);
 			docRef.current = next;
 			setSelection(select);
 			announce(message);
 			return undefined;
 		},
-		[allows, announce, writeShared, shared.status, t],
+		[
+			allows,
+			announce,
+			writeShared,
+			shared.status,
+			shared.draft,
+			t,
+			grab,
+			history,
+			historyKey,
+			historyLocation,
+			documentId,
+			selection,
+		],
 	);
 
 	const nameAt = (tree: ElementTree, path: NodePath) => {
@@ -390,15 +568,15 @@ export function Builder({
 		if (selection?.kind !== "node") return;
 		const name = nameAt(doc.tree, selection.path);
 		if (change === "pick") {
-			setGrab({ doc, selection, past: history.current.past });
+			history.boundary();
+			setGrab({ doc, selection });
 			announce(t("builder.moves.picked", { name }));
 		} else if (change === "drop") {
+			apply(doc, selection, t("builder.moves.dropped", { name, where: whereIs(doc.tree, selection.path) }), true);
+			history.boundary();
 			setGrab(null);
 			announce(t("builder.moves.dropped", { name, where: whereIs(doc.tree, selection.path) }));
 		} else if (grab) {
-			if (!writeShared(grab.doc)) return;
-			history.current = { past: grab.past, future: [] };
-			setHistoryVersion((count) => count + 1);
 			setDoc(grab.doc);
 			setSelection(grab.selection);
 			setGrab(null);
@@ -419,27 +597,8 @@ export function Builder({
 		if (fromPath && toPath) dropOn(fromPath, toPath, position);
 	};
 
-	const undo = useCallback(() => {
-		const { past, future } = history.current;
-		const previous = past.at(-1);
-		if (!previous) return;
-		if (!writeShared(previous)) return;
-		history.current = { past: past.slice(0, -1), future: [docRef.current, ...future] };
-		setHistoryVersion((count) => count + 1);
-		setDoc(previous);
-		announce(t("builder.undone"));
-	}, [announce, t, writeShared]);
-
-	const redo = useCallback(() => {
-		const { past, future } = history.current;
-		const next = future[0];
-		if (!next) return;
-		if (!writeShared(next)) return;
-		history.current = { past: [...past, docRef.current], future: future.slice(1) };
-		setHistoryVersion((count) => count + 1);
-		setDoc(next);
-		announce(t("builder.redone"));
-	}, [announce, t, writeShared]);
+	const undo = () => history.undo();
+	const redo = () => history.redo();
 
 	const insert = (nodes: TreeNode[]): string | undefined => {
 		const place = insertionPlace(doc.tree, selection, insertWhere);
@@ -452,8 +611,8 @@ export function Builder({
 		);
 	};
 
-	const replace = (path: NodePath, node: TreeNode, message: string) =>
-		apply({ ...doc, tree: replaceAt(doc.tree, path, node) }, { kind: "node", path }, message);
+	const replace = (path: NodePath, node: TreeNode, message: string, step?: number) =>
+		apply({ ...doc, tree: replaceAt(doc.tree, path, node) }, { kind: "node", path }, message, false, step);
 
 	const generatedIds = useMemo(
 		() => new Set(catalogue.classes.filter((each) => each.generated).map((each) => each.id)),
@@ -567,15 +726,40 @@ export function Builder({
 			read: async (classes) => (await getApi()).builder.css({ siteId, classes: [...classes] }),
 			save: async (cssTarget, text, version) =>
 				(await getApi()).builder.saveCss({ siteId, target: cssTarget, text, version }),
-			createClass: async (name) => {
-				const made = await (await getApi()).designSystem.createClass({ siteId, name });
+			createClass: async (name, step) => {
+				const api = await getApi();
+				const before = await api.builder.historyDesign({ siteId });
+				const made = await api.designSystem.createClass({ siteId, name });
+				const fresh = await api.builder.historyDesign({ siteId });
+				const created = fresh.classes.find((each) => each.id === made.class.id);
+				if (created)
+					history.record({
+						step,
+						resource: `draft:${siteId}:designSystem`,
+						before: before as unknown as Json,
+						after: { ...before, classes: [...before.classes, created] } as unknown as Json,
+						label: t("builder.css.created", { name }),
+						location: historyLocation(selection, "css"),
+					});
 				return { id: made.class.id, name: made.class.name };
 			},
 			renameClass: async (classId, name) => {
-				await (await getApi()).designSystem.updateClass({ siteId, classId, name });
+				const api = await getApi();
+				const before = await api.builder.historyDesign({ siteId });
+				await api.designSystem.updateClass({ siteId, classId, name });
+				history.record({
+					resource: `draft:${siteId}:designSystem`,
+					before: before as unknown as Json,
+					after: {
+						...before,
+						classes: before.classes.map((each) => (each.id === classId ? { ...each, name } : each)),
+					} as unknown as Json,
+					label: t("builder.css.renamed", { name }),
+					location: historyLocation(selection, "css"),
+				});
 			},
 		}),
-		[siteId],
+		[siteId, history, historyLocation, selection, t],
 	);
 	const canvasSelected: CanvasTarget | null =
 		selectedNode?.type === "element"
@@ -620,6 +804,7 @@ export function Builder({
 		setBusy("save");
 		const revision = markupVersion.current;
 		const textAtStart = markupRef.current;
+		let historyStep = styleStep.current ?? markupStep.current;
 		let started = docRef.current;
 		try {
 			if (cssDeparture.current && !(await cssDeparture.current())) return null;
@@ -632,30 +817,67 @@ export function Builder({
 				const next = acceptMarkup(read, textAtStart);
 				if (!next) return null;
 				started = next;
+				historyStep = styleStep.current ?? markupStep.current;
 			}
 			if (documentId && !(await shared.flush())) return null;
 			const latest = documentId ? await readOpened() : opened;
-			if (documentId && Object.keys(started.styles).length === 0) {
+			const pendingStyles = history.pendingChanges(`styles:${historyKey}`, historyStep);
+			if (documentId && Object.keys(started.styles).length === 0 && !pendingStyles.length) {
 				setSaved(JSON.stringify(docOf(latest)));
 				announce(t("builder.saved", { name: title }));
 				return markupVersion.current === revision && docRef.current === started ? latest : null;
 			}
 			// The snapshot and version must describe the same Draft; peers may edit while flushing.
 			const snapshot = documentId ? { ...started, tree: latest.tree, props: latest.props } : started;
-			const text = (
-				await api.builder.markup({
-					siteId,
-					target,
-					tree: snapshot.tree,
-					styles: snapshot.styles,
-					...propsChange(snapshot),
-				})
-			).markup;
-			const stored = await saveDraft(api, siteId, target, {
-				markup: text,
-				props: propsChange(snapshot).props ?? null,
-				basedOn: over ? over.version : latest.version,
-			});
+			let version = over ? over.version : latest.version;
+			let previous = (documentId
+				? (latest.component?.draft ?? latest.template?.draft ?? latest.tree)
+				: snapshot.tree) as unknown as Json;
+			let stored: Awaited<ReturnType<typeof saveDraft>> | undefined;
+			// Keep every finished inline-style edit when pending declarations become Classes.
+			// Each acknowledged save advances the version; a peer write still refuses the next one.
+			const stages = pendingStyles.length
+				? pendingStyles.map((change) => ({ id: change.id, styles: change.after as Record<string, string> }))
+				: [{ id: historyStep, styles: snapshot.styles }];
+			for (const stage of stages) {
+				const text = (
+					await api.builder.markup({
+						siteId,
+						target,
+						tree: snapshot.tree,
+						styles: stage.styles,
+						...propsChange(snapshot),
+					})
+				).markup;
+				const designBefore = await api.builder.historyDesign({ siteId });
+				stored = await saveDraft(api, siteId, target, {
+					markup: text,
+					props: propsChange(snapshot).props ?? null,
+					basedOn: version,
+				});
+				const designAfter = await api.builder.historyDesign({ siteId });
+				const used = JSON.stringify(stored.history.after);
+				const created = designAfter.classes.filter(
+					(each) => !designBefore.classes.some((old) => old.id === each.id) && used.includes(`"${each.id}"`),
+				);
+				if (created.length)
+					history.attach(stage.id, {
+						resource: `draft:${siteId}:designSystem`,
+						before: designBefore as unknown as Json,
+						after: { ...designBefore, classes: [...designBefore.classes, ...created] } as unknown as Json,
+					});
+				history.attach(stage.id, {
+					resource: historyKey,
+					before: previous,
+					after: stored.history.after as unknown as Json,
+				});
+				history.forgetResource(`styles:${historyKey}`, stage.id);
+				previous = stored.history.after as unknown as Json;
+				version = stored.version;
+			}
+			if (!stored) return null;
+			history.renameResource(historyKey, stored.history.resource);
+			if (styleStep.current === historyStep) styleStep.current = undefined;
 			const fresh = await readOpened();
 			setConflict(null);
 			if (docRef.current === started) {
@@ -744,7 +966,6 @@ export function Builder({
 		setDoc(next);
 		setSaved(JSON.stringify(next));
 		setSelection(null);
-		history.current = { past: [], future: [] };
 		setConflict(null);
 		{
 			const printed = await api.builder.markup({ siteId, target, tree: next.tree });
@@ -761,7 +982,7 @@ export function Builder({
 		return () => window.removeEventListener("beforeunload", warn);
 	}, [dirty]);
 
-	// Ctrl/⌘ S saves; Ctrl/⌘ Z and Shift+Z (or Y) undo and redo, outside text being typed; Ctrl/⌘ I inserts.
+	// Ctrl/⌘ S saves; Ctrl/⌘ Z and Shift+Z (or Y) use the tab history even inside code; Ctrl/⌘ I inserts.
 	const keys = useRef({ save, undo, redo });
 	keys.current = { save, undo, redo };
 	const shortcut = useRef<(event: KeyboardEvent) => void>(() => {});
@@ -775,7 +996,7 @@ export function Builder({
 				return;
 			}
 			const typing = (event.target as HTMLElement | null)?.closest?.("input, textarea, select, [contenteditable]");
-			if (typing) return;
+			if (typing && key !== "z" && key !== "y") return;
 			if (key === "z" || key === "y") {
 				event.preventDefault();
 				if (key === "y" || event.shiftKey) keys.current.redo();
@@ -906,9 +1127,11 @@ export function Builder({
 						size="icon-sm"
 						variant="ghost"
 						aria-label={t("builder.undo")}
-						title={t("builder.undo")}
+						title={
+							history.state().undo ? t("editorHistory.undo", { label: history.state().undo ?? "" }) : t("builder.undo")
+						}
 						aria-keyshortcuts="Control+Z"
-						disabled={history.current.past.length === 0}
+						disabled={!history.state().undo || history.state().busy}
 						onClick={undo}
 					>
 						<Undo2Icon aria-hidden="true" />
@@ -918,9 +1141,11 @@ export function Builder({
 						size="icon-sm"
 						variant="ghost"
 						aria-label={t("builder.redo")}
-						title={t("builder.redo")}
+						title={
+							history.state().redo ? t("editorHistory.redo", { label: history.state().redo ?? "" }) : t("builder.redo")
+						}
 						aria-keyshortcuts="Control+Shift+Z"
-						disabled={history.current.future.length === 0}
+						disabled={!history.state().redo || history.state().busy}
 						onClick={redo}
 					>
 						<Redo2Icon aria-hidden="true" />
@@ -1186,6 +1411,14 @@ export function Builder({
 								if (found) setSelection(selectionOf(doc.tree, found.key));
 							}}
 							onChange={(text) => {
+								markupStep.current = history.record({
+									resource: `input:${historyKey}`,
+									before: markupRef.current,
+									after: text,
+									label: t("editorHistory.html", { name: title }),
+									location: historyLocation(selection, "html"),
+									group: `html:${historyKey}`,
+								});
 								markupVersion.current++;
 								markupRef.current = text;
 								markupPending.current ??= shared.prepare();
@@ -1198,6 +1431,7 @@ export function Builder({
 						className="bg-background flex min-h-0 flex-col overflow-auto border-t p-3"
 					>
 						<CssPanel
+							historyLocation={historyLocation(selection, "css")}
 							port={cssPort}
 							departure={cssDeparture}
 							onEdit={() => inputRevision.current++}
@@ -1205,9 +1439,9 @@ export function Builder({
 							catalogue={catalogue}
 							editable={!documentId || shared.writable}
 							designVersion={designVersion}
-							onClasses={(classes, message) =>
+							onClasses={(classes, message, step) =>
 								selection?.kind === "node" && selectedNode?.type === "element"
-									? replace(selection.path, { ...selectedNode, classes }, message)
+									? replace(selection.path, { ...selectedNode, classes }, message, step)
 									: t("coEditing.status.readOnly")
 							}
 							refreshCatalogue={async () => {

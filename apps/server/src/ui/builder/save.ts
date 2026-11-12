@@ -15,26 +15,37 @@ export async function saveDraft(
 	siteId: string,
 	target: BuilderTarget,
 	change: { markup: string; props: FieldInput[] | null; basedOn: string | null },
-): Promise<{ markup: string; version: string }> {
+) {
 	const { markup, basedOn } = change;
-	switch (target.kind) {
-		case "siteTemplate":
-			return api.templates.saveSiteTemplateMarkup({ siteId, markup, basedOn });
-		case "searchTemplate":
-			return api.templates.saveSearchTemplateMarkup({ siteId, markup, basedOn });
-		case "entryTemplate":
-			return api.templates.saveEntryTemplateMarkup({ siteId, postTypeId: target.postTypeId, markup, basedOn });
-		case "archiveTemplate":
-			return api.templates.saveArchiveTemplateMarkup({ siteId, postTypeId: target.postTypeId, markup, basedOn });
-		case "component":
-			return api.components.saveMarkup({
-				siteId,
-				componentId: target.componentId,
-				markup,
-				basedOn,
-				...(change.props ? { props: change.props } : {}),
-			});
-	}
+	const save = async () => {
+		switch (target.kind) {
+			case "siteTemplate":
+				return api.templates.saveSiteTemplateMarkup({ siteId, markup, basedOn });
+			case "searchTemplate":
+				return api.templates.saveSearchTemplateMarkup({ siteId, markup, basedOn });
+			case "entryTemplate":
+				return api.templates.saveEntryTemplateMarkup({ siteId, postTypeId: target.postTypeId, markup, basedOn });
+			case "archiveTemplate":
+				return api.templates.saveArchiveTemplateMarkup({ siteId, postTypeId: target.postTypeId, markup, basedOn });
+			case "component":
+				return api.components.saveMarkup({
+					siteId,
+					componentId: target.componentId,
+					markup,
+					basedOn,
+					...(change.props ? { props: change.props } : {}),
+				});
+		}
+	};
+	const stored = await save();
+	const item = "component" in stored ? stored.component : stored.template;
+	return {
+		...stored,
+		history: {
+			resource: `draft:${siteId}:${"component" in stored ? "component" : "template"}:${item.id}`,
+			after: item.draft,
+		},
+	};
 }
 
 /** Publishes the Template or Component: what visitors see changes at once. */

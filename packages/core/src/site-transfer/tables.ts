@@ -16,6 +16,7 @@ export const LEFT_OUT_TABLES: Readonly<Record<string, LeftOutReason>> = {
 	"public.secrets": "secrets",
 	// Sessions, links and confirmations belong to people signed in on this Install.
 	"public.edit_links": "session",
+	"public.editor_history_transfers": "session",
 	"public.edit_sessions": "session",
 	"public.staging_links": "session",
 	"public.staging_sessions": "session",

@@ -4,7 +4,9 @@
  * Staff save and only if it parses. A save names the version of the Draft it was opened at, so it
  * never overwrites someone else's save (`DraftChangedError`).
  */
+
 import type { MarkupNotice } from "@webcraft/renderer";
+import type { Json } from "../co-editing/document.ts";
 import { readComponentMarkup, saveComponentMarkup } from "../content/components.ts";
 import {
 	readTemplateMarkup,
@@ -85,7 +87,12 @@ export async function previewMarkup(
 }
 
 /** What saving markup answers: the markup as stored now (new elements with their ids), its version and notices. */
-export type SavedMarkup = { markup: string; version: string; notices: MarkupNotice[] };
+export type SavedMarkup = {
+	markup: string;
+	version: string;
+	notices: MarkupNotice[];
+	history: { resource: string; before: Json; after: Json }[];
+};
 
 /**
  * Saves markup to the Draft of the Template or Component a reference names, through the same saves
@@ -98,27 +105,54 @@ export async function saveMarkup(
 	host: SiteHost,
 	input: { path: string; ref: string; markup: string; version: string | null },
 ): Promise<SavedMarkup> {
-	const { source } = await resolveSource(scope, deps, host, input.path, readCodeRef(input.ref));
-	const base = { basedOn: input.version };
-	if (source.kind === "component" && source.id !== null) {
-		const saved = await saveComponentMarkup(scope, source.id, { markup: input.markup }, deps.sources, base);
-		return { markup: saved.markup, version: saved.version, notices: saved.notices };
-	}
-	if (source.kind === "entryTemplate" && source.postTypeId !== null) {
-		const saved = await saveEntryTemplateMarkup(scope, source.postTypeId, input.markup, deps.sources, base);
-		return { markup: saved.markup, version: saved.version, notices: saved.notices };
-	}
-	if (source.kind === "archiveTemplate" && source.postTypeId !== null) {
-		const saved = await saveArchiveTemplateMarkup(scope, source.postTypeId, input.markup, deps.sources, base);
-		return { markup: saved.markup, version: saved.version, notices: saved.notices };
-	}
-	if (source.kind === "searchTemplate") {
-		const saved = await saveSearchTemplateMarkup(scope, input.markup, deps.sources, base);
-		return { markup: saved.markup, version: saved.version, notices: saved.notices };
-	}
-	if (source.kind === "siteTemplate") {
-		const saved = await saveSiteTemplateMarkup(scope, input.markup, deps.sources, base);
-		return { markup: saved.markup, version: saved.version, notices: saved.notices };
-	}
-	throw new CodeSourceNotFoundError();
+	return scope.transaction(async (scope) => {
+		const { source } = await resolveSource(scope, deps, host, input.path, readCodeRef(input.ref));
+		const base = { basedOn: input.version };
+		const designBefore = await draftDesignSystem(scope);
+		const finish = async (
+			saved: { markup: string; version: string; notices: MarkupNotice[] },
+			item: { id: string; draft: unknown },
+			kind: string,
+		): Promise<SavedMarkup> => {
+			const designAfter = await draftDesignSystem(scope);
+			const used = JSON.stringify(item.draft);
+			const created = designAfter.classes.filter(
+				(each) => !designBefore.classes.some((old) => old.id === each.id) && used.includes(`"${each.id}"`),
+			);
+			const history: SavedMarkup["history"] = [];
+			if (created.length)
+				history.push({
+					resource: `draft:${scope.site.id}:designSystem`,
+					before: designBefore as unknown as Json,
+					after: { ...designBefore, classes: [...designBefore.classes, ...created] } as unknown as Json,
+				});
+			history.push({
+				resource: `draft:${scope.site.id}:${kind}:${item.id}`,
+				before: (source.draft ?? source.tree) as Json,
+				after: item.draft as Json,
+			});
+			return { markup: saved.markup, version: saved.version, notices: saved.notices, history };
+		};
+		if (source.kind === "component" && source.id !== null) {
+			const saved = await saveComponentMarkup(scope, source.id, { markup: input.markup }, deps.sources, base);
+			return finish(saved, saved.component, "component");
+		}
+		if (source.kind === "entryTemplate" && source.postTypeId !== null) {
+			const saved = await saveEntryTemplateMarkup(scope, source.postTypeId, input.markup, deps.sources, base);
+			return finish(saved, saved.template, "template");
+		}
+		if (source.kind === "archiveTemplate" && source.postTypeId !== null) {
+			const saved = await saveArchiveTemplateMarkup(scope, source.postTypeId, input.markup, deps.sources, base);
+			return finish(saved, saved.template, "template");
+		}
+		if (source.kind === "searchTemplate") {
+			const saved = await saveSearchTemplateMarkup(scope, input.markup, deps.sources, base);
+			return finish(saved, saved.template, "template");
+		}
+		if (source.kind === "siteTemplate") {
+			const saved = await saveSiteTemplateMarkup(scope, input.markup, deps.sources, base);
+			return finish(saved, saved.template, "template");
+		}
+		throw new CodeSourceNotFoundError();
+	});
 }

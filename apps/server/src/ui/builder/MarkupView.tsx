@@ -1,8 +1,8 @@
 import { Field, FieldDescription, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Textarea } from "@webcraft/ui/components/textarea.tsx";
 import { useEffect, useId, useRef } from "react";
-
 import { useT } from "../i18n.tsx";
+import { editorHistory } from "./editor-history.ts";
 
 /** A problem of markup that can't be read, where it is (UTF-16 units, as the server counts). */
 export type MarkupProblem = { line: number; column: number; message: string };
@@ -82,6 +82,7 @@ export function MarkupView({
 						)}
 					</pre>
 					<Textarea
+						onBlur={() => editorHistory().boundary()}
 						ref={area}
 						id={`${id}-markup`}
 						value={value}

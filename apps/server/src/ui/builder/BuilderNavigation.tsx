@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
+import { editorHistory } from "./editor-history.ts";
 import type { BuilderTarget } from "./model.ts";
 
 type Destinations = Awaited<ReturnType<Awaited<ReturnType<typeof getApi>>["builder"]["destinations"]>>;
@@ -99,7 +100,9 @@ export function BuilderNavigation({
 			});
 			// A handoff can finish after another edit; the departure boundary must still be satisfied.
 			if (beforeLeave && !(await beforeLeave())) return;
-			window.location.assign(url);
+			const destination = await editorHistory().departure(url);
+			if (beforeLeave && !(await beforeLeave())) return;
+			window.location.assign(destination);
 		} catch (error) {
 			toast.error(t(errorMessage(error)));
 		} finally {

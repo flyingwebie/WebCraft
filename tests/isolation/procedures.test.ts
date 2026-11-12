@@ -518,6 +518,21 @@ describe("the visual builder", () => {
 		kind: "entryTemplate" as const,
 		postTypeId: (await contentIn(target)).postTypeId,
 	});
+	isolation.refuses("builder.transferHistory", (api, target) =>
+		api.builder.transferHistory({ siteId: target.siteId, payload: "{}" }),
+	);
+	isolation.refuses("builder.claimHistory", (api, target) =>
+		api.builder.claimHistory({ siteId: target.siteId, token: "missing" }),
+	);
+	isolation.refuses("builder.reverseHistory", (api, target) =>
+		api.builder.reverseHistory({
+			siteId: target.siteId,
+			resource: `css:${target.siteId}:{"kind":"site"}`,
+			from: "",
+			to: "",
+		}),
+	);
+	isolation.refuses("builder.historyDesign", (api, target) => api.builder.historyDesign({ siteId: target.siteId }));
 	isolation.refuses("builder.destinations", async (api, target) =>
 		api.builder.destinations({ siteId: target.siteId, target: await entryTemplateIn(target) }),
 	);

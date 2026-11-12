@@ -1,11 +1,13 @@
 import type { ComponentScriptVersion } from "@webcraft/core";
+import { type Json, reverseChange } from "@webcraft/core/draft-document";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Textarea } from "@webcraft/ui/components/textarea.tsx";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
 import { componentScriptSettings } from "./component-script-settings.ts";
+import { editorHistory } from "./editor-history.ts";
 
 /** Edits the real Component script Draft; the Builder's sandbox remains scriptless. */
 export function ComponentScriptPanel({
@@ -28,10 +30,73 @@ export function ComponentScriptPanel({
 	const [busy, setBusy] = useState(false);
 	const saving = useRef(false);
 	const settingsHost = useRef<HTMLDivElement>(null);
+	const settings = useRef<ReturnType<typeof componentScriptSettings> | null>(null);
+	const libraryChoices = useRef<{ id: string; name: string }[]>([]);
 	const latest = useRef(draft);
 	const reloadScript = useRef<() => Promise<boolean>>(async () => false);
 	latest.current = draft;
+	const history = editorHistory();
+	const historyKey = `script:${siteId}:component:${componentId}`;
+	const savedRef = useRef(saved);
+	savedRef.current = saved;
 	const title = t("editBar.codeMode.componentScript", { name });
+	const record = useCallback(
+		(next: ComponentScriptVersion, typing = false) => {
+			if (latest.current)
+				history.record({
+					resource: historyKey,
+					before: latest.current as unknown as Json,
+					after: next as unknown as Json,
+					label: t("editorHistory.js", { name }),
+					location: { siteId, title: name, panel: "js" },
+					group: typing ? historyKey : undefined,
+				});
+			latest.current = next;
+			setDraft(next);
+		},
+		[history, historyKey, name, siteId, t],
+	);
+	useEffect(
+		() =>
+			history.register(historyKey, {
+				reverse: async (from, to) => {
+					const started = Date.now();
+					while (saving.current && Date.now() - started < 10000)
+						await new Promise((resolve) => setTimeout(resolve, 20));
+					if (saving.current || !latest.current) return { ok: false, code: "HISTORY_UNAVAILABLE" };
+					const api = await getApi();
+					const { script } = await api.components.getScript({ siteId, componentId });
+					const pending = JSON.stringify(latest.current) !== savedRef.current;
+					const before = pending
+						? latest.current
+						: (script?.draft ?? { code: "", consentCategory: "necessary", libraryIds: [] });
+					const localAtStart = latest.current;
+					let after: ComponentScriptVersion;
+					try {
+						after = reverseChange(from, to, before as unknown as Json) as unknown as ComponentScriptVersion;
+					} catch {
+						return { ok: false, code: "HISTORY_OBSOLETE" };
+					}
+					if (!pending) {
+						const stored = await api.components.saveScriptDraft({
+							siteId,
+							componentId,
+							...after,
+							basedOn: script?.version ?? null,
+						});
+						setVersion(stored.script.version);
+						setSaved(JSON.stringify(after));
+					}
+					if (latest.current === localAtStart) {
+						latest.current = after;
+						setDraft(after);
+						settings.current?.set({ ...after, libraries: libraryChoices.current });
+					}
+					return { ok: true, before: before as unknown as Json, after: after as unknown as Json };
+				},
+			}),
+		[history, historyKey, siteId, componentId],
+	);
 	useEffect(() => {
 		let current = true;
 		const controls = componentScriptSettings({
@@ -40,10 +105,10 @@ export function ComponentScriptPanel({
 			changed: () => {
 				if (!latest.current) return;
 				const next = { ...latest.current, ...controls.get() } as ComponentScriptVersion;
-				latest.current = next;
-				setDraft(next);
+				record(next);
 			},
 		});
+		settings.current = controls;
 		settingsHost.current?.replaceChildren(controls.root);
 		const load = async () => {
 			const before = latest.current;
@@ -58,6 +123,7 @@ export function ComponentScriptPanel({
 			setDraft(next);
 			setVersion(script?.version ?? null);
 			setSaved(JSON.stringify(next));
+			libraryChoices.current = libraries;
 			controls.set({ ...next, libraries });
 			return true;
 		};
@@ -69,7 +135,7 @@ export function ComponentScriptPanel({
 			current = false;
 			controls.root.remove();
 		};
-	}, [siteId, componentId, t]);
+	}, [siteId, componentId, t, record]);
 	const save = async (over?: string): Promise<boolean> => {
 		const next = latest.current;
 		if (!next || saving.current) return false;
@@ -160,10 +226,10 @@ export function ComponentScriptPanel({
 				onChange={(event) => {
 					if (latest.current) {
 						const next = { ...latest.current, code: event.target.value };
-						latest.current = next;
-						setDraft(next);
+						record(next, true);
 					}
 				}}
+				onBlur={() => history.boundary()}
 				onKeyDown={(event) => {
 					if ((event.metaKey || event.ctrlKey) && event.key === "s") {
 						event.preventDefault();

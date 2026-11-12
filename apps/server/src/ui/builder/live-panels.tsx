@@ -1,4 +1,4 @@
-import { type Json, sameValue } from "@webcraft/core/draft-document";
+import { type Json, reverseChange, sameValue } from "@webcraft/core/draft-document";
 import type { ElementTree, TreeNode } from "@webcraft/renderer/builder";
 import { DialogContainer } from "@webcraft/ui/components/dialog.tsx";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -11,8 +11,12 @@ import { AdminIntl, useT } from "../i18n.tsx";
 import { CssPanel, type CssPanelPort, type CssTarget } from "./CssPanel.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
 import { type EditorApi, EditorApiContext, EditorEnvironment } from "./editor-api.tsx";
+import { editorHistory } from "./editor-history.ts";
 import { FixedTextDialog } from "./FixedTextDialog.tsx";
 import { type FixedTextLocation, rememberFixedText, resolveFixedText } from "./fixed-text.ts";
+import { historyLanguage } from "./history-language.ts";
+import { inspectorHistoryTab, revealInspectorHistory } from "./history-reveal.ts";
+import { connectHistory } from "./history-transport.ts";
 import { InsertDialog, type InsertWhere } from "./InsertDialog.tsx";
 import { InsertToolbar } from "./InsertToolbar.tsx";
 import { Inspector } from "./Inspector.tsx";
@@ -47,6 +51,7 @@ export type PanelSource = {
 };
 export type LivePanelBridge = {
 	root: ShadowRoot;
+	historyToken?: string | null;
 	/** Where the CSS panel draws: Code mode's CSS panel, below the page. */
 	cssHost?: HTMLElement;
 	/** Shows unsaved CSS on the page, or (null) the Draft again. */
@@ -56,6 +61,7 @@ export type LivePanelBridge = {
 	language: "en" | "it";
 	call<T>(action: string, body: object): Promise<T>;
 	select(ref: string, inspectorRef?: string): void;
+	revealHistory(ref: string, panel: string, resource?: string): Promise<void>;
 	changed(ref: string, markup: string, preserveAuthored?: boolean): void;
 	hover(ref: string | null): void;
 	ready(ref: string, editable: boolean): void;
@@ -105,10 +111,19 @@ async function saveOneOffStyles(
 		ref,
 		draft: { tree, styles, ...(opened.props ? { props: opened.props } : {}) },
 	});
-	await bridge.call("code/save", { ref, markup, version: opened.version });
+	return bridge.call<{ history: { resource: string; before: Json; after: Json }[] }>("code/save", {
+		ref,
+		markup,
+		version: opened.version,
+	});
 }
 
 export function mount(bridge: LivePanelBridge) {
+	void bridge
+		.call<PanelSource>("code/editor", { ref: "site" })
+		.then((source) =>
+			connectHistory(source.siteId, (method, input) => bridge.call(`code/${method}`, input), true, bridge.historyToken),
+		);
 	const container = document.createElement("div");
 	container.className = "editor-panels dark";
 	bridge.root.append(container);
@@ -156,6 +171,7 @@ export function mount(bridge: LivePanelBridge) {
 	};
 	show(null);
 	return {
+		history: editorHistory(),
 		select: show,
 		refresh: () => show(selection),
 		depart: async () =>
@@ -187,6 +203,8 @@ function LivePanels({
 	cssDeparture: { current: (() => Promise<boolean>) | null };
 }) {
 	const t = useT();
+	const history = editorHistory();
+	history.configure(historyLanguage(t));
 	const [sources, setSources] = useState<Record<string, PanelSource>>({});
 	const [active, setActive] = useState<string | null>(null);
 	const [error, setError] = useState("");
@@ -196,8 +214,36 @@ function LivePanels({
 	const [designVersion, designChanged] = useState(0);
 	const connections = useRef(new Map<string, SharedDraft>());
 	const loading = useRef(new Set<string>());
+	const selectedNow = useRef(selected);
+	selectedNow.current = selected;
 	const sourcesRef = useRef(sources);
 	sourcesRef.current = sources;
+	useEffect(
+		() =>
+			history.listen({
+				reveal: async (location) => {
+					const source = Object.values(sourcesRef.current).find(
+						(each) =>
+							`draft:${each.siteId}:${each.opened.component ? "component" : "template"}:${each.opened.component?.id ?? each.opened.template?.id}` ===
+							location.draft,
+					);
+					if (!source) return location.panel !== "js" && !location.draft && location.title === document.title;
+					const id = source.opened.component?.id ?? source.opened.template?.id;
+					const tree = currentDraft(source, connections.current.get(id ?? source.ref)).tree;
+					const selection = location.selection ? selectionOf(tree, location.selection) : null;
+					if (selection) requestSelection({ ref: source.ref, selection });
+					setActive(source.ref);
+					await bridge.revealHistory(
+						selection && location.selection ? `${source.ref}#${location.selection}` : source.ref,
+						location.panel,
+						location.resource,
+					);
+					requestAnimationFrame(() => revealInspectorHistory(location.inspectorTab));
+					return true;
+				},
+			}),
+		[history, bridge],
+	);
 	const typing = useRef(false);
 	const draftChangeCount = useRef(0);
 	/** Peer snapshots invalidate a pending keyboard move, across every Placement of its Draft. */
@@ -375,6 +421,10 @@ function LivePanels({
 		let generation = 0;
 		let pending: ReturnType<SharedDraft["prepare"]> = null;
 		let pendingRef: string | undefined;
+		let step: number | undefined;
+		let previousText = area.value;
+		const resourceOf = (source: PanelSource) =>
+			`draft:${source.siteId}:${source.opened.component ? "component" : "template"}:${source.opened.component?.id ?? source.opened.template?.id}`;
 		const begin = () => {
 			const ref = area.dataset.editorRef;
 			const source = ref ? sourcesRef.current[ref] : undefined;
@@ -401,7 +451,14 @@ function LivePanels({
 				);
 				if (run !== generation) return false;
 				if (!shared) {
-					await bridge.call("code/save", { ref, markup, version: source.opened.version });
+					const saved = await bridge.call<{ history: { resource: string; before: Json; after: Json }[] }>("code/save", {
+						ref,
+						markup,
+						version: source.opened.version,
+					});
+					for (const change of saved.history) history.attach(step, change);
+					const draft = saved.history.at(-1);
+					if (draft) history.renameResource(resourceOf(source), draft.resource);
 					await load(ref);
 				} else {
 					if (!pending) return false;
@@ -412,21 +469,25 @@ function LivePanels({
 								...(read.props ? { props: read.props } : {}),
 							}
 						: (read.tree as unknown as Json);
+					const before = shared.draft();
 					if (!pending.apply(next, { keep: true })) {
 						pending = null;
 						setError(t("coEditing.status.readOnly"));
 						return false;
 					}
 					const draft = shared.draft();
+					history.attach(step, { resource: resourceOf(source), before, after: draft });
 					const tree = (source.opened.component ? (draft as { tree: Json }).tree : draft) as unknown as ElementTree;
 					update(ref, tree, source.opened.component ? (draft as unknown as { props: Opened["props"] }).props : null);
 					if (!(await shared.flush())) return false;
 					if (Object.keys(read.styles).length) {
 						// Inline styles become generated Classes through the existing validated markup saver.
-						await saveOneOffStyles(bridge, ref, read.styles);
+						const saved = await saveOneOffStyles(bridge, ref, read.styles);
+						for (const change of saved.history) history.attach(step, change);
 						await load(ref);
 					}
 				}
+				history.settleInput(step);
 				while (run === generation) {
 					const changeCount = draftChangeCount.current;
 					const saved = await bridge.call<{ markup: string }>("code/open", { ref });
@@ -463,6 +524,8 @@ function LivePanels({
 			}
 		};
 		const sourceChanged = () => {
+			history.boundary();
+			previousText = area.value;
 			generation++;
 			clearTimeout(timer);
 			pending?.cancel();
@@ -471,7 +534,41 @@ function LivePanels({
 			typing.current = false;
 		};
 		const input = () => {
-			begin();
+			const { source, ref } = begin();
+			if (source) {
+				const resource = `input:${resourceOf(source)}`;
+				step = history.record({
+					resource,
+					before: previousText,
+					after: area.value,
+					label: t("editorHistory.html", { name: source.name ?? source.ref }),
+					location: {
+						siteId: source.siteId,
+						draft: resourceOf(source),
+						title: document.title,
+						ref,
+						panel: "html",
+						selection: selectedNow.current?.split("#")[1],
+					},
+					group: resource,
+				});
+				history.register(resource, {
+					reverse: async (from, to) => {
+						const before = area.value;
+						let after: string;
+						try {
+							after = reverseChange(from, to, before) as string;
+						} catch {
+							return { ok: false, code: "HISTORY_OBSOLETE" };
+						}
+						sourceChanged();
+						previousText = after;
+						bridge.changed(source.ref, after);
+						return { ok: true, before, after };
+					},
+				});
+			}
+			previousText = area.value;
 			typing.current = true;
 			generation++;
 			clearTimeout(timer);
@@ -487,7 +584,7 @@ function LivePanels({
 			area.removeEventListener("input", input);
 			area.removeEventListener("editor-source", sourceChanged);
 		};
-	}, [bridge, update, load, t, commands]);
+	}, [bridge, update, load, t, commands, history]);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: registration is held in a ref; its status version drives readiness.
 	useEffect(() => {
 		for (const source of Object.values(sources)) {
@@ -562,17 +659,36 @@ function LivePanels({
 						remoteRevisions.current.get(source.opened.component?.id ?? source.opened.template?.id ?? source.ref) ?? 0
 					}
 					creating={creating}
-					onCreate={async (tree) => {
+					onCreate={async (tree, message, selectedKey) => {
 						setCreating(true);
 						try {
 							const printed = await bridge.call<{ markup: string }>("code/editorMarkup", {
 								ref: source.ref,
 								draft: { tree },
 							});
-							await bridge.call("code/save", {
-								ref: source.ref,
-								markup: printed.markup,
-								version: source.opened.version,
+							const saved = await bridge.call<{ history: { resource: string; before: Json; after: Json }[] }>(
+								"code/save",
+								{
+									ref: source.ref,
+									markup: printed.markup,
+									version: source.opened.version,
+								},
+							);
+							await history.compound(message.replace(/\.$/, ""), async (step) => {
+								for (const change of saved.history)
+									history.record({
+										...change,
+										step,
+										label: message,
+										location: {
+											siteId: source.siteId,
+											draft: saved.history.at(-1)?.resource,
+											ref: source.ref,
+											selection: selectedKey,
+											panel: "tree",
+											title: document.title,
+										},
+									});
 							});
 							await load(source.ref);
 						} catch (failure) {
@@ -592,6 +708,7 @@ function LivePanels({
 							owner && connections.current.get((owner.opened.component?.id ?? owner.opened.template?.id) as string);
 						if (!owner || !shared) return false;
 						let updated = false;
+						const before = shared.draft();
 						const changed = shared.change((current) => {
 							const tree = (owner.opened.component
 								? (current as { tree: Json }).tree
@@ -606,6 +723,21 @@ function LivePanels({
 								? { ...(current as Record<string, Json>), tree: next as unknown as Json }
 								: (next as unknown as Json);
 						});
+						if (changed && updated)
+							history.record({
+								resource: `draft:${owner.siteId}:${owner.opened.component ? "component" : "template"}:${owner.opened.component?.id ?? owner.opened.template?.id}`,
+								before,
+								after: shared.draft(),
+								label: t("builder.inspector.changed"),
+								location: {
+									siteId: owner.siteId,
+									title: document.title,
+									ref,
+									panel: "inspector",
+									inspectorTab: "builder-style",
+									selection: selectionKey(owner.opened.tree, { kind: "node", path }),
+								},
+							});
 						if (changed && updated)
 							void shared.flush().then((saved) => {
 								if (saved) bridge.refresh();
@@ -639,14 +771,42 @@ function LivePanels({
 
 /** The CSS panel's way to the Design system's Draft on Code mode's canvas: its Edit mode endpoint. */
 function useCssPort(bridge: LivePanelBridge): CssPanelPort {
+	const t = useT();
 	const port = useRef<CssPanelPort | null>(null);
 	port.current ??= {
 		read: (classes) => bridge.call("code/css", { ref: null, classes }),
 		save: (target, text, version) => bridge.call("code/saveCss", { target, text, version }),
-		createClass: async (name) =>
-			(await bridge.call<{ class: { id: string; name: string } }>("code/createClass", { name })).class,
+		createClass: async (name, step) => {
+			const before = await bridge.call<{ classes: { id: string }[] }>("code/historyDesign", {});
+			const made = (await bridge.call<{ class: { id: string; name: string } }>("code/createClass", { name })).class;
+			const fresh = await bridge.call<{ classes: { id: string }[] }>("code/historyDesign", {});
+			const created = fresh.classes.find((each) => each.id === made.id);
+			const history = editorHistory();
+			if (created)
+				history.record({
+					step,
+					resource: `draft:${history.siteId}:designSystem`,
+					before: before as unknown as Json,
+					after: { ...before, classes: [...before.classes, created] } as unknown as Json,
+					label: name,
+					location: { siteId: history.siteId, title: document.title, panel: "css" },
+				});
+			return made;
+		},
 		renameClass: async (classId, name) => {
+			const before = await bridge.call<{ classes: { id: string; name: string }[] }>("code/historyDesign", {});
 			await bridge.call("code/editorService", { method: "classes.update", input: { classId, name } });
+			const history = editorHistory();
+			history.record({
+				resource: `draft:${history.siteId}:designSystem`,
+				before: before as unknown as Json,
+				after: {
+					...before,
+					classes: before.classes.map((each) => (each.id === classId ? { ...each, name } : each)),
+				} as unknown as Json,
+				label: t("editorHistory.rename", { name: `.${name}` }),
+				location: { siteId: history.siteId, title: document.title, panel: "css" },
+			});
 		},
 		preview: (change) => bridge.previewCss?.(change),
 	};
@@ -681,6 +841,18 @@ function DraftConnection({
 		onRefused,
 	});
 	register(shared);
+	const history = editorHistory();
+	const key = `draft:${source.siteId}:${kind}:${source.opened.component?.id ?? source.opened.template?.id}`;
+	useEffect(
+		() =>
+			history.register(key, {
+				reverse: async (from, to) => {
+					if (!(await shared.flush())) return { ok: false, code: "HISTORY_UNAVAILABLE" };
+					return shared.reverse(from, to);
+				},
+			}),
+		[history, key, shared.flush, shared.reverse],
+	);
 	const statusChanged = useRef(onStatus);
 	statusChanged.current = onStatus;
 	// biome-ignore lint/correctness/useExhaustiveDependencies: notify the parent when the registered connection changes state.
@@ -724,7 +896,7 @@ function SourcePanels({
 	onHidden(path: NodePath, hidden: boolean, ref?: string): boolean;
 	requested: Selection | null;
 	creating: boolean;
-	onCreate(tree: ElementTree): Promise<void>;
+	onCreate(tree: ElementTree, message: string, selection: string | null): Promise<void>;
 	selected: string | null;
 }) {
 	const t = useT();
@@ -745,6 +917,13 @@ function SourcePanels({
 		[source.ref, requested],
 	);
 	const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+	useEffect(() => {
+		if (!requested) return;
+		setCollapsed(new Set());
+		requestAnimationFrame(() =>
+			bridge.root.querySelector('[role="treeitem"][aria-selected="true"]')?.scrollIntoView({ block: "nearest" }),
+		);
+	}, [requested, bridge]);
 	const [announcement, announce] = useAnnouncement();
 	const [inserting, setInserting] = useState(false);
 	const [quick, setQuick] = useState<string | null>(null);
@@ -776,6 +955,11 @@ function SourcePanels({
 	useEffect(() => {
 		setCatalogue(source.opened.catalogue);
 	}, [source.opened.catalogue]);
+	const selectedHistoryKey = selection ? selectionKey(tree, selection) : null;
+	// biome-ignore lint/correctness/useExhaustiveDependencies: a new selection ends a typing group.
+	useEffect(() => {
+		editorHistory().boundary();
+	}, [selectedHistoryKey]);
 	const selectedId = useRef<string | null>(null);
 	useEffect(() => {
 		selectedId.current = selected?.split("#")[1] ?? null;
@@ -789,6 +973,8 @@ function SourcePanels({
 		next: ElementTree,
 		nextSelection: Selection | null = selection,
 		message = t("builder.inspector.changed"),
+		finish = false,
+		step?: number,
 	) => {
 		const problem = treeProblem(next, { elements: new Set(catalogue.elements), commands: new Set(catalogue.commands) });
 		const refusal = problem?.message ?? (!source.editable || creating ? t("coEditing.status.readOnly") : null);
@@ -796,6 +982,13 @@ function SourcePanels({
 			announce(refusal);
 			return refusal;
 		}
+		if (grabCurrent && !finish) {
+			setSelection(nextSelection);
+			onTree(next);
+			announce(message);
+			return;
+		}
+		const before = shared?.draft() ?? null;
 		const changed = shared?.change((current) =>
 			kind === "component"
 				? { ...(current as Record<string, Json>), tree: next as unknown as Json }
@@ -807,26 +1000,50 @@ function SourcePanels({
 			announce(message);
 			return message;
 		}
+		if (shared && changed)
+			editorHistory().record({
+				step,
+				resource: `draft:${source.siteId}:${kind}:${sourceId}`,
+				before,
+				after: shared.draft(),
+				label: message.replace(/\.$/, ""),
+				location: {
+					siteId: source.siteId,
+					draft: `draft:${source.siteId}:${kind}:${sourceId}`,
+					inspectorTab: inspectorHistoryTab(),
+					ref: source.ref,
+					selection:
+						selection && selectionKey(tree, selection) && !selectionOf(next, selectionKey(tree, selection) ?? "")
+							? selectionKey(tree, selection)
+							: nextSelection
+								? selectionKey(next, nextSelection)
+								: null,
+					title: document.title,
+					panel: "tree",
+				},
+				group: grabCurrent ? "grab" : undefined,
+			});
 		setSelection(nextSelection);
 		const selectedNode = nextSelection?.kind === "node" ? nodeAt(next, nextSelection.path) : null;
 		selectedId.current = nextSelection ? selectionKey(next, nextSelection) : null;
 		announce(message);
 		onTree(next);
 		const id = selectedId.current;
-		void (created ? onCreate(next).then(() => true) : shared ? shared.flush() : Promise.resolve(false)).then(
-			(saved) => {
-				if (saved) bridge.refresh();
-				if (saved && currentSource.current === sourceId && id === selectedId.current) {
-					bridge.select(
-						selectedNode?.type === "component" ? `${source.ref}/${id}` : id ? `${source.ref}#${id}` : source.ref,
-						selectedNode?.type === "component" ? `${source.ref}#${id}` : undefined,
-					);
-				}
-			},
-		);
+		void (
+			created ? onCreate(next, message, id).then(() => true) : shared ? shared.flush() : Promise.resolve(false)
+		).then((saved) => {
+			if (saved) bridge.refresh();
+			if (saved && currentSource.current === sourceId && id === selectedId.current) {
+				bridge.select(
+					selectedNode?.type === "component" ? `${source.ref}/${id}` : id ? `${source.ref}#${id}` : source.ref,
+					selectedNode?.type === "component" ? `${source.ref}#${id}` : undefined,
+				);
+			}
+		});
 		return undefined;
 	};
 	const select = (next: Selection) => {
+		editorHistory().boundary();
 		setSelection(next);
 		const node = next.kind === "node" ? nodeAt(tree, next.path) : undefined;
 		const key = selectionKey(tree, next);
@@ -924,6 +1141,14 @@ function SourcePanels({
 			{bridge.cssHost
 				? createPortal(
 						<CssPanel
+							historyLocation={{
+								siteId: source.siteId,
+								draft: `draft:${source.siteId}:${source.opened.component ? "component" : "template"}:${sourceId}`,
+								title: document.title,
+								ref: source.ref,
+								selection: selected?.split("#")[1],
+								panel: "css",
+							}}
 							departure={cssDeparture}
 							onEdit={bridge.edited}
 							port={cssPort}
@@ -932,10 +1157,10 @@ function SourcePanels({
 							editable={writable}
 							fromModule={!source.editable}
 							designVersion={designVersion}
-							onClasses={(classes, message) => {
+							onClasses={(classes, message, step) => {
 								// The class list changes in the element's current shared document, as the Inspector's does.
 								if (selection?.kind !== "node" || node?.type !== "element") return t("coEditing.status.readOnly");
-								return apply(replaceAt(tree, selection.path, { ...node, classes }), selection, message);
+								return apply(replaceAt(tree, selection.path, { ...node, classes }), selection, message, false, step);
 							}}
 							refreshCatalogue={async () => {
 								// The same refresh as the Inspector's: through the source's owner, in request order.
@@ -996,6 +1221,13 @@ function SourcePanels({
 								setGrabbed({ tree, selection, source: sourceId, remoteRevision });
 								announce(t("builder.moves.picked", { name }));
 							} else if (change === "drop") {
+								apply(
+									tree,
+									selection,
+									t("builder.moves.dropped", { name, where: layerLocation(t, tree, selection.path, catalogue) }),
+									true,
+								);
+								editorHistory().boundary();
 								setGrabbed(null);
 								announce(
 									t("builder.moves.dropped", { name, where: layerLocation(t, tree, selection.path, catalogue) }),
@@ -1077,7 +1309,25 @@ function SourcePanels({
 										announce(t(`coEditing.status.${shared?.status ?? "connecting"}`));
 									return false;
 								}
-								await saveOneOffStyles(bridge, source.ref, { [id]: declarations }, id);
+								const saved = await saveOneOffStyles(bridge, source.ref, { [id]: declarations }, id);
+								const label = declarations ? t("builder.style.oneOffApplied") : t("builder.style.oneOffRemoved");
+								await editorHistory().compound(label.replace(/\.$/, ""), async (step) => {
+									for (const change of saved.history)
+										editorHistory().record({
+											...change,
+											step,
+											label,
+											location: {
+												siteId: source.siteId,
+												draft: saved.history.at(-1)?.resource,
+												ref: source.ref,
+												selection: id,
+												panel: "inspector",
+												inspectorTab: "builder-style",
+												title: document.title,
+											},
+										});
+								});
 								await reload();
 								onTree(currentDraft(source, shared).tree);
 								if (currentSource.current === sourceId)
