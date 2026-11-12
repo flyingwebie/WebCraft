@@ -126,6 +126,25 @@ describe("adding a Library from the registry", () => {
 		expect(install.http.requests.length).toBe(after);
 	});
 
+	test("a file whose path is longer than an archive header holds is found by its whole path (audit A4, sloppy code)", async () => {
+		const site = await newSite();
+		// npm's packer writes such a path in a pax header; the file's own header keeps its first 100 bytes.
+		const long = `dist/${"esm/".repeat(24)}motion-kit.long-path.min.js`;
+		expect(`package/${long}`.length).toBeGreaterThan(100);
+		const LONG = "/* a file deep inside the package */ window.deepKit = true;";
+		fakeNpmPackage(install, "deep-kit", { "1.0.0": { files: { "index.js": "ok()", [long]: LONG } } });
+
+		const { library } = await staff.api.libraries.add({
+			siteId: site.siteId,
+			library: { source: "npm", packageName: "deep-kit", version: "1.0.0", file: long },
+		});
+
+		expect(library).toMatchObject({ file: long, integrity: integrityOf(LONG), size: LONG.length });
+		const served = await install.request(site.url(library.src));
+		expectSiteHeaders(served);
+		expect(await served.text()).toBe(LONG);
+	});
+
 	test("a plugin is its own Library: a file of the package, at a tag, after the ones added before", async () => {
 		const site = await newSite();
 		const core = (
