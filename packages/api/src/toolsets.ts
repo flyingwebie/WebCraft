@@ -17,6 +17,10 @@ import type { PROCEDURES } from "./catalogue.ts";
  * Adding a public procedure to the catalogue fails the typecheck until it has a line here.
  */
 export const TOOL_PLACES = {
+	"pageLayouts.settings": place(["content", "siteSettings"], "site.view"),
+	"pageLayouts.get": place(["content"], "site.view"),
+	"pageLayouts.save": place(["content"], "entry.edit"),
+	"pageLayouts.configure": place(["siteSettings"], "structure.edit"),
 	"accessibilityStatement.get": place(["siteSettings"], "structure.edit"),
 	"accessibilityStatement.generate": place(["siteSettings"], "structure.edit"),
 	"accessibilityStatement.setEnabled": place(["siteSettings"], "structure.edit"),

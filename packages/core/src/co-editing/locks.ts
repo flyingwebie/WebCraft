@@ -27,6 +27,8 @@ export async function lockItem(scope: SiteScope, item: HistoryItem): Promise<voi
 		case "entry":
 			// Every Entry's save may turn into a Page's move: hold the Site's paths before its row.
 			await lockSitePaths(scope);
+			// Page layouts may add a Component while it is being changed or deleted.
+			await lockComponents(scope);
 			break;
 		case "template":
 		case "component":

@@ -25,15 +25,21 @@ import { eq, sql } from "drizzle-orm";
 import { clientNameOf } from "../audit.ts";
 import { noteDraftChange } from "../history/checkpoints.ts";
 import { isUuid } from "../ids.ts";
-import { personIdOf } from "../permissions/can.ts";
+import { actingPerson, personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { type ComponentVersion, storedComponentVersion } from "./component-versions.ts";
 import type { SiteComponents } from "./components.ts";
 import { ComponentInvalidError } from "./errors.ts";
+import { linksIn } from "./field-values.ts";
 import type { FieldDefinition } from "./fields.ts";
 import { sameJson } from "./json.ts";
-import { listPostTypes } from "./post-types.ts";
+import { siteLanguages } from "./languages.ts";
+import { reconcilePlacementValues } from "./page-layout-props.ts";
+import { layoutLinks } from "./page-layouts.ts";
+import { getPostType, listPostTypes } from "./post-types.ts";
 import { readRetainedContract } from "./prop-contracts.ts";
+import { saveLinks } from "./relationships.ts";
+import { storedVersion } from "./values.ts";
 
 function successor(field: FieldDefinition, next: readonly FieldDefinition[]) {
 	return field.id ? next.find((f) => f.id === field.id) : next.find((f) => f.key === field.key);
@@ -533,6 +539,47 @@ export async function migratePropPlacements(
 				if (!sameJson(version, row[which])) change[which] = version;
 			}
 			if (mode !== "preview" && Object.keys(change).length) await saveMigratedVersions(scope, table, kind, row, change);
+		}
+	}
+	// Page layouts are Content: like Body placements they follow published Structure.
+	if (mode !== "rename") {
+		const { defaultLanguage } = await siteLanguages(scope);
+		const context = {
+			language: defaultLanguage,
+			defaultLanguage,
+			by: { kind: "person" as const, personId: actingPerson(scope.access.actor) },
+		};
+		const rows =
+			mode === "preview"
+				? await scope.select(entries)
+				: await scope.db.select().from(entries).where(scope.where(entries)).orderBy(entries.id).for("update");
+		for (const row of rows) {
+			const change: { draft?: unknown; published?: unknown } = {};
+			for (const which of ["draft", "published"] as const) {
+				if (!row[which]) continue;
+				const version = structuredClone(storedVersion(row[which]));
+				if (!version.layout) continue;
+				version.layout.placements = version.layout.placements.map((p) => {
+					if (p.component !== componentId) return p;
+					const { lost, ...values } = reconcilePlacementValues(p, next.props, true, context);
+					if (lost) losing.add(`entry:${row.id}:layout:${p.id}`);
+					const { retained: _, ...placement } = p;
+					return { ...placement, ...values };
+				});
+				if (!sameJson(version, row[which])) change[which] = version;
+			}
+			if (mode !== "preview" && Object.keys(change).length) {
+				await saveMigratedVersions(scope, entries, "entry", row, change);
+				const postType = await getPostType(scope, row.postTypeId);
+				for (const which of ["draft", "published"] as const) {
+					if (!change[which]) continue;
+					const version = storedVersion(change[which]);
+					await saveLinks(scope, row.id, which, [
+						...linksIn(version.values, postType.fields),
+						...layoutLinks(version.layout),
+					]);
+				}
+			}
 		}
 	}
 	// Bodies always use the published Prop contract, including in an Entry Draft.

@@ -24,6 +24,217 @@
 	},
 	"openapi": "3.1.1",
 	"paths": {
+		"/pageLayouts/settings": {
+			"post": {
+				"operationId": "pageLayouts.settings",
+				"summary": "The Site’s Member Page layout settings.",
+				"tags": ["pageLayouts"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content", "siteSettings"],
+				"x-webcraft-permissions": ["site.view"]
+			}
+		},
+		"/pageLayouts/configure": {
+			"post": {
+				"operationId": "pageLayouts.configure",
+				"summary": "Choose whether Members arrange Pages and which Components they may add.",
+				"tags": ["pageLayouts"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"enabled": {
+										"type": "boolean"
+									},
+									"allowedComponents": {
+										"type": "array",
+										"maxItems": 1000,
+										"items": {
+											"type": "string",
+											"maxLength": 100
+										}
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["siteSettings"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
+		"/pageLayouts/get": {
+			"post": {
+				"operationId": "pageLayouts.get",
+				"summary": "A Page’s shared layout, typed Props and permitted actions.",
+				"tags": ["pageLayouts"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"entryId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"language": {
+										"type": "string",
+										"minLength": 2,
+										"maxLength": 35
+									}
+								},
+								"required": ["siteId", "entryId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["site.view"]
+			}
+		},
+		"/pageLayouts/save": {
+			"post": {
+				"operationId": "pageLayouts.save",
+				"summary": "Save a versioned Page layout through its Entry Draft.",
+				"tags": ["pageLayouts"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"entryId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"language": {
+										"type": "string",
+										"minLength": 2,
+										"maxLength": 35
+									},
+									"layout": {},
+									"basedOn": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 100
+									}
+								},
+								"required": ["siteId", "entryId", "basedOn"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["content"],
+				"x-webcraft-permissions": ["entry.edit"]
+			}
+		},
 		"/accessibilityStatement/get": {
 			"post": {
 				"operationId": "accessibilityStatement.get",

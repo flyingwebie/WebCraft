@@ -5,10 +5,12 @@ import {
 	CODE_MODE_SCRIPT_PATH,
 	CODE_MODE_STYLESHEET_PATH,
 	CONSENT_CATEGORIES,
+	configureLayout,
 	EDIT_MODE_PATH,
 	type EditSession,
 	editModePolicy,
 	type FieldInput,
+	getPageLayout,
 	type InstallServices,
 	isAdminLanguage,
 	isCodeSelection,
@@ -79,6 +81,7 @@ export async function editModeEndpoint(
  */
 const barWordsOf = (messages: typeof en) => ({
 	...messages.editBar,
+	pageLayout: messages.pageLayout,
 	isHere: messages.coEditing.isHere,
 	via: messages.coEditing.via,
 	viaTranslation: messages.coEditing.viaTranslation,
@@ -371,6 +374,58 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 	 * What the editing bar shows for a page: its changes, the Site's pages, who is editing, and the
 	 * bar's words in the person's Admin language.
 	 */
+	"layout/mediaGet": async (services, session, body) => {
+		const input = parse(z.object({ mediaId: z.uuid() }), body);
+		return json(200, { media: await services.media.get(session.scope, input.mediaId) });
+	},
+	"layout/media": async (services, session, body) =>
+		json(
+			200,
+			await services.media.list(
+				session.scope,
+				parse(
+					z.object({
+						search: z.string().max(200).optional(),
+						limit: z.number().int().min(1).max(100).optional(),
+						offset: z.number().int().min(0).optional(),
+					}),
+					body,
+				),
+			),
+		),
+	"layout/get": async (_services, session, body) => {
+		const input = parse(z.object({ entryId: z.uuid(), language: z.string().optional() }), body);
+		return json(200, await getPageLayout(session.scope, input.entryId, input.language));
+	},
+	"layout/save": async (services, session, body) => {
+		const input = parse(
+			z.object({
+				entryId: z.uuid(),
+				language: z.string().optional(),
+				layout: z.unknown(),
+				basedOn: z.string().min(1).max(100),
+			}),
+			body,
+		);
+		return session.scope.transaction(async (tx) => {
+			await services.entries.saveDraft(tx, input.entryId, {
+				layout: input.layout,
+				layoutBasedOn: input.basedOn,
+			});
+			return json(200, await getPageLayout(tx, input.entryId, input.language));
+		});
+	},
+	"layout/configure": async (_services, session, body) =>
+		json(
+			200,
+			await configureLayout(
+				session.scope,
+				parse(
+					z.object({ enabled: z.boolean().optional(), allowedComponents: z.array(z.string()).max(1000).optional() }),
+					body,
+				),
+			),
+		),
 	state: async (services, session, body, _request, host) => {
 		const state = await services.editMode.pageState(session, host, parse(pagePath, body).path);
 		const chosen = state.person.adminLanguage;

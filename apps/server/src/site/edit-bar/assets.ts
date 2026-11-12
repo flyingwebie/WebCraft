@@ -60,7 +60,16 @@ async function makeAssets(): Promise<EditBarAssets> {
 	const pageStyles = await asset("page", "css", PAGE_STYLES, "text/css; charset=utf-8");
 	const drafts = await asset("drafts", "js", await draftsModule(), "text/javascript; charset=utf-8");
 	const body = await asset("body", "js", await bodyModule(), "text/javascript; charset=utf-8");
+	const layoutStyles = await asset(
+		"layout",
+		"css",
+		`${(await panelsStyles()).replaceAll(":root", ":host")}\n:host {font:14px system-ui,sans-serif} :focus-visible {outline:2px solid var(--primary,#2563eb);outline-offset:3px} @media(pointer:coarse),(max-width:640px){button,[role=treeitem],input,select{min-height:44px}button{min-width:44px}}`,
+		"text/css; charset=utf-8",
+	);
+	const layout = await asset("layout", "js", await layoutModule(), "text/javascript; charset=utf-8");
 	const config: EditingBarConfig = {
+		layout: layout.path,
+		layoutStyles: layoutStyles.path,
 		styles: barStyles.path,
 		drafts: drafts.path,
 		body: body.path,
@@ -86,7 +95,9 @@ async function makeAssets(): Promise<EditBarAssets> {
 		drafts,
 		body,
 		byName: new Map(
-			[script, pageStyles, barStyles, codeScript, codeStyles, drafts, body, panels].map((file) => [file.name, file]),
+			[script, pageStyles, barStyles, codeScript, codeStyles, drafts, body, panels, layout, layoutStyles].map(
+				(file) => [file.name, file],
+			),
 		),
 	};
 }
@@ -163,4 +174,18 @@ async function panelsStyles(): Promise<string> {
 		sources: [...compiled.sources, { base: dirname(dirname(entry)), pattern: "**/*.{ts,tsx}", negated: false }],
 	});
 	return optimize(compiled.build(scanner.scan()), { minify: true }).code;
+}
+
+async function layoutModule(): Promise<string> {
+	const entry = Bun.resolveSync("@webcraft/server/editor/page-layouts", dirname(fileURLToPath(import.meta.url)));
+	const built = await Bun.build({
+		entrypoints: [entry],
+		target: "browser",
+		format: "esm",
+		minify: true,
+		define: { "process.env.NODE_ENV": JSON.stringify("production") },
+	});
+	const output = built.outputs[0];
+	if (!built.success || !output) throw new Error(`Page layout tools could not be built: ${built.logs.join("; ")}`);
+	return output.text();
 }

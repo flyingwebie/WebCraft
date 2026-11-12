@@ -82,7 +82,7 @@ export function withParent(
 	const byLanguage = { ...((version.values.parent ?? {}) as Record<string, LanguageValue>) };
 	if (parentId === null) delete byLanguage[defaultLanguage];
 	else if (byLanguage[defaultLanguage]?.value !== parentId) byLanguage[defaultLanguage] = { value: parentId, by };
-	return { values: { ...version.values, parent: byLanguage } };
+	return { ...version, values: { ...version.values, parent: byLanguage } };
 }
 
 /** How many Pages name a Page as their parent, in their Draft or published. */

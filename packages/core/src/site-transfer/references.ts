@@ -404,6 +404,23 @@ export function createRowRemapper(
 	async function version(kind: string, id: string | null, value: unknown, context: ReferenceVersion, fields?: unknown) {
 		const content = record(value);
 		if (kind === "entry") {
+			for (const placement of list(record(content.layout).placements)) {
+				const p = record(placement);
+				for (const snapshot of [p, ...list(p.retained).map(record)]) {
+					if (!Array.isArray(snapshot.props))
+						throw new ArchiveRefusedError("damaged", "A Page Placement needs its Prop source contracts.");
+					for (const field of snapshot.props) {
+						try {
+							readRetainedContract(field, String(record(field).id));
+						} catch (error) {
+							throw new ArchiveRefusedError("damaged", (error as Error).message);
+						}
+					}
+					await values(snapshot.values, snapshot.props, context);
+					await definitions(snapshot.props, context);
+				}
+				at(p, "component");
+			}
 			const typeId = await lookup.row("public.entries", id, ["post_type_id"]);
 			await values(
 				content.values,
@@ -444,6 +461,7 @@ export function createRowRemapper(
 		columns: readonly Column[],
 		personColumns: readonly string[] = [],
 	): Promise<Row> => {
+		if (table === "public.page_layout_settings") row.allowed_components = refs(row.allowed_components);
 		const originalId = typeof row.id === "string" ? row.id : null;
 		// Visit JSON before changing top-level lookup IDs.
 		const kinds: Record<string, string> = {

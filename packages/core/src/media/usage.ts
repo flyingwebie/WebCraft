@@ -107,6 +107,7 @@ function versionsHolding(row: { draft: unknown; published: unknown }, needle: st
 function fieldsHolding(versions: readonly unknown[], needle: string): string[] {
 	const keys = new Set<string>();
 	for (const version of versions) {
+		if (JSON.stringify(storedVersion(version).layout ?? null).includes(needle)) keys.add("layout");
 		for (const [key, value] of Object.entries(storedVersion(version).values)) {
 			if (JSON.stringify(value).includes(needle)) keys.add(key);
 		}

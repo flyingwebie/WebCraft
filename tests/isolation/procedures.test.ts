@@ -2523,3 +2523,34 @@ function moduleProcedureNames(module: AnyModuleDefinition): string[] {
 	walk(module.procedures ?? {}, ["m", module.manifest.id]);
 	return names;
 }
+
+// Page layout procedures own Page fixtures; generic content fixtures use a templated Post Type.
+describe("Page layouts", () => {
+	const pages = new Map<string, Promise<string>>();
+	const pageIn = (target: IsolationTarget) => {
+		let page = pages.get(target.siteId);
+		if (!page) {
+			page = (async () => {
+				const admin = await install.superadmin();
+				const { postTypes } = await admin.api.postTypes.list({ siteId: target.siteId });
+				const pageType = postTypes.find((type) => type.builtIn === "page");
+				if (!pageType) throw new Error("Missing Page Post Type");
+				return (await admin.api.entries.create({ siteId: target.siteId, postTypeId: pageType.id, title: "Layout" }))
+					.entry.id;
+			})();
+			pages.set(target.siteId, page);
+		}
+		return page;
+	};
+	isolation.refuses("pageLayouts.settings", (api, { siteId }) => api.pageLayouts.settings({ siteId }));
+	isolation.refuses("pageLayouts.configure", (api, { siteId }) => api.pageLayouts.configure({ siteId, enabled: true }));
+	isolation.refuses("pageLayouts.get", async (api, target) =>
+		api.pageLayouts.get({ siteId: target.siteId, entryId: await pageIn(target) }),
+	);
+	isolation.refuses("pageLayouts.save", async (api, target) => {
+		const entryId = await pageIn(target);
+		const admin = await install.superadmin();
+		const state = await admin.api.pageLayouts.get({ siteId: target.siteId, entryId });
+		return api.pageLayouts.save({ siteId: target.siteId, entryId, basedOn: state.version, layout: state.layout });
+	});
+});

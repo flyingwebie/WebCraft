@@ -7786,5 +7786,25 @@
 		"barPosition": "Bar position",
 		"barBehavior": "Page flow",
 		"reviewPublish": "Review and publish Popup"
+	},
+	"pageLayout": {
+		"title": "Page layout",
+		"props": "Props",
+		"add": "Add component",
+		"move": "Move Placement",
+		"moveUp": "Move up",
+		"moveDown": "Move down",
+		"duplicate": "Duplicate",
+		"delete": "Remove",
+		"hide": "Hide or show",
+		"lock": "Lock or unlock",
+		"locked": "Locked",
+		"header": "Page template header",
+		"footer": "Page template footer",
+		"close": "Close",
+		"noComponents": "No Allowed components",
+		"enabled": "Members can arrange Page layouts",
+		"allowed": "Members can add",
+		"select": "Select a Placement to edit its Props."
 	}
 }

@@ -26,6 +26,7 @@ export * from "./languages.ts";
 export * from "./media.ts";
 export * from "./modules.ts";
 export * from "./oauth.ts";
+export * from "./page-layouts.ts";
 export * from "./people.ts";
 export * from "./popups.ts";
 export * from "./rate-limits.ts";

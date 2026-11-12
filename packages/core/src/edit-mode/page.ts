@@ -379,6 +379,14 @@ async function changesOf(
 		if (item.kind === "entry") {
 			const row = await scope.first(entries, eq(entries.id, item.id));
 			if (!row) continue;
+			if (!sameJson(storedVersion(row.draft).layout ?? null, storedVersion(row.published).layout ?? null))
+				found.push({
+					item: nameOf(item),
+					key: "layout",
+					label: "Page layout",
+					type: "pageLayout",
+					writer: row.updatedBy,
+				});
 			draft = storedVersion(row.draft).values;
 			published = storedVersion(row.published).values;
 			fields = (await getPostType(scope, row.postTypeId)).fields;

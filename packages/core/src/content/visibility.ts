@@ -37,7 +37,7 @@ export function withHiddenLanguages(
 	const before = hiddenLanguagesIn(version, defaultLanguage);
 	if (list.length === 0) delete byLanguage[defaultLanguage];
 	else if (before.join(" ") !== list.join(" ")) byLanguage[defaultLanguage] = { value: list, by };
-	return { values: { ...version.values, [HIDDEN]: byLanguage } };
+	return { ...version, values: { ...version.values, [HIDDEN]: byLanguage } };
 }
 
 /** Whether a version of an Entry is shown in a language. */

@@ -157,7 +157,12 @@ export async function linksBack(
 		);
 	const byId = new Map(allPostTypes.map((postType) => [postType.id, postType]));
 	for (const row of rows) {
-		const field = fieldAt(byId.get(row.postTypeId)?.fields ?? [], row.field);
+		const layout = /^layout\.([^.]*)\.(.*)$/.exec(row.field);
+		const placement = layout && storedVersion(row.draft).layout?.placements.find((p) => p.id === layout[1]);
+		const field =
+			placement && layout
+				? fieldAt(placement.props, layout[2] ?? "")
+				: fieldAt(byId.get(row.postTypeId)?.fields ?? [], row.field);
 		if (field?.type !== "relationship" || !field.twoWay) continue;
 		const title = readValue(storedVersion(row.draft), { key: "title", ...languages }) ?? "";
 		back.get(row.targetId)?.push({ entryId: row.entryId, postTypeId: row.postTypeId, field: row.field, title });
@@ -202,7 +207,12 @@ export async function linkingEntries(
 	const linking = new Map<string, LinkingEntry>();
 	for (const row of rows) {
 		// A link left in a Field that is no longer a Relationship shows nowhere and is ignored.
-		const field = fieldAt(byId.get(row.postTypeId)?.fields ?? [], row.field);
+		const layout = /^layout\.([^.]*)\.(.*)$/.exec(row.field);
+		const placement = layout && storedVersion(row.draft).layout?.placements.find((p) => p.id === layout[1]);
+		const field =
+			placement && layout
+				? fieldAt(placement.props, layout[2] ?? "")
+				: fieldAt(byId.get(row.postTypeId)?.fields ?? [], row.field);
 		if (field?.type !== "relationship") continue;
 		const entry = linking.get(row.entryId) ?? {
 			entryId: row.entryId,

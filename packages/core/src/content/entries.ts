@@ -1,7 +1,6 @@
 import { entries, people, publishedSlugs } from "@webcraft/db/schema";
 import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { clientNameOf } from "../audit.ts";
-
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { noteDraftChange } from "../history/checkpoints.ts";
 import { saveRevision } from "../history/copies.ts";
@@ -14,6 +13,7 @@ import { type ItemTranslation, itemTranslation } from "../translation/status.ts"
 import { entryFields, unitsOf } from "../translation/units.ts";
 import { bodyChecksOf, type EntryCheck } from "./body-checks.ts";
 import { type BodyFormat, bodiesAsMarkdown, bodyFieldOf, withBodyFromMarkdown } from "./body-exchange.ts";
+import { lockComponents } from "./components.ts";
 import { publishedAddresses } from "./entry-paths.ts";
 import {
 	type ContentProblem,
@@ -40,6 +40,14 @@ import {
 import { sameJson } from "./json.ts";
 import { canonicalLanguage, languagesFor, siteLanguages } from "./languages.ts";
 import { clearPageCache } from "./page-cache.ts";
+import {
+	EMPTY_LAYOUT,
+	layoutLinks,
+	layoutView,
+	restorePageLayout,
+	unlinkLayout,
+	writePageLayout,
+} from "./page-layouts.ts";
 import {
 	checkDraftParent,
 	childPagesOf,
@@ -145,6 +153,8 @@ export type Entry = {
 
 /** A change to an Entry's Draft, in one language (the Site's Default language unless given). */
 export type DraftChange = {
+	layout?: unknown;
+	layoutBasedOn?: string;
 	language?: string;
 	title?: string;
 	/** A new slug; WebCraft makes one from the title for a new Entry without one. */
@@ -233,6 +243,7 @@ export async function saveDraft(scope: SiteScope, entryId: string, change: Draft
 	return scope.transaction(async (tx) => {
 		// Moving a Page is checked against the other Pages' parents: hold them first.
 		if (change.parentId !== undefined) await lockSitePaths(tx);
+		if (change.layout !== undefined) await lockComponents(tx);
 		const languages = await entryLanguages(tx, change.language);
 		const row = await lockEntry(tx, entryId);
 		const postType = await getPostType(tx, row.postTypeId);
@@ -388,9 +399,16 @@ async function unlinkAndDelete(
 		if (!postType) continue;
 		await changeDraft(tx, source, postType, { unlink: entryId }, { language: defaultLanguage, defaultLanguage });
 		if (source.published !== null) {
-			const published = { values: withoutLinksTo(storedVersion(source.published).values, postType.fields, entryId) };
+			const published = {
+				...storedVersion(source.published),
+				layout: unlinkLayout(storedVersion(source.published).layout, entryId),
+				values: withoutLinksTo(storedVersion(source.published).values, postType.fields, entryId),
+			};
 			await tx.update(entries, { published }, eq(entries.id, source.id));
-			await saveLinks(tx, source.id, "published", linksIn(published.values, postType.fields));
+			await saveLinks(tx, source.id, "published", [
+				...linksIn(published.values, postType.fields),
+				...layoutLinks(published.layout),
+			]);
 		}
 	}
 	await tx.delete(entries, eq(entries.id, entryId));
@@ -402,6 +420,7 @@ async function unlinkAndDelete(
  */
 export async function replaceDraft(scope: SiteScope, entryId: string, version: unknown): Promise<void> {
 	await scope.transaction(async (tx) => {
+		await lockComponents(tx);
 		const languages = await entryLanguages(tx);
 		const row = await lockEntry(tx, entryId);
 		const postType = await getPostType(tx, row.postTypeId);
@@ -416,18 +435,29 @@ export async function replaceDraft(scope: SiteScope, entryId: string, version: u
  */
 export async function restoreEntryDraft(scope: SiteScope, entryId: string, version: unknown): Promise<Entry> {
 	return scope.transaction(async (tx) => {
+		await lockComponents(tx);
 		const languages = await entryLanguages(tx);
 		const row = await lockEntry(tx, entryId);
 		const postType = await getPostType(tx, row.postTypeId);
-		let { values } = storedVersion(version);
-		const targets = [...new Set(linksIn(values, postType.fields).map((link) => link.targetId))];
+		let { values, layout } = storedVersion(version);
+		const targets = [
+			...new Set([...linksIn(values, postType.fields), ...layoutLinks(layout)].map((link) => link.targetId)),
+		];
 		const existing =
 			targets.length > 0
 				? new Set((await tx.select(entries, inArray(entries.id, targets))).map((target) => target.id))
 				: new Set<string>();
-		for (const gone of targets.filter((id) => !existing.has(id)))
+		for (const gone of targets.filter((id) => !existing.has(id))) {
 			values = withoutLinksTo(values, postType.fields, gone);
-		const saved = await changeDraft(tx, row, postType, { replace: { values } }, languages);
+			layout = unlinkLayout(layout, gone);
+		}
+		const saved = await changeDraft(
+			tx,
+			row,
+			postType,
+			{ replace: { ...storedVersion(version), values, layout } },
+			languages,
+		);
 		return toEntry(tx, saved, postType, languages);
 	});
 }
@@ -486,6 +516,7 @@ export async function undoDraftChanges(
 	keys: readonly string[] | "all",
 ): Promise<Entry> {
 	return scope.transaction(async (tx) => {
+		await lockComponents(tx);
 		const languages = await entryLanguages(tx);
 		const row = await lockEntry(tx, entryId);
 		const postType = await getPostType(tx, row.postTypeId);
@@ -524,7 +555,11 @@ async function changeDraft(
 	let version = before;
 	let slug: string | undefined;
 	if ("unlink" in edit) {
-		version = { values: withoutLinksTo(version.values, postType.fields, edit.unlink) };
+		version = {
+			...version,
+			layout: unlinkLayout(version.layout, edit.unlink),
+			values: withoutLinksTo(version.values, postType.fields, edit.unlink),
+		};
 		if (sameJson(version, before)) return row;
 	} else if ("restore" in edit) {
 		version = restoredVersion(before, storedVersion(row.published), edit.restore);
@@ -534,9 +569,17 @@ async function changeDraft(
 		if (sameJson(version, before)) return row;
 	} else {
 		const { change } = edit;
+		if (change.layout !== undefined) {
+			if (!isPagePostType(postType))
+				throw new EntryInvalidError([{ at: "layout", message: "Only Pages have a Page layout." }]);
+			version = {
+				...version,
+				layout: await writePageLayout(scope, before.layout ?? EMPTY_LAYOUT, change.layout, change.layoutBasedOn),
+			};
+		}
 		const problems: ContentProblem[] = [];
 		if (edit.withDefaults) {
-			version = { values: { ...defaultValues(postType.fields, { ...languages, by }), ...version.values } };
+			version = { ...version, values: { ...defaultValues(postType.fields, { ...languages, by }), ...version.values } };
 		}
 		if (change.title !== undefined) {
 			const title = change.title.trim();
@@ -583,6 +626,7 @@ async function changeDraft(
 				given = await withBodyFromMarkdown(scope, postType.fields, given, stored?.[bodyLanguage]?.value, problems);
 			}
 			version = {
+				...version,
 				values: writeFields(version.values, postType.fields, given, context, "fields.", postType.name),
 			};
 			await checkReferences(
@@ -593,7 +637,7 @@ async function changeDraft(
 		}
 		if (change.seo !== undefined) {
 			const context: WriteContext = { ...languages, by, problems, references: [], newRowId: randomRowId };
-			version = { values: await writeEntrySeo(scope, version.values, change.seo, context) };
+			version = { ...version, values: await writeEntrySeo(scope, version.values, change.seo, context) };
 		}
 		if (problems.length > 0) throw new EntryInvalidError(problems);
 		if (isPagePostType(postType)) {
@@ -609,6 +653,17 @@ async function changeDraft(
 		}
 	}
 
+	if (
+		!("change" in edit) &&
+		!("unlink" in edit) &&
+		!sameJson(before.layout ?? EMPTY_LAYOUT, version.layout ?? EMPTY_LAYOUT)
+	) {
+		if (!isPagePostType(postType))
+			throw new EntryInvalidError([{ at: "layout", message: "Only Pages have a Page layout." }]);
+		version = { ...version, layout: await restorePageLayout(scope, version.layout ?? EMPTY_LAYOUT) };
+		await writePageLayout(scope, before.layout ?? EMPTY_LAYOUT, layoutView(version.layout ?? EMPTY_LAYOUT));
+	}
+
 	const [saved] = await scope.update(
 		entries,
 		{
@@ -620,7 +675,10 @@ async function changeDraft(
 		eq(entries.id, row.id),
 	);
 	if (!saved) throw new EntryNotFoundError();
-	await saveLinks(scope, row.id, "draft", linksIn(version.values, postType.fields));
+	await saveLinks(scope, row.id, "draft", [
+		...linksIn(version.values, postType.fields),
+		...layoutLinks(version.layout),
+	]);
 	// Who changed what, and a Checkpoint after 10 minutes of activity (a new Entry has nothing to keep).
 	await noteDraftChange(
 		scope,
@@ -641,13 +699,13 @@ export function restoredVersion(
 	published: EntryVersion,
 	keys: readonly string[] | "all",
 ): EntryVersion {
-	if (keys === "all") return { values: { ...published.values } };
+	if (keys === "all") return structuredClone(published);
 	const values = { ...draft.values };
 	for (const key of keys) {
 		if (Object.hasOwn(published.values, key)) values[key] = published.values[key];
 		else delete values[key];
 	}
-	return { values };
+	return { ...draft, ...(keys.includes("layout") ? { layout: published.layout ?? EMPTY_LAYOUT } : {}), values };
 }
 
 /** Reads an Entry for a change, holding it until the transaction ends so changes don't overlap. */
@@ -733,6 +791,8 @@ export function versionFindings(
 		findings.missing.push(key);
 	}
 	checkFields(version.values, fields, languages, findings);
+	for (const placement of version.layout?.placements ?? [])
+		checkFields(placement.values, placement.props, languages, findings, `layout.${placement.id}.`);
 	return findings;
 }
 

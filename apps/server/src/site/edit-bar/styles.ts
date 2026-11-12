@@ -5,6 +5,10 @@
  * Everything the bar shows is styled inside its own shadow root (`BAR_STYLES`), out of the Site's reach.
  */
 export const PAGE_STYLES = `
+html.wc-edit-on.wc-arrange-on [data-wc-page-placement]{outline:1px dashed #64748b;outline-offset:2px}
+html.wc-edit-on.wc-arrange-on [data-wc-placement-selected]{outline:3px solid #2563eb;outline-offset:3px}
+[data-wc-placement-prop][contenteditable="true"]:focus{outline:2px solid #2563eb}
+
 webcraft-edit-bar { display: block !important; }
 .wc-editor-messages { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 html.wc-edit { padding-top: 3.5rem; scroll-padding-top: 4.5rem; }

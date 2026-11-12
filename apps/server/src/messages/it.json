@@ -7786,5 +7786,25 @@
 		"barPosition": "Posizione della barra",
 		"barBehavior": "Flusso della pagina",
 		"reviewPublish": "Rivedi e pubblica il Popup"
+	},
+	"pageLayout": {
+		"title": "Layout della Pagina",
+		"props": "Props",
+		"add": "Aggiungi Componente",
+		"move": "Sposta Placement",
+		"moveUp": "Sposta su",
+		"moveDown": "Sposta giù",
+		"duplicate": "Duplica",
+		"delete": "Rimuovi",
+		"hide": "Nascondi o mostra",
+		"lock": "Blocca o sblocca",
+		"locked": "Bloccato",
+		"header": "Intestazione del template della Pagina",
+		"footer": "Piè di pagina del template della Pagina",
+		"close": "Chiudi",
+		"noComponents": "Nessun Componente consentito",
+		"enabled": "I Membri possono organizzare i layout delle Pagine",
+		"allowed": "I Membri possono aggiungere",
+		"select": "Seleziona un Posizionamento per modificarne le Props."
 	}
 }

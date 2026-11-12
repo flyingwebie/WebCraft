@@ -1,5 +1,6 @@
 import type { Json } from "./field-types.ts";
 import type { StoredValues } from "./field-values.ts";
+import type { PageLayout } from "./page-layouts.ts";
 import { personValue } from "./translation-sources.ts";
 
 /**
@@ -20,7 +21,7 @@ export type LanguageValue = { value: Json; by: Writer | null; source?: Json };
  * value by key (ADR 0003). `title` and `slug` sit beside an Entry's Fields, as Translatable fields;
  * see `field-values.ts` for how Fields, Groups and Repeaters keep their values.
  */
-export type EntryVersion = { values: StoredValues };
+export type EntryVersion = { values: StoredValues; layout?: PageLayout };
 
 /** The keys of the values every Entry stores, beside its Post Type's Fields. Both are translatable. */
 export const STORED_BUILT_INS = ["title", "slug"] as const;
@@ -32,7 +33,10 @@ export function emptyVersion(): EntryVersion {
 /** Reads a stored version. */
 export function storedVersion(value: unknown): EntryVersion {
 	const values = (value as Partial<EntryVersion> | null)?.values;
-	return { values: values && typeof values === "object" && !Array.isArray(values) ? values : {} };
+	return {
+		...((value as EntryVersion | null)?.layout ? { layout: (value as EntryVersion).layout } : {}),
+		values: values && typeof values === "object" && !Array.isArray(values) ? values : {},
+	};
 }
 
 /** Where a built-in value (`title`, `slug`) is: in which language, and which language it falls back to. */
@@ -61,7 +65,7 @@ export function writeValue(version: EntryVersion, place: ValuePlace, value: stri
 		byLanguage[place.language] =
 			place.key === "title" ? personValue(byLanguage, place, "text", value, by) : { value, by };
 	}
-	return { values: { ...version.values, [place.key]: byLanguage } };
+	return { ...version, values: { ...version.values, [place.key]: byLanguage } };
 }
 
 /** A built-in value's own value in a language, without falling back; null when it has none. */

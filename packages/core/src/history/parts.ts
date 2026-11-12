@@ -117,6 +117,8 @@ export function changedParts(kind: HistoryItem["kind"], before: unknown, after: 
 		const was = storedVersion(before).values;
 		const now = storedVersion(after).values;
 		const changed: PartPlace[] = [];
+		if (kind === "entry" && !sameJson(storedVersion(before).layout ?? null, storedVersion(after).layout ?? null))
+			changed.push({ part: "layout", language: null });
 		for (const key of valueKeys(before, after)) {
 			if (sameJson(was[key] ?? null, now[key] ?? null)) continue;
 			const languages = new Set([...languagesIn(was[key]), ...languagesIn(now[key])]);
