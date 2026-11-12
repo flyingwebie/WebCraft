@@ -210,6 +210,8 @@ export function LayersPanel({
 	placementRows?: {
 		label(row: LayerRow): string;
 		locked(row: LayerRow): boolean;
+		/** Staff may move a locked Placement while its badge still describes the stored lock. */
+		movable?(row: LayerRow): boolean;
 		actions: readonly LayerAction[];
 		canInsert: boolean;
 		canAction?(row: LayerRow, action: LayerAction): boolean;
@@ -292,6 +294,7 @@ export function LayersPanel({
 	const onAction = (action: LayerAction) => {
 		if (permitted(action)) performAction(action);
 	};
+	const movable = (row: LayerRow) => placementRows?.movable?.(row) ?? !placementRows?.locked(row);
 	const rowName = (row: LayerRow) =>
 		placementRows
 			? placementRows.label(row)
@@ -362,7 +365,7 @@ export function LayersPanel({
 		}
 		if (event.key === " " && !mod && !event.altKey) {
 			handled();
-			if (row.kind === "node" && !placementRows?.locked(row)) onGrab(grabbed ? "drop" : "pick");
+			if (row.kind === "node" && movable(row)) onGrab(grabbed ? "drop" : "pick");
 			return;
 		}
 		if (grabbed) {
@@ -504,7 +507,7 @@ export function LayersPanel({
 	};
 
 	const dropProps = (row: LayerRow) => {
-		if (row.kind !== "node" || placementRows?.locked(row)) return {};
+		if (row.kind !== "node" || !movable(row)) return {};
 		return {
 			onDragOver(event: DragEvent<HTMLElement>) {
 				if (!dragging || (row.source && row.source !== activeSource)) return;
@@ -567,12 +570,7 @@ export function LayersPanel({
 				<legend className="sr-only">{t("builder.layers.actions")}</legend>
 				{ACTIONS.filter(({ action }) => !placementRows || placementRows.actions.includes(action)).map(
 					({ action, icon: Icon, shortcut }) => {
-						const disabled =
-							!permitted(action) || action === "paste"
-								? !canPaste || !selectedRow
-								: action === "rename"
-									? !nodeSelected
-									: !nodeSelected;
+						const disabled = !permitted(action) || (action === "paste" ? !canPaste || !selectedRow : !nodeSelected);
 						return (
 							<Button
 								key={action}
@@ -590,10 +588,7 @@ export function LayersPanel({
 						);
 					},
 				)}
-				{selectedRow?.kind === "node" &&
-				selectedRow.node.type === "component" &&
-				onHidden &&
-				!placementRows?.locked(selectedRow) ? (
+				{selectedRow?.kind === "node" && selectedRow.node.type === "component" && onHidden && movable(selectedRow) ? (
 					<Button
 						type="button"
 						variant="ghost"
@@ -659,10 +654,10 @@ export function LayersPanel({
 										aria-setsize={positions.get(row.key)?.size}
 										aria-label={[
 											named.name,
-											placementRows?.locked(row) ? t("pageLayout.locked") : null,
 											repetitions !== undefined ? t("builder.layers.repeats", { count: repetitions }) : null,
 											row.pages && row.pages > 1 ? t("builder.layers.onPages", { count: row.pages }) : null,
 											detail,
+											placementRows?.locked(row) ? t("pageLayout.locked") : null,
 											fixed ? t("builder.fixedText.badge") : null,
 											row.kind === "node" && row.node.type === "component" && row.node.hidden
 												? t("builder.layers.hiddenPlacement")
@@ -686,7 +681,7 @@ export function LayersPanel({
 										}
 										onMouseLeave={() => onHover?.(row.source, null)}
 										data-drop={drop}
-										draggable={row.kind === "node" && renaming !== row.key && !placementRows?.locked(row)}
+										draggable={row.kind === "node" && renaming !== row.key && movable(row)}
 										onPointerDown={(event) => {
 											pointer.current = event.pointerType;
 										}}
@@ -768,10 +763,7 @@ export function LayersPanel({
 													{named.name}
 													{repetitions !== undefined ? ` ${t("builder.layers.repeats", { count: repetitions })}` : ""}
 												</span>
-												{row.kind === "node" &&
-												row.node.type === "component" &&
-												onHidden &&
-												!placementRows?.locked(row) ? (
+												{row.kind === "node" && row.node.type === "component" && onHidden && movable(row) ? (
 													<button
 														type="button"
 														tabIndex={-1}

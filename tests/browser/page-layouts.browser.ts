@@ -214,12 +214,14 @@ for (const theme of THEMES) {
 			await expectNoAxeViolations(page, `Page layout phone Props ${theme}`);
 			await dialog.getByRole("button", { name: "Move Placement", exact: true }).tap();
 			await page.getByRole("tree").waitFor();
+			await page.getByRole("treeitem").last().tap();
 			await page.getByRole("button", { name: "Insert", exact: true }).tap();
 			const picker = page.getByRole("dialog");
 			await picker.getByRole("button", { name: "Hero", exact: true }).waitFor();
 			expect(await picker.getByRole("button", { name: "Unavailable", exact: true }).count()).toBe(0);
 			await picker.getByRole("button", { name: "Hero", exact: true }).tap();
 			await page.waitForFunction(() => document.querySelectorAll("main [data-wc-page-placement]").length === 3);
+			expect(await page.locator("main [data-wc-page-placement]").first().textContent()).toContain("South");
 			await page.getByRole("dialog").getByRole("button", { name: "Close", exact: true }).tap();
 			await page.getByRole("dialog").waitFor({ state: "hidden" });
 			expect(
@@ -305,6 +307,8 @@ for (const theme of THEMES) {
 			);
 			await page.getByRole("button", { name: "Lock or unlock", exact: true }).click();
 			await locked;
+			await page.getByRole("treeitem", { name: /Hero ·.*Locked/ }).waitFor();
+			expect(await page.getByRole("treeitem", { name: /Hero ·/ }).getAttribute("aria-label")).toContain("Locked");
 			const member = await enter(theme, site);
 			try {
 				await member.getByRole("button", { name: "Page layout", exact: true }).click();

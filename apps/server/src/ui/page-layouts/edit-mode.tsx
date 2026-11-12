@@ -147,9 +147,10 @@ function LayoutEditor({
 					focusRequest={focusRequest}
 					placementRows={{
 						label,
-						locked: (row) =>
-							contextual(idOf(row)) ||
-							(!data.canLock && !!data.layout.placements.find((p) => p.id === idOf(row))?.locked),
+						locked: (row) => contextual(idOf(row)) || !!data.layout.placements.find((p) => p.id === idOf(row))?.locked,
+						movable: (row) =>
+							!contextual(idOf(row)) &&
+							(data.canLock || !data.layout.placements.find((p) => p.id === idOf(row))?.locked),
 						actions: layerActions,
 						canInsert: data.canArrange && !busy,
 						canAction: (row, action) =>

@@ -248,11 +248,9 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 			finishGrab();
 			const p = { id: crypto.randomUUID(), component: componentId, props: component.props, values: {} };
 			const next = structuredClone(state.layout);
-			next.placements.splice(
-				selected ? next.placements.findIndex((p) => p.id === selected) + 1 : next.placements.length,
-				0,
-				p,
-			);
+			const at = next.placements.findIndex((p) => p.id === selected);
+			const position = selected === "context:header" ? 0 : at >= 0 ? at + 1 : next.placements.length;
+			next.placements.splice(position, 0, p);
 			selected = p.id;
 			panel = "tree";
 			focusRequest++;
