@@ -265,6 +265,8 @@ export class EditorHistory {
 					continue;
 				}
 				if (revision === this.revision || destination === this.past) destination.push({ ...step, changes: applied });
+				// A new own step may have filled the stack while Redo awaited its write.
+				if (this.past.length > 200) this.past.splice(0, this.past.length - 200);
 				let shown = false;
 				for (const listener of this.listeners) if (await listener.reveal?.(step.location)) shown = true;
 				message = this.words(verb, step.label);

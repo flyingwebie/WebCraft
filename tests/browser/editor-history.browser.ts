@@ -387,6 +387,67 @@ test("typing bursts end on blur and retain only the last 200 steps", async () =>
 	}
 });
 
+test("typing while Redo awaits a save still retains only 200 finished steps", async () => {
+	const workspace = await install.install.createWorkspace("Pending Redo");
+	const site = await install.install.createSite(workspace.id, { name: "Pending Redo", slug: "pending-redo" });
+	const staff = await install.install.createStaff({ workspaces: [workspace.id] });
+	const api = staff.browser.api;
+	const { component } = await api.components.create({ siteId: site.id, name: "PendingRedo" });
+	await api.components.saveScriptDraft({ siteId: site.id, componentId: component.id, code: "// Original" });
+	const page = await install.newPage("light");
+	page.setDefaultTimeout(10000);
+	const held = Promise.withResolvers<void>();
+	const release = Promise.withResolvers<void>();
+	try {
+		await install.signIn(page, staff.account);
+		await page.goto(install.adminUrl(`/builder/${site.id}/component/${component.id}`));
+		const html = page.getByRole("textbox", { name: "Template markup", exact: true });
+		const js = page.getByRole("region", { name: "JS", exact: true }).getByRole("textbox");
+		await js.and(page.locator(":not([readonly])")).waitFor();
+		for (let step = 1; step <= 200; step++) {
+			await html.fill(`<!-- unfinished ${step}`);
+			await html.blur();
+		}
+		await js.fill("// Own");
+		await js.press("ControlOrMeta+s");
+		await page
+			.getByRole("status")
+			.filter({ hasText: /Saved to Draft/ })
+			.waitFor();
+		await js.press("ControlOrMeta+z");
+		await page.getByRole("status").filter({ hasText: "Undid Edit JS of PendingRedo" }).first().waitFor();
+		await page.route("**/api/rpc/components/saveScriptDraft", async (route) => {
+			const response = await route.fetch();
+			held.resolve();
+			await release.promise;
+			await route.fulfill({ response });
+		});
+		await js.press("ControlOrMeta+Shift+z");
+		await held.promise;
+		await html.fill("<!-- during redo");
+		await html.blur();
+		release.resolve();
+		await page.getByRole("status").filter({ hasText: "Redid Edit JS of PendingRedo" }).first().waitFor();
+		await html.focus();
+		await page.keyboard.press("ControlOrMeta+z");
+		await page.waitForFunction(
+			() => document.querySelector<HTMLTextAreaElement>('section[aria-label="JS"] textarea')?.value === "// Original",
+		);
+		for (let step = 200; step >= 2; step--) {
+			await page.keyboard.press("ControlOrMeta+z");
+			await page.waitForFunction(
+				(value) => document.querySelector<HTMLTextAreaElement>('section[aria-label="HTML"] textarea')?.value === value,
+				`<!-- unfinished ${step}`,
+			);
+		}
+		expect(await page.getByRole("button", { name: "Undo", exact: true }).isDisabled()).toBe(true);
+	} finally {
+		release.resolve();
+		await page.unrouteAll({ behavior: "wait" });
+		await page.close();
+	}
+});
+
 test("an obsolete own step is explained and skipped while Undo keeps the peer label", async () => {
 	const workspace = await install.install.createWorkspace("Skipped history");
 	const site = await install.install.createSite(workspace.id, { name: "Skipped history", slug: "skipped-history" });
