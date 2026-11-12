@@ -97,6 +97,7 @@ export const TOOL_PLACES = {
 	"components.list": place(["structure"], "structure.edit"),
 	"components.get": place(["structure"], "structure.edit"),
 	"components.create": place(["structure"], "structure.edit"),
+	"components.make": place(["structure"], "structure.edit"),
 	"components.saveDraft": place(["structure"], "structure.edit"),
 	"components.getMarkup": place(["structure"], "structure.edit"),
 	"components.saveMarkup": place(["structure"], "structure.edit"),

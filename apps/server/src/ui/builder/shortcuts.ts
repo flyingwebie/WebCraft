@@ -144,6 +144,12 @@ export const SHORTCUTS = [
 	{ id: "tree.pick", area: "tree", chords: [{ key: " " }], label: "builder.commandMenu.keys.pick" },
 	{ id: "tree.putBack", area: "tree", chords: [{ key: "Escape" }], label: "builder.commandMenu.keys.putBack" },
 	{
+		id: "tree.layerMenu",
+		area: "tree",
+		chords: [{ key: "F10", shift: true }, { key: "ContextMenu" }],
+		label: "builder.commandMenu.keys.layerMenu",
+	},
+	{
 		id: "insert.inverse",
 		area: "insert",
 		chords: [{ key: "Enter", alt: true }],
@@ -183,6 +189,7 @@ const SYMBOLS: Record<string, [apple: string, other: string]> = {
 	Escape: ["Esc", "Esc"],
 	" ": ["Space", "Space"],
 	Letter: ["A–Z", "A–Z"],
+	ContextMenu: ["Menu", "Menu"],
 };
 /** Which of the message catalogue's key names (`builder.commandMenu.keyNames.*`) a key is spoken as. */
 const SPOKEN: Record<string, SpokenKey> = {

@@ -1,4 +1,13 @@
-import { CONSENT_CATEGORIES, LIBRARIES_PER_SITE, publishPermission, SCRIPT_MAX_LENGTH } from "@webcraft/core";
+import {
+	CONSENT_CATEGORIES,
+	componentSourceTarget,
+	LIBRARIES_PER_SITE,
+	madeTexts,
+	newComponentPlace,
+	publishPermission,
+	SCRIPT_MAX_LENGTH,
+	treePath,
+} from "@webcraft/core";
 import { z } from "zod";
 
 import { confirmationInput, confirmedPublish } from "../confirm.ts";
@@ -35,12 +44,53 @@ export const components = {
 		return context.services.components.get(site, input.componentId);
 	}),
 
-	/** Creates a Component with its name (its PascalCase tag) and Props, as a Draft with an empty tree. */
+	/**
+	 * Creates a Component with its name (its PascalCase tag) and Props, as a Draft with an empty tree.
+	 * With `place`, it is also placed in a Template's or Component's Draft at `place.path`, in the same
+	 * step: `place.list` is the list it goes into as you read it, and a change made there meanwhile
+	 * refuses both (`CHANGED_MEANWHILE`). Answers the Placement too.
+	 */
 	create: signedIn
-		.input(z.object({ siteId: id, name: componentName, props: fieldInputs.optional() }))
+		.input(
+			z.object({
+				siteId: id,
+				name: componentName,
+				props: fieldInputs.optional(),
+				place: newComponentPlace.optional(),
+			}),
+		)
 		.handler(async ({ context, input }) => {
 			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
-			return { component: await context.services.components.create(site, input) };
+			const { place, ...component } = input;
+			if (!place) return { component: await context.services.components.create(site, component) };
+			return context.services.components.createPlaced(site, component, place);
+		}),
+
+	/**
+	 * Make Component: moves the element or Placement at `path` in a Template's or Component's Draft into
+	 * a new Component named `name`, and places that Component there instead, so the page looks the
+	 * same. What the markup read there (the Entry's values, an outer Loop's items, the outer
+	 * Component's Props) becomes Props of the new Component, declared as the source declares them and
+	 * bound on the Placement to what they read. `texts` turns pieces of fixed text (in order, depth
+	 * first) into text Props whose default is the text. `node` is the node as you read it: a change
+	 * made to it meanwhile refuses the whole step (`CHANGED_MEANWHILE`), as does anything the new
+	 * Component or the source can't hold; nothing is made then.
+	 */
+	make: signedIn
+		.input(
+			z.object({
+				siteId: id,
+				name: componentName,
+				source: componentSourceTarget,
+				path: treePath,
+				node: z.unknown(),
+				texts: madeTexts.optional(),
+			}),
+		)
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			const { siteId: _, ...make } = input;
+			return context.services.components.make(site, make);
 		}),
 
 	/**

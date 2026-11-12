@@ -37,7 +37,10 @@ import type {
 	Loop,
 	LoopDraftChange,
 	LoopItemsChange,
+	MadeComponent,
+	MakeComponentInput,
 	NewComponent,
+	NewComponentPlace,
 	NewEntry,
 	NewLanguage,
 	NewLoop,
@@ -393,6 +396,13 @@ export type InstallServices = InstallPorts & {
 		list(scope: SiteScope): Promise<(Component & { usage: ComponentUsage })[]>;
 		get(scope: SiteScope, componentId: string): Promise<{ component: Component; usage: ComponentUsage }>;
 		create(scope: SiteScope, input: NewComponent): Promise<Component>;
+		/** Makes an empty Component and places it in a Template's or Component's Draft, in one transaction. */
+		createPlaced(scope: SiteScope, input: NewComponent, place: NewComponentPlace): Promise<MadeComponent>;
+		/**
+		 * Make Component: moves a node of a Template's or Component's Draft into a new Component, with
+		 * Props for what it read there, and places it instead, in one transaction.
+		 */
+		make(scope: SiteScope, input: MakeComponentInput): Promise<MadeComponent>;
 		/** Saves its Draft: its Props (the full list) and its element tree, either or both. */
 		saveDraft(scope: SiteScope, componentId: string, change: ComponentDraftChange): Promise<Component>;
 		/** Its Draft and published version as Template markup, with where it is used. */

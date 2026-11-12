@@ -3,6 +3,7 @@ import {
 	type MarkupProblem,
 	type ParseMarkupOptions,
 	parseTemplateMarkup,
+	propsBlockAt,
 	TemplateMarkupInvalidError,
 } from "@webcraft/renderer";
 import type { ContentProblem } from "./errors.ts";
@@ -42,9 +43,9 @@ const SETTINGS = new Set([
 export function readPropDeclarations(input: string): PropDeclarations {
 	const text = input.replace(/\r\n?/g, "\n");
 	const lines = text.split("\n");
-	const first = lines.findIndex((line) => line.trim() !== "");
-	if (first < 0 || lines[first]?.trim() !== "{{@props}}") return { markup: text, lines: [], offset: 0, markupStart: 0 };
-	const end = lines.findIndex((line, index) => index > first && line.trim() === "{{/props}}");
+	const block = propsBlockAt(text);
+	if (!block) return { markup: text, lines: [], offset: 0, markupStart: 0 };
+	const { first, end } = block;
 	const problems: MarkupProblem[] = [];
 	const fail = (line: number, message: string) => {
 		problems.push({ line, column: 1, message });

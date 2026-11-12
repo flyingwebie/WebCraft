@@ -1,6 +1,7 @@
 import type { ElementTree, TreeNode } from "@webcraft/renderer/builder";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@webcraft/ui/components/dropdown-menu.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import {
 	ArrowDownIcon,
@@ -24,7 +25,7 @@ import {
 	ScissorsIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { type DragEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { type DragEvent, type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useAfterRender } from "../after-render.ts";
 import { useT } from "../i18n.tsx";
 import { editorAccessibility } from "./editor-accessibility.ts";
@@ -202,6 +203,8 @@ export function LayersPanel({
 	hovered,
 	counts,
 	onHidden,
+	onMakeComponent,
+	onPlacements,
 }: {
 	/** A narrow Page layout view: the same keys/ARIA, without Structure actions or nesting. */
 	placementRows?: {
@@ -211,6 +214,10 @@ export function LayersPanel({
 		canInsert: boolean;
 		canAction?(row: LayerRow, action: LayerAction): boolean;
 	};
+	/** Make Component (#134), offered in a layer's right-click menu (Shift+F10 or the menu key from the keyboard). */
+	onMakeComponent?(): void;
+	/** A Placement's "on N pages" badge: Go to, listing that Component's Placements (#134). */
+	onPlacements?(componentId: string): void;
 	/** Changes only when an action or cross-canvas navigation explicitly requests tree focus. */
 	focusRequest: number;
 	/** Changes when the selected layer should start renaming (the Command menu's Rename). */
@@ -252,6 +259,8 @@ export function LayersPanel({
 	/** The last pointer pressed on a row: a finger never starts a drag (#126: Move up and Move down instead). */
 	const pointer = useRef("");
 	const [over, setOver] = useState<{ key: string; position: DropPosition } | null>(null);
+	/** The right-click menu: where it opens, and the row it is about. */
+	const [context, setContext] = useState<{ x: number; y: number; key: string } | null>(null);
 	const selectedKey =
 		selection?.kind === "node"
 			? allRows.find(
@@ -328,6 +337,13 @@ export function LayersPanel({
 			});
 	};
 
+	/** Opens the right-click menu on a layer, selecting it first: its actions are the selected layer's. */
+	const openContext = (row: LayerRow, x: number, y: number) => {
+		if (row.kind !== "node" || !(row.node.type === "element" || row.node.type === "component") || !onMakeComponent)
+			return;
+		if (row.key !== selectedKey) select(row);
+		setContext({ x, y, key: row.key });
+	};
 	const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
 		if (renaming) return;
 		const index = rows.findIndex((row) => row.key === focusKey);
@@ -338,6 +354,12 @@ export function LayersPanel({
 			event.preventDefault();
 			event.stopPropagation();
 		};
+		if (matches(event, "tree.layerMenu") && row.kind === "node") {
+			handled();
+			const box = (event.target as HTMLElement).getBoundingClientRect();
+			openContext(row, box.left + 24, box.bottom);
+			return;
+		}
 		if (event.key === " " && !mod && !event.altKey) {
 			handled();
 			if (row.kind === "node" && !placementRows?.locked(row)) onGrab(grabbed ? "drop" : "pick");
@@ -685,6 +707,11 @@ export function LayersPanel({
 										}}
 										{...dropProps(row)}
 										onClick={() => select(row)}
+										onContextMenu={(event) => {
+											if (row.kind !== "node" || !onMakeComponent) return;
+											event.preventDefault();
+											openContext(row, event.clientX, event.clientY);
+										}}
 										// The tree hears the keys for every row (one tab stop, arrow keys).
 										onKeyDown={() => {}}
 										onFocus={(event) => {
@@ -761,7 +788,23 @@ export function LayersPanel({
 													</button>
 												) : null}
 												{row.pages && row.pages > 1 ? (
-													<span className="text-xs"> {t("builder.layers.onPages", { count: row.pages })}</span>
+													onPlacements && row.kind === "node" && row.node.type === "component" ? (
+														<button
+															type="button"
+															tabIndex={-1}
+															className="hover:bg-muted rounded px-1 text-xs underline-offset-2 hover:underline"
+															title={t("builder.components.placementsHint")}
+															onKeyDown={(event) => event.stopPropagation()}
+															onClick={(event) => {
+																event.stopPropagation();
+																if (row.node.type === "component") onPlacements(row.node.component);
+															}}
+														>
+															{t("builder.layers.onPages", { count: row.pages })}
+														</button>
+													) : (
+														<span className="text-xs"> {t("builder.layers.onPages", { count: row.pages })}</span>
+													)
 												) : null}
 												{detail ? <span className="text-muted-foreground truncate text-xs"> {detail}</span> : null}
 												{fixed ? (
@@ -785,7 +828,78 @@ export function LayersPanel({
 			<p id="layers-keys" className="text-muted-foreground border-t px-3 py-2 text-xs">
 				{t("builder.layers.keys")}
 			</p>
+			{context && onMakeComponent ? (
+				<LayerMenu
+					x={context.x}
+					y={context.y}
+					onClose={() => {
+						setContext(null);
+						list.current?.querySelector<HTMLElement>(`[data-row-key="${CSS.escape(context.key)}"]`)?.focus();
+					}}
+					items={[{ label: t("builder.components.makeTitle"), run: onMakeComponent }]}
+				/>
+			) : null}
 		</div>
+	);
+}
+
+/**
+ * A layer's right-click menu (the shared menu, anchored where the pointer was, or below the row from
+ * Shift+F10 or the menu key): its items, the arrow keys and type-ahead between them, Enter or a click
+ * runs one, Escape or a click elsewhere closes it, and focus goes back to the row.
+ */
+function LayerMenu({
+	x,
+	y,
+	items,
+	onClose,
+}: {
+	x: number;
+	y: number;
+	items: readonly { label: string; run(): void }[];
+	onClose(): void;
+}) {
+	const t = useT();
+	const anchor = useMemo(
+		() => ({
+			getBoundingClientRect: () => DOMRect.fromRect({ x: Math.max(0, x), y: Math.max(0, y), width: 0, height: 0 }),
+		}),
+		[x, y],
+	);
+	// Opened from a row, never from a trigger: its first item takes focus, as a menu opened from the keyboard does.
+	const popup = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		const frame = requestAnimationFrame(() => popup.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus());
+		return () => cancelAnimationFrame(frame);
+	}, []);
+	return (
+		<DropdownMenu
+			open
+			onOpenChange={(open) => {
+				if (!open) onClose();
+			}}
+		>
+			<DropdownMenuContent
+				ref={popup}
+				anchor={anchor}
+				positionMethod="fixed"
+				aria-label={t("builder.components.layerMenu")}
+				className="w-auto min-w-40"
+				finalFocus={false}
+			>
+				{items.map((item) => (
+					<DropdownMenuItem
+						key={item.label}
+						onClick={() => {
+							onClose();
+							item.run();
+						}}
+					>
+						{item.label}
+					</DropdownMenuItem>
+				))}
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 }
 
