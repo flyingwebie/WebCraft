@@ -180,12 +180,13 @@ export class EditorHistory {
 	/** Associates a parsed tree/HTTP acknowledgement with the input step that caused it. */
 	attach(id: number | undefined, change: Change) {
 		const step = this.past.find((step) => step.id === id);
-		if (!step || sameValue(change.before, change.after)) return;
+		if (!step || sameValue(change.before, change.after)) return false;
 		const existing = step.changes.at(-1);
 		if (existing?.resource === change.resource && sameValue(existing.after, change.before))
 			existing.after = change.after;
 		else step.changes.push(change);
 		this.notify();
+		return true;
 	}
 	/** Once valid HTML is represented by its tree, keep only the shared change. Incomplete input
 	 * remains reversible locally; canonical printing and selection changes are not extra steps. */

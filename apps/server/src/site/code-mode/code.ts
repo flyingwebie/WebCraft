@@ -125,6 +125,7 @@ export function codeMode(
 				hover(ref: string | null): void;
 				refresh(): void;
 				save(): Promise<boolean>;
+				createClass(name: string): Promise<boolean>;
 				depart(): Promise<boolean>;
 				markup(ref: string): Promise<string | null>;
 				/** Opens the Command menu (#131) at Actions. */
@@ -1784,9 +1785,10 @@ export function codeMode(
 	}
 
 	async function createClass(name: string): Promise<void> {
-		const answer = await call("code/createClass", { name });
-		if (!answer.ok) {
-			setStatusText(errorText(answer.code));
+		try {
+			if (!(await panelsAdapter?.createClass(name))) return;
+		} catch (failure) {
+			setStatusText(errorText((failure as { code?: string }).code ?? "generic"));
 			return;
 		}
 		opened?.suggestions.classes.push({ name, utility: false });

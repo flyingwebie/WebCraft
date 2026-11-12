@@ -307,6 +307,17 @@ for (const theme of THEMES) {
 				.filter({ hasText: /^Side$/ })
 				.waitFor();
 			expect((await api.components.getMarkup({ siteId, componentId })).markup.draft).toContain(">Side</aside>");
+			await html.press("ControlOrMeta+Shift+z");
+			await page
+				.locator('aside[data-wc-code$="#side"]')
+				.filter({ hasText: /^Changed side$/ })
+				.waitFor();
+			await html.press("ControlOrMeta+Shift+z");
+			await page.waitForFunction(({ element, text }) => (element as HTMLTextAreaElement | null)?.value === text, {
+				element: await html.elementHandle(),
+				text: `${valid}<`,
+			});
+			expect((await api.components.getMarkup({ siteId, componentId })).markup.draft).toContain("Changed side");
 		} finally {
 			holding = false;
 			for (const send of deliver.splice(0)) send();
@@ -360,3 +371,98 @@ for (const theme of THEMES) {
 		}
 	});
 }
+
+for (const theme of THEMES) {
+	test(`HTML Create Class completes one reversible typing action (${theme})`, async () => {
+		const { page, api, siteId, componentId } = await openSource(theme, "live");
+		try {
+			const html = page.getByRole("textbox", { name: /^HTML of HistorySource/ });
+			const original = await html.inputValue();
+			await html.fill(
+				original.replace('<aside data-wc-id="side">', '<aside data-wc-id="side" class="suggested-class">'),
+			);
+			await page.getByRole("button", { name: "Create Class “suggested-class”", exact: true }).click();
+			await page
+				.getByRole("status")
+				.filter({ hasText: "Class suggested-class added to the Design system's Draft" })
+				.first()
+				.waitFor();
+			await html.press("ControlOrMeta+s");
+			await page.getByRole("status").filter({ hasText: "Saved to Draft · HistorySource" }).first().waitFor();
+			expect((await api.components.getMarkup({ siteId, componentId })).markup.draft).toContain(
+				'class="suggested-class"',
+			);
+			await html.press("ControlOrMeta+z");
+			await page.getByRole("status").filter({ hasText: "Undid" }).first().waitFor();
+			expect((await api.components.getMarkup({ siteId, componentId })).markup.draft).not.toContain("suggested-class");
+			expect(
+				(await api.designSystem.get({ siteId })).designSystem.draft.classes.some(
+					(each) => each.name === "suggested-class",
+				),
+			).toBe(false);
+			expect(await page.getByRole("button", { name: "Undo", exact: true }).isDisabled()).toBe(true);
+			await html.press("ControlOrMeta+Shift+z");
+			await page.getByRole("status").filter({ hasText: "Redid" }).first().waitFor();
+			expect((await api.components.getMarkup({ siteId, componentId })).markup.draft).toContain(
+				'class="suggested-class"',
+			);
+			expect(
+				(await api.designSystem.get({ siteId })).designSystem.draft.classes.some(
+					(each) => each.name === "suggested-class",
+				),
+			).toBe(true);
+		} finally {
+			await page.close();
+		}
+	});
+}
+
+test("navigation waits for HTML Class creation after its typing was undone", async () => {
+	const { page, api, siteId } = await openSource("light", "live");
+	const held = Promise.withResolvers<void>();
+	const release = Promise.withResolvers<void>();
+	try {
+		await page.route("**/code/createClass", async (route) => {
+			const response = await route.fetch();
+			held.resolve();
+			await release.promise;
+			await route.fulfill({ response });
+		});
+		const html = page.getByRole("textbox", { name: /^HTML of HistorySource/ });
+		await html.fill(
+			(await html.inputValue()).replace('<aside data-wc-id="side">', '<aside data-wc-id="side" class="pending-class">'),
+		);
+		await page.getByRole("button", { name: "Create Class “pending-class”", exact: true }).click();
+		await held.promise;
+		await html.press("ControlOrMeta+z");
+		await page.getByRole("status").filter({ hasText: "Undid" }).first().waitFor();
+		await page.getByRole("button", { name: "Open in builder", exact: true }).click();
+		// A held own operation cannot be abandoned by an otherwise clean navigation.
+		const leftEarly = await page
+			.waitForURL((url) => url.pathname.includes("/builder/"), { timeout: 2000 })
+			.then(
+				() => true,
+				() => false,
+			);
+		expect(leftEarly).toBe(false);
+		release.resolve();
+		await page
+			.getByRole("status")
+			.filter({ hasText: "Class pending-class added to the Design system's Draft" })
+			.first()
+			.waitFor();
+		await page.getByRole("button", { name: "Open in builder", exact: true }).click();
+		await page.waitForURL((url) => url.pathname.includes("/builder/"));
+		const undo = page.getByRole("button", { name: "Undo", exact: true });
+		await undo.and(page.locator(":not([disabled])")).waitFor();
+		await undo.click();
+		await page.getByRole("status").filter({ hasText: "Undid Create Class pending-class" }).first().waitFor();
+		expect(
+			(await api.designSystem.get({ siteId })).designSystem.draft.classes.some((each) => each.name === "pending-class"),
+		).toBe(false);
+	} finally {
+		release.resolve();
+		await page.unrouteAll({ behavior: "wait" });
+		await page.close();
+	}
+});

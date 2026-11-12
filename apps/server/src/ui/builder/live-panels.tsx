@@ -113,6 +113,7 @@ export type CodeModeCommands = {
 };
 type PanelCommands = {
 	save(): Promise<boolean>;
+	createClass(name: string): Promise<boolean>;
 	markup(ref: string): Promise<string | null>;
 };
 
@@ -186,7 +187,7 @@ export function mount(bridge: LivePanelBridge) {
 	const getApi = async () => api;
 	let selection: string | null = null;
 	let hovered: string | null = null;
-	const commands: PanelCommands = { save: async () => false, markup: async () => null };
+	const commands: PanelCommands = { save: async () => false, createClass: async () => false, markup: async () => null };
 	const oneOffDeparture = { current: null as (() => Promise<boolean>) | null };
 	const cssDeparture = { current: null as (() => Promise<boolean>) | null };
 	/** Opens the Command menu: Code mode's own toolbar button calls it. */
@@ -226,6 +227,7 @@ export function mount(bridge: LivePanelBridge) {
 			(!cssDeparture.current || (await cssDeparture.current())) &&
 			(await commands.save()),
 		save: async () => (!cssDeparture.current || (await cssDeparture.current())) && (await commands.save()),
+		createClass: (name: string) => commands.createClass(name),
 		markup: (ref: string) => commands.markup(ref),
 		openCommandMenu: () => menuOpener.current?.("actions"),
 		/** The toolbar button's name, tooltip and keys, from the shortcut registry. */
@@ -596,6 +598,7 @@ function LivePanels({
 			typing.current = false;
 		};
 		const input = () => {
+			if (area.value === previousText) return;
 			const { source, ref } = begin();
 			if (source) {
 				const resource = `input:${resourceOf(source)}`;
@@ -637,6 +640,30 @@ function LivePanels({
 			timer = setTimeout(() => void commit(), 350);
 		};
 		commands.save = commit;
+		commands.createClass = (name) =>
+			history.compound(t("editorHistory.createClass", { name }), async (creation) => {
+				const { source, ref } = begin();
+				if (!source || !ref) return false;
+				const creatingStep = step;
+				const made = await bridge.call<ClassReceipt>("code/createClass", { name });
+				const change = {
+					resource: `draft:${source.siteId}:designSystem`,
+					before: made.history.before as unknown as Json,
+					after: made.history.after as unknown as Json,
+				};
+				// Completing an unknown Class belongs to the HTML action that named it. A person may
+				// already have undone that input while the request was in flight: keep its receipt then
+				// as a new own action, rather than silently leaving the created Class outside history.
+				if (!history.attach(creatingStep, change))
+					history.record({
+						step: creation,
+						...change,
+						label: t("editorHistory.createClass", { name }),
+						location: { siteId: source.siteId, ref, panel: "html", title: source.name ?? document.title },
+					});
+				await commit();
+				return true;
+			});
 		area.addEventListener("input", input);
 		area.addEventListener("editor-source", sourceChanged);
 		return () => {
