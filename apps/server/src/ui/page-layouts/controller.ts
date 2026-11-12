@@ -264,7 +264,8 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 			next.placements.splice(position, 0, p);
 			selected = p.id;
 			panel = "tree";
-			focusRequest++;
+			// Focus waits for the save: only then does the tree hold the new row. Asked for sooner, it
+			// lands on another row, which selects that one instead.
 			await save(next, `${kit.word("pageLayout.add")} ${component.name}`, state.layout, { focus: true });
 		});
 	}
