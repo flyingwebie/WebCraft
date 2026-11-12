@@ -9,12 +9,13 @@ import {
 	createTestInstall,
 	fromAddress,
 	TEST_ADMIN_ORIGIN,
+	TEST_PASSWORD,
 	type TestAccount,
 	type TestBrowser,
 	type TestInstall,
 } from "../harness/index.ts";
 import { approveAiClient } from "../harness/mcp.ts";
-import { addAuthenticator, signInWithAuthenticator } from "../harness/two-factor.ts";
+import { addAuthenticator, confirmIfAsked, signInWithAuthenticator } from "../harness/two-factor.ts";
 
 const MINUTE = 60 * 1000;
 const NEW_PASSWORD = "a brand new password to use";
@@ -287,6 +288,47 @@ describe("choosing a new password with the link", () => {
 		await expect(
 			install.browser({ address }).api.session.signIn({ email: person.email, password: NEW_PASSWORD }),
 		).resolves.toMatchObject({ person: { email: person.email } });
+	});
+});
+
+describe("a link asked for before the account was secured", () => {
+	// Review finding: someone who got hold of a reset link (a mailbox they could read for a moment)
+	// could still use it after the owner changed their password, or after their two-factor
+	// authentication was reset because the account may have been taken over.
+	test("stops working once the person changes their password while signed in", async () => {
+		const person = await newPerson();
+		const link = await linkFor(person.email);
+
+		await person.browser.api.session.confirmIdentity({ password: person.password });
+		await person.browser.api.me.changePassword({ newPassword: NEW_PASSWORD });
+
+		await expect(install.browser().api.passwordReset.check({ token: tokenOf(link) })).rejects.toMatchObject({
+			code: "PASSWORD_RESET_INVALID",
+		});
+		await expect(
+			install
+				.browser()
+				.api.passwordReset.complete({ token: tokenOf(link), newPassword: "the intruder's own password" }),
+		).rejects.toMatchObject({ code: "PASSWORD_RESET_INVALID" });
+		await expect(install.signIn({ email: person.email, password: NEW_PASSWORD })).resolves.toBeDefined();
+	});
+
+	test("stops working once their two-factor authentication is reset", async () => {
+		const person = await newPerson();
+		await addAuthenticator(install, person.browser, person.password);
+		const link = await linkFor(person.email);
+
+		const admin = await install.superadmin();
+		await confirmIfAsked(admin, TEST_PASSWORD, () =>
+			admin.api.members.resetTwoFactor({ workspaceId, personId: person.personId }),
+		);
+
+		await expect(
+			install
+				.browser()
+				.api.passwordReset.complete({ token: tokenOf(link), newPassword: "the intruder's own password" }),
+		).rejects.toMatchObject({ code: "PASSWORD_RESET_INVALID" });
+		await expect(install.signIn(person)).resolves.toBeDefined();
 	});
 });
 

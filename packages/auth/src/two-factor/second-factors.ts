@@ -1,5 +1,5 @@
 import type { Database, Transaction } from "@webcraft/db";
-import { authenticators, backupCodes, passkeys, people, sessions } from "@webcraft/db/schema";
+import { authenticators, backupCodes, passkeys, passwordResets, people, sessions } from "@webcraft/db/schema";
 import { and, asc, count, eq, isNull, lt, ne } from "drizzle-orm";
 
 import { newBackupCodes, normaliseBackupCode } from "./backup-codes.ts";
@@ -356,6 +356,7 @@ export function createSecondFactorStore({
 		/**
 		 * Removes every second factor of the person and their backup codes, ends all their sessions and
 		 * lifts a lock on their account, so they sign in with their password alone and set it up again.
+		 * A reset link they were sent before stops working: whoever may have had the account could hold it.
 		 */
 		async reset(
 			personId: string,
@@ -372,6 +373,7 @@ export function createSecondFactorStore({
 					.where(eq(passkeys.personId, personId))
 					.returning({ id: passkeys.id });
 				await tx.delete(backupCodes).where(eq(backupCodes.personId, personId));
+				await tx.delete(passwordResets).where(eq(passwordResets.personId, personId));
 				await tx.update(people).set({ failedAttempts: 0, lockedUntil: null }).where(eq(people.id, personId));
 				const change = {
 					authenticator: app.length > 0,

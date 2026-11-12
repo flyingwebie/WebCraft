@@ -1,5 +1,5 @@
 import type { Database, Transaction } from "@webcraft/db";
-import { credentials, people, sessions, signInThrottles, verifications } from "@webcraft/db/schema";
+import { credentials, passwordResets, people, sessions, signInThrottles, verifications } from "@webcraft/db/schema";
 import { type BetterAuthPlugin, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthEndpoint } from "better-auth/api";
@@ -196,9 +196,13 @@ export type Auth = {
 	/** Ends every session of the person except `keep`, and answers how many it ended. */
 	revokeOtherSessions(keep: Session): Promise<number>;
 	/**
-	 * Changes the person's password and ends every other session of theirs, together. Refuses a
-	 * password the rules don't allow with `PasswordRefusedError`, changing nothing. `also` runs in
-	 * the same transaction, to record the change with it.
+	 * Changes the person's password and ends every other session of theirs, together, with any reset
+	 * link they were sent before (it must not undo the change). Refuses a password the rules don't
+	 * allow with `PasswordRefusedError`, changing nothing. `also` runs in the same transaction, to
+	 * record the change with it.
+	 *
+	 * Every change to how a person signs in ends their outstanding reset links, here in auth: this
+	 * one, `resetPassword`, `resetSecondFactors` and `setDeactivated`.
 	 */
 	changePassword(
 		session: Session,
@@ -227,7 +231,7 @@ export type Auth = {
 	endSessions(tx: Database["db"] | Transaction, personId: string): Promise<number>;
 	/**
 	 * Deactivates a person's account (`at`) or reactivates it (null), inside the caller's
-	 * transaction. No session starts for a deactivated person: signing in answers them like an address
+	 * transaction. Deactivating ends the reset links they were sent. No session starts for a deactivated person: signing in answers them like an address
 	 * nobody signs in with, and their passkeys are refused. Their password and second factors are
 	 * kept, for when they are reactivated.
 	 */
@@ -613,6 +617,8 @@ export function createAuth(options: AuthOptions): Auth {
 			const now = clock.now();
 			return database.db.transaction(async (tx) => {
 				await storePassword(tx, session.personId, hash, now);
+				// A reset link sent before this change must not undo it: whoever holds one loses it now.
+				await tx.delete(passwordResets).where(eq(passwordResets.personId, session.personId));
 				const ended = await tx
 					.delete(sessions)
 					.where(and(eq(sessions.personId, session.personId), ne(sessions.id, session.id)))
@@ -633,7 +639,9 @@ export function createAuth(options: AuthOptions): Auth {
 				await tx.delete(signInThrottles).where(eq(signInThrottles.personId, personId));
 				await pending.endFor(tx, personId);
 				const result = { signedOutSessions: ended.length };
+				// `also` uses up the link this reset came with; every other link of the person ends after it.
 				await also?.(tx, result);
+				await tx.delete(passwordResets).where(eq(passwordResets.personId, personId));
 				return result;
 			});
 		},
@@ -646,6 +654,7 @@ export function createAuth(options: AuthOptions): Auth {
 
 		async setDeactivated(tx, personId, at) {
 			await tx.update(people).set({ deactivatedAt: at, updatedAt: clock.now() }).where(eq(people.id, personId));
+			if (at) await tx.delete(passwordResets).where(eq(passwordResets.personId, personId));
 		},
 
 		createPerson(tx, person) {

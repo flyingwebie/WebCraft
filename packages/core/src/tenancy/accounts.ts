@@ -1,5 +1,5 @@
 import type { Auth } from "@webcraft/auth";
-import { installRoles, passwordResets, people } from "@webcraft/db/schema";
+import { installRoles, people } from "@webcraft/db/schema";
 import { and, eq, isNull, ne } from "drizzle-orm";
 
 import { isUuid } from "../ids.ts";
@@ -81,7 +81,6 @@ export function createAccounts({ auth }: { auth: Auth }): AccountsService {
 				// First the flag, so that everything they hold is now out of their reach.
 				await auth.setDeactivated(tx.db, personId, tx.now());
 				const ended = await endAccess(tx, auth, personId);
-				await tx.db.delete(passwordResets).where(eq(passwordResets.personId, personId));
 				if (!person.deactivatedAt) await tx.audit("account.deactivate", { personId, email: person.email, ...ended });
 				return ended;
 			});

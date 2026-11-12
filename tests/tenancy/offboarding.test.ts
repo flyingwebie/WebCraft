@@ -220,9 +220,17 @@ describe("deactivating an account", () => {
 		expect(members.filter((member) => member.id !== leaver.personId).every((member) => !member.deactivated)).toBe(true);
 	});
 
-	test("no reset link and no System email goes to a deactivated account", async () => {
+	test("a reset link they were sent before stops working, and no new one or System email goes to them", async () => {
 		const leaver = await install.createMember({ workspaceId, role: "editor" });
+		await install.browser().api.passwordReset.request({ email: leaver.account.email });
+		const sent = (await install.lastEmailTo(leaver.account.email)).text;
+		const token = new URL(sent.match(/https?:\/\/\S+/)?.[0] ?? "").searchParams.get("token") ?? "";
+		await install.browser().api.passwordReset.check({ token });
+
 		await sensitively(() => admin.api.accounts.deactivate({ personId: leaver.personId }));
+		await expect(install.browser().api.passwordReset.check({ token })).rejects.toMatchObject({
+			code: "PASSWORD_RESET_INVALID",
+		});
 		const before = (await install.lastEmailTo(leaver.account.email)).subject;
 
 		await install.browser().api.passwordReset.request({ email: leaver.account.email });

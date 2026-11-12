@@ -171,7 +171,6 @@ export function createPasswordResets({
 			const person = await personByEmail(address);
 			if (!person) return null;
 			await auth.resetPassword(person.id, newPassword, async (tx, { signedOutSessions }) => {
-				await tx.delete(passwordResets).where(eq(passwordResets.personId, person.id));
 				await recordAudit(tx, clock.now(), {
 					personId: null,
 					via: { kind: "command", name: RESET_COMMAND },
