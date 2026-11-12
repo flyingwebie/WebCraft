@@ -73,7 +73,8 @@ export const installSettings = pgTable(
 /**
  * The one-time tokens that unlock the setup wizard on an Install with no Superadmin yet. Only a
  * SHA-256 hash of each token is stored; the web process prints the token itself in its logs when it
- * starts. Every token is deleted once a Superadmin exists.
+ * starts. Only the newest one is kept, and it works for 24 hours from `created_at`. Every token is
+ * deleted once a Superadmin exists.
  */
 export const setupTokens = pgTable("setup_tokens", {
 	tokenHash: text("token_hash").primaryKey(),

@@ -276,13 +276,10 @@ export function createPublicApi(
 
 /** A request's bearer token that doesn't work, answered as 401 with its problem. */
 export function tokenRefusal(error: ApiTokenInvalidError, challenge = `Bearer realm="WebCraft"`): Response {
-	const headers: Record<string, string> = {
+	const headers = {
 		"www-authenticate": `${challenge}, error="${error.problem === "missing" ? "invalid_request" : "invalid_token"}"`,
 	};
-	if (error.retryAfterSeconds !== undefined) headers["retry-after"] = String(error.retryAfterSeconds);
-	const data: Record<string, unknown> = { problem: error.problem };
-	if (error.retryAfterSeconds !== undefined) data.retryAfterSeconds = error.retryAfterSeconds;
-	return refusal(401, "TOKEN_INVALID", error.message, data, headers);
+	return refusal(401, "TOKEN_INVALID", error.message, { problem: error.problem }, headers);
 }
 
 /** An API client past its limits: 429 with `Retry-After`, saying which limit. */

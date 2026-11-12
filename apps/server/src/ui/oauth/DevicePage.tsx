@@ -1,4 +1,3 @@
-import { useNavigate } from "@tanstack/react-router";
 import type { ApiClient } from "@webcraft/api";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
@@ -7,6 +6,8 @@ import { CircleCheckIcon, CircleXIcon, TerminalIcon } from "lucide-react";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import { getApi } from "../api.ts";
+import { errorMessage } from "../errors.ts";
+import { formatUtc } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { ApprovalChoices } from "./ApprovalPage.tsx";
 
@@ -15,9 +16,14 @@ export type DeviceData = Awaited<ReturnType<ApiClient["oauth"]["checkDevice"]>>;
 
 /**
  * Signing in a device (`/oauth/device`, RFC 8628's verification page): `webcraft login` shows the
- * person a short code and this address. They type the code (or arrive with it filled in), see which
- * client asks and a warning to approve only a sign-in they started themselves, then choose what it
- * may do, as for an AI client. The client's polling picks the approval up by itself.
+ * person a short code and this address. They type the code, see which client asks, when and from
+ * which network the sign-in was started, and a warning to approve only one they started themselves,
+ * then choose what it may do, as for an AI client. The client's polling picks the approval up by
+ * itself.
+ *
+ * A link may carry the code (`?user_code=…`). It is looked up only for a browser on the network the
+ * sign-in was started from; anyone else types the code their own terminal shows, so a link someone
+ * sent can't walk a person into approving that someone's sign-in.
  */
 export function DevicePage({
 	userCode,
@@ -29,7 +35,10 @@ export function DevicePage({
 	person: { name: string };
 }) {
 	const [outcome, setOutcome] = useState<{ kind: "approved" | "denied"; client: string } | null>(null);
-	const check = data?.check ?? null;
+	// The code the person typed here, looked up: it replaces what the link's code answered.
+	const [typed, setTyped] = useState<DeviceData | null>(null);
+	const shown = typed ?? data;
+	const check = shown?.check ?? null;
 	return (
 		<main
 			id="main"
@@ -39,13 +48,15 @@ export function DevicePage({
 			<div className="bg-card text-card-foreground w-full max-w-xl rounded-xl border p-6 shadow-sm sm:p-8">
 				{outcome ? (
 					<Outcome outcome={outcome} />
-				) : check?.kind === "ask" && data ? (
-					<DeviceApproval data={data} request={check.request} person={person} onDone={setOutcome} />
+				) : check?.kind === "ask" && shown ? (
+					<DeviceApproval data={shown} request={check.request} person={person} onDone={setOutcome} />
 				) : (
 					<CodeEntry
-						userCode={userCode}
+						// A link's code that wasn't looked up isn't filled in either: the person types their own.
+						userCode={check?.kind === "type" ? null : userCode}
+						fromLink={check?.kind === "type"}
 						problem={check?.kind === "refused" ? check.problem : null}
-						key={userCode ?? ""}
+						onChecked={setTyped}
 					/>
 				)}
 			</div>
@@ -59,21 +70,26 @@ const PROBLEMS: Record<"unknown" | "expired" | "decided", MessageKey> = {
 	decided: "oauth.device.decided",
 };
 
-/** The code entry: the code the terminal shows, then Continue, which looks it up. */
+/** The code entry: the code the terminal shows, then Continue, which looks it up as typed. */
 function CodeEntry({
 	userCode,
+	fromLink,
 	problem,
+	onChecked,
 }: {
 	userCode: string | null;
+	/** The person arrived by a link whose code wasn't looked up: they are told to type their own. */
+	fromLink: boolean;
 	problem: "unknown" | "expired" | "decided" | null;
+	onChecked(data: DeviceData): void;
 }) {
 	const t = useT();
 	const id = useId();
-	const navigate = useNavigate();
 	const [value, setValue] = useState(userCode ?? "");
-	const [missing, setMissing] = useState(false);
+	const [failure, setFailure] = useState<MessageKey | null>(null);
+	const [busy, setBusy] = useState(false);
 	const input = useRef<HTMLInputElement>(null);
-	const message = missing ? "oauth.device.codeRequired" : problem ? PROBLEMS[problem] : null;
+	const message = failure ?? (problem ? PROBLEMS[problem] : null);
 
 	useEffect(() => {
 		if (problem) input.current?.focus();
@@ -83,12 +99,20 @@ function CodeEntry({
 		event.preventDefault();
 		const typed = value.trim();
 		if (!typed) {
-			setMissing(true);
+			setFailure("oauth.device.codeRequired");
 			input.current?.focus();
 			return;
 		}
-		setMissing(false);
-		await navigate({ to: "/oauth/device", search: { user_code: typed } });
+		setBusy(true);
+		setFailure(null);
+		try {
+			const api = await getApi();
+			onChecked(await api.oauth.checkDevice({ userCode: typed, typed: true }));
+		} catch (error) {
+			setFailure(errorMessage(error));
+		}
+		setBusy(false);
+		input.current?.focus();
 	};
 
 	return (
@@ -97,7 +121,9 @@ function CodeEntry({
 				<TerminalIcon aria-hidden="true" className="text-muted-foreground mt-1 size-6 shrink-0" />
 				<div className="grid gap-1">
 					<h1 className="text-2xl font-semibold tracking-tight">{t("oauth.device.heading")}</h1>
-					<p className="text-muted-foreground text-sm">{t("oauth.device.enterIntro")}</p>
+					<p className="text-muted-foreground text-sm">
+						{fromLink ? t("oauth.device.typeIt") : t("oauth.device.enterIntro")}
+					</p>
 				</div>
 			</div>
 			<FieldGroup className="gap-6">
@@ -120,7 +146,9 @@ function CodeEntry({
 					{message ? <FieldError id={`${id}-error`}>{t(message)}</FieldError> : null}
 				</Field>
 				<div className="flex justify-end">
-					<Button type="submit">{t("oauth.device.continue")}</Button>
+					<Button type="submit" disabled={busy}>
+						{t("oauth.device.continue")}
+					</Button>
 				</div>
 			</FieldGroup>
 		</form>
@@ -155,9 +183,17 @@ function DeviceApproval({
 					<dd className="font-medium break-all">{client.name}</dd>
 					<dt className="text-muted-foreground">{t("oauth.device.codeShown")}</dt>
 					<dd className="font-mono tracking-widest">{request.userCode}</dd>
+					<dt className="text-muted-foreground">{t("oauth.device.requested")}</dt>
+					<dd>
+						{request.sameNetwork
+							? t("oauth.device.requestedHere", { time: formatUtc(request.requestedAt) })
+							: request.network
+								? t("oauth.device.requestedFrom", { time: formatUtc(request.requestedAt), network: request.network })
+								: t("oauth.device.requestedUnknown", { time: formatUtc(request.requestedAt) })}
+					</dd>
 				</>
 			}
-			warning={t("oauth.device.warning")}
+			warning={`${t("oauth.device.nameUnchecked")} ${t("oauth.device.warning")}`}
 			onApprove={async (choice) => {
 				const api = await getApi();
 				await api.oauth.approveDevice({ userCode: request.userCode, ...choice });

@@ -1,0 +1,47 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "3cf02320-d815-46c1-92cc-7754a45662e0",
+  "prevIds": [
+    "18c5942b-28b5-4ad8-8b44-e46e1c9a6126"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "people",
+        "deactivated_at"
+      ],
+      "writes": [
+        "s|col|public.people.deactivated_at",
+        "n|col|public.people.deactivated_at",
+        "e|col|public.people.deactivated_at"
+      ],
+      "reads": [
+        "n|tbl|public.people",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "people",
+        "name": "deactivated_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

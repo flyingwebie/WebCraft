@@ -217,7 +217,10 @@ export function createSystemEmailSender(options: SenderOptions) {
 
 export type SystemEmailSender = ReturnType<typeof createSystemEmailSender>;
 
-/** Each recipient once, with their address, Admin language and whether they turned the type off. */
+/**
+ * Each recipient once, with their address, Admin language and whether they turned the type off. A
+ * person whose account is deactivated is left out: nothing is sent to someone who can't sign in.
+ */
 async function resolveRecipients(
 	database: Database,
 	settings: InstallSettings,
@@ -229,7 +232,12 @@ async function resolveRecipients(
 	const personIds = recipients.flatMap((recipient) => ("personId" in recipient ? [recipient.personId] : []));
 	const found = personIds.length
 		? await database.db
-				.select({ id: people.id, email: people.email, adminLanguage: people.adminLanguage })
+				.select({
+					id: people.id,
+					email: people.email,
+					adminLanguage: people.adminLanguage,
+					deactivatedAt: people.deactivatedAt,
+				})
 				.from(people)
 				.where(inArray(people.id, personIds))
 		: [];
@@ -249,6 +257,7 @@ async function resolveRecipients(
 		if ("personId" in recipient) {
 			const person = found.find((candidate) => candidate.id === recipient.personId);
 			if (!person) throw new Error(`There is no person ${recipient.personId} to send a System email to.`);
+			if (person.deactivatedAt) continue;
 			const language =
 				person.adminLanguage && isAdminLanguage(person.adminLanguage) ? person.adminLanguage : defaultAdminLanguage;
 			addressees.set(person.email, {

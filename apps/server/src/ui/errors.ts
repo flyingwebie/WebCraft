@@ -34,7 +34,9 @@ export function errorMessage(error: unknown): MessageKey {
 		case "WORKSPACE_NOT_FOUND":
 		case "SITE_NOT_FOUND":
 		case "STAFF_NOT_FOUND":
+		case "ACCOUNT_DEACTIVATION_REFUSED":
 		case "INVITE_INVALID":
+		case "PASSWORD_RESET_INVALID":
 		case "SLUG_TAKEN":
 		case "EMAIL_ALWAYS_SENT":
 		case "MEMBER_NOT_FOUND":

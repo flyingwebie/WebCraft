@@ -19,6 +19,12 @@ export const SENSITIVE_ACTIONS = {
 	"staff.invite": "grants a role",
 	/** Which Workspaces a Staff member reaches. */
 	"staff.changeWorkspaces": "changes what a person can reach",
+	/** Ending a Staff member's role: everything they hold ends with it. */
+	"staff.remove": "changes what a person can reach",
+	/** Deactivating anyone's account: they can no longer sign in, and everything they hold ends. */
+	"account.deactivate": "changes what a person can reach",
+	/** Reactivating an account: the person signs in again, with the roles they had. */
+	"account.reactivate": "changes what a person can reach",
 	/** Inviting a Member into a Workspace. */
 	"member.invite": "grants a role",
 	/** A Member's role and Sites. */

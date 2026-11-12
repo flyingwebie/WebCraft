@@ -89,11 +89,12 @@ export const it: EmailWording = {
 			action: { label: "Accedi", path: "/sign-in" },
 		}),
 		"account-locked": ({ failedAttempts, lockedMinutes }, { installName }) => ({
-			subject: "Il tuo account è bloccato per un po'",
-			heading: "Il tuo account è bloccato per un po'",
+			subject: "Troppi tentativi di accesso non riusciti al tuo account",
+			heading: "Troppi tentativi di accesso non riusciti al tuo account",
 			paragraphs: [
-				`Dopo ${failedAttempts} tentativi di accesso non riusciti, il tuo account su ${installName} è bloccato per ${minutes(lockedMinutes)}.`,
-				"Se sei stato tu, aspetta e riprova. Se non sei stato tu, qualcuno potrebbe provare a indovinare la password: cambiala appena riesci ad accedere.",
+				`Dopo ${failedAttempts} password o codici sbagliati per il tuo account su ${installName}, altri tentativi dalla stessa provenienza vengono rifiutati per ${minutes(lockedMinutes)}.`,
+				"Le tue passkey, i browser in cui hai già effettuato l'accesso, i tuoi token API e i client AI continuano a funzionare.",
+				"Se sei stato tu, aspetta e riprova, oppure usa «Password dimenticata?» nella pagina di accesso. Se non sei stato tu, qualcuno potrebbe provare a indovinare la password: cambiala. Ricevi questo avviso al massimo una volta al giorno.",
 			],
 		}),
 		"two-factor-reset": ({ resetBy }, { installName }) => ({
@@ -103,6 +104,7 @@ export const it: EmailWording = {
 				resetBy
 					? `${resetBy} ha reimpostato l'autenticazione a due fattori del tuo account su ${installName}. Accedi con la password e configurala di nuovo.`
 					: `L'autenticazione a due fattori del tuo account su ${installName} è stata reimpostata con un comando sul server. Accedi con la password e configurala di nuovo.`,
+				"Sei stato disconnesso ovunque, e anche i tuoi token API e i client AI sono stati terminati: ricreali quando sarai di nuovo dentro.",
 				"Se non l'hai chiesto tu, avvisa subito chi gestisce questa Install.",
 			],
 			action: { label: "Accedi", path: "/sign-in" },

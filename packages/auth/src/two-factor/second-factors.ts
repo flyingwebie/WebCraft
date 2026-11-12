@@ -1,5 +1,5 @@
 import type { Database, Transaction } from "@webcraft/db";
-import { authenticators, backupCodes, passkeys, people, sessions } from "@webcraft/db/schema";
+import { authenticators, backupCodes, passkeys, passwordResets, people, sessions } from "@webcraft/db/schema";
 import { and, asc, count, eq, isNull, lt, ne } from "drizzle-orm";
 
 import { newBackupCodes, normaliseBackupCode } from "./backup-codes.ts";
@@ -223,13 +223,15 @@ export function createSecondFactorStore({
 		): Promise<FactorChange & { backupCodes: string[] | null }> {
 			if (await hasAuthenticator(db, personId)) throw new AuthenticatorExistsError();
 			const now = clock.now();
-			const step = await keys.authenticatorSecret.useWith(personId, "pending", (secret) =>
-				matchingTotpStep(secret, code, now, null),
-			);
+			// Read once: the secret the code is checked against is the one saved. Adding started again at
+			// this moment (a second tab) writes another pending secret, which must never become the
+			// active one of an app that was confirmed with this one.
+			const step = await keys.authenticatorSecret.useWith(personId, "pending", async (secret) => {
+				const matched = await matchingTotpStep(secret, code, now, null);
+				if (matched !== null) await keys.authenticatorSecret.set(personId, "active", secret);
+				return matched;
+			});
 			if (step === null) throw new TwoFactorCodeInvalidError("setup");
-			await keys.authenticatorSecret.useWith(personId, "pending", (secret) =>
-				keys.authenticatorSecret.set(personId, "active", secret),
-			);
 			const result = await db.transaction(async (tx) => {
 				// One change to a person's second factors at a time.
 				await lockPerson(tx, personId);
@@ -354,6 +356,7 @@ export function createSecondFactorStore({
 		/**
 		 * Removes every second factor of the person and their backup codes, ends all their sessions and
 		 * lifts a lock on their account, so they sign in with their password alone and set it up again.
+		 * A reset link they were sent before stops working: whoever may have had the account could hold it.
 		 */
 		async reset(
 			personId: string,
@@ -370,6 +373,7 @@ export function createSecondFactorStore({
 					.where(eq(passkeys.personId, personId))
 					.returning({ id: passkeys.id });
 				await tx.delete(backupCodes).where(eq(backupCodes.personId, personId));
+				await tx.delete(passwordResets).where(eq(passwordResets.personId, personId));
 				await tx.update(people).set({ failedAttempts: 0, lockedUntil: null }).where(eq(people.id, personId));
 				const change = {
 					authenticator: app.length > 0,

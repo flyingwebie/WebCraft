@@ -14,6 +14,7 @@ import {
 } from "@webcraft/auth";
 import {
 	AccessNotHeldError,
+	AccountDeactivationRefusedError,
 	AiCapReachedError,
 	AiKeyInvalidError,
 	AiKeyMissingError,
@@ -128,6 +129,7 @@ import {
 	PageParentUnpublishedError,
 	PagesHaveNoEntryTemplateError,
 	PassphraseWrongError,
+	PasswordResetInvalidError,
 	PathTakenError,
 	PermissionDeniedError,
 	PersonNotFoundError,
@@ -1073,6 +1075,14 @@ export function toApiError(error: unknown): unknown {
 	if (error instanceof ModuleFailedError) {
 		return new ORPCError("MODULE_FAILED", { status: 500, message: error.message, cause: error });
 	}
+	if (error instanceof AccountDeactivationRefusedError) {
+		return new ORPCError("ACCOUNT_DEACTIVATION_REFUSED", {
+			status: 409,
+			message: error.message,
+			data: { reason: error.reason },
+			cause: error,
+		});
+	}
 	if (error instanceof StaffNotFoundError) {
 		return new ORPCError("STAFF_NOT_FOUND", { status: 404, message: error.message, cause: error });
 	}
@@ -1081,6 +1091,9 @@ export function toApiError(error: unknown): unknown {
 	}
 	if (error instanceof InviteInvalidError) {
 		return new ORPCError("INVITE_INVALID", { status: 404, message: error.message, cause: error });
+	}
+	if (error instanceof PasswordResetInvalidError) {
+		return new ORPCError("PASSWORD_RESET_INVALID", { status: 404, message: error.message, cause: error });
 	}
 	if (error instanceof InviteForAnotherAccountError) {
 		return new ORPCError("INVITE_OTHER_ACCOUNT", { status: 403, message: error.message, cause: error });

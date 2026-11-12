@@ -1,4 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
 import {
@@ -28,6 +29,7 @@ import { SendIcon, UserPlusIcon } from "lucide-react";
 import { type FormEvent, type ReactNode, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { type AccountChange, AccountChangeDialog } from "../../ui/accounts/AccountDialogs.tsx";
 import { getApi } from "../../ui/api.ts";
 import { errorMessage } from "../../ui/errors.ts";
 import { formatUtcDate } from "../../ui/format.ts";
@@ -68,6 +70,7 @@ function StaffPage() {
 	const { staff, invites, workspaces } = data;
 	// The Superadmin impersonates Staff, never while impersonating already.
 	const canImpersonate = shell.permissions.includes("impersonation.start") && !shell.impersonation;
+	const canDeactivate = shell.permissions.includes("account.deactivate");
 	const reach = (assigned: "all" | WorkspaceOption[]) =>
 		assigned === "all"
 			? t("staff.allWorkspaces")
@@ -99,7 +102,14 @@ function StaffPage() {
 								{staff.map((person) => (
 									<TableRow key={person.id}>
 										<TableCell className="ps-4">
-											<span className="block font-medium">{person.name}</span>
+											<span className="block font-medium">
+												{person.name}
+												{person.deactivated ? (
+													<Badge variant="outline" className="ms-2">
+														{t("accounts.deactivated")}
+													</Badge>
+												) : null}
+											</span>
 											<span className="text-muted-foreground block text-xs">{person.email}</span>
 										</TableCell>
 										<TableCell className="whitespace-normal">{reach(person.workspaces)}</TableCell>
@@ -111,9 +121,18 @@ function StaffPage() {
 										</TableCell>
 										<TableCell className="pe-4 text-end">
 											<span className="inline-flex flex-wrap justify-end gap-2">
-												{canImpersonate ? <ImpersonateStaff person={person} you={you.name} /> : null}
+												{canImpersonate && !person.deactivated ? (
+													<ImpersonateStaff person={person} you={you.name} />
+												) : null}
 												{person.twoFactor.length > 0 ? <ResetStaffTwoFactor person={person} /> : null}
 												<ChangeWorkspacesSheet person={person} workspaces={workspaces} />
+												{canDeactivate ? (
+													<AccountChangeButton
+														change={person.deactivated ? "reactivate" : "deactivate"}
+														person={person}
+													/>
+												) : null}
+												<AccountChangeButton change="removeStaff" person={person} />
 											</span>
 										</TableCell>
 									</TableRow>
@@ -184,6 +203,27 @@ function ImpersonateStaff({ person, you }: { person: { id: string; name: string 
 				{t("impersonation.menuItem")}
 			</Button>
 			<ImpersonateDialog person={person} you={you} open={open} onOpenChange={setOpen} finalFocus={trigger} />
+		</>
+	);
+}
+
+/** "Remove from Staff", "Deactivate account" or "Reactivate account" for a Staff member (the Superadmin only). */
+function AccountChangeButton({ change, person }: { change: AccountChange; person: { id: string; name: string } }) {
+	const t = useT();
+	const trigger = useRef<HTMLButtonElement>(null);
+	const [open, setOpen] = useState(false);
+	return (
+		<>
+			<Button
+				ref={trigger}
+				variant="outline"
+				size="sm"
+				onClick={() => setOpen(true)}
+				aria-label={t(`accounts.${change}.buttonOf`, { name: person.name })}
+			>
+				{t(`accounts.${change}.button`)}
+			</Button>
+			<AccountChangeDialog change={change} person={person} open={open} onOpenChange={setOpen} finalFocus={trigger} />
 		</>
 	);
 }

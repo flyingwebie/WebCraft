@@ -125,6 +125,45 @@ for (const theme of THEMES) {
 		});
 	});
 
+	describe(`a faulty request, ${theme}`, () => {
+		// Anyone may register an app with any https address: a link on the admin's own hostname must
+		// never land a signed-in person there by itself (the report's A1-5).
+		test("from an app nobody vouched for stays on the admin, names where it wants to send the person, and goes only on a click", async () => {
+			const landing = "https://elsewhere.example/landing";
+			const registered = await registerClient(install.install, {
+				client_name: "Session helper",
+				redirect_uris: [landing],
+				application_type: "web",
+			});
+			const page = await install.newPage(theme);
+			let left = 0;
+			await page.route("https://elsewhere.example/**", (route) => {
+				left++;
+				return route.fulfill({ status: 200, contentType: "text/html", body: "<h1>Elsewhere</h1>" });
+			});
+			await install.signIn(page, superadmin);
+			const parameters = new URLSearchParams({
+				client_id: String(registered.body.client_id),
+				redirect_uri: landing,
+				response_type: "x",
+				state: "s-1",
+			});
+			await page.goto(install.adminUrl(`/oauth/authorize?${parameters}`));
+
+			await page.getByRole("heading", { name: "This request can't be approved" }).waitFor();
+			expect(new URL(page.url()).origin).toBe(new URL(install.adminUrl("/")).origin);
+			expect(left).toBe(0);
+			expect(await page.locator("main").textContent()).toContain("elsewhere.example");
+			await expectAccessibleScreen(page, `Approval page, a faulty request (${theme})`);
+
+			await page.getByRole("link", { name: "Go back to elsewhere.example" }).click();
+			await page.waitForURL((url) => url.href.startsWith(landing));
+			const back = new URL(page.url());
+			expect(back.searchParams.get("error")).toBe("unsupported_response_type");
+			expect(back.searchParams.get("state")).toBe("s-1");
+		});
+	});
+
 	describe(`signing in a device, ${theme}`, () => {
 		test("the code entry, and a wrong code said beside its field", async () => {
 			const page = await install.newPage(theme);
@@ -151,6 +190,9 @@ for (const theme of THEMES) {
 			await page.getByRole("heading", { name: "Sign in webcraft CLI on build-box?" }).waitFor();
 			await page.getByText(code, { exact: true }).waitFor();
 			await page.getByText("Approve only a sign-in you started yourself").waitFor();
+			// What WebCraft itself knows about the sign-in, and that the name is the requester's own word.
+			await page.getByText("Asked for").waitFor();
+			await page.getByText("WebCraft can't check it").waitFor();
 			await expectAccessibleScreen(page, `Device sign-in, approval (${theme})`);
 
 			await page.getByRole("button", { name: "Approve webcraft CLI on build-box" }).focus();
@@ -161,11 +203,18 @@ for (const theme of THEMES) {
 			await expectNoAxeViolations(page, `Device sign-in, approved (${theme})`);
 		});
 
-		test("the code filled in from the address webcraft login shows", async () => {
+		test("a link carrying a code started on another network shows nothing of it: the person types their own code, then denies", async () => {
 			const code = await userCode();
 			const page = await install.newPage(theme);
 			await install.signIn(page, superadmin);
 			await page.goto(install.adminUrl(`/oauth/device?user_code=${code}`));
+			await page.getByText("Type the code your own terminal or device shows.").waitFor();
+			expect(await page.locator("main").textContent()).not.toContain("webcraft CLI on build-box");
+			expect(await page.getByRole("textbox", { name: "Code" }).inputValue()).toBe("");
+			await expectAccessibleScreen(page, `Device sign-in, a link from another network (${theme})`);
+
+			await page.getByRole("textbox", { name: "Code" }).fill(code);
+			await page.keyboard.press("Enter");
 			await page.getByRole("heading", { name: "Sign in webcraft CLI on build-box?" }).waitFor();
 			await page.getByRole("button", { name: "Deny" }).click();
 			await page.getByRole("heading", { name: "Sign-in denied" }).waitFor();

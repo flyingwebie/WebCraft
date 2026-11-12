@@ -2,7 +2,6 @@ export type { StatementForm, StatementSettings } from "./accessibility/statement
 export {
 	type Account,
 	describeUserAgent,
-	networkOf,
 	SessionNotFoundError,
 	type SessionView,
 } from "./account.ts";
@@ -242,6 +241,7 @@ export {
 	type IpRange,
 	inIpRange,
 	ipRangeText,
+	networkOf,
 	PRIVATE_RANGES,
 	parseIpAddress,
 	parseIpRange,
@@ -289,6 +289,13 @@ export {
 	type RegisteredClient,
 	type TokenAnswer,
 } from "./oauth.ts";
+export {
+	PASSWORD_RESET_ADDRESS_LIMIT,
+	PASSWORD_RESET_EMAIL_COOLDOWN,
+	PASSWORD_RESET_MS,
+	PasswordResetInvalidError,
+	type PasswordResets,
+} from "./password-resets.ts";
 export {
 	ADMIN_THEMES,
 	type AdminTheme,
@@ -432,6 +439,11 @@ export {
 	stagingPage,
 	stagingWords,
 } from "./staging/index.ts";
+export {
+	AccountDeactivationRefusedError,
+	type AccountsService,
+	type DeactivationRefusal,
+} from "./tenancy/accounts.ts";
 export type {
 	Access,
 	BackgroundScope,
@@ -485,6 +497,7 @@ export {
 	SlugTakenError,
 } from "./tenancy/sites.ts";
 export {
+	type AccessEnded,
 	type StaffInvite,
 	type StaffMember,
 	StaffNotFoundError,

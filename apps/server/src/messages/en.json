@@ -6,7 +6,7 @@
 	},
 	"errors": {
 		"generic": "Something went wrong. Try again.",
-		"SETUP_TOKEN_INVALID": "That setup token doesn't open this Install. Copy it again from the web process's log.",
+		"SETUP_TOKEN_INVALID": "That setup token doesn't open this Install: only the newest one works, for 24 hours. Copy it again from the web process's log, or make a new one with `webcraft admin setup`.",
 		"SETUP_CLOSED": "This Install already has a Superadmin, so the setup wizard is closed.",
 		"PASSWORD_TOO_SHORT": "Use at least 12 characters.",
 		"PASSWORD_TOO_LONG": "Use at most 128 characters.",
@@ -20,7 +20,9 @@
 		"WORKSPACE_NOT_FOUND": "There is no such Workspace, or you can't reach it.",
 		"SITE_NOT_FOUND": "There is no such Site, or you can't reach it.",
 		"STAFF_NOT_FOUND": "There is no such Staff member.",
+		"ACCOUNT_DEACTIVATION_REFUSED": "This account can't be deactivated: the Install needs a Superadmin who can sign in, and nobody deactivates their own account.",
 		"INVITE_INVALID": "This invite link doesn't work any more. Ask for a new invite.",
+		"PASSWORD_RESET_INVALID": "This reset link doesn't work any more. Ask for a new one.",
 		"SLUG_TAKEN": "Another Site already has this slug.",
 		"SLUG_INVALID": "Use 1 to 63 lower-case letters, digits and dashes, starting and ending with a letter or a digit.",
 		"SLUG_RESERVED": "This slug is kept for the Install itself. Choose another one.",
@@ -30,7 +32,7 @@
 		"ACCESS_NOT_HELD_GRANT": "You can't give more access than you hold, in role or in Sites.",
 		"ACCESS_NOT_HELD_MANAGE": "This Member has access you don't hold, so you can't change or remove them.",
 		"INVITE_OTHER_ACCOUNT": "This invite was sent to another email address. Sign in with that address to accept it.",
-		"ACCOUNT_LOCKED": "This account is locked for up to 15 minutes after too many wrong passwords or codes. Try again later.",
+		"ACCOUNT_LOCKED": "Too many wrong passwords or codes: nothing more is checked here for up to 15 minutes. Try again later, or use a passkey.",
 		"TOO_MANY_REQUESTS": "Too many attempts. Wait a minute, then try again.",
 		"IDENTITY_CHECK_REQUIRED": "Confirm it's you to continue.",
 		"IDENTITY_CHECK_CANCELLED": "Nothing was changed: confirm it's you to continue.",
@@ -338,6 +340,7 @@
 		"email": "Email",
 		"password": "Password",
 		"submit": "Sign in",
+		"forgotPassword": "Forgot your password?",
 		"or": "or",
 		"withPasskey": "Sign in with a passkey",
 		"passkeyCancelled": "No passkey was used. Try again when you're ready.",
@@ -355,6 +358,39 @@
 			"useBackupCode": "Use a backup code instead",
 			"useAuthenticator": "Use your authenticator app instead",
 			"startOver": "Sign in again"
+		}
+	},
+	"forgotPassword": {
+		"pageTitle": "Reset your password",
+		"heading": "Reset your password",
+		"body": "Enter the email address you sign in with. We'll email you a link to choose a new password.",
+		"email": "Email",
+		"emailRequired": "Enter your email address.",
+		"submit": "Email me a link",
+		"backToSignIn": "Back to sign in",
+		"sent": {
+			"heading": "Check your email",
+			"body": "If {email} has an account here, a link to choose a new password is on its way. It works once, for 30 minutes.",
+			"help": "Nothing after a few minutes? Check your spam folder, or ask whoever runs this Install.",
+			"again": "Use another address"
+		}
+	},
+	"resetPassword": {
+		"pageTitle": "Choose a new password",
+		"heading": "Choose a new password",
+		"body": "You'll be signed out everywhere, then you sign in with the new password.",
+		"password": "New password",
+		"passwordHelp": "At least 12 characters.",
+		"submit": "Change password",
+		"done": {
+			"heading": "Your password is changed",
+			"body": "You are signed out everywhere. Sign in with your new password; if you use two-factor authentication, you still need it.",
+			"signIn": "Sign in"
+		},
+		"invalid": {
+			"heading": "This reset link doesn't work",
+			"body": "It was already used, replaced by a newer link, or is more than 30 minutes old.",
+			"again": "Ask for a new link"
 		}
 	},
 	"shell": {
@@ -584,7 +620,8 @@
 			"repeat": "Repeat the new password",
 			"mismatch": "The passwords don't match.",
 			"save": "Change password",
-			"saved": "Password changed. Your other sessions were signed out."
+			"saved": "Password changed. Your other sessions were signed out.",
+			"stillActive": "Still active: {tokens, plural, one {# API token} other {# API tokens}} and {clients, plural, one {# AI client} other {# AI clients}}. A new password doesn't end them: revoke any you don't recognise under API tokens and AI clients below."
 		},
 		"sessions": {
 			"heading": "Sessions",
@@ -991,6 +1028,35 @@
 			"close": "Close"
 		},
 		"created": "Workspace {name} created."
+	},
+	"accounts": {
+		"deactivated": "Deactivated",
+		"cancel": "Cancel",
+		"close": "Close",
+		"removeStaff": {
+			"button": "Remove from Staff",
+			"buttonOf": "Remove from Staff: {name}",
+			"title": "Remove {name} from Staff?",
+			"body": "{name} stops being Staff. Their sessions, API tokens, AI clients and CLI sign-ins end now, and the invites they sent are withdrawn. Their account stays and reaches nothing: deactivate it too if they shouldn't sign in. What they made stays theirs.",
+			"confirm": "Remove from Staff",
+			"done": "{name} is no longer Staff."
+		},
+		"deactivate": {
+			"button": "Deactivate account",
+			"buttonOf": "Deactivate account of {name}",
+			"title": "Deactivate {name}'s account?",
+			"body": "{name} can no longer sign in. Their sessions, API tokens, AI clients and CLI sign-ins end now, and the invites they sent are withdrawn. What they made stays theirs, and you can reactivate the account later.",
+			"confirm": "Deactivate account",
+			"done": "{name}'s account is deactivated."
+		},
+		"reactivate": {
+			"button": "Reactivate account",
+			"buttonOf": "Reactivate account of {name}",
+			"title": "Reactivate {name}'s account?",
+			"body": "{name} can sign in again, with the password, two-factor authentication and roles they had. API tokens and AI clients that ended stay ended.",
+			"confirm": "Reactivate account",
+			"done": "{name}'s account is active again."
+		}
 	},
 	"staff": {
 		"pageTitle": "Staff",
@@ -5741,6 +5807,8 @@
 		"refusedHeading": "This request can't be approved",
 		"refusedClient": "The app that sent you here isn't registered with this WebCraft. Nothing was approved.",
 		"refusedRedirect": "The app asked to send you back to an address it didn't register. Nothing was approved, and you weren't sent anywhere.",
+		"refusedRequest": "{client} sent a request WebCraft can't approve. Nothing was approved, and you weren't sent anywhere. The app asked to send you back to {host}: anyone can register an app here, so go there only if you trust it.",
+		"backToClient": "Go back to {host}",
 		"toAdmin": "Go to the admin",
 		"device": {
 			"pageTitle": "Sign in a device",
@@ -5758,6 +5826,12 @@
 			"client": "Client",
 			"codeShown": "Code",
 			"warning": "Approve only a sign-in you started yourself, just now, whose code matches the one on your screen. Someone who sends you a code is trying to act as you.",
+			"typeIt": "The link that brought you here carried a code, but that sign-in was started from another network than this browser's, so it wasn't looked up. Type the code your own terminal or device shows. If you didn't start a sign-in, close this page.",
+			"requested": "Asked for",
+			"requestedHere": "{time} UTC, from the network this browser is on",
+			"requestedFrom": "{time} UTC, from another network ({network})",
+			"requestedUnknown": "{time} UTC, from a network WebCraft couldn't tell",
+			"nameUnchecked": "The client's name was chosen by whoever started this sign-in: WebCraft can't check it.",
 			"approvedHeading": "{client} is signed in",
 			"approvedBody": "Go back to your terminal: it carries on by itself. You can revoke it at any time under Your account › AI clients.",
 			"deniedHeading": "Sign-in denied",
@@ -6666,7 +6740,9 @@
 		"moduleAction": "{module}: {action}",
 		"actions": {
 			"account": {
-				"lock": "Account locked after wrong passwords"
+				"deactivate": "Account deactivated",
+				"lock": "Wrong passwords or codes stopped for a while",
+				"reactivate": "Account reactivated"
 			},
 			"aiClient": {
 				"approve": "AI client approved",
@@ -6872,7 +6948,8 @@
 				"update": "Outside script changed"
 			},
 			"password": {
-				"change": "Password changed"
+				"change": "Password changed",
+				"reset": "Password reset"
 			},
 			"postType": {
 				"create": "Post Type created",
@@ -6941,6 +7018,7 @@
 				"changeWorkspaces": "Staff member's Workspaces changed",
 				"invite": "Staff member invited",
 				"join": "Staff member joined",
+				"remove": "Staff member removed",
 				"revokeInvite": "Staff invite revoked"
 			},
 			"stagingPassword": {

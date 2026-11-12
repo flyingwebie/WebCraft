@@ -284,6 +284,7 @@ describe("the Staff list", () => {
 			email: "tom@agency.example",
 			workspaces: [nimbus],
 			since: expect.any(Date),
+			deactivated: false,
 			twoFactor: [],
 		});
 		expect(staff).toContainEqual(expect.objectContaining({ name: "Alex Everywhere", workspaces: "all" }));

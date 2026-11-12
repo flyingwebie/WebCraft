@@ -1,4 +1,4 @@
-import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-router";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
@@ -143,6 +143,9 @@ function PasswordStep({
 					</Button>
 				</FieldGroup>
 			</form>
+			<Link to="/forgot-password" className="justify-self-start text-sm underline underline-offset-4">
+				{t("signIn.forgotPassword")}
+			</Link>
 			{canUsePasskeys ? (
 				<>
 					<p className="text-muted-foreground flex items-center gap-3 text-xs uppercase before:h-px before:flex-1 before:bg-current/20 after:h-px after:flex-1 after:bg-current/20">

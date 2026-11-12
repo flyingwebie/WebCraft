@@ -1,4 +1,4 @@
-import { assertValidEmail, EmailInUseError, normaliseEmail } from "@webcraft/auth";
+import { type Auth, assertValidEmail, EmailInUseError, normaliseEmail } from "@webcraft/auth";
 import type { Database, Transaction } from "@webcraft/db";
 import { installRoles, invites, inviteWorkspaces, people, staffWorkspaces, workspaces } from "@webcraft/db/schema";
 import { and, asc, eq, gt, inArray } from "drizzle-orm";
@@ -26,6 +26,16 @@ export type StaffMember = {
 	workspaces: StaffWorkspaces;
 	/** When they became Staff. */
 	since: Date;
+	/** Their account is deactivated: they can't sign in and reach nothing until it is reactivated. */
+	deactivated: boolean;
+};
+
+/** What ended with a person's access: their sessions, API tokens, AI clients (CLI sign-ins too) and the invites they sent. */
+export type AccessEnded = {
+	signedOutSessions: number;
+	revokedTokens: number;
+	revokedAiClients: number;
+	withdrawnInvites: number;
 };
 
 export type StaffInvite = {
@@ -57,16 +67,38 @@ export type StaffService = {
 	revokeInvite(scope: InstallScope, inviteId: string): Promise<void>;
 	/** Changes which Workspaces a Staff member reaches; it takes effect on their next request. */
 	setWorkspaces(scope: InstallScope, personId: string, workspaces: Reach): Promise<void>;
+	/**
+	 * Ends a Staff member's role, with everything it let them hold: their sessions, API tokens, AI
+	 * clients and CLI sign-ins end and the invites they sent are withdrawn, in the same transaction.
+	 * Their account stays (with no role, it reaches nothing) and what they made stays theirs; the
+	 * address can then be invited as a Member. The Superadmin is never Staff (`StaffNotFoundError`).
+	 */
+	remove(scope: InstallScope, personId: string): Promise<AccessEnded>;
 };
 
 type StaffOptions = {
 	email: Email;
+	auth: Auth;
 };
+
+/**
+ * Ends what a person holds once their access is gone (a Staff role ended, an account deactivated),
+ * inside the transaction of that change: every session, the API tokens and AI clients they no
+ * longer reach, and the pending invites they sent.
+ */
+export async function endAccess(scope: InstallScope, auth: Auth, personId: string): Promise<AccessEnded> {
+	const by = { personId: personIdOf(scope.access.actor), via: scope.access.via };
+	const signedOutSessions = await auth.endSessions(scope.db, personId);
+	const revokedTokens = await revokeTokensOutOfReach(scope.db, personId, scope.now(), by);
+	const revokedAiClients = await revokeGrantsOutOfReach(scope.db, personId, scope.now(), by);
+	const withdrawn = await scope.db.delete(invites).where(eq(invites.invitedBy, personId)).returning({ id: invites.id });
+	return { signedOutSessions, revokedTokens, revokedAiClients, withdrawnInvites: withdrawn.length };
+}
 
 type Executor = Database["db"] | Transaction;
 
 export function createStaff(options: StaffOptions): StaffService {
-	const { email } = options;
+	const { email, auth } = options;
 
 	/** The Workspaces each invite assigns, by invite id, sorted by name. */
 	const inviteWorkspaceRefs = async (executor: Executor, inviteIds: string[]) => {
@@ -134,6 +166,7 @@ export function createStaff(options: StaffOptions): StaffService {
 					email: people.email,
 					allWorkspaces: installRoles.allWorkspaces,
 					since: installRoles.createdAt,
+					deactivatedAt: people.deactivatedAt,
 				})
 				.from(installRoles)
 				.innerJoin(people, eq(people.id, installRoles.personId))
@@ -161,6 +194,7 @@ export function createStaff(options: StaffOptions): StaffService {
 						? "all"
 						: assigned.filter((ref) => ref.personId === row.id).map(({ id, name }) => ({ id, name })),
 					since: row.since,
+					deactivated: row.deactivatedAt !== null,
 				})),
 				invites: await pendingInvites(scope.db, scope.now()),
 			};
@@ -253,6 +287,22 @@ export function createStaff(options: StaffOptions): StaffService {
 				const by = { personId: personIdOf(tx.access.actor), via: tx.access.via };
 				await revokeTokensOutOfReach(tx.db, personId, tx.now(), by);
 				await revokeGrantsOutOfReach(tx.db, personId, tx.now(), by);
+			});
+		},
+
+		async remove(scope, personId) {
+			if (!isUuid(personId)) throw new StaffNotFoundError();
+			return scope.transaction(async (tx) => {
+				const [removed] = await tx.db
+					.delete(installRoles)
+					.where(and(eq(installRoles.personId, personId), inArray(installRoles.role, ASSIGNED_ROLES)))
+					.returning({ personId: installRoles.personId });
+				if (!removed) throw new StaffNotFoundError();
+				await tx.db.delete(staffWorkspaces).where(eq(staffWorkspaces.personId, personId));
+				const [person] = await tx.db.select({ email: people.email }).from(people).where(eq(people.id, personId));
+				const ended = await endAccess(tx, auth, personId);
+				await tx.audit("staff.remove", { staffId: personId, email: person?.email ?? null, ...ended });
+				return ended;
 			});
 		},
 	};

@@ -3,8 +3,10 @@
 // action, emailed to the person and recorded in the Audit log.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
+import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import type { TestBrowser } from "../harness/browser.ts";
 import { createTestInstall, type TestAccount, type TestInstall } from "../harness/index.ts";
+import { approveAiClient, connectMcp } from "../harness/mcp.ts";
 import { softwareAuthenticator } from "../harness/passkeys.ts";
 import { addAuthenticator, confirmIfAsked, signInWithAuthenticator } from "../harness/two-factor.ts";
 
@@ -42,6 +44,33 @@ async function memberWithTwoFactor(workspace = workspaceId) {
 }
 
 describe("a Member's reset", () => {
+	// A reset answers "someone may have had this account": what they could have made with it, a
+	// token or an AI client that acts as the person, ends too (the report's A1-7).
+	test("ends the person's API tokens and AI clients with their sessions, and says so", async () => {
+		const member = await memberWithTwoFactor();
+		const { secret } = await createApiToken(member.browser, { workspaceId, name: "Left behind" });
+		const client = await approveAiClient(install, member.browser, { workspaceId });
+		await tokenClient(install, secret).api.workspaces.get({ workspaceId });
+
+		await confirmIfAsked(admin, superadmin.password, () =>
+			admin.api.members.resetTwoFactor({ workspaceId, personId: member.personId }),
+		);
+
+		await expect(tokenClient(install, secret).api.workspaces.get({ workspaceId })).rejects.toMatchObject({
+			code: "TOKEN_INVALID",
+			data: { problem: "revoked" },
+		});
+		await expect(connectMcp(install, client.accessToken)).rejects.toBeDefined();
+		const { entries } = await admin.api.audit.list({ limit: 20 });
+		expect(
+			entries.find((found) => found.action === "twoFactor.reset" && found.details.personId === member.personId),
+		).toMatchObject({ details: { revokedTokens: 1, revokedAiClients: 1 } });
+		expect(entries.find((found) => found.action === "apiToken.revoke")).toMatchObject({
+			details: { name: "Left behind", owner: member.personId, reason: "reset" },
+		});
+		expect((await install.lastEmailTo(member.account.email)).text).toContain("API tokens and AI clients");
+	});
+
 	test("by the Superadmin: every second factor goes, every session ends, they are emailed and it is logged", async () => {
 		const member = await memberWithTwoFactor();
 
@@ -143,7 +172,7 @@ describe("a Member's reset", () => {
 		).rejects.toMatchObject({ code: "IDENTITY_CHECK_REQUIRED", data: { action: "twoFactor.reset" } });
 	});
 
-	test("lifts a lock wrong codes put on the account", async () => {
+	test("lifts a lock wrong codes put on the second step", async () => {
 		const member = await memberWithTwoFactor();
 		// Two browsers, five wrong codes each, so no address reaches its limit of requests a minute.
 		for (let round = 0; round < 2; round++) {
@@ -153,8 +182,10 @@ describe("a Member's reset", () => {
 				await browser.api.session.secondStep({ method: "authenticator", code: "000000" }).catch(() => undefined);
 			}
 		}
-		await expect(install.browser().api.session.signIn(member.account)).rejects.toMatchObject({
-			code: "INVALID_CREDENTIALS",
+		const locked = install.browser();
+		await locked.api.session.signIn(member.account);
+		await expect(locked.api.session.secondStep({ method: "authenticator", code: "000000" })).rejects.toMatchObject({
+			code: "ACCOUNT_LOCKED",
 		});
 
 		await confirmIfAsked(admin, superadmin.password, () =>

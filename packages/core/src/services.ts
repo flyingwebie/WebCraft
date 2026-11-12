@@ -102,6 +102,7 @@ import type { MasterKeyBackup } from "./master-key-backup.ts";
 import type { ImageProcessor, InstallStorage, MediaLibrary } from "./media/index.ts";
 import type { ModuleHost } from "./modules/host.ts";
 import type { OAuth } from "./oauth.ts";
+import type { PasswordResets } from "./password-resets.ts";
 import type { People } from "./people.ts";
 import type { PersonActor } from "./permissions/can.ts";
 import type { Popups } from "./popups/index.ts";
@@ -117,6 +118,7 @@ import type { SiteScripts } from "./site-scripts/index.ts";
 import type { SiteTransfer } from "./site-transfer/index.ts";
 import type { SocialCardRenderer } from "./social-cards/renderer.ts";
 import type { Staging } from "./staging/index.ts";
+import type { AccountsService } from "./tenancy/accounts.ts";
 import type {
 	Access,
 	DataLayer,
@@ -188,6 +190,8 @@ export type InstallServices = InstallPorts & {
 	auth: Auth;
 	/** A person's own account: their sessions and their password, recorded in the Audit log. */
 	account: Account;
+	/** Password recovery: reset links by email, and the server's `reset-password` command. */
+	passwordResets: PasswordResets;
 	/**
 	 * Two-factor authentication: a person's own second factors (recorded in the Audit log and
 	 * emailed to them), whether it is required of them, the switches that require it, and resets.
@@ -670,6 +674,8 @@ export type InstallServices = InstallPorts & {
 	members: MembersService;
 	/** Staff: inviting them, their Workspaces, pending invites. */
 	staff: StaffService;
+	/** Deactivating and reactivating people's accounts (the Superadmin). */
+	accounts: AccountsService;
 	/** Invite links (Staff and Member invites): what they offer, and accepting them. */
 	invites: InvitesService;
 	/**

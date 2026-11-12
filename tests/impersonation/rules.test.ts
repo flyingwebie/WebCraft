@@ -199,6 +199,23 @@ describe("ending", () => {
 		expect((await anna.browser.api.shell.context()).impersonation).toBeNull();
 	});
 
+	// The report's "Sloppy code": the hour had run out but nothing had written its end down yet (the
+	// worker was down), and starting the next one failed unexpectedly until the person signed out.
+	test("once the hour ran out, the next one starts at once, whether or not the worker recorded the end", async () => {
+		await impersonate(anna.browser, editor.personId);
+		await install.clock.advance(61 * MINUTE);
+		expect(await actingAs(anna.browser)).toBe(anna.personId);
+
+		await impersonate(anna.browser, owner.personId);
+
+		expect(await actingAs(anna.browser)).toBe(owner.personId);
+		const admin = await install.superadmin();
+		const stops = (await admin.api.audit.list({ limit: 10 })).entries.filter(
+			(entry) => entry.action === "impersonation.stop" && entry.personId === editor.personId,
+		);
+		expect(stops[0]).toMatchObject({ details: { reason: "time", minutes: 60 } });
+	});
+
 	test("signing out ends it: signing in again is as the impersonator", async () => {
 		const sam = await withSecondFactor(install, await install.createStaff({ workspaces: [acme] }));
 		await impersonate(sam.browser, editor.personId);

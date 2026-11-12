@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
  * Everyone with an account on the Install: the Superadmin, Staff and Members. `@webcraft/auth`
@@ -12,25 +12,87 @@ export const people = pgTable(
 		id: uuid("id").primaryKey().defaultRandom(),
 		name: text("name").notNull(),
 		email: text("email").notNull().unique(),
+		/**
+		 * The sign-in library's own column, which its model requires: always false, never read.
+		 * WebCraft doesn't verify addresses by a flag; an address is proved by the invite link or reset
+		 * link sent to it.
+		 */
 		emailVerified: boolean("email_verified").notNull().default(false),
 		image: text("image"),
 		/** The person's Admin language, such as `it`. Null follows the Install's default Admin language. */
 		adminLanguage: text("admin_language"),
 		/** Light or dark admin, or `system` to follow the device. */
 		adminTheme: text("admin_theme").notNull().default("system"),
-		/** Wrong passwords in a row since the last right one (or the last lock); 10 lock the account. */
+		/**
+		 * Wrong codes in a row at the second step of signing in, since the last right one (or the last
+		 * lock); 10 lock the second step. Wrong passwords are counted in `sign_in_throttles`.
+		 */
 		failedAttempts: integer("failed_attempts").notNull().default(0),
-		/** Until when the account is locked after too many wrong passwords; null or past: not locked. */
+		/** Until when the second step of signing in is locked after too many wrong codes; null or past: not locked. */
 		lockedUntil: timestamp("locked_until", { withTimezone: true }),
 		/**
 		 * Until when the reminder to add two-factor authentication stays hidden, after "Remind me
 		 * later"; null or past: it shows while the person has no second factor.
 		 */
 		twoFactorReminderUntil: timestamp("two_factor_reminder_until", { withTimezone: true }),
+		/**
+		 * When the Superadmin deactivated the account, or null: a deactivated person can't sign in and
+		 * holds no role anywhere until reactivated. The row stays, so what they made stays theirs.
+		 */
+		deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},
 	(table) => [check("people_admin_theme_known", sql`${table.adminTheme} in ('system', 'light', 'dark')`)],
+);
+
+/**
+ * Wrong passwords for a person, counted by where they come from (`origin`), so that an outsider's
+ * guesses stop the outsider and never the person:
+ *
+ * - `network:<keyed hash>`: sign-in attempts from one network (an IPv4 address, or an IPv6 /64).
+ *   `known_at` is when the person last signed in from it.
+ * - `session:<session id>`: attempts to confirm who the person is, in one admin session.
+ * - `account`: sign-in attempts from every network together.
+ *
+ * `failed_attempts` are those in a row; `locked_until` is until when nothing from that origin is
+ * checked (for `account`: from networks the person hasn't signed in from). A client address is
+ * never kept: a network is an HMAC of it under a key derived from the Master key.
+ */
+export const signInThrottles = pgTable(
+	"sign_in_throttles",
+	{
+		personId: uuid("person_id")
+			.notNull()
+			.references(() => people.id, { onDelete: "cascade" }),
+		origin: text("origin").notNull(),
+		failedAttempts: integer("failed_attempts").notNull().default(0),
+		lockedUntil: timestamp("locked_until", { withTimezone: true }),
+		knownAt: timestamp("known_at", { withTimezone: true }),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.personId, table.origin] }),
+		index("sign_in_throttles_updated_at_idx").on(table.updatedAt),
+	],
+);
+
+/**
+ * Password reset links people asked for by email (password recovery). Only the SHA-256 hash of a
+ * link's token is kept; a link works once, until `expires_at`, and a person has one at a time.
+ */
+export const passwordResets = pgTable(
+	"password_resets",
+	{
+		id: uuid("id").primaryKey().defaultRandom(),
+		personId: uuid("person_id")
+			.notNull()
+			.references(() => people.id, { onDelete: "cascade" }),
+		tokenHash: text("token_hash").notNull().unique(),
+		expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+	},
+	(table) => [index("password_resets_person_id_idx").on(table.personId)],
 );
 
 /**

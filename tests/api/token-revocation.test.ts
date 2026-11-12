@@ -1,7 +1,6 @@
 // A token never outlives its person's access: losing a Membership, Staff losing a Workspace or a
 // token's Sites going out of reach revoke it at once, in the same change; a role change or fewer
-// Sites take effect on its next request (its person's access is read fresh every time); while its
-// person's account is locked, it waits.
+// Sites take effect on its next request (its person's access is read fresh every time).
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
@@ -161,30 +160,7 @@ describe("checked live on every request", () => {
 		await script.api.sites.get({ siteId: first.id });
 	});
 
-	test("while its person's account is locked, a token waits, then works again", async () => {
-		const workspace = await install.createWorkspace();
-		const owner = await install.createMember({ workspaceId: workspace.id, role: "owner" });
-		const { secret } = await createApiToken(owner.browser, { workspaceId: workspace.id, name: "Patient" });
-		const script = tokenClient(install, secret);
-
-		for (let attempt = 0; attempt < 10; attempt++) {
-			await install
-				.browser()
-				.api.session.signIn({ email: owner.account.email, password: "not the password at all" })
-				.catch(() => {});
-		}
-
-		const answer = await script.request("workspaces/get", {
-			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ workspaceId: workspace.id }),
-		});
-		expect(answer.status).toBe(401);
-		expect(Number(answer.headers.get("retry-after"))).toBeGreaterThan(0);
-		expect(await answer.json()).toMatchObject({ code: "TOKEN_INVALID", data: { problem: "locked" } });
-
-		await install.clock.advance(15 * 60 * 1000);
-		await script.api.workspaces.get({ workspaceId: workspace.id });
-	});
+	// Wrong passwords never stop a token: `tests/auth/lockout.test.ts`.
 });
 
 test("revoking inside the change that took access asks the database one thing at a time", () => {

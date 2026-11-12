@@ -2,7 +2,7 @@ import { createAuth, leakedPasswordCheck } from "@webcraft/auth";
 import { databaseOn } from "@webcraft/db";
 import type { AnyModuleDefinition } from "@webcraft/module-sdk";
 import { createAccessibilityStatement } from "./accessibility/statement.ts";
-import { createAccount, reportAccountLock } from "./account.ts";
+import { createAccount, reportAccountLock, signInNetworkOf } from "./account.ts";
 import { createAiKeys } from "./ai/keys.ts";
 import { createApiTokens } from "./api-tokens.ts";
 import { createAuditLog } from "./audit-log.ts";
@@ -133,6 +133,7 @@ import { createMediaLibrary } from "./media/library.ts";
 import { FIRST_PARTY_MODULES } from "./modules/first-party.ts";
 import { createModuleHost, type ModuleHost } from "./modules/host.ts";
 import { createOAuth } from "./oauth.ts";
+import { createPasswordResets } from "./password-resets.ts";
 import { createPeople } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
 import { createPopups } from "./popups/index.ts";
@@ -152,6 +153,7 @@ import {
 	rateLimitKey,
 	sessionSigningSecret,
 	shareLinkPasswordKey,
+	signInNetworkKey,
 	siteExportLinkKey,
 	stagingPasswordKey,
 	visitorIdKey,
@@ -166,6 +168,7 @@ import { createSiteScripts } from "./site-scripts/index.ts";
 import { createSiteTransfer } from "./site-transfer/index.ts";
 import { socialCardsAfterAudit } from "./social-cards/jobs.ts";
 import { createStaging } from "./staging/index.ts";
+import { createAccounts } from "./tenancy/accounts.ts";
 import { createDataLayer } from "./tenancy/data-layer.ts";
 import { createInvites } from "./tenancy/invites.ts";
 import { createMembers } from "./tenancy/members.ts";
@@ -273,6 +276,7 @@ export async function createInstallServices(
 		attachment: (ref) =>
 			ref.kind === UPLOAD_ATTACHMENT ? formUploads.attachment(ref) : (attachments.read?.(ref) ?? Promise.resolve(null)),
 	});
+	const rateLimits = createRateLimits({ database, clock, log, keyHash: await rateLimitKey(masterKey) });
 	const auth = createAuth({
 		database,
 		clock,
@@ -287,7 +291,8 @@ export async function createInstallServices(
 				enabled: async () => (await settings.security()).leakedPasswordCheck,
 			}),
 		],
-		onAccountLocked: reportAccountLock({ database, clock, email }),
+		onAccountLocked: reportAccountLock({ database, clock, email, rateLimits }),
+		networkOf: signInNetworkOf(await signInNetworkKey(masterKey)),
 	});
 	const twoFactor = createTwoFactor({
 		database,
@@ -308,7 +313,6 @@ export async function createInstallServices(
 		log,
 		email,
 	});
-	const rateLimits = createRateLimits({ database, clock, log, keyHash: await rateLimitKey(masterKey) });
 	const modules = createModuleHost({
 		uploads: formUploads,
 		database,
@@ -472,6 +476,7 @@ export async function createInstallServices(
 		secrets: installSecrets,
 		auth,
 		account: createAccount({ database, auth, clock }),
+		passwordResets: createPasswordResets({ database, auth, clock, email, jobs: ports.jobs, rateLimits, log }),
 		twoFactor,
 		impersonation,
 		rateLimits,
@@ -701,7 +706,8 @@ export async function createInstallServices(
 		builder: createBuilder({ config, sources: componentSources, pages: sitePages }),
 		memberships,
 		members,
-		staff: createStaff({ email }),
+		staff: createStaff({ email, auth }),
+		accounts: createAccounts({ auth }),
 		invites: createInvites({ database, auth, settings, clock, memberships }),
 		audit: createAuditLog({ database, data, clock }),
 		email,

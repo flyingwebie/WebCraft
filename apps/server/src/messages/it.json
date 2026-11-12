@@ -6,7 +6,7 @@
 	},
 	"errors": {
 		"generic": "Qualcosa è andato storto. Riprova.",
-		"SETUP_TOKEN_INVALID": "Questo token di configurazione non apre questa Install. Copialo di nuovo dal log del processo web.",
+		"SETUP_TOKEN_INVALID": "Questo token di configurazione non apre questa Install: funziona solo il più recente, per 24 ore. Copialo di nuovo dal log del processo web, oppure creane uno nuovo con `webcraft admin setup`.",
 		"SETUP_CLOSED": "Questa Install ha già un Superadmin, quindi la configurazione guidata è chiusa.",
 		"PASSWORD_TOO_SHORT": "Usa almeno 12 caratteri.",
 		"PASSWORD_TOO_LONG": "Usa al massimo 128 caratteri.",
@@ -20,7 +20,9 @@
 		"WORKSPACE_NOT_FOUND": "Questo Workspace non esiste, o non puoi raggiungerlo.",
 		"SITE_NOT_FOUND": "Questo Site non esiste, o non puoi raggiungerlo.",
 		"STAFF_NOT_FOUND": "Questa persona non fa parte dello Staff.",
+		"ACCOUNT_DEACTIVATION_REFUSED": "Questo account non può essere disattivato: all'Install serve un Superadmin che possa accedere, e nessuno disattiva il proprio account.",
 		"INVITE_INVALID": "Questo link di invito non funziona più. Chiedi un nuovo invito.",
+		"PASSWORD_RESET_INVALID": "Questo link di reimpostazione non funziona più. Chiedine uno nuovo.",
 		"SLUG_TAKEN": "Un altro Site ha già questo slug.",
 		"SLUG_INVALID": "Usa da 1 a 63 lettere minuscole, cifre e trattini, iniziando e finendo con una lettera o una cifra.",
 		"SLUG_RESERVED": "Questo slug è riservato all'Install. Scegline un altro.",
@@ -30,7 +32,7 @@
 		"ACCESS_NOT_HELD_GRANT": "Non puoi concedere più accesso di quello che hai, né come ruolo né come Site.",
 		"ACCESS_NOT_HELD_MANAGE": "Questo Membro ha un accesso che tu non hai, quindi non puoi modificarlo o rimuoverlo.",
 		"INVITE_OTHER_ACCOUNT": "Questo invito è stato inviato a un altro indirizzo email. Accedi con quell'indirizzo per accettarlo.",
-		"ACCOUNT_LOCKED": "Questo account è bloccato per un massimo di 15 minuti dopo troppe password o codici sbagliati. Riprova più tardi.",
+		"ACCOUNT_LOCKED": "Troppe password o codici sbagliati: qui non viene più controllato nulla per un massimo di 15 minuti. Riprova più tardi oppure usa una passkey.",
 		"TOO_MANY_REQUESTS": "Troppi tentativi. Aspetta un minuto, poi riprova.",
 		"IDENTITY_CHECK_REQUIRED": "Conferma che sei tu per continuare.",
 		"IDENTITY_CHECK_CANCELLED": "Non è cambiato nulla: conferma che sei tu per continuare.",
@@ -338,6 +340,7 @@
 		"email": "Email",
 		"password": "Password",
 		"submit": "Accedi",
+		"forgotPassword": "Password dimenticata?",
 		"or": "oppure",
 		"withPasskey": "Accedi con una passkey",
 		"passkeyCancelled": "Nessuna passkey è stata usata. Riprova quando vuoi.",
@@ -355,6 +358,39 @@
 			"useBackupCode": "Usa invece un codice di backup",
 			"useAuthenticator": "Usa invece l'app di autenticazione",
 			"startOver": "Accedi di nuovo"
+		}
+	},
+	"forgotPassword": {
+		"pageTitle": "Reimposta la password",
+		"heading": "Reimposta la password",
+		"body": "Inserisci l'indirizzo email con cui accedi. Ti invieremo un link per scegliere una nuova password.",
+		"email": "Email",
+		"emailRequired": "Inserisci il tuo indirizzo email.",
+		"submit": "Inviami un link",
+		"backToSignIn": "Torna all'accesso",
+		"sent": {
+			"heading": "Controlla la posta",
+			"body": "Se {email} ha un account qui, sta arrivando un link per scegliere una nuova password. Funziona una sola volta, per 30 minuti.",
+			"help": "Non arriva nulla dopo qualche minuto? Controlla la cartella dello spam oppure chiedi a chi gestisce questo Install.",
+			"again": "Usa un altro indirizzo"
+		}
+	},
+	"resetPassword": {
+		"pageTitle": "Scegli una nuova password",
+		"heading": "Scegli una nuova password",
+		"body": "Verrai disconnesso ovunque, poi accederai con la nuova password.",
+		"password": "Nuova password",
+		"passwordHelp": "Almeno 12 caratteri.",
+		"submit": "Cambia password",
+		"done": {
+			"heading": "La password è stata cambiata",
+			"body": "Sei stato disconnesso ovunque. Accedi con la nuova password; se usi l'autenticazione a due fattori, ti serve ancora.",
+			"signIn": "Accedi"
+		},
+		"invalid": {
+			"heading": "Questo link di reimpostazione non funziona",
+			"body": "È già stato usato, è stato sostituito da un link più recente oppure ha più di 30 minuti.",
+			"again": "Chiedi un nuovo link"
 		}
 	},
 	"shell": {
@@ -584,7 +620,8 @@
 			"repeat": "Ripeti la nuova password",
 			"mismatch": "Le password non coincidono.",
 			"save": "Cambia password",
-			"saved": "Password cambiata. Le altre sessioni sono state disconnesse."
+			"saved": "Password cambiata. Le altre sessioni sono state disconnesse.",
+			"stillActive": "Ancora attivi: {tokens, plural, one {# token API} other {# token API}} e {clients, plural, one {# client AI} other {# client AI}}. Una nuova password non li termina: revoca quelli che non riconosci in Token API e Client AI qui sotto."
 		},
 		"sessions": {
 			"heading": "Sessioni",
@@ -991,6 +1028,35 @@
 			"close": "Chiudi"
 		},
 		"created": "Workspace {name} creato."
+	},
+	"accounts": {
+		"deactivated": "Disattivato",
+		"cancel": "Annulla",
+		"close": "Chiudi",
+		"removeStaff": {
+			"button": "Rimuovi dallo Staff",
+			"buttonOf": "Rimuovi dallo Staff: {name}",
+			"title": "Rimuovere {name} dallo Staff?",
+			"body": "{name} non fa più parte dello Staff. Le sue sessioni, i token API, i client AI e gli accessi dalla CLI terminano subito, e gli inviti che ha inviato vengono ritirati. L'account resta e non raggiunge nulla: disattivalo se non deve più accedere. Ciò che ha creato resta suo.",
+			"confirm": "Rimuovi dallo Staff",
+			"done": "{name} non fa più parte dello Staff."
+		},
+		"deactivate": {
+			"button": "Disattiva account",
+			"buttonOf": "Disattiva account di {name}",
+			"title": "Disattivare l'account di {name}?",
+			"body": "{name} non potrà più accedere. Le sue sessioni, i token API, i client AI e gli accessi dalla CLI terminano subito, e gli inviti che ha inviato vengono ritirati. Ciò che ha creato resta suo, e potrai riattivare l'account in seguito.",
+			"confirm": "Disattiva account",
+			"done": "L'account di {name} è disattivato."
+		},
+		"reactivate": {
+			"button": "Riattiva account",
+			"buttonOf": "Riattiva account di {name}",
+			"title": "Riattivare l'account di {name}?",
+			"body": "{name} potrà accedere di nuovo, con la password, l'autenticazione a due fattori e i ruoli che aveva. I token API e i client AI terminati restano terminati.",
+			"confirm": "Riattiva account",
+			"done": "L'account di {name} è di nuovo attivo."
+		}
 	},
 	"staff": {
 		"pageTitle": "Staff",
@@ -5741,6 +5807,8 @@
 		"refusedHeading": "Questa richiesta non può essere approvata",
 		"refusedClient": "L'app che ti ha mandato qui non è registrata in questo WebCraft. Non è stato approvato nulla.",
 		"refusedRedirect": "L'app ha chiesto di rimandarti a un indirizzo che non ha registrato. Non è stato approvato nulla e non sei stato mandato da nessuna parte.",
+		"refusedRequest": "{client} ha inviato una richiesta che WebCraft non può approvare. Non è stato approvato nulla e non sei stato mandato da nessuna parte. L'app ha chiesto di rimandarti a {host}: chiunque può registrare un'app qui, quindi vai a quell'indirizzo solo se ti fidi.",
+		"backToClient": "Torna a {host}",
 		"toAdmin": "Vai all'admin",
 		"device": {
 			"pageTitle": "Accedi da un dispositivo",
@@ -5758,6 +5826,12 @@
 			"client": "Client",
 			"codeShown": "Codice",
 			"warning": "Approva solo un accesso che hai avviato tu, proprio ora, con lo stesso codice che vedi sul tuo schermo. Chi ti manda un codice sta cercando di agire come te.",
+			"typeIt": "Il link che ti ha portato qui conteneva un codice, ma quell'accesso è stato avviato da una rete diversa da quella di questo browser, quindi non è stato cercato. Scrivi il codice mostrato dal tuo terminale o dispositivo. Se non hai avviato un accesso, chiudi questa pagina.",
+			"requested": "Richiesto",
+			"requestedHere": "{time} UTC, dalla rete di questo browser",
+			"requestedFrom": "{time} UTC, da un'altra rete ({network})",
+			"requestedUnknown": "{time} UTC, da una rete che WebCraft non ha potuto riconoscere",
+			"nameUnchecked": "Il nome del client è stato scelto da chi ha avviato questo accesso: WebCraft non può verificarlo.",
 			"approvedHeading": "{client} ha effettuato l'accesso",
 			"approvedBody": "Torna al terminale: prosegue da solo. Puoi revocarlo in qualsiasi momento in Il tuo account › Client AI.",
 			"deniedHeading": "Accesso rifiutato",
@@ -6666,7 +6740,9 @@
 		"moduleAction": "{module}: {action}",
 		"actions": {
 			"account": {
-				"lock": "Account bloccato dopo password errate"
+				"deactivate": "Account disattivato",
+				"lock": "Password o codici sbagliati fermati per un po'",
+				"reactivate": "Account riattivato"
 			},
 			"aiClient": {
 				"approve": "Client AI approvato",
@@ -6872,7 +6948,8 @@
 				"update": "Script esterno modificato"
 			},
 			"password": {
-				"change": "Password modificata"
+				"change": "Password modificata",
+				"reset": "Password reimpostata"
 			},
 			"postType": {
 				"create": "Tipo di contenuto creato",
@@ -6941,6 +7018,7 @@
 				"changeWorkspaces": "Workspace di un membro dello Staff modificati",
 				"invite": "Membro dello Staff invitato",
 				"join": "Membro dello Staff entrato",
+				"remove": "Membro dello Staff rimosso",
 				"revokeInvite": "Invito dello Staff revocato"
 			},
 			"stagingPassword": {

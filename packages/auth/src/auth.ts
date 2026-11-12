@@ -1,10 +1,10 @@
 import type { Database, Transaction } from "@webcraft/db";
-import { credentials, people, sessions, verifications } from "@webcraft/db/schema";
+import { credentials, passwordResets, people, sessions, signInThrottles, verifications } from "@webcraft/db/schema";
 import { type BetterAuthPlugin, betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, createAuthEndpoint } from "better-auth/api";
 import { setSessionCookie } from "better-auth/cookies";
-import { and, desc, eq, gt, ne } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, ne } from "drizzle-orm";
 import * as z from "zod";
 
 import { type AccountLock, AccountLockedError, createLockout } from "./lockout.ts";
@@ -70,10 +70,16 @@ export type AuthOptions = {
 	/** Extra checks on new passwords, after the length rules (the leaked-password lookup plugs in here). */
 	passwordChecks?: readonly PasswordCheck[];
 	/**
-	 * Called once when wrong passwords lock an account, before the attempt is refused: the person is
-	 * told and the lock recorded there. A failure here is logged; the account stays locked.
+	 * Called when wrong passwords or codes stop further tries (see `Lockout`), before the attempt is
+	 * refused: the person is told and it is recorded there. A failure here is logged; the tries stay
+	 * stopped.
 	 */
 	onAccountLocked?: (lock: AccountLock) => Promise<void>;
+	/**
+	 * The network a client address belongs to, as a value that is safe to keep: wrong passwords are
+	 * counted per network (an IPv4 address, an IPv6 /64), and the address itself is never stored.
+	 */
+	networkOf: (clientAddress: string | null) => Promise<string>;
 	/** Where authenticator secrets are kept and how backup codes are hashed (see `SecondFactorKeys`). */
 	secondFactorKeys: SecondFactorKeys;
 };
@@ -140,16 +146,16 @@ export type Auth = {
 	/**
 	 * Checks an email and password and starts a session. Answers the `Set-Cookie` values that carry
 	 * the session; throws `InvalidCredentialsError` when they don't match a person, and also while
-	 * the account is locked (and when this wrong password locks it), so the answer never tells which
-	 * addresses have an account.
+	 * passwords from the request's network are stopped for that person (and when this wrong password
+	 * stops them), so the answer never tells which addresses have an account.
 	 */
 	signIn(input: { email: string; password: string }, request: AuthRequest): Promise<SignInResult>;
 	/**
 	 * The second step of signing in, in the browser a right password started it in (within 5
 	 * minutes): a code from the person's authenticator app, or one of their backup codes, which is
 	 * then used up. Starts the session. Throws `SignInExpiredError` without a waiting sign-in,
-	 * `TwoFactorCodeInvalidError` for a wrong code (which counts towards the lockout, like a wrong
-	 * password) and `AccountLockedError` when the account is locked (the person knows the password).
+	 * `TwoFactorCodeInvalidError` for a wrong code (10 in a row lock the second step) and
+	 * `AccountLockedError` while it is locked (the person knows the password).
 	 */
 	secondStep(
 		input: { method: "authenticator" | "backupCode"; code: string },
@@ -171,10 +177,12 @@ export type Auth = {
 	/** Ends the session a request carries, if any, and answers the `Set-Cookie` values that clear it. */
 	signOut(headers: Headers): Promise<{ setCookie: string[] }>;
 	/**
-	 * Checks the person's password again inside a session they are signed in with, and records the
-	 * check on that session alone. Throws `InvalidCredentialsError` when the password is wrong, and
-	 * `AccountLockedError` when the account is locked: wrong passwords here count towards the lock too.
-	 * (The person is signed in, so saying so tells nobody anything new.)
+	 * Checks who the person is again inside a session they are signed in with, and records the check
+	 * on that session alone. Throws `InvalidCredentialsError` for a wrong password,
+	 * `TwoFactorCodeInvalidError` for a wrong code, and `AccountLockedError` once 10 in a row stopped
+	 * passwords and codes in this session for a while (the person is signed in, so saying so tells
+	 * nobody anything new). Wrong ones are counted in this session alone, so nobody outside it can
+	 * stop the check; a passkey is never stopped.
 	 */
 	confirmIdentity(
 		session: Session,
@@ -188,15 +196,46 @@ export type Auth = {
 	/** Ends every session of the person except `keep`, and answers how many it ended. */
 	revokeOtherSessions(keep: Session): Promise<number>;
 	/**
-	 * Changes the person's password and ends every other session of theirs, together. Refuses a
-	 * password the rules don't allow with `PasswordRefusedError`, changing nothing. `also` runs in
-	 * the same transaction, to record the change with it.
+	 * Changes the person's password and ends every other session of theirs, together, with any reset
+	 * link they were sent before (it must not undo the change). Refuses a password the rules don't
+	 * allow with `PasswordRefusedError`, changing nothing. `also` runs in the same transaction, to
+	 * record the change with it.
+	 *
+	 * Every change to how a person signs in ends their outstanding reset links, here in auth: this
+	 * one, `resetPassword`, `resetSecondFactors` and `setDeactivated`.
 	 */
 	changePassword(
 		session: Session,
 		newPassword: string,
 		also?: (tx: Transaction, result: { signedOutSessions: number }) => Promise<void>,
 	): Promise<{ signedOutSessions: number }>;
+	/**
+	 * Gives a person a new password without their old one (password recovery: a reset link from
+	 * their email, or the server's `reset-password` command) and ends every session of theirs,
+	 * together. The counts of wrong passwords and the networks they signed in from are forgotten, and
+	 * a second step waiting on the old password ends; their second factors stay as they are, so the
+	 * next sign-in still needs one. Refuses a password the rules don't allow with
+	 * `PasswordRefusedError`, changing nothing. `also` runs in the same transaction (the link is used
+	 * up and the reset recorded there); when it throws, nothing changes.
+	 */
+	resetPassword(
+		personId: string,
+		newPassword: string,
+		also?: (tx: Transaction, result: { signedOutSessions: number }) => Promise<void>,
+	): Promise<{ signedOutSessions: number }>;
+	/**
+	 * Ends every session of a person and any sign-in waiting for their second step, inside the
+	 * caller's transaction (their role ended, or their account was deactivated). Answers how many
+	 * sessions ended.
+	 */
+	endSessions(tx: Database["db"] | Transaction, personId: string): Promise<number>;
+	/**
+	 * Deactivates a person's account (`at`) or reactivates it (null), inside the caller's
+	 * transaction. Deactivating ends the reset links they were sent. No session starts for a deactivated person: signing in answers them like an address
+	 * nobody signs in with, and their passkeys are refused. Their password and second factors are
+	 * kept, for when they are reactivated.
+	 */
+	setDeactivated(tx: Database["db"] | Transaction, personId: string, at: Date | null): Promise<void>;
 	/** Creates a person who signs in with an email and password, inside the caller's transaction. */
 	createPerson(tx: Transaction, person: NewPerson): Promise<{ personId: string }>;
 
@@ -267,7 +306,7 @@ export type Auth = {
 	 * Signs in with a passkey: it counts as both factors, as the device verified the person. Ends a
 	 * waiting second step. Throws `PasskeyInvalidError` when the answer doesn't check out (an unknown
 	 * passkey, another hostname or page, no user verification, a used challenge, a signature count
-	 * that went backwards) and `AccountLockedError` while the account is locked.
+	 * that went backwards). Wrong passwords never stop it: a passkey can't be guessed.
 	 */
 	signInWithPasskey(
 		credential: AssertionCredential,
@@ -275,11 +314,13 @@ export type Auth = {
 	): Promise<{ personId: string; setCookie: string[] }>;
 	/** Options for confirming who the person is with one of their passkeys. */
 	identityPasskeyOptions(session: Session): Promise<PasskeyRequestOptions>;
+	/** Deletes the counters of wrong passwords nobody touched for a day; answers how many. */
+	purgeSignInCounters(): Promise<number>;
 	/** Replaces the person's backup codes with 10 new ones, answered once. */
 	regenerateBackupCodes(personId: string, also?: AlsoInTransaction<undefined>): Promise<string[]>;
 	/**
 	 * Removes every second factor of a person (a reset: by the Superadmin, their Staff, or the
-	 * server's `reset-2fa` command), ends all their sessions and lifts a lock on their account.
+	 * server's `reset-2fa` command), ends all their sessions and lifts a lock on their second step.
 	 */
 	resetSecondFactors(
 		personId: string,
@@ -325,7 +366,7 @@ export function createAuth(options: AuthOptions): Auth {
 		}
 		const handle = credential.response.userHandle;
 		if (handle && handle !== base64url(new TextEncoder().encode(stored.personId))) return refuse("user handle differs");
-		await lockout.assertUnlocked(stored.personId);
+		if (await isDeactivated(stored.personId)) return refuse("account deactivated");
 		try {
 			const use = await verifyAssertion(credential, { challenge, rp: relyingParty(), during: purpose }, stored);
 			if (!(await passkeys.recordUse(stored, use))) return refuse("used meanwhile");
@@ -336,61 +377,88 @@ export function createAuth(options: AuthOptions): Auth {
 		return stored;
 	};
 
-	/** Starts a session for a person who proved who they are, recording the address WebCraft saw. */
+	/**
+	 * A session just started for a person who proved who they are: it records the address WebCraft
+	 * saw (the library would read it from headers any client can send), and the network is now one
+	 * of the person's.
+	 */
+	const sessionStarted = async (personId: string, token: string, clientAddress: string | null) => {
+		await database.db.update(sessions).set({ ipAddress: clientAddress }).where(eq(sessions.token, token));
+		await lockout.signedIn(personId, await options.networkOf(clientAddress));
+	};
 	const startSession = async (personId: string, { headers, clientAddress }: AuthRequest) => {
 		const { headers: answer, response } = await library.api.startSessionFor({
 			body: { personId },
 			headers,
 			returnHeaders: true,
 		});
-		await database.db.update(sessions).set({ ipAddress: clientAddress }).where(eq(sessions.token, response.token));
+		await sessionStarted(personId, response.token, clientAddress);
 		return answer.getSetCookie();
+	};
+	const isDeactivated = async (personId: string) => {
+		const [person] = await database.db
+			.select({ deactivatedAt: people.deactivatedAt })
+			.from(people)
+			.where(eq(people.id, personId));
+		return !person || person.deactivatedAt !== null;
 	};
 	const lockout = createLockout({
 		database,
 		clock,
 		onLocked: async (lock) => {
-			log.warn("An account was locked after too many wrong passwords", {
+			log.warn("Too many wrong passwords or codes for an account: further tries are stopped for a while", {
 				personId: lock.personId,
+				scope: lock.scope,
 				lockedUntil: lock.lockedUntil,
 				clientAddress: lock.clientAddress,
 			});
 			try {
 				await options.onAccountLocked?.(lock);
 			} catch (error) {
-				log.error("Telling a person their account was locked failed", { error, personId: lock.personId });
+				log.error("Telling a person that tries on their account were stopped failed", {
+					error,
+					personId: lock.personId,
+				});
 			}
 		},
 	});
 
 	return {
 		async signIn({ email, password }, { headers, clientAddress }) {
+			// Every refusal answers the same and costs a password hash, so the answer never tells which
+			// addresses have an account. A deactivated account is refused like an address nobody signs
+			// in with.
+			const refuse = async (): Promise<never> => {
+				await hashPassword(password);
+				throw new InvalidCredentialsError();
+			};
 			const [person] = await database.db
 				.select({ id: people.id })
 				.from(people)
-				.where(eq(people.email, normaliseEmail(email)));
-			// While locked, not even the right password gets in. The answer is the same as for a wrong
-			// password, and costs a password hash like one, so it never tells which addresses have an
-			// account; the person learns of the lock from its email.
-			if (person) {
-				try {
-					await lockout.assertUnlocked(person.id);
-				} catch (error) {
-					if (!(error instanceof AccountLockedError)) throw error;
-					await hashPassword(password);
-					throw new InvalidCredentialsError();
-				}
+				.where(and(eq(people.email, normaliseEmail(email)), isNull(people.deactivatedAt)));
+			if (!person) return refuse();
+			const origin = { network: await options.networkOf(clientAddress) };
+			// While passwords from this network are stopped, not even the right one gets in; the person
+			// learns of it from its email.
+			try {
+				await lockout.attempts.assertAllowed(person.id, origin);
+			} catch (error) {
+				if (!(error instanceof AccountLockedError)) throw error;
+				return refuse();
 			}
-			const methods = person ? await factors.secondStepMethods(person.id) : [];
-			if (person && methods.length > 0) {
-				if (!(await passwordMatches(database, person.id, password))) {
-					await lockout.recordFailure(person.id, clientAddress).catch((lockError: unknown) => {
-						if (!(lockError instanceof AccountLockedError)) throw lockError;
-					});
-					throw new InvalidCredentialsError();
-				}
-				// The count of wrong attempts goes on until the second step is right too, so a guesser who
-				// knows the password can't start it again by signing in between wrong codes.
+			/** A wrong password: counted, and the one that stops the network answers like any other. */
+			const wrong = async (): Promise<never> => {
+				await lockout.attempts.recordFailure(person.id, origin, clientAddress).catch((lockError: unknown) => {
+					if (!(lockError instanceof AccountLockedError)) throw lockError;
+				});
+				throw new InvalidCredentialsError();
+			};
+			const methods = await factors.secondStepMethods(person.id);
+			if (methods.length > 0) {
+				if (!(await passwordMatches(database, person.id, password))) return wrong();
+				await lockout.attempts.recordSuccess(person.id, origin);
+				// The count of wrong codes goes on until the second step is right, so a guesser who knows
+				// the password can't start it again by signing in between wrong codes.
 				return { personId: null, secondStep: { methods }, setCookie: [await pending.start(person.id)] };
 			}
 			try {
@@ -399,37 +467,28 @@ export function createAuth(options: AuthOptions): Auth {
 					headers,
 					returnHeaders: true,
 				});
-				// The library would read the address from headers any client can send; WebCraft's own is used.
-				await database.db.update(sessions).set({ ipAddress: clientAddress }).where(eq(sessions.token, response.token));
-				await lockout.recordSuccess(response.user.id);
+				await sessionStarted(response.user.id, response.token, clientAddress);
+				await lockout.attempts.recordSuccess(response.user.id, origin);
 				return { personId: response.user.id, secondStep: null, setCookie: answer.getSetCookie() };
 			} catch (error) {
-				if (error instanceof APIError && (error.statusCode === 401 || error.statusCode === 400)) {
-					if (person) {
-						// The wrong password that locks the account answers like any other.
-						await lockout.recordFailure(person.id, clientAddress).catch((lockError: unknown) => {
-							if (!(lockError instanceof AccountLockedError)) throw lockError;
-						});
-					}
-					throw new InvalidCredentialsError();
-				}
+				if (error instanceof APIError && (error.statusCode === 401 || error.statusCode === 400)) return wrong();
 				throw error;
 			}
 		},
 
 		async secondStep({ method, code }, request) {
 			const personId = await pending.personOf(request.headers);
-			if (!personId) throw new SignInExpiredError();
-			await lockout.assertUnlocked(personId);
+			if (!personId || (await isDeactivated(personId))) throw new SignInExpiredError();
+			await lockout.secondStep.assertAllowed(personId);
 			const accepted =
 				method === "authenticator"
 					? await factors.useAuthenticatorCode(personId, code)
 					: await factors.useBackupCode(personId, code);
 			if (!accepted) {
-				await lockout.recordFailure(personId, request.clientAddress);
+				await lockout.secondStep.recordFailure(personId, request.clientAddress);
 				throw new TwoFactorCodeInvalidError("sign-in");
 			}
-			await lockout.recordSuccess(personId);
+			await lockout.secondStep.recordSuccess(personId);
 			const finished = await pending.finish(request.headers);
 			return { personId, method, setCookie: [...(await startSession(personId, request)), finished] };
 		},
@@ -487,20 +546,23 @@ export function createAuth(options: AuthOptions): Auth {
 		},
 
 		async confirmIdentity(session, proof, { clientAddress }) {
-			await lockout.assertUnlocked(session.personId);
 			if ("passkey" in proof) {
-				// A passkey can't be guessed, so a refused one doesn't count towards the lockout.
+				// A passkey can't be guessed: it is never stopped, and a refused one isn't counted.
 				await checkAssertion(proof.passkey, "identity", session.personId);
-			} else if ("password" in proof) {
-				if (!(await passwordMatches(database, session.personId, proof.password))) {
-					await lockout.recordFailure(session.personId, clientAddress);
-					throw new InvalidCredentialsError();
+			} else {
+				// Counted in this session alone: wrong passwords from anywhere else never stop the check.
+				const origin = { sessionId: session.id };
+				await lockout.attempts.assertAllowed(session.personId, origin);
+				const right =
+					"password" in proof
+						? await passwordMatches(database, session.personId, proof.password)
+						: await factors.useAuthenticatorCode(session.personId, proof.authenticatorCode);
+				if (!right) {
+					await lockout.attempts.recordFailure(session.personId, origin, clientAddress);
+					throw "password" in proof ? new InvalidCredentialsError() : new TwoFactorCodeInvalidError("identity");
 				}
-			} else if (!(await factors.useAuthenticatorCode(session.personId, proof.authenticatorCode))) {
-				await lockout.recordFailure(session.personId, clientAddress);
-				throw new TwoFactorCodeInvalidError("identity");
+				await lockout.attempts.recordSuccess(session.personId, origin);
 			}
-			await lockout.recordSuccess(session.personId);
 			const identityCheckedAt = clock.now();
 			await database.db
 				.update(sessions)
@@ -554,21 +616,9 @@ export function createAuth(options: AuthOptions): Auth {
 			const hash = await hashPassword(newPassword);
 			const now = clock.now();
 			return database.db.transaction(async (tx) => {
-				const changed = await tx
-					.update(credentials)
-					.set({ password: hash, updatedAt: now })
-					.where(and(eq(credentials.personId, session.personId), eq(credentials.providerId, PASSWORD_PROVIDER)))
-					.returning({ id: credentials.id });
-				if (changed.length === 0) {
-					await tx.insert(credentials).values({
-						personId: session.personId,
-						accountId: session.personId,
-						providerId: PASSWORD_PROVIDER,
-						password: hash,
-						createdAt: now,
-						updatedAt: now,
-					});
-				}
+				await storePassword(tx, session.personId, hash, now);
+				// A reset link sent before this change must not undo it: whoever holds one loses it now.
+				await tx.delete(passwordResets).where(eq(passwordResets.personId, session.personId));
 				const ended = await tx
 					.delete(sessions)
 					.where(and(eq(sessions.personId, session.personId), ne(sessions.id, session.id)))
@@ -577,6 +627,34 @@ export function createAuth(options: AuthOptions): Auth {
 				await also?.(tx, result);
 				return result;
 			});
+		},
+
+		async resetPassword(personId, newPassword, also) {
+			await assertNewPasswordAllowed(newPassword, options.passwordChecks);
+			const hash = await hashPassword(newPassword);
+			const now = clock.now();
+			return database.db.transaction(async (tx) => {
+				await storePassword(tx, personId, hash, now);
+				const ended = await tx.delete(sessions).where(eq(sessions.personId, personId)).returning({ id: sessions.id });
+				await tx.delete(signInThrottles).where(eq(signInThrottles.personId, personId));
+				await pending.endFor(tx, personId);
+				const result = { signedOutSessions: ended.length };
+				// `also` uses up the link this reset came with; every other link of the person ends after it.
+				await also?.(tx, result);
+				await tx.delete(passwordResets).where(eq(passwordResets.personId, personId));
+				return result;
+			});
+		},
+
+		async endSessions(tx, personId) {
+			const ended = await tx.delete(sessions).where(eq(sessions.personId, personId)).returning({ id: sessions.id });
+			await pending.endFor(tx, personId);
+			return ended.length;
+		},
+
+		async setDeactivated(tx, personId, at) {
+			await tx.update(people).set({ deactivatedAt: at, updatedAt: clock.now() }).where(eq(people.id, personId));
+			if (at) await tx.delete(passwordResets).where(eq(passwordResets.personId, personId));
 		},
 
 		createPerson(tx, person) {
@@ -620,6 +698,8 @@ export function createAuth(options: AuthOptions): Auth {
 
 		removePasskey: (session, passkeyId, also) => factors.removePasskey(session.personId, session.id, passkeyId, also),
 
+		purgeSignInCounters: () => lockout.purge(),
+
 		async passkeySignInOptions({ headers }) {
 			const personId = await pending.personOf(headers);
 			const challenge = await passkeys.newChallenge("sign-in", personId);
@@ -629,7 +709,7 @@ export function createAuth(options: AuthOptions): Auth {
 		async signInWithPasskey(credential, request) {
 			const waiting = await pending.personOf(request.headers);
 			const stored = await checkAssertion(credential, "sign-in", waiting);
-			await lockout.recordSuccess(stored.personId);
+			await lockout.secondStep.recordSuccess(stored.personId);
 			const finished = await pending.finish(request.headers);
 			return { personId: stored.personId, setCookie: [...(await startSession(stored.personId, request)), finished] };
 		},
@@ -662,6 +742,24 @@ const sessionStarter = {
 		),
 	},
 } satisfies BetterAuthPlugin;
+
+/** Stores a person's password hash: their one `credential` row, made when they have none. */
+async function storePassword(tx: Transaction, personId: string, hash: string, now: Date): Promise<void> {
+	const changed = await tx
+		.update(credentials)
+		.set({ password: hash, updatedAt: now })
+		.where(and(eq(credentials.personId, personId), eq(credentials.providerId, PASSWORD_PROVIDER)))
+		.returning({ id: credentials.id });
+	if (changed.length > 0) return;
+	await tx.insert(credentials).values({
+		personId,
+		accountId: personId,
+		providerId: PASSWORD_PROVIDER,
+		password: hash,
+		createdAt: now,
+		updatedAt: now,
+	});
+}
 
 /** Whether `password` is the person's password. People without one never match. */
 async function passwordMatches(database: Database, personId: string, password: string): Promise<boolean> {

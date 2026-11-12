@@ -61,6 +61,7 @@ describe("the Members screen", () => {
 				otherSites: 0,
 				since: install.clock.now(),
 				manageable: true,
+				deactivated: false,
 			},
 			{
 				id: owner.personId,
@@ -71,6 +72,7 @@ describe("the Members screen", () => {
 				otherSites: 0,
 				since: install.clock.now(),
 				manageable: true,
+				deactivated: false,
 			},
 		]);
 		expect(list.invites).toEqual([

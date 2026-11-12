@@ -94,11 +94,12 @@ export const en: EmailWording = {
 			action: { label: "Sign in", path: "/sign-in" },
 		}),
 		"account-locked": ({ failedAttempts, lockedMinutes }, { installName }) => ({
-			subject: "Your account is locked for a while",
-			heading: "Your account is locked for a while",
+			subject: "Too many failed attempts to sign in to your account",
+			heading: "Too many failed attempts to sign in to your account",
 			paragraphs: [
-				`After ${failedAttempts} failed attempts to sign in, your account on ${installName} is locked for ${minutes(lockedMinutes)}.`,
-				"If it was you, wait and try again. If it wasn't, someone may be guessing your password: change it once you can sign in.",
+				`After ${failedAttempts} wrong passwords or codes for your account on ${installName}, further tries from where they came from are refused for ${minutes(lockedMinutes)}.`,
+				"Your passkeys, the browsers you are signed in with, your API tokens and AI clients keep working.",
+				"If it was you, wait and try again, or use “Forgot your password?” on the sign-in page. If it wasn't, someone may be guessing your password: change it. You are told about this at most once a day.",
 			],
 		}),
 		"two-factor-reset": ({ resetBy }, { installName }) => ({
@@ -108,6 +109,7 @@ export const en: EmailWording = {
 				resetBy
 					? `${resetBy} reset the two-factor authentication of your account on ${installName}. Sign in with your password and set it up again.`
 					: `The two-factor authentication of your account on ${installName} was reset with a command on the server. Sign in with your password and set it up again.`,
+				"You were signed out everywhere, and your API tokens and AI clients were ended too: make them again once you are back in.",
 				"If you didn't ask for it, tell whoever runs this Install at once.",
 			],
 			action: { label: "Sign in", path: "/sign-in" },

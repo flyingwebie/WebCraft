@@ -89,11 +89,11 @@ export function isRedactedName(name: string): boolean {
 
 /** Query and form parameters whose values are secrets, in URLs and text. */
 const SECRET_PARAMETERS =
-	"token|access_token|refresh_token|id_token|code|key|api_key|apikey|content_key|contentkey|password|passwd|secret|client_secret|passphrase|signature|sig|sentry_key";
+	"token|access_token|refresh_token|id_token|code|device_code|user_code|key|api_key|apikey|content_key|contentkey|password|passwd|secret|client_secret|passphrase|signature|sig|sentry_key";
 
 const TEXT_RULES: readonly [RegExp, string][] = [
-	// WebCraft's own API tokens, Content keys and OAuth codes, tokens and client secrets.
-	[/\bwebcraft(?:-(?:ck|at|rt|cs|code))?_[A-Za-z0-9_-]{8,}/g, REDACTED],
+	// WebCraft's own API tokens, Content keys and OAuth codes (device codes too), tokens and client secrets.
+	[/\bwebcraft(?:-(?:ck|at|rt|cs|dc|code))?_[A-Za-z0-9_-]{8,}/g, REDACTED],
 	// Credentials in an Authorization header written out.
 	[/\b(Bearer|Basic|Digest)\s+[A-Za-z0-9._~+/=-]{6,}/gi, `$1 ${REDACTED}`],
 	// A user and password in a URL: postgres://user:password@host/…

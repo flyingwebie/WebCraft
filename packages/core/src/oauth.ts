@@ -6,7 +6,6 @@ import {
 	oauthGrantSites,
 	oauthGrants,
 	oauthTokens,
-	people,
 	sites,
 	workspaces,
 } from "@webcraft/db/schema";
@@ -23,10 +22,17 @@ import {
 import { type AuditVia, recordAudit } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import { isUuid } from "./ids.ts";
+import { networkOf } from "./ip-ranges.ts";
 import type { People } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
 import { can, type GrantActor, type Reach } from "./permissions/can.ts";
-import { RateLimitedError, type RateLimitRule, type RateLimits, type RateLimitTally } from "./rate-limits.ts";
+import {
+	addressSubject,
+	RateLimitedError,
+	type RateLimitRule,
+	type RateLimits,
+	type RateLimitTally,
+} from "./rate-limits.ts";
 import type { Access, Executor, WorkspaceScope } from "./tenancy/data-layer.ts";
 import { SiteNotFoundError } from "./tenancy/errors.ts";
 import { newToken } from "./tokens.ts";
@@ -167,7 +173,19 @@ export type AuthorizationRequest = {
 export type AuthorizationCheck =
 	| { kind: "ask"; request: AuthorizationRequest }
 	| { kind: "refused"; problem: "client" | "redirectUri" }
-	| { kind: "redirect"; to: string };
+	/**
+	 * A registered client and address, but a request that can't be approved (no PKCE, another
+	 * response type). `returnTo` is the client's address with the error: the page offers it behind a
+	 * button and never follows it by itself, since anyone may register a client with any address, and
+	 * a link on the admin's own hostname must not land a signed-in person somewhere else unasked.
+	 */
+	| {
+			kind: "refused";
+			problem: "request";
+			client: { name: string; redirectHost: string };
+			description: string;
+			returnTo: string;
+	  };
 
 /** What the person chose on the approval page. */
 export type GrantChoice = {
@@ -225,7 +243,25 @@ export type DeviceAuthorizationAnswer = {
  * approved: no such code (`unknown`), too late (`expired`), or already approved or denied (`decided`).
  */
 export type DeviceCheck =
-	| { kind: "ask"; request: { client: { id: string; name: string }; userCode: string } }
+	| {
+			kind: "ask";
+			request: {
+				/** The client's name is whatever it registered under: anyone may choose any name. */
+				client: { id: string; name: string };
+				userCode: string;
+				/** What WebCraft itself knows: when the code was asked for, */
+				requestedAt: Date;
+				/** from which network (the address with its end hidden, null when unknown), */
+				network: string | null;
+				/** and whether that is the network of the browser looking it up. */
+				sameNetwork: boolean;
+			};
+	  }
+	/**
+	 * The code came in a link, to a browser on another network than the one that asked for it: nothing
+	 * about the sign-in is shown, and the person types the code their own terminal shows instead.
+	 */
+	| { kind: "type" }
 	| { kind: "refused"; problem: "unknown" | "expired" | "decided" };
 
 /** A user code that can't be approved or denied (any more): see `DeviceCheck`'s problems. */
@@ -290,7 +326,16 @@ export type OAuth = {
 	 * Looks up a user code the person typed on the approval page, at most `OAUTH_USER_CODE_LIMIT`
 	 * times per person (`RateLimitedError` past it).
 	 */
-	checkDevice(userCode: string, personId: string): Promise<DeviceCheck>;
+	checkDevice(
+		userCode: string,
+		personId: string,
+		from: {
+			/** The person typed the code (true), or it came filled in by a link (false). */
+			typed: boolean;
+			/** The client address of the person's browser. */
+			clientAddress: string | null;
+		},
+	): Promise<DeviceCheck>;
 	/**
 	 * Approves a user code as the person acting in `workspace`: makes the grant, which the client's
 	 * next poll exchanges for tokens. Logged as `aiClient.approve`. Throws `DeviceCodeInvalidError`;
@@ -403,8 +448,16 @@ export function createOAuth({
 		const redirectUri = parameters.redirect_uri;
 		if (!redirectUri || !client.redirectUris.includes(redirectUri)) return { kind: "refused", problem: "redirectUri" };
 		const back = (error: string, description: string) => ({
-			kind: "redirect" as const,
-			to: answerUrl(redirectUri, { error, error_description: description, state: parameters.state, iss: issuer }),
+			kind: "refused" as const,
+			problem: "request" as const,
+			client: { name: client.name, redirectHost: hostOf(redirectUri) },
+			description,
+			returnTo: answerUrl(redirectUri, {
+				error,
+				error_description: description,
+				state: parameters.state,
+				iss: issuer,
+			}),
 		});
 		if (parameters.response_type !== "code") {
 			return back("unsupported_response_type", "Only the authorization code flow (response_type=code) is offered.");
@@ -668,7 +721,6 @@ export function createOAuth({
 			if (found.kind === "refused") {
 				throw new OAuthRequestError("invalid_request", "This authorization request can't be approved.");
 			}
-			if (found.kind === "redirect") return { redirectTo: found.to, grantId: "" };
 			const listed = choice.sites === "all" ? null : [...new Set(choice.sites)];
 			if (listed !== null) {
 				if (listed.length === 0) throw new SiteNotFoundError();
@@ -731,7 +783,6 @@ export function createOAuth({
 			if (found.kind === "refused") {
 				throw new OAuthRequestError("invalid_request", "This authorization request can't be answered.");
 			}
-			if (found.kind === "redirect") return { redirectTo: found.to };
 			return {
 				redirectTo: answerUrl(found.redirectUri, {
 					error: "access_denied",
@@ -911,6 +962,7 @@ export function createOAuth({
 						clientId: client.id,
 						resource: target,
 						createdAt: now,
+						requestedFrom: clientAddress,
 						expiresAt: new Date(now.getTime() + OAUTH_LIFETIMES.deviceMs),
 						intervalSeconds: DEVICE_POLL_INTERVAL_SECONDS,
 						status: "pending",
@@ -934,16 +986,27 @@ export function createOAuth({
 			}
 		},
 
-		async checkDevice(userCode, personId) {
+		async checkDevice(userCode, personId, { typed, clientAddress }) {
 			await countUserCode(personId);
 			const looked = await deviceByUserCode(db, userCode, clock.now());
 			if (!looked.ok) return { kind: "refused", problem: looked.problem };
 			const { found, letters } = looked;
+			// The same client, as every limit per client address counts one (an IPv6 /64 is one client).
+			const sameNetwork =
+				found.device.requestedFrom !== null &&
+				clientAddress !== null &&
+				addressSubject(found.device.requestedFrom) === addressSubject(clientAddress);
+			// A link fills the code in for whoever opens it. Only the person at the terminal has the code
+			// to type; a link is trusted only on the network the sign-in was started from.
+			if (!typed && !sameNetwork) return { kind: "type" };
 			return {
 				kind: "ask",
 				request: {
 					client: { id: found.client.id, name: found.client.name },
 					userCode: `${letters.slice(0, 4)}-${letters.slice(4)}`,
+					requestedAt: found.device.createdAt,
+					network: networkOf(found.device.requestedFrom),
+					sameNetwork,
 				},
 			};
 		},
@@ -1037,24 +1100,17 @@ export function createOAuth({
 			if (!secret) throw new ApiTokenInvalidError("missing");
 			if (!secret.startsWith(OAUTH_PREFIXES.access) || secret.length > 200) throw new ApiTokenInvalidError("unknown");
 			const [found] = await db
-				.select({ token: oauthTokens, grant: oauthGrants, lockedUntil: people.lockedUntil })
+				.select({ token: oauthTokens, grant: oauthGrants })
 				.from(oauthTokens)
 				.innerJoin(oauthGrants, eq(oauthGrants.id, oauthTokens.grantId))
-				.innerJoin(people, eq(people.id, oauthGrants.personId))
 				.where(and(eq(oauthTokens.tokenHash, await hashed(secret)), eq(oauthTokens.kind, "access")));
 			if (!found) throw new ApiTokenInvalidError("unknown");
-			const { token, grant, lockedUntil } = found;
+			const { token, grant } = found;
 			// A grant's tokens are for one resource: the CLI's for the API, an AI client's for the MCP server.
 			if ((grant.resource ?? resource) !== wanted) throw new ApiTokenInvalidError("unknown");
 			const now = clock.now();
 			if (grant.revokedAt || token.usedAt) throw new ApiTokenInvalidError("revoked");
 			if (token.expiresAt.getTime() <= now.getTime()) throw new ApiTokenInvalidError("expired");
-			if (lockedUntil && lockedUntil.getTime() > now.getTime()) {
-				throw new ApiTokenInvalidError(
-					"locked",
-					Math.max(1, Math.ceil((lockedUntil.getTime() - now.getTime()) / 1000)),
-				);
-			}
 			const [person, personActor, listed] = await Promise.all([
 				peopleService.get(grant.personId),
 				loadPersonActor(db, grant.personId),
@@ -1161,7 +1217,7 @@ async function revokeGrant(
 	executor: Executor,
 	grant: Pick<GrantRow, "id" | "clientName" | "personId" | "workspaceId">,
 	now: Date,
-	reason: "person" | "client" | "access" | "reuse",
+	reason: "person" | "client" | "access" | "reuse" | "reset",
 	by: { personId: string | null; via: AuditVia } = {
 		personId: null,
 		via: { kind: "aiClient", name: grant.clientName },
@@ -1193,6 +1249,37 @@ async function revokeGrant(
  * logging `aiClient.revoke` with `reason: "access"` as `by` did it. Call it inside the transaction
  * of the change that took their access, beside `revokeTokensOutOfReach`.
  */
+/** How many AI clients (and CLI sign-ins) of the person work now, for telling them what a password change leaves active. */
+export async function countActiveGrants(executor: Executor, personId: string): Promise<number> {
+	const active = await executor
+		.select({ id: oauthGrants.id })
+		.from(oauthGrants)
+		.where(and(eq(oauthGrants.personId, personId), isNull(oauthGrants.revokedAt)));
+	return active.length;
+}
+
+/**
+ * Revokes every grant of the person, logging `aiClient.revoke` with `reason: "reset"` as `by` did
+ * it: their two-factor authentication was reset because someone else may have had the account, and
+ * a client approved with it acts as them just the same. Call it inside that transaction.
+ */
+export async function revokeEveryGrant(
+	executor: Executor,
+	personId: string,
+	now: Date,
+	by: { personId: string | null; via: AuditVia },
+): Promise<number> {
+	const active = await executor
+		.select()
+		.from(oauthGrants)
+		.where(and(eq(oauthGrants.personId, personId), isNull(oauthGrants.revokedAt)));
+	let revoked = 0;
+	for (const grant of active) {
+		if (await revokeGrant(executor, grant, now, "reset", by)) revoked++;
+	}
+	return revoked;
+}
+
 export async function revokeGrantsOutOfReach(
 	executor: Executor,
 	personId: string,

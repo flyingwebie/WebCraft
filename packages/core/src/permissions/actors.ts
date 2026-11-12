@@ -1,5 +1,5 @@
 import type { Database, Transaction } from "@webcraft/db";
-import { installRoles, membershipSites, memberships, staffWorkspaces } from "@webcraft/db/schema";
+import { installRoles, membershipSites, memberships, people, staffWorkspaces } from "@webcraft/db/schema";
 import { eq } from "drizzle-orm";
 
 import type { ActorMembership, PersonActor } from "./can.ts";
@@ -11,8 +11,13 @@ type Executor = Database["db"] | Transaction;
  * and their Memberships with the Sites each reaches. Read fresh for every request, so a change to
  * someone's access takes effect on their next request. This reads one person's own access across
  * Workspaces, which is why it doesn't go through the Workspace data layer.
+ *
+ * A person whose account is deactivated holds no role anywhere, whatever their rows say: nothing
+ * acts as them (a session, an API token, an AI client, an impersonation) until they are reactivated.
  */
 export async function loadPersonActor(executor: Executor, personId: string): Promise<PersonActor> {
+	const deactivation = () =>
+		executor.select({ deactivatedAt: people.deactivatedAt }).from(people).where(eq(people.id, personId));
 	const roles = () =>
 		executor
 			.select({ role: installRoles.role, allWorkspaces: installRoles.allWorkspaces })
@@ -35,9 +40,10 @@ export async function loadPersonActor(executor: Executor, personId: string): Pro
 			.innerJoin(memberships, eq(memberships.id, membershipSites.membershipId))
 			.where(eq(memberships.personId, personId));
 	// On the pool the three run side by side; a transaction has one connection, which takes one at a time.
-	const [roleRows, membershipRows, siteRows] = isTransaction(executor)
-		? [await roles(), await memberRows(), await siteRowsOf()]
-		: await Promise.all([roles(), memberRows(), siteRowsOf()]);
+	const [personRows, roleRows, membershipRows, siteRows] = isTransaction(executor)
+		? [await deactivation(), await roles(), await memberRows(), await siteRowsOf()]
+		: await Promise.all([deactivation(), roles(), memberRows(), siteRowsOf()]);
+	if (personRows[0]?.deactivatedAt) return { kind: "person", personId, installRole: null, memberships: [] };
 
 	let installRole: PersonActor["installRole"] = null;
 	const [role] = roleRows;

@@ -47,7 +47,7 @@ Web and worker refuse to start when a setting is missing or malformed, when the 
 ## The first start
 
 1. The migrate step runs first and creates the database's tables (each target's files run it before web and worker, on every deploy).
-2. The web process prints a **setup link** in its log (`setupUrl`, with a one-time `setupToken`) while the Install has no Superadmin. Open it on the admin host to create the Superadmin. On a server without a browser, `webcraft admin create-superadmin <email>` does the same from the shell; `webcraft admin setup` prints a new setup link if the log is out of reach.
+2. The web process prints a **setup link** in its log (`setupUrl`, with a one-time `setupToken`) while the Install has no Superadmin. Open it on the admin host to create the Superadmin. On a server without a browser, `webcraft admin create-superadmin <email>` does the same from the shell; `webcraft admin setup` prints a new setup link if the log is out of reach. Only the newest link works, and for 24 hours: a restart or the command gives a new one.
 3. In the admin, confirm you have stored the Master key outside the server (a banner asks until you do), set up the Install SMTP, and approve the first-party Modules.
 
 ## The Master key

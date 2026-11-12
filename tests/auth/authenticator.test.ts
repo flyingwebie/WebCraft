@@ -44,6 +44,28 @@ function signInFirstStep(account: Pick<TestAccount, "email" | "password">) {
 }
 
 describe("adding an authenticator app", () => {
+	// The report's "Sloppy code": the secret was read once to check the code and again to save it, so
+	// starting over at that moment (a second tab, a double click) saved a secret the app doesn't hold,
+	// and the person was locked out of their own second step.
+	test("the secret that is saved is the one the code was checked against, even when adding is started again at that moment", async () => {
+		for (let round = 0; round < 20; round++) {
+			const { browser, account } = await newPerson();
+			const { secret } = await browser.api.me.twoFactor.startAuthenticator();
+			const [confirmed] = await Promise.allSettled([
+				browser.api.me.twoFactor.confirmAuthenticator({ code: totpCode(secret, install.clock.now()) }),
+				browser.api.me.twoFactor.startAuthenticator(),
+			]);
+			if (confirmed.status !== "fulfilled") continue;
+
+			// The app that was confirmed signs in.
+			const signedIn = await signInWithAuthenticator(install, account, secret);
+			expect({ round, person: (await signedIn.api.session.current()).person?.email }).toEqual({
+				round,
+				person: account.email,
+			});
+		}
+	});
+
 	test("shows a secret and its QR code's address, and adds the app once a code from it is right", async () => {
 		const { browser, account } = await newPerson();
 
@@ -238,7 +260,7 @@ describe("signing in with an authenticator app", () => {
 		).rejects.toMatchObject({ code: "SIGN_IN_EXPIRED" });
 	});
 
-	test("wrong codes count towards the lockout, and a right password in between doesn't start the count again", async () => {
+	test("10 wrong codes in a row lock the second step for 15 minutes, and a right password in between doesn't start the count again", async () => {
 		const { account, secret } = await personWithAuthenticator();
 		const wrongCode = () => totpCode(secret, install.clock.now(), 7);
 
@@ -263,9 +285,14 @@ describe("signing in with an authenticator app", () => {
 			}
 		}
 
-		expect((await install.lastEmailTo(account.email)).subject).toContain("locked");
+		expect((await install.lastEmailTo(account.email)).subject).toContain("Too many failed attempts");
+		// The password still opens the second step (whoever got this far knows it); no code is checked.
 		await install.clock.advance(TOTP_STEP_MS);
-		await expect(signInFirstStep(account).answer).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
+		const locked = signInFirstStep(account);
+		await locked.answer;
+		await expect(
+			locked.browser.api.session.secondStep({ method: "authenticator", code: totpCode(secret, install.clock.now()) }),
+		).rejects.toMatchObject({ code: "ACCOUNT_LOCKED", status: 423 });
 		await install.clock.advance(15 * MINUTE);
 		expect(
 			(await signInWithAuthenticator(install, account, secret).then((b) => b.api.session.current())).person,

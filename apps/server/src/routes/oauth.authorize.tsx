@@ -22,9 +22,9 @@ export const Route = createFileRoute("/oauth/authorize")({
 	loader: async ({ location }) => {
 		const parameters = Object.fromEntries(new URLSearchParams(location.searchStr));
 		const api = await getApi();
-		const answer = await api.oauth.check({ parameters });
-		if (answer.check.kind === "redirect") throw redirect({ href: answer.check.to });
-		return { ...answer, parameters };
+		// A request that can't be approved is said here, on the admin: the person is never sent on to
+		// the client's address by this page itself (see `AuthorizationCheck`).
+		return { ...(await api.oauth.check({ parameters })), parameters };
 	},
 	head: ({ match }) => ({ meta: [{ title: pageTitle(match.context.shell.language.code, "oauth.pageTitle") }] }),
 	component: ApprovalRoute,

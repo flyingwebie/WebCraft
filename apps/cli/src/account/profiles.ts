@@ -1,8 +1,9 @@
-import { readFile, rename, writeFile } from "node:fs/promises";
+import { rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { CliError, EXIT } from "../exit-codes.ts";
 import type { CredentialPlace } from "./credentials.ts";
+import { readKeptObject } from "./files.ts";
 
 /**
  * A profile: one Install the CLI signs in to, named (its host unless chosen: `cms.agency.example`).
@@ -29,15 +30,11 @@ export type ProfilesFile = {
 const FILE = "config.json";
 
 export async function readProfiles(configDir: string): Promise<ProfilesFile> {
-	try {
-		const parsed = JSON.parse(await readFile(join(configDir, FILE), "utf8")) as Partial<ProfilesFile>;
-		return {
-			default: typeof parsed.default === "string" ? parsed.default : null,
-			profiles: typeof parsed.profiles === "object" && parsed.profiles !== null ? parsed.profiles : {},
-		};
-	} catch {
-		return { default: null, profiles: {} };
-	}
+	const parsed: Partial<ProfilesFile> = (await readKeptObject(join(configDir, FILE))) ?? {};
+	return {
+		default: typeof parsed.default === "string" ? parsed.default : null,
+		profiles: typeof parsed.profiles === "object" && parsed.profiles !== null ? parsed.profiles : {},
+	};
 }
 
 export async function writeProfiles(configDir: string, file: ProfilesFile): Promise<void> {
