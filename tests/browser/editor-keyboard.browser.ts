@@ -62,6 +62,66 @@ async function waitForFocusRegion(page: Page, region: string) {
 
 for (const theme of THEMES)
 	for (const canvas of ["builder", "live"] as const) {
+		test(`Command menu shares speech, focus and keyboard help on ${canvas} (${theme})`, async () => {
+			const { page, tree } = await openEditor(theme, canvas);
+			const alpha = tree.getByRole("treeitem", { name: /^Alpha/ });
+			await alpha.click();
+			await alpha.press("ControlOrMeta+k");
+			const menu = page.getByRole("dialog", { name: "Command menu" });
+			const search = menu.getByRole("combobox");
+			await search.fill("Duplicate");
+			await page.locator("[data-editor-messages]").getByRole("status").filter({ hasText: "1 result" }).waitFor();
+			await search.press("F6");
+			expect(await focused(search)).toBe(true);
+			await search.press("Escape");
+			await menu.waitFor({ state: "hidden" });
+			await waitForFocusRegion(page, "tree");
+			expect(await focused(alpha)).toBe(true);
+			await alpha.press("ArrowLeft");
+			await alpha.press("ControlOrMeta+p");
+			await search.fill("Apple");
+			await menu.getByRole("option", { name: /^Apple/ }).waitFor();
+			await search.press("Enter");
+			await menu.waitFor({ state: "hidden" });
+			const apple = tree.getByRole("treeitem", { name: /^Apple/ });
+			await apple.waitFor();
+			await waitForFocusRegion(page, "tree");
+			expect(await focused(apple)).toBe(true);
+			expect(await alpha.getAttribute("aria-expanded")).toBe("true");
+			const html = page.getByRole("textbox", { name: canvas === "builder" ? "Template markup" : /^HTML of / });
+			await html.focus();
+			await html.press("ControlOrMeta+k");
+			await search.waitFor();
+			await search.press("Escape");
+			await menu.waitFor({ state: "hidden" });
+			expect(await focused(html)).toBe(true);
+			await html.press("ControlOrMeta+/");
+			const help = page.getByRole("dialog", { name: "Keyboard shortcuts" });
+			await help.waitFor();
+			for (const name of [
+				"Find a layer by typing its name",
+				"Open every branch at this level",
+				"Toggle the whole branch",
+				"Move between editor regions",
+				"Indent the selected lines",
+				"Outdent the selected lines",
+			])
+				expect(await help.getByRole("row").filter({ hasText: name }).count()).toBe(1);
+			await page.keyboard.press("F6");
+			expect(
+				await help.evaluate((element) =>
+					element.contains((element.getRootNode() as Document | ShadowRoot).activeElement),
+				),
+			).toBe(true);
+			await expectNoAxeViolations(page, `${canvas} shared command help ${theme}`, [], {
+				exclude: ["iframe[title^='Canvas']"],
+			});
+			expect(pageErrors(page)).toEqual([]);
+		});
+	}
+
+for (const theme of THEMES)
+	for (const canvas of ["builder", "live"] as const) {
 		test(`tree keyboard and logical row semantics on ${canvas} (${theme})`, async () => {
 			const { page, tree } = await openEditor(theme, canvas);
 			const alpha = tree.getByRole("treeitem", { name: /^Alpha/ });

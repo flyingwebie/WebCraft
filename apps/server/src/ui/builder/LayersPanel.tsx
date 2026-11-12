@@ -29,6 +29,7 @@ import { useAfterRender } from "../after-render.ts";
 import { useT } from "../i18n.tsx";
 import { editorAccessibility } from "./editor-accessibility.ts";
 import { type Catalogue, layerName, listName, type Selection } from "./model.ts";
+import { ariaKeys, matches, type ShortcutId, withKeys } from "./shortcuts.ts";
 import {
 	canHoldChildren,
 	childLists,
@@ -150,17 +151,17 @@ export type LayerAction =
 	| "rename"
 	| "delete";
 
-const ACTIONS: readonly { action: LayerAction; icon: LucideIcon; keys: string }[] = [
-	{ action: "moveUp", icon: ArrowUpIcon, keys: "Alt+ArrowUp" },
-	{ action: "moveDown", icon: ArrowDownIcon, keys: "Alt+ArrowDown" },
-	{ action: "moveIn", icon: CornerDownRightIcon, keys: "Alt+ArrowRight" },
-	{ action: "moveOut", icon: CornerUpLeftIcon, keys: "Alt+ArrowLeft" },
-	{ action: "cut", icon: ScissorsIcon, keys: "Control+X" },
-	{ action: "copy", icon: CopyIcon, keys: "Control+C" },
-	{ action: "paste", icon: ClipboardPasteIcon, keys: "Control+V" },
-	{ action: "duplicate", icon: CopyPlusIcon, keys: "Control+D" },
-	{ action: "rename", icon: PencilIcon, keys: "F2" },
-	{ action: "delete", icon: Trash2Icon, keys: "Delete" },
+const ACTIONS: readonly { action: LayerAction; icon: LucideIcon; shortcut: ShortcutId }[] = [
+	{ action: "moveUp", icon: ArrowUpIcon, shortcut: "tree.moveUp" },
+	{ action: "moveDown", icon: ArrowDownIcon, shortcut: "tree.moveDown" },
+	{ action: "moveIn", icon: CornerDownRightIcon, shortcut: "tree.moveIn" },
+	{ action: "moveOut", icon: CornerUpLeftIcon, shortcut: "tree.moveOut" },
+	{ action: "cut", icon: ScissorsIcon, shortcut: "tree.cut" },
+	{ action: "copy", icon: CopyIcon, shortcut: "tree.copy" },
+	{ action: "paste", icon: ClipboardPasteIcon, shortcut: "tree.paste" },
+	{ action: "duplicate", icon: CopyPlusIcon, shortcut: "element.duplicate" },
+	{ action: "rename", icon: PencilIcon, shortcut: "tree.rename" },
+	{ action: "delete", icon: Trash2Icon, shortcut: "element.delete" },
 ];
 
 /** How far each level of the Layers panel is indented (classes, not inline styles). */
@@ -192,6 +193,7 @@ export function LayersPanel({
 	onDrop,
 	onInsert,
 	focusRequest,
+	renameRequest = 0,
 	forest,
 	activeSource,
 	onSourceSelect,
@@ -202,6 +204,8 @@ export function LayersPanel({
 }: {
 	/** Changes only when an action or cross-canvas navigation explicitly requests tree focus. */
 	focusRequest: number;
+	/** Changes when the selected layer should start renaming (the Command menu's Rename). */
+	renameRequest?: number;
 	forest?: readonly LayerSource[];
 	activeSource?: string;
 	onSourceSelect?(source: string, selection: Selection): void;
@@ -234,6 +238,7 @@ export function LayersPanel({
 	const [renaming, setRenaming] = useState<string | null>(null);
 	const handledRequest = useRef(0);
 	const typed = useRef({ text: "", at: 0 });
+	const handledRename = useRef(renameRequest);
 	const [dragging, setDragging] = useState<NodePath | null>(null);
 	/** The last pointer pressed on a row: a finger never starts a drag (#126: Move up and Move down instead). */
 	const pointer = useRef("");
@@ -280,6 +285,13 @@ export function LayersPanel({
 		if (target) editorAccessibility(target.ownerDocument).focusSelectedRow();
 	}, [allRows, selectedAt, selectedKey, selection, focusKey, collapsed, onToggle, renaming, focusRequest]);
 
+	// The Command menu's Rename starts renaming the selected element's row.
+	useEffect(() => {
+		if (renameRequest === handledRename.current) return;
+		handledRename.current = renameRequest;
+		if (selectedRow?.kind === "node" && selectedRow.node.type === "element") setRenaming(selectedRow.key);
+	}, [renameRequest, selectedRow]);
+
 	const select = (row: LayerRow, focus = true) => {
 		const selection: Selection =
 			row.kind === "node" ? { kind: "node", path: row.path } : { kind: "list", list: row.list };
@@ -324,7 +336,7 @@ export function LayersPanel({
 			return;
 		}
 		if (event.altKey && !mod) {
-			if (event.key === "Enter" && row.expandable) {
+			if (matches(event.nativeEvent, "tree.toggleBranch") && row.expandable) {
 				handled();
 				const all = forest ? forestRows(forest, new Set()) : layerRows(tree, new Set());
 				const start = all.findIndex((each) => each.key === row.key);
@@ -359,12 +371,12 @@ export function LayersPanel({
 			}
 			return;
 		}
-		if (event.key === "*") {
+		if (matches(event.nativeEvent, "tree.openLevel")) {
 			handled();
 			for (const each of rows) if (each.depth === row.depth && each.expandable) onToggle(each.key, true);
 			return;
 		}
-		if (event.key.length === 1 && /\p{L}/u.test(event.key)) {
+		if (matches(event.nativeEvent, "tree.typeahead")) {
 			handled();
 			const now = Date.now();
 			const letter = event.key.toLocaleLowerCase();
@@ -500,7 +512,8 @@ export function LayersPanel({
 					size="sm"
 					variant="outline"
 					onClick={onInsert}
-					aria-keyshortcuts="Control+I"
+					aria-keyshortcuts={ariaKeys("menu.insert")}
+					title={withKeys(t("builder.insert.open"), "menu.insert")}
 				>
 					<PlusIcon aria-hidden="true" />
 					{t("builder.insert.open")}
@@ -508,7 +521,7 @@ export function LayersPanel({
 			</div>
 			<fieldset className="flex flex-wrap gap-0.5 border-b px-2 py-1">
 				<legend className="sr-only">{t("builder.layers.actions")}</legend>
-				{ACTIONS.map(({ action, icon: Icon, keys }) => {
+				{ACTIONS.map(({ action, icon: Icon, shortcut }) => {
 					const disabled =
 						action === "paste" ? !canPaste || !selectedRow : action === "rename" ? !nodeSelected : !nodeSelected;
 					return (
@@ -519,8 +532,8 @@ export function LayersPanel({
 							size="icon-sm"
 							disabled={disabled}
 							aria-label={t(`builder.layers.action.${action}`)}
-							title={`${t(`builder.layers.action.${action}`)} (${keys.replace("Control", "Ctrl")})`}
-							aria-keyshortcuts={keys}
+							title={withKeys(t(`builder.layers.action.${action}`), shortcut)}
+							aria-keyshortcuts={ariaKeys(shortcut)}
 							onClick={() => (action === "rename" ? startRename() : onAction(action))}
 						>
 							<Icon aria-hidden="true" />

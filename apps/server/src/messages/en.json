@@ -4360,18 +4360,7 @@
 		},
 		"insert": {
 			"open": "Insert",
-			"close": "Close",
-			"title": "Insert",
-			"intro": "Semantic elements first. Type to filter, then press Enter.",
-			"search": "Find an element",
-			"searchPlaceholder": "Heading, list, Loop…",
-			"none": "Nothing matches.",
 			"where": "Where",
-			"whereOptions": {
-				"inside": "Inside the selected layer",
-				"after": "After it",
-				"before": "Before it"
-			},
 			"groups": {
 				"sections": "Sections",
 				"text": "Text",
@@ -4379,7 +4368,8 @@
 				"values": "Values",
 				"commands": "Template commands",
 				"components": "Components",
-				"other": "Other"
+				"other": "Other",
+				"elements": "HTML elements"
 			},
 			"tags": {
 				"section": "Section",
@@ -4700,7 +4690,176 @@
 			"notPlaced": "Not placed on any page",
 			"saveFirst": "Save the Template first"
 		},
-		"scriptPreview": "Scripts run on the page. Use View on a page to run this Draft in Code mode."
+		"scriptPreview": "Scripts run on the page. Use View on a page to run this Draft in Code mode.",
+		"commandMenu": {
+			"title": "Command menu",
+			"open": "Command menu",
+			"close": "Close",
+			"tabs": {
+				"label": "Command menu tabs",
+				"actions": "Actions",
+				"goTo": "Go to",
+				"insert": "Insert"
+			},
+			"search": {
+				"actions": "Search actions",
+				"goTo": "Go to a page, Template, Component or layer",
+				"insert": "Find an element"
+			},
+			"placeholder": {
+				"actions": "Save, Duplicate, Wrap in…",
+				"goTo": "About, Hero, Blog posts…",
+				"insert": "Heading, list, Loop…"
+			},
+			"results": "Results",
+			"recent": "Recent",
+			"count": "{count, plural, =0 {No results} one {# result} other {# results}}",
+			"none": "Nothing matches.",
+			"loading": "Loading…",
+			"option": "{label}, {group}",
+			"optionKeys": "{label}, {group}, {keys}",
+			"groups": {
+				"editor": "Editor",
+				"element": "Element",
+				"placement": "Placement",
+				"pages": "Pages",
+				"templates": "Templates",
+				"components": "Components",
+				"layers": "Layers on this page"
+			},
+			"actions": {
+				"save": "Save Draft",
+				"publish": "Publish",
+				"undo": "Undo",
+				"redo": "Redo",
+				"openBuilder": "Open in builder",
+				"viewOnPage": "View on a page",
+				"siteCss": "Open Site CSS",
+				"pageScript": "Open the page script",
+				"safeModeOn": "Turn Safe mode on",
+				"safeModeOff": "Turn Safe mode off",
+				"preview": "Preview",
+				"leave": "Leave Edit mode",
+				"rename": "Rename",
+				"duplicate": "Duplicate",
+				"copy": "Copy",
+				"paste": "Paste",
+				"delete": "Delete",
+				"parent": "Select parent",
+				"wrap": "Wrap in {what}",
+				"unwrap": "Unwrap",
+				"editComponent": "Edit the Component",
+				"hidePlacement": "Hide the Placement",
+				"showPlacement": "Show the Placement"
+			},
+			"wrap": {
+				"div": "div",
+				"section": "section",
+				"a": "link",
+				"loop": "Loop",
+				"condition": "Condition"
+			},
+			"keywords": {
+				"save": "draft store keep",
+				"publish": "go live release",
+				"undo": "back revert",
+				"redo": "again forward",
+				"switchCanvas": "builder code mode canvas switch page",
+				"siteCss": "stylesheet styles css site",
+				"pageScript": "javascript js script page",
+				"safeMode": "scripts safe disable",
+				"preview": "view look",
+				"leave": "exit quit end close edit",
+				"rename": "label name layer",
+				"duplicate": "copy clone",
+				"copy": "clipboard",
+				"paste": "clipboard",
+				"delete": "remove erase",
+				"parent": "up select container",
+				"wrap": "wrap container group",
+				"unwrap": "unwrap remove container flatten",
+				"editComponent": "component open edit",
+				"hidePlacement": "hide show hidden visible placement"
+			},
+			"nothingToUndo": "Nothing to undo.",
+			"nothingToRedo": "Nothing to redo.",
+			"noParent": "{name} has no parent layer.",
+			"wrapped": "Wrapped {name} in {what}.",
+			"unwrapped": "Unwrapped {name}.",
+			"cannotUnwrap": "{name} holds nothing to unwrap.",
+			"cannotUnwrapBranches": "{name} has content in another branch (an Else, or an Empty state): unwrapping it would lose that, so it stays as it is.",
+			"publishConfirm": {
+				"title": "Publish {name}?",
+				"body": "Visitors see the published version at once, on every page that uses it.",
+				"confirm": "Publish",
+				"cancel": "Cancel"
+			},
+			"insert": {
+				"inside": "Inserts inside {name}",
+				"after": "Inserts after {name}",
+				"end": "Inserts at the end of the page body",
+				"inverseAfter": "Insert after instead",
+				"inverseInside": "Insert inside instead",
+				"inverse": "Insert the other way",
+				"inverseHint": "{keys}: {action}"
+			},
+			"templates": {
+				"siteTemplate": "Site template",
+				"searchTemplate": "Search results template",
+				"entryTemplate": "{postType} · Entry template",
+				"archiveTemplate": "{postType} · Archive template"
+			},
+			"shortcuts": {
+				"open": "Keyboard shortcuts",
+				"title": "Keyboard shortcuts",
+				"intro": "Every key the editor uses, by where it works. The same keys show in tooltips and in the Command menu.",
+				"keys": "Keys",
+				"action": "What it does",
+				"close": "Close"
+			},
+			"areas": {
+				"menu": "Command menu",
+				"editor": "Editor",
+				"element": "Selected element, outside the code panels",
+				"tree": "Layers panel",
+				"insert": "Insert tab"
+			},
+			"keys": {
+				"rows": "Move between layers",
+				"ends": "Go to the first or last layer",
+				"openClose": "Open or close a layer, or go to its parent",
+				"toggle": "Open or close a layer",
+				"pick": "Pick a layer up, or put it down",
+				"putBack": "Put a picked-up layer back",
+				"typeahead": "Find a layer by typing its name",
+				"openLevel": "Open every branch at this level",
+				"toggleBranch": "Toggle the whole branch",
+				"regions": "Move between editor regions",
+				"indent": "Indent the selected lines",
+				"outdent": "Outdent the selected lines"
+			},
+			"keyNames": {
+				"command": "Command",
+				"control": "Control",
+				"shift": "Shift",
+				"option": "Option",
+				"alt": "Alt",
+				"up": "Up Arrow",
+				"down": "Down Arrow",
+				"left": "Left Arrow",
+				"right": "Right Arrow",
+				"enter": "Enter",
+				"delete": "Delete",
+				"forwardDelete": "Forward Delete",
+				"escape": "Escape",
+				"space": "Space",
+				"slash": "Slash",
+				"letter": "Letter",
+				"asterisk": "Asterisk",
+				"leftBracket": "Left bracket",
+				"rightBracket": "Right bracket"
+			}
+		}
 	},
 	"siteEmail": {
 		"pageTitle": "Email (SMTP)",

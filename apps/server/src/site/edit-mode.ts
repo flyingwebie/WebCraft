@@ -120,6 +120,14 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 			adminOrigin: services.config.adminOrigin,
 		});
 	},
+	/**
+	 * What the Command menu needs in Code mode: the Permissions the person holds on the Site (checked
+	 * with `can()`) and Go to's Pages, Entries by Post Type, Templates and Components.
+	 */
+	"code/commandMenu": async (services, session) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, await services.builder.commandMenu(scope));
+	},
 	"code/editorService": async (services, session, body) => {
 		const scope = await services.codeMode.access(session);
 		const { method, input } = parse(

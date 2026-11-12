@@ -259,6 +259,45 @@ export function replaceAt(tree: ElementTree, path: NodePath, node: TreeNode): El
 	return changeList(tree, place, (nodes) => nodes.map((each, index) => (index === place.index ? node : each)));
 }
 
+/**
+ * The tree with the node at `path` inside `wrapper` (an element, a Loop or a Condition's first
+ * branch, made empty), where the node was; the wrapper's path is the same.
+ */
+export function wrapAt(tree: ElementTree, path: NodePath, wrapper: TreeNode): Changed | Refused {
+	const node = nodeAt(tree, path);
+	if (!node) return { refused: "gone" };
+	let made: TreeNode;
+	if (wrapper.type === "element") made = { ...wrapper, children: [node] };
+	else if (wrapper.type === "loop") made = { ...wrapper, children: [node] };
+	else if (wrapper.type === "condition" && wrapper.branches[0])
+		made = { ...wrapper, branches: [{ ...wrapper.branches[0], children: [node] }, ...wrapper.branches.slice(1)] };
+	else return { refused: "cannot-wrap" };
+	return { tree: replaceAt(tree, path, made), path };
+}
+
+/**
+ * Whether a node can be unwrapped without losing anything: it holds something in its first list, and
+ * none of its other lists (a Condition's other branches and Else, a Loop's Empty state) holds anything.
+ */
+export function canUnwrap(node: TreeNode): boolean {
+	if (node.type === "component") return false;
+	const [first, ...others] = childLists(node);
+	return (first?.length ?? 0) > 0 && others.every((list) => list.length === 0);
+}
+
+/**
+ * The tree with the node at `path` replaced by what it holds (its first list); its first child's path.
+ * Refused when another of its lists holds anything (`other-branches`): that would be lost.
+ */
+export function unwrapAt(tree: ElementTree, path: NodePath): Changed | Refused {
+	const node = nodeAt(tree, path);
+	if (!node) return { refused: "gone" };
+	const [inside, ...others] = childLists(node);
+	if (others.some((list) => list.length > 0)) return { refused: "other-branches" };
+	if (!inside?.length || node.type === "component") return { refused: "nothing-inside" };
+	return insertAt(removeAt(tree, path), placeOf(path), inside);
+}
+
 /** The index of the nearest node before (`-1`) or after (`1`) one in its list that isn't formatting. */
 function neighbour(nodes: readonly TreeNode[], index: number, step: -1 | 1): number | undefined {
 	for (let at = index + step; at >= 0 && at < nodes.length; at += step) {

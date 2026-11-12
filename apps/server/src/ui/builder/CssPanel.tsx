@@ -104,6 +104,8 @@ export type CssPanelProps = {
 	refreshCatalogue(): Promise<void>;
 	/** Changes whenever the Design system's Draft changed elsewhere: the panel reads it again. */
 	designVersion?: number;
+	/** Changes when the Site CSS should open, its editor focused (the Command menu's Open Site CSS). */
+	showSiteCss?: number;
 };
 
 type View = "all" | "own" | string;
@@ -208,6 +210,7 @@ export function CssPanel({
 	designVersion = 0,
 	departure,
 	onEdit,
+	showSiteCss = 0,
 }: CssPanelProps) {
 	const t = useT();
 	const id = useId();
@@ -262,6 +265,13 @@ export function CssPanel({
 		tab = picked.tab;
 	else tab = lastClass.current && classTabs.includes(lastClass.current) ? lastClass.current : (classTabs[0] ?? SITE);
 	const chosen = tab === SITE ? undefined : known.get(tab);
+	const handledSiteCss = useRef(showSiteCss);
+	useEffect(() => {
+		if (showSiteCss === handledSiteCss.current) return;
+		handledSiteCss.current = showSiteCss;
+		setPicked({ element: elementId, tab: SITE });
+		requestAnimationFrame(() => area.current?.focus());
+	}, [showSiteCss, elementId]);
 	const breakpoints = data?.breakpoints ?? [];
 	const shownView: View =
 		view === "all" || view === "own" || breakpoints.some((each) => each.id === view) ? view : "all";
