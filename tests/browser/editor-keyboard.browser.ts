@@ -109,6 +109,11 @@ for (const theme of THEMES)
 			await html.press("ControlOrMeta+/");
 			const help = page.getByRole("dialog", { name: "Keyboard shortcuts" });
 			await help.waitFor();
+			// Opening the dialog transfers focus after render; exercise F6 once that transfer finishes.
+			await page.waitForFunction(
+				(element) => element?.contains((element.getRootNode() as Document | ShadowRoot).activeElement),
+				await help.elementHandle(),
+			);
 			for (const name of [
 				"Find a layer by typing its name",
 				"Open every branch at this level",
