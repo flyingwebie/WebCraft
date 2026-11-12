@@ -871,3 +871,126 @@ test("on an Entry's own page the history takes back its title and Fields, and Un
 		await page.close();
 	}
 });
+
+test("steps keep the order they were made in when an earlier save is answered later", async () => {
+	const site = await bakery("history-order");
+	let holding = false;
+	const held: (() => void)[] = [];
+	const page = await enter("light", site.siteId, site.member.account, {
+		prepare: (page) =>
+			page.routeWebSocket(/\/_webcraft\/edit\/drafts\/entry\//, (socket) => {
+				const server = socket.connectToServer();
+				socket.onMessage((message) => server.send(message));
+				server.onMessage((message) => {
+					if (holding) held.push(() => socket.send(message));
+					else socket.send(message);
+				});
+			}),
+	});
+	try {
+		await layoutButton(page).click();
+		await page.getByRole("treeitem", { name: /Hero · North/ }).click();
+		await page.getByRole("button", { name: "Props", exact: true }).click();
+		const heading = page.locator('[data-editor-region="inspector"]').getByLabel("Heading", { exact: true });
+		// The Prop is made first, and its save is not answered yet.
+		await heading.fill("Made first");
+		holding = true;
+		await heading.press("Tab");
+		// The Tagline is typed second, and its save is answered at once.
+		await tagline(page).fill("Made second");
+		await tagline(page).evaluate((region: HTMLElement) => region.blur());
+		await page.waitForFunction(
+			() =>
+				document.querySelector("webcraft-edit-bar")?.shadowRoot?.querySelector(".saved")?.textContent ===
+				"Saved to Draft · just now",
+		);
+		expect((await site.read()).tagline).toBe("Made second");
+		// It is not offered ahead of the earlier step, which is still on its way.
+		await nextUndo(page, null);
+		holding = false;
+		for (const send of held.splice(0)) send();
+		// Both are steps now, newest first: the Tagline, then the Prop.
+		await nextUndo(page, "Edit Tagline");
+		await undoButton(page).click();
+		await said(page, "Undid Edit Tagline");
+		await nextUndo(page, "Props Hero · North");
+		await undoButton(page).click();
+		await said(page, "Undid Props Hero · North");
+		await nextUndo(page, null);
+		expect(await site.read()).toEqual({ tagline: "Baked daily", placements: ["North", "South"] });
+	} catch (error) {
+		console.error(await debug(page));
+		throw error;
+	} finally {
+		await page.close();
+	}
+});
+
+test("the bar hands the Command menu one target: its labels, its availability and its steps", async () => {
+	const site = await bakery("history-target");
+	type Target = {
+		undo(): Promise<void>;
+		redo(): Promise<void>;
+		canUndo(): boolean;
+		canRedo(): boolean;
+		undoLabel(): string | null;
+		redoLabel(): string | null;
+		subscribe(listener: () => void): () => void;
+	};
+	type Watching = Window & { historyTarget?: Target; historyChanges?: number };
+	const page = await enter("light", site.siteId, site.member.account, {
+		// As the Command menu's module hears it: the target comes in a document event.
+		async prepare(page) {
+			await page.addInitScript(() => {
+				document.addEventListener("webcraft:edit-history", (event) => {
+					const watching = window as Watching;
+					watching.historyTarget = (event as CustomEvent<Target>).detail;
+					watching.historyChanges = 0;
+					watching.historyTarget.subscribe(() => {
+						watching.historyChanges = (watching.historyChanges ?? 0) + 1;
+					});
+				});
+			});
+		},
+	});
+	/** What the target says now: whether each way is open, and the step it would take. */
+	const offered = () =>
+		page.evaluate(() => {
+			const target = (window as Watching).historyTarget;
+			if (!target) throw new Error("No target was handed over");
+			return { undo: target.canUndo() && target.undoLabel(), redo: target.canRedo() && target.redoLabel() };
+		});
+	const undo = () => page.evaluate(() => (window as Watching).historyTarget?.undo());
+	try {
+		await page.waitForFunction(() => Boolean((window as Watching).historyTarget));
+		expect(await offered()).toEqual({ undo: false, redo: false });
+		await typeTagline(page, "Typed for the menu");
+		await nextUndo(page, "Edit Tagline");
+		expect(await offered()).toEqual({ undo: "Edit Tagline", redo: false });
+		expect(await page.evaluate(() => (window as Watching).historyChanges)).toBeGreaterThan(0);
+		// The menu's Undo is the bar's: the same step, the same message, the same Redo afterwards.
+		await undo();
+		await said(page, "Undid Edit Tagline");
+		await nextUndo(page, null);
+		expect(await redoButton(page).getAttribute("title")).toStartWith("Redo Edit Tagline (");
+		expect(await offered()).toEqual({ undo: false, redo: "Edit Tagline" });
+		// Typing that isn't saved yet is finished first, so the menu's Undo takes back what was just typed.
+		await tagline(page).click();
+		await page.keyboard.press("End");
+		await page.keyboard.type(" again");
+		await undo();
+		await tagline(page)
+			.filter({ hasText: /^Baked daily$/ })
+			.waitFor();
+		expect(await offered()).toEqual({ undo: false, redo: "Edit Tagline" });
+		expect((await site.read()).tagline).toBe("Baked daily");
+		// In Preview nothing is edited: the target says so.
+		await page.getByRole("button", { name: "Preview", exact: true }).click();
+		expect(await offered()).toEqual({ undo: false, redo: false });
+	} catch (error) {
+		console.error(await debug(page));
+		throw error;
+	} finally {
+		await page.close();
+	}
+});
