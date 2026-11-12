@@ -218,6 +218,25 @@ export class PathTakenError extends Error {
 	}
 }
 
+/** Why a Page layout change is refused for the person making it (see `PageLayoutRefusedError`). */
+export type PageLayoutRefusal = "notAllowed" | "allowedComponents" | "locking" | "locked";
+
+/**
+ * A Page layout change the person may not make: arranging is off on this Site for them
+ * (`notAllowed`), a Component that isn't Allowed (`allowedComponents`), locking or unlocking a
+ * Placement (`locking`), or hiding, moving or removing a locked one (`locked`). Each is Staff's
+ * (`structure.edit`) alone. A refusal of this one change, not of the person's access: Co-editing
+ * keeps the session open.
+ */
+export class PageLayoutRefusedError extends Error {
+	override name = "PageLayoutRefusedError";
+	readonly reason: PageLayoutRefusal;
+	constructor(reason: PageLayoutRefusal, message: string) {
+		super(message);
+		this.reason = reason;
+	}
+}
+
 /** Pages are arranged with a Page layout, so the Page Post Type has no Entry template. */
 export class PagesHaveNoEntryTemplateError extends Error {
 	override name = "PagesHaveNoEntryTemplateError";

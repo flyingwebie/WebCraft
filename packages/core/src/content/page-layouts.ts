@@ -7,9 +7,10 @@ import { valueChanges } from "../co-editing/value-changes.ts";
 import { nodeView } from "../co-editing/view.ts";
 import { can, personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
+import { PermissionDeniedError } from "../tenancy/errors.ts";
 import { listComponents, lockComponents, siteComponents } from "./components.ts";
 import { listEntries } from "./entries.ts";
-import { DraftChangedError, EntryInvalidError, PageNotFoundError } from "./errors.ts";
+import { DraftChangedError, EntryInvalidError, PageLayoutRefusedError, PageNotFoundError } from "./errors.ts";
 import { type FieldDefinition, type Json, MAX_ROWS } from "./field-types.ts";
 import {
 	defaultValues,
@@ -66,10 +67,7 @@ export async function layoutSettings(scope: SiteScope) {
 	return { enabled: row?.enabled ?? false, allowedComponents: row?.allowedComponents ?? [] };
 }
 export async function configureLayout(scope: SiteScope, change: { enabled?: boolean; allowedComponents?: string[] }) {
-	if (!layoutPermissions(scope).structure)
-		throw new EntryInvalidError([
-			{ at: "layout", message: "Changing Page layout settings requires Structure permission." },
-		]);
+	if (!layoutPermissions(scope).structure) throw new PermissionDeniedError("structure.edit");
 	return scope.transaction(async (tx) => {
 		await lockComponents(tx);
 		const current = await layoutSettings(tx);
@@ -175,8 +173,9 @@ export async function writePageLayout(
 		refuse("A Page layout holds at most 200 Placements, in one level.");
 	const permissions = layoutPermissions(scope);
 	const settings = await layoutSettings(scope);
-	if (!permissions.edit || (!permissions.structure && !settings.enabled))
-		refuse("Arranging Page layouts is not allowed on this Site.");
+	if (!permissions.edit) throw new PermissionDeniedError("entry.edit");
+	if (!permissions.structure && !settings.enabled)
+		throw new PageLayoutRefusedError("notAllowed", "Arranging Page layouts is not allowed on this Site.");
 	const catalogue = await siteComponents(scope, "published", scope.componentSources);
 	const drafts = permissions.structure ? await siteComponents(scope, "draft", scope.componentSources) : null;
 	const site = await siteLanguages(scope);
@@ -207,10 +206,11 @@ export async function writePageLayout(
 		const version = catalogue.version(p.component) ?? drafts?.version(p.component);
 		if (!version || (old && old.component !== p.component)) refuse("The Placement's Component cannot be replaced.");
 		if (!old && !permissions.structure && !settings.allowedComponents.includes(p.component))
-			refuse("Members may add only Allowed components.");
-		if (!permissions.structure && !!p.locked !== !!old?.locked) refuse("Only Staff can lock a Placement.");
+			throw new PageLayoutRefusedError("allowedComponents", "Members may add only Allowed components.");
+		if (!permissions.structure && !!p.locked !== !!old?.locked)
+			throw new PageLayoutRefusedError("locking", "Only Staff can lock a Placement.");
 		if (old?.locked && !permissions.structure && !!p.hidden !== !!old.hidden)
-			refuse("A locked Placement cannot be hidden.");
+			throw new PageLayoutRefusedError("locked", "A locked Placement cannot be hidden.");
 		if (
 			retainedModules.has(p.component) &&
 			(!old || !sameJson(p.values, (nodeView({ values: old.values }) as { values: DocumentJson }).values))
@@ -263,14 +263,14 @@ export async function writePageLayout(
 	}
 	if (!permissions.structure)
 		for (const locked of before.placements.filter((p) => p.locked)) {
-			if (!ids.has(locked.id)) refuse("A locked Placement cannot be removed.");
+			if (!ids.has(locked.id)) throw new PageLayoutRefusedError("locked", "A locked Placement cannot be removed.");
 			// Inserting/removing neighbours is allowed; crossing a locked row is not.
 			const oldAt = before.placements.indexOf(locked);
 			const nextAt = placements.findIndex((p) => p.id === locked.id);
 			for (const p of before.placements) {
 				const at = placements.findIndex((n) => n.id === p.id);
 				if (at >= 0 && before.placements.indexOf(p) < oldAt !== at < nextAt)
-					refuse("A locked Placement cannot be moved.");
+					throw new PageLayoutRefusedError("locked", "A locked Placement cannot be moved.");
 			}
 		}
 	return { placements };

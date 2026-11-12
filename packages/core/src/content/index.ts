@@ -86,6 +86,8 @@ export {
 	LoopNameTakenError,
 	LoopNotFoundError,
 	PageHasChildrenError,
+	type PageLayoutRefusal,
+	PageLayoutRefusedError,
 	PageNotFoundError,
 	PageParentUnpublishedError,
 	PagesHaveNoEntryTemplateError,

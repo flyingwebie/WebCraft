@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { openDraft } from "../harness/co-editing.ts";
+import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
@@ -121,7 +122,9 @@ test("Page layout co-editing keeps Props, refuses forged locks, and preserves un
 			layout: { placements: [{ ...layout.placements[0]!, locked: true }] },
 		}));
 		await live.until(() => live.refusals.length === 1, "forged lock refusal");
-		expect(live.refusals[0]?.code).toBe("ENTRY_INVALID");
+		// Refused as Staff's alone, not as invalid input; the session stays open.
+		expect(live.refusals[0]).toMatchObject({ code: "PAGE_LAYOUT_REFUSED", data: { reason: "locking" } });
+		expect(live.closedWith()).toBeNull();
 		await editor.api.entries.saveDraft({ siteId, entryId: entry.id, title: "Kept" });
 		expect((await editor.api.pageLayouts.get({ siteId, entryId: entry.id })).placements[0]?.values.text).toBe("Second");
 	} finally {
@@ -139,27 +142,32 @@ test("Member limits apply to HTTP: switches, nesting, locks, stale versions and 
 	let state = await editor.api.pageLayouts.get({ siteId, entryId: entry.id });
 	const save = (layout: unknown, basedOn = state.version) =>
 		editor.api.pageLayouts.save({ siteId, entryId: entry.id, basedOn, layout });
-	await expect(save({ placements: [placement] })).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+	// What only Staff may do is refused as such (403), never as invalid input.
+	const refused = (reason: string) => ({ code: "PAGE_LAYOUT_REFUSED", status: 403, data: { reason } });
+	await expect(save({ placements: [placement] })).rejects.toMatchObject(refused("notAllowed"));
 	await expect(editor.api.pageLayouts.configure({ siteId, enabled: true })).rejects.toMatchObject({ status: 403 });
 	await staff.api.pageLayouts.configure({ siteId, enabled: true });
-	await expect(save({ placements: [placement] })).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+	await expect(save({ placements: [placement] })).rejects.toMatchObject(refused("allowedComponents"));
 	await staff.api.pageLayouts.configure({ siteId, allowedComponents: [component.id] });
 	state = await save({ placements: [placement] });
 	await expect(save({ placements: [] }, "obsolete")).rejects.toMatchObject({ code: "CHANGED_MEANWHILE" });
 	await expect(save({ placements: [{ ...placement, children: [] }] })).rejects.toMatchObject({ code: "ENTRY_INVALID" });
 	await staff.api.pageLayouts.configure({ siteId, allowedComponents: [] });
 	state = await save({ placements: [{ ...placement, hidden: true }] });
-	await expect(save({ placements: [placement, { ...placement, id: "copy" }] })).rejects.toMatchObject({
-		code: "ENTRY_INVALID",
-	});
+	await expect(save({ placements: [placement, { ...placement, id: "copy" }] })).rejects.toMatchObject(
+		refused("allowedComponents"),
+	);
 	state = await staff.api.pageLayouts.save({
 		siteId,
 		entryId: entry.id,
 		basedOn: state.version,
 		layout: { placements: [{ ...placement, locked: true }] },
 	});
-	for (const placements of [[], [{ ...placement, hidden: true, locked: true }], [placement]])
-		await expect(save({ placements })).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+	await expect(save({ placements: [] })).rejects.toMatchObject(refused("locked"));
+	await expect(save({ placements: [{ ...placement, hidden: true, locked: true }] })).rejects.toMatchObject(
+		refused("locked"),
+	);
+	await expect(save({ placements: [placement] })).rejects.toMatchObject(refused("locking"));
 	const other = (await install.createSite(workspaceId, { slug: "foreign-layout" })).id;
 	await expect(editor.api.pageLayouts.get({ siteId: other, entryId: entry.id })).rejects.toMatchObject({
 		code: "PAGE_NOT_FOUND",
@@ -195,4 +203,22 @@ test("Page layout defaults and canonical Props reach both real shared-document e
 		one.close();
 		two.close();
 	}
+});
+
+test("Edit mode's Page layout settings are Staff's: a Member is refused as on the Management API", async () => {
+	const siteId = (await install.createSite(workspaceId, { slug: "layout-configure" })).id;
+	await goLive(install, siteId);
+	const { postTypes } = await editor.api.postTypes.list({ siteId });
+	await editor.api.entries.create({ siteId, postTypeId: postTypes[0]?.id ?? "", title: "Configure" });
+
+	const asEditor = await openEditMode(install, editor, siteId, "/configure");
+	const refused = await asEditor.edit("layout/configure", { enabled: true });
+	expect(refused.status).toBe(403);
+	expect(await refused.json()).toMatchObject({ code: "FORBIDDEN" });
+	expect(await staff.api.pageLayouts.settings({ siteId })).toMatchObject({ enabled: false });
+
+	const asStaff = await openEditMode(install, staff, siteId, "/configure");
+	const allowed = await asStaff.edit("layout/configure", { enabled: true });
+	expect(allowed.status).toBe(200);
+	expect(await staff.api.pageLayouts.settings({ siteId })).toMatchObject({ enabled: true });
 });

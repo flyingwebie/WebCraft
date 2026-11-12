@@ -122,6 +122,7 @@ import {
 	OAuthRequestError,
 	OutsideScriptNotFoundError,
 	PageHasChildrenError,
+	PageLayoutRefusedError,
 	PageNotFoundError,
 	PageParentUnpublishedError,
 	PagesHaveNoEntryTemplateError,
@@ -502,6 +503,14 @@ export function toApiError(error: unknown): unknown {
 	if (error instanceof ArchiveUnavailableError) {
 		return new ORPCError("ARCHIVE_UNAVAILABLE", {
 			status: 409,
+			message: error.message,
+			data: { reason: error.reason },
+			cause: error,
+		});
+	}
+	if (error instanceof PageLayoutRefusedError) {
+		return new ORPCError("PAGE_LAYOUT_REFUSED", {
+			status: 403,
 			message: error.message,
 			data: { reason: error.reason },
 			cause: error,

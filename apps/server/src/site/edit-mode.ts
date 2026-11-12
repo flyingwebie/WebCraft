@@ -459,11 +459,12 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 			return json(200, await getPageLayout(tx, input.entryId, input.language));
 		});
 	},
-	"layout/configure": async (_services, session, body) =>
+	// Structure: opened with `structure.edit` as every Code mode route is, not on the Edit mode scope.
+	"layout/configure": async (services, session, body) =>
 		json(
 			200,
 			await configureLayout(
-				session.scope,
+				await services.codeMode.access(session),
 				parse(
 					z.object({ enabled: z.boolean().optional(), allowedComponents: z.array(z.string()).max(1000).optional() }),
 					body,

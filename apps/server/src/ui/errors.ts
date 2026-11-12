@@ -69,6 +69,7 @@ export function errorMessage(error: unknown): MessageKey {
 		case "REVISION_NOT_FOUND":
 		case "CHECKPOINT_NOT_FOUND":
 		case "ENTRY_INVALID":
+		case "PAGE_LAYOUT_REFUSED":
 		case "ENTRY_INCOMPLETE":
 		case "ENTRY_SLUG_TAKEN":
 		case "ENTRY_LINKED":
