@@ -2,6 +2,7 @@ import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compile, optimize } from "@tailwindcss/node";
 import { Scanner } from "@tailwindcss/oxide";
+import { propsBlockAt } from "@webcraft/renderer/builder";
 import { codeKeyEdit } from "../../ui/builder/code-keys.ts";
 import { componentScriptSettings } from "../../ui/builder/component-script-settings.ts";
 import { editorAccessibility } from "../../ui/builder/editor-accessibility.ts";
@@ -76,7 +77,7 @@ async function makeAssets(): Promise<EditBarAssets> {
 	const codeConfig: CodeModeConfig = { styles: codeStyles.path, panels: panels.path, widths: EDITOR_WIDTHS };
 	// The window-width rules shared with the Builder, each a self-contained function.
 	const fitting = `{ editorFit: ${editorFit.toString()}, focusInto: ${focusInto.toString()} }`;
-	const codeSource = `(${codeMode.toString()})(${JSON.stringify(codeConfig)}, ${componentScriptSettings.toString()}, ${renderedRanges.toString()}, ${editorAccessibility.toString()}, ${codeKeyEdit.toString()}, ${fitting}, ${declareMissingProp.toString()});\n`;
+	const codeSource = `(${codeMode.toString()})(${JSON.stringify(codeConfig)}, ${componentScriptSettings.toString()}, ${renderedRanges.toString()}, ${editorAccessibility.toString()}, ${codeKeyEdit.toString()}, ${fitting}, { declare: ${declareMissingProp.toString()}, blockAt: ${propsBlockAt.toString()} });\n`;
 	const codeScript = await asset("code", "js", codeSource, "text/javascript; charset=utf-8");
 	return {
 		script,

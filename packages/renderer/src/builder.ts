@@ -12,6 +12,7 @@ export { type Expression, readExpression, writeExpression } from "./expressions.
 export { readFormat, type ValueFormat, writeFormat } from "./formatters.ts";
 export { parseAttributeText, printAttributeText } from "./markup/attribute-text.ts";
 export { readInlineStyle } from "./markup/inline-style.ts";
+export { propsBlockAt } from "./markup/props-block.ts";
 export {
 	type Attribute,
 	type AttributePart,

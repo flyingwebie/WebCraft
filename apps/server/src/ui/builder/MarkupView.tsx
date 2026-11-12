@@ -1,3 +1,4 @@
+import { propsBlockAt } from "@webcraft/renderer/builder";
 import { Field, FieldDescription, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Textarea } from "@webcraft/ui/components/textarea.tsx";
 import { useEffect, useId, useRef } from "react";
@@ -136,7 +137,7 @@ export function MarkupView({
 								{(() => {
 									const missing = propFix ? MISSING_PROP.exec(problem.message)?.[1] : undefined;
 									if (!missing) return null;
-									const fix = declareMissingProp(value, missing);
+									const fix = declareMissingProp(value, missing, propsBlockAt);
 									return (
 										<button
 											type="button"

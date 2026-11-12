@@ -1,3 +1,4 @@
+import type { propsBlockAt } from "@webcraft/renderer/builder";
 import type { codeKeyEdit } from "../../ui/builder/code-keys.ts";
 import type { componentScriptSettings } from "../../ui/builder/component-script-settings.ts";
 import type { editorAccessibility } from "../../ui/builder/editor-accessibility.ts";
@@ -37,7 +38,7 @@ export function codeMode(
 	accessibility: typeof editorAccessibility,
 	editCodeKey: typeof codeKeyEdit,
 	fitting: CodeModeFitting,
-	missingProp: typeof declareMissingProp,
+	propFix: { declare: typeof declareMissingProp; blockAt: typeof propsBlockAt },
 ): void {
 	type Words = { [key: string]: string | Words };
 	type Answer = { ok: true; data: unknown } | { ok: false; code: string; data: Record<string, unknown> };
@@ -1637,7 +1638,7 @@ export function codeMode(
 				// `{{ props.x }}` with no Prop x: declare it in the {{@props}} block, its type guessed from where it is read (#134).
 				const prop = /There is no Prop named ([A-Za-z_][A-Za-z0-9_]*) on this Component/.exec(problem.message)?.[1];
 				if (prop) {
-					const { type } = missingProp(html.get(), prop);
+					const { type } = propFix.declare(html.get(), prop, propFix.blockAt);
 					const make = button({ class: "small secondary" }, word("createProp", { name: prop, type }));
 					make.addEventListener("click", () => createProp(prop));
 					item.append(make);
@@ -1676,7 +1677,7 @@ export function codeMode(
 	 * typing it would: the HTML panel then saves it with the rest, through the same checks.
 	 */
 	function createProp(name: string): void {
-		const { type, at, text } = missingProp(html.get(), name);
+		const { type, at, text } = propFix.declare(html.get(), name, propFix.blockAt);
 		html.insert(text, at, at);
 		announce(word("propCreated", { name, type }));
 		setStatusText(word("propCreated", { name, type }));
