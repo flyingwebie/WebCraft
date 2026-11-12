@@ -136,7 +136,9 @@ export function RichTextEditor({
 		}
 		// The cleaner keeps only addresses the renderer allows (http, https, mailto, tel, paths, #anchors).
 		const link = cleanRichText(`<a href="${escapeHtml(url)}">${escapeHtml(url)}</a>`);
-		const href = /href="([^"]*)"/.exec(link)?.[1]?.replace(/&amp;/g, "&") ?? "#";
+		// The address as the cleaner kept it, read back by the browser's own parser, never un-escaped by hand.
+		const kept = new DOMParser().parseFromString(link, "text/html").querySelector("a");
+		const href = kept?.getAttribute("href") ?? "#";
 		if (current && !current.isCollapsed) exec("createLink", href);
 		else exec("insertHTML", link);
 		changed();
