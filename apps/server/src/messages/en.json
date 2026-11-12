@@ -5065,7 +5065,7 @@
 		"spamReasons": {
 			"honeypot": "a field people never see was filled in",
 			"tooFast": "it was sent sooner than a person could fill it in",
-			"token": "it came without the page's token",
+			"token": "it came without the page's token, or with one more than a day old",
 			"rateLimit": "one address sent it too often",
 			"size": "it was too large",
 			"captcha": "the CAPTCHA couldn't be checked",

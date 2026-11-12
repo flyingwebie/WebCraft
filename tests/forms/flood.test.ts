@@ -233,6 +233,28 @@ test("a post's body is read only once its Form is known to take posts from that 
 	expect(over.wasRead()).toBe(false);
 });
 
+test("a page's token passes the time trap for a day: a post with an older one is kept as spam", async () => {
+	const site = await siteWithForm("stale", { perMinute: 5, perHour: 30 });
+	const visitor = formVisitor(install);
+	const page = await visitor.open(site.page);
+
+	await install.clock.advance(23 * 60 * 60 * 1000);
+	expect((await visitor.send(page, GOOD)).status).toBe(303);
+	expect((await site.kept("inbox")).total).toBe(1);
+
+	// A bot keeps the token it once copied from a page.
+	await install.clock.advance(2 * 60 * 60 * 1000);
+	expect((await visitor.send(page, GOOD)).status).toBe(303);
+	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
+	expect((await site.kept("inbox")).total).toBe(1);
+	expect((await site.kept("spam")).submissions[0]).toMatchObject({ spamReason: "token" });
+	// The page loaded again gives a new one.
+	const again = await visitor.open(site.page);
+	await install.clock.advance(5000);
+	expect((await visitor.send(again, GOOD)).status).toBe(303);
+	expect((await site.kept("inbox")).total).toBe(2);
+});
+
 test("the Spam folder keeps a Site's newest 1,000, and the daily purge empties a full one after 30 days", async () => {
 	const site = await siteWithForm("capped", { perMinute: 1000, perHour: 10_000 });
 	const bot = formVisitor(install);

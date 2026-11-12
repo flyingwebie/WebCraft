@@ -21,7 +21,7 @@ export type SpamReason =
 	| "honeypot"
 	/** It was sent sooner after the page loaded than a person could fill it in. */
 	| "too-fast"
-	/** It came without the token the Form's page gives, or with a forged one. */
+	/** It came without the token the Form's page gives, with a forged one, or with one more than a day old. */
 	| "token"
 	/** One address sent the Form more often than its limits allow. */
 	| "rate-limit"
