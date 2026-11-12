@@ -15,8 +15,14 @@ import { hashToken, newToken } from "./tokens.ts";
 /** How long a reset link works. */
 export const PASSWORD_RESET_MS = 30 * 60 * 1000;
 
-/** Reset links one person is sent: at most 3 an hour, however often they are asked for. */
-export const PASSWORD_RESET_PERSON_LIMIT: RateLimitRule = { limit: 3, windowMs: 60 * 60 * 1000 };
+/**
+ * Reset emails to one person are at least 5 minutes apart, however often a link is asked for. Not a
+ * quota: anyone who knows an address can ask for its link, and a quota they could use up would keep
+ * the person's own request from ever sending one. With a cooldown an outsider delays it by 5 minutes
+ * at most, the link their request sent is in the person's inbox meanwhile (it works for 30 minutes),
+ * and the mail one address gets stays bounded at 12 an hour.
+ */
+export const PASSWORD_RESET_EMAIL_COOLDOWN: RateLimitRule = { limit: 1, windowMs: 5 * 60 * 1000 };
 
 /** Requests for a reset link from one client address: at most 5 in 15 minutes, whoever they are for. */
 export const PASSWORD_RESET_ADDRESS_LIMIT: RateLimitRule = { limit: 5, windowMs: 15 * 60 * 1000 };
@@ -116,8 +122,8 @@ export function createPasswordResets({
 			const person = await personByEmail(address);
 			// A deactivated account gets no link: it couldn't sign in with a new password either.
 			if (!person || person.deactivatedAt) return;
-			if (!(await rateLimits.count(`password-reset:person:${person.id}`, PASSWORD_RESET_PERSON_LIMIT))) {
-				log.warn("A person was asked a reset link for too often: no more are sent this hour", {
+			if (!(await rateLimits.count(`password-reset:person:${person.id}`, PASSWORD_RESET_EMAIL_COOLDOWN))) {
+				log.debug("A reset link was asked for again within 5 minutes of the last one sent: none is sent", {
 					personId: person.id,
 				});
 				return;

@@ -111,14 +111,35 @@ describe("asking for a reset link", () => {
 		expect(await resetEmailsTo(person.email)).toHaveLength(1);
 	});
 
-	test("sends at most 3 links an hour to one person, answering the same every time", async () => {
+	// Review finding: an hourly quota per person counted every request, so anyone who knew the address
+	// could use it up and the person never got a link when they asked. Now emails to one person are
+	// spaced 5 minutes apart: an outsider delays the person's own link by 5 minutes at most, and the
+	// link the outsider's request sent is in the person's inbox meanwhile, working.
+	test("an outsider who keeps asking for someone's link delays theirs by 5 minutes at most, and mail to one person stays bounded", async () => {
 		const person = await newPerson();
-		for (let asked = 0; asked < 5; asked++) expect(await request(person.email)).toEqual({ ok: true });
-		expect(await resetEmailsTo(person.email)).toHaveLength(3);
+		// The outsider asks every minute for an hour, each time from another address (the worker
+		// works each request as it comes).
+		for (let minute = 0; minute < 60; minute++) {
+			expect(await request(person.email)).toEqual({ ok: true });
+			await install.drainJobs();
+			await install.clock.advance(MINUTE);
+		}
+		expect(await resetEmailsTo(person.email)).toHaveLength(12);
 
-		await install.clock.advance(61 * MINUTE);
+		// The person asks right after one more of the outsider's requests: nothing new is sent yet,
 		await request(person.email);
-		expect(await resetEmailsTo(person.email)).toHaveLength(4);
+		const sent = await resetEmailsTo(person.email);
+		expect(sent).toHaveLength(13);
+		await request(person.email);
+		await request(person.email);
+		expect(await resetEmailsTo(person.email)).toHaveLength(13);
+		// but the newest email in their inbox opens the reset,
+		const newest = new URL(sent.at(-1)?.text?.match(/https?:\/\/\S+/)?.[0] ?? "");
+		await install.browser().api.passwordReset.check({ token: tokenOf(newest) });
+		// and 5 minutes after it was sent, their own request sends a new one.
+		await install.clock.advance(5 * MINUTE);
+		await request(person.email);
+		expect(await resetEmailsTo(person.email)).toHaveLength(14);
 	});
 
 	test("takes at most 5 requests in 15 minutes from one client address", async () => {
@@ -203,6 +224,8 @@ describe("choosing a new password with the link", () => {
 	test("only the newest link works", async () => {
 		const person = await newPerson();
 		const first = await linkFor(person.email);
+		// Emails to one person are 5 minutes apart.
+		await install.clock.advance(5 * MINUTE);
 		const second = await linkFor(person.email);
 		expect(tokenOf(second)).not.toBe(tokenOf(first));
 
