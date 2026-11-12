@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { limitBody, MULTIPART_ALLOWANCE, toApiError } from "@webcraft/api";
+import { API_BODY_MAX_BYTES, limitBody, MULTIPART_ALLOWANCE, toApiError } from "@webcraft/api";
 import {
 	type AdminLanguageCode,
 	CODE_MODE_SCRIPT_PATH,
@@ -12,6 +12,7 @@ import {
 	editModePolicy,
 	type FieldInput,
 	getPageLayout,
+	HISTORY_TRANSFER_MAX_LENGTH,
 	type InstallServices,
 	isAdminLanguage,
 	isCodeSelection,
@@ -533,7 +534,7 @@ type EditAction = (
 const pagePath = z.object({ path: z.string().max(2000) });
 
 /** The Undo history as its editor hands it to the next page, and the token that claims it there. */
-const historyTransfer = z.object({ payload: z.string().max(8_000_000) });
+const historyTransfer = z.object({ payload: z.string().max(HISTORY_TRANSFER_MAX_LENGTH) });
 const historyClaim = z.object({ token: z.string().max(100) });
 
 /** The page submitted for Review, with an optional note. */
@@ -762,8 +763,17 @@ async function editRequest(
 	return refusalsAsJson(async () => {
 		const contentType = request.headers.get("content-type") ?? "";
 		if (!/^application\/json(;|$)/i.test(contentType)) throw new BadEditRequest("Send the request as JSON.");
-		const body: unknown = await request.json().catch(() => {
-			throw new BadEditRequest("The request isn't valid JSON.");
+		// Kept to the largest body the Management API takes, before it is read into memory.
+		const tooLarge = () =>
+			new ORPCError("PAYLOAD_TOO_LARGE", {
+				status: 413,
+				message: `An edit request has at most ${API_BODY_MAX_BYTES} bytes.`,
+				data: { maxBytes: API_BODY_MAX_BYTES },
+			});
+		const limited = limitBody(request, API_BODY_MAX_BYTES, tooLarge);
+		if ("refused" in limited) throw limited.refused;
+		const body: unknown = await limited.request.json().catch(() => {
+			throw limited.overflowed() ? tooLarge() : new BadEditRequest("The request isn't valid JSON.");
 		});
 		return answer(services, session, body, request, host);
 	});

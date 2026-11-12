@@ -63,7 +63,8 @@ import { type BuilderDestinations, builderDestinations } from "./navigation.ts";
 import { adminMediaPath, renderPreview } from "./preview.ts";
 import { type BuilderSource, type BuilderTarget, readSource } from "./sources.ts";
 
-export { COMMAND_PERMISSIONS, type CommandMenuData, type GoToPage } from "./command-menu.ts";
+export { COMMAND_PERMISSIONS, type CommandMenuData, GO_TO_ENTRIES, type GoToPage } from "./command-menu.ts";
+export { HISTORY_TRANSFER_MAX_LENGTH } from "./history.ts";
 export { CANVAS_SOURCE, type CanvasPlaceholder } from "./preview.ts";
 export type { BuilderTarget } from "./sources.ts";
 

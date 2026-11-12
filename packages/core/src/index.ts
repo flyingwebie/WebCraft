@@ -65,7 +65,9 @@ export {
 	type CanvasPlaceholder,
 	COMMAND_PERMISSIONS,
 	type CommandMenuData,
+	GO_TO_ENTRIES,
 	type GoToPage,
+	HISTORY_TRANSFER_MAX_LENGTH,
 	type PendingStyles,
 } from "./builder/index.ts";
 export * from "./cdns/index.ts";

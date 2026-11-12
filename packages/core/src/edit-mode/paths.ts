@@ -24,14 +24,16 @@ export function isEditPath(path: string): boolean {
 /**
  * Whether `address` is a page of a Site with its query, as Edit mode shows the same page again after
  * a mode switch: a path as `isEditPath` takes them, then at most a query; never a fragment, a
- * backslash or whitespace.
+ * backslash or whitespace. It is the address as a browser writes it, percent-encoded: printable ASCII
+ * only, which is all a `Location` header carries.
  */
 export function isEditPageAddress(address: string): boolean {
 	const query = address.indexOf("?");
 	return (
 		address.length <= 4000 &&
+		/^[\x21-\x7e]*$/.test(address) &&
 		isEditPath(query < 0 ? address : address.slice(0, query)) &&
-		!/[\s\\#]/.test(query < 0 ? "" : address.slice(query))
+		!/[\\#]/.test(query < 0 ? "" : address.slice(query))
 	);
 }
 

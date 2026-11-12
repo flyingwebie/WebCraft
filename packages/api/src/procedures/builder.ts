@@ -1,4 +1,4 @@
-import type { DocumentJson } from "@webcraft/core";
+import { type DocumentJson, HISTORY_TRANSFER_MAX_LENGTH } from "@webcraft/core";
 import { CSS_MAX_LENGTH, TREE_LIMITS } from "@webcraft/renderer";
 import { z } from "zod";
 
@@ -49,7 +49,7 @@ export const builder = {
 		return context.services.builder.historyDesign(scope);
 	}),
 	transferHistory: signedIn
-		.input(z.object({ siteId: id, payload: z.string().max(8_000_000) }))
+		.input(z.object({ siteId: id, payload: z.string().max(HISTORY_TRANSFER_MAX_LENGTH) }))
 		.handler(async ({ context, input }) => {
 			const scope = await context.services.data.site(context.access, input.siteId, "structure.edit");
 			return context.services.builder.transferHistory(scope, input.payload);
