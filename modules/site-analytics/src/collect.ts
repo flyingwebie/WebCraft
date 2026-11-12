@@ -7,19 +7,53 @@ import { browserOf, deviceOf, isBot, osOf, sourceHost } from "./visitors.ts";
 /** A visit ends after this long without an event. */
 export const VISIT_GAP_MS = 30 * 60 * 1000;
 
+/**
+ * What the collection path keeps is what anyone can make a Site's analytics show and store, so each
+ * value is held to the shape the collection script sends, and anything else is refused (400).
+ */
+
+/** The longest page path and link address kept. */
+export const MAX_PATH_LENGTH = 500;
+/** The longest campaign word (`utm_source`, `utm_medium`, `utm_campaign`) and custom event name kept. */
+export const MAX_WORD_LENGTH = 100;
+
+/**
+ * A page's path as a browser writes it (`location.pathname`): from `/`, the characters of a URL path
+ * only (anything else arrives percent-encoded), no empty part, so never a query, a fragment, a space,
+ * markup or another host.
+ */
+const pagePath = z
+	.string()
+	.max(MAX_PATH_LENGTH)
+	.regex(/^\/[A-Za-z0-9\-._~!$&'()*+,;=:@%/]*$/)
+	.refine((path) => !path.includes("//"));
+
+/** Words a person chose (a campaign's, a custom event's name): any letters, no control or invisible characters. */
+const words = z
+	.string()
+	.max(MAX_WORD_LENGTH)
+	.regex(/^[^\p{C}\p{Zl}\p{Zp}]*$/u);
+
+/** Where a link goes: an address or a path, without spaces, control or invisible characters. */
+const linkAddress = z
+	.string()
+	.min(1)
+	.max(MAX_PATH_LENGTH)
+	.regex(/^[^\s\p{C}]+$/u);
+
 /** One event as the collection script sends it (see `script.ts`). */
 const incoming = z.object({
 	t: z.enum(["pageview", "consent", "link", "event"]),
-	p: z.string().min(1).max(1000).startsWith("/"),
+	p: pagePath,
 	r: z.string().max(253).nullish(),
-	us: z.string().max(200).nullish(),
-	um: z.string().max(200).nullish(),
-	uc: z.string().max(200).nullish(),
+	us: words.nullish(),
+	um: words.nullish(),
+	uc: words.nullish(),
 	/** The visitor came from another page of the Site: not an arrival, so it has no source. */
 	i: z.union([z.literal(0), z.literal(1)]).optional(),
 	w: z.number().int().min(0).max(100_000).optional(),
-	n: z.string().min(1).max(100).optional(),
-	h: z.string().min(1).max(1000).optional(),
+	n: words.min(1).optional(),
+	h: linkAddress.optional(),
 	c: z.union([z.literal(0), z.literal(1)]).optional(),
 });
 
@@ -85,7 +119,7 @@ export async function collect(request: Request, context: SiteRouteContext): Prom
 	const userAgent = request.headers.get("user-agent") ?? "";
 	// Sources count arrivals: from another site, a campaign's link, or typed in (direct, empty).
 	const campaignSource = body.us?.trim().toLowerCase();
-	const source = (campaignSource || (body.i === 1 ? null : sourceHost(body.r)))?.slice(0, 200) ?? null;
+	const source = campaignSource || (body.i === 1 ? null : sourceHost(body.r));
 	// A visit's events all carry where it came from; before consent a page view is its own visit.
 	const visitSource = last ? last.visitSource : source;
 	await context.data.insert(events, {
