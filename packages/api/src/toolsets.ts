@@ -295,8 +295,10 @@ export const TOOL_PLACES = {
 	"aiKeys.setOwnCap": place(["translation"], "aiKey.manage"),
 	"aiKeys.testOwn": place(["translation"], "aiKey.manage"),
 	"translations.overview": place(["translation"], "site.view"),
-	"translations.setMode": place(["translation"], "translation.manage"),
-	"translations.translateNow": place(["translation"], "translation.manage"),
+	// An Automatic language's translations go live by themselves (Translate now publishes them at
+	// once), so making one Automatic and Translate now publish: an AI client needs "May publish".
+	"translations.setMode": publishing(["translation"], "translation.manage"),
+	"translations.translateNow": publishing(["translation"], "translation.manage"),
 	"translations.queue": place(["translation"], "entry.edit"),
 	"translations.approve": publishing(["translation", "publishing"], "entry.publish"),
 	"translations.confirm": place(["translation"], "entry.edit", "formEmails.edit"),

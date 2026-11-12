@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { taggedTranslation } from "../harness/fake-ai.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { answerOf, approveAiClient, connectMcp, refusalOf } from "../harness/mcp.ts";
 import { freshBread, requestsInto, translatedSite, visit } from "./support.ts";
 
 let install: TestInstall;
@@ -250,5 +251,62 @@ describe("who may", () => {
 			siteId: site.siteId,
 			details: { language: "it", mode: "automatic" },
 		});
+	});
+});
+
+describe("AI clients", () => {
+	test("one its person didn't let publish may neither make a language Automatic nor Translate now: both publish", async () => {
+		const site = await translatedSite(install, { de: "manual" });
+		const entryId = await freshBread(site);
+		await site.owner.api.entries.publish({ siteId: site.siteId, entryId });
+		const { accessToken } = await approveAiClient(install, site.owner, {
+			workspaceId: site.workspaceId,
+			toolsets: ["translation"],
+			mayPublish: false,
+		});
+		const client = await connectMcp(install, accessToken);
+
+		const tools = (await client.listTools()).tools.map((tool) => tool.name);
+		expect(tools).toContain("translations_overview");
+		expect(tools).not.toContain("translations_set_mode");
+		expect(tools).not.toContain("translations_translate_now");
+		// Not listed, so not callable either.
+		await expect(
+			client.callTool({
+				name: "translations_set_mode",
+				arguments: { siteId: site.siteId, language: "de", mode: "automatic" },
+			}),
+		).rejects.toThrow("There is no tool translations_set_mode");
+		await expect(
+			client.callTool({ name: "translations_translate_now", arguments: { siteId: site.siteId } }),
+		).rejects.toThrow("There is no tool translations_translate_now");
+		await client.close();
+
+		expect((await install.drainJobs()).failed).toEqual([]);
+		expect((await visit(install, site, "/de/blog/fresh-bread")).article).toContain("Crusty sourdough");
+	});
+
+	test("one that may publish makes a language Automatic and Translates now, which publishes the translation", async () => {
+		const site = await translatedSite(install, { de: "manual" });
+		const entryId = await freshBread(site);
+		await site.owner.api.entries.publish({ siteId: site.siteId, entryId });
+		const { accessToken } = await approveAiClient(install, site.owner, {
+			workspaceId: site.workspaceId,
+			toolsets: ["translation"],
+			mayPublish: true,
+		});
+		const client = await connectMcp(install, accessToken);
+
+		answerOf(
+			await client.callTool({
+				name: "translations_set_mode",
+				arguments: { siteId: site.siteId, language: "de", mode: "automatic" },
+			}),
+		);
+		answerOf(await client.callTool({ name: "translations_translate_now", arguments: { siteId: site.siteId } }));
+		await client.close();
+
+		expect((await install.drainJobs()).failed).toEqual([]);
+		expect((await visit(install, site, "/de/blog/fresh-bread")).article).toContain("[de] Crusty sourdough");
 	});
 });

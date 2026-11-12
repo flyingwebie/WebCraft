@@ -3987,7 +3987,8 @@
 				},
 				"x-webcraft-access": "write",
 				"x-webcraft-toolsets": ["translation"],
-				"x-webcraft-permissions": ["translation.manage"]
+				"x-webcraft-permissions": ["translation.manage"],
+				"x-webcraft-publishes": true
 			}
 		},
 		"/translations/translateNow": {
@@ -4036,7 +4037,8 @@
 				},
 				"x-webcraft-access": "write",
 				"x-webcraft-toolsets": ["translation"],
-				"x-webcraft-permissions": ["translation.manage"]
+				"x-webcraft-permissions": ["translation.manage"],
+				"x-webcraft-publishes": true
 			}
 		},
 		"/translations/queue": {
