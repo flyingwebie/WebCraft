@@ -22,6 +22,7 @@ html.wc-edit-on [data-wc-field][data-wc-invalid] { outline: 2px solid #b91c1c; }
 webcraft-code-mode { display: block !important; }
 html.wc-code { scroll-padding-bottom: calc(42vh + 1rem); }
 html.wc-code body { padding-bottom: calc(42vh + 1rem); margin-inline:16rem 18rem !important; }
+html.wc-code.wc-code-drawers body { margin-inline:0 !important; }
 html.wc-code.wc-code-collapsed { scroll-padding-bottom: 6rem; }
 html.wc-code.wc-code-collapsed body { padding-bottom: 6rem; }
 html.wc-code [data-wc-code] { cursor: pointer; }

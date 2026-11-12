@@ -16,6 +16,8 @@ import {
 	ArrowLeftIcon,
 	MonitorIcon,
 	MoonIcon,
+	PanelLeftIcon,
+	PanelRightIcon,
 	Redo2Icon,
 	SmartphoneIcon,
 	TabletIcon,
@@ -24,7 +26,9 @@ import {
 	UploadIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
+import { useAfterRender } from "../after-render.ts";
 import { getApi } from "../api.ts";
 import { Checks } from "../Checks.tsx";
 import { type SharedDraft, useSharedDraft } from "../co-editing/shared-draft.ts";
@@ -37,6 +41,7 @@ import { Canvas, type CanvasTarget, type CanvasWidth } from "./Canvas.tsx";
 import { ComponentScriptPanel } from "./ComponentScriptPanel.tsx";
 import { CssPanel, type CssPanelPort } from "./CssPanel.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
+import { type EditorDrawer, focusInto, nextDrawer, useEditorFit } from "./editor-fit.ts";
 import { editorHistory, type HistoryLocation } from "./editor-history.ts";
 import { FixedTextDialog, type MadeEditable } from "./FixedTextDialog.tsx";
 import { type FixedTextLocation, rememberFixedText, resolveFixedText } from "./fixed-text.ts";
@@ -152,6 +157,24 @@ export function Builder({
 	const [problems, setProblems] = useState<TreeProblem[]>([]);
 	const [theme, setTheme] = useState<"light" | "dark">("light");
 	const [width, setWidth] = useState<CanvasWidth>("desktop");
+	// The window's width (#138): the three-sided layout, the tree and the Inspector as drawers, or covered.
+	const fit = useEditorFit();
+	const [drawer, setDrawer] = useState<EditorDrawer | null>(null);
+	const afterRender = useAfterRender();
+	const drawerReturn = useRef<Element | null>(null);
+	const layersSection = useRef<HTMLElement>(null);
+	const inspectorSection = useRef<HTMLElement>(null);
+	const notice = useRef<HTMLDivElement>(null);
+	// Narrowing to the drawer layout keeps open, as a drawer, the side that has focus.
+	const [layoutShown, setLayoutShown] = useState(fit.layout);
+	if (layoutShown !== fit.layout) {
+		setLayoutShown(fit.layout);
+		const active = typeof document === "undefined" ? null : document.activeElement;
+		if (fit.layout === "drawers" && !drawer && active) {
+			if (layersSection.current?.contains(active)) setDrawer("layers");
+			else if (inspectorSection.current?.contains(active)) setDrawer("inspector");
+		}
+	}
 	const [showFixed, setShowFixed] = useState(true);
 	const [showChecks, setShowChecks] = useState(false);
 	const [announcement, announce] = useAnnouncement();
@@ -983,11 +1006,67 @@ export function Builder({
 	}, [dirty]);
 
 	// Ctrl/⌘ S saves; Ctrl/⌘ Z and Shift+Z (or Y) use the tab history even inside code; Ctrl/⌘ I inserts.
-	const keys = useRef({ save, undo, redo });
-	keys.current = { save, undo, redo };
+	/**
+	 * Opens a drawer (or none) in the drawer layout. With `focus`, focus moves into it, and back to
+	 * where it was before the first drawer opened when none is left open.
+	 */
+	const showDrawer = (next: EditorDrawer | null, focus = false) => {
+		if (focus && next && !drawer) drawerReturn.current = document.activeElement;
+		setDrawer(next);
+		if (!focus) return;
+		afterRender(() => {
+			if (next) {
+				focusInto(next === "layers" ? layersSection.current : inspectorSection.current);
+				return;
+			}
+			const back = drawerReturn.current;
+			drawerReturn.current = null;
+			if (back instanceof HTMLElement && back.isConnected) back.focus();
+			else document.getElementById("main")?.focus();
+		});
+	};
+	// F6 (#138, the drawer layout only): the tree, then the Inspector, then neither; Shift+F6 backwards.
+	// #137's F6 order for every region will take this over, opening the drawers with `showDrawer`
+	// (`editor-fit.ts`; docs/development.md › The visual builder › Window width).
+	const drawerKey = (event: KeyboardEvent) => {
+		if (fit.layout !== "drawers" || fit.covered || document.querySelector("[data-slot=dialog-content]")) return;
+		event.preventDefault();
+		showDrawer(nextDrawer(drawer, event.shiftKey), true);
+	};
+
+	// Below the smallest width, a notice covers the builder: nothing under it closes or can be reached,
+	// and focus goes back where it was once the window is wide enough again.
+	const coverReturn = useRef<Element | null>(null);
+	useEffect(() => {
+		if (!fit.covered) {
+			const back = coverReturn.current;
+			coverReturn.current = null;
+			if (back instanceof HTMLElement && back.isConnected) back.focus();
+			return;
+		}
+		coverReturn.current = document.activeElement;
+		const shown = notice.current;
+		const covered: Element[] = [];
+		for (const child of document.body.children) {
+			if (!shown || child.contains(shown) || child.hasAttribute("inert")) continue;
+			child.setAttribute("inert", "");
+			covered.push(child);
+		}
+		shown?.focus();
+		return () => {
+			for (const each of covered) each.removeAttribute("inert");
+		};
+	}, [fit.covered]);
+
+	const keys = useRef({ save, undo, redo, drawerKey });
+	keys.current = { save, undo, redo, drawerKey };
 	const shortcut = useRef<(event: KeyboardEvent) => void>(() => {});
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
+			if (event.key === "F6" && !event.ctrlKey && !event.metaKey && !event.altKey) {
+				keys.current.drawerKey(event);
+				return;
+			}
 			if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
 			const key = event.key.toLowerCase();
 			if (key === "s") {
@@ -1036,6 +1115,13 @@ export function Builder({
 		{ width: "phone", icon: SmartphoneIcon },
 	];
 	const selectedNodeForInsert = selection?.kind === "node" ? nodeAt(doc.tree, selection.path) : undefined;
+	const full = fit.layout === "full";
+	const goBack = (event: { preventDefault(): void }) => {
+		event.preventDefault();
+		void depart().then((saved) => {
+			if (saved) void navigate({ to: back.to, params: { siteId } });
+		});
+	};
 
 	return (
 		<div
@@ -1045,12 +1131,7 @@ export function Builder({
 		>
 			<header className="flex flex-wrap items-center gap-2 border-b px-3 py-2">
 				<Link
-					onClick={(event) => {
-						event.preventDefault();
-						void depart().then((saved) => {
-							if (saved) void navigate({ to: back.to, params: { siteId } });
-						});
-					}}
+					onClick={goBack}
 					to={back.to}
 					params={{ siteId }}
 					className={buttonVariants({ variant: "ghost", size: "sm" })}
@@ -1075,6 +1156,34 @@ export function Builder({
 					beforeLeave={depart}
 				/>
 				<div className="ms-auto flex flex-wrap items-center gap-1">
+					{fit.layout === "drawers" ? (
+						<>
+							<Button
+								type="button"
+								size="sm"
+								variant={drawer === "layers" ? "secondary" : "ghost"}
+								aria-expanded={drawer === "layers"}
+								aria-controls="builder-layers"
+								aria-keyshortcuts="F6"
+								onClick={() => showDrawer(drawer === "layers" ? null : "layers", drawer !== "layers")}
+							>
+								<PanelLeftIcon aria-hidden="true" className="rtl:rotate-180" />
+								{t("builder.layers.heading")}
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								variant={drawer === "inspector" ? "secondary" : "ghost"}
+								aria-expanded={drawer === "inspector"}
+								aria-controls="builder-inspector"
+								aria-keyshortcuts="F6"
+								onClick={() => showDrawer(drawer === "inspector" ? null : "inspector", drawer !== "inspector")}
+							>
+								<PanelRightIcon aria-hidden="true" className="rtl:rotate-180" />
+								{t("builder.inspector.heading")}
+							</Button>
+						</>
+					) : null}
 					<fieldset className="flex rounded-md border p-0.5">
 						<legend className="sr-only">{t("builder.width.label")}</legend>
 						{widths.map(({ width: each, icon: Icon }) => (
@@ -1173,10 +1282,16 @@ export function Builder({
 			<main
 				id="main"
 				tabIndex={-1}
-				className="grid min-h-0 flex-1 outline-none lg:grid-cols-[16rem_minmax(0,1fr)_18rem] lg:grid-rows-[minmax(16rem,1fr)_minmax(15rem,35vh)]"
+				className={`grid min-h-0 flex-1 grid-rows-[minmax(16rem,1fr)_minmax(15rem,35vh)] outline-none ${full ? "grid-cols-[16rem_minmax(0,1fr)_18rem]" : "grid-cols-[minmax(0,1fr)]"}`}
 			>
 				{
-					<section aria-labelledby="layers-heading" className="flex min-h-0 flex-col border-e lg:row-span-2">
+					<section
+						id="builder-layers"
+						ref={layersSection}
+						tabIndex={-1}
+						aria-labelledby="layers-heading"
+						className={`min-h-0 flex-col border-e outline-none ${full ? "col-start-1 row-span-2 row-start-1 flex" : `bg-background z-10 col-start-1 row-start-1 w-64 justify-self-start shadow-lg ${drawer === "layers" ? "flex" : "hidden"}`}`}
+					>
 						<InsertToolbar
 							where={insertWhere}
 							canInside={!!selectedNode && canHoldChildren(selectedNode)}
@@ -1229,7 +1344,10 @@ export function Builder({
 						/>
 					</section>
 				}
-				<section aria-label={t("builder.canvas.label")} className="bg-muted flex min-h-0 flex-col">
+				<section
+					aria-label={t("builder.canvas.label")}
+					className={`bg-muted row-start-1 flex min-h-0 flex-col ${full ? "col-start-2" : "col-start-1"}`}
+				>
 					{problems.length > 0 ? (
 						<div aria-live="polite" className="border-destructive/40 bg-destructive/5 border-b px-3 py-2 text-sm">
 							<p className="font-medium">{t("builder.problems")}</p>
@@ -1325,7 +1443,13 @@ export function Builder({
 					/>
 				</section>
 				{
-					<section aria-labelledby="inspector-heading" className="flex min-h-0 flex-col border-s lg:row-span-2">
+					<section
+						id="builder-inspector"
+						ref={inspectorSection}
+						tabIndex={-1}
+						aria-labelledby="inspector-heading"
+						className={`min-h-0 flex-col border-s outline-none ${full ? "col-start-3 row-span-2 row-start-1 flex" : `bg-background z-10 col-start-1 row-start-1 w-72 justify-self-end shadow-lg ${drawer === "inspector" ? "flex" : "hidden"}`}`}
+					>
 						<Inspector
 							departure={oneOffDeparture}
 							cssInDock
@@ -1390,7 +1514,7 @@ export function Builder({
 					</section>
 				}
 				<div
-					className={`grid min-h-0 overflow-auto border-t md:grid-cols-2 lg:col-start-2 lg:row-start-2 ${target.kind === "component" ? "xl:grid-cols-3" : ""}`}
+					className={`row-start-2 grid min-h-0 overflow-auto border-t ${full ? "col-start-2" : "col-start-1"} ${target.kind === "component" ? "grid-cols-3" : "grid-cols-2"}`}
 				>
 					<section aria-label="HTML" className="flex min-h-0 flex-col">
 						<MarkupView
@@ -1508,6 +1632,38 @@ export function Builder({
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+			{fit.covered
+				? createPortal(
+						<div
+							ref={notice}
+							role="dialog"
+							aria-modal="true"
+							aria-labelledby="builder-too-narrow-title"
+							aria-describedby="builder-too-narrow-text"
+							tabIndex={-1}
+							className="bg-background text-foreground fixed inset-0 z-[100] grid place-items-center p-6 outline-none"
+						>
+							<div className="grid max-w-md justify-items-center gap-3 text-center">
+								<h2 id="builder-too-narrow-title" className="text-lg font-semibold">
+									{t("builder.tooNarrow.title")}
+								</h2>
+								<p id="builder-too-narrow-text" className="text-muted-foreground text-sm">
+									{t("builder.tooNarrow.text")}
+								</p>
+								<Link
+									onClick={goBack}
+									to={back.to}
+									params={{ siteId }}
+									className={buttonVariants({ variant: "outline", size: "sm" })}
+								>
+									<ArrowLeftIcon aria-hidden="true" className="rtl:rotate-180" />
+									{back.label}
+								</Link>
+							</div>
+						</div>,
+						document.body,
+					)
+				: null}
 		</div>
 	);
 }
