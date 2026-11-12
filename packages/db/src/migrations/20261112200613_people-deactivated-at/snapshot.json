@@ -2,9 +2,9 @@
   "type": "diff",
   "version": "9",
   "dialect": "postgres",
-  "id": "97e008cb-27d8-4dbf-b72b-442dd220a756",
+  "id": "3cf02320-d815-46c1-92cc-7754a45662e0",
   "prevIds": [
-    "820a6f1d-1f81-40f4-9066-a3ec34706697"
+    "18c5942b-28b5-4ad8-8b44-e46e1c9a6126"
   ],
   "footprints": [
     {
@@ -12,16 +12,16 @@
       "statementTarget": [
         "column",
         "public",
-        "oauth_device_codes",
-        "requested_from"
+        "people",
+        "deactivated_at"
       ],
       "writes": [
-        "s|col|public.oauth_device_codes.requested_from",
-        "n|col|public.oauth_device_codes.requested_from",
-        "e|col|public.oauth_device_codes.requested_from"
+        "s|col|public.people.deactivated_at",
+        "n|col|public.people.deactivated_at",
+        "e|col|public.people.deactivated_at"
       ],
       "reads": [
-        "n|tbl|public.oauth_device_codes",
+        "n|tbl|public.people",
         "n|sch|public"
       ]
     }
@@ -31,9 +31,9 @@
       "op": "create",
       "row": {
         "schema": "public",
-        "table": "oauth_device_codes",
-        "name": "requested_from",
-        "type": "text",
+        "table": "people",
+        "name": "deactivated_at",
+        "type": "timestamp with time zone",
         "typeSchema": null,
         "notNull": false,
         "dimensions": 0,

@@ -1,21 +1,15 @@
-import type { InstallConfig } from "@webcraft/core";
-
-import { fromTrustedProxy } from "./client-address.ts";
-
-/** The header a request id comes in from a trusted proxy, and goes back out in, on every answer. */
+/** The header a request's id goes back out in, on every answer. */
 export const REQUEST_ID_HEADER = "x-request-id";
 
-/** A request id a proxy may give: short, and only letters, digits and `.`, `_`, `:` and `-`. */
-const PLAIN_REQUEST_ID = /^[A-Za-z0-9._:-]{1,128}$/;
-
 /**
- * The id of a request, which its log lines and the jobs it queues carry: the one a trusted proxy in
- * front of the web process gave in `X-Request-Id`, when it gave a plain one, else a new random one.
- * Anyone else's is ignored: a client could make its requests look like someone else's.
+ * A new id for a request, which its log lines, the jobs it queues and its Error log entry carry:
+ * always made here, never taken from the request. A proxy in front of the web process hands on the
+ * headers a client sent, an `X-Request-Id` among them, so an id read from the request would be the
+ * client's to choose: it could make its requests look like someone else's (an id copied from a
+ * support thread), or flood one id. To line a proxy's own log up with WebCraft's, have the proxy log
+ * the `X-Request-Id` of the answer.
  */
-export function requestIdOf(request: Request, config: InstallConfig): string {
-	const given = request.headers.get(REQUEST_ID_HEADER);
-	if (given !== null && PLAIN_REQUEST_ID.test(given) && fromTrustedProxy(request, config)) return given;
+export function newRequestId(): string {
 	return crypto.randomUUID();
 }
 

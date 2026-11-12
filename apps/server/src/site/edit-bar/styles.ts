@@ -6,7 +6,7 @@
  */
 export const PAGE_STYLES = `
 html.wc-edit-on.wc-arrange-on [data-wc-page-placement]{outline:1px dashed #64748b;outline-offset:2px}
-html.wc-edit-on.wc-arrange-on [data-wc-placement-selected]{outline:3px solid #2563eb;outline-offset:3px}
+html.wc-edit-on [data-wc-placement-selected]{outline:3px solid #2563eb;outline-offset:3px}
 [data-wc-placement-prop][contenteditable="true"]:focus{outline:2px solid #2563eb}
 
 webcraft-edit-bar { display: block !important; }
@@ -145,8 +145,11 @@ svg { flex: none; }
 	box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
 }
 .start, .middle, .end { display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+/* When the bar is tight, the Site's name and the page's title give way: nothing lies over anything else. */
 .start { flex: 1 1 auto; }
-.end { flex: 1 1 auto; justify-content: flex-end; }
+.middle { flex: none; }
+.end { flex: 1 0 auto; justify-content: flex-end; }
+.pages, .page-title { min-width: 0; }
 .logo {
 	display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 0.375rem;
 	background: var(--bar-text); color: var(--bar); font-weight: 700;
@@ -175,6 +178,7 @@ svg { flex: none; }
 .segment { color: var(--bar-muted); height: 2rem; }
 .segment[aria-pressed="true"] { background: var(--bar-control-hover); color: var(--bar-text); }
 .icon-only { padding: 0 0.5rem; }
+.search { justify-content: center; }
 .language { display: inline-flex; align-items: center; gap: 0.375rem; color: var(--bar-text); white-space: nowrap; }
 .publish { background: var(--bar-text); color: var(--bar); font-weight: 600; }
 .publish:hover { background: #e4e4e7; }
@@ -250,10 +254,14 @@ svg { flex: none; }
 .others svg { margin-top: 0.125rem; }
 .others a { color: var(--text); font-weight: 600; }
 
-.notice {
+/* What the bar says under itself: a failed script's notice, and its own messages, one under the other. */
+.notices {
 	position: fixed; z-index: 2147483000; inset-block-start: 4rem; inset-inline: 0.75rem; margin-inline: auto;
+	display: grid; gap: 0.5rem; max-width: 48rem; pointer-events: none;
+}
+.notice {
 	display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem;
-	max-width: 48rem; padding: 0.75rem 0.75rem 0.75rem 1rem;
+	padding: 0.75rem 0.75rem 0.75rem 1rem; pointer-events: auto;
 	background: var(--problem-bg); color: var(--problem-text);
 	border: 1px solid var(--problem-border); border-radius: 0.75rem; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
 }
@@ -515,7 +523,7 @@ dialog::backdrop { background: rgba(9, 9, 11, 0.5); }
 	.picker-item, .sheet-row, .menu [role="menuitem"], .switch-field .switch, .loop-add, .tool-link {
 		min-height: 44px;
 	}
-	.tool, .icon-button, .avatar, .more { min-width: 44px; min-height: 44px; }
+	.tool, .icon-button, .avatar, .more, .search { min-width: 44px; min-height: 44px; }
 	.chooser-option, .check-field { min-height: 44px; }
 	.check-field input { width: 1.5rem; height: 1.5rem; }
 	.switch { min-width: 44px; }

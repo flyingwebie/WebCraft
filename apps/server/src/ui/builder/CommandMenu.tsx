@@ -134,6 +134,13 @@ export function useEditorKeys(options: {
 	blocked?(): boolean;
 	menu: MenuState | null;
 	setMenu(menu: MenuState | null): void;
+	/** The tabs the menu has here (all three unless a canvas leaves one out). */
+	tabs?: readonly CommandTab[];
+	/**
+	 * True where a tab's key belongs to what is being typed in instead (Edit mode's text: ⌘I is italic in
+	 * rich text, ⌘K a link in the Body): the key is left alone there.
+	 */
+	typing?(event: KeyboardEvent, tab: CommandTab): boolean;
 	openShortcuts(): void;
 	history?: HistoryTarget;
 	element: { duplicate(): void; delete(): void; parent(): void } | null;
@@ -142,12 +149,23 @@ export function useEditorKeys(options: {
 	latest.current = options;
 	const handler = useRef<(event: KeyboardEvent, phase: "capture" | "bubble") => void>(() => {});
 	handler.current = (event, phase) => {
-		const { enabled, blocked, menu, setMenu, openShortcuts, element, history } = latest.current;
+		const {
+			enabled,
+			blocked,
+			menu,
+			setMenu,
+			tabs = COMMAND_TABS,
+			typing,
+			openShortcuts,
+			element,
+			history,
+		} = latest.current;
 		if (!enabled || blocked?.() || event.isComposing) return;
 		if (phase === "capture") {
 			if (inOtherDialog(event)) return;
-			for (const tab of COMMAND_TABS) {
+			for (const tab of tabs) {
 				if (!matches(event, TAB_SHORTCUTS[tab])) continue;
+				if (typing?.(event, tab)) return;
 				event.preventDefault();
 				event.stopPropagation();
 				setMenu(menu?.tab === tab ? null : { tab });
@@ -224,19 +242,28 @@ export function CommandMenu({
 	state,
 	onState,
 	can,
+	tabs = COMMAND_TABS,
 	actions,
 	goTo,
 	insert,
+	placing = null,
 	onRowFocus,
 }: {
 	canvas: Canvas;
 	state: MenuState | null;
 	onState(state: MenuState | null): void;
 	can(permission: Permission): boolean;
+	/** The tabs shown (all three unless a canvas leaves one out: Edit mode has no Insert where arranging is off). */
+	tabs?: readonly CommandTab[];
 	actions: readonly Command[];
 	/** Go to's destinations and the page's layers; null while they load. */
 	goTo: readonly Command[] | null;
 	insert: InsertTarget | null;
+	/**
+	 * Insert on a canvas with no element tree (Edit mode): its own commands (the Components that may be
+	 * placed), where they go, read with the search box, and what to say when there are none to place.
+	 */
+	placing?: { commands: readonly Command[]; where: string; empty: string } | null;
 	/** Puts focus on the selected tree row (after Go to an element, Rename, or an insert). */
 	onRowFocus(): void;
 }) {
@@ -244,6 +271,8 @@ export function CommandMenu({
 	const id = useId();
 	const open = state !== null;
 	const tab = state?.tab ?? "actions";
+	/** Edit mode names what its tabs search in its own words (no Templates, Components or layers for Members). */
+	const words = canvas === "edit" ? "builder.commandMenu.editMode" : "builder.commandMenu";
 	const [query, setQuery] = useState("");
 	const [active, setActive] = useState(0);
 	const [recent, setRecent] = useState<string[]>(() => recentCommands());
@@ -332,10 +361,11 @@ export function CommandMenu({
 		];
 	}, [insert, items, t]);
 
-	const all = tab === "actions" ? actions : tab === "goTo" ? (goTo ?? []) : insertCommands;
+	const all = tab === "actions" ? actions : tab === "goTo" ? (goTo ?? []) : (placing?.commands ?? insertCommands);
 	const listed = useMemo(() => {
 		const found = visibleCommands(all, { tab, canvas, can, query, recent });
-		if (tab !== "insert" || query.trim()) return found;
+		// The short list is the element tree's: a canvas placing its own commands lists them all.
+		if (tab !== "insert" || query.trim() || !insert) return found;
 		const only = state?.only;
 		/** Where an item stands in the short list (every Component where the toolbar's Component button is). */
 		const rank = (command: Command) => {
@@ -351,7 +381,7 @@ export function CommandMenu({
 			recent: found.recent.filter(short),
 			results: found.results.filter(short).sort((a, b) => rank(a) - rank(b)),
 		};
-	}, [all, tab, canvas, can, query, recent, items, state?.only]);
+	}, [all, tab, canvas, can, query, recent, items, state?.only, insert]);
 	const rows: Row[] = [...listed.recent, ...listed.results].map((command, index) => ({ command, index }));
 	const current = rows[Math.min(active, rows.length - 1)];
 
@@ -407,7 +437,8 @@ export function CommandMenu({
 	/** What a screen reader hears after the visible label: the group and the key ("Duplicate, Element, Command D"). */
 	const readAfter = (command: Command) => {
 		const spoken = spokenOf(command);
-		return spoken.startsWith(command.label) ? spoken.slice(command.label.length) : `, ${spoken}`;
+		const after = spoken.startsWith(command.label) ? spoken.slice(command.label.length) : `, ${spoken}`;
+		return command.disabled && command.reason ? `${after}, ${command.reason}` : after;
 	};
 
 	const insertNodes = (nodes: TreeNode[], inverse: boolean, mode: "insert" | "wrap") => {
@@ -452,8 +483,8 @@ export function CommandMenu({
 	const keyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
 		if (event.key === "Tab") {
 			event.preventDefault();
-			const at = COMMAND_TABS.indexOf(tab) + (event.shiftKey ? -1 : 1);
-			switchTab(COMMAND_TABS[(at + COMMAND_TABS.length) % COMMAND_TABS.length] as CommandTab);
+			const at = tabs.indexOf(tab) + (event.shiftKey ? -1 : 1);
+			switchTab(tabs[(at + tabs.length) % tabs.length] as CommandTab);
 		} else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
 			event.preventDefault();
 			const move = event.key === "ArrowDown" ? 1 : -1;
@@ -468,7 +499,7 @@ export function CommandMenu({
 	};
 
 	const whereText = !insert
-		? ""
+		? (placing?.where ?? "")
 		: insert.selected === null
 			? t("builder.commandMenu.insert.end")
 			: t(where === "inside" ? "builder.commandMenu.insert.inside" : "builder.commandMenu.insert.after", {
@@ -513,7 +544,7 @@ export function CommandMenu({
 					<DialogDescription className="sr-only">{t("builder.commandMenu.tabs.label")}</DialogDescription>
 				</DialogHeader>
 				<div role="tablist" aria-label={t("builder.commandMenu.tabs.label")} className="flex gap-1 border-b pb-2">
-					{COMMAND_TABS.map((each) => (
+					{tabs.map((each) => (
 						<button
 							key={each}
 							type="button"
@@ -532,16 +563,14 @@ export function CommandMenu({
 							onMouseDown={(event) => event.preventDefault()}
 							onClick={() => switchTab(each)}
 							onKeyDown={(event) => {
-								const at = COMMAND_TABS.indexOf(each);
+								const at = tabs.indexOf(each);
 								const next =
 									event.key === "ArrowRight" || event.key === "ArrowLeft"
-										? COMMAND_TABS[
-												(at + (event.key === "ArrowRight" ? 1 : -1) + COMMAND_TABS.length) % COMMAND_TABS.length
-											]
+										? tabs[(at + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length]
 										: event.key === "Home"
-											? COMMAND_TABS[0]
+											? tabs[0]
 											: event.key === "End"
-												? COMMAND_TABS.at(-1)
+												? tabs.at(-1)
 												: undefined;
 								if (!next) return;
 								event.preventDefault();
@@ -602,13 +631,13 @@ export function CommandMenu({
 							<Input
 								ref={search}
 								role="combobox"
-								aria-label={t(`builder.commandMenu.search.${tab}`)}
+								aria-label={t(`${words}.search.${tab}`)}
 								aria-expanded="true"
 								aria-controls={`${id}-list`}
 								aria-autocomplete="list"
 								aria-activedescendant={current ? `${id}-option-${current.index}` : undefined}
 								aria-describedby={tab === "insert" ? `${id}-where${inverseText ? ` ${id}-inverse` : ""}` : undefined}
-								placeholder={t(`builder.commandMenu.placeholder.${tab}`)}
+								placeholder={t(`${words}.placeholder.${tab}`)}
 								value={query}
 								autoComplete="off"
 								spellCheck={false}
@@ -634,7 +663,9 @@ export function CommandMenu({
 								id={`${id}-list`}
 								role="listbox"
 								aria-label={t(`builder.commandMenu.tabs.${tab}`)}
-								className="grid max-h-80 overflow-y-auto rounded-md border p-1"
+								// Positioned, so what its rows hold for screen readers alone scrolls with them and is
+								// clipped here: left to the dialog, it made the dialog itself scroll under a long list.
+								className="relative grid max-h-80 overflow-y-auto rounded-md border p-1"
 							>
 								{tab === "goTo" && goTo === null ? (
 									<p className="text-muted-foreground p-2 text-sm">{t("builder.commandMenu.loading")}</p>
@@ -670,6 +701,7 @@ export function CommandMenu({
 													aria-hidden="true"
 													className="text-muted-foreground flex shrink-0 items-baseline gap-2 text-xs"
 												>
+													{row.command.disabled && row.command.reason ? <span>{row.command.reason}</span> : null}
 													{row.command.hint ? <span className="truncate font-mono">{row.command.hint}</span> : null}
 													{keysOf(row.command) ? <kbd className="font-sans">{keysOf(row.command)}</kbd> : null}
 												</span>
@@ -680,7 +712,9 @@ export function CommandMenu({
 							</div>
 							<p className="text-destructive text-sm empty:hidden">
 								{rows.length === 0 && (tab !== "goTo" || goTo !== null)
-									? t("builder.commandMenu.none")
+									? tab === "insert" && placing?.commands.length === 0
+										? placing.empty
+										: t("builder.commandMenu.none")
 									: (problem ?? "")}
 							</p>
 						</>
@@ -693,15 +727,22 @@ export function CommandMenu({
 
 const AREAS: readonly ShortcutArea[] = ["menu", "editor", "element", "tree", "insert"];
 
-/** Keyboard shortcuts (⌘/): the shortcut registry, grouped by area, only what the person may do. */
+/**
+ * Keyboard shortcuts (⌘/): the shortcut registry, grouped by area, only what the person may do. In
+ * Edit mode (`edit`) that is the shortcuts that work there, by the Permission each needs there, the
+ * Page layout drawer's only where the person may arrange the page, Undo and Redo only once the page has
+ * an Undo history.
+ */
 export function ShortcutsDialog({
 	open,
 	onOpenChange,
 	can,
+	edit,
 }: {
 	open: boolean;
 	onOpenChange(open: boolean): void;
 	can(permission: Permission): boolean;
+	edit?: { arranging: boolean; history: boolean; editing: boolean };
 }) {
 	const t = useT();
 	const id = useId();
@@ -721,12 +762,18 @@ export function ShortcutsDialog({
 					<DialogDescription>{t("builder.commandMenu.shortcuts.intro")}</DialogDescription>
 				</DialogHeader>
 				{AREAS.map((area) => {
-					const listed = SHORTCUTS.filter((each) => each.area === area && can(each.permission));
+					const listed = SHORTCUTS.filter((each) => {
+						if (each.area !== area) return false;
+						if (!edit) return can(each.permission);
+						const there = each.editMode;
+						return !!there && can(there.permission) && (!there.needs || edit[there.needs]);
+					});
 					if (!listed.length) return null;
 					return (
 						<table key={area} className="w-full text-sm" aria-labelledby={`${id}-${area}`}>
 							<caption id={`${id}-${area}`} className="pb-1 text-start font-semibold">
-								{t(`builder.commandMenu.areas.${area}`)}
+								{/* In Edit mode the tree is the Page layout drawer. */}
+								{edit && area === "tree" ? t("pageLayout.title") : t(`builder.commandMenu.areas.${area}`)}
 							</caption>
 							<thead className="sr-only">
 								<tr>
@@ -745,7 +792,7 @@ export function ShortcutsDialog({
 												</span>
 											))}
 										</td>
-										<td className="py-1">{t(each.label)}</td>
+										<td className="py-1">{t((edit && each.editMode?.label) || each.label)}</td>
 									</tr>
 								))}
 							</tbody>

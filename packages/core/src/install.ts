@@ -56,6 +56,32 @@ export type OpenInstallOptions = {
 	dns?: Dns;
 };
 
+/** How often, at most, a process says the database dropped connections it had open. */
+const LOST_CONNECTIONS_SAID_EVERY_MS = 60_000;
+
+/**
+ * Says in the log that the database dropped a connection the process held open, at most once a
+ * minute (a server going away drops every one of them at once), counting the ones in between. The
+ * process carries on: this is how a flapping database shows.
+ */
+function sayingLostConnections(log: Logger): (error: Error) => void {
+	let saidAt = Number.NEGATIVE_INFINITY;
+	let unsaid = 0;
+	return (error) => {
+		const now = performance.now();
+		if (now - saidAt < LOST_CONNECTIONS_SAID_EVERY_MS) {
+			unsaid++;
+			return;
+		}
+		log.warn("The database dropped a connection this process had open; the next query opens another", {
+			error,
+			othersSinceLastSaid: unsaid,
+		});
+		saidAt = now;
+		unsaid = 0;
+	};
+}
+
 /**
  * Opens a running Install's services from the environment, refusing to start when a setting is
  * missing (including a Master key under 32 characters) or the database is behind (ADR 0031).
@@ -67,7 +93,7 @@ export async function openInstall(options: OpenInstallOptions): Promise<{ servic
 	const masterKey = loadMasterKey(env);
 	const applicationName = `webcraft-${processName}`;
 
-	const database = openDatabase(config.databaseUrl, { applicationName });
+	const database = openDatabase(config.databaseUrl, { applicationName, onConnectionLost: sayingLostConnections(log) });
 	opened.database = database;
 	const modules = options.modules ?? FIRST_PARTY_MODULES;
 	await assertSchemaCurrent(database, { modules: moduleSchemas(modules) });

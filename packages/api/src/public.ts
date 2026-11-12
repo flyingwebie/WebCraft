@@ -164,9 +164,11 @@ export function createProcedureCaller(services: InstallServices): (call: Procedu
 		if (refused) return refusal(refused.status, refused.code, refused.message, refused.data);
 		const readsSubmissions =
 			procedure.access === "read" && procedure.toolsets !== "always" && procedure.toolsets.includes("submissions");
-		const input = readsSubmissions ? await jsonInput(request) : null;
+		// The API's own limit first: it takes the place of the default ceiling every body starts under,
+		// so the copy read for the Audit log is held to the same limit as the procedure's input.
 		const body = await bodyWithinLimit(services, request, path.join("."));
 		if (body instanceof Response) return body;
+		const input = readsSubmissions ? await jsonInput(body.request) : null;
 		const { matched, response } = await handlerFor(adminRouter(services)).handle(body.request, {
 			prefix: PUBLIC_API_PREFIX,
 			context: { services, headers: request.headers, clientAddress, via: client.access.via, client },

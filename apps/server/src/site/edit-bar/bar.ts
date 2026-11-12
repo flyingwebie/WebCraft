@@ -1,6 +1,8 @@
+import type { AdminLanguageCode } from "@webcraft/core/admin-languages";
 import type { editorAccessibility } from "../../ui/builder/editor-accessibility.ts";
 import type { PageLayoutController } from "../../ui/page-layouts/controller.ts";
 import type {
+	BarCommands,
 	BarKit,
 	BodyTools,
 	DetailsPanel,
@@ -19,16 +21,19 @@ import type {
 /**
  * What the editing bar's script is given when it is made: the addresses of its own stylesheet and of
  * the module that opens the page's Drafts live (Co-editing), of the Undo history's module (ADR 0036),
- * and the narrowest window Code mode opens in (`EDITOR_WIDTHS.min`, #138).
+ * the module of Edit mode's own tools (the Page layout's and the Command menu, with their stylesheet),
+ * the narrowest window Code mode opens in (`EDITOR_WIDTHS.min`, #138) and the narrowest the Command
+ * menu is offered in (#139).
  */
 export type EditingBarConfig = {
 	styles: string;
 	drafts: string;
 	history: string;
 	body: string;
-	layout: string;
-	layoutStyles: string;
+	tools: string;
+	toolsStyles: string;
 	codeMinWidth: number;
+	menuMinWidth: number;
 };
 
 /**
@@ -92,6 +97,8 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		language: { code: string; name: string };
 		defaultLanguage: string;
 		languages: { code: string; name: string; path: string; current: boolean }[];
+		/** The language the bar and Edit mode's own tools speak: the person's Admin language. */
+		adminLanguage: AdminLanguageCode;
 		words?: Words;
 	};
 	type Answer = { ok: true; data: unknown } | { ok: false; code: string; data?: unknown };
@@ -162,6 +169,12 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	const safe = doc.querySelector('meta[name="webcraft-safe-mode"]')?.getAttribute("content") === "on";
 	/** Which script Code mode's JS panel opens at after the reload a notice asks for: `site` or `page`. */
 	const CODE_SCRIPT_KEY = "webcraft-code-script";
+	/** Why the Undo history was left behind on the way to this page, kept for it to say (`sayLostHistory`). */
+	const HISTORY_LOST_KEY = "webcraft-edit-history-lost";
+	/** How long leaving a page waits for the Undo history to be handed over before it goes without it. */
+	const HANDOFF_MS = 8000;
+	/** The longest what the person does waits for the Undo history to be there: editing never hangs on it. */
+	const HISTORY_WAIT_MS = 10_000;
 	const ErrorEventType = win.ErrorEvent;
 	const ScriptElement = win.HTMLScriptElement;
 	/** The Site's own scripts that failed on this page, in the order they did. */
@@ -263,6 +276,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		],
 		remove: ["M3 6h18", "M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6", "M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"],
 		add: ["M5 12h14", "M12 5v14"],
+		search: ["m21 21-4.34-4.34", "M11 3a8 8 0 1 0 0 16 8 8 0 1 0 0-16"],
 		more: [
 			"M12 11a1 1 0 1 0 0 2 1 1 0 1 0 0-2",
 			"M19 11a1 1 0 1 0 0 2 1 1 0 1 0 0-2",
@@ -286,6 +300,16 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	let layoutTools: PageLayoutController | undefined;
 	/** The Undo history (ADR 0036), once its module loaded: one for this window, outside Code mode. */
 	let historyTools: HistoryTools | null = null;
+	/**
+	 * Settled once the Undo history is mounted, or can't be (its module didn't load), or took longer than
+	 * `HISTORY_WAIT_MS`. What the person does before then waits for it (their typing's saves, the Page
+	 * layout's tools), so nothing they did is missing from their history. Code mode keeps its own
+	 * history: nothing waits there.
+	 */
+	let historySettled: () => void = () => {};
+	const historyMounted = new Promise<void>((resolve) => {
+		historySettled = resolve;
+	});
 	doc.addEventListener("webcraft:page-layout", (event) => {
 		layoutTools = (event as CustomEvent<PageLayoutController>).detail;
 		historyTools?.layout(layoutTools);
@@ -307,6 +331,8 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 
 	let chip: HTMLElement;
 	let savedNote: HTMLElement;
+	/** What the bar has to say for everyone to see, under itself (`showMessage`). */
+	let messageNote: HTMLElement;
 	let pageButton: HTMLButtonElement;
 	let publishButton: HTMLButtonElement;
 	/** Undo and Redo, in the bar and (Undo) in the text toolbar: what they say follows the history. */
@@ -319,6 +345,8 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	let openPopup: Popup | null = null;
 	let publishPopup: Popup;
 	let savedTimer = 0;
+	/** What the Command menu's Actions ask of the bar (#139). */
+	let commands: BarCommands;
 	/** The bar's parts, made once it starts. */
 	let kit: BarKit;
 	let images: ImageTools | null = null;
@@ -329,6 +357,8 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	let detailsButton: HTMLButtonElement | null = null;
 	/** Phones get a compact bar and bottom sheets instead of popovers and the drawer. */
 	const phoneWidth = win.matchMedia("(max-width: 640px)");
+	/** The Command menu is offered from this width up; narrower windows have the bar's own menu and sheets. */
+	const menuWidth = win.matchMedia(`(min-width: ${config.menuMinWidth}px)`);
 	const visual = win.visualViewport;
 	const DialogElement = win.HTMLDialogElement;
 
@@ -436,8 +466,18 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		kit.openImage = images.open;
 		setUpRegions();
 		loadBody();
-		if (!coding) loadHistory();
-		if (!coding && state.page.layout) loadLayout();
+		// Code mode has its own panels, Command menu and Undo history. Otherwise the history loads on
+		// every page, and Edit mode's tools for a Page's layout, and for the Command menu once the window
+		// is wide enough for it.
+		if (coding) historySettled();
+		else {
+			loadHistory();
+			// Their own words follow the bar's Admin language, which this first `state` request answers.
+			const language = state.adminLanguage;
+			if (state.page.layout || menuWidth.matches) loadTools(language);
+			else menuWidth.addEventListener("change", () => loadTools(language), { once: true });
+		}
+		sayLostHistory();
 		openDrafts();
 		every(() => void refresh(), 60_000);
 		doc.addEventListener("visibilitychange", () => {
@@ -714,11 +754,33 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			if (action === "publish" && !publishButton.disabled) openPanel(publishPopup);
 			else if (action === "safeMode") void switchSafe(!safe);
 			else if (action === "preview") void switchCode(false, true);
-			else if (action === "leave")
-				void call("end", {}).then(() => {
-					win.location.reload();
-				});
+			else if (action === "leave") void endEditMode();
 		});
+		// The Command menu's button (#139): its module names it, gives it its keys and shows it.
+		const searchButton = button(
+			{ class: "control icon-only search", "aria-haspopup": "dialog", hidden: "" },
+			icon("search"),
+		);
+		commands = {
+			button: searchButton,
+			async save() {
+				if (!(await settle())) {
+					showMessage(word("notSaved"));
+					return;
+				}
+				showMessage(null);
+				announce(word("savedToDraft"));
+				await refresh();
+			},
+			go(url) {
+				void settle().then((saved) => (saved ? leaveFor(url) : showMessage(word("stayedUnsaved"))));
+			},
+			publish() {
+				if (!publishButton.disabled) openPanel(publishPopup);
+			},
+			edit: (on) => void setMode(on),
+			leave: () => void endEditMode(),
+		};
 
 		const account = button(
 			{ class: "avatar", "aria-haspopup": "menu", "aria-expanded": "false" },
@@ -732,10 +794,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			focus: () => focusMenuItem(accountMenu, 0),
 			render() {
 				const endItem = button({ role: "menuitem", tabindex: "-1", class: "menu-row" }, icon("end"), word("end"));
-				endItem.addEventListener("click", async () => {
-					await call("end", {});
-					win.location.reload();
-				});
+				endItem.addEventListener("click", () => void endEditMode());
 				const safeItem = button(
 					{ role: "menuitem", tabindex: "-1", class: "menu-row" },
 					icon("shield"),
@@ -804,6 +863,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				"div",
 				{ class: "end" },
 				othersList,
+				searchButton,
 				language,
 				languageMenu,
 				...(detailsButton ? [detailsButton] : []),
@@ -817,11 +877,13 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		// A Site script that failed while the page loaded is shown at once; later ones as they come.
 		const notice = el("div", { class: "notice", role: coding ? "region" : "alert", hidden: "" });
 		showFailures = () => renderFailures(notice);
+		// Read out by the editor's one message area (`showMessage`), so it is no live region itself.
+		messageNote = el("div", { class: "notice message", hidden: "" });
 		const section = el(
 			"section",
 			{ class: "edit-mode", "aria-label": word("label") },
 			bar,
-			notice,
+			el("div", { class: "notices" }, notice, messageNote),
 			presenceLayer,
 			tag,
 			problem,
@@ -855,6 +917,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			const link = event.composedPath().find((node): node is HTMLAnchorElement => node instanceof HTMLAnchorElement);
 			if (
 				coding ||
+				ended ||
 				!link ||
 				event.defaultPrevented ||
 				event.button !== 0 ||
@@ -884,6 +947,29 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		renderStatus();
 		renderHistory();
 		renderFailures(notice);
+	}
+
+	/**
+	 * Says something under the bar for everyone to see, until it is dismissed or something else is said
+	 * there, and reads it out in the editor's one message area; null takes it away.
+	 */
+	function showMessage(text: string | null): void {
+		if (text === null) {
+			messageNote.hidden = true;
+			messageNote.replaceChildren();
+			return;
+		}
+		const dismiss = button({ class: "icon-button", "aria-label": word("dismissNotice") }, icon("close"));
+		dismiss.addEventListener("click", () => {
+			showMessage(null);
+			pageButton.focus();
+		});
+		messageNote.replaceChildren(
+			el("div", { class: "notice-text" }, icon("alert"), el("p", {}, text)),
+			el("div", { class: "notice-actions" }, dismiss),
+		);
+		messageNote.hidden = false;
+		announce(text, "interrupt");
 	}
 
 	/** Undo and Redo as the history has them now: each step's label and keys in the title, off when there is none. */
@@ -1013,6 +1099,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			},
 			pickImage: () => Promise.resolve(null),
 			shared: (item) => sharedDraft(item),
+			history: () => historyTools?.target ?? null,
 		};
 		return made;
 	}
@@ -1064,33 +1151,44 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	 * what the person is still typing, the regions it shows steps at, the page's Drafts and its layout.
 	 */
 	function loadHistory(): void {
+		// Without it the page still edits; the person is told why Undo and Redo stay off.
+		const failed = () => {
+			historySettled();
+			showMessage(word("historyUnavailable"));
+		};
 		doc.addEventListener(
 			"webcraft:history-tools",
 			(event) => {
 				const module = (event as CustomEvent<{ mount(kit: BarKit, host: HistoryHost): Promise<HistoryTools> }>).detail;
-				void module.mount(kit, { finish: finishInput, reveal: revealRegion }).then((tools) => {
+				const host: HistoryHost = {
+					// Whether everything was saved isn't asked: a refused input is no step, and the history
+					// then moves from the last one that was accepted.
+					async finish() {
+						await settle();
+					},
+					reveal: revealRegion,
+					say: showMessage,
+				};
+				module.mount(kit, host).then((tools) => {
 					historyTools = tools;
 					for (const item of drafts.keys()) tools.opened(item);
 					if (layoutTools) tools.layout(layoutTools);
 					tools.target.subscribe(renderHistory);
 					renderHistory();
-					// The Command menu's Undo and Redo use the same target (#139).
+					// The Command menu's Undo and Redo use the same target (#139): it hears it here, or reads
+					// it from the kit when it loads later.
 					doc.dispatchEvent(new CustomEvent("webcraft:edit-history", { detail: tools.target }));
-				});
+					historySettled();
+				}, failed);
 			},
 			{ once: true },
 		);
 		const script = doc.createElement("script");
 		script.type = "module";
 		script.src = config.history;
+		script.addEventListener("error", failed, { once: true });
 		doc.head.append(script);
-	}
-
-	/** Saves what the person is still typing in place (and in the Page layout's Props), and waits for each answer. */
-	async function finishInput(): Promise<void> {
-		regions = regions.filter((region) => region.isConnected);
-		await Promise.all(regions.map((region) => save(region)));
-		await layoutTools?.finish();
+		later(historySettled, HISTORY_WAIT_MS);
 	}
 
 	/** Brings the region showing an item's value into view; focus stays where it is. */
@@ -1103,24 +1201,70 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	}
 
 	/**
-	 * Leaves for another page of the Site with the Undo history handed over (ADR 0036): what was being
-	 * typed is saved first. Nothing happens when the history changed while it was handed over, or it
-	 * couldn't be: the person stays on this page, where the history still is.
+	 * Leaves for another address with the Undo history handed over (ADR 0036): what was being typed is
+	 * saved first. A history that can't be handed over is left behind, and the page left for says so: a
+	 * link never does nothing. Only a history that changed while it was handed over keeps the person
+	 * here, where it still is.
 	 */
 	async function leaveFor(url: string): Promise<void> {
-		const destination = await departure(url);
-		if (destination !== null) win.location.assign(destination);
+		const leaving = await departure(url);
+		if (!leaving) return;
+		if (leaving.lost !== undefined) rememberLostHistory(leaving.lost, leaving.url);
+		win.location.assign(leaving.url);
 	}
 
-	async function departure(url: string): Promise<string | null> {
+	/**
+	 * Where to leave for: `url` with the history's handoff in it, or `url` as it is with why the history
+	 * stays behind (`lost`: the refusal's code, or `timeout` when the handoff wasn't answered in time).
+	 * Null when the history changed while it was handed over.
+	 */
+	async function departure(url: string): Promise<{ url: string; lost?: string } | null> {
 		const leave = historyTools?.departure ?? codeDeparture;
-		if (!leave) return url;
+		if (!leave) return { url };
+		let timer: number | undefined;
 		try {
-			return await leave(url);
-		} catch {
-			announce(errorText("generic"), "interrupt");
-			return null;
+			const handed = await Promise.race([
+				leave(url).then((destination) => ({ destination })),
+				new Promise<{ lost: string }>((resolve) => {
+					timer = later(() => resolve({ lost: "timeout" }), HANDOFF_MS);
+				}),
+			]);
+			if ("lost" in handed) return { url, lost: handed.lost };
+			return handed.destination === null ? null : { url: handed.destination };
+		} catch (error) {
+			const code = error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "generic";
+			return { url, lost: code };
+		} finally {
+			cancel(timer);
 		}
+	}
+
+	/**
+	 * Keeps why the history stays behind for the page this tab loads next on the Site, which says it
+	 * (`sayLostHistory`). Nothing is kept once Edit mode has ended: that page has no bar to say it.
+	 */
+	function rememberLostHistory(code: string, url: string): void {
+		if (ended || new URL(url, win.location.href).origin !== win.location.origin) return;
+		try {
+			win.sessionStorage.setItem(HISTORY_LOST_KEY, code);
+		} catch {
+			// Without storage the next page has nothing to say it from.
+		}
+	}
+
+	/** Says, once, that the Undo history didn't come along to this page, and why. */
+	function sayLostHistory(): void {
+		let code: string | null = null;
+		try {
+			code = win.sessionStorage.getItem(HISTORY_LOST_KEY);
+			win.sessionStorage.removeItem(HISTORY_LOST_KEY);
+		} catch {
+			// Nothing was kept: nothing to say.
+		}
+		if (code === null) return;
+		const reason =
+			code === "timeout" ? "slow" : code === "BAD_REQUEST" || code === "PAYLOAD_TOO_LARGE" ? "tooLong" : "failed";
+		showMessage(word("historyLost", { reason: word(`historyLostReasons.${reason}`) }));
 	}
 
 	/**
@@ -1129,12 +1273,16 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	 * history's token goes through Edit mode's own redirect; without one the page is simply loaded again.
 	 */
 	async function showAgain(change: string, before?: () => void): Promise<void> {
-		const destination = await departure(win.location.href);
-		if (destination === null) return;
+		const leaving = await departure(win.location.href);
+		if (!leaving) return;
 		const answer = await call(change, {});
-		if (!answer.ok) return;
+		if (!answer.ok) {
+			showMessage(errorText(answer.code));
+			return;
+		}
 		before?.();
-		const token = new URLSearchParams(new URL(destination).hash.slice(1)).get("wc-history");
+		if (leaving.lost !== undefined) rememberLostHistory(leaving.lost, leaving.url);
+		const token = new URLSearchParams(new URL(leaving.url).hash.slice(1)).get("wc-history");
 		if (!token) win.location.reload();
 		else {
 			const here = encodeURIComponent(win.location.pathname + win.location.search);
@@ -1142,19 +1290,38 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		}
 	}
 
-	function loadLayout(): void {
+	/**
+	 * Loads the module of Edit mode's own tools, once: each hands itself over in an event. The Page
+	 * layout's are for a Page; the Command menu (#139) is everyone's.
+	 */
+	function loadTools(language: AdminLanguageCode): void {
+		if (state?.page.layout)
+			doc.addEventListener(
+				"webcraft:layout-tools",
+				(event) => {
+					const module = (
+						event as CustomEvent<{ mount(kit: BarKit, language: AdminLanguageCode, styles: string): Promise<void> }>
+					).detail;
+					// The Page layout's actions are steps of the Undo history: its tools wait for it.
+					void historyMounted.then(() => module.mount(kit, language, config.toolsStyles));
+				},
+				{ once: true },
+			);
 		doc.addEventListener(
-			"webcraft:layout-tools",
+			"webcraft:edit-commands",
 			(event) => {
-				const module = (event as CustomEvent<{ mount(kit: BarKit, language: string, styles: string): Promise<void> }>)
-					.detail;
-				void module.mount(kit, (state as State & { adminLanguage: string }).adminLanguage, config.layoutStyles);
+				const module = (
+					event as CustomEvent<{
+						mount(kit: BarKit, language: AdminLanguageCode, styles: string, commands: BarCommands): void;
+					}>
+				).detail;
+				module.mount(kit, language, config.toolsStyles, commands);
 			},
 			{ once: true },
 		);
 		const script = doc.createElement("script");
 		script.type = "module";
-		script.src = config.layout;
+		script.src = config.tools;
 		doc.head.append(script);
 	}
 
@@ -1418,10 +1585,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			icon("forward"),
 		);
 		rows.append(el("li", {}, admin));
-		row("end", word("end"), null, async () => {
-			await call("end", {});
-			win.location.reload();
-		});
+		row("end", word("end"), null, () => void endEditMode());
 		const count = s.changes.length;
 		const labels = s.changes.map((change) => change.label ?? word(`builtIns.${change.key}`)).join(" · ");
 		const publish = button(
@@ -1493,6 +1657,31 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			content: panel,
 		});
 		panel.querySelector<HTMLElement>("button")?.focus();
+	}
+
+	/** Ends Edit mode for this browser, then shows the page as visitors see it. */
+	async function endEditMode(): Promise<void> {
+		await call("end", {});
+		win.location.reload();
+	}
+
+	/**
+	 * Saves what is still on its way to the Draft and waits for it: text being typed, a Page layout
+	 * change, and the shared Drafts' batches. False when something wasn't saved; what refused it has
+	 * said so already, except a shared Draft that only never answered.
+	 */
+	async function settle(): Promise<boolean> {
+		await Promise.all(regions.map((region) => save(region)));
+		if (regions.some((region) => region.isConnected && textIn(region) !== lastSaved.get(region))) return false;
+		if (layoutTools && !(await layoutTools.finish())) return false;
+		for (const [item, link] of drafts) {
+			if (link.client.status() !== "saving") continue;
+			const refusals = link.refusals;
+			if (await sharedDraft(item)?.saved()) continue;
+			if (link.refusals === refusals) announce(word("saveFailed", { reason: errorText("generic") }), "interrupt");
+			return false;
+		}
+		return true;
 	}
 
 	/** Turns Safe mode on or off for this browser, then shows the page again. */
@@ -2117,6 +2306,8 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	async function save(region: HTMLElement): Promise<void> {
 		cancel(timers.get(region));
 		timers.delete(region);
+		// What is typed before the Undo history is there is saved once it is: it is a step all the same.
+		await historyMounted;
 		// The step keeps its place among the person's own from now, whenever the save is answered.
 		const place = historyTools?.reserve();
 		try {
@@ -2138,7 +2329,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				lastSaved.set(region, value);
 				// One finished burst of typing is one step: the change exactly as the save made it.
 				if (saved.history)
-					place?.record(saved.history, word("editorHistory.text", { name: regionLabel(region) }), { item, field });
+					place?.record(saved.history, word("editorHistory.text", { name: regionLabel(region) }), field);
 				const found = saved.problems[0];
 				if (found) problems.set(region, problemText(found));
 				else problems.delete(region);
@@ -2292,7 +2483,10 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	function showChange(item: string, draft: unknown, own: boolean): void {
 		for (const region of regions) {
 			if (!region.isConnected || region.dataset.wcItem !== item) continue;
-			if (own ? textIn(region) !== lastSaved.get(region) : region === current || timers.has(region)) continue;
+			// What was typed since the last save stays, whoever changed the Draft: also while its save waits
+			// (for its answer, or for the Undo history to be there) and the person has moved on.
+			if (textIn(region) !== lastSaved.get(region)) continue;
+			if (!own && (region === current || timers.has(region))) continue;
 			const kept = valueAt(draft, region.dataset.wcField ?? "");
 			// A value a step took away altogether shows as empty; someone else's is shown once it holds text.
 			const value = typeof kept === "string" ? kept : own ? "" : null;

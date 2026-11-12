@@ -82,6 +82,7 @@
 		"DOMAIN_INSTALL": "Quel nome appartiene a questa Install (l'admin o un indirizzo di staging): scegli un altro dominio.",
 		"DOMAIN_TAKEN": "Quel dominio è già uno dei domini di questa Install. Per spostarlo qui, rimuovilo prima dal suo sito.",
 		"DOMAIN_NOT_FOUND": "Questo sito non ha più quel dominio.",
+		"CDN_NOT_SET": "Questo sito non ha una CDN davanti: scegline prima una, poi crea il suo segreto.",
 		"DOMAIN_NOT_VERIFIED": "Solo un dominio verificato può diventare il dominio principale. Aspetta che sia verificato.",
 		"DOMAIN_IS_LANGUAGES": "Questo è il dominio di una lingua: cambialo in Lingue.",
 		"FORM_NOT_FOUND": "Questo Form non esiste, o non puoi vederlo.",
@@ -1696,6 +1697,15 @@
 		"published": "Pubblicato. I visitatori vedono già le modifiche.",
 		"publishedWaiting": "Pubblicato. Le modifiche agli elementi di un Loop aspettano ancora lo Staff.",
 		"savedToDraft": "Salvato nella bozza",
+		"notSaved": "Non tutto è salvato nella bozza. Controlla l'ultima modifica, poi salva di nuovo.",
+		"stayedUnsaved": "Sei ancora su questa pagina: non tutto è salvato nella bozza. Controlla l'ultima modifica, poi riprova.",
+		"historyLost": "La cronologia di annullamento non è arrivata su questa pagina: {reason} Le tue modifiche sono salvate, ma quelle precedenti non si possono annullare da qui.",
+		"historyLostReasons": {
+			"slow": "il passaggio ha richiesto troppo tempo.",
+			"tooLong": "era diventata troppo lunga.",
+			"failed": "il passaggio non è riuscito."
+		},
+		"historyUnavailable": "Non è stato possibile caricare la cronologia di annullamento: Annulla e Ripeti sono disattivati. Ricarica la pagina per riaverli.",
 		"otherDraftsNone": "Nessun'altra bozza in questo sito.",
 		"otherDraftsOne": "1 altra bozza in questo sito.",
 		"otherDraftsOther": "Altre {count} bozze in questo sito.",
@@ -2419,13 +2429,20 @@
 		"cancel": "Annulla",
 		"close": "Chiudi",
 		"cdnTitle": "CDN davanti a questo sito",
-		"cdnIntro": "Se i visitatori raggiungono questo sito tramite una CDN, sceglila qui. Le richieste dagli indirizzi pubblicati dalla CDN contano allora come provenienti dal visitatore che la CDN indica, così i limiti di frequenza e antispam continuano a contare i visitatori e non la CDN.",
+		"cdnIntro": "Se i visitatori raggiungono questo sito tramite una CDN, sceglila qui e configura lì il segreto CDN del sito. Le richieste che la CDN inoltra con quel segreto contano allora come provenienti dal visitatore che la CDN indica, così i limiti di frequenza e antispam continuano a contare i visitatori e non la CDN.",
 		"cdnNone": "Nessuna CDN",
 		"cdnOption": "{name}: visitatori indicati in {header}",
 		"cdnSteps": "Collega ogni dominio con il proxy della CDN disattivato. Quando è verificato e ha il suo certificato, attiva il proxy con TLS completo e rigoroso verso il sito.",
 		"cdnSave": "Salva CDN",
 		"cdnSaved": "{name} è davanti a questo sito.",
 		"cdnRemoved": "Nessuna CDN è davanti a questo sito.",
+		"cdnSecretTitle": "Segreto CDN",
+		"cdnSecretIntro": "Dagli indirizzi di {name} passano le richieste di tutti i suoi clienti, quindi da soli non dicono che una richiesta è passata dalla tua configurazione. Il segreto CDN sì: aggiungilo come intestazione di richiesta a tutto ciò che {name} inoltra a questo sito.",
+		"cdnSecretSet": "Questo sito ha un segreto CDN. Le richieste che lo portano contano come quelle del loro visitatore.",
+		"cdnSecretMissing": "Questo sito non ha ancora un segreto CDN. Finché {name} non ne invia uno, chi visita tramite la CDN conta come un solo visitatore: il server della CDN.",
+		"cdnSecretMake": "Crea il segreto CDN",
+		"cdnSecretRemake": "Crea un nuovo segreto CDN",
+		"cdnSecretShown": "Aggiungi questa intestazione di richiesta su {name}, per ogni richiesta che inoltra a questo sito. È mostrata solo adesso; un nuovo segreto disattiva il precedente.",
 		"appliesAtOnce": "Le modifiche qui valgono subito: non fanno parte di Pubblica tutto.",
 		"stagingPassword": "Password di staging",
 		"stagingPasswordHelp": "Chi non ha un account e la inserisce vede l'indirizzo di staging per una settimana, o finché non cambia. Chi accede non ne ha mai bisogno.",
@@ -4809,7 +4826,9 @@
 				"pages": "Pagine",
 				"templates": "Template",
 				"components": "Component",
-				"layers": "Livelli in questa pagina"
+				"layers": "Livelli in questa pagina",
+				"page": "Pagina",
+				"placements": "Placement in questa pagina"
 			},
 			"actions": {
 				"save": "Salva bozza",
@@ -4836,7 +4855,9 @@
 				"hidePlacement": "Nascondi il Placement",
 				"showPlacement": "Mostra il Placement",
 				"makeComponent": "Crea Component",
-				"newComponent": "Nuovo Component"
+				"newComponent": "Nuovo Component",
+				"sendToReview": "Invia in revisione",
+				"edit": "Modifica"
 			},
 			"wrap": {
 				"div": "div",
@@ -4867,7 +4888,12 @@
 				"editComponent": "component apri modifica",
 				"hidePlacement": "nascondi mostra nascosto visibile placement",
 				"makeComponent": "component estrai riusa converti",
-				"newComponent": "component crea aggiungi nuovo vuoto"
+				"newComponent": "component crea aggiungi nuovo vuoto",
+				"sendToReview": "revisione invia approva",
+				"edit": "modifica cambia torna",
+				"props": "props impostazioni campi contenuto",
+				"moveUp": "sposta su prima",
+				"moveDown": "sposta giù dopo"
 			},
 			"nothingToUndo": "Niente da annullare.",
 			"nothingToRedo": "Niente da ripetere.",
@@ -4947,6 +4973,22 @@
 				"asterisk": "Asterisco",
 				"leftBracket": "Parentesi quadra aperta",
 				"rightBracket": "Parentesi quadra chiusa"
+			},
+			"editMode": {
+				"search": {
+					"actions": "Cerca azioni",
+					"goTo": "Vai a una pagina o a un Placement",
+					"insert": "Trova un Componente"
+				},
+				"placeholder": {
+					"actions": "Salva, Pubblica, Sposta su…",
+					"goTo": "Chi siamo, Hero · Benvenuti…",
+					"insert": "Hero, Galleria…"
+				},
+				"selected": "Selezionato {name}",
+				"insertEnd": "Inserisce alla fine della pagina",
+				"besideLocked": "Accanto a un Placement bloccato",
+				"notAllowed": "Il suo Componente non si può aggiungere qui"
 			}
 		},
 		"components": {
@@ -7979,8 +8021,10 @@
 		"undid": "Annullato {label}",
 		"redid": "Ripetuto {label}",
 		"skipped": "Saltato {label}.",
+		"keptUndo": "{label} non è stato annullato e resta nella cronologia.",
+		"keptRedo": "{label} non è stato ripetuto e resta nella cronologia.",
 		"HISTORY_OBSOLETE": "Questo passaggio si sovrappone a una modifica più recente o la destinazione non esiste più.",
-		"HISTORY_UNAVAILABLE": "La bozza non è disponibile per la modifica.",
+		"HISTORY_UNAVAILABLE": "La bozza non può essere modificata in questo momento. Riprova tra poco.",
 		"refused": "Il server ha rifiutato questo passaggio.",
 		"html": "Modifica HTML di {name}",
 		"css": "Modifica CSS di {name}",
@@ -8018,6 +8062,13 @@
 		"noComponents": "Nessun Componente consentito",
 		"enabled": "I Membri possono organizzare i layout delle Pagine",
 		"allowed": "I Membri possono aggiungere",
-		"select": "Seleziona un Posizionamento per modificarne le Props."
+		"select": "Seleziona un Posizionamento per modificarne le Props.",
+		"keys": {
+			"rows": "Spostati tra i Placement",
+			"ends": "Vai al primo o all'ultimo Placement",
+			"typeahead": "Trova un Placement digitandone il nome",
+			"pick": "Prendi un Placement, o posalo",
+			"putBack": "Rimetti a posto un Placement preso"
+		}
 	}
 }

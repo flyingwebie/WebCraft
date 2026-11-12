@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import type forms from "@webcraft/module-forms";
 
+import { ipv6Network } from "../harness/addresses.ts";
 import { fromAddress } from "../harness/browser.ts";
 import { type FormVisitor, formVisitor, type LoadedPage } from "../harness/forms.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
@@ -109,6 +110,22 @@ test("from one address, ten times a Form's limit a minute is kept; the rest is r
 	await install.clock.advance(60_000);
 	expect((await bot.send(page, GOOD)).status).toBe(303);
 	expect((await site.kept("inbox")).total).toBe(2);
+});
+
+test("an IPv6 connection is counted by its /64 for what a Form takes at all, whichever address each post comes from", async () => {
+	const site = await siteWithForm("network", { perMinute: 2, perHour: 1000 });
+	const network = ipv6Network();
+	const page = await loaded(formVisitor(install, network(1)), site.page);
+
+	for (let sent = 0; sent < 20; sent++) {
+		expect((await formVisitor(install, network(sent + 2)).send(page, GOOD, BOT)).status).toBe(303);
+	}
+
+	expect((await formVisitor(install, network(30)).send(page, GOOD, BOT)).status).toBe(429);
+	expect((await site.kept("spam")).total).toBe(20);
+	// Another connection's /64 is counted on its own.
+	const person = formVisitor(install, ipv6Network()(1));
+	expect((await person.send(await loaded(person, site.page), GOOD)).status).toBe(303);
 });
 
 test("from one address, ten times a Form's limit an hour is kept; the rest is refused until the hour ends", async () => {
@@ -327,3 +344,16 @@ test("a Form's retention deletes more Submissions than one batch holds, each bat
 		20, 500,
 	]);
 }, 120_000);
+
+test("an IPv6 connection asks for those 60 pages by its /64, whichever address each request comes from", async () => {
+	const site = await siteWithForm("sent-network", { perMinute: 5, perHour: 30 });
+	const network = ipv6Network();
+	const sent = `${site.page}?wc-sent=1`;
+
+	for (let asked = 0; asked < 60; asked++) {
+		expect((await formVisitor(install, network(asked + 1)).open(sent)).status).toBe(200);
+	}
+
+	expect((await formVisitor(install, network(61)).open(sent)).status).toBe(429);
+	expect((await formVisitor(install, ipv6Network()(1)).open(sent)).status).toBe(200);
+});

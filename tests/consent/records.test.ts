@@ -5,6 +5,7 @@
 // cookie naming the record, which the consent script reads on the visitor's next pages.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
+import { ipv6Network } from "../harness/addresses.ts";
 import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSiteHeaders } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
@@ -182,6 +183,16 @@ describe("what is refused", () => {
 			expect({ body, status: answer.status }).toEqual({ body, status: 400 });
 			expect(answer.headers.get("set-cookie")).toBeNull();
 		}
+	});
+
+	test("an IPv6 connection is counted by its /64, whichever of its addresses each post comes from", async () => {
+		const site = await newSite();
+		const network = ipv6Network();
+
+		for (let n = 0; n < 10; n++) expect((await post(site, undefined, { address: network(n + 1) })).status).toBe(201);
+
+		expect((await post(site, undefined, { address: network(11) })).status).toBe(429);
+		expect((await post(site, undefined, { address: ipv6Network()(1) })).status).toBe(201);
 	});
 
 	test("too many posts from one address: refused for the rest of the minute", async () => {

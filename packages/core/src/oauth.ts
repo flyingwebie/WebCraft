@@ -593,7 +593,7 @@ export function createOAuth({
 		apiResource,
 
 		async register(metadata, clientAddress) {
-			if (!(await rateLimits.count(`oauth-register:${clientAddress ?? "unknown"}`, OAUTH_REGISTRATION_LIMIT))) {
+			if (!(await rateLimits.count("oauth-register", OAUTH_REGISTRATION_LIMIT, clientAddress))) {
 				throw new OAuthRequestError(
 					"temporarily_unavailable",
 					"Too many clients were registered from this address. Try again later.",
@@ -922,7 +922,7 @@ export function createOAuth({
 		},
 
 		async deviceAuthorization(form, authorization, clientAddress) {
-			if (!(await rateLimits.count(`oauth-device:${clientAddress ?? "unknown"}`, OAUTH_DEVICE_LIMIT))) {
+			if (!(await rateLimits.count("oauth-device", OAUTH_DEVICE_LIMIT, clientAddress))) {
 				throw new OAuthRequestError(
 					"slow_down",
 					"Too many sign-ins were started from this address. Try again later.",

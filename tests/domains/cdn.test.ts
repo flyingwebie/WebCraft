@@ -2,9 +2,10 @@
 // verification and the certificate, then turn the proxy on. From then on every visitor reaches the
 // Install from the CDN's servers, and the CDN names the visitor in a header of its own
 // (`CF-Connecting-IP`, `Fastly-Client-IP`). A Site's CDN setting says which header to believe, and it
-// is believed only on connections from that CDN's published address ranges, so rate limits keep
-// counting visitors rather than the CDN. The ranges ship with WebCraft and are refreshed daily for the
-// CDNs Sites use.
+// is believed only on connections from that CDN's published address ranges that also carry the Site's
+// own CDN secret, so rate limits keep counting visitors rather than the CDN, and nobody else using the
+// same CDN can name a visitor. The ranges ship with WebCraft and are refreshed daily for the CDNs
+// Sites use.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
@@ -43,19 +44,29 @@ afterAll(async () => {
 	await install.close();
 });
 
-async function newSite(cdn?: "cloudflare" | "fastly") {
+/** The header a Site's CDN is set up to add to every request it sends on: the Site's CDN secret. */
+const SECRET_HEADER = "x-cdn-secret";
+
+type CdnSite = { siteId: string; origin: string; secret: string | null };
+
+/** A live Site, behind `cdn` when given: the CDN set up to send the Site's CDN secret, as Staff set it up. */
+async function newSite(cdn?: "cloudflare" | "fastly"): Promise<CdnSite> {
 	const slug = `cdn-${++sites}`;
 	const { id: siteId } = await install.createSite(workspaceId, { slug });
-	if (cdn) await staff.api.domains.setCdn({ siteId, cdn });
+	let secret: string | null = null;
+	if (cdn) {
+		await staff.api.domains.setCdn({ siteId, cdn });
+		({ secret } = await staff.api.domains.newCdnSecret({ siteId }));
+	}
 	// Visitors on the Site's domain: its Staging address lets in only the people reviewing it.
-	return { siteId, origin: await goLive(install, siteId) };
+	return { siteId, origin: await goLive(install, siteId), secret };
 }
 
 /**
  * A visitor's choice on the Consent banner, as it reaches the web process: through Caddy, from
  * `from` (the address Caddy saw), with `headers` (a CDN's own, or a client's attempt at one).
  */
-function consent(site: { origin: string }, from: string, headers: Record<string, string> = {}) {
+function consent(site: { origin: string; secret?: string | null }, from: string, headers: Record<string, string> = {}) {
 	const request = new Request(`${site.origin}/_wc/consent`, {
 		method: "POST",
 		headers: {
@@ -63,6 +74,7 @@ function consent(site: { origin: string }, from: string, headers: Record<string,
 			origin: site.origin,
 			"sec-fetch-site": "same-origin",
 			"x-forwarded-for": from,
+			...(site.secret ? { [SECRET_HEADER]: site.secret } : {}),
 			...headers,
 		},
 		body: JSON.stringify({ choices: { analytics: true, marketing: false, media: true }, version: 1, language: "en" }),
@@ -183,6 +195,78 @@ describe("the visitor's address behind a Site's CDN", () => {
 	});
 });
 
+describe("the Site's CDN secret", () => {
+	test("the CDN's header names the visitor only with the Site's secret: someone else's service at the same CDN names nobody", async () => {
+		const site = await newSite("fastly");
+		let n = 0;
+
+		// Their own service at the CDN, sending requests on to this Site with a visitor of their choosing.
+		const theirs = () => consent({ origin: site.origin }, FASTLY_SERVER, { "fastly-client-ip": `198.51.100.${++n}` });
+		expect(await recordedBeforeLimit(theirs)).toBe(CONSENT_LIMIT);
+		// Nor with a secret they made up.
+		const site2 = await newSite("fastly");
+		const guessed = () =>
+			consent({ origin: site2.origin, secret: "A".repeat(43) }, FASTLY_SERVER, {
+				"fastly-client-ip": `198.51.100.${++n}`,
+			});
+		expect(await recordedBeforeLimit(guessed)).toBe(CONSENT_LIMIT);
+		// The Site's own CDN service still names its visitors.
+		expect((await consent(site2, FASTLY_SERVER, { "fastly-client-ip": "203.0.113.200" })).status).toBe(201);
+	});
+
+	test("a Site with a CDN and no secret yet counts the CDN's servers, whatever the header says", async () => {
+		const slug = `cdn-${++sites}`;
+		const { id: siteId } = await install.createSite(workspaceId, { slug });
+		await staff.api.domains.setCdn({ siteId, cdn: "cloudflare" });
+		const origin = await goLive(install, siteId);
+		let n = 0;
+
+		expect((await staff.api.domains.list({ siteId })).cdnSecret).toBe(false);
+		const unproven = () => consent({ origin }, CLOUDFLARE_SERVER, { "cf-connecting-ip": `198.51.100.${++n}` });
+		expect(await recordedBeforeLimit(unproven)).toBe(CONSENT_LIMIT);
+	});
+
+	test("Staff make it; it is shown once and kept only as a hash; a new one replaces it; another CDN starts without one", async () => {
+		const site = await newSite("cloudflare");
+		const first = site.secret as string;
+
+		expect(first).toMatch(/^[A-Za-z0-9_-]{43}$/);
+		expect((await owner.api.domains.list({ siteId: site.siteId })).cdnSecret).toBe(true);
+		expect(JSON.stringify(await staff.api.domains.list({ siteId: site.siteId }))).not.toContain(first);
+		expect(await install.tablesHolding(first)).toEqual([]);
+		await expect(owner.api.domains.newCdnSecret({ siteId: site.siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+		const made = await staff.api.domains.newCdnSecret({ siteId: site.siteId });
+		expect(made).toEqual({ secret: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/), header: "X-CDN-Secret" });
+		expect(made.secret).not.toBe(first);
+		// The old secret names nobody any more; the new one does.
+		let n = 0;
+		const old = () => consent(site, CLOUDFLARE_SERVER, { "cf-connecting-ip": `198.51.100.${++n}` });
+		expect(await recordedBeforeLimit(old)).toBe(CONSENT_LIMIT);
+		const now = { ...site, secret: made.secret };
+		expect((await consent(now, CLOUDFLARE_SERVER, { "cf-connecting-ip": "203.0.113.201" })).status).toBe(201);
+
+		// Logged, without the secret.
+		const { entries } = await (await install.superadmin()).api.audit.list({});
+		const logged = entries.filter((entry) => entry.action === "cdnSecret.change" && entry.siteId === site.siteId);
+		expect(logged).toHaveLength(2);
+		expect(JSON.stringify(logged)).not.toContain(made.secret);
+
+		await staff.api.domains.setCdn({ siteId: site.siteId, cdn: "fastly" });
+		expect((await staff.api.domains.list({ siteId: site.siteId })).cdnSecret).toBe(false);
+		const moved = () => consent(now, FASTLY_SERVER, { "fastly-client-ip": `198.51.100.${++n}` });
+		expect(await recordedBeforeLimit(moved)).toBe(CONSENT_LIMIT);
+	});
+
+	test("a Site without a CDN has no secret to make", async () => {
+		const site = await newSite();
+
+		await expect(staff.api.domains.newCdnSecret({ siteId: site.siteId })).rejects.toMatchObject({
+			code: "CDN_NOT_SET",
+		});
+	});
+});
+
 describe("the CDNs' published ranges", () => {
 	/** Answers Cloudflare's list with these IPv4 and IPv6 ranges. */
 	function cloudflareLists(ipv4: string[], ipv6: string[] = []) {
@@ -256,6 +340,7 @@ describe("the CDNs' published ranges", () => {
 			expect(fresh.http.requests.some((request) => request.url === FASTLY_LIST)).toBe(false);
 
 			await freshStaff.api.domains.setCdn({ siteId, cdn: "fastly" });
+			const { secret } = await freshStaff.api.domains.newCdnSecret({ siteId });
 			expect((await fresh.drainJobs()).completed.map((job) => job.name)).toContain("cdn.refresh-ranges");
 			await fresh.clock.advance(5 * MINUTE);
 
@@ -271,6 +356,7 @@ describe("the CDNs' published ranges", () => {
 								"sec-fetch-site": "same-origin",
 								"x-forwarded-for": "198.18.0.7",
 								"fastly-client-ip": visitor,
+								[SECRET_HEADER]: secret,
 							},
 							body: JSON.stringify({
 								choices: { analytics: true, marketing: false, media: true },

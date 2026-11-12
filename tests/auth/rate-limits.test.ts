@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
+import { ipv6Network } from "../harness/addresses.ts";
 import { API_PATH, createTestInstall, type TestAccount, type TestInstall } from "../harness/index.ts";
 
 const SECOND = 1000;
@@ -48,6 +49,23 @@ describe("auth endpoints", () => {
 		for (let attempt = 0; attempt < 11; attempt++) await guess(guesser).catch(() => {});
 
 		const neighbour = install.browser({ address: "203.0.113.12" });
+		await expect(neighbour.api.session.signIn(superadmin)).resolves.toBeDefined();
+	});
+
+	test("count an IPv6 connection by its /64: another address of it is no fresh start", async () => {
+		const network = ipv6Network();
+		for (let attempt = 0; attempt < 10; attempt++) {
+			await expect(guess(install.browser({ address: network(attempt + 1) }))).rejects.toMatchObject({
+				code: "INVALID_CREDENTIALS",
+			});
+		}
+
+		await expect(guess(install.browser({ address: network(11) }))).rejects.toMatchObject({
+			code: "TOO_MANY_REQUESTS",
+			status: 429,
+		});
+		// Another connection's /64 isn't held back.
+		const neighbour = install.browser({ address: ipv6Network()(1) });
 		await expect(neighbour.api.session.signIn(superadmin)).resolves.toBeDefined();
 	});
 

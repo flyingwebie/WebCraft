@@ -1,7 +1,7 @@
 import { chmod, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { readKeptJson } from "./files.ts";
+import { readKeptObject } from "./files.ts";
 
 /** What a device sign-in keeps: the grant's tokens. Never shown, never in the profiles file. */
 export type StoredSignIn = {
@@ -38,9 +38,13 @@ const SERVICE = "webcraft";
 export function credentialStore(configDir: string, prefer: CredentialPlace): CredentialStore {
 	const file = join(configDir, "credentials.json");
 
+	/**
+	 * The sign-ins in the file: none while there is no file. A file that is there and can't be read as
+	 * sign-ins (cut short, damaged) stops the command: read as "no sign-ins", the next one kept would
+	 * replace it with a file of one, and whatever of the others could still be mended would be gone.
+	 */
 	const readFileStore = async (): Promise<Record<string, StoredSignIn>> => {
-		const parsed = await readKeptJson(file);
-		return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, StoredSignIn>) : {};
+		return ((await readKeptObject(file)) ?? {}) as Record<string, StoredSignIn>;
 	};
 	const writeFileStore = async (entries: Record<string, StoredSignIn>) => {
 		if (Object.keys(entries).length === 0) {

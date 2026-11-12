@@ -64,7 +64,9 @@ export {
 	type CanvasPlaceholder,
 	COMMAND_PERMISSIONS,
 	type CommandMenuData,
+	GO_TO_ENTRIES,
 	type GoToPage,
+	HISTORY_TRANSFER_MAX_LENGTH,
 	type PendingStyles,
 } from "./builder/index.ts";
 export * from "./cdns/index.ts";
@@ -363,6 +365,15 @@ export {
 	SECRET_NAMES,
 } from "./redaction.ts";
 export * from "./reports/index.ts";
+export {
+	BodyTooLargeError,
+	bodyLimitedByRoute,
+	bodyOverflowed,
+	DEFAULT_BODY_MAX_BYTES,
+	limitBody,
+	readLimitedBody,
+	underBodyCeiling,
+} from "./request-body.ts";
 export { isRobot } from "./robots.ts";
 export * from "./search/index.ts";
 export * from "./secrets/index.ts";
@@ -412,6 +423,7 @@ export {
 	STAGING_PASSWORD_MIN_LENGTH,
 	STAGING_PASSWORD_PATH,
 	STAGING_PASSWORD_RATE_LIMIT,
+	STAGING_PASSWORD_SITE_LIMIT,
 	STAGING_PATH,
 	STAGING_SESSION_LIFETIME_MS,
 	STAGING_STYLESHEET,

@@ -8,7 +8,10 @@ import type { ShortcutId } from "./shortcuts.ts";
 type T = ReturnType<typeof useT>;
 
 /** The two canvases of the one editor (ADR 0035): Code mode on the live page, and the Builder. */
-export type Canvas = "code" | "builder";
+export type EditorCanvas = "code" | "builder";
+
+/** Where the Command menu shows: the editor's canvases, and Edit mode, where Members get it too (#139). */
+export type Canvas = EditorCanvas | "edit";
 
 /** The Command menu's tabs, each with its own key. */
 export type CommandTab = "actions" | "goTo" | "insert";
@@ -38,11 +41,15 @@ export type Command = {
 	hint?: string;
 	shortcut?: ShortcutId;
 	permission: Permission;
+	/** Hidden from people who hold this Permission: Send to Review is for those who can't Publish. */
+	without?: Permission;
 	canvases: readonly Canvas[];
 	/** `inverse`: ⌥↵ in the Insert tab, which inserts the other way. */
 	run(options: { inverse: boolean }): void | Promise<void>;
 	focus?: CommandFocus;
 	disabled?: boolean;
+	/** Why it is disabled, shown beside it and read after it ("Nothing to undo.", "Locked"). */
+	reason?: string;
 	/** Nested under a heading of its own (a Post Type's Entries). */
 	parent?: string;
 };
@@ -84,7 +91,7 @@ export type WrapKind = "div" | "section" | "a" | "loop" | "condition";
  * that canvas. Selection actions go through the shared layer actions (`runLayerAction`).
  */
 export type EditorCommandTarget = {
-	canvas: Canvas;
+	canvas: EditorCanvas;
 	selection: CommandSelection | null;
 	history: HistoryTarget;
 	save(): void | Promise<void>;
@@ -111,6 +118,40 @@ export type EditorCommandTarget = {
 };
 
 const BOTH: readonly Canvas[] = ["code", "builder"];
+
+/**
+ * Undo and Redo against a canvas's history: named after the step they would take ("Undo Move Hero"),
+ * disabled while there is none. `reason` says why beside a disabled one, where a canvas wants that.
+ */
+export function historyCommands(
+	history: HistoryTarget,
+	t: T,
+	more: Pick<Command, "group" | "permission" | "canvases">,
+	reason = false,
+): Command[] {
+	const step = (
+		id: "undo" | "redo",
+		label: string | null | undefined,
+		available: boolean,
+		run: () => void | Promise<void>,
+	): Command => ({
+		id,
+		tab: "actions",
+		label: label ? t(`editorHistory.${id}`, { label }) : t(`builder.commandMenu.actions.${id}`),
+		keywords: t(`builder.commandMenu.keywords.${id}`).split(" ").filter(Boolean),
+		shortcut: `editor.${id}`,
+		disabled: !available,
+		...(reason && !available
+			? { reason: t(id === "undo" ? "builder.commandMenu.nothingToUndo" : "builder.commandMenu.nothingToRedo") }
+			: {}),
+		run,
+		...more,
+	});
+	return [
+		step("undo", history.undoLabel?.(), history.canUndo(), () => history.undo()),
+		step("redo", history.redoLabel?.(), history.canRedo(), () => history.redo()),
+	];
+}
 
 /** The built-in Actions for what the canvas has now. */
 export function editorCommands(target: EditorCommandTarget, t: T): Command[] {
@@ -149,30 +190,7 @@ export function editorCommands(target: EditorCommandTarget, t: T): Command[] {
 			permission: target.canvas === "builder" ? "structure.edit" : "entry.publish",
 		},
 	);
-	add(
-		"undo",
-		target.history.undoLabel?.()
-			? t("editorHistory.undo", { label: target.history.undoLabel() ?? "" })
-			: words("builder.commandMenu.actions.undo"),
-		t("builder.commandMenu.keywords.undo"),
-		() => target.history.undo(),
-		{
-			shortcut: "editor.undo",
-			disabled: !target.history.canUndo(),
-		},
-	);
-	add(
-		"redo",
-		target.history.redoLabel?.()
-			? t("editorHistory.redo", { label: target.history.redoLabel() ?? "" })
-			: words("builder.commandMenu.actions.redo"),
-		t("builder.commandMenu.keywords.redo"),
-		() => target.history.redo(),
-		{
-			shortcut: "editor.redo",
-			disabled: !target.history.canRedo(),
-		},
-	);
+	commands.push(...historyCommands(target.history, t, { group: editor, permission: "structure.edit", canvases: BOTH }));
 	if (target.switchCanvas)
 		add(
 			"switchCanvas",
@@ -342,7 +360,10 @@ export function commandMatches(
 	return words.every((word) => haystack.includes(word));
 }
 
-/** What the menu lists on a tab: the person may do it (`can()`), it applies to this canvas, and it matches. */
+/**
+ * What the menu lists on a tab: the person may do it (`can()`, and holds no Permission that gives them
+ * another command instead), it applies to this canvas, and it matches.
+ */
 export function visibleCommands(
 	commands: readonly Command[],
 	options: {
@@ -355,7 +376,10 @@ export function visibleCommands(
 ): { recent: Command[]; results: Command[] } {
 	const allowed = commands.filter(
 		(command) =>
-			command.tab === options.tab && command.canvases.includes(options.canvas) && options.can(command.permission),
+			command.tab === options.tab &&
+			command.canvases.includes(options.canvas) &&
+			options.can(command.permission) &&
+			!(command.without && options.can(command.without)),
 	);
 	if (options.query.trim())
 		return { recent: [], results: allowed.filter((command) => commandMatches(command, options.query)) };

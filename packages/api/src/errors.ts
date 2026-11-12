@@ -25,6 +25,7 @@ import {
 	ArchiveUnavailableError,
 	BrandingInvalidError,
 	CaptchaInvalidError,
+	CdnNotSetError,
 	CheckpointNotFoundError,
 	ClassInUseError,
 	ClassNotFoundError,
@@ -636,6 +637,9 @@ export function toApiError(error: unknown): unknown {
 			data: { problem: error.problem },
 			cause: error,
 		});
+	}
+	if (error instanceof CdnNotSetError) {
+		return new ORPCError("CDN_NOT_SET", { status: 409, message: error.message, cause: error });
 	}
 	if (error instanceof DashboardNotFoundError) {
 		return new ORPCError("DASHBOARD_NOT_FOUND", { status: 404, message: error.message, cause: error });

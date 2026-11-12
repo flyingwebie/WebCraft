@@ -59,7 +59,7 @@ import { PasswordInput } from "../PasswordInput.tsx";
 import { useOpenStaging } from "../shell/StagingButton.tsx";
 
 /** What the screen shows: the Site's domains, the Install's edge, the Staging address and the Site's CDN. */
-export type DomainsData = SiteDomainList & { stagingUrl: string | null; cdn: CdnKey | null };
+export type DomainsData = SiteDomainList & { stagingUrl: string | null; cdn: CdnKey | null; cdnSecret: boolean };
 
 /** The Site's staging password as the screen shows it: whether there is one, never the password. */
 export type StagingPasswordState = { set: boolean; changedAt: Date | string | null };
@@ -193,7 +193,7 @@ export function DomainsPage({
 					password={stagingPassword}
 					canManagePassword={canManageStaging}
 				/>
-				<SiteCdn siteId={siteId} cdn={data.cdn} canEdit={canEdit} />
+				<SiteCdn siteId={siteId} cdn={data.cdn} hasSecret={data.cdnSecret} canEdit={canEdit} />
 				<p className="text-muted-foreground text-sm">{t("domains.appliesAtOnce")}</p>
 			</div>
 		</>
@@ -770,11 +770,22 @@ function CopyButton({ value }: { value: string }) {
 }
 
 /**
- * The CDN in front of the Site: with one chosen, visitors' requests from the CDN's published addresses
- * count as coming from the visitor the CDN names, so rate limits keep counting visitors. Staff choose
- * it; everyone else who sees the Site sees which.
+ * The CDN in front of the Site: with one chosen, and the Site's CDN secret set up there, visitors'
+ * requests from the CDN's published addresses count as coming from the visitor the CDN names, so rate
+ * limits keep counting visitors. Staff choose it and make the secret; everyone else who sees the Site
+ * sees which CDN and whether it has a secret.
  */
-function SiteCdn({ siteId, cdn, canEdit }: { siteId: string; cdn: CdnKey | null; canEdit: boolean }) {
+function SiteCdn({
+	siteId,
+	cdn,
+	hasSecret,
+	canEdit,
+}: {
+	siteId: string;
+	cdn: CdnKey | null;
+	hasSecret: boolean;
+	canEdit: boolean;
+}) {
 	const t = useT();
 	const router = useRouter();
 	const id = useId();
@@ -833,8 +844,72 @@ function SiteCdn({ siteId, cdn, canEdit }: { siteId: string; cdn: CdnKey | null;
 				) : (
 					<p className="text-sm">{cdn ? label(cdn) : t("domains.cdnNone")}</p>
 				)}
+				{cdn ? <CdnSecret key={cdn} siteId={siteId} cdn={cdn} hasSecret={hasSecret} canEdit={canEdit} /> : null}
 			</CardContent>
 		</Card>
+	);
+}
+
+/**
+ * The Site's CDN secret: what the Site's own service at the CDN sends with every request, so the Site
+ * knows a request came through it and not through someone else's service at the same CDN. Staff make
+ * it; it is shown once, with the header to send it in.
+ */
+function CdnSecret({
+	siteId,
+	cdn,
+	hasSecret,
+	canEdit,
+}: {
+	siteId: string;
+	cdn: CdnKey;
+	hasSecret: boolean;
+	canEdit: boolean;
+}) {
+	const t = useT();
+	const router = useRouter();
+	const id = useId();
+	const [made, setMade] = useState<{ secret: string; header: string } | null>(null);
+	const [busy, setBusy] = useState(false);
+	const name = CDNS[cdn].name;
+	const make = async () => {
+		setBusy(true);
+		try {
+			const api = await getApi();
+			setMade(await api.domains.newCdnSecret({ siteId }));
+			await router.invalidate();
+		} catch (failure) {
+			toast.error(t(errorMessage(failure)));
+		} finally {
+			setBusy(false);
+		}
+	};
+	return (
+		<section aria-labelledby={`${id}-title`} className="grid grid-cols-1 gap-2 border-t pt-4">
+			<h3 id={`${id}-title`} className="text-sm font-medium">
+				{t("domains.cdnSecretTitle")}
+			</h3>
+			<p className="text-muted-foreground text-sm">{t("domains.cdnSecretIntro", { name })}</p>
+			<p className="text-sm" role="status">
+				{hasSecret ? t("domains.cdnSecretSet") : t("domains.cdnSecretMissing", { name })}
+			</p>
+			{made ? (
+				<div className="grid grid-cols-1 gap-1 text-sm">
+					<p>{t("domains.cdnSecretShown", { name })}</p>
+					<p className="flex flex-wrap items-center gap-1">
+						<code className="break-all">{`${made.header}: ${made.secret}`}</code>
+						<CopyButton value={made.secret} />
+					</p>
+				</div>
+			) : null}
+			{canEdit ? (
+				<div>
+					<Button type="button" variant="outline" size="sm" disabled={busy} onClick={make}>
+						{hasSecret ? t("domains.cdnSecretRemake") : t("domains.cdnSecretMake")}
+					</Button>
+				</div>
+			) : null}
+		</section>
 	);
 }
 

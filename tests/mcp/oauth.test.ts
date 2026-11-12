@@ -5,7 +5,8 @@
 // revoke it, when its person loses access, or when a used code or refresh token comes back.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
-import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { ipv6Network } from "../harness/addresses.ts";
+import { createTestInstall, fromAddress, type TestInstall } from "../harness/index.ts";
 import {
 	approveAiClient,
 	approveInAdmin,
@@ -550,5 +551,52 @@ describe("isolation", () => {
 			expect(JSON.stringify(result.content)).toMatch(/WORKSPACE_NOT_FOUND|SITE_NOT_FOUND/);
 		}
 		await client.close();
+	});
+});
+
+describe("what anyone may ask for, per client address", () => {
+	const DEVICE = "urn:ietf:params:oauth:grant-type:device_code";
+	const register = (address: string) =>
+		install.request(
+			fromAddress(
+				new Request(install.adminUrl("/oauth/register"), {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body: JSON.stringify({
+						client_name: "Kiosk",
+						grant_types: [DEVICE, "refresh_token"],
+						token_endpoint_auth_method: "none",
+					}),
+				}),
+				address,
+			),
+		);
+
+	test("registrations count an IPv6 connection by its /64: 20 an hour, whichever of its addresses asks", async () => {
+		const network = ipv6Network();
+		for (let asked = 0; asked < 20; asked++) expect((await register(network(asked + 1))).status).toBe(201);
+
+		expect((await register(network(21))).status).toBe(429);
+		expect((await register(ipv6Network()(1))).status).toBe(201);
+	});
+
+	test("device codes count an IPv6 connection by its /64: 30 an hour, whichever of its addresses asks", async () => {
+		const { client_id: clientId } = (await (await register(ipv6Network()(1))).json()) as { client_id: string };
+		const ask = (address: string) =>
+			install.request(
+				fromAddress(
+					new Request(install.adminUrl("/oauth/device_authorization"), {
+						method: "POST",
+						headers: { "content-type": "application/x-www-form-urlencoded" },
+						body: new URLSearchParams({ client_id: clientId }),
+					}),
+					address,
+				),
+			);
+		const network = ipv6Network();
+		for (let asked = 0; asked < 30; asked++) expect((await ask(network(asked + 1))).status).toBe(200);
+
+		expect((await ask(network(31))).status).toBe(429);
+		expect((await ask(ipv6Network()(1))).status).toBe(200);
 	});
 });

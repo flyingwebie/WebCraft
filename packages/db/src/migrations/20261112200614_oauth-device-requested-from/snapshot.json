@@ -1,0 +1,47 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "747a8c84-b23e-4463-a105-3e3ae14af4c5",
+  "prevIds": [
+    "3cf02320-d815-46c1-92cc-7754a45662e0"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "oauth_device_codes",
+        "requested_from"
+      ],
+      "writes": [
+        "s|col|public.oauth_device_codes.requested_from",
+        "n|col|public.oauth_device_codes.requested_from",
+        "e|col|public.oauth_device_codes.requested_from"
+      ],
+      "reads": [
+        "n|tbl|public.oauth_device_codes",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "oauth_device_codes",
+        "name": "requested_from",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

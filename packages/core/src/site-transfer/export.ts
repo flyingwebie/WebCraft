@@ -354,6 +354,8 @@ async function readSnapshot(
 		} & Record<string, unknown>;
 		delete settings.staging_password_hash;
 		delete settings.staging_password_changed_at;
+		// Set up at the CDN for this Site's address here: the Site it becomes makes its own.
+		delete settings.cdn_secret_hash;
 		const moduleVersions = new Map([...context.modules.values()].map((module) => [module.id, module.version]));
 		for (const component of moduleComponents) {
 			const current = moduleVersions.get(component.moduleId);

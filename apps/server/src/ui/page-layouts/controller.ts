@@ -9,6 +9,15 @@ import { draftLayout, propsInput } from "./props-input.ts";
 
 export type LayoutState = Awaited<ReturnType<ApiClient["pageLayouts"]["get"]>>;
 export type LayoutAction = "moveUp" | "moveDown" | "duplicate" | "delete" | "hide" | "lock";
+/**
+ * Why an action can't be done on a Placement now: nothing can (Preview, arranging off, no such
+ * Placement), a save is under way, it is locked, the Placement it would move past is, there is no row
+ * to move to, or its Component isn't one this person may place.
+ */
+export type LayoutRefusal = "unavailable" | "busy" | "locked" | "besideLocked" | "edge" | "notAllowed";
+/** The Page layout drawer's rows that aren't Placements: the Page template's header and footer. */
+export const HEADER_ROW = "context:header";
+export const FOOTER_ROW = "context:footer";
 export type LayoutPanel = "tree" | "inspector" | "picker" | null;
 export type LayoutStep = {
 	/** Captured synchronously at the shared-document mutation, before awaiting acknowledgement. */
@@ -56,18 +65,24 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 		editorAccessibility(kit.doc).announce(text, refused ? "interrupt" : "polite");
 	const selection = () => state.layout.placements.find((p) => p.id === selected);
 	const canEdit = () => state.canArrange && kit.editing() && !disposed;
-	const allowed = (action: LayoutAction, id = selected, duringSave = false) => {
+	const refusal = (action: LayoutAction, id = selected, duringSave = false): LayoutRefusal | null => {
 		const p = state.layout.placements.find((p) => p.id === id);
-		if (!canEdit() || !p || (busy && !duringSave)) return false;
-		if (action === "lock") return state.canLock;
-		if (action === "duplicate") return state.components.some((c) => c.id === p.component);
-		if (p.locked && !state.canLock) return false;
+		if (!canEdit() || !p) return "unavailable";
+		if (busy && !duringSave) return "busy";
+		if (action === "lock") return state.canLock ? null : "unavailable";
+		if (action === "duplicate") return state.components.some((c) => c.id === p.component) ? null : "notAllowed";
+		if (p.locked && !state.canLock) return "locked";
 		if (action === "moveUp" || action === "moveDown") {
 			const neighbour = state.layout.placements[state.layout.placements.indexOf(p) + (action === "moveUp" ? -1 : 1)];
-			return !!neighbour && (state.canLock || !neighbour.locked);
+			if (!neighbour) return "edge";
+			return state.canLock || !neighbour.locked ? null : "besideLocked";
 		}
-		return true;
+		return null;
 	};
+	const allowed = (action: LayoutAction, id = selected, duringSave = false) => refusal(action, id, duringSave) === null;
+	/** The row a new Placement goes after: the selected one (the header's too), or none, which is the end. */
+	const insertsAfter = () =>
+		selected === HEADER_ROW || state.layout.placements.some((p) => p.id === selected) ? selected : null;
 	const values = (id: string) => {
 		const input = inputFor(id);
 		if (input) return input.values();
@@ -263,13 +278,24 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 			finishGrab();
 			const p = { id: crypto.randomUUID(), component: componentId, props: component.props, values: {} };
 			const next = structuredClone(state.layout);
-			const at = next.placements.findIndex((p) => p.id === selected);
-			const position = selected === "context:header" ? 0 : at >= 0 ? at + 1 : next.placements.length;
+			const after = insertsAfter();
+			const position =
+				after === null
+					? next.placements.length
+					: after === HEADER_ROW
+						? 0
+						: next.placements.findIndex((p) => p.id === after) + 1;
 			next.placements.splice(position, 0, p);
 			selected = p.id;
 			panel = "tree";
-			focusRequest++;
-			await save(next, `${kit.word("pageLayout.add")} ${component.name}`, state.layout, { focus: true });
+			// Focus waits for the save: only then does the tree hold the new row. Asked for sooner, it
+			// lands on another row, which selects that one instead. Refused, the tree shows as it was, and
+			// takes focus all the same: the list the Component was chosen from is gone.
+			const added = await save(next, `${kit.word("pageLayout.add")} ${component.name}`, state.layout, { focus: true });
+			if (!added) {
+				focusRequest++;
+				emit();
+			}
 		}, true);
 	}
 
@@ -480,6 +506,8 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 		values,
 		label,
 		allowed,
+		refusal,
+		insertsAfter,
 		select,
 		action,
 		insert,
@@ -567,7 +595,13 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 				flushers.delete(flush);
 			};
 		},
+		/**
+		 * Finishes what is still on its way to the Draft (an open Prop, text typed in a Placement, a
+		 * Placement picked up) and waits for it; false when some of that wasn't saved. A refusal from
+		 * before was said then and left nothing unsaved behind: it isn't answered again here.
+		 */
 		async finish() {
+			saved = true;
 			for (const flush of flushers) flush();
 			const active = kit.doc.activeElement as HTMLElement | null;
 			if (active?.matches("[data-wc-placement-prop]")) active.blur();

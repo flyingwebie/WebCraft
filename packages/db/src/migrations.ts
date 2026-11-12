@@ -7,8 +7,11 @@ import { JOB_QUEUE_SCHEMA, JOB_QUEUE_SCHEMA_VERSION } from "./job-queue.ts";
 import {
 	appliedModuleMigrations,
 	applyModuleMigrations,
+	type MigrationUnit,
 	type ModuleSchema,
+	OWN_TRANSACTION,
 	pendingModuleMigrations,
+	WITHIN_TRANSACTION,
 } from "./module-migrations.ts";
 
 /** What the migrate step and the schema check know besides WebCraft's own migrations: the Modules of this build. */
@@ -111,17 +114,46 @@ export async function applyMigrationLevel(
 	const client = await pool.connect();
 	try {
 		await client.query("SELECT pg_advisory_lock(hashtext($1))", [MIGRATE_LOCK]);
-		await applyCoreMigrations(client, new Set(level.core));
-		const modules = (options.modules ?? []).map((module) => ({
-			...module,
-			migrations: module.migrations.filter((migration) => level.modules[module.moduleId]?.includes(migration.name)),
-		}));
-		await applyModuleMigrations(client, modules, { partial: true });
+		await applyLevel(client, level, options, OWN_TRANSACTION);
 	} finally {
 		await client.query("SELECT pg_advisory_unlock(hashtext($1))", [MIGRATE_LOCK]).catch(() => {});
 		client.release();
 		await pool.end();
 	}
+}
+
+/**
+ * `applyMigrationLevel` inside the transaction the caller holds on `client`: each migration under a
+ * savepoint, so the schema is there only once the caller commits, and not at all when it rolls back.
+ * A restore replaces, rebuilds and loads a whole database this way, all or nothing.
+ */
+export async function applyMigrationLevelWithin(
+	client: pg.PoolClient,
+	level: Pick<MigrationLevel, "core" | "modules">,
+	options: SchemaOptions = {},
+): Promise<void> {
+	const unknown = unknownMigrations(level, options);
+	if (unknown.length > 0) {
+		throw new MigrationError(`This version of WebCraft doesn't have the migrations ${unknown.join(", ")}.`);
+	}
+	// Held until the caller's transaction ends.
+	await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [MIGRATE_LOCK]);
+	await applyLevel(client, level, options, WITHIN_TRANSACTION);
+}
+
+/** Applies exactly the migrations of `level`: WebCraft's own, then each Module's. */
+async function applyLevel(
+	client: pg.PoolClient,
+	level: Pick<MigrationLevel, "core" | "modules">,
+	options: SchemaOptions,
+	unit: MigrationUnit,
+): Promise<void> {
+	await applyCoreMigrations(client, new Set(level.core), unit);
+	const modules = (options.modules ?? []).map((module) => ({
+		...module,
+		migrations: module.migrations.filter((migration) => level.modules[module.moduleId]?.includes(migration.name)),
+	}));
+	await applyModuleMigrations(client, modules, { partial: true, unit });
 }
 
 /** The migrations of `level` this build doesn't have, as `<name>` or `<module>/<name>`. */
@@ -185,7 +217,11 @@ function localMigrations(): LocalMigration[] {
  * what it applied. Applied migrations this build doesn't have are left alone: the database is
  * ahead, after going back one version.
  */
-async function applyCoreMigrations(client: pg.PoolClient, only?: ReadonlySet<string>): Promise<string[]> {
+async function applyCoreMigrations(
+	client: pg.PoolClient,
+	only?: ReadonlySet<string>,
+	unit: MigrationUnit = OWN_TRANSACTION,
+): Promise<string[]> {
 	await client.query("CREATE SCHEMA IF NOT EXISTS drizzle");
 	await client.query(`CREATE TABLE IF NOT EXISTS ${MIGRATIONS_TABLE} (
 		id SERIAL PRIMARY KEY,
@@ -199,7 +235,7 @@ async function applyCoreMigrations(client: pg.PoolClient, only?: ReadonlySet<str
 		(migration) => !applied.has(migration.name) && (only === undefined || only.has(migration.name)),
 	);
 	for (const migration of pending) {
-		await client.query("BEGIN");
+		await client.query(unit.begin);
 		try {
 			for (const statement of migration.sql) {
 				if (statement.trim() !== "") await client.query(statement);
@@ -209,9 +245,9 @@ async function applyCoreMigrations(client: pg.PoolClient, only?: ReadonlySet<str
 				migration.folderMillis,
 				migration.name,
 			]);
-			await client.query("COMMIT");
+			await client.query(unit.commit);
 		} catch (error) {
-			await client.query("ROLLBACK").catch(() => {});
+			await client.query(unit.rollback).catch(() => {});
 			throw new MigrationError(
 				`WebCraft's migration ${migration.name} failed, so it was rolled back (the migrations before it stay applied): ${error instanceof Error ? error.message : String(error)}`,
 				{ cause: error },

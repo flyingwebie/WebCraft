@@ -1,6 +1,7 @@
 import { isIP } from "node:net";
 
 import {
+	CDN_SECRET_HEADER,
 	CDNS,
 	type InstallConfig,
 	type InstallServices,
@@ -59,29 +60,25 @@ export function setConnectionAddress(request: Request, address: string | undefin
 
 /**
  * Works out the address of a visitor to a Site and records it on the request, for `clientAddress` to
- * answer from then on. It is `clientAddress`'s, unless the Site has a CDN in front (`host.cdn`) and
- * that address is one of the CDN's servers (its published ranges): then it is the visitor's address
- * the CDN gives in its own header (`CF-Connecting-IP`, `Fastly-Client-IP`), when that is one. From
- * anywhere else such a header is ignored, since anyone can send it.
+ * answer from then on. It is `clientAddress`'s, unless the Site has a CDN in front (`host.cdn`), that
+ * address is one of the CDN's servers (its published ranges) and the request carries the Site's CDN
+ * secret (`CDN_SECRET_HEADER`): then it is the visitor's address the CDN gives in its own header
+ * (`CF-Connecting-IP`, `Fastly-Client-IP`), when that is one. From anywhere else such a header is
+ * ignored, since anyone can send it; and without the secret too, since the CDN's servers carry
+ * everyone's requests: anyone's service there can send one on to this Site, naming whom it likes. The
+ * CDN's server then counts as the client.
  */
 export async function recordVisitorAddress(request: Request, services: InstallServices, host: SiteHost): Promise<void> {
 	let address = clientAddress(request, services.config);
-	if (host.cdn !== null && address !== null && inRanges(address, await services.cdns.ranges(host.cdn))) {
+	if (
+		host.cdn !== null &&
+		address !== null &&
+		inRanges(address, await services.cdns.ranges(host.cdn)) &&
+		(await services.cdns.holdsSecret(host.cdnSecretHash, request.headers.get(CDN_SECRET_HEADER)))
+	) {
 		address = normaliseAddress(request.headers.get(CDNS[host.cdn].header) ?? "") ?? address;
 	}
 	Object.defineProperty(request, VISITOR, { value: address, configurable: true });
-}
-
-/**
- * Whether a request came in on a connection from a proxy the Install trusts
- * (`WEBCRAFT_TRUSTED_PROXIES`): only then are the headers such a proxy adds believed.
- */
-export function fromTrustedProxy(request: Request, config: InstallConfig): boolean {
-	const ip = (request as ConnectedRequest).ip;
-	const connection = typeof ip === "string" ? normaliseAddress(ip) : null;
-	if (connection === null) return false;
-	const trusted = config.trustedProxies;
-	return inRanges(connection, compiled(trusted.kind === "railway" ? RAILWAY_NETWORK : trusted.ranges));
 }
 
 /** The client's address as the trusted proxies in front of the web process tell it. */

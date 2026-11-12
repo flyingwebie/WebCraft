@@ -1,3 +1,5 @@
+import { bodyOverflowed } from "@webcraft/core";
+
 /** Answers every request the web process handles itself. */
 export type Handler = (request: Request) => Promise<Response>;
 
@@ -18,6 +20,30 @@ export function plainText(status: number, body: string, headers: Record<string, 
 
 export function notFound(): Response {
 	return plainText(404, "Not Found");
+}
+
+/** The answer to a request whose body is larger than the web process reads. */
+export function payloadTooLarge(): Response {
+	return plainText(413, "Payload Too Large");
+}
+
+/**
+ * A route's answer, or 413 in its place once the request's body passed the ceiling every request
+ * comes under (`underBodyCeiling`): whatever the route made of a body cut short, or however it
+ * failed on it, isn't an answer to what was sent.
+ */
+export async function withinBodyCeiling(
+	request: Request,
+	answer: () => Promise<Response>,
+	refusal: () => Response = payloadTooLarge,
+): Promise<Response> {
+	try {
+		const response = await answer();
+		return bodyOverflowed(request) ? refusal() : response;
+	} catch (error) {
+		if (bodyOverflowed(request)) return refusal();
+		throw error;
+	}
 }
 
 export function json(status: number, data: unknown, headers: Record<string, string> = {}): Response {
