@@ -9,15 +9,10 @@ import { z } from "zod";
 import { getApi } from "../ui/api.ts";
 import { errorCode, errorMessage } from "../ui/errors.ts";
 import { type MessageKey, pageTitle, useT } from "../ui/i18n.tsx";
+import { localPath } from "../ui/local-path.ts";
 import { PasswordInput } from "../ui/PasswordInput.tsx";
 import { getPasskey, PasskeyCancelledError } from "../ui/two-factor/passkeys.ts";
 import { usePasskeysAvailable } from "../ui/two-factor/Setup.tsx";
-
-/** Only paths on the admin itself: never another site, so the page can't be used to send people away. */
-const localPath = z
-	.string()
-	.max(2048)
-	.refine((path) => path.startsWith("/") && !path.startsWith("//") && !path.startsWith("/\\"));
 
 export const Route = createFileRoute("/sign-in")({
 	validateSearch: z.object({ redirect: localPath.optional().catch(undefined) }),

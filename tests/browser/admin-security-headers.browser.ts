@@ -126,6 +126,35 @@ describe("an admin page", () => {
 	});
 });
 
+describe("the sign-in page's way back", () => {
+	test("goes only to a path of the admin, never to an address a browser reads as another host", async () => {
+		const page = await install.newPage("light");
+		await install.signIn(page, staff);
+		// A browser drops a tab from an address: `/<tab>/elsewhere.example` reads as `//elsewhere.example`.
+		for (const redirect of [
+			"/%09/elsewhere.example",
+			"/%0A/elsewhere.example",
+			"/%5Celsewhere.example",
+			"//elsewhere.example",
+		]) {
+			const response = await page.goto(install.adminUrl(`/sign-in?redirect=${redirect}`));
+			await page.waitForLoadState("networkidle");
+			const at = new URL(page.url());
+			expect({ redirect, status: response?.status(), at: `${at.host}${at.pathname}` }).toEqual({
+				redirect,
+				status: 200,
+				at: `${new URL(install.adminUrl("/")).host}/`,
+			});
+		}
+		// A path of the admin's own still works, its query kept.
+		await page.goto(install.adminUrl(`/sign-in?redirect=${encodeURIComponent(`/sites/${siteId}?tab=pages`)}`));
+		await page.waitForLoadState("networkidle");
+		expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe(`/sites/${siteId}?tab=pages`);
+		expect(pageErrors(page)).toEqual([]);
+		await page.close();
+	});
+});
+
 describe("another site's page", () => {
 	test("can't show the admin in a frame", async () => {
 		const page = await install.newPage("light");
