@@ -6,6 +6,7 @@ export type HistoryLocation = {
 	resource?: string;
 	inspectorTab?: "builder-settings" | "builder-style";
 	selection?: string | null;
+	/** Code mode: the rendered element's reference. Edit mode: the Field whose region shows a typed value. */
 	ref?: string;
 	/** Where the step was made; `page` is the page itself in Edit mode (text typed in place, a Placement's own tools). */
 	panel: "html" | "css" | "js" | "inspector" | "tree" | "page";

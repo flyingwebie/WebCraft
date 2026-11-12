@@ -159,13 +159,22 @@ async function mount(kit: BarKit, host: HistoryHost): Promise<HistoryTools> {
 		});
 	};
 
+	/** Whether Undo here is the history's: while editing, outside what keeps the browser's own. */
+	const ours = (event: Event) =>
+		kit.editing() && !event.composedPath().some((each) => each instanceof Element && each.matches(OWN_UNDO));
 	kit.win.addEventListener("keydown", (event) => {
 		const redo = matches(event, "editor.redo");
 		if ((!redo && !matches(event, "editor.undo")) || event.defaultPrevented || event.isComposing) return;
-		if (!kit.editing() || event.composedPath().some((each) => each instanceof Element && each.matches(OWN_UNDO)))
-			return;
+		if (!ours(event)) return;
 		event.preventDefault();
 		void (redo ? target.redo() : target.undo());
+	});
+	// The browser's own undo of text (its menu, a gesture) is the same step as the keys.
+	kit.doc.addEventListener("beforeinput", (event) => {
+		const name = event.inputType === "historyUndo" ? "undo" : event.inputType === "historyRedo" ? "redo" : null;
+		if (!name || !ours(event)) return;
+		event.preventDefault();
+		void target[name]();
 	});
 
 	try {

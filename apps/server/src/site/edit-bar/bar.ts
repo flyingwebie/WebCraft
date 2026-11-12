@@ -2024,14 +2024,6 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			queueSave(region, 800);
 		});
 		region.addEventListener("keydown", (event) => regionKeys(event, region));
-		region.addEventListener("beforeinput", (event) => {
-			// The browser's own undo (its menu, a gesture) steps through the one history too. A Loop
-			// item's text isn't in it and keeps the browser's.
-			const name = event.inputType === "historyUndo" ? "undo" : event.inputType === "historyRedo" ? "redo" : null;
-			if (!name || !historyTools || region.dataset.wcItem?.startsWith("loop:")) return;
-			event.preventDefault();
-			void historyTools.target[name]();
-		});
 		region.addEventListener("paste", (event) => {
 			if (rich || editableAs.get(region) === "plaintext-only") return;
 			// Plain text Fields take text only, whatever the clipboard holds.

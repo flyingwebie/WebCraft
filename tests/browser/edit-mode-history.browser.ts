@@ -755,6 +755,28 @@ for (const theme of THEMES) {
 				.filter({ hasText: /^Baked daily$/ })
 				.waitFor();
 			expect(await inNote()).toBe(true);
+			// The browser announces its own undo of text (from its menu) before doing it: the history
+			// takes the step instead, and the browser's is called off.
+			const announced = (inputType: string) =>
+				note.evaluate(
+					(region, inputType) =>
+						region.dispatchEvent(
+							new InputEvent("beforeinput", { inputType, bubbles: true, cancelable: true, composed: true }),
+						),
+					inputType,
+				);
+			expect(await announced("historyRedo")).toBe(false);
+			await said(page, "Redid Edit Tagline");
+			await tagline(page)
+				.filter({ hasText: /^Typed first$/ })
+				.waitFor();
+			expect(await announced("historyUndo")).toBe(false);
+			await said(page, "Undid Edit Tagline");
+			await tagline(page)
+				.filter({ hasText: /^Baked daily$/ })
+				.waitFor();
+			// Typing itself is never called off.
+			expect(await announced("insertText")).toBe(true);
 			// Redo, from the keys inside the text, makes the rich text step again as it was stored.
 			await page.keyboard.press("ControlOrMeta+Shift+z");
 			await said(page, "Redid Edit Tagline");
