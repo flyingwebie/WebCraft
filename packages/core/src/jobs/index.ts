@@ -1,3 +1,4 @@
+import { signInCountersPurge, signInCountersPurgeSchedule } from "../account.ts";
 import { auditPrune, auditPruneSchedule } from "../audit-log.ts";
 import { backupsScheduled, backupsScheduledSchedule } from "../backups/jobs.ts";
 import { cdnRefreshRanges, cdnRefreshRangesSchedule } from "../cdns/index.ts";
@@ -74,6 +75,7 @@ export const coreJobs = [
 	emailSend,
 	emailLogPurge,
 	rateLimitsPurge,
+	signInCountersPurge,
 	oauthPurge,
 	mediaProcess,
 	mediaVariants,
@@ -127,6 +129,7 @@ export const coreSchedules = [
 	socialCardsReconcileSchedule,
 	emailLogPurgeSchedule,
 	rateLimitsPurgeSchedule,
+	signInCountersPurgeSchedule,
 	oauthPurgeSchedule,
 	moduleLogPurgeSchedule,
 	moduleHourlyJobsSchedule,

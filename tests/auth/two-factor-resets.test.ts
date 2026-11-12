@@ -127,7 +127,7 @@ describe("a Member's reset", () => {
 		).rejects.toMatchObject({ code: "IDENTITY_CHECK_REQUIRED", data: { action: "twoFactor.reset" } });
 	});
 
-	test("lifts a lock wrong codes put on the account", async () => {
+	test("lifts a lock wrong codes put on the second step", async () => {
 		const member = await memberWithTwoFactor();
 		// Two browsers, five wrong codes each, so no address reaches its limit of requests a minute.
 		for (let round = 0; round < 2; round++) {
@@ -137,8 +137,10 @@ describe("a Member's reset", () => {
 				await browser.api.session.secondStep({ method: "authenticator", code: "000000" }).catch(() => undefined);
 			}
 		}
-		await expect(install.browser().api.session.signIn(member.account)).rejects.toMatchObject({
-			code: "INVALID_CREDENTIALS",
+		const locked = install.browser();
+		await locked.api.session.signIn(member.account);
+		await expect(locked.api.session.secondStep({ method: "authenticator", code: "000000" })).rejects.toMatchObject({
+			code: "ACCOUNT_LOCKED",
 		});
 
 		await confirmIfAsked(admin, superadmin.password, () =>

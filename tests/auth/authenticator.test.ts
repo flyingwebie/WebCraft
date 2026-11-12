@@ -238,7 +238,7 @@ describe("signing in with an authenticator app", () => {
 		).rejects.toMatchObject({ code: "SIGN_IN_EXPIRED" });
 	});
 
-	test("wrong codes count towards the lockout, and a right password in between doesn't start the count again", async () => {
+	test("10 wrong codes in a row lock the second step for 15 minutes, and a right password in between doesn't start the count again", async () => {
 		const { account, secret } = await personWithAuthenticator();
 		const wrongCode = () => totpCode(secret, install.clock.now(), 7);
 
@@ -263,9 +263,14 @@ describe("signing in with an authenticator app", () => {
 			}
 		}
 
-		expect((await install.lastEmailTo(account.email)).subject).toContain("locked");
+		expect((await install.lastEmailTo(account.email)).subject).toContain("Too many failed attempts");
+		// The password still opens the second step (whoever got this far knows it); no code is checked.
 		await install.clock.advance(TOTP_STEP_MS);
-		await expect(signInFirstStep(account).answer).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
+		const locked = signInFirstStep(account);
+		await locked.answer;
+		await expect(
+			locked.browser.api.session.secondStep({ method: "authenticator", code: totpCode(secret, install.clock.now()) }),
+		).rejects.toMatchObject({ code: "ACCOUNT_LOCKED", status: 423 });
 		await install.clock.advance(15 * MINUTE);
 		expect(
 			(await signInWithAuthenticator(install, account, secret).then((b) => b.api.session.current())).person,

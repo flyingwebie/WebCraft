@@ -30,7 +30,7 @@
 		"ACCESS_NOT_HELD_GRANT": "Non puoi concedere più accesso di quello che hai, né come ruolo né come Site.",
 		"ACCESS_NOT_HELD_MANAGE": "Questo Membro ha un accesso che tu non hai, quindi non puoi modificarlo o rimuoverlo.",
 		"INVITE_OTHER_ACCOUNT": "Questo invito è stato inviato a un altro indirizzo email. Accedi con quell'indirizzo per accettarlo.",
-		"ACCOUNT_LOCKED": "Questo account è bloccato per un massimo di 15 minuti dopo troppe password o codici sbagliati. Riprova più tardi.",
+		"ACCOUNT_LOCKED": "Troppe password o codici sbagliati: qui non viene più controllato nulla per un massimo di 15 minuti. Riprova più tardi oppure usa una passkey.",
 		"TOO_MANY_REQUESTS": "Troppi tentativi. Aspetta un minuto, poi riprova.",
 		"IDENTITY_CHECK_REQUIRED": "Conferma che sei tu per continuare.",
 		"IDENTITY_CHECK_CANCELLED": "Non è cambiato nulla: conferma che sei tu per continuare.",

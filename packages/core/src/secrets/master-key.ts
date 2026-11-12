@@ -20,6 +20,7 @@ const DOMAIN_VERIFICATION_LABEL = "webcraft domain verification";
 const FORM_TIME_LABEL = "webcraft form time trap";
 const VISITOR_ID_LABEL = "webcraft visitor daily ids hmac-sha256 key";
 const RATE_LIMIT_LABEL = "webcraft rate limit keys hmac-sha256 key";
+const SIGN_IN_NETWORK_LABEL = "webcraft sign-in networks hmac-sha256 key";
 const STAGING_PASSWORD_LABEL = "webcraft staging password access";
 const SHARE_LINK_PASSWORD_LABEL = "webcraft share link password v1";
 const API_TOKEN_LABEL = "webcraft api tokens hmac-sha256 key";
@@ -221,6 +222,21 @@ export async function visitorIdKey(masterKey: MasterKey): Promise<CryptoKey> {
 export async function rateLimitKey(masterKey: MasterKey): Promise<CryptoKey> {
 	return crypto.subtle.deriveKey(
 		hkdf(RATE_LIMIT_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign"],
+	);
+}
+
+/**
+ * The key the networks wrong passwords come from are kept under (HMAC-SHA256): attempts are counted
+ * per network, and a client address is never kept. Derived from the Master key, so every process
+ * counts under the same hashes; a new Master key forgets which networks people signed in from.
+ */
+export async function signInNetworkKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(SIGN_IN_NETWORK_LABEL),
 		await stateOf(masterKey).base,
 		{ name: "HMAC", hash: "SHA-256", length: 256 },
 		false,

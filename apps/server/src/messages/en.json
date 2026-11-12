@@ -30,7 +30,7 @@
 		"ACCESS_NOT_HELD_GRANT": "You can't give more access than you hold, in role or in Sites.",
 		"ACCESS_NOT_HELD_MANAGE": "This Member has access you don't hold, so you can't change or remove them.",
 		"INVITE_OTHER_ACCOUNT": "This invite was sent to another email address. Sign in with that address to accept it.",
-		"ACCOUNT_LOCKED": "This account is locked for up to 15 minutes after too many wrong passwords or codes. Try again later.",
+		"ACCOUNT_LOCKED": "Too many wrong passwords or codes: nothing more is checked here for up to 15 minutes. Try again later, or use a passkey.",
 		"TOO_MANY_REQUESTS": "Too many attempts. Wait a minute, then try again.",
 		"IDENTITY_CHECK_REQUIRED": "Confirm it's you to continue.",
 		"IDENTITY_CHECK_CANCELLED": "Nothing was changed: confirm it's you to continue.",

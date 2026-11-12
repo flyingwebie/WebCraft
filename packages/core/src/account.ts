@@ -1,10 +1,15 @@
 import type { AccountLock, Auth, Session } from "@webcraft/auth";
 import type { Database, Transaction } from "@webcraft/db";
+import { z } from "zod";
 
 import { type AuditDetails, recordAudit } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import type { Email } from "./email/index.ts";
+import { clientNetwork } from "./ip-ranges.ts";
+import { defineJob } from "./jobs/define.ts";
+import { defineSchedule } from "./jobs/schedules.ts";
 import { actingPerson } from "./permissions/can.ts";
+import type { RateLimitRule, RateLimits } from "./rate-limits.ts";
 import type { Access } from "./tenancy/data-layer.ts";
 
 /** A session as the person sees it in Your account › Sessions. */
@@ -98,13 +103,30 @@ export function createAccount({ database, auth, clock }: { database: Database; a
 	};
 }
 
+/** A person is told that tries on their account were stopped, and it is recorded, at most once a day. */
+export const ACCOUNT_LOCK_REPORTS: RateLimitRule = { limit: 1, windowMs: 24 * 60 * 60 * 1000 };
+
 /**
- * What happens when wrong passwords lock an account: the person gets the `account-locked` security
- * email, and the lock goes in the Audit log. Nobody acted (the attempts may not be the person's), so
- * the entry names the locked person in its details, with where the last attempt came from.
+ * What happens when wrong passwords or codes stop further tries on an account (`Lockout` in
+ * `@webcraft/auth`): the person gets the `account-locked` security email, and it goes in the Audit
+ * log. Nobody acted (the attempts may not be the person's), so the entry names the person in its
+ * details, with what was stopped and where the last attempt came from. Anyone who knows an email
+ * address can cause it as often as they like, so both happen at most once a day for a person; every
+ * time is in the log (`createAuth`).
  */
-export function reportAccountLock({ database, clock, email }: { database: Database; clock: Clock; email: Email }) {
+export function reportAccountLock({
+	database,
+	clock,
+	email,
+	rateLimits,
+}: {
+	database: Database;
+	clock: Clock;
+	email: Email;
+	rateLimits: RateLimits;
+}) {
 	return async (lock: AccountLock): Promise<void> => {
+		if (!(await rateLimits.count(`account-lock-report:${lock.personId}`, ACCOUNT_LOCK_REPORTS))) return;
 		const lockedMinutes = Math.round((lock.lockedUntil.getTime() - clock.now().getTime()) / 60_000);
 		await recordAudit(database.db, clock.now(), {
 			personId: null,
@@ -115,6 +137,7 @@ export function reportAccountLock({ database, clock, email }: { database: Databa
 			details: {
 				personId: lock.personId,
 				email: lock.email,
+				scope: lock.scope,
 				failedAttempts: lock.failedAttempts,
 				lockedUntil: lock.lockedUntil.toISOString(),
 				clientAddress: lock.clientAddress,
@@ -128,6 +151,34 @@ export function reportAccountLock({ database, clock, email }: { database: Databa
 		});
 	};
 }
+
+/**
+ * The network a client address belongs to, as `@webcraft/auth` keeps it to count wrong passwords
+ * per network: a keyed hash of `clientNetwork`, so the address itself is never stored.
+ */
+export function signInNetworkOf(key: CryptoKey) {
+	return async (clientAddress: string | null): Promise<string> => {
+		const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(clientNetwork(clientAddress)));
+		return Buffer.from(signature).toString("base64url");
+	};
+}
+
+/** Deletes the counters of wrong passwords nobody touched for a day (`Lockout.purge`). */
+export const signInCountersPurge = defineJob({
+	name: "sign-in-counters.purge",
+	payload: z.object({}),
+	async run(_payload, { auth, log }) {
+		const deleted = await auth.purgeSignInCounters();
+		if (deleted > 0) log.debug("Deleted ended counters of wrong passwords", { deleted });
+	},
+});
+
+/** The purge of wrong-password counters runs every day at 04:29 UTC. */
+export const signInCountersPurgeSchedule = defineSchedule({
+	job: signInCountersPurge,
+	cron: "29 4 * * *",
+	payload: {},
+});
 
 /** The browser and operating system a `User-Agent` names, as far as the common ones go. */
 export function describeUserAgent(userAgent: string | null): { browser: string | null; os: string | null } {

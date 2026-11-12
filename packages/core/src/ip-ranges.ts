@@ -66,6 +66,18 @@ export function ipRangeText(range: IpRange): string {
 	return `${addressText(range.family, range.network)}/${range.prefix}`;
 }
 
+/**
+ * The network a client address counts as where attempts are counted per network: an IPv4 address
+ * itself, the /64 of an IPv6 address (one connection is given a whole /64, so its addresses are one
+ * client), and `unknown` for no address or text that isn't one.
+ */
+export function clientNetwork(address: string | null): string {
+	const parsed = address === null ? null : parseIpAddress(address);
+	if (!parsed) return "unknown";
+	if (parsed.family === 4) return addressText(4, parsed.value);
+	return ipRangeText({ family: 6, network: parsed.value & mask(6, 64), prefix: 64 });
+}
+
 function mask(family: 4 | 6, prefix: number): bigint {
 	const bits = BigInt(BITS[family]);
 	const all = (1n << bits) - 1n;

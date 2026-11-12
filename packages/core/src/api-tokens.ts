@@ -1,5 +1,5 @@
 import type { Database } from "@webcraft/db";
-import { apiTokenSites, apiTokens, people, sites, workspaces } from "@webcraft/db/schema";
+import { apiTokenSites, apiTokens, sites, workspaces } from "@webcraft/db/schema";
 import { and, asc, desc, eq, gt, inArray, isNull, or } from "drizzle-orm";
 
 import { type AuditVia, recordAudit } from "./audit.ts";
@@ -31,7 +31,8 @@ import { chosenToolsets, defaultToolsets, type ToolsetKey } from "./toolsets.ts"
  * it never does more than they may. When the person no longer reaches what the token was made for
  * (their Membership removed, their Staff Workspaces changed, the token's Sites out of their reach),
  * WebCraft revokes it at once, in the same transaction as the change, and again on its next use for
- * any other way access ends. While the person's account is locked, their tokens wait.
+ * any other way access ends. Wrong passwords for the person never stop their tokens: a token can't
+ * be guessed through the sign-in form, so stopping it would only help whoever sends them.
  */
 
 /**
@@ -130,17 +131,13 @@ export type ApiClientUse = {
 export type ApiTokenUse = ApiClientUse;
 
 /** Why a request's token doesn't work. */
-export type ApiTokenProblem = "missing" | "unknown" | "expired" | "revoked" | "locked";
+export type ApiTokenProblem = "missing" | "unknown" | "expired" | "revoked";
 
-/**
- * The request carries no token, or one that doesn't work: unknown, expired, revoked, or its person's
- * account is locked for now (`retryAfterSeconds`).
- */
+/** The request carries no token, or one that doesn't work: unknown, expired or revoked. */
 export class ApiTokenInvalidError extends Error {
 	override name = "ApiTokenInvalidError";
 	readonly problem: ApiTokenProblem;
-	readonly retryAfterSeconds: number | undefined;
-	constructor(problem: ApiTokenProblem, retryAfterSeconds?: number) {
+	constructor(problem: ApiTokenProblem) {
 		super(
 			problem === "missing"
 				? "Send an API token: `Authorization: Bearer <token>`."
@@ -148,12 +145,9 @@ export class ApiTokenInvalidError extends Error {
 					? "This API token has expired. Create a new one under Your account › API tokens."
 					: problem === "revoked"
 						? "This API token was revoked. Create a new one under Your account › API tokens."
-						: problem === "locked"
-							? "The account this API token belongs to is locked for now. Try again later."
-							: "This API token isn't known to this Install.",
+						: "This API token isn't known to this Install.",
 		);
 		this.problem = problem;
-		this.retryAfterSeconds = retryAfterSeconds;
 	}
 }
 
@@ -375,22 +369,14 @@ export function createApiTokens({
 		async use(secret) {
 			if (!secret) throw new ApiTokenInvalidError("missing");
 			if (!secret.startsWith(API_TOKEN_PREFIX) || secret.length > 200) throw new ApiTokenInvalidError("unknown");
-			const [found] = await db
-				.select({ token: apiTokens, lockedUntil: people.lockedUntil })
+			const [token] = await db
+				.select()
 				.from(apiTokens)
-				.innerJoin(people, eq(people.id, apiTokens.personId))
 				.where(eq(apiTokens.secretHash, await hashed(secret)));
-			if (!found) throw new ApiTokenInvalidError("unknown");
-			const { token, lockedUntil } = found;
+			if (!token) throw new ApiTokenInvalidError("unknown");
 			const now = clock.now();
 			if (token.revokedAt) throw new ApiTokenInvalidError("revoked");
 			if (token.expiresAt && token.expiresAt.getTime() <= now.getTime()) throw new ApiTokenInvalidError("expired");
-			if (lockedUntil && lockedUntil.getTime() > now.getTime()) {
-				throw new ApiTokenInvalidError(
-					"locked",
-					Math.max(1, Math.ceil((lockedUntil.getTime() - now.getTime()) / 1000)),
-				);
-			}
 			const [person, personActor, listed] = await Promise.all([
 				peopleService.get(token.personId),
 				loadPersonActor(db, token.personId),

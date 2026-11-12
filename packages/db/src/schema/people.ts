@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
  * Everyone with an account on the Install: the Superadmin, Staff and Members. `@webcraft/auth`
@@ -18,9 +18,12 @@ export const people = pgTable(
 		adminLanguage: text("admin_language"),
 		/** Light or dark admin, or `system` to follow the device. */
 		adminTheme: text("admin_theme").notNull().default("system"),
-		/** Wrong passwords in a row since the last right one (or the last lock); 10 lock the account. */
+		/**
+		 * Wrong codes in a row at the second step of signing in, since the last right one (or the last
+		 * lock); 10 lock the second step. Wrong passwords are counted in `sign_in_throttles`.
+		 */
 		failedAttempts: integer("failed_attempts").notNull().default(0),
-		/** Until when the account is locked after too many wrong passwords; null or past: not locked. */
+		/** Until when the second step of signing in is locked after too many wrong codes; null or past: not locked. */
 		lockedUntil: timestamp("locked_until", { withTimezone: true }),
 		/**
 		 * Until when the reminder to add two-factor authentication stays hidden, after "Remind me
@@ -31,6 +34,37 @@ export const people = pgTable(
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},
 	(table) => [check("people_admin_theme_known", sql`${table.adminTheme} in ('system', 'light', 'dark')`)],
+);
+
+/**
+ * Wrong passwords for a person, counted by where they come from (`origin`), so that an outsider's
+ * guesses stop the outsider and never the person:
+ *
+ * - `network:<keyed hash>`: sign-in attempts from one network (an IPv4 address, or an IPv6 /64).
+ *   `known_at` is when the person last signed in from it.
+ * - `session:<session id>`: attempts to confirm who the person is, in one admin session.
+ * - `account`: sign-in attempts from every network together.
+ *
+ * `failed_attempts` are those in a row; `locked_until` is until when nothing from that origin is
+ * checked (for `account`: from networks the person hasn't signed in from). A client address is
+ * never kept: a network is an HMAC of it under a key derived from the Master key.
+ */
+export const signInThrottles = pgTable(
+	"sign_in_throttles",
+	{
+		personId: uuid("person_id")
+			.notNull()
+			.references(() => people.id, { onDelete: "cascade" }),
+		origin: text("origin").notNull(),
+		failedAttempts: integer("failed_attempts").notNull().default(0),
+		lockedUntil: timestamp("locked_until", { withTimezone: true }),
+		knownAt: timestamp("known_at", { withTimezone: true }),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+	},
+	(table) => [
+		primaryKey({ columns: [table.personId, table.origin] }),
+		index("sign_in_throttles_updated_at_idx").on(table.updatedAt),
+	],
 );
 
 /**

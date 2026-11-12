@@ -26,10 +26,13 @@ export {
 	leakedPasswordCheck,
 } from "./leaked-passwords.ts";
 export {
+	ACCOUNT_PAUSE_AFTER_FAILED_ATTEMPTS,
 	type AccountLock,
 	AccountLockedError,
+	KNOWN_NETWORK_MS,
 	LOCK_AFTER_FAILED_ATTEMPTS,
 	LOCK_DURATION_MS,
+	type LockScope,
 } from "./lockout.ts";
 export {
 	assertNewPasswordAllowed,

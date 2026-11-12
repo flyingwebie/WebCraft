@@ -6,7 +6,6 @@ import {
 	oauthGrantSites,
 	oauthGrants,
 	oauthTokens,
-	people,
 	sites,
 	workspaces,
 } from "@webcraft/db/schema";
@@ -1037,24 +1036,17 @@ export function createOAuth({
 			if (!secret) throw new ApiTokenInvalidError("missing");
 			if (!secret.startsWith(OAUTH_PREFIXES.access) || secret.length > 200) throw new ApiTokenInvalidError("unknown");
 			const [found] = await db
-				.select({ token: oauthTokens, grant: oauthGrants, lockedUntil: people.lockedUntil })
+				.select({ token: oauthTokens, grant: oauthGrants })
 				.from(oauthTokens)
 				.innerJoin(oauthGrants, eq(oauthGrants.id, oauthTokens.grantId))
-				.innerJoin(people, eq(people.id, oauthGrants.personId))
 				.where(and(eq(oauthTokens.tokenHash, await hashed(secret)), eq(oauthTokens.kind, "access")));
 			if (!found) throw new ApiTokenInvalidError("unknown");
-			const { token, grant, lockedUntil } = found;
+			const { token, grant } = found;
 			// A grant's tokens are for one resource: the CLI's for the API, an AI client's for the MCP server.
 			if ((grant.resource ?? resource) !== wanted) throw new ApiTokenInvalidError("unknown");
 			const now = clock.now();
 			if (grant.revokedAt || token.usedAt) throw new ApiTokenInvalidError("revoked");
 			if (token.expiresAt.getTime() <= now.getTime()) throw new ApiTokenInvalidError("expired");
-			if (lockedUntil && lockedUntil.getTime() > now.getTime()) {
-				throw new ApiTokenInvalidError(
-					"locked",
-					Math.max(1, Math.ceil((lockedUntil.getTime() - now.getTime()) / 1000)),
-				);
-			}
 			const [person, personActor, listed] = await Promise.all([
 				peopleService.get(grant.personId),
 				loadPersonActor(db, grant.personId),

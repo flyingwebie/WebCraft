@@ -2,7 +2,7 @@ import { createAuth, leakedPasswordCheck } from "@webcraft/auth";
 import { databaseOn } from "@webcraft/db";
 import type { AnyModuleDefinition } from "@webcraft/module-sdk";
 import { createAccessibilityStatement } from "./accessibility/statement.ts";
-import { createAccount, reportAccountLock } from "./account.ts";
+import { createAccount, reportAccountLock, signInNetworkOf } from "./account.ts";
 import { createAiKeys } from "./ai/keys.ts";
 import { createApiTokens } from "./api-tokens.ts";
 import { createAuditLog } from "./audit-log.ts";
@@ -152,6 +152,7 @@ import {
 	rateLimitKey,
 	sessionSigningSecret,
 	shareLinkPasswordKey,
+	signInNetworkKey,
 	siteExportLinkKey,
 	stagingPasswordKey,
 	visitorIdKey,
@@ -273,6 +274,7 @@ export async function createInstallServices(
 		attachment: (ref) =>
 			ref.kind === UPLOAD_ATTACHMENT ? formUploads.attachment(ref) : (attachments.read?.(ref) ?? Promise.resolve(null)),
 	});
+	const rateLimits = createRateLimits({ database, clock, log, keyHash: await rateLimitKey(masterKey) });
 	const auth = createAuth({
 		database,
 		clock,
@@ -287,7 +289,8 @@ export async function createInstallServices(
 				enabled: async () => (await settings.security()).leakedPasswordCheck,
 			}),
 		],
-		onAccountLocked: reportAccountLock({ database, clock, email }),
+		onAccountLocked: reportAccountLock({ database, clock, email, rateLimits }),
+		networkOf: signInNetworkOf(await signInNetworkKey(masterKey)),
 	});
 	const twoFactor = createTwoFactor({
 		database,
@@ -308,7 +311,6 @@ export async function createInstallServices(
 		log,
 		email,
 	});
-	const rateLimits = createRateLimits({ database, clock, log, keyHash: await rateLimitKey(masterKey) });
 	const modules = createModuleHost({
 		uploads: formUploads,
 		database,
