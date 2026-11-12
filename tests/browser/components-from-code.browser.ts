@@ -165,6 +165,8 @@ for (const theme of THEMES) {
 			const menu = page.getByRole("dialog", { name: "Command menu" });
 			const option = menu.getByRole("option", { name: /^New Component…/ });
 			await option.waitFor();
+			// Enter chooses it once the search box has focus (the menu focuses it as it opens).
+			await menu.getByRole("combobox").and(page.locator(":focus")).waitFor();
 			await page.keyboard.press("Enter");
 			const dialog = page.getByRole("dialog", { name: "New Component" });
 			await dialog.waitFor();
