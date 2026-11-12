@@ -181,7 +181,9 @@ try {
 
 	const { stdout: migrateLog } = await run([...compose, "logs", "--no-color", "migrate"]);
 	expect(
-		/Applied \d+ migrations?|No migrations were pending/.test(migrateLog),
+		// The deploy files set WEBCRAFT_LOG_FORMAT=json, so the step reports in one JSON line; the readable
+		// report is what it writes without it.
+		/"msg":"The migrate step finished"|Applied \d+ migrations?|No migrations were pending/.test(migrateLog),
 		"the migrate step ran and finished",
 		migrateLog,
 	);
@@ -253,7 +255,7 @@ try {
 
 	const cli = await run([...compose, "exec", "-T", "web", "webcraft", "admin", "migrate"]);
 	expect(
-		cli.stdout.includes("No migrations were pending"),
+		/No migrations were pending|"msg":"The migrate step finished".*"appliedMigrations":\[\]/.test(cli.stdout),
 		"the webcraft command runs in the web container",
 		cli.stdout,
 	);
