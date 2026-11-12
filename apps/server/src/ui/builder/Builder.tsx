@@ -822,12 +822,14 @@ export function Builder({
 			announce(t(errorMessage(failure)));
 		}
 	}, [siteId, announce, t]);
-	useEffect(() => {
-		void loadMenu();
-	}, [loadMenu]);
+	// The menu's data loads when Actions or Go to first opens (Insert needs only `structure.edit`, which
+	// opening the editor already proved); Go to reads its lists again each time it opens.
 	const menuTab = menu?.tab;
+	const menuLoaded = useRef(false);
 	useEffect(() => {
-		if (menuTab === "goTo") void loadMenu();
+		if (!menuTab || menuTab === "insert" || (menuLoaded.current && menuTab !== "goTo")) return;
+		menuLoaded.current = true;
+		void loadMenu();
 	}, [menuTab, loadMenu]);
 	/** `can()`'s answer for the Site, from the server; opening the Builder already needed `structure.edit`. */
 	const can = useCallback(

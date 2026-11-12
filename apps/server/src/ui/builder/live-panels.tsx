@@ -945,22 +945,19 @@ function SourcePanels({
 	// The Command menu (#131): the same commands as the Builder's, for Code mode's canvas
 
 	const commands = bridge.commands;
-	const goToOpen = menu?.tab === "goTo";
-	// biome-ignore lint/correctness/useExhaustiveDependencies: opening Go to reads its lists again.
+	// The menu's data loads when Actions or Go to first opens (Insert needs only `structure.edit`, which
+	// opening the editor already proved); Go to reads its lists again each time it opens.
+	const menuTab = menu?.tab;
+	const menuLoaded = useRef(false);
 	useEffect(() => {
-		let current = true;
+		if (!menuTab || menuTab === "insert" || (menuLoaded.current && menuTab !== "goTo")) return;
+		menuLoaded.current = true;
+		// The newest answer wins; switching tabs never drops a read in flight.
 		bridge
 			.call<CommandMenuData>("code/commandMenu", {})
-			.then((data) => {
-				if (current) setMenuData(data);
-			})
-			.catch((failure) => {
-				if (current) announce(t(errorMessage(failure)));
-			});
-		return () => {
-			current = false;
-		};
-	}, [bridge, goToOpen, announce, t]);
+			.then(setMenuData)
+			.catch((failure) => announce(t(errorMessage(failure))));
+	}, [bridge, menuTab, announce, t]);
 	/** `can()`'s answer for the Site, from the server; Code mode already needed `structure.edit`. */
 	const can = useCallback(
 		(permission: Permission) =>
