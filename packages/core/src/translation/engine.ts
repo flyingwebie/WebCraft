@@ -232,29 +232,34 @@ function hashOf(piece: string): string {
  * Translates the jobs' values into `context.to`: answers each job's new value in that language, by
  * unit path. Throws what the AI key throws (`AiKeyMissingError`, `AiCapReachedError`) and
  * `AiProviderError` (`answer` when a translation dropped or changed a marker); then nothing is
- * answered, though the batches already paid for stay in the cache.
+ * answered, though the batches already paid for stay in the cache. `again` (Re-translate) asks the
+ * provider for every piece whatever the cache holds, and keeps its new answers in place of the old.
  */
 export async function translateValues(
 	context: TranslateContext,
 	jobs: readonly TranslationJob[],
 	force = false,
+	again = false,
 ): Promise<Map<string, LanguageValue>> {
 	const plans = jobs.map((job) => planFor(job, force, context.moduleComponents ?? []));
 	const unique = [...new Set(plans.flatMap((plan) => plan.pieces).filter((piece) => piece.trim() !== ""))];
 	const done = new Map<string, string>();
 	if (unique.length > 0) {
 		const hashes = new Map(unique.map((piece) => [piece, hashOf(piece)]));
-		const cached = await context.db
-			.select({ hash: translationCache.sourceHash, translation: translationCache.translation })
-			.from(translationCache)
-			.where(
-				and(
-					eq(translationCache.siteId, context.place.siteId),
-					eq(translationCache.language, context.to.code),
-					eq(translationCache.glossary, context.glossary.version),
-					inArray(translationCache.sourceHash, [...hashes.values()]),
-				),
-			);
+		// Asked again on purpose, nothing comes from the cache: the answer it holds may be the one being replaced.
+		const cached = again
+			? []
+			: await context.db
+					.select({ hash: translationCache.sourceHash, translation: translationCache.translation })
+					.from(translationCache)
+					.where(
+						and(
+							eq(translationCache.siteId, context.place.siteId),
+							eq(translationCache.language, context.to.code),
+							eq(translationCache.glossary, context.glossary.version),
+							inArray(translationCache.sourceHash, [...hashes.values()]),
+						),
+					);
 		const byHash = new Map(cached.map((row) => [row.hash, row.translation]));
 		const missing: string[] = [];
 		for (const piece of unique) {
@@ -266,20 +271,29 @@ export async function translateValues(
 		for (const batch of batches(missing)) {
 			const translated = await translateBatch(context, batch);
 			for (const [piece, translation] of translated) done.set(piece, translation);
-			await context.db
-				.insert(translationCache)
-				.values(
-					[...translated].map(([piece, translation]) => ({
-						workspaceId: context.place.workspaceId,
-						siteId: context.place.siteId,
-						language: context.to.code,
-						glossary: context.glossary.version,
-						sourceHash: hashes.get(piece) ?? hashOf(piece),
-						translation,
-						createdAt: context.now,
-					})),
-				)
-				.onConflictDoNothing();
+			const kept = context.db.insert(translationCache).values(
+				[...translated].map(([piece, translation]) => ({
+					workspaceId: context.place.workspaceId,
+					siteId: context.place.siteId,
+					language: context.to.code,
+					glossary: context.glossary.version,
+					sourceHash: hashes.get(piece) ?? hashOf(piece),
+					translation,
+					createdAt: context.now,
+				})),
+			);
+			// An answer asked for again replaces the one kept, so the same words get it from then on.
+			await (again
+				? kept.onConflictDoUpdate({
+						target: [
+							translationCache.siteId,
+							translationCache.language,
+							translationCache.glossary,
+							translationCache.sourceHash,
+						],
+						set: { translation: sql`excluded.translation`, createdAt: context.now },
+					})
+				: kept.onConflictDoNothing());
 		}
 	}
 	const values = new Map<string, LanguageValue>();
