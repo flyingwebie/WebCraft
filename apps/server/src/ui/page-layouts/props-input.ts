@@ -10,32 +10,62 @@ export function draftLayout(draft: unknown): Layout {
 }
 const object = (value: unknown): value is Record<string, DocumentJson> =>
 	!!value && typeof value === "object" && !Array.isArray(value);
-/** A staged edit cannot bring back a deleted row. Other values follow the ordinary CRDT rules. */
-function targetsRemain(before: DocumentJson, after: DocumentJson, current: DocumentJson): boolean {
-	if (sameValue(before, after)) return true;
-	if (Array.isArray(before) && Array.isArray(after)) {
-		if (!Array.isArray(current)) return false;
-		return before.every((row, index) => {
-			if (!object(row) || typeof row.id !== "string") return true;
-			const wanted = after.find((item) => object(item) && item.id === row.id);
-			// A missing row will not be restored; a peer may have removed it while input continued.
-			if (!wanted) return true;
-			const moved = after[index] && object(after[index]) && after[index].id !== row.id;
-			if (sameValue(row, wanted) && !moved) return true;
-			const live = current.find((item) => object(item) && item.id === row.id);
-			return live !== undefined && targetsRemain(row, wanted, live);
-		});
+type RowPath = (string | { id: string })[];
+type RowTargets = { required: Map<string, RowPath>; created: Set<string> };
+const rows = (value: DocumentJson) =>
+	Array.isArray(value)
+		? value.filter(
+				(row): row is Record<string, DocumentJson> & { id: string } => object(row) && typeof row.id === "string",
+			)
+		: [];
+
+/** Track each input's own row changes, without attributing later peer changes to that input. */
+function changedRows(
+	before: DocumentJson,
+	after: DocumentJson,
+	targets: RowTargets,
+	path: RowPath = [],
+	created = false,
+): void {
+	if (sameValue(before, after)) return;
+	if (Array.isArray(after)) {
+		const previous = new Map(rows(before).map((row) => [row.id, row]));
+		const next = rows(after);
+		const nextIds = new Set(next.map((row) => row.id));
+		// Added/removed neighbours do not move surviving rows relative to one another.
+		const oldOrder = [...previous.keys()].filter((id) => nextIds.has(id));
+		const newOrder = next.map((row) => row.id).filter((id) => previous.has(id));
+		for (const row of next) {
+			const at = [...path, { id: row.id }];
+			const key = JSON.stringify(at);
+			const old = previous.get(row.id);
+			if (!old) targets.created.add(key);
+			const ownRow = created || targets.created.has(key);
+			const moved = oldOrder.indexOf(row.id) !== newOrder.indexOf(row.id);
+			if (old && !ownRow && (!sameValue(old, row) || moved)) targets.required.set(key, at);
+			changedRows(old ?? null, row, targets, at, ownRow);
+		}
+	} else if (object(after)) {
+		for (const [key, value] of Object.entries(after))
+			changedRows(object(before) ? (before[key] ?? null) : null, value, targets, [...path, key], created);
 	}
-	if (object(before) && object(after)) {
-		if (!object(current)) return false;
-		return Object.keys(before).every(
-			(key) =>
-				!(key in after) ||
-				sameValue(before[key], after[key]) ||
-				targetsRemain(before[key] ?? null, after[key] ?? null, current[key] ?? null),
-		);
-	}
-	return true;
+}
+
+/** A staged edit cannot bring back a row it changed after a peer deleted that row. */
+function targetsRemain(targets: RowTargets, current: DocumentJson): boolean {
+	return [...targets.required.values()].every((path) => {
+		let value: DocumentJson | undefined = current;
+		for (const part of path) {
+			value =
+				typeof part === "string"
+					? object(value)
+						? value[part]
+						: undefined
+					: rows(value ?? null).find((row) => row.id === part.id);
+			if (value === undefined) return false;
+		}
+		return true;
+	});
 }
 
 /** One Props input owner. Its view is a staged copy of the existing Entry document, not another Draft. */
@@ -43,7 +73,7 @@ export function propsInput(shared: SharedDraft, id: string, languages: ValueLang
 	const stage = shared.stage();
 	if (!stage) return null;
 	let view = stage.read();
-	const authored: { field: FieldDefinition; before: DocumentJson; after: DocumentJson }[] = [];
+	const authored: { field: FieldDefinition; targets: RowTargets }[] = [];
 	const placement = (draft: unknown) => draftLayout(draft).placements.find((p) => p.id === id);
 	const initial = placement(view);
 	return {
@@ -56,16 +86,12 @@ export function propsInput(shared: SharedDraft, id: string, languages: ValueLang
 			const p = placement(view);
 			if (!p) return false;
 			const values = writeField(p.values as Record<string, DocumentJson>, field, value, languages);
-			// Target checks compare the whole unfinished input with its initial stored value, not
-			// an intermediate keystroke that only exists in this person's staged view.
-			const previous = authored.find((change) => change.field.id === field.id && change.field.key === field.key);
-			if (previous) previous.after = values[field.key] ?? null;
-			else
-				authored.push({
-					field,
-					before: (p.values[field.key] as DocumentJson) ?? null,
-					after: values[field.key] ?? null,
-				});
+			let change = authored.find((change) => change.field.id === field.id && change.field.key === field.key);
+			if (!change) {
+				change = { field, targets: { required: new Map(), created: new Set() } };
+				authored.push(change);
+			}
+			changedRows((p.values[field.key] as DocumentJson) ?? null, values[field.key] ?? null, change.targets);
 			view = {
 				...(view as Record<string, DocumentJson>),
 				layout: {
@@ -85,7 +111,7 @@ export function propsInput(shared: SharedDraft, id: string, languages: ValueLang
 						sameValue(
 							current.props.find((f) => f.id === change.field.id && f.key === change.field.key),
 							change.field,
-						) && targetsRemain(change.before, change.after, (current.values[change.field.key] as DocumentJson) ?? null),
+						) && targetsRemain(change.targets, (current.values[change.field.key] as DocumentJson) ?? null),
 				);
 			if (!authored.length) {
 				stage.cancel();

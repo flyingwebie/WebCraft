@@ -573,3 +573,68 @@ for (const theme of THEMES) {
 		}
 	});
 }
+
+for (const theme of THEMES) {
+	for (const peerAction of ["remove", "move"] as const) {
+		test(`continued Repeater typing ignores a peer ${peerAction} followed by another deletion (${theme})`, async () => {
+			const site = await fixture(
+				[{ key: "rows", label: "Rows", type: "repeater", fields: [{ key: "text", label: "Text", type: "text" }] }],
+				{
+					rows: {
+						rows: [
+							{ id: "north", values: { text: { en: "North" } } },
+							{ id: "middle", values: { text: { en: "Middle" } } },
+							{ id: "south", values: { text: { en: "South" } } },
+						],
+					},
+				},
+			);
+			const first = await enter(site, theme);
+			const second = await enter(site, theme, true);
+			try {
+				await field(first, "Text").last().focus();
+				await field(first, "Text").last().press("End");
+				await first.keyboard.type("a");
+				await second.getByRole("button", { name: "Actions for row 1", exact: true }).click();
+				await second
+					.getByRole("menuitem", { name: peerAction === "remove" ? "Remove row" : "Move down", exact: true })
+					.click();
+				const afterFirstPeer = peerAction === "remove" ? ["Middle", "Southa"] : ["Middle", "North", "Southa"];
+				await first.waitForFunction((values) => {
+					const inputs = document
+						.querySelector("#webcraft-page-layout")
+						?.shadowRoot?.querySelectorAll<HTMLInputElement>('[data-editor-region="inspector"] input');
+					return JSON.stringify(Array.from(inputs ?? [], (input) => input.value)) === JSON.stringify(values);
+				}, afterFirstPeer);
+				expect(
+					await field(first, "Text")
+						.last()
+						.evaluate((el) => (el.getRootNode() as ShadowRoot).activeElement === el),
+				).toBe(true);
+				await first.keyboard.type("b");
+				await second
+					.getByRole("button", { name: `Actions for row ${peerAction === "remove" ? 1 : 2}`, exact: true })
+					.click();
+				await second.getByRole("menuitem", { name: "Remove row", exact: true }).click();
+				await first.waitForFunction(
+					(count) =>
+						document
+							.querySelector("#webcraft-page-layout")
+							?.shadowRoot?.querySelectorAll('[data-editor-region="inspector"] input').length === count,
+					peerAction === "remove" ? 1 : 2,
+				);
+				expect(await field(first, "Text").last().inputValue()).toBe("Southab");
+				await field(first, "Text").last().press("Tab");
+				await savedValues(site, {
+					rows: [
+						...(peerAction === "remove" ? [] : [{ id: "middle", text: "Middle" }]),
+						{ id: "south", text: "Southab" },
+					],
+				});
+			} finally {
+				await first.close();
+				await second.close();
+			}
+		});
+	}
+}
