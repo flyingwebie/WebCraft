@@ -8,12 +8,13 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import type { Locator, Page } from "playwright";
 
-import type { TestAccount } from "../harness/index.ts";
+import type { TestAccount, TestBrowser } from "../harness/index.ts";
 import { expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
 
 let install: BrowserInstall;
 let staff: TestAccount;
+let staffBrowser: TestBrowser;
 let siteId: string;
 let postTypeId: string;
 const SLUG = "commands";
@@ -26,6 +27,14 @@ const ENTRY_TEMPLATE =
 	'<p data-wc-id="lead">Fresh from the oven</p>' +
 	'<ul data-wc-id="list"><li data-wc-id="one">One</li></ul>' +
 	'<section data-wc-id="box"></section></article>';
+
+/** A Condition with an Else and a Loop with an Empty state: Unwrap would lose a branch of each. */
+const BRANCHES =
+	'{{@if true}}<p data-wc-id="yes">Yes</p>{{@else}}<p data-wc-id="no">No</p>{{/if}}' +
+	'{{@loop hours as item}}<p data-wc-id="day">{{ item.day }}</p>{{@empty}}<p data-wc-id="none">None</p>{{/loop}}';
+
+/** How the Draft prints them back (a Loop's default `as item` is left out). */
+const PRINTED_BRANCHES = BRANCHES.replace("{{@loop hours as item}}", "{{@loop hours}}");
 
 const openedPages: Page[] = [];
 async function testPage(theme: "light" | "dark") {
@@ -44,7 +53,15 @@ beforeAll(async () => {
 	const { api } = await local.superadmin();
 	const workspaceId = (await local.createWorkspace("Commands Ltd")).id;
 	siteId = (await local.createSite(workspaceId, { name: "Command Bakery", slug: SLUG })).id;
-	staff = (await local.createStaff({ workspaces: [workspaceId] })).account;
+	({ account: staff, browser: staffBrowser } = await local.createStaff({ workspaces: [workspaceId] }));
+	const { loop } = await api.loops.create({
+		siteId,
+		name: "hours",
+		source: "items",
+		fields: [{ key: "day", label: "Day", type: "text" }],
+	});
+	await api.loops.saveItems({ siteId, loopId: loop.id, items: [{ day: "Monday" }] });
+	await api.loops.publish({ siteId, loopId: loop.id });
 	await api.designSystem.createClass({ siteId, name: "intro", styles: "padding: var(--space-m);" });
 	const pages = (await api.postTypes.list({ siteId })).postTypes.find((type) => type.builtIn === "page");
 	if (!pages) throw new Error("Page Post Type missing");
@@ -60,7 +77,8 @@ beforeAll(async () => {
 		siteId,
 		markup:
 			'<header data-wc-id="top"><p data-wc-id="hello" data-wc-label="Greeting">Hello</p></header>' +
-			'<main data-wc-id="main">{{@outlet}}</main>',
+			'<main data-wc-id="main">{{@outlet}}</main>' +
+			`<footer data-wc-id="foot">${BRANCHES}</footer>`,
 	});
 });
 
@@ -507,5 +525,104 @@ describe("the Command menu at narrow windows (#138)", () => {
 		await page.keyboard.press("ControlOrMeta+k");
 		await page.waitForTimeout(300);
 		expect(await menu.count()).toBe(0);
+	});
+});
+
+describe("Unwrap never loses a branch, and Wrap in asks its question", () => {
+	/** Unwrap isn't offered for a layer whose other branches (Else, Empty) hold content. */
+	async function expectNoUnwrap(page: Page, row: RegExp): Promise<void> {
+		await layer(page, row).first().click();
+		await page.keyboard.press("ControlOrMeta+k");
+		const menu = menuOf(page);
+		await menu.getByRole("combobox").fill("Unwrap");
+		await menu.getByText("Nothing matches.").waitFor();
+		await page.keyboard.press("Escape");
+		await menu.waitFor({ state: "hidden" });
+	}
+
+	test("in the Builder: a Condition with Else and a Loop with Empty keep Unwrap away", async () => {
+		const { api } = await install.install.superadmin();
+		await api.templates.saveEntryTemplateMarkup({ siteId, postTypeId, markup: `${ENTRY_TEMPLATE}${BRANCHES}` });
+		const page = await builderPage();
+		await expectNoUnwrap(page, /^If true/);
+		await expectNoUnwrap(page, /^Loop hours/);
+		expect(await draftMarkup()).toContain(PRINTED_BRANCHES);
+	});
+
+	test("in Code mode: a Condition with Else and a Loop with Empty keep Unwrap away", async () => {
+		const page = await codeModePage();
+		await expectNoUnwrap(page, /^If true/);
+		await expectNoUnwrap(page, /^Loop hours/);
+		const { api } = await install.install.superadmin();
+		expect((await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft).toContain(PRINTED_BRANCHES);
+	});
+
+	test("Wrap in Loop and Wrap in Condition ask their question, then Unwrap gives the layer back", async () => {
+		const page = await builderPage();
+		await layer(page, /^p/).click();
+		const menu = menuOf(page);
+		await page.keyboard.press("ControlOrMeta+k");
+		await menu.getByRole("combobox").fill("Wrap in Loop");
+		await page.keyboard.press("Enter");
+		await menu.getByRole("tab", { name: /^Insert/, selected: true }).waitFor();
+		await menu.getByRole("combobox", { name: "Loop" }).selectOption("hours");
+		await menu.getByRole("button", { name: "Insert", exact: true }).click();
+		await expectAnnounced(page, "Wrapped p in Loop hours.");
+		await waitForFocus(page, "treeitem", /^Loop hours/);
+
+		await page.keyboard.press("ControlOrMeta+k");
+		await menu.getByRole("combobox").fill("Wrap in Condition");
+		await page.keyboard.press("Enter");
+		await menu.getByRole("textbox", { name: "Show when" }).fill("title");
+		await menu.getByRole("button", { name: "Insert", exact: true }).click();
+		await expectAnnounced(page, "Wrapped Loop hours in If title.");
+		await page.keyboard.press("ControlOrMeta+s");
+		await page
+			.locator("header")
+			.getByRole("button", { name: "Save", exact: true })
+			.and(page.locator("[disabled]"))
+			.waitFor();
+		expect(await draftMarkup()).toContain(
+			'{{@if title}}{{@loop hours}}<p data-wc-id="lead">Fresh from the oven</p>{{/loop}}{{/if}}',
+		);
+
+		await page.keyboard.press("ControlOrMeta+k");
+		await menu.getByRole("combobox").fill("Unwrap");
+		await page.keyboard.press("Enter");
+		await expectAnnounced(page, "Unwrapped If title.");
+	});
+});
+
+describe("the Command menu in Italian", () => {
+	test("reads the keys in the person's Admin language, and the tab list moves with the arrows", async () => {
+		await staffBrowser.api.me.updatePreferences({ adminLanguage: "it" });
+		try {
+			const page = await testPage("light");
+			await install.signIn(page, staff);
+			await page.goto(install.adminUrl(`/builder/${siteId}/entry-template/${postTypeId}`));
+			const tree = page.getByRole("tree", { name: "Livelli" });
+			await tree.waitFor();
+			const apple = await onApple(page);
+			await tree.getByRole("treeitem", { name: /^section/ }).click();
+			await page.keyboard.press("ControlOrMeta+k");
+			const menu = page.getByRole("dialog", { name: "Menu comandi" });
+			const search = menu.getByRole("combobox");
+			await search.fill("dupl");
+			expect(await highlighted(search)).toBe(`Duplica, Elemento, ${apple ? "Comando" : "Controllo"} D`);
+
+			// The selected tab is the tab list's one stop; the arrows move between tabs.
+			const actions = menu.getByRole("tab", { name: /^Azioni/ });
+			expect(await actions.getAttribute("tabindex")).toBe("0");
+			await actions.focus();
+			await page.keyboard.press("ArrowRight");
+			await menu.getByRole("tab", { name: /^Vai a/, selected: true }).waitFor();
+			await waitForFocus(page, "tab", /^Vai a/);
+			await page.keyboard.press("ArrowLeft");
+			await waitForFocus(page, "tab", /^Azioni/);
+			await page.keyboard.press("End");
+			await waitForFocus(page, "tab", /^Inserisci/);
+		} finally {
+			await staffBrowser.api.me.updatePreferences({ adminLanguage: "en" });
+		}
 	});
 });
