@@ -2293,13 +2293,14 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 
 	/**
 	 * A change to one of the page's Drafts that wasn't typed here: someone else's, which regions nobody
-	 * is typing in show, or an `own` step the Undo history took back, which every region shows (what
-	 * was being typed was saved before it), the caret going to the end of the one being edited.
+	 * is typing in show, or an `own` step the Undo history took back, which the region being edited
+	 * shows too, its caret going to the end. What was typed since the last save stays either way: it
+	 * is the person's next step.
 	 */
 	function showChange(item: string, draft: unknown, own: boolean): void {
 		for (const region of regions) {
 			if (!region.isConnected || region.dataset.wcItem !== item) continue;
-			if (!own && (region === current || timers.has(region))) continue;
+			if (own ? textIn(region) !== lastSaved.get(region) : region === current || timers.has(region)) continue;
 			const kept = valueAt(draft, region.dataset.wcField ?? "");
 			// A value a step took away altogether shows as empty; someone else's is shown once it holds text.
 			const value = typeof kept === "string" ? kept : own ? "" : null;

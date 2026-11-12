@@ -80,6 +80,26 @@ async function bakery(slug: string, headings = ["North", "South"]) {
 		await api.entries.publish({ siteId, entryId: entry.id });
 		return entry.id;
 	};
+	// An Entry with a page of its own and no Page layout: its title and Subtitle are typed in place.
+	const { postType } = await api.postTypes.create({
+		siteId,
+		name: "Blog posts",
+		urlPattern: "/blog/{slug}",
+		fields: [{ key: "subtitle", label: "Subtitle", type: "text" }],
+	});
+	const entryTemplate = await api.templates.saveEntryTemplateMarkup({
+		siteId,
+		postTypeId: postType.id,
+		markup: "<article><h1>{{ title }}</h1><p>{{ subtitle }}</p></article>",
+	});
+	await api.templates.publish({ siteId, templateId: entryTemplate.template.id });
+	const { entry: post } = await api.entries.create({
+		siteId,
+		postTypeId: postType.id,
+		title: "Fresh bread",
+		fields: { subtitle: "Out of the oven" },
+	});
+	await api.entries.publish({ siteId, entryId: post.id });
 	const homeId = await page("Home", headings);
 	await api.pages.setHomePage({ siteId, pageId: homeId });
 	const aboutId = await page("About", ["East"]);
@@ -93,7 +113,7 @@ async function bakery(slug: string, headings = ["North", "South"]) {
 			}),
 		};
 	};
-	return { api, siteId, workspaceId, homeId, aboutId, componentId: component.id, member, read };
+	return { api, siteId, workspaceId, homeId, aboutId, postId: post.id, componentId: component.id, member, read };
 }
 
 /** Opens the Site in Edit mode as `account`, on its home page; `prepare` sets the page up before it loads anything. */
@@ -779,6 +799,49 @@ test("on a phone, Undo and Redo are in the bar's menu with the step they would t
 		await page.getByRole("dialog").getByRole("button", { name: "Redo Edit Tagline", exact: true }).tap();
 		await said(page, "Redid Edit Tagline");
 		expect((await site.read()).tagline).toBe("Typed on a phone");
+	} catch (error) {
+		console.error(await debug(page));
+		throw error;
+	} finally {
+		await page.close();
+	}
+});
+
+test("on an Entry's own page the history takes back its title and Fields, and Undo after publishing changes the Draft only", async () => {
+	const site = await bakery("history-entry");
+	const page = await enter("light", site.siteId, site.member.account);
+	const read = async () => (await site.api.entries.get({ siteId: site.siteId, entryId: site.postId })).entry;
+	try {
+		await page.goto(new URL("/blog/fresh-bread", page.url()).toString());
+		const title = page.locator('article [data-wc-field="title"]');
+		const subtitle = page.locator('article [data-wc-field="subtitle"]');
+		await title.waitFor();
+		// A page without a Page layout has the same history: its bar shows Undo and Redo, off for now.
+		await nextUndo(page, null);
+		await title.fill("Fresher bread");
+		await title.press("Tab");
+		await nextUndo(page, "Edit Title");
+		await subtitle.fill("Still warm");
+		await subtitle.press("Tab");
+		await nextUndo(page, "Edit Subtitle");
+
+		// Published: visitors have both changes. The history is still there, and Undo changes the Draft only.
+		await page.getByRole("button", { name: "Publish", exact: true }).click();
+		await page.getByRole("button", { name: "Publish page", exact: true }).click();
+		await said(page, "Published");
+		await page.keyboard.press("Escape");
+		expect((await read()).published?.fields.subtitle).toBe("Still warm");
+		await nextUndo(page, "Edit Subtitle");
+		await undoButton(page).click();
+		await said(page, "Undid Edit Subtitle");
+		await subtitle.filter({ hasText: /^Out of the oven$/ }).waitFor();
+		await page.keyboard.press("ControlOrMeta+z");
+		await said(page, "Undid Edit Title");
+		await title.filter({ hasText: /^Fresh bread$/ }).waitFor();
+		const entry = await read();
+		expect([entry.draft.title, entry.draft.fields.subtitle]).toEqual(["Fresh bread", "Out of the oven"]);
+		expect([entry.published?.title, entry.published?.fields.subtitle]).toEqual(["Fresher bread", "Still warm"]);
+		await expectAccessibleScreen(page, "Edit mode Undo history on an Entry's page");
 	} catch (error) {
 		console.error(await debug(page));
 		throw error;
