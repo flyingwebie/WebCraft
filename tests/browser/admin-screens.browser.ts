@@ -135,14 +135,20 @@ for (const theme of THEMES) {
 		for (const screen of ADMIN_SCREENS) {
 			test(screen.name, async () => {
 				const page = await install.newPage(theme);
-				if (screen.as === "superadmin") await install.signIn(page, superadmin);
-				if (screen.as === "staff") await install.signIn(page, staff);
-				if (screen.as === "owner") await install.signIn(page, owner);
-				const path = typeof screen.path === "string" ? screen.path : screen.path(fixture);
-				await page.goto(install.adminUrl(path));
-				await page.waitForLoadState("networkidle");
+				// Each screen's browser context is closed as soon as it is checked: all of them kept open until
+				// the file ends (144 admins, each with its sockets) run a CI runner out of memory.
+				try {
+					if (screen.as === "superadmin") await install.signIn(page, superadmin);
+					if (screen.as === "staff") await install.signIn(page, staff);
+					if (screen.as === "owner") await install.signIn(page, owner);
+					const path = typeof screen.path === "string" ? screen.path : screen.path(fixture);
+					await page.goto(install.adminUrl(path));
+					await page.waitForLoadState("networkidle");
 
-				await expectAccessibleScreen(page, `${screen.name} (${theme})`);
+					await expectAccessibleScreen(page, `${screen.name} (${theme})`);
+				} finally {
+					await page.context().close();
+				}
 			});
 		}
 	});
