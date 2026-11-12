@@ -181,3 +181,24 @@ test("every other redacted kind, planted through the logger directly: never writ
 	expect(text).not.toContain("planted-exception-bearer-ff01");
 	expect(text).toContain(REDACTED);
 });
+
+// The report's "Sloppy code": a device sign-in's codes were the one kind of OAuth secret the rules
+// missed, so `/oauth/device?user_code=…` was logged whole when a request failed.
+test("a device sign-in's codes are never written: the device code, and the user code in the page's address", () => {
+	const entries: LogEntry[] = [];
+	const log = createLogger({ write: (entry) => entries.push(entry) });
+	const deviceCode = "webcraft-dc_plantedDeviceCode0123456789abcdef";
+
+	log.error("A request failed unexpectedly", {
+		url: "https://admin.test/oauth/device?user_code=BCDF-GHJK",
+		form: `grant_type=urn:ietf:params:oauth:grant-type:device_code&device_code=${deviceCode}&client_id=abc`,
+		note: `The client polled with ${deviceCode} too fast.`,
+	});
+
+	const written = JSON.stringify(entries);
+	expect(written).not.toContain("BCDF-GHJK");
+	expect(written).not.toContain("plantedDeviceCode");
+	expect(written).toContain(REDACTED);
+	// What isn't a secret stays readable.
+	expect(written).toContain("client_id=abc");
+});
