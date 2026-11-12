@@ -258,6 +258,22 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 		const scope = await services.codeMode.access(session);
 		return json(200, await services.codeMode.saveCss(scope, parse(codeSaveCss, body)));
 	},
+	/**
+	 * Make Component (#134): moves an element or Placement of a Template's or Component's Draft into a
+	 * new Component, with Props for what it read there, and places it instead, in one step
+	 * (`components.make`).
+	 */
+	"code/makeComponent": async (services, session, body) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, await services.components.make(scope, parse(codeMakeComponent, body)));
+	},
+	/** New Component (#134): an empty Component, placed at the insert point when `place` is given (`components.create`). */
+	"code/createComponent": async (services, session, body) => {
+		const scope = await services.codeMode.access(session);
+		const { place, ...input } = parse(codeCreateComponent, body);
+		if (place) return json(200, await services.components.createPlaced(scope, input, place));
+		return json(200, { component: await services.components.create(scope, input) });
+	},
 	/** Makes a Class of the Design system's Draft from a name the HTML panel doesn't know. */
 	"code/createClass": async (services, session, body) => {
 		const scope = await services.codeMode.access(session);
@@ -426,6 +442,37 @@ const reviewSubmission = z.object({
 const codeRef = z.string().max(1000).nullable();
 
 const codeSource = z.object({ path: z.string().max(2000), ref: codeRef });
+
+/** Where Make Component and New Component work: a Template's Draft or one of the Site's own Components'. */
+const componentSourceTarget = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("siteTemplate") }),
+	z.object({ kind: z.literal("searchTemplate") }),
+	z.object({ kind: z.literal("entryTemplate"), postTypeId: z.uuid() }),
+	z.object({ kind: z.literal("archiveTemplate"), postTypeId: z.uuid() }),
+	z.object({ kind: z.literal("component"), componentId: z.uuid() }),
+]);
+/** A node's place in a tree, as the editors write it (an odd number of steps). */
+const treePath = z
+	.array(z.number().int().min(0).max(100_000))
+	.min(1)
+	.max(201)
+	.refine((path) => path.length % 2 === 1);
+const codeMakeComponent = z.object({
+	name: z.string().max(200),
+	source: componentSourceTarget,
+	path: treePath,
+	node: z.unknown(),
+	texts: z
+		.array(z.object({ index: z.number().int().min(0).max(100_000), key: z.string().max(64) }))
+		.max(200)
+		.optional(),
+});
+const codeCreateComponent = z.object({
+	name: z.string().max(200),
+	place: z
+		.object({ source: componentSourceTarget, path: treePath, list: z.array(z.unknown()).max(100_000) })
+		.optional(),
+});
 
 /** The longest Template markup Code mode sends, in characters, as the Management API takes it. */
 const MARKUP_MAX_LENGTH = 2_000_000;

@@ -172,6 +172,14 @@ export {
 	saveLoopDraft,
 	saveLoopItems,
 } from "./loops.ts";
+export {
+	type ComponentSourceTarget,
+	createPlacedComponent,
+	type MadeComponent,
+	type MakeComponentInput,
+	makeComponent,
+	type NewComponentPlace,
+} from "./make-component.ts";
 export { MAX_PAGE_DEPTH, PAGE_BUILT_IN_FIELDS, PAGE_POST_TYPE } from "./pages.ts";
 export {
 	createPostType,

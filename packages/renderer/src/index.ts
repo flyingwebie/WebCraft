@@ -258,6 +258,7 @@ export {
 	type FormCatalogue,
 	type FormFound,
 	type FormNode,
+	fixedTextsOf,
 	hasText,
 	LABEL_MAX_LENGTH,
 	type LanguageSwitcherNode,

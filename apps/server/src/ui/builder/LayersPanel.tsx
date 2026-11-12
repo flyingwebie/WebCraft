@@ -188,7 +188,13 @@ export function LayersPanel({
 	hovered,
 	counts,
 	onHidden,
+	onMakeComponent,
+	onPlacements,
 }: {
+	/** Make Component (#134), offered in a layer's right-click menu (Shift+F10 or the menu key from the keyboard). */
+	onMakeComponent?(): void;
+	/** A Placement's "on N pages" badge: Go to, listing that Component's Placements (#134). */
+	onPlacements?(componentId: string): void;
 	/** Changes when the selected row should take focus (after a click on the canvas). */
 	focusRequest: number;
 	/** Changes when the selected layer should start renaming (the Command menu's Rename). */
@@ -227,6 +233,8 @@ export function LayersPanel({
 	/** The last pointer pressed on a row: a finger never starts a drag (#126: Move up and Move down instead). */
 	const pointer = useRef("");
 	const [over, setOver] = useState<{ key: string; position: DropPosition } | null>(null);
+	/** The right-click menu: where it opens, and the row it is about. */
+	const [context, setContext] = useState<{ x: number; y: number; key: string } | null>(null);
 	const selectedKey =
 		selection?.kind === "node"
 			? rows.find(
@@ -273,6 +281,13 @@ export function LayersPanel({
 		else onSelect(selection);
 	};
 
+	/** Opens the right-click menu on a layer, selecting it first: its actions are the selected layer's. */
+	const openContext = (row: LayerRow, x: number, y: number) => {
+		if (row.kind !== "node" || !(row.node.type === "element" || row.node.type === "component") || !onMakeComponent)
+			return;
+		if (row.key !== selectedKey) select(row);
+		setContext({ x, y, key: row.key });
+	};
 	const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
 		if (renaming) return;
 		const index = rows.findIndex((row) => row.key === focusKey);
@@ -283,6 +298,12 @@ export function LayersPanel({
 			event.preventDefault();
 			event.stopPropagation();
 		};
+		if ((event.key === "ContextMenu" || (event.key === "F10" && event.shiftKey)) && row.kind === "node") {
+			handled();
+			const box = (event.target as HTMLElement).getBoundingClientRect();
+			openContext(row, box.left + 24, box.bottom);
+			return;
+		}
 		if (event.key === " " && !mod && !event.altKey) {
 			handled();
 			if (row.kind === "node") onGrab(grabbed ? "drop" : "pick");
@@ -541,6 +562,11 @@ export function LayersPanel({
 										}}
 										{...dropProps(row)}
 										onClick={() => select(row)}
+										onContextMenu={(event) => {
+											if (row.kind !== "node" || !onMakeComponent) return;
+											event.preventDefault();
+											openContext(row, event.clientX, event.clientY);
+										}}
 										// The tree hears the keys for every row (one tab stop, arrow keys).
 										onKeyDown={() => {}}
 										onFocus={(event) => {
@@ -618,7 +644,23 @@ export function LayersPanel({
 													</button>
 												) : null}
 												{row.pages && row.pages > 1 ? (
-													<span className="text-xs">{t("builder.layers.onPages", { count: row.pages })}</span>
+													onPlacements && row.kind === "node" && row.node.type === "component" ? (
+														<button
+															type="button"
+															tabIndex={-1}
+															className="hover:bg-muted rounded px-1 text-xs underline-offset-2 hover:underline"
+															title={t("builder.components.placementsHint")}
+															onKeyDown={(event) => event.stopPropagation()}
+															onClick={(event) => {
+																event.stopPropagation();
+																if (row.node.type === "component") onPlacements(row.node.component);
+															}}
+														>
+															{t("builder.layers.onPages", { count: row.pages })}
+														</button>
+													) : (
+														<span className="text-xs">{t("builder.layers.onPages", { count: row.pages })}</span>
+													)
 												) : null}
 												{named.detail ? (
 													<span className="text-muted-foreground truncate text-xs">{named.detail}</span>
@@ -643,7 +685,88 @@ export function LayersPanel({
 			<p id="layers-keys" className="text-muted-foreground border-t px-3 py-2 text-xs">
 				{t("builder.layers.keys")}
 			</p>
+			{context && onMakeComponent ? (
+				<LayerMenu
+					x={context.x}
+					y={context.y}
+					onClose={() => {
+						setContext(null);
+						list.current?.querySelector<HTMLElement>(`[data-row-key="${CSS.escape(context.key)}"]`)?.focus();
+					}}
+					items={[{ label: t("builder.components.makeTitle"), run: onMakeComponent }]}
+				/>
+			) : null}
 		</div>
+	);
+}
+
+/**
+ * A layer's right-click menu: a short list of menu items where the pointer was (or below the row,
+ * from Shift+F10 or the menu key). The arrow keys move between them, Enter or a click runs one,
+ * Escape, Tab or a click elsewhere closes it, and focus goes back to the row.
+ */
+function LayerMenu({
+	x,
+	y,
+	items,
+	onClose,
+}: {
+	x: number;
+	y: number;
+	items: readonly { label: string; run(): void }[];
+	onClose(): void;
+}) {
+	const t = useT();
+	const menu = useRef<HTMLDivElement>(null);
+	useEffect(() => {
+		menu.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus();
+	}, []);
+	const choose = (run: () => void) => {
+		onClose();
+		run();
+	};
+	return (
+		<>
+			<div
+				className="fixed inset-0 z-40"
+				aria-hidden="true"
+				onPointerDown={onClose}
+				onContextMenu={(e) => e.preventDefault()}
+			/>
+			<div
+				ref={menu}
+				role="menu"
+				aria-label={t("builder.components.layerMenu")}
+				className="bg-popover text-popover-foreground ring-foreground/10 fixed z-50 min-w-40 rounded-md p-1 shadow-md ring-1"
+				style={{ left: Math.max(0, x), top: Math.max(0, y) }}
+				onKeyDown={(event) => {
+					const all = [...(menu.current?.querySelectorAll<HTMLElement>("[role=menuitem]") ?? [])];
+					const at = all.indexOf(event.target as HTMLElement);
+					if (event.key === "Escape" || event.key === "Tab") {
+						event.preventDefault();
+						event.stopPropagation();
+						onClose();
+					} else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+						event.preventDefault();
+						const next = (at + (event.key === "ArrowDown" ? 1 : -1) + all.length) % all.length;
+						all[next]?.focus();
+					}
+				}}
+			>
+				{items.map((item) => (
+					<button
+						key={item.label}
+						type="button"
+						role="menuitem"
+						tabIndex={-1}
+						className="hover:bg-accent focus-visible:bg-accent block w-full rounded-sm px-2 py-1.5 text-start text-sm outline-none"
+						onClick={() => choose(item.run)}
+					>
+						{item.label}
+					</button>
+				))}
+			</div>
+		</>
 	);
 }
 

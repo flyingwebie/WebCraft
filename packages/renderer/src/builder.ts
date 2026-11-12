@@ -23,6 +23,7 @@ export {
 	type ElementTree,
 	elementProblem,
 	type FormNode,
+	fixedTextsOf,
 	hasText,
 	isElementId,
 	isValuePath,

@@ -340,6 +340,23 @@ export function hasText(node: TextNode): boolean {
 	return Boolean(node.text.trim()) || Object.values(node.translations ?? {}).some((text) => text.trim());
 }
 
+/**
+ * The pieces of fixed text in a node, in order (depth first, through every list of children): what
+ * Make Component offers to turn into Props. Whitespace between elements isn't a piece.
+ */
+export function fixedTextsOf(node: TreeNode): TextNode[] {
+	const found: TextNode[] = [];
+	const visit = (each: TreeNode) => {
+		if (each.type === "text") {
+			if (hasText(each)) found.push(each);
+			return;
+		}
+		for (const list of childListsOf(each)) for (const child of list) visit(child);
+	};
+	visit(node);
+	return found;
+}
+
 /** Why text can't be stored, or undefined. */
 export function textProblem(text: string): string | undefined {
 	if (text.length > TREE_LIMITS.textLength) return `Text is limited to ${TREE_LIMITS.textLength} characters.`;

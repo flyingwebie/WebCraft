@@ -36,9 +36,11 @@ import { StatusBadge } from "../content/DraftParts.tsx";
 import { Announcer, useAnnouncement } from "../content/reorder.tsx";
 import { errorCode, errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
+import { type BindKind, BindPropDialog, type Bound } from "./BindPropDialog.tsx";
 import { BuilderNavigation, type ReturnPage } from "./BuilderNavigation.tsx";
 import { Canvas, type CanvasTarget, type CanvasWidth } from "./Canvas.tsx";
 import { CommandMenu, CommandMenuButton, type MenuState, ShortcutsDialog, useEditorKeys } from "./CommandMenu.tsx";
+import { ComponentDialog, type ComponentPrompt, componentNameFrom, componentRefusal } from "./ComponentDialog.tsx";
 import { ComponentScriptPanel } from "./ComponentScriptPanel.tsx";
 import { CssPanel, type CssPanelPort } from "./CssPanel.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
@@ -73,10 +75,12 @@ import {
 	insertAt,
 	insertionPlace,
 	isFixedText,
+	listAt,
 	moveTo,
 	type NodePath,
 	nodeAt,
 	type Place,
+	pathIn,
 	pathOfFilter,
 	pathOfId,
 	type Refused,
@@ -188,6 +192,13 @@ export function Builder({
 	const [confirmPublish, setConfirmPublish] = useState(false);
 	const [insertWhere, setInsertWhere] = useState<InsertWhere>("inside");
 	const [fixedTextAt, setFixedTextAt] = useState<FixedTextLocation | null>(null);
+	/** Make Component's or New Component's name prompt (#134), and where its Component goes. */
+	const [componentPrompt, setComponentPrompt] = useState<
+		(ComponentPrompt & { path?: NodePath; place?: { path: NodePath; list: readonly TreeNode[] } }) | null
+	>(null);
+	/** Bind to Prop (#134): the link or image setting being bound, and what it holds now. */
+	const [bind, setBind] = useState<{ path: NodePath; kind: BindKind; current: string } | null>(null);
+	const bindTrigger = useRef<HTMLElement | null>(null);
 	const [conflict, setConflict] = useState<{ version: string | null } | null>(null);
 	const [busy, setBusy] = useState<"save" | "publish" | "switch" | null>(null);
 	const [designVersion, setDesignVersion] = useState(0);
@@ -995,6 +1006,100 @@ export function Builder({
 		layer: (_ref: string, path: NodePath) => selectPath(path),
 	};
 	const commandSelected = selection?.kind === "node" ? nodeAt(doc.tree, selection.path) : undefined;
+
+	// ---------------------------------------------------------------------------------------------
+	// Components from here (#134): Make Component, New Component, the Props section and Bind to Prop
+
+	/** Waits for a change made on the server to reach the shared Draft (a few seconds at most). */
+	const arrived = async (id: string) => {
+		const holds = (nodes: readonly TreeNode[]): boolean =>
+			nodes.some((node) => ("id" in node && node.id === id) || childLists(node).some(holds));
+		for (let waited = 0; waited < 5000; waited += 50) {
+			if (holds(docRef.current.tree.nodes)) return true;
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		}
+		return false;
+	};
+	const makeComponent =
+		(commandSelected?.type === "element" || commandSelected?.type === "component") && selection?.kind === "node"
+			? () =>
+					setComponentPrompt({
+						mode: "make",
+						node: commandSelected as TreeNode,
+						name: componentNameFrom(layerName(t, commandSelected as TreeNode, catalogue).name),
+						path: selection.path,
+					})
+			: undefined;
+	const newComponent = (placed?: InsertWhere) => {
+		if (!placed) return setComponentPrompt({ mode: "new", placed: false });
+		const at = insertionPlace(doc.tree, selection, placed);
+		setComponentPrompt({
+			mode: "new",
+			placed: true,
+			place: { path: pathIn(at, at.index), list: listAt(doc.tree, at) },
+		});
+	};
+	const componentChosen = async (choice: { name: string; texts: { index: number; key: string }[] }) => {
+		const prompt = componentPrompt;
+		if (!prompt) return undefined;
+		try {
+			// Unsaved markup and one-off styles are saved first: the change is made from the saved Draft.
+			if (!(await depart())) return t("builder.components.saveFirst");
+			const api = await getApi();
+			if (prompt.mode === "make" && prompt.path) {
+				const made = await api.components.make({
+					siteId,
+					name: choice.name,
+					source: target,
+					path: [...prompt.path],
+					node: nodeAt(docRef.current.tree, prompt.path),
+					texts: choice.texts,
+				});
+				announce(t("builder.components.made", { name: made.component.name }));
+				void arrived(made.placement.id).then(() => {
+					setSelection({ kind: "node", path: made.placement.path });
+					void readOpened();
+				});
+				return undefined;
+			}
+			const made = await api.components.create({
+				siteId,
+				name: choice.name,
+				...(prompt.mode === "new" && prompt.place
+					? { place: { source: target, path: [...prompt.place.path], list: [...prompt.place.list] } }
+					: {}),
+			});
+			announce(t("builder.components.created", { name: made.component.name }));
+			// The new, empty Component's markup opens in the HTML panel: the Builder opens it.
+			window.location.assign(`/builder/${siteId}/${targetPath({ kind: "component", componentId: made.component.id })}`);
+			return undefined;
+		} catch (failure) {
+			return componentRefusal(failure, t);
+		}
+	};
+	/** The Props section writes the Component's Props with its tree, as one change. */
+	const changeProps = (props: FieldInput[], message: string) => apply({ ...docRef.current, props }, selection, message);
+	const bound = (made: Bound): string | undefined => {
+		if (!bind) return t("builder.fixedText.changed");
+		const current = docRef.current;
+		const element = nodeAt(current.tree, bind.path);
+		if (element?.type !== "element") return t("builder.fixedText.changed");
+		const name = bind.kind === "link" ? "href" : "src";
+		const value = [{ type: "value" as const, path: made.path }];
+		const attributes = element.attributes.some((each) => each.name === name)
+			? element.attributes.map((each) => (each.name === name ? { name, value } : each))
+			: [...element.attributes, { name, value }];
+		return apply(
+			{
+				...current,
+				tree: replaceAt(current.tree, bind.path, { ...element, attributes }),
+				...(made.props ? { props: made.props } : {}),
+			},
+			{ kind: "node", path: bind.path },
+			t("builder.bind.done", { binding: `{{ ${made.path} }}` }),
+		);
+	};
+
 	const commandTarget: EditorCommandTarget = {
 		canvas: "builder",
 		selection: commandSelected
@@ -1025,6 +1130,8 @@ export function Builder({
 			action === "parent" ? selectParent() : action === "rename" ? setRenameRequest((count) => count + 1) : act(action),
 		wrap,
 		unwrap,
+		...(makeComponent ? { makeComponent } : {}),
+		newComponent: () => newComponent(),
 		...(commandSelected?.type === "component"
 			? {
 					editComponent: () => go.builder({ kind: "component", componentId: commandSelected.component }),
@@ -1040,7 +1147,7 @@ export function Builder({
 			: {}),
 	};
 	const editorKeys = useEditorKeys({
-		enabled: conflict === null && fixedTextAt === null && !confirmPublish && !fit.covered,
+		enabled: conflict === null && fixedTextAt === null && !confirmPublish && !fit.covered && !componentPrompt && !bind,
 		menu,
 		setMenu,
 		openShortcuts: () => setShortcutsOpen(true),
@@ -1294,6 +1401,7 @@ export function Builder({
 							focusRequest={focusLayers}
 							renameRequest={renameRequest}
 							onInsert={openInsert}
+							onMakeComponent={makeComponent}
 						/>
 					</section>
 				}
@@ -1457,6 +1565,32 @@ export function Builder({
 								fixedTextTrigger.current = trigger;
 								setFixedTextAt(rememberFixedText(docRef.current.tree, path));
 							}}
+							component={
+								target.kind === "component" && doc.props
+									? { name: opened.component?.name ?? "", props: doc.props }
+									: null
+							}
+							onPropsChange={changeProps}
+							onMakeComponent={makeComponent}
+							onBindProp={
+								target.kind === "component"
+									? (path, kind, trigger) => {
+											bindTrigger.current = trigger;
+											const element = nodeAt(docRef.current.tree, path);
+											const attribute =
+												element?.type === "element"
+													? element.attributes.find((each) => each.name === (kind === "link" ? "href" : "src"))
+													: undefined;
+											setBind({
+												path,
+												kind,
+												current: (attribute?.value ?? [])
+													.map((part) => (part.type === "text" ? part.text : ""))
+													.join(""),
+											});
+										}
+									: undefined
+							}
 						/>
 					</section>
 				}
@@ -1468,6 +1602,7 @@ export function Builder({
 						<MarkupView
 							value={markup}
 							problems={markupProblems}
+							propFix={target.kind === "component"}
 							selected={
 								locations.text === markup
 									? locations.ranges.find(
@@ -1535,7 +1670,7 @@ export function Builder({
 				actions={editorCommands(commandTarget, t)}
 				goTo={
 					menu?.tab === "goTo" && menuData
-						? goToCommands(t, menuData, [{ ref: "builder", tree: doc.tree, catalogue }], go)
+						? goToCommands(t, menuData, [{ ref: "builder", tree: doc.tree, catalogue }], go, menu.placements)
 						: null
 				}
 				insert={{
@@ -1548,6 +1683,7 @@ export function Builder({
 					selected: selectedNodeForInsert ? layerName(t, selectedNodeForInsert, catalogue).name : null,
 					onInsert: (nodes, way) => insert(nodes, way),
 					onWrap: wrapSelected,
+					onNewComponent: (way) => newComponent(way),
 				}}
 				onRowFocus={() => setFocusLayers((count) => count + 1)}
 			/>
@@ -1574,6 +1710,20 @@ export function Builder({
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+			<ComponentDialog prompt={componentPrompt} onClose={() => setComponentPrompt(null)} onSubmit={componentChosen} />
+			{bind && doc.props ? (
+				<BindPropDialog
+					open
+					onOpenChange={(open) => {
+						if (!open) setBind(null);
+					}}
+					finalFocus={bindTrigger}
+					kind={bind.kind}
+					current={bind.current}
+					props={doc.props}
+					onBound={bound}
+				/>
+			) : null}
 			{fixedTextAt ? (
 				<FixedTextDialog
 					open

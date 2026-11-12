@@ -30,8 +30,11 @@ export function goToCommands(
 	data: CommandMenuData,
 	sources: readonly LayerSourceOf[],
 	go: GoToTarget,
+	/** Only this Component's Placements: what places it, and its Placements on this page (#134). */
+	placementsOf?: string,
 ): Command[] {
 	const both = ["code", "builder"] as const;
+	if (placementsOf) return placementCommands(t, data, sources, go, placementsOf);
 	const commands: Command[] = [];
 	const pagesGroup = t("builder.commandMenu.groups.pages");
 	for (const page of data.pages)
@@ -117,6 +120,102 @@ export function goToCommands(
 					focus: "row",
 					run: () => go.layer(source.ref, path),
 				});
+				childLists(node).forEach((list, at) => {
+					visit(list, [...path, at]);
+				});
+			});
+		};
+		visit(source.tree.nodes, null);
+	}
+	return commands;
+}
+
+/**
+ * Go to, filtered to one Component's Placements (a Placement's "on N pages" badge, #134): the
+ * Templates and Components that place it (opened in the Builder), the Entries whose Body places it
+ * (opened in Code mode), and its Placements on this page (selected in the tree).
+ */
+function placementCommands(
+	t: T,
+	data: CommandMenuData,
+	sources: readonly LayerSourceOf[],
+	go: GoToTarget,
+	componentId: string,
+): Command[] {
+	const both = ["code", "builder"] as const;
+	const component = data.components.find((each) => each.id === componentId);
+	const group = t("builder.components.placementsOf", { name: component?.name ?? "" });
+	const commands: Command[] = [];
+	const add = (id: string, label: string, run: () => void, more: Partial<Command> = {}) =>
+		commands.push({
+			id: `placements:${id}`,
+			tab: "goTo",
+			group,
+			label,
+			keywords: [],
+			permission: "structure.edit",
+			canvases: both,
+			run,
+			...more,
+		});
+	for (const use of component?.usedIn ?? []) {
+		const draftOnly = use.versions.includes("published") ? undefined : t("builder.components.draftOnly");
+		if (use.kind === "template") {
+			const postType = data.postTypes.find((each) => each.id === use.postTypeId);
+			if (use.templateKind === "site")
+				add(
+					`template:${use.id}`,
+					t("builder.commandMenu.templates.siteTemplate"),
+					() => go.builder({ kind: "siteTemplate" }),
+					{ hint: draftOnly },
+				);
+			else if (use.postTypeId) {
+				const target: BuilderTarget =
+					use.templateKind === "archive"
+						? { kind: "archiveTemplate", postTypeId: use.postTypeId }
+						: { kind: "entryTemplate", postTypeId: use.postTypeId };
+				add(
+					`template:${use.id}`,
+					t(`builder.commandMenu.templates.${target.kind}`, { postType: postType?.name ?? "" }),
+					() => go.builder(target),
+					{ hint: draftOnly },
+				);
+			} else
+				add(
+					`template:${use.id}`,
+					t("builder.commandMenu.templates.searchTemplate"),
+					() => go.builder({ kind: "searchTemplate" }),
+					{ hint: draftOnly },
+				);
+		} else if (use.kind === "component") {
+			add(`component:${use.id}`, use.name, () => go.builder({ kind: "component", componentId: use.id }), {
+				hint: draftOnly,
+			});
+		} else if (use.kind === "entry") {
+			const entry = [...data.pages, ...data.postTypes.flatMap((each) => each.entries)].find(
+				(each) => each.id === use.id,
+			);
+			if (entry)
+				add(`entry:${use.id}`, entry.title || entry.path, () => go.page(entry.path), {
+					hint: entry.path,
+					permission: "entry.edit",
+				});
+		}
+	}
+	for (const source of sources) {
+		const visit = (nodes: readonly TreeNode[], owner: NodePath | null) => {
+			nodes.forEach((node, index) => {
+				const path: NodePath = owner ? [...owner, index] : [index];
+				if (node.type === "component" && node.component === componentId)
+					add(
+						`layer:${source.ref}:${pathKey(path)}`,
+						layerName(t, node, source.catalogue).name,
+						() => go.layer(source.ref, path),
+						{
+							hint: t("builder.components.onThisPage"),
+							focus: "row",
+						},
+					);
 				childLists(node).forEach((list, at) => {
 					visit(list, [...path, at]);
 				});

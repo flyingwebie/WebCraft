@@ -1,5 +1,6 @@
 import type { componentScriptSettings } from "../../ui/builder/component-script-settings.ts";
 import type { EditorDrawer, EditorFit, editorFit, focusInto, nextDrawer } from "../../ui/builder/editor-fit.ts";
+import type { declareMissingProp } from "../../ui/builder/prop-quick-fix.ts";
 import type { renderedRanges } from "../../ui/builder/rendered-ranges.ts";
 /**
  * What Code mode's script is given when it is made: the address of its own stylesheet and of the
@@ -33,6 +34,7 @@ export function codeMode(
 	makeScriptSettings: typeof componentScriptSettings,
 	rangesOf: typeof renderedRanges,
 	fitting: CodeModeFitting,
+	missingProp: typeof declareMissingProp,
 ): void {
 	type Words = { [key: string]: string | Words };
 	type Answer = { ok: true; data: unknown } | { ok: false; code: string; data: Record<string, unknown> };
@@ -1583,6 +1585,14 @@ export function codeMode(
 					make.addEventListener("click", () => void createClass(unknown));
 					item.append(make);
 				}
+				// `{{ props.x }}` with no Prop x: declare it in the {{@props}} block, its type guessed from where it is read (#134).
+				const prop = /There is no Prop named ([A-Za-z_][A-Za-z0-9_]*) on this Component/.exec(problem.message)?.[1];
+				if (prop) {
+					const { type } = missingProp(html.get(), prop);
+					const make = button({ class: "small secondary" }, word("createProp", { name: prop, type }));
+					make.addEventListener("click", () => createProp(prop));
+					item.append(make);
+				}
 				return item;
 			}),
 		);
@@ -1610,6 +1620,17 @@ export function codeMode(
 	function setStatusText(text: string): void {
 		savedNote = text;
 		setStatus();
+	}
+
+	/**
+	 * Declares a Prop in the markup's `{{@props}}` block (adding the block when there is none), as
+	 * typing it would: the HTML panel then saves it with the rest, through the same checks.
+	 */
+	function createProp(name: string): void {
+		const { type, at, text } = missingProp(html.get(), name);
+		html.insert(text, at, at);
+		announce(word("propCreated", { name, type }));
+		setStatusText(word("propCreated", { name, type }));
 	}
 
 	async function createClass(name: string): Promise<void> {

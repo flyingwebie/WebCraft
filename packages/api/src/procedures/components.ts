@@ -15,6 +15,29 @@ const componentId = z.union([id, z.string().regex(/^[a-z][a-z0-9-]{0,31}:[A-Z][A
 /** A Component's name, its PascalCase tag; the server checks its form. */
 const componentName = z.string().max(200);
 
+/** Where a Component is made from or placed: a Template's Draft (by kind and Post Type) or one of the Site's own Components'. */
+const source = z.discriminatedUnion("kind", [
+	z.object({ kind: z.literal("siteTemplate") }),
+	z.object({ kind: z.literal("searchTemplate") }),
+	z.object({ kind: z.literal("entryTemplate"), postTypeId: id }),
+	z.object({ kind: z.literal("archiveTemplate"), postTypeId: id }),
+	z.object({ kind: z.literal("component"), componentId: id }),
+]);
+
+/**
+ * Where a node is in a tree: its index among the tree's nodes, then for each level down which of its
+ * container's lists (an element has one; a Condition one per branch, then Else; a Loop its items,
+ * then Empty) and its index there: `[2, 0, 1]` is the second child of the third node.
+ */
+const treePath = z
+	.array(z.number().int().min(0).max(100_000))
+	.min(1)
+	.max(201)
+	.refine(
+		(path) => path.length % 2 === 1,
+		"A path has an odd number of steps: an index, then a list and an index for each level down.",
+	);
+
 /**
  * Components: reusable element trees with Props, placed in Templates and other Components with
  * PascalCase tags. Structure, with a Draft and a published version: Staff change and publish them.
@@ -35,12 +58,56 @@ export const components = {
 		return context.services.components.get(site, input.componentId);
 	}),
 
-	/** Creates a Component with its name (its PascalCase tag) and Props, as a Draft with an empty tree. */
+	/**
+	 * Creates a Component with its name (its PascalCase tag) and Props, as a Draft with an empty tree.
+	 * With `place`, it is also placed in a Template's or Component's Draft at `place.path`, in the same
+	 * step: `place.list` is the list it goes into as you read it, and a change made there meanwhile
+	 * refuses both (`CHANGED_MEANWHILE`). Answers the Placement too.
+	 */
 	create: signedIn
-		.input(z.object({ siteId: id, name: componentName, props: fieldInputs.optional() }))
+		.input(
+			z.object({
+				siteId: id,
+				name: componentName,
+				props: fieldInputs.optional(),
+				place: z.object({ source, path: treePath, list: z.array(z.unknown()).max(100_000) }).optional(),
+			}),
+		)
 		.handler(async ({ context, input }) => {
 			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
-			return { component: await context.services.components.create(site, input) };
+			const { place, ...component } = input;
+			if (!place) return { component: await context.services.components.create(site, component) };
+			return context.services.components.createPlaced(site, component, place);
+		}),
+
+	/**
+	 * Make Component: moves the element or Placement at `path` in a Template's or Component's Draft into
+	 * a new Component named `name`, and places that Component there instead, so the page looks the
+	 * same. What the markup read there (the Entry's values, an outer Loop's items, the outer
+	 * Component's Props) becomes Props of the new Component, declared as the source declares them and
+	 * bound on the Placement to what they read. `texts` turns pieces of fixed text (in order, depth
+	 * first) into text Props whose default is the text. `node` is the node as you read it: a change
+	 * made to it meanwhile refuses the whole step (`CHANGED_MEANWHILE`), as does anything the new
+	 * Component or the source can't hold; nothing is made then.
+	 */
+	make: signedIn
+		.input(
+			z.object({
+				siteId: id,
+				name: componentName,
+				source,
+				path: treePath,
+				node: z.unknown(),
+				texts: z
+					.array(z.object({ index: z.number().int().min(0).max(100_000), key: z.string().max(64) }))
+					.max(200)
+					.optional(),
+			}),
+		)
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			const { siteId: _, ...make } = input;
+			return context.services.components.make(site, make);
 		}),
 
 	/**

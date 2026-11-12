@@ -2,6 +2,7 @@ import { archiveParts } from "../content/archives.ts";
 import { type ComponentSources, listComponents } from "../content/components.ts";
 import { draftAddresses } from "../content/draft-paths.ts";
 import { listEntries } from "../content/entries.ts";
+import type { ComponentUse } from "../content/errors.ts";
 import { siteLanguages } from "../content/languages.ts";
 import { isPagePostType } from "../content/pages.ts";
 import { listPostTypes } from "../content/post-types.ts";
@@ -40,7 +41,11 @@ export type CommandMenuData = {
 		archive: boolean;
 		entries: GoToPage[];
 	}[];
-	components: { id: string; name: string }[];
+	/**
+	 * The Site's own Components, each with what places it directly (its Placements' holders, in their
+	 * Draft or published version): Go to lists them when a Placement's "on N pages" badge is clicked.
+	 */
+	components: { id: string; name: string; usedIn: ComponentUse[] }[];
 };
 
 export async function commandMenuData(scope: SiteScope, sources: ComponentSources): Promise<CommandMenuData> {
@@ -75,6 +80,6 @@ export async function commandMenuData(scope: SiteScope, sources: ComponentSource
 	pages.sort((a, b) => (a.path === "/" ? -1 : b.path === "/" ? 1 : a.path.localeCompare(b.path)));
 	const components = (await listComponents(scope, sources))
 		.filter((component) => component.module === null)
-		.map((component) => ({ id: component.id, name: component.name }));
+		.map((component) => ({ id: component.id, name: component.name, usedIn: component.usage.usedIn }));
 	return { permissions, pages, postTypes, components };
 }

@@ -1,4 +1,4 @@
-import type { CommandMenuData, Permission } from "@webcraft/core";
+import type { CommandMenuData, FieldInput, Permission } from "@webcraft/core";
 import { type Json, sameValue } from "@webcraft/core/draft-document";
 import type { ElementTree, TreeNode } from "@webcraft/renderer/builder";
 import { DialogContainer } from "@webcraft/ui/components/dialog.tsx";
@@ -9,7 +9,9 @@ import { type SharedDraft, useSharedDraft } from "../co-editing/shared-draft.ts"
 import { useAnnouncement } from "../content/reorder.tsx";
 import { errorMessage } from "../errors.ts";
 import { AdminIntl, adminMessages, useT } from "../i18n.tsx";
+import { type BindKind, BindPropDialog, type Bound } from "./BindPropDialog.tsx";
 import { CommandMenu, type MenuState, ShortcutsDialog, useEditorKeys } from "./CommandMenu.tsx";
+import { ComponentDialog, type ComponentPrompt, componentNameFrom, componentRefusal } from "./ComponentDialog.tsx";
 import { CssPanel, type CssPanelPort, type CssTarget } from "./CssPanel.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
 import { type CommandTab, type EditorCommandTarget, editorCommands, type WrapKind } from "./commands.ts";
@@ -31,9 +33,11 @@ import {
 	childLists,
 	insertAt,
 	insertionPlace,
+	listAt,
 	moveTo,
 	type NodePath,
 	nodeAt,
+	pathIn,
 	pathOfId,
 	placeBy,
 	replaceAt,
@@ -105,6 +109,16 @@ function currentDraft(source: PanelSource, shared?: SharedDraft): Pick<Opened, "
 			}
 		: { tree: draft as unknown as ElementTree, props: null };
 }
+
+/** Whether a tree holds a node with this id. */
+function holdsId(tree: ElementTree, id: string): boolean {
+	const visit = (nodes: readonly TreeNode[]): boolean =>
+		nodes.some((node) => ("id" in node && node.id === id) || childLists(node).some(visit));
+	return visit(tree.nodes);
+}
+
+/** What Make Component and New Component answer (#134): the Component and its Placement. */
+type MadeComponent = { component: { id: string; name: string }; placement: { id: string; path: number[] } };
 
 /** Save one-off styles against the version of the tree being printed, never a later version. */
 async function saveOneOffStyles(
@@ -802,6 +816,13 @@ function SourcePanels({
 	const [catalogue, setCatalogue] = useState(source.opened.catalogue);
 	const [fixed, setFixed] = useState<{ location: FixedTextLocation; source: string } | null>(null);
 	const fixedTrigger = useRef<HTMLElement | null>(null);
+	/** Make Component's or New Component's name prompt (#134), and where its Component goes. */
+	const [componentPrompt, setComponentPrompt] = useState<
+		(ComponentPrompt & { path?: NodePath; place?: { path: NodePath; list: readonly TreeNode[] } }) | null
+	>(null);
+	/** Bind to Prop (#134): the link or image setting being bound, and what it holds now. */
+	const [bind, setBind] = useState<{ path: NodePath; kind: BindKind; current: string; source: string } | null>(null);
+	const bindTrigger = useRef<HTMLElement | null>(null);
 	const fixedAction =
 		source.target.kind === "component" ? "prop" : source.target.kind === "entryTemplate" ? "field" : "global";
 	const kind = source.opened.component ? "component" : "template";
@@ -1066,11 +1087,141 @@ function SourcePanels({
 		if (commands) void commands.leaveTo(url);
 		else window.location.assign(url);
 	};
+	/** Whether this source can change now: editable, not being created, and its shared Draft connected and writable. */
+	const writable =
+		source.editable && !creating && (!(source.opened.template || source.opened.component) || !!shared?.writable);
+	/** Waits for a change made on the server to reach this editor's shared Draft (a few seconds at most). */
+	const arrived = async (id: string) => {
+		for (let waited = 0; waited < 5000; waited += 50) {
+			if (holdsId(currentDraft(source, shared).tree, id)) return true;
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		}
+		return false;
+	};
+	/** Selects a Placement made on the server once it is in the shared Draft; its Component's markup then shows. */
+	const selectMade = async (made: MadeComponent, openComponent: boolean) => {
+		await arrived(made.placement.id);
+		if (currentSource.current !== sourceId) return;
+		setSelection({ kind: "node", path: made.placement.path });
+		selectedId.current = made.placement.id;
+		bridge.refresh();
+		bridge.select(
+			openComponent ? `${source.ref}/${made.placement.id}` : `${source.ref}#${made.placement.id}`,
+			`${source.ref}#${made.placement.id}`,
+		);
+	};
+	/** Make Component (#134): the name prompt for the selected element or Placement. */
+	const makeComponent =
+		writable && (node?.type === "element" || node?.type === "component") && selection?.kind === "node"
+			? () => {
+					const path = selection.path;
+					setComponentPrompt({
+						mode: "make",
+						node: node as TreeNode,
+						name: componentNameFrom(layerName(t, node as TreeNode, catalogue).name),
+						path,
+					});
+				}
+			: undefined;
+	/** New Component (#134): from the menu it opens in the Builder; from Insert it goes at the insert point. */
+	const newComponent = (placed?: "inside" | "after") => {
+		if (!placed) return setComponentPrompt({ mode: "new", placed: false });
+		const at = insertionPlace(tree, selection, node && !canHoldChildren(node) ? "after" : placed);
+		setComponentPrompt({
+			mode: "new",
+			placed: true,
+			place: { path: pathIn(at, at.index), list: listAt(tree, at) },
+		});
+	};
+	const componentChosen = async (choice: { name: string; texts: { index: number; key: string }[] }) => {
+		const prompt = componentPrompt;
+		if (!prompt) return undefined;
+		try {
+			if (shared && !(await shared.flush())) return t(`coEditing.status.${shared.status}`);
+			if (prompt.mode === "make" && prompt.path) {
+				// The node as the shared Draft has it now: the server refuses it if someone changed it meanwhile.
+				const now = nodeAt(currentDraft(source, shared).tree, prompt.path);
+				const made = await bridge.call<MadeComponent>("code/makeComponent", {
+					name: choice.name,
+					source: source.target,
+					path: prompt.path,
+					node: now,
+					texts: choice.texts,
+				});
+				announce(t("builder.components.made", { name: made.component.name }));
+				void selectMade(made, false);
+				return undefined;
+			}
+			if (prompt.mode === "new" && prompt.place) {
+				const made = await bridge.call<MadeComponent>("code/createComponent", {
+					name: choice.name,
+					place: { source: source.target, path: prompt.place.path, list: prompt.place.list },
+				});
+				announce(t("builder.components.created", { name: made.component.name }));
+				void selectMade(made, true);
+				return undefined;
+			}
+			const made = await bridge.call<{ component: { id: string; name: string } }>("code/createComponent", {
+				name: choice.name,
+			});
+			announce(t("builder.components.created", { name: made.component.name }));
+			// The empty Component has no page yet: its markup opens in the Builder's HTML panel.
+			leaveTo(
+				new URL(
+					`/builder/${source.siteId}/${targetPath({ kind: "component", componentId: made.component.id })}`,
+					source.adminOrigin,
+				).href,
+			);
+			return undefined;
+		} catch (failure) {
+			return componentRefusal(failure, t);
+		}
+	};
 	const go = {
 		page: (path: string) => leaveTo(path),
 		builder: (next: BuilderTarget) =>
 			leaveTo(new URL(`/builder/${source.siteId}/${targetPath(next)}`, source.adminOrigin).href),
 		layer: selectLayer,
+	};
+	/** The Component's Props as its shared Draft has them, for the Props section and Bind to Prop (#134). */
+	const componentProps = (source.opened.component ? (currentDraft(source, shared).props ?? []) : null) as
+		| FieldInput[]
+		| null;
+	/** Writes the Component's Props (the HTML panel's `{{@props}}` block follows); answers why not. */
+	const changeProps = (props: FieldInput[], message: string, tree?: ElementTree): string | undefined => {
+		if (!writable) return t("coEditing.status.readOnly");
+		const changed = shared?.change((current) => ({
+			...(current as Record<string, Json>),
+			props: props as unknown as Json,
+			...(tree ? { tree: tree as unknown as Json } : {}),
+		}));
+		if (!changed) {
+			const problem = t(`coEditing.status.${shared?.status ?? "connecting"}`);
+			announce(problem);
+			return problem;
+		}
+		onTree(currentDraft(source, shared).tree);
+		announce(message);
+		void shared?.flush().then((saved) => {
+			if (saved) bridge.refresh();
+		});
+		return undefined;
+	};
+	/** Bind to Prop: the setting's attribute now reads the Prop, and a new Prop is declared in the same change. */
+	const bound = (made: Bound): string | undefined => {
+		if (!bind || bind.source !== sourceId) return t("builder.fixedText.changed");
+		const current = currentDraft(source, shared).tree;
+		const element = nodeAt(current, bind.path);
+		if (element?.type !== "element") return t("builder.fixedText.changed");
+		const name = bind.kind === "link" ? "href" : "src";
+		const value = [{ type: "value" as const, path: made.path }];
+		const attributes = element.attributes.some((each) => each.name === name)
+			? element.attributes.map((each) => (each.name === name ? { name, value } : each))
+			: [...element.attributes, { name, value }];
+		const next = replaceAt(current, bind.path, { ...element, attributes });
+		const message = t("builder.bind.done", { binding: `{{ ${made.path} }}` });
+		if (made.props) return changeProps(made.props, message, next);
+		return apply(next, { kind: "node", path: bind.path }, message);
 	};
 	const commandTarget: EditorCommandTarget = {
 		canvas: "code",
@@ -1112,6 +1263,8 @@ function SourcePanels({
 					: action(change),
 		wrap,
 		unwrap,
+		...(makeComponent ? { makeComponent } : {}),
+		...(writable ? { newComponent: () => newComponent() } : {}),
 		...(node?.type === "component"
 			? {
 					editComponent,
@@ -1125,7 +1278,7 @@ function SourcePanels({
 	// Code mode's own toolbar button opens the menu (it lives in Code mode's top line, not here).
 	menuOpener.current = (tab) => setMenu({ tab });
 	useEditorKeys({
-		enabled: !fixed,
+		enabled: !fixed && !componentPrompt && !bind,
 		// Below the smallest width a notice covers the editor: the menu can't be reached.
 		blocked: () => document.documentElement.classList.contains("wc-code-covered"),
 		menu,
@@ -1136,9 +1289,6 @@ function SourcePanels({
 			: null,
 	});
 
-	/** Whether this source can change now: editable, not being created, and its shared Draft connected and writable. */
-	const writable =
-		source.editable && !creating && (!(source.opened.template || source.opened.component) || !!shared?.writable);
 	return (
 		<EditorEnvironment value={{ siteMedia: true, adminOrigin: source.adminOrigin }}>
 			{bridge.cssHost
@@ -1257,6 +1407,8 @@ function SourcePanels({
 								);
 						}}
 						onInsert={() => setMenu({ tab: "insert" })}
+						onMakeComponent={makeComponent}
+						onPlacements={(componentId) => setMenu({ tab: "goTo", placements: componentId })}
 					/>
 				</fieldset>
 			</aside>
@@ -1310,6 +1462,25 @@ function SourcePanels({
 							const location = rememberFixedText(currentDraft(source, shared).tree, path);
 							if (location) setFixed({ location, source: sourceId });
 						}}
+						component={componentProps ? { name: source.name ?? "", props: componentProps } : null}
+						onPropsChange={(props, message) => changeProps(props, message)}
+						onMakeComponent={makeComponent}
+						onBindProp={
+							componentProps
+								? (path, kind, trigger) => {
+										bindTrigger.current = trigger;
+										const element = nodeAt(currentDraft(source, shared).tree, path);
+										const attribute =
+											element?.type === "element"
+												? element.attributes.find((each) => each.name === (kind === "link" ? "href" : "src"))
+												: undefined;
+										const current = (attribute?.value ?? [])
+											.map((part) => (part.type === "text" ? part.text : ""))
+											.join("");
+										setBind({ path, kind, current, source: sourceId });
+									}
+								: undefined
+						}
 					/>
 				</fieldset>
 				<p role="status">{announcement || t(`coEditing.status.${shared?.status ?? "connecting"}`)}</p>
@@ -1368,6 +1539,20 @@ function SourcePanels({
 				/>
 			) : null}
 
+			<ComponentDialog prompt={componentPrompt} onClose={() => setComponentPrompt(null)} onSubmit={componentChosen} />
+			{bind && componentProps ? (
+				<BindPropDialog
+					open
+					onOpenChange={(open) => {
+						if (!open) setBind(null);
+					}}
+					finalFocus={bindTrigger}
+					kind={bind.kind}
+					current={bind.current}
+					props={componentProps}
+					onBound={bound}
+				/>
+			) : null}
 			<CommandMenu
 				canvas="code"
 				state={menu}
@@ -1381,6 +1566,7 @@ function SourcePanels({
 								menuData,
 								forest.filter((each) => each.ref !== "layout"),
 								go,
+								menu.placements,
 							)
 						: null
 				}
@@ -1397,6 +1583,7 @@ function SourcePanels({
 								onInsert: (nodes, way) => insert(nodes, way),
 								onWrap: wrapSelected,
 								onPreview: (show) => void previewInsertion(show),
+								onNewComponent: (way) => newComponent(way),
 							}
 						: null
 				}

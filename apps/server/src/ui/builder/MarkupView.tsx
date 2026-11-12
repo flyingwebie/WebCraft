@@ -3,6 +3,7 @@ import { Textarea } from "@webcraft/ui/components/textarea.tsx";
 import { useEffect, useId, useRef } from "react";
 
 import { useT } from "../i18n.tsx";
+import { declareMissingProp, MISSING_PROP } from "./prop-quick-fix.ts";
 
 /** A problem of markup that can't be read, where it is (UTF-16 units, as the server counts). */
 export type MarkupProblem = { line: number; column: number; message: string };
@@ -14,7 +15,10 @@ export function MarkupView({
 	problems,
 	selected,
 	onCaret,
+	propFix = false,
 }: {
+	/** Offers to declare a Prop the markup reads but the Component doesn't have (a Component's markup, #134). */
+	propFix?: boolean;
 	selected?: { start: number; end: number };
 	onCaret?(offset: number): void;
 	value: string;
@@ -124,6 +128,23 @@ export function MarkupView({
 									{t("builder.markup.at", { line: problem.line, column: problem.column })}
 								</button>{" "}
 								{problem.message}
+								{(() => {
+									const missing = propFix ? MISSING_PROP.exec(problem.message)?.[1] : undefined;
+									if (!missing) return null;
+									const fix = declareMissingProp(value, missing);
+									return (
+										<button
+											type="button"
+											className="text-foreground focus-visible:ring-ring/50 ms-2 rounded-sm border px-1.5 text-xs outline-none focus-visible:ring-3"
+											onClick={() => {
+												onChange(value.slice(0, fix.at) + fix.text + value.slice(fix.at));
+												area.current?.focus();
+											}}
+										>
+											{t("builder.components.createProp", { name: missing, type: fix.type })}
+										</button>
+									);
+								})()}
 							</li>
 						))}
 					</ul>
