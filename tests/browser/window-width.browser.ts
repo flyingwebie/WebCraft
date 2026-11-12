@@ -314,11 +314,7 @@ describe("Code mode at each width", () => {
 		expect(await codeLayersAside(page).isVisible()).toBe(false);
 
 		await page.setViewportSize({ width: 1280, height: 900 });
-		await toggle(page, "Layers")
-			.waitFor({ state: "detached" })
-			.catch(async () => {
-				await toggle(page, "Layers").waitFor({ state: "hidden" });
-			});
+		await toggle(page, "Layers").waitFor({ state: "hidden" });
 		await codeLayersAside(page).getByRole("tree", { name: "Layers" }).waitFor();
 		expect(await page.evaluate(() => (window as unknown as { stillHere?: boolean }).stillHere)).toBe(true);
 	});
@@ -375,6 +371,7 @@ describe("Code mode below 1024px", () => {
 		const page = await codeModePage("dark", 900, { covered: true });
 		const notice = page.getByRole("dialog", { name: NOTICE });
 		await notice.waitFor();
+		expect(await notice.getAttribute("aria-modal")).toBe("true");
 		await expectNoAxeViolations(page, "Code mode covered (dark)");
 		await page.getByRole("textbox", { name: /^HTML of / }).waitFor({ state: "attached" });
 		expect(await underCover(page.getByRole("textbox", { name: /^HTML of / }))).toBe(true);
@@ -408,6 +405,7 @@ describe("Code mode below 1024px", () => {
 
 		const notice = page.getByRole("dialog", { name: NOTICE });
 		await notice.waitFor();
+		expect(await notice.getAttribute("aria-modal")).toBe("true");
 		expect(await underCover(page.getByRole("textbox", { name: /^HTML of / }))).toBe(true);
 		expect((await focused(page)).within).toBe(NOTICE);
 		// Nothing was closed: the shared Draft has what was typed.
@@ -609,6 +607,7 @@ describe("the Builder below 1024px", () => {
 
 			const notice = page.getByRole("dialog", { name: NOTICE });
 			await notice.waitFor();
+			expect(await notice.getAttribute("aria-modal")).toBe("true");
 			await expectNoAxeViolations(page, `Builder too narrow (${theme})`);
 			expect(await underCover(page.getByRole("tree", { name: "Layers", includeHidden: true }))).toBe(true);
 			await page.keyboard.press("Tab");
@@ -632,6 +631,7 @@ describe("the Builder below 1024px", () => {
 
 		const notice = page.getByRole("dialog", { name: NOTICE });
 		await notice.waitFor();
+		expect(await notice.getAttribute("aria-modal")).toBe("true");
 		expect(await underCover(page.getByRole("tree", { name: "Layers", includeHidden: true }))).toBe(true);
 		await expectNoAxeViolations(page, "Builder covered after shrinking");
 		// The change is in the shared Draft already.
@@ -714,8 +714,11 @@ describe("the Builder by touch", () => {
 			for (let step = 1; step <= 8; step++) send("pointermove", one.x + 10, one.y + (two.bottom - one.y) * (step / 8));
 			send("pointerup", two.x + 10, two.bottom - 2);
 		});
-		await page.waitForTimeout(300);
-
+		// Nothing is meant to happen, so watch (bounded) that no move is announced meanwhile.
+		for (let tries = 0; tries < 10; tries++) {
+			expect(await page.getByText(/^Moved li/).count()).toBe(0);
+			await page.waitForTimeout(100);
+		}
 		expect(await page.getByText(/^Moved li/).count()).toBe(0);
 		expect(await draftMarkup()).toContain('<li data-wc-id="one">One</li><li data-wc-id="two">Two</li>');
 	});

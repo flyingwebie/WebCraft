@@ -665,6 +665,7 @@ export function codeMode(
 			{
 				class: "too-narrow",
 				role: "dialog",
+				"aria-modal": "true",
 				"aria-labelledby": tooNarrowTitle.id,
 				"aria-describedby": tooNarrowText.id,
 				tabindex: "-1",
@@ -781,7 +782,8 @@ export function codeMode(
 		new ResizeObserver(measureDock).observe(shell);
 		measureDock();
 		// F6 (#138, the drawer layout only): the tree, then the Inspector, then neither; Shift+F6 backwards.
-		// #137's F6 order for every region takes this over (see 138/downstream-interface.md).
+		// #137's F6 order for every region will take this over, opening the drawers with `setDrawer`
+		// (`editor-fit.ts`; docs/development.md › Code mode › Window width).
 		win.addEventListener("keydown", (event) => {
 			if (event.key !== "F6" || event.ctrlKey || event.metaKey || event.altKey) return;
 			if (fit?.layout !== "drawers" || fit.covered || !dialog.hidden) return;

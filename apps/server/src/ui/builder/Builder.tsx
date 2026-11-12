@@ -805,7 +805,8 @@ export function Builder({
 		});
 	};
 	// F6 (#138, the drawer layout only): the tree, then the Inspector, then neither; Shift+F6 backwards.
-	// #137's F6 order for every region takes this over (see 138/downstream-interface.md).
+	// #137's F6 order for every region will take this over, opening the drawers with `showDrawer`
+	// (`editor-fit.ts`; docs/development.md › The visual builder › Window width).
 	const drawerKey = (event: KeyboardEvent) => {
 		if (fit.layout !== "drawers" || fit.covered || document.querySelector("[data-slot=dialog-content]")) return;
 		event.preventDefault();

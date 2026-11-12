@@ -31,7 +31,7 @@ export function editorFit(width: number, widths: { min: number; full: number }, 
  *
  * Self-contained, like `editorFit`.
  */
-export function nextDrawer(open: "layers" | "inspector" | null, backwards: boolean): "layers" | "inspector" | null {
+export function nextDrawer(open: EditorDrawer | null, backwards: boolean): EditorDrawer | null {
 	const order = [null, "layers", "inspector"] as const;
 	const at = order.indexOf(open);
 	return order[(at + (backwards ? order.length - 1 : 1)) % order.length] ?? null;
