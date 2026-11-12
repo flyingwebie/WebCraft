@@ -476,9 +476,10 @@ export function createCoEditing(deps: CoEditingDeps): CoEditing {
 		if (!othersHere) {
 			// The last participant left: the Draft as it is now is kept as a Checkpoint.
 			void enqueue(live, async () => {
+				// Keeping the Draft is a write: only for someone who may edit the item.
 				const access = await connection.recheck().catch(() => null);
-				if (!access) return;
-				const scope = await deps.data.site(access, live.siteId, readPermission(live.item));
+				if (!access || !can(access.actor, editPermission(live.item), resourceOf(live))) return;
+				const scope = await deps.data.site(access, live.siteId, editPermission(live.item));
 				await deps.history.leave(scope, live.item);
 			});
 		}

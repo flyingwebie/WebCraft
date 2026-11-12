@@ -164,7 +164,7 @@ export async function saveCheckpoint(
 }
 
 /**
- * The last person editing an item's Draft left (open the Site with `historyReadPermission(item)`):
+ * The last person editing an item's Draft left (open the Site with `historyEditPermission(item)`):
  * its Draft is saved as a Checkpoint unless nothing changed since the newest Revision or Checkpoint.
  * The admin's editors call it when they close; Co-editing calls it when its last participant goes.
  */

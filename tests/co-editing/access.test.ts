@@ -12,7 +12,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { type Access, DRAFTS_PROTOCOL, type HistoryItem } from "@webcraft/core";
 
-import { editorOver, type TestEditor } from "../harness/co-editing.ts";
+import { editorOver, openDraft, type TestEditor } from "../harness/co-editing.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { coEditingSite, withValue } from "./support.ts";
 
@@ -107,5 +107,30 @@ describe("a connection whose access moves while it stays open", () => {
 		const { entry } = await site.staff.api.entries.get({ siteId: site.siteId, entryId: site.entryId });
 		expect(entry.draft.fields.summary).toBe("Bake it today.");
 		mover.close();
+	});
+});
+
+describe("the last one leaving", () => {
+	test("keeps the Draft as a Checkpoint only for someone who may edit it: a reader leaving writes nothing", async () => {
+		const site = await coEditingSite(install);
+		const item = { kind: "entry", id: site.entryId } as const;
+		await site.staff.api.entries.saveDraft({ siteId: site.siteId, entryId: site.entryId, title: "Changed since" });
+
+		const reader = await moverOver(site.workspaceId, site.siteId, item, () => false);
+		reader.close();
+		await new Promise((resolve) => setTimeout(resolve, 300));
+		// Then someone who may edit opens and leaves: their leaving keeps the Draft, unless the reader's did.
+		const ada = await openDraft(install, site.staff, site.siteId, item);
+		ada.close();
+		let copies: { type: string; reason: string | null; by?: { person?: { name: string } | null } | null }[] = [];
+		const started = Date.now();
+		while (Date.now() - started < 3000) {
+			({ copies } = await site.staff.api.history.list({ siteId: site.siteId, item }));
+			if (copies.length > 0) break;
+			await new Promise((resolve) => setTimeout(resolve, 20));
+		}
+		expect(copies.map((copy) => [copy.type, copy.reason, copy.by?.person?.name])).toEqual([
+			["checkpoint", "left", "Ada Staff"],
+		]);
 	});
 });

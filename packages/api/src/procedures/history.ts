@@ -80,7 +80,8 @@ export const history = {
 	 * last one; Co-editing will call the same when its last participant goes.
 	 */
 	leave: signedIn.input(z.object({ siteId: id, item: publishItem })).handler(async ({ context, input }) => {
-		const site = await context.services.data.site(context.access, input.siteId, historyReadPermission(input.item));
+		// It writes a Checkpoint: the item's edit Permission, as a restore.
+		const site = await context.services.data.site(context.access, input.siteId, historyEditPermission(input.item));
 		return { checkpoint: await context.services.history.leave(site, input.item) };
 	}),
 };
