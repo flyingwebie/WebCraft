@@ -306,7 +306,16 @@ export function createImpersonation({ database, clock, jobs, actors, hasSecondFa
 			let reach: string[] | null;
 			try {
 				reach = await reachOf(by, target);
-			} catch {
+			} catch (error) {
+				// Only a refusal means the access is gone; anything else fails the request rather than
+				// letting it go on as the impersonator.
+				if (
+					!(error instanceof ImpersonationRefusedError) &&
+					!(error instanceof PermissionDeniedError) &&
+					!(error instanceof PersonNotFoundError)
+				) {
+					throw error;
+				}
 				await end(row, "access");
 				return ownAccess(session);
 			}

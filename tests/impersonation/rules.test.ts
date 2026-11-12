@@ -212,6 +212,20 @@ describe("ending", () => {
 		expect(stop?.details).toMatchObject({ reason: "signedOut" });
 	});
 
+	test("losing the access it needs ends it on the next request: back to the impersonator, recorded as access", async () => {
+		const kim = await withSecondFactor(install, await install.createStaff({ workspaces: [acme] }));
+		await impersonate(kim.browser, editor.personId);
+		expect(await actingAs(kim.browser)).toBe(editor.personId);
+
+		await superadmin.browser.api.session.confirmIdentity({ password: TEST_PASSWORD });
+		await superadmin.browser.api.staff.setWorkspaces({ personId: kim.personId, workspaces: [nimbus] });
+
+		expect(await actingAs(kim.browser)).toBe(kim.personId);
+		const [stop] = (await superadmin.browser.api.audit.list({ action: "impersonation.stop", personId: kim.personId }))
+			.entries;
+		expect(stop?.details).toMatchObject({ reason: "access" });
+	});
+
 	test("a return address is a page of the admin, nowhere else", async () => {
 		for (const returnTo of ["https://evil.example/", "//evil.example/", "javascript:alert(1)"]) {
 			await expect(impersonate(anna.browser, editor.personId, { returnTo })).rejects.toMatchObject({
