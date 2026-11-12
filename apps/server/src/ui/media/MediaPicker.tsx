@@ -13,7 +13,7 @@ import { Label } from "@webcraft/ui/components/label.tsx";
 import { ImagesIcon, LoaderIcon, SearchIcon } from "lucide-react";
 import { useContext, useEffect, useRef, useState } from "react";
 
-import { EditorEnvironment, useEditorApi } from "../builder/editor-api.tsx";
+import { EditorEnvironment, useMediaApi } from "../builder/editor-api.tsx";
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { formatBytes, imagePreview, KIND_ICONS, type MediaItem } from "./preview.ts";
@@ -143,7 +143,7 @@ function MediaChooser({
 }) {
 	const t = useT();
 	const environment = useContext(EditorEnvironment);
-	const getApi = useEditorApi();
+	const getApi = useMediaApi();
 	const [query, setQuery] = useState("");
 	const [items, setItems] = useState<MediaItem[] | null>(null);
 	const [error, setError] = useState<MessageKey | null>(null);
@@ -155,7 +155,7 @@ function MediaChooser({
 			async () => {
 				try {
 					const api = await getApi();
-					const list = await api.media.list({ siteId, search: query.trim() || undefined, limit: PICKER_PAGE });
+					const list = await api.list({ siteId, search: query.trim() || undefined, limit: PICKER_PAGE });
 					if (!cancelled) {
 						setItems(list.items.filter((item) => item.status === "ready"));
 						setError(null);

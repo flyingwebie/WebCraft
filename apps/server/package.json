@@ -9,7 +9,8 @@
 		"./handler": "./src/handler.ts",
 		"./body-editor/edit-mode": "./src/body-editor/edit-mode.ts",
 		"./outgoing-http": "./src/outgoing-http.ts",
-		"./editor/live-panels": "./src/ui/builder/live-panels.tsx"
+		"./editor/live-panels": "./src/ui/builder/live-panels.tsx",
+		"./editor/page-layouts": "./src/ui/page-layouts/edit-mode.tsx"
 	},
 	"scripts": {
 		"dev": "bun --bun vite dev",

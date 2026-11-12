@@ -278,7 +278,24 @@ export async function setDefaultLanguage(
 			for (const key of SHARED_BUILT_INS) {
 				if (values[key] !== undefined) values[key] = moveLanguage(values[key], from, to);
 			}
-			return { values };
+			const source = storedVersion(version);
+			const layout = source.layout
+				? {
+						placements: source.layout.placements.map((p) => ({
+							...p,
+							values: moveSharedValues(p.values, p.props, from, to),
+							...(p.retained
+								? {
+										retained: p.retained.map((snapshot) => ({
+											...snapshot,
+											values: moveSharedValues(snapshot.values, snapshot.props, from, to),
+										})),
+									}
+								: {}),
+						})),
+					}
+				: undefined;
+			return { ...source, values, ...(layout ? { layout } : {}) };
 		};
 		for (const row of rows) {
 			const fields = fieldsOf.get(row.postTypeId) ?? [SEO_GROUP];

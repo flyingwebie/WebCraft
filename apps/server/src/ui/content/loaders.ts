@@ -58,7 +58,7 @@ function mediaIds(fields: readonly FieldDefinition[], values: FieldValues): stri
 
 /** What the admin shows of the files media Fields hold, by id; files no longer in the library are left out. */
 export async function loadMedia(
-	api: ApiClient,
+	api: { media: Pick<ApiClient["media"], "get"> },
 	siteId: string,
 	fields: readonly FieldDefinition[],
 	values: FieldValues,

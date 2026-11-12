@@ -1662,7 +1662,8 @@
 			"title": "Title",
 			"slug": "Address",
 			"parent": "Parent page",
-			"seo": "SEO fields"
+			"seo": "SEO fields",
+			"layout": "Page layout"
 		},
 		"types": {
 			"text": "Text",
@@ -1680,7 +1681,8 @@
 			"repeater": "Repeater",
 			"parent": "Parent page",
 			"image": "Image",
-			"loopItems": "Loop items"
+			"loopItems": "Loop items",
+			"pageLayout": "Page layout"
 		},
 		"problems": {
 			"required": "This can't be empty.",
@@ -7902,5 +7904,25 @@
 		"createClass": "Create Class {name}",
 		"oneOff": "Edit one-off style",
 		"HISTORY_PARTIAL": "Part of this step could not be restored. Review the Draft before continuing."
+	},
+	"pageLayout": {
+		"title": "Page layout",
+		"props": "Props",
+		"add": "Add component",
+		"move": "Move Placement",
+		"moveUp": "Move up",
+		"moveDown": "Move down",
+		"duplicate": "Duplicate",
+		"delete": "Remove",
+		"hide": "Hide or show",
+		"lock": "Lock or unlock",
+		"locked": "Locked",
+		"header": "Page template header",
+		"footer": "Page template footer",
+		"close": "Close",
+		"noComponents": "No Allowed components",
+		"enabled": "Members can arrange Page layouts",
+		"allowed": "Members can add",
+		"select": "Select a Placement to edit its Props."
 	}
 }

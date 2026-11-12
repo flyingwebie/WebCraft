@@ -47,7 +47,6 @@ import {
 } from "@webcraft/renderer";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { statementLayout, statementTitle } from "../accessibility/statement.ts";
-
 import { type CdnKey, isCdnKey } from "../cdns/registry.ts";
 import type { InstallConfig } from "../config.ts";
 import { pageConsent } from "../consent/banner.ts";
@@ -78,6 +77,7 @@ import {
 	type SiteLanguages,
 	siteLanguages,
 } from "../content/languages.ts";
+import { EMPTY_LAYOUT, type PageLayout, pageLayoutTree } from "../content/page-layouts.ts";
 import {
 	candidatePatterns,
 	findPublishedPage,
@@ -1758,6 +1758,9 @@ async function renderEntryPage(
 	const { postType, entry } = found;
 	const previewed = view.editing?.preview?.source;
 	const content =
+		(isPagePostType(postType) && storedVersion(view.version === "draft" ? entry.draft : entry.published).layout
+			? pageLayoutTree(storedVersion(view.version === "draft" ? entry.draft : entry.published), languages)
+			: undefined) ??
 		(isPagePostType(postType) ? await statementLayout(scope, entry.id) : undefined) ??
 		(view.structure === "published"
 			? found.content
@@ -1822,6 +1825,7 @@ async function renderEntryPage(
 		// Media values the content may read: its own, and its related Entries'.
 		contentValues: [published.fields, [...related.values()].map((entry) => entry.values)],
 		entry: { id: entry.id, fields: postType.fields },
+		pageLayout: isPagePostType(postType) ? (version.layout ?? EMPTY_LAYOUT) : undefined,
 		loops: { current: entry.id, ...where },
 	});
 }
@@ -1984,6 +1988,7 @@ async function renderSitePage(
 		contentValues?: unknown;
 		/** The Entry the page's content shows, whose values Edit mode may tag; none on the built-in 404 page. */
 		entry?: { id: string; fields: readonly FieldDefinition[] } | null;
+		pageLayout?: PageLayout;
 		/**
 		 * Where the page's Loops run: its Entry, which page of a paginated Loop, and its address; on the
 		 * search results page, the visitor's search and the state its page links keep.
@@ -2202,6 +2207,26 @@ async function renderSitePage(
 		editMode: editing && {
 			...editing.head,
 			region: editRegions(options.entry ?? null, storedFields(globalsRow?.fields), loops),
+			placement:
+				options.pageLayout &&
+				((node) => {
+					const placement = options.pageLayout?.placements.find((p) => p.id === node.id);
+					if (!placement) return undefined;
+					return {
+						root: [["data-wc-page-placement", node.id]],
+						region: (value) => {
+							if (value.format || !value.path.startsWith("props.")) return undefined;
+							const key = value.path.slice(6);
+							const prop = placement.props.find((p) => p.key === key && p.type === "text");
+							return prop
+								? [
+										["data-wc-placement-prop", key],
+										["data-wc-placement", node.id],
+									]
+								: undefined;
+						},
+					};
+				}),
 			loop: (name) => {
 				const shown = loops.info(name);
 				return shown && [`loop:${shown.id}`, shown.source, shown.name];

@@ -133,6 +133,7 @@ const PART_LABELS: Record<string, MessageKey> = {
 	"entry.title": "history.part.title",
 	"entry.slug": "history.part.slug",
 	"entry.parent": "history.part.parent",
+	"entry.layout": "pageLayout.title",
 	"entry.hiddenLanguages": "history.part.hiddenLanguages",
 	"entry.seo": "history.part.seo",
 	"designSystem.tokens": "history.part.tokens",

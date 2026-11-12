@@ -79,6 +79,8 @@ export type PageState = {
 		path: string;
 		/** The Entry the page shows, as its regions name it (`entry:<id>`); null on the built-in 404 page. */
 		item: string | null;
+		/** Only the built-in Page Post Type has an arrangeable Page layout. */
+		layout: boolean;
 	};
 	/** Whether the person may publish the page's changes; Authors save them to the Draft only. */
 	canPublish: boolean;
@@ -134,6 +136,7 @@ export async function pageState(deps: PageDeps, editing: Editing, host: SiteHost
 			title: entry?.draft.title ?? builtInNotFoundPage(content.language).title,
 			path,
 			item: content.entryId ? `entry:${content.entryId}` : null,
+			layout: !!entry && isPagePostType(await getPostType(scope, entry.postTypeId)),
 		},
 		canPublish: can(scope.access.actor, "entry.publish", {
 			level: "site",
@@ -379,6 +382,14 @@ async function changesOf(
 		if (item.kind === "entry") {
 			const row = await scope.first(entries, eq(entries.id, item.id));
 			if (!row) continue;
+			if (!sameJson(storedVersion(row.draft).layout ?? null, storedVersion(row.published).layout ?? null))
+				found.push({
+					item: nameOf(item),
+					key: "layout",
+					label: null,
+					type: "pageLayout",
+					writer: row.updatedBy,
+				});
 			draft = storedVersion(row.draft).values;
 			published = storedVersion(row.published).values;
 			fields = (await getPostType(scope, row.postTypeId)).fields;

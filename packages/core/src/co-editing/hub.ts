@@ -624,7 +624,16 @@ export function createCoEditing(deps: CoEditingDeps): CoEditing {
 							// Tree saves derive declaration ids, retained values/contracts and binding projections.
 							// Keep the authored update's own echo suppressed; send only the derived delta back.
 							const canonical = documentView(live.item.kind, stored);
-							if ((live.item.kind === "component" || live.item.kind === "template") && !sameValue(after, canonical)) {
+							const layoutDefaults =
+								live.item.kind === "entry" &&
+								after !== null &&
+								typeof after === "object" &&
+								!Array.isArray(after) &&
+								"layout" in after;
+							if (
+								(live.item.kind === "component" || live.item.kind === "template" || layoutDefaults) &&
+								!sameValue(after, canonical)
+							) {
 								const vector = Y.encodeStateVector(trial);
 								changeDocument(trial, canonical);
 								derived = Y.encodeStateAsUpdate(trial, vector);

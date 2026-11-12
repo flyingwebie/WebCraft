@@ -1,6 +1,9 @@
-import { popups } from "@webcraft/db/schema";
+import { pageLayoutSettings, popups } from "@webcraft/db/schema";
 import { sitePopups } from "../popups/catalogue.ts";
+import { siteLanguages } from "./languages.ts";
+import { pageLayoutTree } from "./page-layouts.ts";
 import { readRetainedContract } from "./prop-contracts.ts";
+import { storedVersion } from "./values.ts";
 /**
  * Components (GLOSSARY.md): reusable element trees with Props, built by Staff and placed in
  * Templates and other Components (later in Page layouts and Body fields). A Component is Structure
@@ -520,6 +523,11 @@ export async function deleteComponent(
 		// Its Component script goes with it; pages loaded before still find its published file for 30 days.
 		await retireComponentScript(tx, row.id);
 		await tx.delete(components, eq(components.id, row.id));
+		const settings = await tx.first(pageLayoutSettings);
+		if (settings?.allowedComponents.includes(row.id))
+			await tx.update(pageLayoutSettings, {
+				allowedComponents: settings.allowedComponents.filter((id) => id !== row.id),
+			});
 		await tx.audit("component.delete", { componentId: row.id, name: row.name });
 		return { deleted: true };
 	});
@@ -1107,6 +1115,18 @@ async function pageGraph(scope: SiteScope): Promise<{
 			published: row.published === null ? null : storedComponentVersion(row.published).tree,
 		})),
 	];
+	const pageLanguages = await siteLanguages(scope);
+	for (const row of await scope.select(entries)) {
+		const draft = storedVersion(row.draft);
+		const published = row.published ? storedVersion(row.published) : null;
+		if (!draft.layout && !published?.layout) continue;
+		const languages = { language: pageLanguages.defaultLanguage, defaultLanguage: pageLanguages.defaultLanguage };
+		holders.push({
+			use: { kind: "entry", id: row.id, postTypeId: row.postTypeId, versions: [] },
+			draft: pageLayoutTree(draft, languages),
+			published: published ? pageLayoutTree(published, languages) : null,
+		});
+	}
 	const statement = await scope.first(accessibilityStatements);
 	const statementPage = statement ? await scope.first(entries, eq(entries.id, statement.pageId)) : undefined;
 	if (statement && statementPage) {

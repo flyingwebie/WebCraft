@@ -8,7 +8,10 @@ import {
 	retainedValueIdentity,
 	retainedValues,
 } from "@webcraft/renderer";
+import type { ContentProblem } from "../content/errors.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
+import { type FieldInput, parseFields } from "../content/fields.ts";
+import { sameJson } from "../content/json.ts";
 import { readRetainedContract } from "../content/prop-contracts.ts";
 import { readPropJson, readPropText } from "../content/props.ts";
 import { POPUP_FIELDS } from "../popups/index.ts";
@@ -404,6 +407,40 @@ export function createRowRemapper(
 	async function version(kind: string, id: string | null, value: unknown, context: ReferenceVersion, fields?: unknown) {
 		const content = record(value);
 		if (kind === "entry") {
+			for (const placement of list(record(content.layout).placements)) {
+				const p = record(placement);
+				if (typeof p.component !== "string")
+					throw new ArchiveRefusedError("damaged", "A Page Placement needs its Component source.");
+				for (const snapshot of [p, ...list(p.retained).map(record)]) {
+					if (!Array.isArray(snapshot.props))
+						throw new ArchiveRefusedError("damaged", "A Page Placement needs its Prop source contracts.");
+					if (UUID.test(p.component)) {
+						for (const field of snapshot.props) {
+							try {
+								readRetainedContract(field, String(record(field).id));
+							} catch (error) {
+								throw new ArchiveRefusedError("damaged", (error as Error).message);
+							}
+						}
+					} else {
+						// Module declarations use their source keys and Field types, not own-Component ids.
+						if (!moduleProps.has(p.component))
+							throw new ArchiveRefusedError("damaged", "A Module Page Placement needs its source declaration.");
+						const problems: ContentProblem[] = [];
+						const parsed = parseFields(snapshot.props as FieldInput[], problems, {
+							owner: "moduleComponent",
+							postTypeKeys: new Set(),
+							reservedKeys: new Set(),
+							listName: "props",
+						});
+						if (problems.length || !sameJson(parsed, snapshot.props))
+							throw new ArchiveRefusedError("damaged", "Invalid Module Page Prop source contract.");
+					}
+					await values(snapshot.values, snapshot.props, context);
+					await definitions(snapshot.props, context);
+				}
+				at(p, "component");
+			}
 			const typeId = await lookup.row("public.entries", id, ["post_type_id"]);
 			await values(
 				content.values,
@@ -444,6 +481,7 @@ export function createRowRemapper(
 		columns: readonly Column[],
 		personColumns: readonly string[] = [],
 	): Promise<Row> => {
+		if (table === "public.page_layout_settings") row.allowed_components = refs(row.allowed_components);
 		const originalId = typeof row.id === "string" ? row.id : null;
 		// Visit JSON before changing top-level lookup IDs.
 		const kinds: Record<string, string> = {

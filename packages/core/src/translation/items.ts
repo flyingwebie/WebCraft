@@ -223,8 +223,8 @@ export async function writeItem(
 				});
 				if (!result) return null;
 				return {
-					...(result.draft ? { draft: { values: result.draft } } : {}),
-					...(result.published ? { published: { values: result.published } } : {}),
+					...(result.draft ? { draft: { ...draft, values: result.draft } } : {}),
+					...(result.published ? { published: { ...published, values: result.published } } : {}),
 				};
 			},
 		);

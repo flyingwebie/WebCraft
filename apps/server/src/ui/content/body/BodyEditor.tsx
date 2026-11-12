@@ -54,7 +54,7 @@ import {
 	splitRuns,
 } from "../../../body-editor/inline-dom.ts";
 import { type BodyComponentChoice, newComponentBlock } from "../../../body-editor/model.ts";
-import { getApi } from "../../api.ts";
+import { browserEditorApi as getApi } from "../../builder/editor-api.tsx";
 import { errorMessage } from "../../errors.ts";
 import { type MessageKey, useT } from "../../i18n.tsx";
 import { MediaPicker } from "../../media/MediaPicker.tsx";

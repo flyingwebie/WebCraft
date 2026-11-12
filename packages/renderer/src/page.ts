@@ -274,6 +274,7 @@ export type PageStyles = {
 
 /** What a page rendered for Edit mode adds to what visitors get. */
 export type EditModePage = {
+	placement?: import("./html.ts").RenderOptions["editPlacement"];
 	/**
 	 * The attributes that tag an element showing `value` alone (or an image whose `src` it is) as an
 	 * editable region, or undefined when it isn't editable. `template` is where the binding is: the
@@ -398,6 +399,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		consentSettings,
 		held,
 		editRegion: editMode && !editMode.code ? (value, place) => editMode.region(value, "content", place) : undefined,
+		editPlacement: editMode && !editMode.code ? editMode.placement : undefined,
 		editLoop: editMode && !editMode.code ? (name) => editMode.loop?.(name) : undefined,
 		markBodyBlocks: Boolean(editMode && !editMode.code),
 		codeSource: editMode?.code || page.checkMarkup ? "content" : undefined,
@@ -418,7 +420,10 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		shownComponents,
 		className: page.className,
 		media: page.media,
-		outlet: () => content,
+		outlet: () =>
+			editMode?.placement && !editMode.code
+				? `<!--wc-page-layout-start-->${content}<!--wc-page-layout-end-->`
+				: content,
 		footer,
 		extraAttributes: mainAttributes,
 		component: page.component,

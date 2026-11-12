@@ -128,6 +128,8 @@ async function valueParts(scope: SiteScope, state: ItemState, versions: unknown[
 			{ key: "slug", label: null, field: leafDefinition("slug", "text", true), shared: false },
 		);
 		if (isPagePostType(postType)) {
+			if (versions.some((v) => storedVersion(v).layout))
+				builtIns.push({ key: "layout", label: null, field: null, shared: true });
 			builtIns.push({
 				key: "parent",
 				label: null,
@@ -533,8 +535,14 @@ export async function compareWithDraft(
 	const language = site.languages.find((candidate) => candidate.code === options.language)?.code ?? defaultLanguage;
 	const definitions = await valueParts(scope, state, [copy.content, state.draft]);
 	const lookups = await lookupsFor(scope, definitions, [copy.content, state.draft], defaultLanguage);
-	const before = storedVersion(copy.content).values;
-	const after = storedVersion(state.draft).values;
+	const before: Record<string, unknown> = {
+		...storedVersion(copy.content).values,
+		layout: storedVersion(copy.content).layout ?? null,
+	};
+	const after: Record<string, unknown> = {
+		...storedVersion(state.draft).values,
+		layout: storedVersion(state.draft).layout ?? null,
+	};
 	const differs = (part: PartDefinition, reader: Reader) =>
 		!sameJson(projected(before[part.key], part.field, reader), projected(after[part.key], part.field, reader));
 	const languages = site.languages.map((candidate) => {
@@ -555,7 +563,7 @@ export async function compareWithDraft(
 		const last = !changed
 			? null
 			: part.shared
-				? who(part.key, defaultLanguage)
+				? who(part.key, part.key === "layout" ? null : defaultLanguage)
 				: leaf
 					? who(part.key, language)
 					: newest(who(part.key, language), who(part.key, defaultLanguage));

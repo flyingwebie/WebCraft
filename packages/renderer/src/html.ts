@@ -121,6 +121,12 @@ export type RenderOptions = {
 	 * as it is). Undefined renders nothing, as a Placement of a Component the page can't show.
 	 */
 	component?: PlacementRenderer;
+	/** Page-layout-only editing markers; never inherited by nested Components. */
+	/** Mark every top-level element of a Page Placement, without an extra layout wrapper. */
+	placementRoot?: readonly (readonly [string, string])[];
+	editPlacement?: (
+		node: PlacementNode,
+	) => { region?: RenderOptions["editRegion"]; root: readonly (readonly [string, string])[] } | undefined;
 	/**
 	 * Edit mode's tags (ADR 0022): the attributes that mark an element showing one binding alone
 	 * (`<h1>{{ title }}</h1>`) as an editable region, or an image whose `src` is one binding
@@ -301,21 +307,30 @@ function renderNodeContent(node: TreeNode, options: RenderOptions, state: Render
 		case "element": {
 			if (node.tag === "img" && options.media) {
 				const image = mediaImage(node, options.media, options);
-				if (image !== undefined) return image;
+				if (image !== undefined)
+					return options.placementRoot ? withRootAttributes(image, options.placementRoot) : image;
 			}
 			const classNames = node.classes.map((classId) => options.className?.(classId)).filter(Boolean);
 			let attributes = classNames.length > 0 ? ` class="${escapeAttribute(classNames.join(" "))}"` : "";
 			for (const attribute of elementAttributes(node, options)) {
 				attributes += renderAttribute(attribute, options);
 			}
-			for (const [name, value] of [...(options.extraAttributes?.(node) ?? []), ...editTags(node, options)]) {
+			const tags = editTags(node, options);
+			const inlineProp = tags.some(([name]) => name === "data-wc-placement-prop");
+			for (const [name, value] of [
+				...(options.extraAttributes?.(node) ?? []),
+				...(options.placementRoot ?? []),
+				...(inlineProp ? [] : tags),
+			]) {
 				attributes += ` ${name}="${escapeAttribute(value)}"`;
 			}
 			if (options.codeSource !== undefined) {
 				attributes += ` ${CODE_ATTRIBUTE}="${escapeAttribute(`${options.codeSource}#${node.id}`)}"`;
 			}
 			if (VOID_ELEMENTS.has(node.tag)) return `<${node.tag}${attributes}>`;
-			let children = renderNodes(node.children, options, state);
+			let children = renderNodes(node.children, { ...options, placementRoot: undefined }, state);
+			if (inlineProp)
+				children = `<span${tags.map(([name, value]) => ` ${name}="${escapeAttribute(value)}"`).join("")}>${children}</span>`;
 			if (node.tag === "footer") children += options.footer?.() ?? "";
 			// An HTML parser drops a newline right after <pre>; repeat it so the content stays as written.
 			if (node.tag === "pre" && children.startsWith("\n")) children = `\n${children}`;
@@ -527,16 +542,19 @@ function renderPlacement(node: PlacementNode, options: RenderOptions, state: Ren
 	// Inside a Component its bindings read its Props, the Globals and the Loops of the Site; it holds
 	// no outlet. Edit mode tags regions of the page's own Template: a Component's elements are the
 	// Component's. Code mode tags them as the Component's, reached through this Placement.
+	const placementEdit = options.editPlacement?.(node);
 	const inner: RenderOptions = {
 		...options,
+		editPlacement: undefined,
 		values: withLoopStats(shown.values, options),
 		checkComponent: node.component,
 		extraAttributes: (element) => [
 			...(options.extraAttributes?.(element) ?? []),
-			...(node.hidden ? [["data-wc-hidden-placement", "true"] as const] : []),
+			...(node.hidden ? [["data-wc-hidden-placement", "true"] as const, ["data-wc-hidden", "true"] as const] : []),
 		],
 		outlet: undefined,
-		editRegion: undefined,
+		editRegion: placementEdit?.region,
+		placementRoot: placementEdit?.root ?? options.placementRoot,
 		codeSource: options.codeSource === undefined ? undefined : `${options.codeSource}/${node.id}`,
 	};
 	const html = renderNodes(shown.tree.nodes, inner, {

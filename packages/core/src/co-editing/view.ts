@@ -1,3 +1,4 @@
+import { layoutView, type PageLayout } from "../content/page-layouts.ts";
 import type { HistoryItem } from "../history/items.ts";
 import { VALUE_KINDS } from "../history/parts.ts";
 import type { Json } from "./document.ts";
@@ -12,7 +13,10 @@ import type { Json } from "./document.ts";
 export function documentView(kind: HistoryItem["kind"], stored: unknown): Json {
 	if (!VALUE_KINDS.includes(kind)) return (stored ?? null) as Json;
 	const values = record(record(stored)?.values) ?? {};
-	return { values: Object.fromEntries(Object.entries(values).map(([key, node]) => [key, nodeView(node)])) };
+	return {
+		...(kind === "entry" && record(stored)?.layout ? { layout: layoutView(record(stored)?.layout as PageLayout) } : {}),
+		values: Object.fromEntries(Object.entries(values).map(([key, node]) => [key, nodeView(node)])),
+	};
 }
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -20,7 +24,7 @@ function record(value: unknown): Record<string, unknown> | null {
 }
 
 /** A stored value (a leaf kept by language, a Group, a Repeater) as the document holds it. */
-function nodeView(node: unknown): Json {
+export function nodeView(node: unknown): Json {
 	const own = record(node);
 	if (!own) return (node ?? null) as Json;
 	if (Array.isArray(own.rows)) {

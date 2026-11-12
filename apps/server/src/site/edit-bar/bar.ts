@@ -17,7 +17,14 @@ import type {
  * the module that opens the page's Drafts live (Co-editing), and the narrowest window Code mode opens
  * in (`EDITOR_WIDTHS.min`, #138).
  */
-export type EditingBarConfig = { styles: string; drafts: string; body: string; codeMinWidth: number };
+export type EditingBarConfig = {
+	styles: string;
+	drafts: string;
+	body: string;
+	layout: string;
+	layoutStyles: string;
+	codeMinWidth: number;
+};
 
 /**
  * The bar's parts, each one self-contained function served in the same script (`assets.ts`): the
@@ -68,7 +75,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		changedSinceSubmitted: boolean;
 	};
 	type State = {
-		page: { title: string; path: string; item: string | null };
+		page: { title: string; path: string; item: string | null; layout: boolean };
 		canPublish: boolean;
 		canCode: boolean;
 		changes: Change[];
@@ -268,6 +275,10 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	let state: State | null = null;
 	let words: Words = {};
 	let editing = true;
+	let layoutTools: { finish(): Promise<boolean> } | undefined;
+	doc.addEventListener("webcraft:page-layout", (event) => {
+		layoutTools = (event as CustomEvent).detail;
+	});
 	let ended = false;
 
 	let host: HTMLElement;
@@ -337,6 +348,8 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	// Talking to the Site's Edit mode endpoint
 
 	async function call(action: string, body: object): Promise<Answer> {
+		if (["publish", "review/submit", "undo", "end"].includes(action) && layoutTools && !(await layoutTools.finish()))
+			return { ok: false, code: "generic" };
 		try {
 			const response = await send(`/_webcraft/edit/api/${action}`, {
 				method: "POST",
@@ -405,6 +418,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		kit.openImage = images.open;
 		setUpRegions();
 		loadBody();
+		if (!coding && state.page.layout) loadLayout();
 		openDrafts();
 		every(() => void refresh(), 60_000);
 		doc.addEventListener("visibilitychange", () => {
@@ -532,7 +546,8 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		const modeEdit = button({ class: "segment", "aria-pressed": "true" }, icon("edit"), word("edit"));
 		const modePreview = button({ class: "segment", "aria-pressed": "false" }, icon("preview"), word("preview"));
 		const modes = el("div", { class: "segments", role: "group", "aria-label": word("modes") }, modeEdit, modePreview);
-		const setMode = (on: boolean) => {
+		const setMode = async (on: boolean) => {
+			if (!on && layoutTools && !(await layoutTools.finish())) return;
 			editing = on && !ended && !coding;
 			modeEdit.setAttribute("aria-pressed", String(editing));
 			modePreview.setAttribute("aria-pressed", String(!editing && !coding));
@@ -541,6 +556,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		// Code mode (ADR 0016) is Staff's: turning it on or off renders the page again, with the Drafts
 		// of the Site's Structure or without them.
 		const switchCode = async (on: boolean, preview = false) => {
+			if (on && layoutTools && !(await layoutTools.finish())) return;
 			const answer = await call(on ? "code/start" : "code/stop", {});
 			if (!answer.ok) return;
 			try {
@@ -962,6 +978,22 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				});
 			},
 		};
+	}
+
+	function loadLayout(): void {
+		doc.addEventListener(
+			"webcraft:layout-tools",
+			(event) => {
+				const module = (event as CustomEvent<{ mount(kit: BarKit, language: string, styles: string): Promise<void> }>)
+					.detail;
+				void module.mount(kit, (state as State & { adminLanguage: string }).adminLanguage, config.layoutStyles);
+			},
+			{ once: true },
+		);
+		const script = doc.createElement("script");
+		script.type = "module";
+		script.src = config.layout;
+		doc.head.append(script);
 	}
 
 	/** Loads the block editor's module on a page showing a body (it hands its part over in an event). */
@@ -1845,6 +1877,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		images?.mode(on);
 		loops?.mode(on);
 		body?.mode(on);
+		doc.dispatchEvent(new CustomEvent("webcraft:edit-mode", { detail: { editing: on } }));
 		if (!on) {
 			hideTag();
 			hideToolbar();

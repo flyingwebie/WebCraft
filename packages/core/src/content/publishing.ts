@@ -48,6 +48,7 @@ import { checkPathOutsidePrefixes } from "./language-paths.ts";
 import { languagePath, type SiteLanguages, siteLanguages } from "./languages.ts";
 import { publishLoop } from "./loops.ts";
 import { clearPageCache } from "./page-cache.ts";
+import { layoutLinks } from "./page-layouts.ts";
 import {
 	checkPublishedParent,
 	isPagePostType,
@@ -186,7 +187,12 @@ export async function publishItems(
 		// Where Entries and Archive templates are depends on the patterns and the Page tree: held first.
 		if (items.some((item) => item.kind === "entry" || item.kind === "template")) await lockSitePaths(tx);
 		// Which Components are placed where is read under their lock.
-		if (items.some((item) => item.kind === "template" || item.kind === "component" || item.kind === "popup"))
+		if (
+			items.some(
+				(item) =>
+					item.kind === "entry" || item.kind === "template" || item.kind === "component" || item.kind === "popup",
+			)
+		)
 			await lockComponents(tx);
 		let stylesBefore: SiteStyles | undefined;
 		if (items.some(changesStyles)) {
@@ -295,6 +301,12 @@ async function publishEntry(scope: SiteScope, entryId: string, version: unknown)
 	const site = await siteLanguages(scope);
 	const { defaultLanguage } = site;
 	const draft = storedVersion(version ?? row.draft);
+	const catalogue = await siteComponents(scope, "published", scope.componentSources);
+	for (const placement of draft.layout?.placements ?? [])
+		if (!catalogue.version(placement.component))
+			throw new EntryInvalidError([
+				{ at: `layout.${placement.id}`, message: "Publish the Placement’s Component before publishing this Page." },
+			]);
 	const findings = publishFindings(draft, postType.fields, site);
 	await checkReferences(scope, findings.references, "rule");
 	if (findings.problems.some((problem) => problem.rule !== "required")) throw new EntryInvalidError(findings.problems);
@@ -324,7 +336,10 @@ async function publishEntry(scope: SiteScope, entryId: string, version: unknown)
 	);
 	// Published again: its old paths answer as pages again, not 410 Gone.
 	await scope.delete(gonePaths, eq(gonePaths.entryId, row.id));
-	await saveLinks(scope, row.id, "published", linksIn(draft.values, postType.fields));
+	await saveLinks(scope, row.id, "published", [
+		...linksIn(draft.values, postType.fields),
+		...layoutLinks(draft.layout),
+	]);
 	await scope.delete(publishedSlugs, eq(publishedSlugs.entryId, row.id));
 	for (const { languages, slug } of slugs) {
 		try {

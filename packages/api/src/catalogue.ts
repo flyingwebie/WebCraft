@@ -22,6 +22,10 @@ import type { ApiRouter } from "./router.ts";
  * part of the versioned API: change them additively only (ADR 0029).
  */
 export const PROCEDURES = {
+	"pageLayouts.settings": read("The Site’s Member Page layout settings."),
+	"pageLayouts.configure": write("Choose whether Members arrange Pages and which Components they may add."),
+	"pageLayouts.get": read("A Page’s shared layout, typed Props and permitted actions."),
+	"pageLayouts.save": write("Save a versioned Page layout through its Entry Draft."),
 	"accessibilityStatement.get": read("The Accessibility statement’s Page and last Staff form."),
 	"accessibilityStatement.generate": write("Create or update the Accessibility statement as an ordinary Draft Page."),
 	"accessibilityStatement.setEnabled": write("Show or hide the published Accessibility statement’s footer link."),

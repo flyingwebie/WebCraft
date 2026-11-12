@@ -188,8 +188,9 @@ export function LayersPanel({
 	canPaste,
 	onSelect,
 	onToggle,
-	onAction,
+	onAction: performAction,
 	onGrab,
+	placementRows,
 	onRename,
 	onDrop,
 	onInsert,
@@ -205,6 +206,16 @@ export function LayersPanel({
 	onMakeComponent,
 	onPlacements,
 }: {
+	/** A narrow Page layout view: the same keys/ARIA, without Structure actions or nesting. */
+	placementRows?: {
+		label(row: LayerRow): string;
+		locked(row: LayerRow): boolean;
+		/** Staff may move a locked Placement while its badge still describes the stored lock. */
+		movable?(row: LayerRow): boolean;
+		actions: readonly LayerAction[];
+		canInsert: boolean;
+		canAction?(row: LayerRow, action: LayerAction): boolean;
+	};
 	/** Make Component (#134), offered in a layer's right-click menu (Shift+F10 or the menu key from the keyboard). */
 	onMakeComponent?(): void;
 	/** A Placement's "on N pages" badge: Go to, listing that Component's Placements (#134). */
@@ -275,6 +286,21 @@ export function LayersPanel({
 	const focusKey =
 		selectedRow?.key ?? ancestors.findLast((parent) => rows.some((row) => row.key === parent.key))?.key ?? rows[0]?.key;
 	const nodeSelected = selectedRow?.kind === "node";
+	const permitted = (action: LayerAction, row = selectedRow) =>
+		!placementRows ||
+		(!!row &&
+			placementRows.actions.includes(action) &&
+			(placementRows.canAction?.(row, action) ?? !placementRows.locked(row)));
+	const onAction = (action: LayerAction) => {
+		if (permitted(action)) performAction(action);
+	};
+	const movable = (row: LayerRow) => placementRows?.movable?.(row) ?? !placementRows?.locked(row);
+	const rowName = (row: LayerRow) =>
+		placementRows
+			? placementRows.label(row)
+			: row.kind === "node"
+				? layerName(t, row.node, row.catalogue ?? catalogue).name
+				: listName(t, row.owner, row.list.list);
 
 	// Only an explicit action requests focus. Peer, caret and history selection changes do not.
 	useEffect(() => {
@@ -339,7 +365,7 @@ export function LayersPanel({
 		}
 		if (event.key === " " && !mod && !event.altKey) {
 			handled();
-			if (row.kind === "node") onGrab(grabbed ? "drop" : "pick");
+			if (row.kind === "node" && movable(row)) onGrab(grabbed ? "drop" : "pick");
 			return;
 		}
 		if (grabbed) {
@@ -408,10 +434,7 @@ export function LayersPanel({
 			for (let step = 1; step <= rows.length; step++) {
 				const each = rows[(index + step) % rows.length];
 				if (!each) continue;
-				const name =
-					each.kind === "node"
-						? layerName(t, each.node, each.catalogue ?? catalogue).name
-						: listName(t, each.owner, each.list.list);
+				const name = rowName(each);
 				if (name.toLocaleLowerCase().startsWith(text)) {
 					select(each);
 					break;
@@ -465,7 +488,7 @@ export function LayersPanel({
 				return;
 			case "F2":
 				handled();
-				if (row.kind === "node" && row.node.type === "element") setRenaming(row.key);
+				if (!placementRows && row.kind === "node" && row.node.type === "element") setRenaming(row.key);
 				else onAction("rename");
 				return;
 			case "Enter":
@@ -478,19 +501,20 @@ export function LayersPanel({
 	};
 
 	const startRename = () => {
+		if (!permitted("rename")) return;
 		if (selectedRow?.kind === "node" && selectedRow.node.type === "element") setRenaming(selectedRow.key);
 		else onAction("rename");
 	};
 
 	const dropProps = (row: LayerRow) => {
-		if (row.kind !== "node") return {};
+		if (row.kind !== "node" || !movable(row)) return {};
 		return {
 			onDragOver(event: DragEvent<HTMLElement>) {
 				if (!dragging || (row.source && row.source !== activeSource)) return;
 				event.preventDefault();
 				const box = event.currentTarget.getBoundingClientRect();
 				const y = (event.clientY - box.top) / Math.max(box.height, 1);
-				const position = dropPositionAt(y, canHoldChildren(row.node));
+				const position = dropPositionAt(y, !placementRows && canHoldChildren(row.node));
 				if (over?.key !== row.key || over.position !== position) setOver({ key: row.key, position });
 			},
 			onDragLeave() {
@@ -533,6 +557,7 @@ export function LayersPanel({
 					type="button"
 					size="sm"
 					variant="outline"
+					disabled={placementRows && !placementRows.canInsert}
 					onClick={onInsert}
 					aria-keyshortcuts={ariaKeys("menu.insert")}
 					title={withKeys(t("builder.insert.open"), "menu.insert")}
@@ -543,26 +568,27 @@ export function LayersPanel({
 			</div>
 			<fieldset className="flex flex-wrap gap-0.5 border-b px-2 py-1">
 				<legend className="sr-only">{t("builder.layers.actions")}</legend>
-				{ACTIONS.map(({ action, icon: Icon, shortcut }) => {
-					const disabled =
-						action === "paste" ? !canPaste || !selectedRow : action === "rename" ? !nodeSelected : !nodeSelected;
-					return (
-						<Button
-							key={action}
-							type="button"
-							variant="ghost"
-							size="icon-sm"
-							disabled={disabled}
-							aria-label={t(`builder.layers.action.${action}`)}
-							title={withKeys(t(`builder.layers.action.${action}`), shortcut)}
-							aria-keyshortcuts={ariaKeys(shortcut)}
-							onClick={() => (action === "rename" ? startRename() : onAction(action))}
-						>
-							<Icon aria-hidden="true" />
-						</Button>
-					);
-				})}
-				{selectedRow?.kind === "node" && selectedRow.node.type === "component" && onHidden ? (
+				{ACTIONS.filter(({ action }) => !placementRows || placementRows.actions.includes(action)).map(
+					({ action, icon: Icon, shortcut }) => {
+						const disabled = !permitted(action) || (action === "paste" ? !canPaste || !selectedRow : !nodeSelected);
+						return (
+							<Button
+								key={action}
+								type="button"
+								variant="ghost"
+								size="icon-sm"
+								disabled={disabled}
+								aria-label={t(`builder.layers.action.${action}`)}
+								title={withKeys(t(`builder.layers.action.${action}`), shortcut)}
+								aria-keyshortcuts={ariaKeys(shortcut)}
+								onClick={() => (action === "rename" ? startRename() : onAction(action))}
+							>
+								<Icon aria-hidden="true" />
+							</Button>
+						);
+					},
+				)}
+				{selectedRow?.kind === "node" && selectedRow.node.type === "component" && onHidden && movable(selectedRow) ? (
 					<Button
 						type="button"
 						variant="ghost"
@@ -599,10 +625,11 @@ export function LayersPanel({
 							))}
 						{rows.map((row) => {
 							const selected = row.key === selectedKey;
-							const named =
+							const originalName =
 								row.kind === "node"
 									? layerName(t, row.node, row.catalogue ?? catalogue)
 									: { name: listName(t, row.owner, row.list.list), detail: null, kind: "list" };
+							const named = { ...originalName, name: rowName(row) };
 							const repetitions =
 								row.kind === "node" && row.node.type === "loop"
 									? (row.count ?? counts?.[`b:${pathKey(row.path)}`])
@@ -630,6 +657,7 @@ export function LayersPanel({
 											repetitions !== undefined ? t("builder.layers.repeats", { count: repetitions }) : null,
 											row.pages && row.pages > 1 ? t("builder.layers.onPages", { count: row.pages }) : null,
 											detail,
+											placementRows?.locked(row) ? t("pageLayout.locked") : null,
 											fixed ? t("builder.fixedText.badge") : null,
 											row.kind === "node" && row.node.type === "component" && row.node.hidden
 												? t("builder.layers.hiddenPlacement")
@@ -653,7 +681,7 @@ export function LayersPanel({
 										}
 										onMouseLeave={() => onHover?.(row.source, null)}
 										data-drop={drop}
-										draggable={row.kind === "node" && renaming !== row.key}
+										draggable={row.kind === "node" && renaming !== row.key && movable(row)}
 										onPointerDown={(event) => {
 											pointer.current = event.pointerType;
 										}}
@@ -735,7 +763,7 @@ export function LayersPanel({
 													{named.name}
 													{repetitions !== undefined ? ` ${t("builder.layers.repeats", { count: repetitions })}` : ""}
 												</span>
-												{row.kind === "node" && row.node.type === "component" && onHidden ? (
+												{row.kind === "node" && row.node.type === "component" && onHidden && movable(row) ? (
 													<button
 														type="button"
 														tabIndex={-1}

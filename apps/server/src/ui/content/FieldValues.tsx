@@ -20,7 +20,7 @@ import {
 	PlusIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { Fragment, type ReactNode, useRef, useState } from "react";
+import { Fragment, type ReactNode, useEffect, useRef, useState } from "react";
 
 import { useT } from "../i18n.tsx";
 import { MediaPicker } from "../media/MediaPicker.tsx";
@@ -552,6 +552,14 @@ function NumberInput({
 	onChange(value: Json): void;
 }) {
 	const [text, setText] = useState(value === null ? "" : String(value));
+	const authored = useRef(value);
+	useEffect(() => {
+		// Own valid typing already changed the text. A peer or restored value must update it too,
+		// without normalising intermediate own input such as a trailing decimal point.
+		if (authored.current === value) return;
+		authored.current = value;
+		setText(value === null ? "" : String(value));
+	}, [value]);
 	return (
 		<Input
 			{...common}
@@ -564,8 +572,10 @@ function NumberInput({
 			onChange={(event) => {
 				setText(event.target.value);
 				const typed = event.target.value.trim();
-				if (typed === "") onChange(null);
-				else if (Number.isFinite(Number(typed))) onChange(Number(typed));
+				if (typed === "" || Number.isFinite(Number(typed))) {
+					authored.current = typed === "" ? null : Number(typed);
+					onChange(authored.current);
+				}
 			}}
 			className="w-48"
 		/>

@@ -1662,7 +1662,8 @@
 			"title": "Titolo",
 			"slug": "Indirizzo",
 			"parent": "Pagina superiore",
-			"seo": "Campi SEO"
+			"seo": "Campi SEO",
+			"layout": "Layout della Pagina"
 		},
 		"types": {
 			"text": "Testo",
@@ -1680,7 +1681,8 @@
 			"repeater": "Ripetitore",
 			"parent": "Pagina superiore",
 			"image": "Immagine",
-			"loopItems": "Elementi del Loop"
+			"loopItems": "Elementi del Loop",
+			"pageLayout": "Layout della Pagina"
 		},
 		"problems": {
 			"required": "Non può essere vuoto.",
@@ -7902,5 +7904,25 @@
 		"createClass": "Crea classe {name}",
 		"oneOff": "Modifica stile singolo",
 		"HISTORY_PARTIAL": "Non è stato possibile ripristinare parte di questo passaggio. Controlla la bozza prima di continuare."
+	},
+	"pageLayout": {
+		"title": "Layout della Pagina",
+		"props": "Props",
+		"add": "Aggiungi Componente",
+		"move": "Sposta Placement",
+		"moveUp": "Sposta su",
+		"moveDown": "Sposta giù",
+		"duplicate": "Duplica",
+		"delete": "Rimuovi",
+		"hide": "Nascondi o mostra",
+		"lock": "Blocca o sblocca",
+		"locked": "Bloccato",
+		"header": "Intestazione del template della Pagina",
+		"footer": "Piè di pagina del template della Pagina",
+		"close": "Chiudi",
+		"noComponents": "Nessun Componente consentito",
+		"enabled": "I Membri possono organizzare i layout delle Pagine",
+		"allowed": "I Membri possono aggiungere",
+		"select": "Seleziona un Posizionamento per modificarne le Props."
 	}
 }

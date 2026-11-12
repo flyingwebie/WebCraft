@@ -21,6 +21,7 @@ import { errorMessage } from "../../ui/errors.ts";
 import { HistoryLink } from "../../ui/history/HistoryLink.tsx";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
+import { PageLayoutSettings } from "../../ui/page-layouts/Settings.tsx";
 
 /**
  * Site › Components (Structure, Staff only): the Site's Components (and those of the Modules running
@@ -47,6 +48,7 @@ function ComponentsPage() {
 			<PageHeader heading={t("components.pageTitle")} action={<NewComponentDialog siteId={siteId} />}>
 				{t("components.intro")}
 			</PageHeader>
+			<PageLayoutSettings siteId={siteId} components={components} />
 			{components.length === 0 ? (
 				<p className="text-muted-foreground">{t("components.none")}</p>
 			) : (

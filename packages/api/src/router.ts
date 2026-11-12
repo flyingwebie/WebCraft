@@ -31,6 +31,7 @@ import { media } from "./procedures/media.ts";
 import { members } from "./procedures/members.ts";
 import { modules } from "./procedures/modules.ts";
 import { aiClients, oauth } from "./procedures/oauth.ts";
+import { pageLayouts } from "./procedures/page-layouts.ts";
 import { pages } from "./procedures/pages.ts";
 import { popups } from "./procedures/popups.ts";
 import { postTypes } from "./procedures/post-types.ts";
@@ -58,6 +59,7 @@ import { workspaces } from "./procedures/workspaces.ts";
  * in `catalogue.ts` says which) are also served to API tokens at `/api/v1`, with an OpenAPI document.
  */
 export const apiRouter = {
+	pageLayouts,
 	accessibilityStatement,
 	checks,
 	setup,
