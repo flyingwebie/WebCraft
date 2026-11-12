@@ -2,10 +2,13 @@
 // (it counts as both factors) or as the second step, confirming who you are with it, and removing it.
 // A software authenticator in the test answers the ceremonies as a device would through a browser.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 
 import type { TestBrowser } from "../harness/browser.ts";
 import { createTestInstall, type TestAccount, type TestInstall } from "../harness/index.ts";
 import {
+	base64url,
+	encodeCbor,
 	type PasskeyAlgorithm,
 	type SoftwareAuthenticator,
 	softwareAuthenticator,
@@ -134,6 +137,50 @@ describe("adding a passkey", () => {
 			});
 		}
 		expect((await browser.api.me.twoFactor.get()).passkeys).toEqual([]);
+	});
+
+	// The report's "Sloppy code": bytes that aren't the CBOR they claim to be were an unexpected
+	// failure (500, in the Error log) instead of a refused passkey.
+	test("a device's answer whose key or extensions can't be read is refused like any other, never an unexpected failure", async () => {
+		const { browser } = await newPerson();
+		const { options } = await browser.api.me.twoFactor.passkeyOptions();
+		const credential = await softwareAuthenticator().create(options);
+		// Attested credential data whose key claims to be a map of five entries, and then ends.
+		const authData = new Uint8Array([
+			...createHash("sha256").update(TEST_RP_ID).digest(),
+			0x45,
+			...[0, 0, 0, 1],
+			...new Uint8Array(16),
+			...[0, 4],
+			...[1, 2, 3, 4],
+			0xa5,
+		]);
+		credential.response.attestationObject = base64url(
+			encodeCbor(
+				new Map<string, unknown>([
+					["fmt", "none"],
+					["attStmt", new Map()],
+					["authData", authData],
+				]),
+			),
+		);
+		await expect(browser.api.me.twoFactor.addPasskey({ credential, name: "Laptop" })).rejects.toMatchObject({
+			code: "PASSKEY_INVALID",
+			status: 400,
+		});
+
+		const { device } = await personWithPasskey();
+		const visitor = install.browser();
+		const { options: request } = await visitor.api.session.passkeyOptions();
+		const assertion = await device.get(request);
+		// Extensions flagged, followed by bytes that aren't a CBOR value.
+		const data = new Uint8Array(Buffer.from(assertion.response.authenticatorData, "base64url"));
+		data[32] = (data[32] ?? 0) | 0x80;
+		assertion.response.authenticatorData = base64url(new Uint8Array([...data, 0xa5]));
+		await expect(visitor.api.session.signInWithPasskey({ credential: assertion })).rejects.toMatchObject({
+			code: "PASSKEY_INVALID",
+			status: 401,
+		});
 	});
 
 	test("each challenge works once", async () => {

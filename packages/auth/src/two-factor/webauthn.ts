@@ -231,13 +231,13 @@ async function parseAuthenticatorData(
 		const credentialId = bytes.slice(offset, offset + idLength);
 		if (credentialId.length !== idLength) refuse("credential id cut short");
 		offset += idLength;
-		const { length } = decodeCbor(bytes, offset);
+		const length = cborLengthOrRefuse(bytes, offset, refuse, "credential public key is not CBOR");
 		attested = { credentialId, publicKey: bytes.slice(offset, offset + length) };
 		offset += length;
 	}
 	if (flags & FLAG_EXTENSIONS) {
 		if (offset >= bytes.length) refuse("extensions flagged but missing");
-		offset += decodeCbor(bytes, offset).length;
+		offset += cborLengthOrRefuse(bytes, offset, refuse, "extensions are not CBOR");
 	}
 	if (offset !== bytes.length) refuse("unexpected bytes after authenticator data");
 	return { flags, signCount, attested };
@@ -338,6 +338,21 @@ function bytesOrRefuse(text: string, refuse: (reason: string) => never): Uint8Ar
 		return fromBase64url(text);
 	} catch {
 		return refuse("not base64url");
+	}
+}
+
+/** How many bytes the CBOR value at `offset` takes; bytes that aren't one are a refused passkey, not a failure. */
+function cborLengthOrRefuse(
+	bytes: Uint8Array,
+	offset: number,
+	refuse: (reason: string) => never,
+	reason: string,
+): number {
+	try {
+		return decodeCbor(bytes, offset).length;
+	} catch (error) {
+		if (error instanceof TypeError || error instanceof RangeError) return refuse(reason);
+		throw error;
 	}
 }
 
