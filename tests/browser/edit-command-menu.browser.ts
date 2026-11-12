@@ -509,6 +509,92 @@ test("Staff see Templates and Components in Go to, and every Component in Insert
 	await page.waitForURL((url) => url.pathname === `/builder/${site.siteId}/site-template`);
 });
 
+test("Undo and Redo call the Undo history that is handed over, named after its step", async () => {
+	const site = await fixture("menu-history");
+	const member = await site.local.createMember({ workspaceId: site.workspaceId, role: "editor" });
+	const page = await enter("light", site, member.account);
+	await searchButton(page).waitFor();
+	const command = (await onApple(page)) ? "Command" : "Control";
+	// A history's owner hands it over in a document event, whenever it is made (here: after the menu).
+	await page.evaluate(() => {
+		const calls: string[] = [];
+		const listeners = new Set<() => void>();
+		let undone = false;
+		const step = (name: string, next: boolean) => () => {
+			calls.push(name);
+			undone = next;
+			for (const listener of listeners) listener();
+		};
+		Object.assign(window, { historyCalls: calls });
+		document.dispatchEvent(
+			new CustomEvent("webcraft:edit-history", {
+				detail: {
+					undo: step("undo", true),
+					redo: step("redo", false),
+					canUndo: () => !undone,
+					canRedo: () => undone,
+					undoLabel: () => (undone ? null : "Move Hero"),
+					redoLabel: () => (undone ? "Move Hero" : null),
+					subscribe(listener: () => void) {
+						listeners.add(listener);
+						return () => listeners.delete(listener);
+					},
+				},
+			}),
+		);
+	});
+	const calls = () => page.evaluate(() => (window as unknown as { historyCalls: string[] }).historyCalls);
+	const menu = menuOf(page);
+	// Undo before Redo, wherever "Recent" lists the one used last.
+	const steps = async () =>
+		(await options(menu))
+			.filter((option) => /^(Undo|Redo)/.test(option))
+			.sort()
+			.reverse();
+
+	await page.keyboard.press("ControlOrMeta+k");
+	await menu.waitFor();
+	expect(await steps()).toEqual([
+		`Undo Move Hero, Page, ${command} Z`,
+		`Redo, Page, ${command} Shift Z, Nothing to redo.`,
+	]);
+	await menu.getByRole("combobox").fill("undo");
+	await page.keyboard.press("Enter");
+	await menu.waitFor({ state: "hidden" });
+	expect(await calls()).toEqual(["undo"]);
+
+	// The menu follows the history as it changes.
+	await page.keyboard.press("ControlOrMeta+k");
+	await menu.waitFor();
+	expect(await steps()).toEqual([
+		`Undo, Page, ${command} Z, Nothing to undo.`,
+		`Redo Move Hero, Page, ${command} Shift Z`,
+	]);
+	await menu.getByRole("combobox").fill("redo");
+	await page.keyboard.press("Enter");
+	await menu.waitFor({ state: "hidden" });
+	expect(await calls()).toEqual(["undo", "redo"]);
+
+	// With a history, the Keyboard shortcuts list shows Undo and Redo too.
+	await page.keyboard.press("ControlOrMeta+/");
+	const list = page.getByRole("dialog", { name: "Keyboard shortcuts" });
+	await list.waitFor();
+	expect(await list.locator("tbody tr td:last-child").allTextContents()).toEqual(
+		expect.arrayContaining(["Save Draft", "Undo", "Redo"]),
+	);
+	await page.keyboard.press("Escape");
+	await list.waitFor({ state: "hidden" });
+
+	// Taken away again, both are disabled.
+	await page.evaluate(() => document.dispatchEvent(new CustomEvent("webcraft:edit-history", { detail: null })));
+	await page.keyboard.press("ControlOrMeta+k");
+	await menu.waitFor();
+	expect(await steps()).toEqual([
+		`Undo, Page, ${command} Z, Nothing to undo.`,
+		`Redo, Page, ${command} Shift Z, Nothing to redo.`,
+	]);
+});
+
 test("rich text keeps its own keys: there the menu opens with Go to's key or the search button", async () => {
 	const site = await fixture("menu-text");
 	const member = await site.local.createMember({ workspaceId: site.workspaceId, role: "editor" });

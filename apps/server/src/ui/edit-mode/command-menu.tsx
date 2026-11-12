@@ -42,7 +42,7 @@ function useChanges(source: { subscribe(listener: () => void): () => void } | nu
 	useEffect(() => source?.subscribe(() => changed((count) => count + 1)), [source]);
 }
 
-/** Before a history owner hands its history over: nothing to undo, and the keys stay the browser's. */
+/** Before a history owner hands its history over: nothing to undo or redo. */
 const NO_HISTORY: HistoryTarget = { undo() {}, redo() {}, canUndo: () => false, canRedo: () => false };
 
 const WITHOUT_INSERT: readonly CommandTab[] = ["actions", "goTo"];
@@ -156,8 +156,7 @@ function EditCommandMenu({
 		tabs,
 		typing: typingInRichText,
 		openShortcuts: () => setShortcutsOpen(true),
-		// Undo and Redo's keys are caught only once the page has an Undo history; until then they are the browser's.
-		history: history ?? undefined,
+		// Undo and Redo's keys are their history's own to bind: they work where the menu isn't offered too.
 		element: null,
 	});
 	// Save Draft's key, outside dialogs (theirs stay their own).
