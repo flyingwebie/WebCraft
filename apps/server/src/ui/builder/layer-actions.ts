@@ -103,9 +103,11 @@ export function runLayerAction(
 			const selection: Selection | null =
 				remaining >= 0
 					? { kind: "node", path: [...path.slice(0, -1), remaining] }
-					: place.owner
-						? { kind: "node", path: place.owner }
-						: null;
+					: place.owner && place.list > 0
+						? { kind: "list", list: { owner: place.owner, list: place.list } }
+						: place.owner
+							? { kind: "node", path: place.owner }
+							: null;
 			const styles = { ...doc.styles };
 			if (node.type === "element") delete styles[node.id];
 			return {

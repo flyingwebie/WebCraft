@@ -60,6 +60,17 @@ async function waitForFocusRegion(page: Page, region: string) {
 	}, region);
 }
 
+async function cycleBranchInspector(page: Page, branch: Locator) {
+	await branch.press("F6");
+	await waitForFocusRegion(page, "inspector");
+	await page.keyboard.press("F6");
+	await waitForFocusRegion(page, "html");
+	await page.keyboard.press("Shift+F6");
+	await waitForFocusRegion(page, "inspector");
+	await page.keyboard.press("Shift+F6");
+	expect(await focused(branch)).toBe(true);
+}
+
 for (const theme of THEMES)
 	for (const canvas of ["builder", "live"] as const) {
 		test(`Command menu shares speech, focus and keyboard help on ${canvas} (${theme})`, async () => {
@@ -489,6 +500,7 @@ for (const theme of THEMES)
 			await page.reload();
 			const otherwise = tree.getByRole("treeitem", { name: "Else", exact: true });
 			await otherwise.click();
+			await cycleBranchInspector(page, otherwise);
 			expect(await otherwise.getAttribute("aria-level")).toBe("3");
 			expect(await otherwise.getAttribute("aria-posinset")).toBe("2");
 			expect(await otherwise.getAttribute("aria-setsize")).toBe("2");
@@ -499,6 +511,7 @@ for (const theme of THEMES)
 			expect(await tree.getByRole("treeitem", { name: /^Alternative/ }).getAttribute("aria-expanded")).toBe("true");
 			const empty = tree.getByRole("treeitem", { name: "When there are no items", exact: true });
 			await empty.click();
+			await cycleBranchInspector(page, empty);
 			await empty.press("ArrowLeft");
 			expect(await empty.getAttribute("aria-expanded")).toBe("false");
 			await empty.press("*");
@@ -523,6 +536,17 @@ for (const theme of THEMES)
 				expect(await roots.count()).toBe(1);
 				await hidden.press("Alt+Enter");
 				expect(await roots.count()).toBe(2);
+			}
+			for (const [label, parent] of [
+				["Alternative", "Else"],
+				["No days", "When there are no items"],
+			]) {
+				const child = tree.getByRole("treeitem", { name: new RegExp(`^${label}`) });
+				await child.press("Delete");
+				await child.waitFor({ state: "hidden" });
+				const branch = tree.getByRole("treeitem", { name: parent, exact: true, selected: true });
+				await branch.waitFor();
+				expect(await focused(branch)).toBe(true);
 			}
 			await page.waitForLoadState("networkidle");
 			await expectNoAxeViolations(page, `${canvas} branch semantics ${theme}`, [], {

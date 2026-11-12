@@ -95,7 +95,12 @@ export function editorAccessibility(doc: Document): EditorAccessibility {
 						: [...region.querySelectorAll<HTMLElement>("button, input, select, textarea, a[href], [tabindex]")].find(
 								(each) => each.tabIndex >= 0 && usable(each),
 							);
-			target?.focus();
+			if (target) target.focus();
+			else {
+				// Empty or read-only panels still take their place in the region cycle.
+				if (!region.hasAttribute("tabindex")) region.tabIndex = -1;
+				region.focus();
+			}
 		});
 	const remember = () => {
 		const active = deep(doc);
