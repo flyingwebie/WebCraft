@@ -108,6 +108,35 @@ describe("who sees which entries", () => {
 		await expect(editor.browser.api.audit.people({ workspaceId: acme })).rejects.toMatchObject({ code: "FORBIDDEN" });
 	});
 
+	test("in a Workspace, Staff and the Superadmin are named without the address they sign in with", async () => {
+		const superadminId = (await superadmin.api.session.current()).person?.id ?? "";
+		const superadminEmail = (await superadmin.api.session.current()).person?.email ?? "";
+
+		const { people } = await owner.browser.api.audit.people({ workspaceId: acme });
+		expect(people.find((person) => person.id === staff.personId)).toEqual({
+			id: staff.personId,
+			name: "Agency Anna",
+			email: null,
+		});
+		expect(people.find((person) => person.id === superadminId)).toMatchObject({ email: null });
+		expect(people.find((person) => person.id === owner.personId)?.email).toContain("@");
+
+		// The Superadmin invited the Members: each page names them, without the address.
+		const page = await owner.browser.api.audit.list({ workspaceId: acme, action: "member.invite" });
+		expect(page.people[superadminId]).toEqual({ name: expect.any(String), email: null });
+		const file = await owner.browser.api.audit.export({ workspaceId: acme });
+		expect(file.csv).not.toContain(superadminEmail);
+		expect((await staff.browser.api.audit.people({ workspaceId: acme })).people).toContainEqual(
+			expect.objectContaining({ id: superadminId, email: null }),
+		);
+
+		// The Superadmin's own Install-level log keeps everyone's address.
+		const everyone = (await superadmin.api.audit.people({})).people;
+		expect(everyone.find((person) => person.id === staff.personId)?.email).toContain("@");
+		const installPage = await superadmin.api.audit.list({ action: "member.invite" });
+		expect(installPage.people[superadminId]?.email).toBe(superadminEmail);
+	});
+
 	test("each page names the people, Workspaces and Sites its entries mention", async () => {
 		const page = await owner.browser.api.audit.list({ workspaceId: acme, action: "member.join" });
 

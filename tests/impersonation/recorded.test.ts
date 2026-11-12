@@ -81,6 +81,13 @@ describe("a person's own activity", () => {
 		]);
 	});
 
+	test("names the Staff member by name, never with the address they sign in with", async () => {
+		const { people } = await site.editor.api.me.activity({});
+
+		expect(people[site.staffId]).toEqual({ name: "Ada Staff", email: null });
+		expect(people[site.editorId]?.email).toContain("@");
+	});
+
 	test("lists what the impersonator did as others too", async () => {
 		const { entries } = await ada.browser.api.me.activity({ limit: 200 });
 

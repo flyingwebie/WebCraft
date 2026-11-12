@@ -9,7 +9,7 @@ import { csvCell } from "./dashboards/csv.ts";
 import { readSettingsRow, writeSettingsRow } from "./install-settings.ts";
 import { defineJob } from "./jobs/define.ts";
 import { defineSchedule } from "./jobs/schedules.ts";
-import { can } from "./permissions/can.ts";
+import { can, personIdOf } from "./permissions/can.ts";
 import { STAFF_ROLE, SUPERADMIN_ROLE } from "./permissions/roles.ts";
 import type { Access, DataLayer, Executor, InstallScope } from "./tenancy/data-layer.ts";
 
@@ -46,14 +46,25 @@ export type AuditPage = {
 	entries: AuditEntry[];
 	/** Where the next (older) page starts, or null on the last page. */
 	next: string | null;
-	/** The people the entries name (who acted, who impersonated), by id; gone people are missing. */
-	people: Record<string, { name: string; email: string }>;
+	/**
+	 * The people the entries name (who acted, who impersonated), by id; gone people are missing.
+	 * `email` is null for Staff and the Superadmin except in the Install's own log (see `Addresses`).
+	 */
+	people: Record<string, { name: string; email: string | null }>;
 	workspaces: Record<string, string>;
 	sites: Record<string, string>;
 };
 
 /** The Audit log's retention: entries older than this many days are removed every day. */
 export const AUDIT_RETENTION_DAYS = { default: 365, min: 90, max: 3650 } as const;
+
+/**
+ * Whose sign-in address a reader sees beside a name. In the Install's own log (the Superadmin),
+ * everyone's. Anywhere else, never that of Staff or the Superadmin (people with an Install role),
+ * as the Members screen names Staff by name only: a Workspace's Owners see its Members' addresses,
+ * and a person their own.
+ */
+type Addresses = { everyone: true } | { everyone: false; self: string | null };
 
 /** The most people a "Who" filter offers. */
 const PEOPLE_LIMIT = 2_000;
@@ -86,7 +97,10 @@ export type AuditLog = {
 	 * The people to filter a level's Audit log by, by name: everyone on the Install (the Superadmin)
 	 * or, in a Workspace, its Members, its Staff and the Superadmin. Same access as `list`.
 	 */
-	people(access: Access, workspaceId: string | undefined): Promise<{ id: string; name: string; email: string }[]>;
+	people(
+		access: Access,
+		workspaceId: string | undefined,
+	): Promise<{ id: string; name: string; email: string | null }[]>;
 	/** How many days entries are kept. */
 	retention(): Promise<{ days: number }>;
 	/**
@@ -122,7 +136,12 @@ export function createAuditLog({
 		return workspace.where(auditLog, ofSites);
 	};
 
-	const page = async (where: SQL | undefined, after: string | undefined, limit: number): Promise<AuditPage> => {
+	const page = async (
+		where: SQL | undefined,
+		after: string | undefined,
+		limit: number,
+		addresses: Addresses,
+	): Promise<AuditPage> => {
 		const conditions = [where, after ? lt(auditLog.id, Number(after)) : undefined].filter(
 			(condition): condition is SQL => condition !== undefined,
 		);
@@ -137,14 +156,14 @@ export function createAuditLog({
 		return {
 			entries,
 			next: rows.length > limit && last ? last.id : null,
-			...(await namesOf(database.db, rows.slice(0, limit))),
+			...(await namesOf(database.db, rows.slice(0, limit), addresses)),
 		};
 	};
 
 	return {
 		async list(access, query) {
 			const where = and(await readable(access, query.workspaceId), ...filtersOf(query));
-			return page(where, query.after, query.limit);
+			return page(where, query.after, query.limit, addressesFor(access, query.workspaceId));
 		},
 
 		activity(personId, query) {
@@ -154,12 +173,12 @@ export function createAuditLog({
 					? or(isNull(auditLog.workspaceId), inArray(auditLog.workspaceId, [...query.workspaceIds]))
 					: isNull(auditLog.workspaceId)
 				: undefined;
-			return page(and(theirs, reach), query.after, query.limit);
+			return page(and(theirs, reach), query.after, query.limit, { everyone: false, self: personId });
 		},
 
 		async export(access, query) {
 			const where = and(await readable(access, query.workspaceId), ...filtersOf(query));
-			const read = await page(where, undefined, AUDIT_EXPORT_LIMIT);
+			const read = await page(where, undefined, AUDIT_EXPORT_LIMIT, addressesFor(access, query.workspaceId));
 			return {
 				filename: `audit-log-${clock.now().toISOString().slice(0, 10)}.csv`,
 				csv: auditCsv(read),
@@ -168,13 +187,15 @@ export function createAuditLog({
 		},
 
 		async people(access, workspaceId) {
-			const columns = { id: people.id, name: people.name, email: people.email };
+			const columns = { id: people.id, name: people.name, email: people.email, installRole: hasInstallRole };
 			if (!workspaceId) {
 				await data.install(access, "audit.view");
-				return database.db.select(columns).from(people).orderBy(asc(people.name)).limit(PEOPLE_LIMIT);
+				const everyone = await database.db.select(columns).from(people).orderBy(asc(people.name)).limit(PEOPLE_LIMIT);
+				return everyone.map((row) => shown(row, { everyone: true }));
 			}
 			const workspace = await data.workspace(access, workspaceId, "audit.view");
-			return database.db
+			const addresses = addressesFor(access, workspaceId);
+			const rows = await database.db
 				.select(columns)
 				.from(people)
 				.where(
@@ -192,6 +213,7 @@ export function createAuditLog({
 				)
 				.orderBy(asc(people.name))
 				.limit(PEOPLE_LIMIT);
+			return rows.map((row) => shown(row, addresses));
 		},
 
 		async retention() {
@@ -241,10 +263,28 @@ function entryOf(row: typeof auditLog.$inferSelect): AuditEntry {
 	};
 }
 
+/** Whose addresses `access` sees reading one Workspace's log, or the Install's (`workspaceId` undefined). */
+function addressesFor(access: Access, workspaceId: string | undefined): Addresses {
+	return workspaceId === undefined ? { everyone: true } : { everyone: false, self: personIdOf(access.actor) };
+}
+
+/** Whether a person holds an Install role (Staff or the Superadmin), as a column of `people`. */
+const hasInstallRole = sql<boolean>`exists (select 1 from ${installRoles} where ${installRoles.personId} = ${people.id})`;
+
+/** A person as a reader sees them: their address only where `addresses` shows it. */
+function shown(
+	row: { id: string; name: string; email: string; installRole: boolean },
+	addresses: Addresses,
+): { id: string; name: string; email: string | null } {
+	const visible = addresses.everyone || !row.installRole || row.id === addresses.self;
+	return { id: row.id, name: row.name, email: visible ? row.email : null };
+}
+
 /** The names of the people, Workspaces and Sites some entries mention, in three queries. */
 async function namesOf(
 	executor: Executor,
 	rows: readonly (typeof auditLog.$inferSelect)[],
+	addresses: Addresses,
 ): Promise<Pick<AuditPage, "people" | "workspaces" | "sites">> {
 	const ids = (values: (string | null)[]) => [...new Set(values.filter((value): value is string => value !== null))];
 	const personIds = ids(rows.flatMap((row) => [row.personId, row.impersonatorId]));
@@ -253,7 +293,7 @@ async function namesOf(
 	const [personRows, workspaceRows, siteRows] = await Promise.all([
 		personIds.length > 0
 			? executor
-					.select({ id: people.id, name: people.name, email: people.email })
+					.select({ id: people.id, name: people.name, email: people.email, installRole: hasInstallRole })
 					.from(people)
 					.where(inArray(people.id, personIds))
 			: [],
@@ -268,7 +308,12 @@ async function namesOf(
 			: [],
 	]);
 	return {
-		people: Object.fromEntries(personRows.map((row) => [row.id, { name: row.name, email: row.email }])),
+		people: Object.fromEntries(
+			personRows.map((row) => {
+				const { name, email } = shown(row, addresses);
+				return [row.id, { name, email }];
+			}),
+		),
 		workspaces: Object.fromEntries(workspaceRows.map((row) => [row.id, row.name])),
 		sites: Object.fromEntries(siteRows.map((row) => [row.id, row.name])),
 	};

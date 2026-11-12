@@ -143,7 +143,7 @@ export function AuditLogScreen({
 	/** One Workspace's log; the whole Install's without it. */
 	workspaceId?: string;
 	first: AuditPage;
-	people: readonly { id: string; name: string; email: string }[];
+	people: readonly { id: string; name: string; email: string | null }[];
 	/** The Workspaces to filter by (the Install's log). */
 	workspaces?: readonly { id: string; name: string }[];
 	/** The Sites to filter by (a Workspace's log). */
@@ -233,7 +233,10 @@ export function AuditLogScreen({
 					value={filters.personId}
 					onChange={set("personId")}
 					any={t("audit.everyone")}
-					options={people.map((person) => ({ value: person.id, label: `${person.name} (${person.email})` }))}
+					options={people.map((person) => ({
+						value: person.id,
+						label: person.email ? `${person.name} (${person.email})` : person.name,
+					}))}
 				/>
 				<FilterSelect
 					id={`${ids}-action`}
