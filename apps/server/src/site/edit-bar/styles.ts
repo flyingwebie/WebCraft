@@ -172,6 +172,7 @@ svg { flex: none; }
 .segment { color: var(--bar-muted); height: 2rem; }
 .segment[aria-pressed="true"] { background: var(--bar-control-hover); color: var(--bar-text); }
 .icon-only { padding: 0 0.5rem; }
+.search { justify-content: center; }
 .language { display: inline-flex; align-items: center; gap: 0.375rem; color: var(--bar-text); white-space: nowrap; }
 .publish { background: var(--bar-text); color: var(--bar); font-weight: 600; }
 .publish:hover { background: #e4e4e7; }
@@ -509,7 +510,7 @@ dialog::backdrop { background: rgba(9, 9, 11, 0.5); }
 	.picker-item, .sheet-row, .menu [role="menuitem"], .switch-field .switch, .loop-add, .tool-link {
 		min-height: 44px;
 	}
-	.tool, .icon-button, .avatar, .more { min-width: 44px; min-height: 44px; }
+	.tool, .icon-button, .avatar, .more, .search { min-width: 44px; min-height: 44px; }
 	.chooser-option, .check-field { min-height: 44px; }
 	.check-field input { width: 1.5rem; height: 1.5rem; }
 	.switch { min-width: 44px; }

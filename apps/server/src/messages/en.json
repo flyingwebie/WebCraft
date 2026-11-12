@@ -4734,7 +4734,9 @@
 				"pages": "Pages",
 				"templates": "Templates",
 				"components": "Components",
-				"layers": "Layers on this page"
+				"layers": "Layers on this page",
+				"page": "Page",
+				"placements": "Placements on this page"
 			},
 			"actions": {
 				"save": "Save Draft",
@@ -4761,7 +4763,9 @@
 				"hidePlacement": "Hide the Placement",
 				"showPlacement": "Show the Placement",
 				"makeComponent": "Make Component",
-				"newComponent": "New Component"
+				"newComponent": "New Component",
+				"sendToReview": "Send to Review",
+				"edit": "Edit"
 			},
 			"wrap": {
 				"div": "div",
@@ -4792,7 +4796,12 @@
 				"editComponent": "component open edit",
 				"hidePlacement": "hide show hidden visible placement",
 				"makeComponent": "component extract reuse convert",
-				"newComponent": "component create add new empty"
+				"newComponent": "component create add new empty",
+				"sendToReview": "review submit approve",
+				"edit": "edit change back",
+				"props": "props settings fields content",
+				"moveUp": "move up earlier before",
+				"moveDown": "move down later after"
 			},
 			"nothingToUndo": "Nothing to undo.",
 			"nothingToRedo": "Nothing to redo.",
@@ -4872,6 +4881,20 @@
 				"asterisk": "Asterisk",
 				"leftBracket": "Left bracket",
 				"rightBracket": "Right bracket"
+			},
+			"editMode": {
+				"search": {
+					"actions": "Search actions",
+					"goTo": "Go to a page or a Placement",
+					"insert": "Find a component"
+				},
+				"placeholder": {
+					"actions": "Save, Publish, Move up…",
+					"goTo": "About, Hero · Welcome…",
+					"insert": "Hero, Gallery…"
+				},
+				"selected": "Selected {name}",
+				"insertEnd": "Inserts at the end of the page"
 			}
 		},
 		"components": {
@@ -7924,6 +7947,13 @@
 		"noComponents": "No Allowed components",
 		"enabled": "Members can arrange Page layouts",
 		"allowed": "Members can add",
-		"select": "Select a Placement to edit its Props."
+		"select": "Select a Placement to edit its Props.",
+		"keys": {
+			"rows": "Move between Placements",
+			"ends": "Go to the first or last Placement",
+			"typeahead": "Find a Placement by typing its name",
+			"pick": "Pick a Placement up, or put it down",
+			"putBack": "Put a picked-up Placement back"
+		}
 	}
 }

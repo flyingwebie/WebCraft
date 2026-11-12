@@ -23,24 +23,66 @@ export type Shortcut = {
 	scope: ShortcutScope;
 	/** The ⌘/ list shows only what the person may do (ADR 0028). */
 	permission: Permission;
+	/**
+	 * Set on the shortcuts that also work in Edit mode (#139), where Members use them: the Permission
+	 * each needs there, its words there when they differ (the tree is the Page layout drawer: Placements,
+	 * not layers), and what else it needs: a Page layout the person may arrange, or an Undo history.
+	 */
+	editMode?: { permission: Permission; label?: MessageKey; needs?: "arranging" | "history" };
 };
+
+/** In Edit mode: the Page layout drawer's keys and Insert, for those who may arrange the page. */
+const ARRANGING = { permission: "entry.edit", needs: "arranging" } as const;
+/** In Edit mode: Undo and Redo, once the page has an Undo history (#140). */
+const HISTORY = { permission: "entry.edit", needs: "history" } as const;
 
 /**
  * The one shortcut registry (#125): the Command menu's key column, tooltips, `aria-keyshortcuts` and
  * the Keyboard shortcuts list (⌘/) all read it. Keys added later (#137) are appended here.
  */
 export const SHORTCUTS = [
-	{ id: "menu.actions", area: "menu", chords: [{ key: "k", mod: true }], label: "builder.commandMenu.tabs.actions" },
-	{ id: "menu.goTo", area: "menu", chords: [{ key: "p", mod: true }], label: "builder.commandMenu.tabs.goTo" },
-	{ id: "menu.insert", area: "menu", chords: [{ key: "i", mod: true }], label: "builder.commandMenu.tabs.insert" },
+	{
+		id: "menu.actions",
+		area: "menu",
+		chords: [{ key: "k", mod: true }],
+		label: "builder.commandMenu.tabs.actions",
+		editMode: { permission: "site.view" },
+	},
+	{
+		id: "menu.goTo",
+		area: "menu",
+		chords: [{ key: "p", mod: true }],
+		label: "builder.commandMenu.tabs.goTo",
+		editMode: { permission: "site.view" },
+	},
+	{
+		id: "menu.insert",
+		area: "menu",
+		chords: [{ key: "i", mod: true }],
+		label: "builder.commandMenu.tabs.insert",
+		editMode: ARRANGING,
+	},
 	{
 		id: "menu.shortcuts",
 		area: "menu",
 		chords: [{ key: "/", mod: true }],
 		label: "builder.commandMenu.shortcuts.open",
+		editMode: { permission: "site.view" },
 	},
-	{ id: "editor.save", area: "editor", chords: [{ key: "s", mod: true }], label: "builder.commandMenu.actions.save" },
-	{ id: "editor.undo", area: "editor", chords: [{ key: "z", mod: true }], label: "builder.commandMenu.actions.undo" },
+	{
+		id: "editor.save",
+		area: "editor",
+		chords: [{ key: "s", mod: true }],
+		label: "builder.commandMenu.actions.save",
+		editMode: { permission: "entry.edit" },
+	},
+	{
+		id: "editor.undo",
+		area: "editor",
+		chords: [{ key: "z", mod: true }],
+		label: "builder.commandMenu.actions.undo",
+		editMode: HISTORY,
+	},
 	{
 		id: "editor.redo",
 		area: "editor",
@@ -49,6 +91,7 @@ export const SHORTCUTS = [
 			{ key: "y", mod: true },
 		],
 		label: "builder.commandMenu.actions.redo",
+		editMode: HISTORY,
 	},
 	{
 		id: "element.duplicate",
@@ -80,8 +123,15 @@ export const SHORTCUTS = [
 		area: "tree",
 		chords: [{ key: "ArrowUp" }, { key: "ArrowDown" }],
 		label: "builder.commandMenu.keys.rows",
+		editMode: { ...ARRANGING, label: "pageLayout.keys.rows" },
 	},
-	{ id: "tree.ends", area: "tree", chords: [{ key: "Home" }, { key: "End" }], label: "builder.commandMenu.keys.ends" },
+	{
+		id: "tree.ends",
+		area: "tree",
+		chords: [{ key: "Home" }, { key: "End" }],
+		label: "builder.commandMenu.keys.ends",
+		editMode: { ...ARRANGING, label: "pageLayout.keys.ends" },
+	},
 	{
 		id: "tree.open",
 		area: "tree",
@@ -89,7 +139,13 @@ export const SHORTCUTS = [
 		label: "builder.commandMenu.keys.openClose",
 	},
 	{ id: "tree.toggle", area: "tree", chords: [{ key: "Enter" }], label: "builder.commandMenu.keys.toggle" },
-	{ id: "tree.typeahead", area: "tree", chords: [{ key: "Letter" }], label: "builder.commandMenu.keys.typeahead" },
+	{
+		id: "tree.typeahead",
+		area: "tree",
+		chords: [{ key: "Letter" }],
+		label: "builder.commandMenu.keys.typeahead",
+		editMode: { ...ARRANGING, label: "pageLayout.keys.typeahead" },
+	},
 	{ id: "tree.openLevel", area: "tree", chords: [{ key: "*" }], label: "builder.commandMenu.keys.openLevel" },
 	{
 		id: "tree.toggleBranch",
@@ -102,6 +158,7 @@ export const SHORTCUTS = [
 		area: "editor",
 		chords: [{ key: "F6" }, { key: "F6", shift: true }],
 		label: "builder.commandMenu.keys.regions",
+		editMode: ARRANGING,
 	},
 	{
 		id: "editor.indent",
@@ -122,12 +179,14 @@ export const SHORTCUTS = [
 		area: "tree",
 		chords: [{ key: "ArrowUp", alt: true }],
 		label: "builder.layers.action.moveUp",
+		editMode: ARRANGING,
 	},
 	{
 		id: "tree.moveDown",
 		area: "tree",
 		chords: [{ key: "ArrowDown", alt: true }],
 		label: "builder.layers.action.moveDown",
+		editMode: ARRANGING,
 	},
 	{
 		id: "tree.moveIn",
@@ -141,8 +200,20 @@ export const SHORTCUTS = [
 		chords: [{ key: "ArrowLeft", alt: true }],
 		label: "builder.layers.action.moveOut",
 	},
-	{ id: "tree.pick", area: "tree", chords: [{ key: " " }], label: "builder.commandMenu.keys.pick" },
-	{ id: "tree.putBack", area: "tree", chords: [{ key: "Escape" }], label: "builder.commandMenu.keys.putBack" },
+	{
+		id: "tree.pick",
+		area: "tree",
+		chords: [{ key: " " }],
+		label: "builder.commandMenu.keys.pick",
+		editMode: { ...ARRANGING, label: "pageLayout.keys.pick" },
+	},
+	{
+		id: "tree.putBack",
+		area: "tree",
+		chords: [{ key: "Escape" }],
+		label: "builder.commandMenu.keys.putBack",
+		editMode: { ...ARRANGING, label: "pageLayout.keys.putBack" },
+	},
 	{
 		id: "tree.layerMenu",
 		area: "tree",

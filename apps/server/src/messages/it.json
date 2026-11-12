@@ -4734,7 +4734,9 @@
 				"pages": "Pagine",
 				"templates": "Template",
 				"components": "Component",
-				"layers": "Livelli in questa pagina"
+				"layers": "Livelli in questa pagina",
+				"page": "Pagina",
+				"placements": "Placement in questa pagina"
 			},
 			"actions": {
 				"save": "Salva bozza",
@@ -4761,7 +4763,9 @@
 				"hidePlacement": "Nascondi il Placement",
 				"showPlacement": "Mostra il Placement",
 				"makeComponent": "Crea Component",
-				"newComponent": "Nuovo Component"
+				"newComponent": "Nuovo Component",
+				"sendToReview": "Invia in revisione",
+				"edit": "Modifica"
 			},
 			"wrap": {
 				"div": "div",
@@ -4792,7 +4796,12 @@
 				"editComponent": "component apri modifica",
 				"hidePlacement": "nascondi mostra nascosto visibile placement",
 				"makeComponent": "component estrai riusa converti",
-				"newComponent": "component crea aggiungi nuovo vuoto"
+				"newComponent": "component crea aggiungi nuovo vuoto",
+				"sendToReview": "revisione invia approva",
+				"edit": "modifica cambia torna",
+				"props": "props impostazioni campi contenuto",
+				"moveUp": "sposta su prima",
+				"moveDown": "sposta giù dopo"
 			},
 			"nothingToUndo": "Niente da annullare.",
 			"nothingToRedo": "Niente da ripetere.",
@@ -4872,6 +4881,20 @@
 				"asterisk": "Asterisco",
 				"leftBracket": "Parentesi quadra aperta",
 				"rightBracket": "Parentesi quadra chiusa"
+			},
+			"editMode": {
+				"search": {
+					"actions": "Cerca azioni",
+					"goTo": "Vai a una pagina o a un Placement",
+					"insert": "Trova un Componente"
+				},
+				"placeholder": {
+					"actions": "Salva, Pubblica, Sposta su…",
+					"goTo": "Chi siamo, Hero · Benvenuti…",
+					"insert": "Hero, Galleria…"
+				},
+				"selected": "Selezionato {name}",
+				"insertEnd": "Inserisce alla fine della pagina"
 			}
 		},
 		"components": {
@@ -7924,6 +7947,13 @@
 		"noComponents": "Nessun Componente consentito",
 		"enabled": "I Membri possono organizzare i layout delle Pagine",
 		"allowed": "I Membri possono aggiungere",
-		"select": "Seleziona un Posizionamento per modificarne le Props."
+		"select": "Seleziona un Posizionamento per modificarne le Props.",
+		"keys": {
+			"rows": "Spostati tra i Placement",
+			"ends": "Vai al primo o all'ultimo Placement",
+			"typeahead": "Trova un Placement digitandone il nome",
+			"pick": "Prendi un Placement, o posalo",
+			"putBack": "Rimetti a posto un Placement preso"
+		}
 	}
 }

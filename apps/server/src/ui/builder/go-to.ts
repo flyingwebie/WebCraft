@@ -2,7 +2,7 @@ import type { CommandMenuData } from "@webcraft/core";
 import type { ElementTree, TreeNode } from "@webcraft/renderer/builder";
 
 import type { useT } from "../i18n.tsx";
-import type { Command } from "./commands.ts";
+import type { Canvas, Command } from "./commands.ts";
 import { type BuilderTarget, type Catalogue, layerName } from "./model.ts";
 import { childLists, type NodePath, pathKey } from "./tree.ts";
 
@@ -22,19 +22,12 @@ export type GoToTarget = {
 };
 
 /**
- * Go to: Pages and each Post Type's Entries (opened in Code mode), Templates and Components (opened
- * in the Builder, ADR 0035), and the layers on the current page by their layer label.
+ * Go to's destinations off the page, wherever the menu shows (Edit mode too, #139): Pages and each
+ * Post Type's Entries, for everyone who edits Content, and Templates and Components (opened in the
+ * Builder, ADR 0035), for those who may change Structure.
  */
-export function goToCommands(
-	t: T,
-	data: CommandMenuData,
-	sources: readonly LayerSourceOf[],
-	go: GoToTarget,
-	/** Only this Component's Placements: what places it, and its Placements on this page (#134). */
-	placementsOf?: string,
-): Command[] {
-	const both = ["code", "builder"] as const;
-	if (placementsOf) return placementCommands(t, data, sources, go, placementsOf);
+export function destinationCommands(t: T, data: CommandMenuData, go: Pick<GoToTarget, "page" | "builder">): Command[] {
+	const both: readonly Canvas[] = ["code", "builder", "edit"];
 	const commands: Command[] = [];
 	const pagesGroup = t("builder.commandMenu.groups.pages");
 	for (const page of data.pages)
@@ -101,6 +94,24 @@ export function goToCommands(
 			canvases: both,
 			run: () => go.builder({ kind: "component", componentId: component.id }),
 		});
+	return commands;
+}
+
+/**
+ * Go to: Pages and each Post Type's Entries (opened in Code mode), Templates and Components (opened
+ * in the Builder, ADR 0035), and the layers on the current page by their layer label.
+ */
+export function goToCommands(
+	t: T,
+	data: CommandMenuData,
+	sources: readonly LayerSourceOf[],
+	go: GoToTarget,
+	/** Only this Component's Placements: what places it, and its Placements on this page (#134). */
+	placementsOf?: string,
+): Command[] {
+	const both = ["code", "builder"] as const;
+	if (placementsOf) return placementCommands(t, data, sources, go, placementsOf);
+	const commands = destinationCommands(t, data, go);
 	const layersGroup = t("builder.commandMenu.groups.layers");
 	for (const source of sources) {
 		const visit = (nodes: readonly TreeNode[], owner: NodePath | null) => {

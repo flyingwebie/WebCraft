@@ -7,7 +7,7 @@ import { createTranslator } from "use-intl";
 
 import en from "../../apps/server/src/messages/en.json";
 import {
-	type Canvas,
+	type EditorCanvas,
 	type EditorCommandTarget,
 	editorCommands,
 	visibleCommands,
@@ -15,7 +15,7 @@ import {
 
 const t = createTranslator({ locale: "en", messages: en }) as unknown as Parameters<typeof editorCommands>[1];
 
-function target(canvas: Canvas): EditorCommandTarget {
+function target(canvas: EditorCanvas): EditorCommandTarget {
 	const nothing = () => {};
 	return {
 		canvas,
@@ -27,7 +27,7 @@ function target(canvas: Canvas): EditorCommandTarget {
 	};
 }
 
-function actionsFor(canvas: Canvas, held: readonly string[]): string[] {
+function actionsFor(canvas: EditorCanvas, held: readonly string[]): string[] {
 	return visibleCommands(editorCommands(target(canvas), t), {
 		tab: "actions",
 		canvas,
