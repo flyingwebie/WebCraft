@@ -21,7 +21,7 @@ webcraft login --install https://cms.agency.example
 
 The sign-in shows under Your account › AI clients, as "webcraft CLI on <computer>", where you can revoke it. Its changes are recorded as "<you> via webcraft CLI on <computer>". Its access token lasts an hour and is renewed by itself; its refresh token, 30 days and replaced each time it is used.
 
-Where it is kept: in your system's keychain (the macOS Keychain, the Secret Service on Linux, the Windows Credential Manager); where there is none (a server without a Secret Service), in `credentials.json` in the config folder, readable only by you. `login` says which. `WEBCRAFT_CREDENTIALS=file` always uses the file. The config folder is `WEBCRAFT_CONFIG_DIR`, else `~/.config/webcraft` (`$XDG_CONFIG_HOME/webcraft`), or `%APPDATA%\webcraft` on Windows; it also holds `config.json` (the profiles, no secret) and copies of each Install's API document.
+Where it is kept: in your system's keychain (the macOS Keychain, the Secret Service on Linux, the Windows Credential Manager); where there is none (a server without a Secret Service), in `credentials.json` in the config folder, readable only by you. `login` says which. `WEBCRAFT_CREDENTIALS=file` always uses the file. The config folder is `WEBCRAFT_CONFIG_DIR`, else `~/.config/webcraft` (`$XDG_CONFIG_HOME/webcraft`), or `%APPDATA%\webcraft` on Windows; it also holds `config.json` (the profiles, no secret) and copies of each Install's API document. If that file is ever damaged (cut short by a full disk, say), `webcraft` stops and says so instead of treating it as empty: mend it, or move it away and run `webcraft login` again for each Install.
 
 ```sh
 webcraft whoami     # the person, the Install and its version, the Workspace, Sites, Toolsets and access

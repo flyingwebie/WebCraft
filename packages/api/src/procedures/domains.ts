@@ -1,8 +1,13 @@
-import { CDN_KEYS } from "@webcraft/core";
+import { CDN_KEYS, CDN_SECRET_HEADER } from "@webcraft/core";
 import { z } from "zod";
 
 import { signedIn } from "../context.ts";
 import { id } from "../inputs.ts";
+
+/** The CDN secret's header as people write it. */
+const CDN_SECRET_HEADER_NAME = CDN_SECRET_HEADER.replace(/(^|-)([a-z]+)/g, (_match, dash: string, word: string) =>
+	word === "cdn" ? `${dash}CDN` : `${dash}${word[0]?.toUpperCase() ?? ""}${word.slice(1)}`,
+);
 
 /** A domain as typed; the server checks it and keeps it in lower case and its ASCII form. */
 const name = z.string().max(300);
@@ -19,7 +24,8 @@ export const domains = {
 	 * domains, each with its status and the DNS records to create; the Install's `edge`, which decides
 	 * the steps to take (on Coolify and Railway the domain is also added in the platform's panel); and
 	 * the Site's Staging address (`stagingUrl`, null without a sites domain); and the CDN in front of
-	 * the Site (`cdn`, null for none; see `setCdn`).
+	 * the Site (`cdn`, null for none; see `setCdn`) with whether the Site has a CDN secret (`cdnSecret`;
+	 * see `newCdnSecret`).
 	 */
 	list: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
 		const site = await context.services.data.site(context.access, input.siteId, "site.view");
@@ -27,14 +33,16 @@ export const domains = {
 			...(await context.services.domains.list(site)),
 			stagingUrl: context.services.sites.stagingUrl(site.site),
 			cdn: await context.services.cdns.siteCdn(site),
+			cdnSecret: await context.services.cdns.siteHasCdnSecret(site),
 		};
 	}),
 
 	/**
 	 * Sets the CDN in front of the Site (`cloudflare`, `fastly`; null for none). With one set, a visitor
-	 * request that comes from the CDN's published address ranges counts as coming from the visitor the
-	 * CDN names in its own header (`CF-Connecting-IP`, `Fastly-Client-IP`), so rate limits keep counting
-	 * visitors. Applies at once; logged `cdn.change`. Answers the Site's CDN.
+	 * request that comes from the CDN's published address ranges and carries the Site's CDN secret (see
+	 * `newCdnSecret`) counts as coming from the visitor the CDN names in its own header
+	 * (`CF-Connecting-IP`, `Fastly-Client-IP`), so rate limits keep counting visitors. Applies at once;
+	 * logged `cdn.change`. A change forgets the Site's CDN secret. Answers the Site's CDN.
 	 */
 	setCdn: signedIn
 		.input(z.object({ siteId: id, cdn: z.enum(CDN_KEYS).nullable() }))
@@ -42,6 +50,18 @@ export const domains = {
 			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
 			return { cdn: await context.services.cdns.setSiteCdn(site, input.cdn) };
 		}),
+
+	/**
+	 * Makes the Site's CDN secret, in place of any it had, and answers it with the request header to
+	 * send it in (`header`): the only time it is shown. Staff add that header, with the secret, to every
+	 * request their service at the CDN sends on to the Site; until a request carries it, the CDN's
+	 * servers count as the client, whatever visitor the CDN's header names (the CDN's address ranges are
+	 * every customer's). Logged `cdnSecret.change`. `CDN_NOT_SET` for a Site without a CDN.
+	 */
+	newCdnSecret: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+		return { secret: await context.services.cdns.newSiteCdnSecret(site), header: CDN_SECRET_HEADER_NAME };
+	}),
 
 	/**
 	 * Adds a domain, and with `withPartner` its `www` partner (or, for `www.…`, the bare domain) as a

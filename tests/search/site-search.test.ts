@@ -3,7 +3,7 @@
 // through the Search results template's Loop, with highlighted snippets, the hit count and pages.
 // It works without JavaScript, is never cached and never indexed by search engines.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-
+import { ipv6Network } from "../harness/addresses.ts";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage, expectSiteHeaders } from "../harness/site-safety.ts";
@@ -320,6 +320,18 @@ describe("in Edit mode", () => {
 });
 
 describe("rate limits", () => {
+	test("an IPv6 connection is counted by its /64, whichever of its addresses each search comes from", async () => {
+		const network = ipv6Network();
+		const from = (address: string, path: string) =>
+			install.request(fromAddress(new Request(`${SITE}${path}`), address));
+		for (let index = 0; index < 30; index++) {
+			expect((await from(network(index + 1), `/search?q=loaf${index}`)).status).toBe(200);
+		}
+
+		expect((await from(network(31), "/search?q=brioche")).status).toBe(429);
+		expect((await from(ipv6Network()(1), "/search?q=brioche")).status).toBe(200);
+	});
+
 	test("one address searches 30 times a minute; past that it is asked to wait, and others aren't", async () => {
 		const busy = "198.51.100.77";
 		const from = (address: string, path: string) =>

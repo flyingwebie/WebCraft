@@ -18,6 +18,7 @@ export {
 	type DatabaseContents,
 	inspectDatabase,
 	type RestoreContext,
+	RestoreFailedError,
 	type RestoreOptions,
 	type RestoreRefusal,
 	RestoreRefusedError,

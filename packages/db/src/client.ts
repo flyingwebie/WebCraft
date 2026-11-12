@@ -8,6 +8,12 @@ export type DatabaseOptions = {
 	maxConnections?: number;
 	/** Shown in `pg_stat_activity`, such as `webcraft-web`. */
 	applicationName?: string;
+	/**
+	 * Hears of a connection the pool held open and lost (a restarted server, a network blip). The pool
+	 * carries on either way: the next query opens another. A long-running process hands in a logger's
+	 * warning, so a flapping database shows somewhere.
+	 */
+	onConnectionLost?: (error: Error) => void;
 };
 
 /** A connection pool to the Install's database, with the Drizzle query builder on top. */
@@ -30,7 +36,7 @@ export function openDatabase(databaseUrl: string, options: DatabaseOptions = {})
 	});
 	// An idle connection that drops (a restarted server, a network blip) emits an error on the pool;
 	// without a listener that error would crash the process. The next query opens a new connection.
-	pool.on("error", () => {});
+	pool.on("error", (error) => options.onConnectionLost?.(error));
 	return {
 		db: databaseOn(pool),
 		pool,

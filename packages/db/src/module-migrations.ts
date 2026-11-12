@@ -44,25 +44,42 @@ export class ModuleMigrationError extends Error {
 
 type Client = pg.PoolClient;
 
+/**
+ * How one migration's statements are kept together, so a failed one leaves nothing behind: a
+ * transaction of its own, or a savepoint inside a transaction the caller holds (a restore rebuilds
+ * and loads a whole database in one), where nothing is committed before the caller commits.
+ */
+export type MigrationUnit = { begin: string; commit: string; rollback: string };
+
+export const OWN_TRANSACTION: MigrationUnit = { begin: "BEGIN", commit: "COMMIT", rollback: "ROLLBACK" };
+
+export const WITHIN_TRANSACTION: MigrationUnit = {
+	begin: "SAVEPOINT webcraft_migration",
+	commit: "RELEASE SAVEPOINT webcraft_migration",
+	rollback: "ROLLBACK TO SAVEPOINT webcraft_migration",
+};
+
 /** The checksum a migration is recorded with. */
 export function migrationChecksum(sql: string): string {
 	return createHash("sha256").update(sql).digest("hex");
 }
 
 /**
- * Applies every Module's pending migrations, each in its own transaction. Answers what it applied,
- * as `<module>/<name>`. With `partial` (a restore rebuilding an older level), the Modules' tables
- * aren't checked against what they declare: later migrations make the rest.
+ * Applies every Module's pending migrations, each in its own transaction (or under a savepoint of the
+ * caller's: `unit`). Answers what it applied, as `<module>/<name>`. With `partial` (a restore
+ * rebuilding an older level), the Modules' tables aren't checked against what they declare: later
+ * migrations make the rest.
  */
 export async function applyModuleMigrations(
 	client: Client,
 	modules: readonly ModuleSchema[],
-	options: { partial?: boolean } = {},
+	options: { partial?: boolean; unit?: MigrationUnit } = {},
 ): Promise<string[]> {
 	if (modules.length === 0) return [];
 	const applied: string[] = [];
 	for (const module of modules) {
-		for (const name of await migrateModule(client, module, options.partial === true)) {
+		const names = await migrateModule(client, module, options.partial === true, options.unit ?? OWN_TRANSACTION);
+		for (const name of names) {
 			applied.push(`${module.moduleId}/${name}`);
 		}
 	}
@@ -100,7 +117,12 @@ export async function appliedModuleMigrations(pool: pg.Pool | pg.PoolClient): Pr
 	return applied;
 }
 
-async function migrateModule(client: Client, module: ModuleSchema, partial: boolean): Promise<string[]> {
+async function migrateModule(
+	client: Client,
+	module: ModuleSchema,
+	partial: boolean,
+	unit: MigrationUnit,
+): Promise<string[]> {
 	const { moduleId, schema } = module;
 	const recorded = await client.query<{ name: string; checksum: string }>(
 		"SELECT name, checksum FROM public.module_migrations WHERE module_id = $1",
@@ -134,7 +156,7 @@ async function migrateModule(client: Client, module: ModuleSchema, partial: bool
 	const done = new Set(recorded.rows.map((row) => row.name));
 	const pending = module.migrations.filter((migration) => !done.has(migration.name));
 	for (const [index, migration] of pending.entries()) {
-		await client.query("BEGIN");
+		await client.query(unit.begin);
 		try {
 			const before = await outsideDigest(client, schema);
 			await client.query(`CREATE SCHEMA IF NOT EXISTS ${ident(schema)}`);
@@ -166,9 +188,9 @@ async function migrateModule(client: Client, module: ModuleSchema, partial: bool
 			}
 			// The last one is checked with everything the Module's migrations made together.
 			if (!partial && index === pending.length - 1) await checkTables(client, module, ahead);
-			await client.query("COMMIT");
+			await client.query(unit.commit);
 		} catch (error) {
-			await client.query("ROLLBACK").catch(() => {});
+			await client.query(unit.rollback).catch(() => {});
 			throw error;
 		}
 	}

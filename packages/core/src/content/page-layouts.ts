@@ -67,6 +67,7 @@ export async function layoutSettings(scope: SiteScope) {
 	return { enabled: row?.enabled ?? false, allowedComponents: row?.allowedComponents ?? [] };
 }
 export async function configureLayout(scope: SiteScope, change: { enabled?: boolean; allowedComponents?: string[] }) {
+	// Page layout settings are Structure, whichever way the Site was opened (Edit mode opens it to edit Content).
 	if (!layoutPermissions(scope).structure) throw new PermissionDeniedError("structure.edit");
 	return scope.transaction(async (tx) => {
 		await lockComponents(tx);

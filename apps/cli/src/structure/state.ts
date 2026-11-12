@@ -62,6 +62,9 @@ export const STRUCTURE_FOLDERS = [
 /** Names that make safe file names; anything else is left out of the files, with a warning. */
 export const SAFE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
+/** The kinds of Template there are: each names a file, or a folder of them. */
+const TEMPLATE_KINDS: ReadonlySet<string> = new Set(["site", "search", "entry", "archive"]);
+
 /** JSON as the files hold it: tabs, keys in the order the Install gave them, a final newline. */
 export function jsonFile(value: unknown): string {
 	return `${JSON.stringify(value, null, "\t")}\n`;
@@ -117,7 +120,8 @@ export async function readStructure(
 		}[];
 	};
 	for (const listing of templates) {
-		if (listing.unavailable) continue;
+		// The kind names a file here, and the Install's answer is only what it says it is.
+		if (listing.unavailable || !TEMPLATE_KINDS.has(listing.kind)) continue;
 		const postType = listing.postType ? { id: listing.postType.id, key: keys.get(listing.postType.id) ?? "" } : null;
 		if (postType && !SAFE_NAME.test(postType.key)) continue;
 		const read =

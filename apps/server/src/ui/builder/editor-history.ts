@@ -12,6 +12,11 @@ export type HistoryLocation = {
 	panel: "html" | "css" | "js" | "inspector" | "tree" | "page";
 	title: string;
 };
+/**
+ * A step's change taken back (or made again), or why not. `HISTORY_UNAVAILABLE` means not now: the
+ * Draft can't be reached or changed at this moment (offline, reconnecting, a save under way). Any
+ * other code is final: the step no longer applies, or the server's rules refuse it.
+ */
 export type HistoryResult = { ok: true; before: Json; after: Json } | { ok: false; code: string };
 export type HistoryPort = { reverse(from: Json, to: Json): Promise<HistoryResult> };
 type Change = { resource: string; before: Json; after: Json };
@@ -259,17 +264,28 @@ export class EditorHistory {
 				}
 				if (failure) {
 					// A refused compound is compensated through the same guarded writes, never snapshots.
+					let partial = false;
 					for (const change of [...applied].reverse()) {
 						const port = this.ports.get(change.resource) ?? (await this.fallback?.(change.resource));
 						try {
 							const result = await port?.reverse(change.after, change.before);
-							if (!result?.ok) notices.push(this.words("HISTORY_PARTIAL", ""));
+							if (!result?.ok) partial = true;
 						} catch {
-							notices.push(this.words("HISTORY_PARTIAL", ""));
+							partial = true;
 						}
 					}
+					if (partial) notices.push(this.words("HISTORY_PARTIAL", ""));
+					else if (failure === "HISTORY_UNAVAILABLE") {
+						// Not now is not never (ADR 0036 skips only what no longer applies or is refused): the
+						// step keeps its place, and so does every step behind it. The person tries again.
+						source.push(step);
+						notices.push(
+							`${this.words(verb === "undid" ? "keptUndo" : "keptRedo", step.label)} ${this.words(failure, "")}`,
+						);
+						break;
+					}
 					notices.push(`${this.words("skipped", step.label)} ${this.words(failure, "")}`);
-					if (notices.includes(this.words("HISTORY_PARTIAL", ""))) break;
+					if (partial) break;
 					continue;
 				}
 				if (revision === this.revision || destination === this.past) destination.push({ ...step, changes: applied });

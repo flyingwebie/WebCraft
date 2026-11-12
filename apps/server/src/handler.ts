@@ -1,15 +1,23 @@
-import { type InstallServices, normaliseHostname, type SitemapLimits, withLogContext } from "@webcraft/core";
+import {
+	type InstallServices,
+	normaliseHostname,
+	type SitemapLimits,
+	underBodyCeiling,
+	withLogContext,
+} from "@webcraft/core";
 
 import { healthz, readyz } from "./admin/health.ts";
 import type { AdminApp } from "./admin/security-headers.ts";
 import { createAdminSide } from "./admin/side.ts";
+import { sameClient } from "./client-address.ts";
 import {
 	ADMIN_DRAFTS_PREFIX,
 	createDraftSockets,
 	EDIT_DRAFTS_PREFIX,
 	type UpgradeAnswer,
 } from "./co-editing/sockets.ts";
-import { requestIdOf, withRequestId } from "./request-ids.ts";
+import { recordedAddress } from "./recorded-address.ts";
+import { newRequestId, withRequestId } from "./request-ids.ts";
 import { type Handler, notFound, plainText } from "./responses.ts";
 import { createPageCache } from "./site/page-cache.ts";
 import { createSitePipeline } from "./site/pipeline.ts";
@@ -65,7 +73,7 @@ export function createWebHandler({ services, adminApp, filterVariants, sitemapLi
 	const sockets = createDraftSockets(services);
 
 	const upgrade = (request: Request): Promise<UpgradeAnswer> =>
-		withLogContext({ requestId: requestIdOf(request, services.config) }, () => answerUpgrade(request));
+		withLogContext({ requestId: newRequestId() }, () => answerUpgrade(request));
 
 	const answerUpgrade = async (request: Request): Promise<UpgradeAnswer> => {
 		try {
@@ -79,14 +87,18 @@ export function createWebHandler({ services, adminApp, filterVariants, sitemapLi
 			if (!host || host.address === "redirect") return notFound();
 			return await sockets.site(request, host);
 		} catch (error) {
-			services.log.error("A WebSocket upgrade failed unexpectedly", { error, url: request.url });
+			services.log.error("A WebSocket upgrade failed unexpectedly", { error, url: recordedAddress(request, services) });
 			return plainText(500, "Internal Server Error");
 		}
 	};
 
 	// Every line a request writes, and the jobs it queues, carry its request id; so does its answer.
-	const handler = (request: Request): Promise<Response> => {
-		const requestId = requestIdOf(request, services.config);
+	// Every request's body comes under one ceiling (`request-body.ts` in `@webcraft/core`): a route
+	// reads more only by setting its own limit, and each side answers 413 for a body cut off there.
+	const handler = (incoming: Request): Promise<Response> => {
+		const requestId = newRequestId();
+		const request = underBodyCeiling(incoming);
+		if (request !== incoming) sameClient(incoming, request);
 		return withLogContext({ requestId }, () => answer(request)).then((response) => withRequestId(response, requestId));
 	};
 
@@ -101,7 +113,11 @@ export function createWebHandler({ services, adminApp, filterVariants, sitemapLi
 			}
 			return await sitePipeline(request);
 		} catch (error) {
-			services.log.error("A request failed unexpectedly", { error, method: request.method, url: request.url });
+			services.log.error("A request failed unexpectedly", {
+				error,
+				method: request.method,
+				url: recordedAddress(request, services),
+			});
 			return plainText(500, "Internal Server Error");
 		}
 	};

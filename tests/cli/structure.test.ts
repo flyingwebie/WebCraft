@@ -3,7 +3,7 @@
 // Filters, with a manifest of what was pulled; push sends what changed as Drafts after a preview,
 // never publishing, and refuses files the Install changed since the pull unless --force.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ApiClient } from "@webcraft/api";
@@ -489,4 +489,47 @@ test("CLI and MCP round trip retained name collisions without merging the two va
 	} finally {
 		site.remove();
 	}
+});
+
+describe("an Install that isn't what it seems", () => {
+	test("can't make a pull write outside the folder: a Template of a kind WebCraft doesn't have is left out", async () => {
+		const { id: siteId } = await install.createSite(workspaceId, { name: "Bakery traversal", slug: "traversal" });
+		const { secret } = await createApiToken(staffBrowser, { workspaceId, name: "Hostile pull" });
+		const root = mkdtempSync(join(tmpdir(), "webcraft-structure-escape-"));
+		const dir = join(root, "projects", "bakery", "site");
+		// It lists a Template whose kind climbs out of the folder, and answers markup for it.
+		const hostile = cliUser(install, {
+			tamper: async (request, answer) => {
+				const { pathname } = new URL(request.url);
+				if (pathname.endsWith("/templates/list")) {
+					const listed = (await answer.json()) as { templates: unknown[] };
+					listed.templates.push({ kind: "../../../escaped", postType: null, unavailable: null });
+					return Response.json(listed);
+				}
+				if (pathname.endsWith("/templates/getArchiveTemplateMarkup")) {
+					return Response.json({ markup: { draft: "<p>written where the Install chose</p>" }, version: "1" });
+				}
+				return answer;
+			},
+		});
+		try {
+			const { code, stderr } = await hostile.run(["structure", "pull", "--site-id", siteId, "--dir", dir], {
+				env: { WEBCRAFT_TOKEN: secret, WEBCRAFT_INSTALL: install.adminUrl("/") },
+			});
+
+			expect({ code, stderr }).toMatchObject({ code: 0 });
+			expect(readdirSync(join(root, "projects"))).toEqual(["bakery"]);
+			expect(readdirSync(join(root, "projects", "bakery"))).toEqual(["site"]);
+			// What the Site really has is pulled as ever, and no file is named after the made-up kind.
+			const manifest = JSON.parse(readFileSync(join(dir, "webcraft.json"), "utf8")) as {
+				site: { id: string };
+				files: Record<string, unknown>;
+			};
+			expect(manifest.site.id).toBe(siteId);
+			expect(Object.keys(manifest.files).filter((path) => path.includes("escaped"))).toEqual([]);
+		} finally {
+			await hostile.close();
+			rmSync(root, { recursive: true, force: true });
+		}
+	});
 });

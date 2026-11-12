@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type forms from "@webcraft/module-forms";
 
+import { ipv6Network } from "../harness/addresses.ts";
 import { formVisitor } from "../harness/forms.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
@@ -138,6 +139,19 @@ describe("per-address limits", () => {
 		await sendAfter(5, GOOD, visitor);
 		expect((await folder("inbox")).length).toBe(inbox + 6 + 24);
 		expect((await folder("spam"))[0]?.spamReason).toBe("rate-limit");
+	});
+
+	test("an IPv6 connection is counted by its /64, whichever of its addresses each post comes from", async () => {
+		const network = ipv6Network();
+		const inbox = (await folder("inbox")).length;
+
+		for (let sent = 0; sent < 6; sent++) await sendAfter(5, GOOD, formVisitor(install, network(sent + 1)));
+
+		expect((await folder("inbox")).length).toBe(inbox + 5);
+		expect((await folder("spam"))[0]?.spamReason).toBe("rate-limit");
+		// Another connection's /64 is counted on its own.
+		await sendAfter(5, GOOD, formVisitor(install, ipv6Network()(1)));
+		expect((await folder("inbox")).length).toBe(inbox + 6);
 	});
 
 	test("posts with errors don't count: a person fixing what they typed is never put in the Spam folder", async () => {

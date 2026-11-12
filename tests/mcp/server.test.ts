@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createApiToken } from "../harness/api-tokens.ts";
+import { chunkedBody, chunkedPost } from "../harness/bodies.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { answerOf, approveAiClient, connectMcp, refusalOf } from "../harness/mcp.ts";
 
@@ -306,5 +307,55 @@ describe("confirming", () => {
 		expect(answerOf(declined)).toEqual({ confirmed: false });
 		expect(await publishedAt(other)).toBeNull();
 		await declining.close();
+	});
+});
+
+describe("how much of a request the MCP server reads", () => {
+	const MB = 1024 * 1024;
+
+	test("a tool call carrying a file, past the ceiling other requests come under", async () => {
+		const owner = await install.createMember({ workspaceId, role: "owner" });
+		const { accessToken } = await approveAiClient(install, owner.browser, { workspaceId });
+		const client = await connectMcp(install, accessToken);
+		const bytes = new Uint8Array(2 * MB);
+		bytes.set(new TextEncoder().encode("%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\n"));
+
+		const result = await client.callTool({
+			name: "media_upload",
+			arguments: {
+				siteId,
+				file: { name: "guide.pdf", type: "application/pdf", base64: Buffer.from(bytes).toString("base64") },
+			},
+		});
+
+		expect(answerOf<{ media: { sizeBytes: number } }>(result).media.sizeBytes).toBe(2 * MB);
+		await client.close();
+	});
+
+	test("no more than 4 MB of a request, and nothing before its token holds", async () => {
+		const owner = await install.createMember({ workspaceId, role: "owner" });
+		const { accessToken } = await approveAiClient(install, owner.browser, { workspaceId });
+		const post = (token: string, body: ReadableStream<Uint8Array>) =>
+			install.request(
+				chunkedPost(
+					install.adminUrl("/mcp"),
+					{
+						authorization: `Bearer ${token}`,
+						"content-type": "application/json",
+						accept: "application/json, text/event-stream",
+					},
+					body,
+				),
+			);
+
+		const flood = chunkedBody(64 * MB, 64 * 1024);
+		const refused = await post(accessToken, flood.body);
+		expect(refused.status).toBe(413);
+		expect(flood.taken()).toBeLessThan(5 * MB);
+
+		const unknown = chunkedBody(64 * MB, 64 * 1024);
+		expect((await post("not-a-token", unknown.body)).status).toBe(401);
+		// Nothing but what copying the request in this test took.
+		expect(unknown.taken()).toBeLessThan(MB);
 	});
 });

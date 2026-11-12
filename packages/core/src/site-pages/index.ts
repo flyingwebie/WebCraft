@@ -190,6 +190,8 @@ export type SiteHost = {
 	cspMode: CspMode;
 	/** The CDN in front of the Site, whose visitor header counts on connections from its servers; null for none. */
 	cdn: CdnKey | null;
+	/** The hash of the Site's CDN secret, which such a connection must also carry; null while it has none. */
+	cdnSecretHash: string | null;
 	/**
 	 * The Site's page cache generation: a page rendered now stays valid until a publish raises it.
 	 * Read before the page, so a page is never kept under a newer generation than its content.
@@ -505,6 +507,7 @@ export function createSitePages(options: {
 			browserLanguageRedirect: false,
 			cspMode: "strict",
 			cdn: null,
+			cdnSecretHash: null,
 			cacheGeneration: 0,
 		};
 		const view: View = {
@@ -953,6 +956,7 @@ function hostOf(
 		browserLanguageRedirect: how.address !== "language" && row.browserLanguageRedirect,
 		cspMode: isCspMode(row.cspMode) ? row.cspMode : "strict",
 		cdn: isCdnKey(row.cdn) ? row.cdn : null,
+		cdnSecretHash: row.cdnSecretHash,
 		cacheGeneration: row.pageCacheGeneration,
 	};
 }

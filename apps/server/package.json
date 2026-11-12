@@ -7,10 +7,11 @@
 	"type": "module",
 	"exports": {
 		"./handler": "./src/handler.ts",
+		"./serving": "./src/serving.ts",
 		"./body-editor/edit-mode": "./src/body-editor/edit-mode.ts",
 		"./outgoing-http": "./src/outgoing-http.ts",
 		"./editor/live-panels": "./src/ui/builder/live-panels.tsx",
-		"./editor/page-layouts": "./src/ui/page-layouts/edit-mode.tsx",
+		"./editor/edit-tools": "./src/ui/edit-mode/tools.ts",
 		"./editor/edit-history": "./src/ui/edit-history/edit-mode.ts"
 	},
 	"scripts": {

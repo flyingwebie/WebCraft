@@ -78,6 +78,19 @@ describe.skipIf(!installed)("headless Chromium", () => {
 	});
 });
 
+test("a page its policy can't be put into is never printed: Chromium runs unsandboxed, and the policy is what keeps scripts out", async () => {
+	// A page whose head isn't written the way the policy is put into it.
+	const unusual = page.replace("<head>", '<head data-page="report">');
+	expect(unusual).not.toBe(page);
+
+	// Wherever Chromium is: it is never started for such a page.
+	await expect(createChromiumPdf({ executable }).render(unusual)).rejects.toMatchObject({
+		name: "PdfRenderError",
+		problem: "failed",
+		message: "The page has no place for its policy.",
+	});
+});
+
 test("says plainly when there is no Chromium", async () => {
 	await expect(createChromiumPdf({ executable: "/nowhere/chromium" }).render(page)).rejects.toMatchObject({
 		name: "PdfRenderError",

@@ -3,6 +3,7 @@ import {
 	type FormPostAnswer,
 	type FormPostBody,
 	type InstallServices,
+	readLimitedBody,
 	SENT_PARAMETER,
 	type SiteHost,
 } from "@webcraft/core";
@@ -202,7 +203,7 @@ function scriptAnswer(
 
 /** A urlencoded post's fields, or null when it is larger than any Form takes. */
 async function readUrlEncoded(request: Request): Promise<FormPostBody | null> {
-	const body = await readLimited(request, FORM_POST_MAX_BYTES);
+	const body = await readLimitedBody(request, FORM_POST_MAX_BYTES);
 	return body === null ? null : { fields: fieldsOf(new TextDecoder().decode(body)) };
 }
 
@@ -212,7 +213,7 @@ async function readUrlEncoded(request: Request): Promise<FormPostBody | null> {
  * field left empty sends a part with no name and no bytes, which counts as no file.
  */
 async function readMultipart(request: Request, limit: number): Promise<FormPostBody | null> {
-	const body = await readLimited(request, limit);
+	const body = await readLimitedBody(request, limit);
 	if (body === null) return null;
 	let data: FormData;
 	try {
@@ -242,30 +243,6 @@ async function readMultipart(request: Request, limit: number): Promise<FormPostB
 	}
 	if (textBytes > FORM_POST_MAX_BYTES) return null;
 	return { fields, files };
-}
-
-/** The body's bytes, or null when it is larger than `limit` bytes (reading stops there). */
-async function readLimited(request: Request, limit: number): Promise<Uint8Array | null> {
-	const declared = Number(request.headers.get("content-length") ?? "0");
-	if (declared > limit) {
-		await request.body?.cancel();
-		return null;
-	}
-	if (!request.body) return new Uint8Array();
-	const reader = request.body.getReader();
-	const chunks: Uint8Array[] = [];
-	let size = 0;
-	for (;;) {
-		const { done, value } = await reader.read();
-		if (done) break;
-		size += value.byteLength;
-		if (size > limit) {
-			await reader.cancel();
-			return null;
-		}
-		chunks.push(value);
-	}
-	return new Uint8Array(Buffer.concat(chunks));
 }
 
 /** A form body's fields, by name: every value sent under it, in order. */

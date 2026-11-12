@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { limitBody, MULTIPART_ALLOWANCE, toApiError } from "@webcraft/api";
+import { API_BODY_MAX_BYTES, MULTIPART_ALLOWANCE, payloadTooLarge, toApiError } from "@webcraft/api";
 import {
 	type AdminLanguageCode,
 	CODE_MODE_SCRIPT_PATH,
@@ -12,11 +12,13 @@ import {
 	editModePolicy,
 	type FieldInput,
 	getPageLayout,
+	HISTORY_TRANSFER_MAX_LENGTH,
 	type InstallServices,
 	isAdminLanguage,
 	isCodeSelection,
 	isEditPageAddress,
 	LIBRARIES_PER_SITE,
+	limitBody,
 	MEDIA_TEXT_MAX_LENGTH,
 	MediaTooLargeError,
 	madeTexts,
@@ -159,6 +161,18 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 		const scope = await services.codeMode.access(session);
 		return json(200, await services.builder.commandMenu(scope));
 	},
+	/**
+	 * What the Command menu needs in Edit mode (#139), for everyone in it: the Permissions the person
+	 * holds on the Site (`can()`), Go to's Pages and Entries, and, only for those who may change
+	 * Structure, its Components. Templates and Components open in the Builder, which is on the admin:
+	 * `siteId` and `adminOrigin` say where.
+	 */
+	commandMenu: async (services, session) =>
+		json(200, {
+			...(await services.builder.commandMenu(session.scope)),
+			siteId: session.scope.site.id,
+			adminOrigin: services.config.adminOrigin,
+		}),
 	"code/editorService": async (services, session, body) => {
 		const scope = await services.codeMode.access(session);
 		const { method, input } = parse(
@@ -522,7 +536,7 @@ type EditAction = (
 const pagePath = z.object({ path: z.string().max(2000) });
 
 /** The Undo history as its editor hands it to the next page, and the token that claims it there. */
-const historyTransfer = z.object({ payload: z.string().max(8_000_000) });
+const historyTransfer = z.object({ payload: z.string().max(HISTORY_TRANSFER_MAX_LENGTH) });
 const historyClaim = z.object({ token: z.string().max(100) });
 
 /** The page submitted for Review, with an optional note. */
@@ -751,8 +765,11 @@ async function editRequest(
 	return refusalsAsJson(async () => {
 		const contentType = request.headers.get("content-type") ?? "";
 		if (!/^application\/json(;|$)/i.test(contentType)) throw new BadEditRequest("Send the request as JSON.");
-		const body: unknown = await request.json().catch(() => {
-			throw new BadEditRequest("The request isn't valid JSON.");
+		// An edit request is a procedure's input under another name: no larger than one.
+		const limited = limitBody(request, API_BODY_MAX_BYTES, payloadTooLarge);
+		if ("refused" in limited) throw limited.refused;
+		const body: unknown = await limited.request.json().catch(() => {
+			throw limited.overflowed() ? payloadTooLarge() : new BadEditRequest("The request isn't valid JSON.");
 		});
 		return answer(services, session, body, request, host);
 	});

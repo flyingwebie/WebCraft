@@ -115,6 +115,8 @@ export const PROCEDURES = {
 	"install.history.update": internal(),
 	"install.media.get": internal(),
 	"install.media.update": internal(),
+	// The secret is shown once, to the person setting the CDN up: never to an API client.
+	"domains.newCdnSecret": internal(),
 	"domains.paused": internal(),
 	"domains.switchOnPaused": internal(),
 	"domains.discardPaused": internal(),

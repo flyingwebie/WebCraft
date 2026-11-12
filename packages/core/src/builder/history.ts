@@ -1,5 +1,5 @@
 import { editorHistoryTransfers } from "@webcraft/db/schema";
-import { and, eq, gt, lte } from "drizzle-orm";
+import { and, eq, gt, isNull, lte, or } from "drizzle-orm";
 import type { Json } from "../co-editing/document.ts";
 import { HistoryObsolete, reverseChange } from "../co-editing/reverse.ts";
 import { type CssTarget, classesCss, saveCss } from "../code-mode/css.ts";
@@ -9,16 +9,33 @@ import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { hashToken, newToken } from "../tokens.ts";
 
-/** A single-use, person/Site-bound bridge between the two editor origins; never a persistent history. */
+/** The longest history a handoff carries, in characters: its requests (the Management API's, Edit mode's) take no more. */
+export const HISTORY_TRANSFER_MAX_LENGTH = 8_000_000;
+
+/**
+ * A single-use, person/Site-bound bridge between the two editor origins; never a persistent history.
+ * A person has one on a Site at a time: a newer one replaces theirs that wasn't claimed, so what
+ * anyone can keep stored here is one history of at most `HISTORY_TRANSFER_MAX_LENGTH`, for a minute.
+ */
 export async function transferHistory(scope: SiteScope, payload: string) {
 	const token = newToken();
-	const now = scope.now();
-	await scope.delete(editorHistoryTransfers, lte(editorHistoryTransfers.expiresAt, now));
-	await scope.insert(editorHistoryTransfers, {
-		personId: personIdOf(scope.access.actor),
-		tokenHash: await hashToken(token),
-		payload,
-		expiresAt: new Date(now.getTime() + 60_000),
+	const personId = personIdOf(scope.access.actor);
+	const tokenHash = await hashToken(token);
+	await scope.transaction(async (tx) => {
+		const now = tx.now();
+		await tx.delete(
+			editorHistoryTransfers,
+			or(
+				lte(editorHistoryTransfers.expiresAt, now),
+				personId === null ? isNull(editorHistoryTransfers.personId) : eq(editorHistoryTransfers.personId, personId),
+			),
+		);
+		await tx.insert(editorHistoryTransfers, {
+			personId,
+			tokenHash,
+			payload,
+			expiresAt: new Date(now.getTime() + 60_000),
+		});
 	});
 	return { token };
 }

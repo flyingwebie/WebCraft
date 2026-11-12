@@ -4,6 +4,7 @@
 // the password changes.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
+import { ipv6Network } from "../harness/addresses.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { givePassword, stagingVisitor } from "../harness/staging.ts";
 
@@ -176,6 +177,47 @@ describe("giving the staging password on the Staging address", () => {
 		expect((await givePassword(other, "crusty sourdough")).status).toBe(303);
 		await install.clock.advance(60_000);
 		expect((await givePassword(visitor, "crusty sourdough")).status).toBe(303);
+	});
+
+	test("an IPv6 connection is counted by its /64, whichever of its addresses each try comes from", async () => {
+		const { siteId, slug } = await newSite();
+		await staff.api.staging.setPassword({ siteId, password: "crusty sourdough" });
+		const visitor = stagingVisitor(install, slug);
+		const network = ipv6Network();
+
+		for (let attempt = 0; attempt < 10; attempt++) {
+			visitor.browser.address = network(attempt + 1);
+			expect((await givePassword(visitor, `wrong guess ${attempt}`)).status).toBe(403);
+		}
+		visitor.browser.address = network(11);
+		const refused = await givePassword(visitor, "crusty sourdough");
+
+		expect(refused.status).toBe(429);
+		// Another connection's /64 isn't held back.
+		visitor.browser.address = ipv6Network()(1);
+		expect((await givePassword(visitor, "crusty sourdough")).status).toBe(303);
+	});
+
+	test("a Site takes 50 tries an hour from every address together, so guessing from many is slow too", async () => {
+		const { siteId, slug } = await newSite();
+		await staff.api.staging.setPassword({ siteId, password: "crusty sourdough" });
+		const visitor = stagingVisitor(install, slug);
+
+		for (let attempt = 0; attempt < 50; attempt++) {
+			visitor.browser.address = `198.51.100.${attempt + 1}`;
+			expect((await givePassword(visitor, `wrong guess ${attempt}`)).status).toBe(403);
+		}
+		visitor.browser.address = "198.51.100.200";
+		const refused = await givePassword(visitor, "crusty sourdough");
+
+		expect(refused.status).toBe(429);
+		expect(await refused.text()).toContain("Too many passwords were tried on this site.");
+		expect(Number(refused.headers.get("retry-after"))).toBeGreaterThan(60);
+		expect(refused.headers.getSetCookie()).toEqual([]);
+		// Another Site's password isn't held back. (The hour isn't waited out here: the clock is the file's.)
+		const other = await newSite();
+		await staff.api.staging.setPassword({ siteId: other.siteId, password: "crusty sourdough" });
+		expect((await givePassword(stagingVisitor(install, other.slug), "crusty sourdough")).status).toBe(303);
 	});
 
 	test("takes the password only from the Staging address's own page", async () => {

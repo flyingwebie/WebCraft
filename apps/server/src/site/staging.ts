@@ -3,11 +3,13 @@ import {
 	type InstallServices,
 	isEditPath,
 	RateLimitedError,
+	readLimitedBody,
 	type SiteHost,
 	STAGING_ENTER_PATH,
 	STAGING_PAGE_POLICY,
 	STAGING_PASSWORD_PATH,
 	STAGING_PASSWORD_RATE_LIMIT,
+	STAGING_PASSWORD_SITE_LIMIT,
 	STAGING_PATH,
 	STAGING_STYLESHEET,
 	stagingPage,
@@ -136,7 +138,7 @@ async function signInPage(
 	request: Request,
 	host: SiteHost,
 	status: number,
-	options: { path?: string; problem?: "wrongPassword" | "tooMany" } = {},
+	options: { path?: string; problem?: "wrongPassword" | "tooMany" | "tooManyForSite" } = {},
 ): Promise<Response> {
 	const url = new URL(request.url);
 	const path = options.path ?? (isEditPath(url.pathname) && !url.pathname.startsWith("/_") ? url.pathname : "/");
@@ -201,7 +203,7 @@ async function enter(services: InstallServices, request: Request, host: SiteHost
 
 /**
  * The staging password, given on the page above: a form post from the Staging address itself, limited
- * per client address. The right password sets the password cookie and goes on to the page asked for;
+ * per client address and per Site. The right password sets the password cookie and goes on to the page asked for;
  * a wrong one shows the page again saying so.
  */
 async function passwordPost(services: InstallServices, request: Request, host: SiteHost): Promise<Response> {
@@ -209,15 +211,23 @@ async function passwordPost(services: InstallServices, request: Request, host: S
 	if (!(await services.staging.hasPassword(host.site))) return plainText(404, "Not Found", PRIVATE);
 	const type = (request.headers.get("content-type") ?? "").split(";")[0]?.trim().toLowerCase();
 	if (type !== "application/x-www-form-urlencoded") return plainText(415, "Unsupported Media Type", PRIVATE);
-	const body = await readLimited(request, PASSWORD_POST_MAX_BYTES);
+	const body = await readLimitedBody(request, PASSWORD_POST_MAX_BYTES);
 	if (body === null) return plainText(413, "Payload Too Large", PRIVATE);
-	const form = new URLSearchParams(body);
+	const form = new URLSearchParams(new TextDecoder().decode(body));
 	const given = form.get("path") ?? "/";
 	const path = isEditPath(given) && !given.startsWith("/_") ? given : "/";
-	const address = clientAddress(request, services.config) ?? "unknown";
-	if (!(await services.rateLimits.count(`staging-password:${host.site.id}:${address}`, STAGING_PASSWORD_RATE_LIMIT))) {
+	const key = `staging-password:${host.site.id}`;
+	if (!(await services.rateLimits.count(key, STAGING_PASSWORD_RATE_LIMIT, clientAddress(request, services.config)))) {
 		const refused = await signInPage(services, request, host, 429, { path, problem: "tooMany" });
 		refused.headers.set("retry-after", String(STAGING_PASSWORD_RATE_LIMIT.windowMs / 1000));
+		return refused;
+	}
+	// Then the Site's own count, whatever the address: before the password is hashed.
+	const forSite = await services.rateLimits.tally(key, STAGING_PASSWORD_SITE_LIMIT);
+	if (!forSite.within) {
+		const refused = await signInPage(services, request, host, 429, { path, problem: "tooManyForSite" });
+		const wait = Math.ceil((forSite.resetsAt.getTime() - services.clock.now().getTime()) / 1000);
+		refused.headers.set("retry-after", String(Math.max(1, wait)));
 		return refused;
 	}
 	const access = await services.staging.tryPassword(host, form.get("password") ?? "");
@@ -246,12 +256,4 @@ function fromStagingPages(request: Request): boolean {
 	} catch {
 		return false;
 	}
-}
-
-/** A request's body as text, or null when it is longer than `limit` bytes. */
-async function readLimited(request: Request, limit: number): Promise<string | null> {
-	const declared = Number(request.headers.get("content-length") ?? "0");
-	if (declared > limit) return null;
-	const bytes = new Uint8Array(await request.arrayBuffer());
-	return bytes.byteLength > limit ? null : new TextDecoder().decode(bytes);
 }
