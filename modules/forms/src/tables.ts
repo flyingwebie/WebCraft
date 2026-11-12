@@ -28,7 +28,7 @@ export const submissions = schema.table(
 		page: text("page"),
 		/** `inbox`, or `spam`. */
 		folder: text("folder").notNull(),
-		/** Why it is spam (`honeypot`, `too-fast`, `token`, `rate-limit`, `size`, `captcha`); null in the inbox. */
+		/** Why it is spam (`honeypot`, `too-fast`, `token`, `rate-limit`, `captcha`; once also `size`); null in the inbox. */
 		spamReason: text("spam_reason"),
 		/** The Form's fields in order, each `{ key, label, type, value }`. */
 		values: jsonb("values").notNull(),

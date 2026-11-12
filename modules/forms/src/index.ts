@@ -7,6 +7,8 @@
 // Forms render nothing there and take no posts. It imports nothing from WebCraft but the Module SDK.
 import {
 	and,
+	asc,
+	count,
 	defineModule,
 	desc,
 	eq,
@@ -36,6 +38,11 @@ import { retention, submissions } from "./tables.ts";
 /** How long the Spam folder keeps a Submission. */
 export const SPAM_KEPT_DAYS = 30;
 
+/** The most Submissions a Site's Spam folder keeps: the newest. */
+export const MAX_SPAM_KEPT = 1000;
+/** How many more it lets in before trimming back, so it isn't trimmed on every post. */
+const TRIM_SLACK = 100;
+
 /** How long a Form may keep its Submissions, in days; null keeps them for good. */
 export const KEEP_DAYS = [30, 90, 365] as const;
 
@@ -45,6 +52,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const LIST_LIMIT = 200;
 const DELETE_LIMIT = 500;
 const EXPORT_LIMIT = 100_000;
+/** The most Submissions a purge or a trim deletes in one transaction. */
+const REMOVE_BATCH = 500;
 
 type SubmissionRow = typeof submissions.$inferSelect;
 
@@ -105,16 +114,65 @@ function containing(text: string): string {
 }
 
 /**
- * Deletes Submissions, and their Form uploads with them: every way a Submission goes (a person
- * deleting it, a Form's retention, the Spam folder's 30 days) passes through here, so its files never
- * outlive it. Inside a transaction, the files' rows go with it and their bytes once it commits.
+ * The ids of the oldest Submissions matching `where`, at most `limit` of them. Only their ids are
+ * read (grouped by, so no row's values travel): a Submission can be as large as a post.
  */
-async function removeSubmissions(context: ModuleContext, where: SQL | undefined): Promise<number> {
-	const going = await context.data.select(submissions, where);
-	if (going.length === 0) return 0;
-	const ids = going.map((row) => row.id);
+async function oldestIds(context: ModuleContext, where: SQL | undefined, limit: number): Promise<string[]> {
+	const rows = await context.data.aggregate(submissions, {
+		where,
+		groupBy: { id: submissions.id, receivedAt: submissions.receivedAt },
+		values: { rows: count() },
+		orderBy: [asc(submissions.receivedAt), asc(submissions.id)],
+		limit,
+	});
+	return rows.map((row) => row.id);
+}
+
+/**
+ * Deletes Submissions, and their Form uploads with them: every way a Submission goes (a person
+ * deleting it, a Form's retention, the Spam folder's 30 days and its limit) passes through here, so
+ * its files never outlive it. Inside a transaction, the files' rows go with it and their bytes once it
+ * commits.
+ */
+async function removeSubmissions(context: ModuleContext, ids: readonly string[]): Promise<number> {
+	if (ids.length === 0) return 0;
 	await context.submissions.removeUploads(ids);
-	return context.data.delete(submissions, inArray(submissions.id, ids));
+	return context.data.delete(submissions, inArray(submissions.id, [...ids]));
+}
+
+/**
+ * Deletes every Submission matching `where`, oldest first, `REMOVE_BATCH` at a time and each batch in
+ * a transaction of its own, so a folder of any size goes without ever being held in memory or in one
+ * transaction. `each` runs in a batch's transaction with how many it deleted. Answers how many went.
+ */
+async function purgeSubmissions(
+	context: ModuleContext,
+	where: SQL | undefined,
+	each?: (tx: ModuleContext, deleted: number) => Promise<void>,
+): Promise<number> {
+	let total = 0;
+	for (;;) {
+		const batch = await context.transaction(async (tx) => {
+			const ids = await oldestIds(tx, where, REMOVE_BATCH);
+			const deleted = await removeSubmissions(tx, ids);
+			if (deleted > 0) await each?.(tx, deleted);
+			return { found: ids.length, deleted };
+		});
+		total += batch.deleted;
+		if (batch.found < REMOVE_BATCH) return total;
+	}
+}
+
+/**
+ * Keeps the Spam folder to the Site's newest `MAX_SPAM_KEPT`: once it is `TRIM_SLACK` past that, the
+ * oldest go, at most `REMOVE_BATCH` for each post kept (a folder far over the limit shrinks post by
+ * post, and by the daily purge).
+ */
+async function trimSpam(context: ModuleContext): Promise<void> {
+	const spam = eq(submissions.folder, "spam");
+	const over = (await context.data.count(submissions, spam)) - MAX_SPAM_KEPT;
+	if (over <= TRIM_SLACK) return;
+	await removeSubmissions(context, await oldestIds(context, spam, Math.min(over, REMOVE_BATCH)));
 }
 
 /** The words of a CSV export's own columns, in the person's Admin language. */
@@ -207,6 +265,7 @@ export const forms = defineModule({
 				sender: submission.sender,
 				searchText: searchTextOf(submission.values),
 			});
+			if (submission.spam !== null) await trimSpam(context);
 			// Module form actions (run inline once a Submission is kept) come in here later.
 			return { id: row.id };
 		},
@@ -348,13 +407,10 @@ export const forms = defineModule({
 						return { deleted: false as const, confirmation, preview: { count: rows.length } };
 					}
 					await context.confirmations.use(input.confirmation, "submissions.delete", target, preview);
-					const count = await context.transaction(async (tx) => {
+					const removed = await context.transaction(async (tx) => {
 						const deleted = await removeSubmissions(
 							tx,
-							inArray(
-								submissions.id,
-								rows.map((row) => row.id),
-							),
+							rows.map((row) => row.id),
 						);
 						await tx.audit("submissions.delete", {
 							count: deleted,
@@ -362,7 +418,7 @@ export const forms = defineModule({
 						});
 						return deleted;
 					});
-					return { deleted: true as const, count };
+					return { deleted: true as const, count: removed };
 				},
 			}),
 
@@ -449,8 +505,9 @@ export const forms = defineModule({
 			payload: z.object({}),
 			async run(_payload, context) {
 				const before = new Date(context.now().getTime() - SPAM_KEPT_DAYS * DAY_MS);
-				const deleted = await context.transaction((tx) =>
-					removeSubmissions(tx, and(eq(submissions.folder, "spam"), lt(submissions.receivedAt, before))),
+				const deleted = await purgeSubmissions(
+					context,
+					and(eq(submissions.folder, "spam"), lt(submissions.receivedAt, before)),
 				);
 				if (deleted > 0) await context.log.info("Deleted Submissions the Spam folder kept 30 days.", { deleted });
 			},
@@ -463,15 +520,12 @@ export const forms = defineModule({
 				for (const setting of await context.data.select(retention, isNotNull(retention.keepDays))) {
 					if (setting.keepDays === null) continue;
 					const before = new Date(context.now().getTime() - setting.keepDays * DAY_MS);
-					await context.transaction(async (tx) => {
-						const deleted = await removeSubmissions(
-							tx,
-							and(eq(submissions.formId, setting.formId), lt(submissions.receivedAt, before)),
-						);
-						if (deleted > 0) {
-							await tx.audit("submissions.purge", { formId: setting.formId, keepDays: setting.keepDays, deleted });
-						}
-					});
+					await purgeSubmissions(
+						context,
+						and(eq(submissions.formId, setting.formId), lt(submissions.receivedAt, before)),
+						(tx, deleted) =>
+							tx.audit("submissions.purge", { formId: setting.formId, keepDays: setting.keepDays, deleted }),
+					);
 				}
 			},
 		}),

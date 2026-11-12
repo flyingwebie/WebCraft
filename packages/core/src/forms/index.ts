@@ -34,7 +34,14 @@ export {
 } from "./errors.ts";
 export type { Form, FormDeletion, FormStatus, FormUsage, NewForm } from "./forms.ts";
 export type { CaptchaSettings, PageFormsOptions } from "./page-forms.ts";
-export { FORM_POST_MAX_BYTES, type FormPost, type FormPostAnswer, SENT_PARAMETER } from "./receive.ts";
+export {
+	FORM_POST_MAX_BYTES,
+	type FormPost,
+	type FormPostAnswer,
+	type FormPostBody,
+	REFUSED_FROM,
+	SENT_PARAMETER,
+} from "./receive.ts";
 export { createFormTokens, type FormTokens } from "./tokens.ts";
 export {
 	createFormUploads,
