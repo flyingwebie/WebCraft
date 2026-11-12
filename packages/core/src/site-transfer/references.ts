@@ -1,6 +1,10 @@
 import {
 	type AttributePart,
+	attributeProblem,
+	commentProblem,
+	elementProblem,
 	RETAINED_KEY,
+	readBody,
 	readMetadataJson,
 	readPropBinding,
 	retainedPropProblem,
@@ -8,6 +12,7 @@ import {
 	retainedValueIdentity,
 	retainedValues,
 } from "@webcraft/renderer";
+import { cleanRichText } from "@webcraft/renderer/rich-text";
 import type { ContentProblem } from "../content/errors.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
 import { type FieldInput, parseFields } from "../content/fields.ts";
@@ -70,6 +75,13 @@ const CORE_AUDIT_NOUNS = new Set([
  * References follow SQL types and the stored contracts of Content, never a string's resemblance
  * to an ID. Unknown Module JSON is opaque. In particular, a text Field containing an existing
  * Entry's UUID is still text. Only URI slots interpret the reserved `media:` protocol.
+ *
+ * With `incoming` (an import reading an archive), what the rows hold is checked as a save checks it:
+ * an archive is input anyone can write, its checksums its own, not a copy of a database. Rich text is
+ * cleaned against its allowlist, as a save cleans it; an element tree holding an element, attribute
+ * or comment no Template may hold, and a Body no save would keep, refuse the archive. Reads trust
+ * what is stored (the renderer writes a tree's tag and attribute names as they are), so nothing
+ * unchecked may be stored.
  */
 export function createRowRemapper(
 	lookup: ReferenceLookup,
@@ -77,6 +89,7 @@ export function createRowRemapper(
 	missingPeople: ReadonlyMap<string, string | null>,
 	onPerson?: (id: string) => void,
 	moduleProps: ReadonlyMap<string, readonly FieldDefinition[]> = new Map(),
+	incoming = false,
 ) {
 	const ref = (value: unknown, person = false): unknown => {
 		if (typeof value !== "string" || !UUID.test(value)) return value;
@@ -110,6 +123,10 @@ export function createRowRemapper(
 					(_match, before, url, after) => `${before}${uri(url)}${after}`,
 				)
 			: value;
+	/** Refuses an archive holding something no save would store. */
+	const refuseUnless = (problem: string | undefined, what: string) => {
+		if (incoming && problem !== undefined) throw new ArchiveRefusedError("damaged", `${what}: ${problem}`);
+	};
 	const inline = (value: unknown) => {
 		for (const part of list(value)) {
 			const node = record(part);
@@ -312,12 +329,23 @@ export function createRowRemapper(
 			if ("default" in field) field.default = await fieldValue(field.default, field, context);
 		}
 	}
+	/**
+	 * A Field's value as its save keeps it: rich text cleaned against its allowlist (the one thing a
+	 * Field's save changes without refusing). Component Props are kept as written by their saves too,
+	 * and aren't read here.
+	 */
+	const asSaved = (value: unknown, field: Row): unknown =>
+		incoming && field.type === "richText" && typeof value === "string" ? cleanRichText(value) : value;
 	async function languageValues(value: unknown, field: Row, context: ReferenceVersion) {
 		for (const item of Object.values(record(value))) {
 			const language = record(item);
 			writer(language.by);
-			if ("value" in language) language.value = await fieldValue(language.value, field, context);
-			if ("source" in language) language.source = await fieldValue(language.source, field, context);
+			if (field.type === "body" && Array.isArray(language.value)) {
+				const { problems } = readBody(language.value);
+				refuseUnless(problems[0] && `${problems[0].at} ${problems[0].message}`, "A Body holds what no save keeps");
+			}
+			if ("value" in language) language.value = asSaved(await fieldValue(language.value, field, context), field);
+			if ("source" in language) language.source = asSaved(await fieldValue(language.source, field, context), field);
 		}
 	}
 	async function values(value: unknown, fields: unknown, context: ReferenceVersion) {
@@ -346,7 +374,16 @@ export function createRowRemapper(
 		const visit = async (nodes: unknown) => {
 			for (const item of list(nodes)) {
 				const node = record(item);
-				if (node.type === "element") {
+				if (node.type === "comment") {
+					refuseUnless(commentProblem(String(node.text)), "An element tree holds a comment no Template may hold");
+				} else if (node.type === "element") {
+					refuseUnless(elementProblem(String(node.tag)), "An element tree holds an element no Template may hold");
+					for (const attribute of list(node.attributes)) {
+						refuseUnless(
+							attributeProblem(String(record(attribute).name)),
+							"An element tree holds an attribute no Template may hold",
+						);
+					}
 					at(node, "id");
 					if (Array.isArray(node.classes)) node.classes = node.classes.map(classRef);
 					for (const attribute of list(node.attributes)) {

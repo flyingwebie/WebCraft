@@ -2,16 +2,16 @@ import { stat } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { Handler } from "../responses.ts";
+import type { AdminApp } from "./security-headers.ts";
 
 /**
  * Serves the admin's built browser files (`dist/client`) in production and hands every other
  * request to `next`. Only admin-host requests reach it, so Sites never expose admin files.
  * In development Vite serves these files itself.
  */
-export function serveStaticFiles(directory: URL, next: (request: Request) => Response | Promise<Response>): Handler {
+export function serveStaticFiles(directory: URL, next: AdminApp): AdminApp {
 	const root = fileURLToPath(directory);
-	return async (request) => {
+	return async (request, page) => {
 		if (request.method === "GET" || request.method === "HEAD") {
 			const path = fileFor(root, new URL(request.url).pathname);
 			if (path && (await isFile(path))) {
@@ -27,7 +27,7 @@ export function serveStaticFiles(directory: URL, next: (request: Request) => Res
 				});
 			}
 		}
-		return next(request);
+		return next(request, page);
 	};
 }
 

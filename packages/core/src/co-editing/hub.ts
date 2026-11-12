@@ -39,7 +39,7 @@ import {
 	recordChange,
 	writingFromDocument,
 } from "./store.ts";
-import { documentView } from "./view.ts";
+import { savedView } from "./view.ts";
 
 /**
  * Co-editing in the web process (ADR 0025): the shared documents people have open here, their
@@ -621,19 +621,11 @@ export function createCoEditing(deps: CoEditingDeps): CoEditing {
 								);
 							}
 							const stored = (await itemState(tx, live.item)).draft;
-							// Tree saves derive declaration ids, retained values/contracts and binding projections.
+							// The document takes what the save stored: cleaned rich text, and what tree saves derive
+							// (declaration ids, retained values/contracts, binding projections, layout defaults).
 							// Keep the authored update's own echo suppressed; send only the derived delta back.
-							const canonical = documentView(live.item.kind, stored);
-							const layoutDefaults =
-								live.item.kind === "entry" &&
-								after !== null &&
-								typeof after === "object" &&
-								!Array.isArray(after) &&
-								"layout" in after;
-							if (
-								(live.item.kind === "component" || live.item.kind === "template" || layoutDefaults) &&
-								!sameValue(after, canonical)
-							) {
+							const canonical = savedView(live.item.kind, after, stored);
+							if (!sameValue(after, canonical)) {
 								const vector = Y.encodeStateVector(trial);
 								changeDocument(trial, canonical);
 								derived = Y.encodeStateAsUpdate(trial, vector);

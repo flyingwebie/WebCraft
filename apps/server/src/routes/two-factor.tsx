@@ -7,13 +7,8 @@ import { z } from "zod";
 import { getApi } from "../ui/api.ts";
 import { errorMessage } from "../ui/errors.ts";
 import { pageTitle, useT } from "../ui/i18n.tsx";
+import { localPath } from "../ui/local-path.ts";
 import { TwoFactorSetupChoices } from "../ui/two-factor/Setup.tsx";
-
-/** Only paths on the admin itself, as on the sign-in page. */
-const localPath = z
-	.string()
-	.max(2048)
-	.refine((path) => path.startsWith("/") && !path.startsWith("//") && !path.startsWith("/\\"));
 
 /**
  * Where a person who must use two-factor authentication (the Install requires it, or a Workspace

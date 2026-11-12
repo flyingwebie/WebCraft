@@ -1,6 +1,7 @@
 import { type InstallServices, normaliseHostname, type SitemapLimits, withLogContext } from "@webcraft/core";
 
 import { healthz, readyz } from "./admin/health.ts";
+import type { AdminApp } from "./admin/security-headers.ts";
 import { createAdminSide } from "./admin/side.ts";
 import {
 	ADMIN_DRAFTS_PREFIX,
@@ -13,6 +14,7 @@ import { type Handler, notFound, plainText } from "./responses.ts";
 import { createPageCache } from "./site/page-cache.ts";
 import { createSitePipeline } from "./site/pipeline.ts";
 
+export type { AdminApp } from "./admin/security-headers.ts";
 export type { SocketUpgrade, UpgradeAnswer } from "./co-editing/sockets.ts";
 export type { Handler } from "./responses.ts";
 
@@ -37,9 +39,10 @@ export type WebHandlerOptions = {
 	services: InstallServices;
 	/**
 	 * Renders the admin app (TanStack Start) for admin-host requests the web process doesn't
-	 * answer itself. Absent in tests, where those requests get a 404.
+	 * answer itself, with the nonce its inline scripts must carry (`admin/security-headers.ts`).
+	 * Absent in tests, where those requests get a 404.
 	 */
-	adminApp?: Handler;
+	adminApp?: AdminApp;
 	/**
 	 * How many filtered pages (variants) the page cache keeps per Site at a time: the default
 	 * (`DEFAULT_FILTER_VARIANTS`) unless given, as a test of the limit needs fewer.

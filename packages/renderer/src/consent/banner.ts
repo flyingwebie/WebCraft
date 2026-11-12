@@ -14,7 +14,7 @@
  *
  * Its classes are WebCraft's own hooks (`CONSENT_HOOKS`), styled in the Design system's base layer.
  */
-import { escapeAttribute, escapeText } from "../escape.ts";
+import { escapeAttribute, escapeText, safeUrl } from "../escape.ts";
 import type { ConsentWords } from "./words.ts";
 
 /** Where the consent script records a visitor's choice: `POST /_wc/consent`, on the Site's own domain. */
@@ -53,7 +53,7 @@ export type PageConsent = {
 export function consentBannerHtml(consent: PageConsent): string {
 	const { words } = consent;
 	const policy = consent.privacyPolicy
-		? `<p class="wc-consent-policy"><a href="${escapeAttribute(consent.privacyPolicy.href)}">${escapeText(consent.privacyPolicy.text || words.privacyPolicy)}</a></p>`
+		? `<p class="wc-consent-policy"><a href="${escapeAttribute(safeUrl(consent.privacyPolicy.href))}">${escapeText(consent.privacyPolicy.text || words.privacyPolicy)}</a></p>`
 		: "";
 	const category = (name: "necessary" | ChosenCategory) => {
 		const id = `${CONSENT_HOOKS.bannerId}-${name}`;
