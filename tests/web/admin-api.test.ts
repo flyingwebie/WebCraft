@@ -58,6 +58,8 @@ describe("the Management API at /api/rpc", () => {
 		const otherPort = `${admin.protocol}//${admin.hostname}:${Number(admin.port || 443) + 1}`;
 		const refused: Record<string, string>[] = [
 			{ origin: "https://attacker.example" },
+			// The admin's hostname over plain HTTP is another origin: anyone on the network can serve it.
+			{ origin: `http://${admin.host}` },
 			{ origin: otherPort },
 			{ origin: otherPort, "sec-fetch-site": "same-origin" },
 			{ origin: "null" },

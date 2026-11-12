@@ -2,6 +2,7 @@ import { ADMIN_API_PREFIX, createAdminApi, createPublicApi, PUBLIC_API_PREFIX } 
 import {
 	type Access,
 	FORM_UPLOADS_PATH,
+	type InstallConfig,
 	type InstallServices,
 	mediaPolicy,
 	normaliseHostname,
@@ -54,7 +55,7 @@ export function createAdminSide(services: InstallServices, adminApp?: AdminApp):
 			// Only POST: a link or a top-level navigation from another site (which carries the
 			// SameSite=Lax cookie) can never call a procedure.
 			if (request.method !== "POST") return plainText(405, "Method Not Allowed", { allow: "POST" });
-			if (!fromAdminPages(request, services.config.adminHost)) {
+			if (!fromAdminPages(request, services.config)) {
 				return json(403, { code: "FORBIDDEN", message: "Requests to the admin must come from the admin's own pages." });
 			}
 			return (await adminApi(request, { clientAddress: clientAddress(request, services.config) })) ?? notFound();
@@ -200,19 +201,24 @@ function attachmentDisposition(name: string): string {
 /**
  * Whether a request could have come from the admin's own pages. Browsers say where a request comes
  * from (`Origin`, `Sec-Fetch-Site`); a request another site's page makes is refused, so no other site
- * can act with a signed-in person's cookie. The `Origin` must be the admin's own: its hostname, on
- * the port this request came to (as Edit mode checks), so another service on the same hostname is
- * refused too, even by a browser that doesn't send `Sec-Fetch-Site`. Requests without either header
+ * can act with a signed-in person's cookie. The `Origin` must be the admin's own: its scheme (plain
+ * HTTP on the admin's hostname is another origin, which anyone on the network can serve) and its
+ * hostname, on the port this request came to (as Edit mode checks), so another service on the same
+ * hostname is refused too, even by a browser that doesn't send `Sec-Fetch-Site`. Requests without either header
  * don't come from a browser (scripts and the CLI use API tokens at `/api/v1`, never this cookie).
  */
-function fromAdminPages(request: Request, adminHost: string): boolean {
+function fromAdminPages(request: Request, config: Pick<InstallConfig, "adminHost" | "adminOrigin">): boolean {
 	const site = request.headers.get("sec-fetch-site");
 	if (site && site !== "same-origin" && site !== "none") return false;
 	const origin = request.headers.get("origin");
 	if (origin === null) return true;
 	try {
 		const from = new URL(origin);
-		return normaliseHostname(from.hostname) === adminHost && from.port === new URL(request.url).port;
+		return (
+			from.protocol === new URL(config.adminOrigin).protocol &&
+			normaliseHostname(from.hostname) === config.adminHost &&
+			from.port === new URL(request.url).port
+		);
 	} catch {
 		return false;
 	}
