@@ -356,6 +356,8 @@ describe("CSV export", () => {
 		for (const [name, message] of [
 			['Siobhán "Shiv" Murphy', '=HYPERLINK("https://evil.example")'],
 			["+353 Luca", "Line one\nline two, with a comma"],
+			// The full-width signs start a formula too, where spreadsheets read East Asian text.
+			["＝Hana", "＠SUM(1+1)"],
 		] as const) {
 			const page = await visitor.open(form.page);
 			await install.clock.advance(5_000);
@@ -364,17 +366,18 @@ describe("CSV export", () => {
 
 		const { filename, csv, count } = await submissions(editor).submissions.export({ siteId, formId: form.formId });
 
-		expect(count).toBe(2);
+		expect(count).toBe(3);
 		expect(filename).toMatch(/^export-submissions-\d{4}-\d{2}-\d{2}\.csv$/);
 		expect(csv.startsWith("﻿")).toBe(true);
 		const lines = csv.slice(1).split("\r\n");
 		expect(lines[0]).toBe('"Received (UTC)","Language","Page","Your name","Email","Message","I agree to be contacted"');
-		expect(lines[1]).toContain(`"'+353 Luca","x@example.ie","Line one\nline two, with a comma","Yes"`);
+		expect(lines[1]).toContain(`"'＝Hana","x@example.ie","'＠SUM(1+1)","Yes"`);
+		expect(csv).toContain(`"'+353 Luca","x@example.ie","Line one\nline two, with a comma","Yes"`);
 		expect(csv).toContain(`"Siobhán ""Shiv"" Murphy","x@example.ie","'=HYPERLINK(""https://evil.example"")","Yes"`);
 		const { entries } = await (await install.superadmin()).api.audit.list({ limit: 1 });
 		expect(entries[0]).toMatchObject({
 			action: "forms.submissions.export",
-			details: { formId: form.formId, count: 2, folder: "inbox" },
+			details: { formId: form.formId, count: 3, folder: "inbox" },
 		});
 	});
 });
