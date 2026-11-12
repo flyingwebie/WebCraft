@@ -627,6 +627,8 @@ WebCraft calls AI providers directly (ADR 0011) with the Workspace's AI key, rec
 
 `InstallPorts.ai` (`AiProviders`: `translate`, `describeImage`) is the edge. The processes use `createHttpAiProviders` (`ai/http-providers.ts`): OpenAI's chat completions (OpenAI, OpenRouter, OpenAI-compatible endpoints, the key as a bearer token), Anthropic's Messages API (`x-api-key`, `anthropic-version: 2026-10-21`, no sampling parameters; models that take them ask for server-side fallbacks) and Google's `generateContent` (the key in `x-goog-api-key`, never in the address). Every call goes through the guarded fetcher: only to the provider's host (or the key's endpoint), checked and pinned, no redirect followed, 120 seconds. A translation sends a JSON array of texts and expects one back, the same length, every marker kept (`AiProviderError` `answer` otherwise; `refused` for a refused key or request, `unavailable` for the rest).
 
+**A provider that reports no usage** (some OpenAI-compatible endpoints leave it out) is counted by the estimate reserved for the call, never as free, so the monthly cap still fills (`usageOf` answers undefined, `AiKeys.call` then takes the estimate).
+
 **Self-hosted models**: a Workspace's own endpoint must be `https` on the public internet, checked when saved and again by the guarded fetcher on every call. A shared Install key may reach an endpoint inside the Install's own network (and use `http`) only while the Superadmin allows it (Install settings › AI, `aiPrivateEndpoints`, a Sensitive action): the guarded fetcher's `privateNetwork` option, which nothing else passes. Clients can never point a key inside the network.
 
 ### Translation modes and the work

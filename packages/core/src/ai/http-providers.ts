@@ -5,6 +5,7 @@ import {
 	type AiConnection,
 	AiProviderError,
 	type AiProviders,
+	type AiUsage,
 	type ImageDescriptionRequest,
 	type ReportTextRequest,
 	type TranslationAnswer,
@@ -180,6 +181,16 @@ function count(value: unknown): number {
 	return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.round(value) : 0;
 }
 
+/**
+ * What a call used, as the provider reported it: its tokens in and out. Undefined when it reported
+ * neither (some compatible endpoints leave usage out), which is not the same as none used: the call
+ * is then counted by its estimate (`AiKeys.call`).
+ */
+function usageOf(inputTokens: unknown, outputTokens: unknown): AiUsage | undefined {
+	if (typeof inputTokens !== "number" && typeof outputTokens !== "number") return undefined;
+	return { inputTokens: count(inputTokens), outputTokens: count(outputTokens) };
+}
+
 /** OpenAI's chat completions: OpenAI, OpenRouter and OpenAI-compatible endpoints. */
 async function chatCompletions(fetch: GuardedFetch, connection: AiConnection, prompt: Prompt): Promise<AiAnswer> {
 	const content = prompt.user.map((part) =>
@@ -210,10 +221,7 @@ async function chatCompletions(fetch: GuardedFetch, connection: AiConnection, pr
 	if (choice.finish_reason === "length") throw new AiProviderError("answer", "The AI provider's answer was cut off.");
 	if (typeof message.content !== "string") throw new AiProviderError("answer", "The AI provider answered no text.");
 	const usage = record(answer.usage);
-	return {
-		text: message.content,
-		usage: { inputTokens: count(usage.prompt_tokens), outputTokens: count(usage.completion_tokens) },
-	};
+	return { text: message.content, usage: usageOf(usage.prompt_tokens, usage.completion_tokens) };
 }
 
 /** Anthropic's Messages API. */
@@ -252,7 +260,7 @@ async function anthropic(fetch: GuardedFetch, connection: AiConnection, prompt: 
 		.join("");
 	if (text === "") throw new AiProviderError("answer", "The AI provider answered no text.");
 	const usage = record(answer.usage);
-	return { text, usage: { inputTokens: count(usage.input_tokens), outputTokens: count(usage.output_tokens) } };
+	return { text, usage: usageOf(usage.input_tokens, usage.output_tokens) };
 }
 
 /** Google's Gemini API. The key goes in a header, never in the address. */
@@ -286,10 +294,7 @@ async function google(fetch: GuardedFetch, connection: AiConnection, prompt: Pro
 		.join("");
 	if (text === "") throw new AiProviderError("answer", "The AI provider answered no text.");
 	const usage = record(answer.usageMetadata);
-	return {
-		text,
-		usage: { inputTokens: count(usage.promptTokenCount), outputTokens: count(usage.candidatesTokenCount) },
-	};
+	return { text, usage: usageOf(usage.promptTokenCount, usage.candidatesTokenCount) };
 }
 
 /** The list of translations in a provider's answer: a JSON array of strings, as many as were sent. */
