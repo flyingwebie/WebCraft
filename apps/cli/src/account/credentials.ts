@@ -1,6 +1,8 @@
 import { chmod, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { CliError, EXIT } from "../exit-codes.ts";
+
 /** What a device sign-in keeps: the grant's tokens. Never shown, never in the profiles file. */
 export type StoredSignIn = {
 	accessToken: string;
@@ -36,13 +38,27 @@ const SERVICE = "webcraft";
 export function credentialStore(configDir: string, prefer: CredentialPlace): CredentialStore {
 	const file = join(configDir, "credentials.json");
 
+	/**
+	 * The sign-ins in the file: none while there is no file. A file that is there and can't be read as
+	 * sign-ins (cut short, damaged) stops the command: read as "no sign-ins", the next one kept would
+	 * replace it with a file of one, and whatever of the others could still be mended would be gone.
+	 */
 	const readFileStore = async (): Promise<Record<string, StoredSignIn>> => {
+		let text: string;
 		try {
-			const parsed: unknown = JSON.parse(await readFile(file, "utf8"));
-			return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, StoredSignIn>) : {};
-		} catch {
-			return {};
+			text = await readFile(file, "utf8");
+		} catch (error) {
+			if ((error as { code?: unknown }).code === "ENOENT") return {};
+			throw unreadable(file);
 		}
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(text);
+		} catch {
+			throw unreadable(file);
+		}
+		if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw unreadable(file);
+		return parsed as Record<string, StoredSignIn>;
 	};
 	const writeFileStore = async (entries: Record<string, StoredSignIn>) => {
 		if (Object.keys(entries).length === 0) {
@@ -97,6 +113,13 @@ export function credentialStore(configDir: string, prefer: CredentialPlace): Cre
 			}
 		},
 	};
+}
+
+function unreadable(file: string): CliError {
+	return new CliError(
+		EXIT.failed,
+		`${file} can't be read as sign-ins: it is damaged. Nothing was changed. Mend it, or move it away to start again (the sign-ins in it are then gone: run webcraft login for each Install).`,
+	);
 }
 
 function parseSignIn(text: string): StoredSignIn | null {
