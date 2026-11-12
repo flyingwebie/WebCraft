@@ -5762,6 +5762,8 @@
 		"refusedHeading": "Questa richiesta non può essere approvata",
 		"refusedClient": "L'app che ti ha mandato qui non è registrata in questo WebCraft. Non è stato approvato nulla.",
 		"refusedRedirect": "L'app ha chiesto di rimandarti a un indirizzo che non ha registrato. Non è stato approvato nulla e non sei stato mandato da nessuna parte.",
+		"refusedRequest": "{client} ha inviato una richiesta che WebCraft non può approvare. Non è stato approvato nulla e non sei stato mandato da nessuna parte. L'app ha chiesto di rimandarti a {host}: chiunque può registrare un'app qui, quindi vai a quell'indirizzo solo se ti fidi.",
+		"backToClient": "Torna a {host}",
 		"toAdmin": "Vai all'admin",
 		"device": {
 			"pageTitle": "Accedi da un dispositivo",

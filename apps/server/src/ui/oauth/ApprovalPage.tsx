@@ -44,13 +44,26 @@ export function ApprovalPage({ data, person }: { data: ApprovalData; person: { n
 					<>
 						<h1 className="mb-3 text-2xl font-semibold tracking-tight">{t("oauth.refusedHeading")}</h1>
 						<p className="text-muted-foreground mb-6 text-sm">
-							{data.check.kind === "refused" && data.check.problem === "redirectUri"
-								? t("oauth.refusedRedirect")
-								: t("oauth.refusedClient")}
+							{data.check.problem === "request"
+								? t("oauth.refusedRequest", {
+										client: data.check.client.name,
+										host: data.check.client.redirectHost,
+									})
+								: data.check.problem === "redirectUri"
+									? t("oauth.refusedRedirect")
+									: t("oauth.refusedClient")}
 						</p>
-						<Link to="/" className={buttonVariants({ variant: "outline" })}>
-							{t("oauth.toAdmin")}
-						</Link>
+						<div className="flex flex-wrap gap-2">
+							<Link to="/" className={buttonVariants({ variant: "outline" })}>
+								{t("oauth.toAdmin")}
+							</Link>
+							{data.check.problem === "request" ? (
+								// Only a click goes there: the address is the app's own, and anyone may register one.
+								<a href={data.check.returnTo} rel="noreferrer" className={buttonVariants({ variant: "ghost" })}>
+									{t("oauth.backToClient", { host: data.check.client.redirectHost })}
+								</a>
+							) : null}
+						</div>
 					</>
 				)}
 			</div>

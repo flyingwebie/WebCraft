@@ -5762,6 +5762,8 @@
 		"refusedHeading": "This request can't be approved",
 		"refusedClient": "The app that sent you here isn't registered with this WebCraft. Nothing was approved.",
 		"refusedRedirect": "The app asked to send you back to an address it didn't register. Nothing was approved, and you weren't sent anywhere.",
+		"refusedRequest": "{client} sent a request WebCraft can't approve. Nothing was approved, and you weren't sent anywhere. The app asked to send you back to {host}: anyone can register an app here, so go there only if you trust it.",
+		"backToClient": "Go back to {host}",
 		"toAdmin": "Go to the admin",
 		"device": {
 			"pageTitle": "Sign in a device",

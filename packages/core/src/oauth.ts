@@ -166,7 +166,19 @@ export type AuthorizationRequest = {
 export type AuthorizationCheck =
 	| { kind: "ask"; request: AuthorizationRequest }
 	| { kind: "refused"; problem: "client" | "redirectUri" }
-	| { kind: "redirect"; to: string };
+	/**
+	 * A registered client and address, but a request that can't be approved (no PKCE, another
+	 * response type). `returnTo` is the client's address with the error: the page offers it behind a
+	 * button and never follows it by itself, since anyone may register a client with any address, and
+	 * a link on the admin's own hostname must not land a signed-in person somewhere else unasked.
+	 */
+	| {
+			kind: "refused";
+			problem: "request";
+			client: { name: string; redirectHost: string };
+			description: string;
+			returnTo: string;
+	  };
 
 /** What the person chose on the approval page. */
 export type GrantChoice = {
@@ -402,8 +414,16 @@ export function createOAuth({
 		const redirectUri = parameters.redirect_uri;
 		if (!redirectUri || !client.redirectUris.includes(redirectUri)) return { kind: "refused", problem: "redirectUri" };
 		const back = (error: string, description: string) => ({
-			kind: "redirect" as const,
-			to: answerUrl(redirectUri, { error, error_description: description, state: parameters.state, iss: issuer }),
+			kind: "refused" as const,
+			problem: "request" as const,
+			client: { name: client.name, redirectHost: hostOf(redirectUri) },
+			description,
+			returnTo: answerUrl(redirectUri, {
+				error,
+				error_description: description,
+				state: parameters.state,
+				iss: issuer,
+			}),
 		});
 		if (parameters.response_type !== "code") {
 			return back("unsupported_response_type", "Only the authorization code flow (response_type=code) is offered.");
@@ -667,7 +687,6 @@ export function createOAuth({
 			if (found.kind === "refused") {
 				throw new OAuthRequestError("invalid_request", "This authorization request can't be approved.");
 			}
-			if (found.kind === "redirect") return { redirectTo: found.to, grantId: "" };
 			const listed = choice.sites === "all" ? null : [...new Set(choice.sites)];
 			if (listed !== null) {
 				if (listed.length === 0) throw new SiteNotFoundError();
@@ -730,7 +749,6 @@ export function createOAuth({
 			if (found.kind === "refused") {
 				throw new OAuthRequestError("invalid_request", "This authorization request can't be answered.");
 			}
-			if (found.kind === "redirect") return { redirectTo: found.to };
 			return {
 				redirectTo: answerUrl(found.redirectUri, {
 					error: "access_denied",

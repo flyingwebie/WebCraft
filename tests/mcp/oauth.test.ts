@@ -169,7 +169,9 @@ describe("approving a client", () => {
 		expect(elsewhere.check).toEqual({ kind: "refused", problem: "redirectUri" });
 	});
 
-	test("a request without PKCE, or with the plain method, goes back to the client with an error", async () => {
+	// The person is never sent on by the page itself: anyone may register an app with any address,
+	// so the error goes back only when the person chooses to (`returnTo`, behind a button).
+	test("a request without PKCE, or with the plain method, is refused, with the error for the client behind a button", async () => {
 		const admin = await install.superadmin();
 		const { body } = await registerClient(install);
 		const { challenge } = await pkcePair();
@@ -177,12 +179,33 @@ describe("approving a client", () => {
 			const { check } = await admin.api.oauth.check({
 				parameters: authorizationParameters(install, String(body.client_id), challenge, more),
 			});
-			expect(check.kind).toBe("redirect");
-			const back = new URL((check as { to: string }).to);
+			expect(check).toMatchObject({
+				kind: "refused",
+				problem: "request",
+				client: { name: "Test AI client", redirectHost: "127.0.0.1:33418" },
+			});
+			const back = new URL((check as { returnTo: string }).returnTo);
 			expect(`${back.origin}${back.pathname}`).toBe(LOOPBACK_REDIRECT);
 			expect(back.searchParams.get("error")).toBe("invalid_request");
 			expect(back.searchParams.get("state")).toBe("state-123");
 		}
+	});
+
+	test("a faulty request from an app registered with an outside address never answers a redirect to follow", async () => {
+		const admin = await install.superadmin();
+		const landing = "https://elsewhere.example/landing";
+		const { body } = await registerClient(install, { redirect_uris: [landing], application_type: "web" });
+
+		const { check } = await admin.api.oauth.check({
+			parameters: { client_id: String(body.client_id), redirect_uri: landing, response_type: "x" },
+		});
+
+		expect(check).toMatchObject({
+			kind: "refused",
+			problem: "request",
+			client: { redirectHost: "elsewhere.example" },
+			returnTo: expect.stringContaining(`${landing}?error=unsupported_response_type`),
+		});
 	});
 
 	test("approving is a Sensitive action, recorded in the Workspace's Audit log", async () => {
