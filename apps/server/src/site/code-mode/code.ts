@@ -380,6 +380,18 @@ export function codeMode(
 		}
 	}
 
+	/**
+	 * Where to leave for, once Code mode's work is saved and its Undo history handed over (ADR 0036);
+	 * null stays here: a save was refused, or the person went on editing meanwhile.
+	 */
+	async function departure(url: string): Promise<string | null> {
+		const revision = inputRevision;
+		if (panelsAdapter && !(await panelsAdapter.depart())) return null;
+		if (jsDirty() && !(await saveScript(undefined))) return null;
+		const destination = panelsAdapter ? await panelsAdapter.history.departure(url) : url;
+		return destination && revision === inputRevision ? destination : null;
+	}
+
 	async function start(): Promise<void> {
 		const state = await call("state", { path });
 		if (!state.ok) return;
@@ -498,11 +510,8 @@ export function codeMode(
 					jsEditor.area.focus();
 				},
 				async leaveTo(url: string) {
-					const revision = inputRevision;
-					if (panelsAdapter && !(await panelsAdapter.depart())) return;
-					if (jsDirty() && !(await saveScript(undefined))) return;
-					const destination = panelsAdapter ? await panelsAdapter.history.departure(url) : url;
-					if (destination && revision === inputRevision) win.location.assign(destination);
+					const destination = await departure(url);
+					if (destination) win.location.assign(destination);
 				},
 				bar(action: "publish" | "safeMode" | "preview" | "leave") {
 					doc.dispatchEvent(new CustomEvent("webcraft:edit-command", { detail: { action } }));
@@ -528,16 +537,14 @@ export function codeMode(
 				)
 					return;
 				event.preventDefault();
-				void (async () => {
-					const revision = inputRevision;
-					if (!panelsAdapter || !(await panelsAdapter.depart()) || (jsDirty() && !(await saveScript(undefined))))
-						return;
-					const destination = await panelsAdapter.history.departure(link.href);
-					if (destination && revision === inputRevision) win.location.assign(destination);
-				})();
+				void departure(link.href).then((destination) => {
+					if (destination) win.location.assign(destination);
+				});
 			},
 			true,
 		);
+		// The editing bar's own switches (Edit, Preview, Safe mode) leave Code mode the same way.
+		doc.dispatchEvent(new CustomEvent("webcraft:history-departure", { detail: departure }));
 		panelsAdapter?.history.listen({
 			announce: (message, refused) => {
 				announce(message, refused ? "interrupt" : "polite");

@@ -1,11 +1,13 @@
 import { media } from "@webcraft/db/schema";
 import { eq } from "drizzle-orm";
 
+import type { Json as DocumentJson } from "../co-editing/document.ts";
+import { documentView } from "../co-editing/view.ts";
 import { editableField, imageField } from "../content/editable.ts";
-import { getEntry, saveDraft } from "../content/entries.ts";
+import { getEntry, lockEntry, saveDraft } from "../content/entries.ts";
 import type { ContentProblem } from "../content/errors.ts";
 import type { FieldDefinition, Json } from "../content/field-types.ts";
-import { getGlobals, saveGlobalsDraft } from "../content/globals.ts";
+import { getGlobals, lockGlobals, saveGlobalsDraft } from "../content/globals.ts";
 import { getPostType } from "../content/post-types.ts";
 import { isUuid } from "../ids.ts";
 import { MediaInTrashError, MediaInvalidError, MediaNotFoundError } from "../media/errors.ts";
@@ -32,6 +34,19 @@ export type RegionChange = {
 	language?: string;
 };
 
+/**
+ * The exact change a save made to an Entry's or the Globals' Draft, as the item's shared document
+ * holds it (Co-editing): the saved value's own part of the document, before and after, read inside the
+ * save's transaction while the item is held. The Undo history (ADR 0036) keeps it as the person's own
+ * step; reading the Draft again later could hold someone else's change too.
+ */
+export type RegionHistory = {
+	/** The Draft changed: `draft:<site id>:entry:<entry id>` or `draft:<site id>:globals`. */
+	resource: string;
+	before: DocumentJson;
+	after: DocumentJson;
+};
+
 /** What saving a region did: the item's status, the value as stored, and its problems. */
 export type SavedRegion = {
 	status: "draft" | "published" | "changed";
@@ -39,6 +54,8 @@ export type SavedRegion = {
 	value: Json;
 	/** What keeps the value from being published (an empty required value, a broken rule). */
 	problems: ContentProblem[];
+	/** A typed value's own change to its Entry's or the Globals' Draft; a body's and a Loop item's saves have none. */
+	history?: RegionHistory;
 };
 
 /** A new image for an image region: a Media image of the Site's library, or null for none. */
@@ -88,6 +105,36 @@ export async function saveRegion(scope: SiteScope, change: RegionChange): Promis
 		};
 	}
 	const item = readEditItem(change.item);
+	// A body's Blocks are the block editor's own: the Undo history keeps typed values only.
+	if (Array.isArray(change.value)) return saveItemRegion(scope, item, change);
+	// The item stays held from the first read to the last: the receipt is this save's change alone.
+	return scope.transaction(async (tx) => {
+		const held = async () =>
+			item.kind === "globals"
+				? documentView("globals", (await lockGlobals(tx)).draft)
+				: documentView("entry", (await lockEntry(tx, item.id)).draft);
+		const before = await held();
+		const saved = await saveItemRegion(tx, item, change);
+		const key = change.field.split(".")[0] ?? "";
+		return {
+			...saved,
+			history: {
+				resource: `draft:${tx.site.id}:${item.kind === "globals" ? "globals" : `entry:${item.id}`}`,
+				before: { values: keptValue(before, key) },
+				after: { values: keptValue(await held(), key) },
+			},
+		};
+	});
+}
+
+/** One value of a Draft's document by its key, or nothing where the Draft holds none. */
+function keptValue(view: DocumentJson, key: string): Record<string, DocumentJson> {
+	const values = view && typeof view === "object" && !Array.isArray(view) ? view.values : null;
+	const value = values && typeof values === "object" && !Array.isArray(values) ? values[key] : undefined;
+	return value === undefined ? {} : { [key]: value };
+}
+
+async function saveItemRegion(scope: SiteScope, item: EditItem, change: RegionChange): Promise<SavedRegion> {
 	const { language } = change;
 	if (item.kind === "globals") {
 		if (typeof change.value !== "string") throw new EditFieldInvalidError();

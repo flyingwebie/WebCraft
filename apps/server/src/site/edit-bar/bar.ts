@@ -1,25 +1,30 @@
 import type { editorAccessibility } from "../../ui/builder/editor-accessibility.ts";
+import type { PageLayoutController } from "../../ui/page-layouts/controller.ts";
 import type {
 	BarKit,
 	BodyTools,
 	DetailsPanel,
+	HistoryHost,
+	HistoryTools,
 	ImageTools,
 	LoopTools,
 	PanelHandle,
 	PanelOptions,
 	PresencePlace,
 	PresenceTarget,
+	SavedChange,
 	SharedDraft,
 } from "./kit.ts";
 
 /**
  * What the editing bar's script is given when it is made: the addresses of its own stylesheet and of
- * the module that opens the page's Drafts live (Co-editing), and the narrowest window Code mode opens
- * in (`EDITOR_WIDTHS.min`, #138).
+ * the module that opens the page's Drafts live (Co-editing), of the Undo history's module (ADR 0036),
+ * and the narrowest window Code mode opens in (`EDITOR_WIDTHS.min`, #138).
  */
 export type EditingBarConfig = {
 	styles: string;
 	drafts: string;
+	history: string;
 	body: string;
 	layout: string;
 	layoutStyles: string;
@@ -83,7 +88,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		publishAll: { url: string; otherDrafts: number };
 		pages: { title: string; path: string }[];
 		person: { name: string };
-		site: { name: string };
+		site: { id: string; name: string };
 		language: { code: string; name: string };
 		defaultLanguage: string;
 		languages: { code: string; name: string; path: string; current: boolean }[];
@@ -115,6 +120,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	type DraftEnds = { receive(data: string | Uint8Array): void; closed(): void };
 	type DraftClient = {
 		stage: SharedDraft["stage"];
+		reverse: SharedDraft["reverse"];
 		place(at: string | null): void;
 		connect(transport: { send(data: string | Uint8Array): void; close(): void }): DraftEnds;
 		draft(): unknown;
@@ -214,6 +220,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		numberedList: ["M10 12h11", "M10 18h11", "M10 6h11", "M4 10h2", "M4 6h1v4", "M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"],
 		clearFormatting: ["M4 7V4h16v3", "M5 20h6", "M13 4 8 20", "m15 15 5 5", "m20 15-5 5"],
 		undo: ["M9 14 4 9l5-5", "M4 9h10.5a5.5 5.5 0 0 1 0 11H11"],
+		redo: ["m15 14 5-5-5-5", "M20 9H9.5a5.5 5.5 0 0 0 0 11H13"],
 		info: ["M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20", "M12 16v-4", "M12 8h.01"],
 		pointer: ["M14 4.1 12 6", "m5.1 8-2.9-.8", "m6 12-1.9 2", "M7.2 2.2 8 5.1", "m9 9 4 12 2-5 5-2z"],
 		admin: ["M15 3h6v6", "M10 14 21 3", "M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"],
@@ -276,9 +283,17 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	let state: State | null = null;
 	let words: Words = {};
 	let editing = true;
-	let layoutTools: { finish(): Promise<boolean> } | undefined;
+	let layoutTools: PageLayoutController | undefined;
+	/** The Undo history (ADR 0036), once its module loaded: one for this window, outside Code mode. */
+	let historyTools: HistoryTools | null = null;
 	doc.addEventListener("webcraft:page-layout", (event) => {
-		layoutTools = (event as CustomEvent).detail;
+		layoutTools = (event as CustomEvent<PageLayoutController>).detail;
+		historyTools?.layout(layoutTools);
+	});
+	/** In Code mode the history is its panels': how they save their work and hand it over, once they said. */
+	let codeDeparture: HistoryTools["departure"] | undefined;
+	doc.addEventListener("webcraft:history-departure", (event) => {
+		codeDeparture = (event as CustomEvent<HistoryTools["departure"]>).detail;
 	});
 	let ended = false;
 
@@ -294,6 +309,8 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	let savedNote: HTMLElement;
 	let pageButton: HTMLButtonElement;
 	let publishButton: HTMLButtonElement;
+	/** Undo and Redo, in the bar and (Undo) in the text toolbar: what they say follows the history. */
+	const historyButtons: { undo: HTMLButtonElement[]; redo: HTMLButtonElement[] } = { undo: [], redo: [] };
 	let tag: HTMLElement;
 	let problem: HTMLElement;
 	let toolbar: HTMLElement;
@@ -419,6 +436,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		kit.openImage = images.open;
 		setUpRegions();
 		loadBody();
+		if (!coding) loadHistory();
 		if (!coding && state.page.layout) loadLayout();
 		openDrafts();
 		every(() => void refresh(), 60_000);
@@ -558,14 +576,13 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		// of the Site's Structure or without them.
 		const switchCode = async (on: boolean, preview = false) => {
 			if (on && layoutTools && !(await layoutTools.finish())) return;
-			const answer = await call(on ? "code/start" : "code/stop", {});
-			if (!answer.ok) return;
-			try {
-				if (preview) win.sessionStorage.setItem(PREVIEW_KEY, "on");
-			} catch {
-				// Without storage the page opens in Edit.
-			}
-			win.location.reload();
+			await showAgain(on ? "code/start" : "code/stop", () => {
+				try {
+					if (preview) win.sessionStorage.setItem(PREVIEW_KEY, "on");
+				} catch {
+					// Without storage the page opens in Edit.
+				}
+			});
 		};
 		modeEdit.addEventListener("click", () => (coding ? void switchCode(false) : setMode(true)));
 		modePreview.addEventListener("click", () => (coding ? void switchCode(false, true) : setMode(false)));
@@ -608,6 +625,18 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				doc.documentElement.classList.toggle("wc-edit-phone", device === "phone");
 			});
 			devices.append(choice);
+		}
+
+		// Undo and Redo step through the person's own history (ADR 0036). Code mode shows its own.
+		const historyGroup = coding
+			? null
+			: el("div", { class: "segments history", role: "group", "aria-label": word("undoHistory") });
+		for (const name of ["undo", "redo"] as const) {
+			if (!historyGroup) break;
+			const step = button({ class: "segment icon-only", "aria-label": word(name) }, icon(name));
+			step.addEventListener("click", () => void historyTools?.target[name]());
+			historyButtons[name].push(step);
+			historyGroup.append(step);
 		}
 
 		// With more than one language, the page in each of them is a menu away.
@@ -770,7 +799,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				...(safeChip ? [safeChip] : []),
 				savedNote,
 			),
-			el("div", { class: "middle" }, modes, devices),
+			el("div", { class: "middle" }, modes, devices, ...(historyGroup ? [historyGroup] : [])),
 			el(
 				"div",
 				{ class: "end" },
@@ -820,6 +849,30 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			const through = event.composedPath();
 			if (!through.includes(openPopup.panel) && !through.includes(openPopup.trigger)) closePopup(false);
 		});
+		// Following a link to another page of the Site takes the Undo history along (ADR 0036). Code
+		// mode hands its own over.
+		win.addEventListener("click", (event) => {
+			const link = event.composedPath().find((node): node is HTMLAnchorElement => node instanceof HTMLAnchorElement);
+			if (
+				coding ||
+				!link ||
+				event.defaultPrevented ||
+				event.button !== 0 ||
+				event.ctrlKey ||
+				event.metaKey ||
+				event.shiftKey ||
+				event.altKey ||
+				(link.target && link.target !== "_self") ||
+				link.hasAttribute("download") ||
+				// A link in text being edited is text: the browser doesn't follow it either.
+				link.isContentEditable ||
+				link.origin !== win.location.origin ||
+				(link.pathname === win.location.pathname && link.search === win.location.search)
+			)
+				return;
+			event.preventDefault();
+			void leaveFor(link.href);
+		});
 		// The bar never covers what has focus: the page scrolls it into view below the bar.
 		doc.addEventListener("focusin", (event) => {
 			const target = event.target;
@@ -829,7 +882,20 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			if (top < below) win.scrollBy({ top: top - below, behavior: "instant" });
 		});
 		renderStatus();
+		renderHistory();
 		renderFailures(notice);
+	}
+
+	/** Undo and Redo as the history has them now: each step's label and keys in the title, off when there is none. */
+	function renderHistory(): void {
+		const now = historyTools?.buttons();
+		for (const name of ["undo", "redo"] as const) {
+			for (const step of historyButtons[name]) {
+				step.disabled = !now?.[name].enabled;
+				step.title = now?.[name].title ?? word(name);
+				if (now) step.setAttribute("aria-keyshortcuts", now[name].keys);
+			}
+		}
 	}
 
 	/**
@@ -965,6 +1031,17 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				link.listeners.add(listener);
 				return () => link.listeners.delete(listener);
 			},
+			async reverse(from, to) {
+				const result = await link.client.reverse(from, to);
+				if (result.ok) {
+					// The page shows an own step taken back as it shows someone else's change.
+					const draft = link.client.draft();
+					showChange(item, draft, true);
+					for (const listener of link.listeners) listener(draft);
+					void refresh();
+				}
+				return result;
+			},
 			saved() {
 				link.client.flush();
 				const started = Date.now();
@@ -980,6 +1057,89 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				});
 			},
 		};
+	}
+
+	/**
+	 * Loads the Undo history's module (it hands itself over in an event) and gives it the bar's side:
+	 * what the person is still typing, the regions it shows steps at, the page's Drafts and its layout.
+	 */
+	function loadHistory(): void {
+		doc.addEventListener(
+			"webcraft:history-tools",
+			(event) => {
+				const module = (event as CustomEvent<{ mount(kit: BarKit, host: HistoryHost): Promise<HistoryTools> }>).detail;
+				void module.mount(kit, { finish: finishInput, reveal: revealRegion }).then((tools) => {
+					historyTools = tools;
+					for (const item of drafts.keys()) tools.opened(item);
+					if (layoutTools) tools.layout(layoutTools);
+					tools.target.subscribe(renderHistory);
+					renderHistory();
+					// The Command menu's Undo and Redo use the same target (#139).
+					doc.dispatchEvent(new CustomEvent("webcraft:edit-history", { detail: tools.target }));
+				});
+			},
+			{ once: true },
+		);
+		const script = doc.createElement("script");
+		script.type = "module";
+		script.src = config.history;
+		doc.head.append(script);
+	}
+
+	/** Saves what the person is still typing in place (and in the Page layout's Props), and waits for each answer. */
+	async function finishInput(): Promise<void> {
+		regions = regions.filter((region) => region.isConnected);
+		await Promise.all(regions.map((region) => save(region)));
+		await layoutTools?.finish();
+	}
+
+	/** Brings the region showing an item's value into view; focus stays where it is. */
+	function revealRegion(item: string, field: string): boolean {
+		const region = regions.find(
+			(each) => each.isConnected && each.dataset.wcItem === item && each.dataset.wcField === field,
+		);
+		region?.scrollIntoView({ block: "nearest" });
+		return Boolean(region);
+	}
+
+	/**
+	 * Leaves for another page of the Site with the Undo history handed over (ADR 0036): what was being
+	 * typed is saved first. Nothing happens when the history changed while it was handed over, or it
+	 * couldn't be: the person stays on this page, where the history still is.
+	 */
+	async function leaveFor(url: string): Promise<void> {
+		const destination = await departure(url);
+		if (destination !== null) win.location.assign(destination);
+	}
+
+	async function departure(url: string): Promise<string | null> {
+		const leave = historyTools?.departure ?? codeDeparture;
+		if (!leave) return url;
+		try {
+			return await leave(url);
+		} catch {
+			announce(errorText("generic"), "interrupt");
+			return null;
+		}
+	}
+
+	/**
+	 * Shows this page again after a switch only a request makes (Code mode, Safe mode), with the Undo
+	 * history handed over. A browser stays on the page when only the address's fragment changes, so a
+	 * history's token goes through Edit mode's own redirect; without one the page is simply loaded again.
+	 */
+	async function showAgain(change: string, before?: () => void): Promise<void> {
+		const destination = await departure(win.location.href);
+		if (destination === null) return;
+		const answer = await call(change, {});
+		if (!answer.ok) return;
+		before?.();
+		const token = new URLSearchParams(new URL(destination).hash.slice(1)).get("wc-history");
+		if (!token) win.location.reload();
+		else {
+			const here = encodeURIComponent(win.location.pathname + win.location.search);
+			win.location.assign(`/_webcraft/edit/again?to=${here}&history=${encodeURIComponent(token)}`);
+		}
 	}
 
 	function loadLayout(): void {
@@ -1238,6 +1398,18 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				null,
 				then(() => details?.open(from)),
 			);
+		const steps = historyTools;
+		if (steps) {
+			const now = steps.buttons();
+			for (const name of ["undo", "redo"] as const) {
+				row(
+					name,
+					now[name].label,
+					null,
+					then(() => void steps.target[name]()),
+				).disabled = !now[name].enabled;
+			}
+		}
 		const admin = el(
 			"a",
 			{ class: "sheet-row", href: s.publishAll.url },
@@ -1325,8 +1497,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 
 	/** Turns Safe mode on or off for this browser, then shows the page again. */
 	async function switchSafe(on: boolean): Promise<void> {
-		const answer = await call(on ? "safe/start" : "safe/stop", {});
-		if (answer.ok) win.location.reload();
+		await showAgain(on ? "safe/start" : "safe/stop");
 	}
 
 	/**
@@ -1335,16 +1506,18 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	 */
 	async function openScript(kind: string, from: HTMLElement): Promise<void> {
 		if (!coding && codeTooNarrow(from)) return;
-		if (!coding) {
-			const answer = await call("code/start", {});
-			if (!answer.ok) return;
+		const tell = () => {
+			try {
+				win.sessionStorage.setItem(CODE_SCRIPT_KEY, kind);
+			} catch {
+				// Code mode still opens; the JS panel shows the page's script.
+			}
+		};
+		if (!coding) await showAgain("code/start", tell);
+		else {
+			tell();
+			win.location.reload();
 		}
-		try {
-			win.sessionStorage.setItem(CODE_SCRIPT_KEY, kind);
-		} catch {
-			// Code mode still opens; the JS panel shows the page's script.
-		}
-		win.location.reload();
 	}
 
 	/**
@@ -1886,6 +2059,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			details?.close(false);
 		}
 		if (detailsButton) detailsButton.disabled = !on;
+		renderHistory();
 	}
 
 	function textIn(region: HTMLElement): string {
@@ -1943,46 +2117,52 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	async function save(region: HTMLElement): Promise<void> {
 		cancel(timers.get(region));
 		timers.delete(region);
-		await saving.get(region);
-		const value = textIn(region);
-		if (ended || value === lastSaved.get(region)) return;
-		const run = (async () => {
-			savedNote.textContent = word("saving");
-			const answer = await call("save", {
-				item: region.dataset.wcItem,
-				field: region.dataset.wcField,
-				value,
-				language: state?.language.code,
-			});
-			if (!answer.ok) {
-				const reason = errorText(answer.code);
-				savedNote.textContent = word("saveFailed", { reason });
-				announce(word("saveFailed", { reason }), "interrupt");
-				return;
-			}
-			const saved = answer.data as { value: unknown; problems: Problem[] };
-			lastSaved.set(region, value);
-			const found = saved.problems[0];
-			if (found) problems.set(region, problemText(found));
-			else problems.delete(region);
-			region.toggleAttribute("data-wc-invalid", Boolean(found));
-			if (current === region) showProblem(region);
-			// Rich text comes back cleaned; once the person has moved on, the region shows it as stored.
-			if (typeof saved.value === "string" && current !== region && saved.value !== textIn(region)) {
-				if (region.dataset.wcType === "richText") region.innerHTML = saved.value;
-				else region.textContent = saved.value;
-				lastSaved.set(region, textIn(region));
-			}
-			savedNote.textContent = word("savedJustNow");
-			cancel(savedTimer);
-			savedTimer = later(() => {
-				savedNote.textContent = word("saved");
-			}, 60_000);
-			if (found) announce(problemText(found));
-			await refresh();
-		})();
-		saving.set(region, run);
-		await run;
+		// The step keeps its place among the person's own from now, whenever the save is answered.
+		const place = historyTools?.reserve();
+		try {
+			await saving.get(region);
+			const value = textIn(region);
+			if (ended || value === lastSaved.get(region)) return;
+			const item = region.dataset.wcItem ?? "";
+			const field = region.dataset.wcField ?? "";
+			const run = (async () => {
+				savedNote.textContent = word("saving");
+				const answer = await call("save", { item, field, value, language: state?.language.code });
+				if (!answer.ok) {
+					const reason = errorText(answer.code);
+					savedNote.textContent = word("saveFailed", { reason });
+					announce(word("saveFailed", { reason }), "interrupt");
+					return;
+				}
+				const saved = answer.data as { value: unknown; problems: Problem[]; history?: SavedChange };
+				lastSaved.set(region, value);
+				// One finished burst of typing is one step: the change exactly as the save made it.
+				if (saved.history)
+					place?.record(saved.history, word("editorHistory.text", { name: regionLabel(region) }), { item, field });
+				const found = saved.problems[0];
+				if (found) problems.set(region, problemText(found));
+				else problems.delete(region);
+				region.toggleAttribute("data-wc-invalid", Boolean(found));
+				if (current === region) showProblem(region);
+				// Rich text comes back cleaned; once the person has moved on, the region shows it as stored.
+				if (typeof saved.value === "string" && current !== region && saved.value !== textIn(region)) {
+					if (region.dataset.wcType === "richText") region.innerHTML = saved.value;
+					else region.textContent = saved.value;
+					lastSaved.set(region, textIn(region));
+				}
+				savedNote.textContent = word("savedJustNow");
+				cancel(savedTimer);
+				savedTimer = later(() => {
+					savedNote.textContent = word("saved");
+				}, 60_000);
+				if (found) announce(problemText(found));
+				await refresh();
+			})();
+			saving.set(region, run);
+			await run;
+		} finally {
+			place?.settle();
+		}
 	}
 
 	// ---------------------------------------------------------------------------------------------
@@ -2022,7 +2202,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				onChange: (draft, from) => {
 					link.synced = true;
 					if (from === "remote") {
-						showRemote(item, draft);
+						showChange(item, draft, false);
 						for (const listener of link.listeners) listener(draft);
 					}
 				},
@@ -2043,6 +2223,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			}),
 		};
 		drafts.set(item, link);
+		historyTools?.opened(item);
 		let attempt = 0;
 		const connect = () => {
 			if (ended) return;
@@ -2102,15 +2283,30 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		return drafts.has("globals") ? "globals" : null;
 	}
 
-	/** Someone else's change: regions nobody is typing in here show the new value. */
-	function showRemote(item: string, draft: unknown): void {
+	/**
+	 * A change to one of the page's Drafts that wasn't typed here: someone else's, which regions nobody
+	 * is typing in show, or an `own` step the Undo history took back, which the region being edited
+	 * shows too, its caret going to the end. What was typed since the last save stays either way: it
+	 * is the person's next step.
+	 */
+	function showChange(item: string, draft: unknown, own: boolean): void {
 		for (const region of regions) {
-			if (!region.isConnected || region.dataset.wcItem !== item || region === current || timers.has(region)) continue;
-			const value = valueAt(draft, region.dataset.wcField ?? "");
-			if (typeof value !== "string" || value === textIn(region)) continue;
+			if (!region.isConnected || region.dataset.wcItem !== item) continue;
+			if (own ? textIn(region) !== lastSaved.get(region) : region === current || timers.has(region)) continue;
+			const kept = valueAt(draft, region.dataset.wcField ?? "");
+			// A value a step took away altogether shows as empty; someone else's is shown once it holds text.
+			const value = typeof kept === "string" ? kept : own ? "" : null;
+			if (value === null || value === textIn(region)) continue;
 			if (region.dataset.wcType === "richText") region.replaceChildren(...cleanHtml(value));
 			else region.textContent = value;
 			lastSaved.set(region, textIn(region));
+			if (region !== current) continue;
+			const end = doc.createRange();
+			end.selectNodeContents(region);
+			end.collapse(false);
+			const chosen = doc.getSelection();
+			chosen?.removeAllRanges();
+			chosen?.addRange(end);
 		}
 	}
 
@@ -2305,9 +2501,16 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		panel.style.left = `${Math.round(left)}px`;
 	}
 
+	/** A region's Field as people know it: its label, or a built-in value's name. */
+	function regionLabel(region: HTMLElement): string {
+		return region.dataset.wcLabel ?? word(`builtIns.${region.dataset.wcField ?? ""}`);
+	}
+
 	function showTag(region: HTMLElement): void {
-		const label = region.dataset.wcLabel ?? word(`builtIns.${region.dataset.wcField ?? ""}`);
-		tag.textContent = word("regionTag", { label, type: word(`types.${region.dataset.wcType ?? "text"}`) });
+		tag.textContent = word("regionTag", {
+			label: regionLabel(region),
+			type: word(`types.${region.dataset.wcType ?? "text"}`),
+		});
 		tag.hidden = false;
 		place(tag, region.getBoundingClientRect(), 2, "above");
 	}
@@ -2365,8 +2568,13 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			strip.append(tool);
 		}
 		strip.append(el("span", { class: "tool-divider", "aria-hidden": "true" }));
-		const undo = button({ class: "tool", "aria-label": word("undoTyping"), tabindex: "-1" }, icon("undo"));
-		undo.addEventListener("click", () => exec("undo"));
+		// The text's Undo is the one history's (ADR 0036), not the browser's: the same step as the bar's.
+		const undo = button({ class: "tool", "aria-label": word("undo"), tabindex: "-1" }, icon("undo"));
+		undo.addEventListener("click", () => {
+			backToText();
+			void historyTools?.target.undo();
+		});
+		historyButtons.undo.push(undo);
 		const done = button({ class: "done", tabindex: "-1" }, word("done"));
 		done.addEventListener("click", (event) => {
 			const region = current;
@@ -2420,12 +2628,14 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			if (event.target !== linkInput) event.preventDefault();
 		});
 		strip.addEventListener("keydown", (event) => {
-			const at = buttons.indexOf(root.activeElement as HTMLButtonElement);
+			// Undo is off while there is nothing to take back: the arrow keys pass it by.
+			const tools = buttons.filter((tool) => !tool.disabled);
+			const at = tools.indexOf(root.activeElement as HTMLButtonElement);
 			let next = -1;
-			if (event.key === "ArrowRight") next = (at + 1) % buttons.length;
-			else if (event.key === "ArrowLeft") next = (at - 1 + buttons.length) % buttons.length;
+			if (event.key === "ArrowRight") next = (at + 1) % tools.length;
+			else if (event.key === "ArrowLeft") next = (at - 1 + tools.length) % tools.length;
 			else if (event.key === "Home") next = 0;
-			else if (event.key === "End") next = buttons.length - 1;
+			else if (event.key === "End") next = tools.length - 1;
 			else if (event.key === "Escape") {
 				event.preventDefault();
 				event.stopPropagation();
@@ -2433,8 +2643,8 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 				return;
 			} else return;
 			event.preventDefault();
-			for (const [index, tool] of buttons.entries()) tool.setAttribute("tabindex", index === next ? "0" : "-1");
-			buttons[next]?.focus();
+			for (const tool of buttons) tool.setAttribute("tabindex", tool === tools[next] ? "0" : "-1");
+			tools[next]?.focus();
 		});
 		wrapper.addEventListener("focusout", (event) => {
 			const next = (event as FocusEvent).relatedTarget;

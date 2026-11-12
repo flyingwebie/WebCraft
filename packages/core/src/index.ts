@@ -140,6 +140,7 @@ export {
 	type EnteredEditMode,
 	type ImageChange,
 	isCodeSelection,
+	isEditPageAddress,
 	isEditPath,
 	LoopItemRestoreRefusedError,
 	type PageChange,

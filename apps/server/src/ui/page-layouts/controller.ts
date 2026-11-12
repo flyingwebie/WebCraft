@@ -35,6 +35,7 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 	let pending: Promise<unknown> = Promise.resolve();
 	const listeners = new Set<() => void>();
 	const finished = new Set<(step: LayoutStep) => void>();
+	const began = new Set<() => () => void>();
 	type PropsInput = NonNullable<ReturnType<typeof propsInput>>;
 	const inputs = new Map<string, PropsInput>();
 	const inlineInputs = new Set<PropsInput>();
@@ -152,10 +153,13 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 			outline();
 		}
 	}
-	function enqueue(work: () => Promise<unknown>) {
+	/** `own` work is the person's action: its place among their steps is kept from this moment. */
+	function enqueue(work: () => Promise<unknown>, own = false) {
 		queued++;
+		const ends = own ? [...began].map((begin) => begin()) : [];
 		const next = pending.then(work).finally(() => {
 			queued--;
+			for (const end of ends) end();
 		});
 		pending = next.catch(() => {
 			saved = false;
@@ -249,7 +253,7 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 				await save(next, `${kit.word(`pageLayout.${action}`)} ${title}`, state.layout, {
 					focus: action === "moveUp" || action === "moveDown" || action === "duplicate" || action === "delete",
 				});
-		});
+		}, true);
 	}
 	async function insert(componentId: string) {
 		if (!canEdit() || busy) return;
@@ -266,7 +270,7 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 			panel = "tree";
 			focusRequest++;
 			await save(next, `${kit.word("pageLayout.add")} ${component.name}`, state.layout, { focus: true });
-		});
+		}, true);
 	}
 
 	function flushProps(id: string) {
@@ -307,7 +311,7 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 			await reload();
 			await kit.refresh();
 			await refreshPage();
-		});
+		}, true);
 	}
 	function prop(id: string, field: FieldDefinition, value: Json, defer = false) {
 		if (!canEdit()) return;
@@ -460,7 +464,7 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 				await save(next, kit.word("pageLayout.move"), state.layout, { record: false, focus: true });
 			} else finishGrab();
 			emit();
-		});
+		}, true);
 	}
 	return {
 		state: () => ({
@@ -532,7 +536,7 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 				if (!moving) return;
 				next.placements.splice(targetAt + (from < to ? 1 : 0) - (sourceAt < targetAt ? 1 : 0), 0, moving);
 				await save(next, kit.word("pageLayout.move"), state.layout, { focus: true });
-			});
+			}, true);
 		},
 		subscribe(listener: () => void) {
 			listeners.add(listener);
@@ -544,6 +548,17 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 			finished.add(listener);
 			return () => {
 				finished.delete(listener);
+			};
+		},
+		/**
+		 * Hears each own action the moment it is made, before its save is acknowledged; the listener
+		 * answers what to call once that action is over, accepted or refused. Its `finished` steps, if
+		 * any, come in between. The Undo history keeps own steps in the order they were made with it.
+		 */
+		began(listener: () => () => void) {
+			began.add(listener);
+			return () => {
+				began.delete(listener);
 			};
 		},
 		flushWith(flush: () => void) {

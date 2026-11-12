@@ -69,7 +69,9 @@ async function makeAssets(): Promise<EditBarAssets> {
 		"text/css; charset=utf-8",
 	);
 	const layout = await asset("layout", "js", await layoutModule(), "text/javascript; charset=utf-8");
+	const history = await asset("history", "js", await historyModule(drafts.path), "text/javascript; charset=utf-8");
 	const config: EditingBarConfig = {
+		history: history.path,
 		layout: layout.path,
 		layoutStyles: layoutStyles.path,
 		styles: barStyles.path,
@@ -97,7 +99,7 @@ async function makeAssets(): Promise<EditBarAssets> {
 		drafts,
 		body,
 		byName: new Map(
-			[script, pageStyles, barStyles, codeScript, codeStyles, drafts, body, panels, layout, layoutStyles].map(
+			[script, pageStyles, barStyles, codeScript, codeStyles, drafts, body, panels, layout, layoutStyles, history].map(
 				(file) => [file.name, file],
 			),
 		),
@@ -139,6 +141,19 @@ async function asset(stem: string, extension: string, body: string, contentType:
 	return { name, path: `${EDIT_ASSETS_PATH}${name}`, body, contentType };
 }
 
+/** Makes a module import the shared-Draft module the bar already loads, so each page has Yjs once. */
+function sharedDrafts(draftsPath: string): Bun.BunPlugin {
+	return {
+		name: "shared-draft-module",
+		setup(build) {
+			build.onResolve({ filter: /^@webcraft\/core\/draft-document$/ }, () => ({
+				path: draftsPath,
+				external: true,
+			}));
+		},
+	};
+}
+
 async function panelsModule(draftsPath: string): Promise<string> {
 	const entry = Bun.resolveSync("@webcraft/server/editor/live-panels", dirname(fileURLToPath(import.meta.url)));
 	const built = await Bun.build({
@@ -147,20 +162,30 @@ async function panelsModule(draftsPath: string): Promise<string> {
 		format: "esm",
 		minify: true,
 		define: { "process.env.NODE_ENV": JSON.stringify("production") },
-		plugins: [
-			{
-				name: "shared-draft-module",
-				setup(build) {
-					build.onResolve({ filter: /^@webcraft\/core\/draft-document$/ }, () => ({
-						path: draftsPath,
-						external: true,
-					}));
-				},
-			},
-		],
+		plugins: [sharedDrafts(draftsPath)],
 	});
 	const [output] = built.outputs;
 	if (!built.success || !output) throw new Error(`The editor panels couldn't be built: ${built.logs.join("; ")}`);
+	return output.text();
+}
+
+/**
+ * The Undo history in Edit mode as one ES module (`ui/edit-history/edit-mode.ts`, ADR 0036), bundled
+ * by Bun from the sources the web process runs from. Loaded, it hands itself to the editing bar in an
+ * event. It is a file of its own, loaded on every page in Edit mode, so the page holds one history.
+ */
+async function historyModule(draftsPath: string): Promise<string> {
+	const entry = Bun.resolveSync("@webcraft/server/editor/edit-history", dirname(fileURLToPath(import.meta.url)));
+	const built = await Bun.build({
+		entrypoints: [entry],
+		target: "browser",
+		format: "esm",
+		minify: true,
+		plugins: [sharedDrafts(draftsPath)],
+	});
+	const [output] = built.outputs;
+	if (!built.success || !output)
+		throw new Error(`The Undo history's module couldn't be built: ${built.logs.join("; ")}`);
 	return output.text();
 }
 

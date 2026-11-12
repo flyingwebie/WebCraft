@@ -80,6 +80,7 @@ export {
 	CODE_MODE_STYLESHEET_PATH,
 	EDIT_MODE_PATH,
 	isCodeSelection,
+	isEditPageAddress,
 	isEditPath,
 } from "./paths.ts";
 export type { EditItem, ImageChange, RegionChange, SavedImage, SavedRegion } from "./regions.ts";

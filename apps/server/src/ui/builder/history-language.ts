@@ -1,5 +1,6 @@
 import { errorMessage } from "../errors.ts";
 import type { MessageKey, useT } from "../i18n.tsx";
+import { historyWords } from "./history-words.ts";
 
 type Translate = ReturnType<typeof useT>;
 const actions = [
@@ -48,11 +49,9 @@ export function historyLanguage(t: Translate) {
 				return t("editorHistory.oneOff");
 			return text;
 		},
-		words(key: string, label: string, title?: string) {
-			if (key === "on") return t("editorHistory.on", { message: label, title: title ?? "" });
-			if (["undid", "redid", "skipped", "HISTORY_OBSOLETE", "HISTORY_UNAVAILABLE", "HISTORY_PARTIAL"].includes(key))
-				return t(`editorHistory.${key}` as MessageKey, { label });
-			return t(errorMessage({ code: key }));
-		},
+		words: historyWords(
+			(key, values) => t(`editorHistory.${key}` as MessageKey, values),
+			(code) => t(errorMessage({ code })),
+		),
 	};
 }

@@ -15,6 +15,7 @@ import {
 	type InstallServices,
 	isAdminLanguage,
 	isCodeSelection,
+	isEditPageAddress,
 	LIBRARIES_PER_SITE,
 	MEDIA_TEXT_MAX_LENGTH,
 	MediaTooLargeError,
@@ -56,6 +57,10 @@ export async function editModeEndpoint(
 		if (request.method !== "GET") return plainText(405, "Method Not Allowed", { allow: "GET" });
 		return enter(services, request, host, url.searchParams.get("token") ?? "");
 	}
+	if (rest === "again") {
+		if (request.method !== "GET") return plainText(405, "Method Not Allowed", { allow: "GET" });
+		return showAgain(services, request, host, url.searchParams);
+	}
 	if (rest.startsWith(EDIT_API_PREFIX)) return editRequest(services, request, host, rest.slice(EDIT_API_PREFIX.length));
 	if (url.pathname.startsWith(CODE_MODE_STYLESHEET_PATH)) {
 		if (request.method !== "GET" && request.method !== "HEAD") {
@@ -86,6 +91,8 @@ export async function editModeEndpoint(
 const barWordsOf = (messages: typeof en) => ({
 	...messages.editBar,
 	pageLayout: messages.pageLayout,
+	// The Undo history's words, shared with Code mode and the Builder (ADR 0036).
+	editorHistory: messages.editorHistory,
 	isHere: messages.coEditing.isHere,
 	via: messages.coEditing.via,
 	viaTranslation: messages.coEditing.viaTranslation,
@@ -133,13 +140,11 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 	},
 	"code/transferHistory": async (services, session, body) => {
 		const scope = await services.codeMode.access(session);
-		const input = parse(z.object({ payload: z.string().max(8_000_000) }), body);
-		return json(200, await services.builder.transferHistory(scope, input.payload));
+		return json(200, await services.builder.transferHistory(scope, parse(historyTransfer, body).payload));
 	},
 	"code/claimHistory": async (services, session, body) => {
 		const scope = await services.codeMode.access(session);
-		const input = parse(z.object({ token: z.string().max(100) }), body);
-		return json(200, await services.builder.claimHistory(scope, input.token));
+		return json(200, await services.builder.claimHistory(scope, parse(historyClaim, body).token));
 	},
 	"code/reverseHistory": async (services, session, body) => {
 		const scope = await services.codeMode.access(session);
@@ -465,6 +470,15 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 				),
 			),
 		),
+	/**
+	 * The Undo history's handoff to the next page (ADR 0036), for everyone in Edit mode: kept for a
+	 * minute for this person on this Site and claimed once. It holds the person's own steps only;
+	 * taking one back is an ordinary write through their own Draft, which is checked as any other.
+	 */
+	"history/transfer": async (services, session, body) =>
+		json(200, await services.builder.transferHistory(session.scope, parse(historyTransfer, body).payload)),
+	"history/claim": async (services, session, body) =>
+		json(200, await services.builder.claimHistory(session.scope, parse(historyClaim, body).token)),
 	state: async (services, session, body, _request, host) => {
 		const state = await services.editMode.pageState(session, host, parse(pagePath, body).path);
 		const chosen = state.person.adminLanguage;
@@ -505,6 +519,10 @@ type EditAction = (
 ) => Promise<Response>;
 
 const pagePath = z.object({ path: z.string().max(2000) });
+
+/** The Undo history as its editor hands it to the next page, and the token that claims it there. */
+const historyTransfer = z.object({ payload: z.string().max(8_000_000) });
+const historyClaim = z.object({ token: z.string().max(100) });
 
 /** The page submitted for Review, with an optional note. */
 const reviewSubmission = z.object({
@@ -1003,7 +1021,7 @@ async function enter(services: InstallServices, request: Request, host: SiteHost
 			location:
 				entered.path +
 				selected +
-				(history && /^[A-Za-z0-9_-]{43}$/.test(history) ? `${selected ? "&" : "#"}wc-history=${history}` : ""),
+				(history && HISTORY_TOKEN.test(history) ? `${selected ? "&" : "#"}wc-history=${history}` : ""),
 			"cache-control": "no-store",
 			...headers,
 		},
@@ -1015,6 +1033,32 @@ async function enter(services: InstallServices, request: Request, host: SiteHost
 	else if (safeModeOf(request)) answer.headers.append("set-cookie", siteCookie(hostname, SAFE_COOKIE, "", 0));
 	return answer;
 }
+
+/**
+ * Sends a browser in Edit mode back to the page it is on, with the Undo history's handoff token in the
+ * address's fragment (ADR 0036). The editing bar goes through it after a switch only a request makes
+ * (Code mode, Safe mode): a browser stays on a page whose address changes in its fragment alone, so
+ * the token couldn't reach the page loaded again any other way. It changes nothing and reads nothing:
+ * the token is claimed by the page, as the person, like any other handoff.
+ */
+async function showAgain(
+	services: InstallServices,
+	request: Request,
+	host: SiteHost,
+	query: URLSearchParams,
+): Promise<Response> {
+	const headers = { "cache-control": "no-store", "referrer-policy": "no-referrer", "x-robots-tag": "noindex" };
+	const to = query.get("to") ?? "";
+	const history = query.get("history") ?? "";
+	const edit = await editSessionOf(services, request, host);
+	if (!edit.session || !isEditPageAddress(to) || !HISTORY_TOKEN.test(history)) {
+		return plainText(404, "Not Found", headers);
+	}
+	return new Response(null, { status: 303, headers: { location: `${to}#wc-history=${history}`, ...headers } });
+}
+
+/** The Undo history's handoff token, as a link carries it. */
+const HISTORY_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 
 /**
  * The edit cookie's name: with the `__Host-` prefix (only this hostname, `Secure`, path `/`), except
