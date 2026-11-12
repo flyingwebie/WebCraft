@@ -6,12 +6,12 @@ import { countActiveTokens } from "./api-tokens.ts";
 import { type AuditDetails, recordAudit } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import type { Email } from "./email/index.ts";
-import { clientNetwork, networkOf } from "./ip-ranges.ts";
+import { networkOf } from "./ip-ranges.ts";
 import { defineJob } from "./jobs/define.ts";
 import { defineSchedule } from "./jobs/schedules.ts";
 import { countActiveGrants } from "./oauth.ts";
 import { actingPerson } from "./permissions/can.ts";
-import type { RateLimitRule, RateLimits } from "./rate-limits.ts";
+import { addressSubject, type RateLimitRule, type RateLimits } from "./rate-limits.ts";
 import type { Access } from "./tenancy/data-layer.ts";
 
 /** A session as the person sees it in Your account › Sessions. */
@@ -169,11 +169,12 @@ export function reportAccountLock({
 
 /**
  * The network a client address belongs to, as `@webcraft/auth` keeps it to count wrong passwords
- * per network: a keyed hash of `clientNetwork`, so the address itself is never stored.
+ * per network: a keyed hash of who the address counts as for any limit (`addressSubject`: an IPv4
+ * address, an IPv6 /64), so the address itself is never stored.
  */
 export function signInNetworkOf(key: CryptoKey) {
 	return async (clientAddress: string | null): Promise<string> => {
-		const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(clientNetwork(clientAddress)));
+		const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(addressSubject(clientAddress)));
 		return Buffer.from(signature).toString("base64url");
 	};
 }

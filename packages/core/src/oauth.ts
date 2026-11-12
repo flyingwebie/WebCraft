@@ -22,11 +22,17 @@ import {
 import { type AuditVia, recordAudit } from "./audit.ts";
 import type { Clock } from "./clock.ts";
 import { isUuid } from "./ids.ts";
-import { clientNetwork, networkOf } from "./ip-ranges.ts";
+import { networkOf } from "./ip-ranges.ts";
 import type { People } from "./people.ts";
 import { loadPersonActor } from "./permissions/actors.ts";
 import { can, type GrantActor, type Reach } from "./permissions/can.ts";
-import { RateLimitedError, type RateLimitRule, type RateLimits, type RateLimitTally } from "./rate-limits.ts";
+import {
+	addressSubject,
+	RateLimitedError,
+	type RateLimitRule,
+	type RateLimits,
+	type RateLimitTally,
+} from "./rate-limits.ts";
 import type { Access, Executor, WorkspaceScope } from "./tenancy/data-layer.ts";
 import { SiteNotFoundError } from "./tenancy/errors.ts";
 import { newToken } from "./tokens.ts";
@@ -985,8 +991,11 @@ export function createOAuth({
 			const looked = await deviceByUserCode(db, userCode, clock.now());
 			if (!looked.ok) return { kind: "refused", problem: looked.problem };
 			const { found, letters } = looked;
-			const asked = clientNetwork(found.device.requestedFrom);
-			const sameNetwork = asked !== "unknown" && asked === clientNetwork(clientAddress);
+			// The same client, as every limit per client address counts one (an IPv6 /64 is one client).
+			const sameNetwork =
+				found.device.requestedFrom !== null &&
+				clientAddress !== null &&
+				addressSubject(found.device.requestedFrom) === addressSubject(clientAddress);
 			// A link fills the code in for whoever opens it. Only the person at the terminal has the code
 			// to type; a link is trusted only on the network the sign-in was started from.
 			if (!typed && !sameNetwork) return { kind: "type" };

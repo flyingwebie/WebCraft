@@ -207,6 +207,8 @@ describe("wrong passwords from one network", () => {
 		const person = await newPerson();
 		await failFrom("2001:db8:77:1::a", person, 5);
 		await failFrom("2001:db8:77:1:ffff::b", person, 5);
+		// The auth endpoints' own limit counts the /64 as one client too: its minute passes first.
+		await install.clock.advance(MINUTE);
 
 		await expect(attempt(person, person.password, "2001:db8:77:1::c")).rejects.toMatchObject({
 			code: "INVALID_CREDENTIALS",

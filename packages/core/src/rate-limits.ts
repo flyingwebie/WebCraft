@@ -40,9 +40,11 @@ export class RateLimitedError extends Error {
  * hold. An address the web process couldn't tell (null) is `unknown`: those share one count.
  *
  * Every limit per client address is counted through here (`hit`, and `count` and `tally` given an
- * address): never write an address into a key yourself.
+ * address): never write an address into a key yourself. It is also the one answer to "is this the
+ * same client?" elsewhere: the networks wrong passwords are counted by (`signInNetworkOf`) and the
+ * device sign-in page's check that a link was opened where the sign-in was started.
  */
-function addressSubject(address: string | null): string {
+export function addressSubject(address: string | null): string {
 	if (address === null) return "unknown";
 	const network = parseIpRange(`${address}/${IPV6_CLIENT_PREFIX}`);
 	return network?.family === 6 ? ipRangeText(network) : address;
