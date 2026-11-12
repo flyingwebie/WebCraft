@@ -125,10 +125,14 @@ for (const theme of THEMES) {
 			await page.keyboard.press("Escape");
 		});
 
-		test("as an Owner: each Webhook's origin, its status and its delivery log, nothing to change", async () => {
+		test("as an Owner: each Webhook's origin and its status, no delivery log, nothing to change", async () => {
 			const page = await open(owner);
 			await page.getByText("https://crm.client.example").first().waitFor();
 			expect(await page.getByRole("button", { name: "Add Webhook" }).count()).toBe(0);
+			// The delivery log holds what was sent (a Form's Submissions among it): Staff's only.
+			expect(await page.getByRole("link", { name: /^Delivery log of/ }).count()).toBe(0);
+			expect(await page.getByRole("heading", { name: /^Delivery log:/ }).count()).toBe(0);
+			expect(await page.getByText("What was sent").count()).toBe(0);
 
 			await expectAccessibleScreen(page, `Webhooks as an Owner (${theme})`);
 		});

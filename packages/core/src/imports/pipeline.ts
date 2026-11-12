@@ -422,7 +422,7 @@ export async function fetchFile(
 	}
 	let mediaId: string;
 	try {
-		mediaId = (await library.importUrl(scope, address)).id;
+		mediaId = (await library.importUrl(scope, address, { uncounted: true })).id;
 	} catch (error) {
 		if (error instanceof MediaImportRefusedError) {
 			return { problem: { problem: error.problem, ...(error.status === undefined ? {} : { status: error.status }) } };

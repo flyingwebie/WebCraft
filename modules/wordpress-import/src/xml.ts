@@ -11,7 +11,11 @@ import { SaxesParser, type SaxesTagNS } from "saxes";
  * entity can be declared (no "billion laughs", no external entities reaching files or addresses);
  * the parser knows only XML's five predefined entities and character references, and refuses any
  * other. Text that keeps coming without a tag (a single value of hundreds of megabytes) is refused
- * before it fills the memory, and so is an item larger than `MAX_RECORD_CHARACTERS`.
+ * before it fills the memory, and so is an item larger than `MAX_RECORD_CHARACTERS`: its text, and
+ * what each of its elements and attributes takes, so an item of nothing but empty elements is counted
+ * too. A tag longer than `MAX_TAG_CHARACTERS` is refused while it is read (the parser holds a tag's
+ * attributes until it ends), and so are elements nested deeper than an export goes, anywhere in the
+ * file.
  */
 
 /** An element of a record: its name (`wp:post_id`, `title`), attributes, text and child elements. */
@@ -31,8 +35,22 @@ export type XmlRecord =
 export const MAX_TEXT_RUN = 64 * 1024 * 1024;
 export const MAX_RECORD_CHARACTERS = 96 * 1024 * 1024;
 
-/** How deep elements nest inside a record before the file is refused. */
-const MAX_DEPTH = 32;
+/**
+ * What an element, and each of its attributes, counts towards `MAX_RECORD_CHARACTERS` besides its
+ * name and values: about the bytes its object takes in memory (measured on Node: some 150 to 200 for
+ * an empty element), so a record's count bounds what it holds whatever it is made of.
+ */
+const ELEMENT_COST = 200;
+const ATTRIBUTE_COST = 64;
+
+/** The most characters one tag may run: a real export's tags are a few hundred characters at most. */
+export const MAX_TAG_CHARACTERS = 1024 * 1024;
+
+/**
+ * How deep elements nest before the file is refused, anywhere in it: a record sits inside the root
+ * and the channel, and its own elements go a few deeper (32 at most).
+ */
+const MAX_DEPTH = 34;
 
 /** The prefix each namespace's names are written with here, whatever prefix the file chose. */
 function prefixOf(uri: string): string | null {
@@ -76,7 +94,10 @@ export async function* exportRecords(text: AsyncIterable<string>): AsyncGenerato
 	const ready: XmlRecord[] = [];
 	let failure: Error | null = null;
 	let sinceEvent = 0;
+	/** How many elements are open, anywhere in the file. */
 	let depth = 0;
+	/** Reading a tag: its name is known, its attributes are still coming. */
+	let inTag = false;
 	let sawRoot = false;
 	let isExport = false;
 	const site = { title: "", link: "", baseSite: "" };
@@ -102,21 +123,42 @@ export async function* exportRecords(text: AsyncIterable<string>): AsyncGenerato
 			400,
 		);
 	});
+	/** Counts what a record holds; false once it is more than a record may. */
+	const withinRecord = (characters: number): boolean => {
+		recordCharacters += characters;
+		if (recordCharacters <= MAX_RECORD_CHARACTERS) return true;
+		failure ??= new ModuleError("itemTooLarge", "An item of the file is too large to import.", 400);
+		return false;
+	};
+	/** An element of a record, counted with its attributes; null once the record is too large. */
+	const elementOf = (name: string, tag: SaxesTagNS): XmlElement | null => {
+		const attributes = attributesOf(tag);
+		let cost = ELEMENT_COST + name.length;
+		for (const [key, value] of Object.entries(attributes)) cost += ATTRIBUTE_COST + key.length + value.length;
+		return withinRecord(cost) ? { name, attributes, text: "", children: [] } : null;
+	};
+	parser.on("opentagstart", () => {
+		seen();
+		inTag = true;
+	});
 	parser.on("opentag", (tag) => {
 		seen();
+		inTag = false;
 		const name = nameOf(tag as SaxesTagNS);
 		if (!sawRoot) {
 			sawRoot = true;
 			if (name !== "rss") failure ??= new ModuleError("notExport", "This file isn't a WordPress export file.", 400);
 		}
+		// Everywhere, not only inside a record: the parser keeps every open element until it closes.
+		depth++;
+		if (depth > MAX_DEPTH) failure ??= new ModuleError("xml", "The file nests elements too deeply.", 400);
 		if (dropping > 0 || (recordKind && DROPPED.has(name))) {
 			dropping++;
 			return;
 		}
 		if (recordKind) {
-			depth++;
-			if (depth > MAX_DEPTH) failure ??= new ModuleError("xml", "The file nests elements too deeply.", 400);
-			const element: XmlElement = { name, attributes: attributesOf(tag as SaxesTagNS), text: "", children: [] };
+			const element = elementOf(name, tag as SaxesTagNS);
+			if (!element) return;
 			open.at(-1)?.children.push(element);
 			open.push(element);
 			return;
@@ -125,8 +167,8 @@ export async function* exportRecords(text: AsyncIterable<string>): AsyncGenerato
 		if (record) {
 			recordKind = record;
 			recordCharacters = 0;
-			depth = 1;
-			open = [{ name, attributes: attributesOf(tag as SaxesTagNS), text: "", children: [] }];
+			const element = elementOf(name, tag as SaxesTagNS);
+			open = element ? [element] : [];
 			return;
 		}
 		outside.push(name);
@@ -137,12 +179,7 @@ export async function* exportRecords(text: AsyncIterable<string>): AsyncGenerato
 		if (dropping > 0) return;
 		const element = open.at(-1);
 		if (recordKind && element) {
-			recordCharacters += value.length;
-			if (recordCharacters > MAX_RECORD_CHARACTERS) {
-				failure ??= new ModuleError("itemTooLarge", "An item of the file is too large to import.", 400);
-				return;
-			}
-			element.text += value;
+			if (withinRecord(value.length)) element.text += value;
 			return;
 		}
 		if (outside.length === 3 && outside[1] === "channel") {
@@ -156,13 +193,13 @@ export async function* exportRecords(text: AsyncIterable<string>): AsyncGenerato
 	parser.on("cdata", addText);
 	parser.on("closetag", () => {
 		seen();
+		depth--;
 		if (dropping > 0) {
 			dropping--;
 			return;
 		}
 		if (recordKind) {
 			const element = open.pop();
-			depth--;
 			if (open.length === 0 && element) {
 				ready.push({ kind: recordKind, element });
 				recordKind = null;
@@ -198,7 +235,7 @@ export async function* exportRecords(text: AsyncIterable<string>): AsyncGenerato
 		for (let start = 0; start < piece.length; start += 65_536) {
 			const part = piece.slice(start, start + 65_536);
 			sinceEvent += part.length;
-			if (sinceEvent > MAX_TEXT_RUN) {
+			if (sinceEvent > (inTag ? MAX_TAG_CHARACTERS : MAX_TEXT_RUN)) {
 				refuse("valueTooLarge", "A value in the file is too large to import.");
 			}
 			parser.write(part);

@@ -3,11 +3,12 @@ import type { ApiClient } from "@webcraft/api";
 import { isAccentColour, isLogoUrl } from "@webcraft/core/email-branding";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
+import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { Textarea } from "@webcraft/ui/components/textarea.tsx";
 import { ScrollTextIcon, TriangleAlertIcon } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../../ui/api.ts";
@@ -15,6 +16,7 @@ import { SmtpForm, type SmtpView } from "../../ui/email/SmtpForm.tsx";
 import { SmtpFailingNotice } from "../../ui/email/smtp-parts.tsx";
 import { errorMessage } from "../../ui/errors.ts";
 import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
+import { useSensitiveAction } from "../../ui/identity-check.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 
 export const Route = createFileRoute("/_admin/settings/email")({
@@ -33,7 +35,10 @@ export const Route = createFileRoute("/_admin/settings/email")({
 
 type Branding = Awaited<ReturnType<ApiClient["install"]["emailBranding"]["get"]>>;
 
-/** Install settings › Email (SMTP): the Install SMTP, a test email, and Install branding. */
+/**
+ * Install settings › Email (SMTP): the Install SMTP, a test email, whether Sites' own mail servers may
+ * be inside the Install's network, and Install branding.
+ */
 function EmailSettingsPage() {
 	const t = useT();
 	const data = Route.useLoaderData();
@@ -70,6 +75,7 @@ function EmailSettingsPage() {
 						</>
 					)}
 				/>
+				<SiteServers allowPrivate={smtp.sitePrivateServers} />
 				<BrandingForm branding={branding} />
 				<p>
 					<Link
@@ -103,6 +109,60 @@ function SmtpStatus({ health }: { health: SmtpView["health"] }) {
 		return <SmtpFailingNotice title={t("emailSettings.status.failingTitle")} health={health} />;
 	}
 	return null;
+}
+
+/**
+ * Whether a Site's own mail server may be inside the Install's own network. Off unless the Superadmin
+ * allows it: Staff name that server, so by default only the public internet is connected to.
+ */
+function SiteServers({ allowPrivate }: { allowPrivate: boolean }) {
+	const t = useT();
+	const router = useRouter();
+	const id = useId();
+	const runSensitive = useSensitiveAction();
+	const [checked, setChecked] = useState(allowPrivate);
+	const save = async (event: FormEvent) => {
+		event.preventDefault();
+		try {
+			const api = await getApi();
+			await runSensitive(() => api.install.smtp.setSitePrivateServers({ on: checked }));
+			toast.success(t("emailSettings.siteServers.saved"));
+			await router.invalidate();
+		} catch (failure) {
+			toast.error(t(errorMessage(failure)));
+		}
+	};
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>
+					<h2>{t("emailSettings.siteServers.heading")}</h2>
+				</CardTitle>
+				<CardDescription>{t("emailSettings.siteServers.intro")}</CardDescription>
+			</CardHeader>
+			<CardContent>
+				<form onSubmit={save} className="grid gap-4" noValidate>
+					<Field orientation="horizontal">
+						<Checkbox
+							id={`${id}-private`}
+							checked={checked}
+							onCheckedChange={(value) => setChecked(value === true)}
+							aria-describedby={`${id}-help`}
+						/>
+						<FieldLabel htmlFor={`${id}-private`}>{t("emailSettings.siteServers.allowPrivate")}</FieldLabel>
+					</Field>
+					<p id={`${id}-help`} className="text-muted-foreground text-sm">
+						{t("emailSettings.siteServers.allowPrivateHelp")}
+					</p>
+					<div>
+						<Button type="submit" variant="outline">
+							{t("emailSettings.siteServers.save")}
+						</Button>
+					</div>
+				</form>
+			</CardContent>
+		</Card>
+	);
 }
 
 type BrandingField = "logoUrl" | "accentColour" | "form";

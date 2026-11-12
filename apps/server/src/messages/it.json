@@ -795,6 +795,14 @@
 		"save": "Salva",
 		"discard": "Annulla le modifiche",
 		"saved": "Salvato.",
+		"siteServers": {
+			"heading": "Server di posta dei Siti",
+			"intro": "Un Sito può inviare le sue email da un server proprio, che lo Staff imposta in Sito › Email.",
+			"allowPrivate": "Consenti ai Siti di usare server di posta nella rete di questa Installazione",
+			"allowPrivateHelp": "Per un relay di posta che l'agenzia fa girare sui propri server. Se è disattivato, il server di un Sito deve essere su internet: lo Staff ne sceglie host e porta, e la sua email di prova potrebbe altrimenti raggiungere qualsiasi cosa in quella rete.",
+			"save": "Salva questa impostazione",
+			"saved": "L'impostazione è salvata."
+		},
 		"branding": {
 			"heading": "Branding dell'Install",
 			"intro": "Quello che ogni System email riporta.",
@@ -6878,6 +6886,9 @@
 			},
 			"siteSmtp": {
 				"change": "Impostazioni email del sito modificate"
+			},
+			"siteSmtpPrivateServers": {
+				"change": "Uso dei server di posta nella rete da parte dei siti modificato"
 			},
 			"staff": {
 				"changeWorkspaces": "Workspace di un membro dello Staff modificati",

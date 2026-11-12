@@ -47,6 +47,8 @@ beforeAll(async () => {
 	otherWorkspaceId = (await install.createWorkspace("Beta Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
 	await admin.api.postTypes.create({ siteId, name: "Posts", key: "posts", urlPattern: "/posts/{slug}" });
+	// A Site's own server must be on the public internet (`tests/email/site-smtp-network.test.ts`).
+	install.dns.answer("smtp.bakery.example", ["93.184.216.40"]);
 	await admin.api.siteSmtp.update({
 		siteId,
 		fromName: null,

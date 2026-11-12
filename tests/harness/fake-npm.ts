@@ -89,11 +89,14 @@ function escapeRegExp(text: string): string {
 	return text.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
 }
 
-/** A gzipped tar archive of text files. */
+/**
+ * A gzipped tar archive of text files. A path longer than a header's 100 bytes is written as npm's
+ * own packer writes it: in a pax header before the file (`path=…`), whose own header keeps only the
+ * start of the path.
+ */
 export function gzipTar(files: [path: string, text: string][]): Uint8Array {
 	const blocks: Uint8Array[] = [];
-	for (const [path, text] of files) {
-		const body = new TextEncoder().encode(text);
+	const entry = (path: string, type: "0" | "x", body: Uint8Array) => {
 		const header = new Uint8Array(512);
 		const put = (offset: number, value: string) => header.set(new TextEncoder().encode(value), offset);
 		put(0, path.slice(0, 100));
@@ -103,12 +106,22 @@ export function gzipTar(files: [path: string, text: string][]): Uint8Array {
 		put(124, `${body.length.toString(8).padStart(11, "0")}\0`);
 		put(136, "00000000000\0");
 		put(148, "        ");
-		put(156, "0");
+		put(156, type);
 		put(257, "ustar\0");
 		put(263, "00");
 		const sum = header.reduce((total, byte) => total + byte, 0);
 		put(148, `${sum.toString(8).padStart(6, "0")}\0 `);
 		blocks.push(header, body, new Uint8Array((512 - (body.length % 512)) % 512));
+	};
+	for (const [path, text] of files) {
+		if (path.length > 100) {
+			// A pax record is `<length> path=<path>\n`, its length counting the whole record.
+			const rest = ` path=${path}\n`;
+			let length = rest.length + 1;
+			while (String(length).length + rest.length !== length) length = String(length).length + rest.length;
+			entry("PaxHeader", "x", new TextEncoder().encode(`${length}${rest}`));
+		}
+		entry(path, "0", new TextEncoder().encode(text));
 	}
 	blocks.push(new Uint8Array(1024));
 	const tar = new Uint8Array(blocks.reduce((total, block) => total + block.length, 0));

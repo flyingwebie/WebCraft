@@ -1,7 +1,9 @@
+import { parsePax } from "../backups/tar.ts";
+
 /**
  * Reading one file out of a gzipped tar archive, as the npm registry serves packages. Only what that
- * needs: regular files (with POSIX and GNU long names), nothing is written to disk, and the whole
- * archive is read in memory (the guarded fetcher limits its size).
+ * needs: regular files (with POSIX prefixes, pax headers and GNU long names for long paths), nothing
+ * is written to disk, and the whole archive is read in memory (the guarded fetcher limits its size).
  */
 
 /** An archive unpacks to more than may be read. */
@@ -66,6 +68,11 @@ export function readTar(archive: Uint8Array): ArchiveFile[] {
 		at = start + Math.ceil(size / 512) * 512;
 		if (type === "L") {
 			longName = decoder.decode(body).replace(/\0+$/, "");
+			continue;
+		}
+		// A pax header names the next file by its whole path, which that file's own header cuts short.
+		if (type === "x") {
+			longName = parsePax(body).get("path") ?? longName;
 			continue;
 		}
 		const path = longName ?? (prefix ? `${prefix}/${name}` : name);

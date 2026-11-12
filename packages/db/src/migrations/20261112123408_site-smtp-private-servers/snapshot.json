@@ -1,0 +1,47 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "225dc6c6-4967-4f4c-8d48-2640876ce1a3",
+  "prevIds": [
+    "ebe4b7cf-db09-4936-ba73-c30412d8a909"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "install_settings",
+        "site_smtp_private_servers"
+      ],
+      "writes": [
+        "s|col|public.install_settings.site_smtp_private_servers",
+        "n|col|public.install_settings.site_smtp_private_servers",
+        "e|col|public.install_settings.site_smtp_private_servers"
+      ],
+      "reads": [
+        "n|tbl|public.install_settings",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "install_settings",
+        "name": "site_smtp_private_servers",
+        "type": "boolean",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "false",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

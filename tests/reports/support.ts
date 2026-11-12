@@ -23,6 +23,8 @@ export async function reportedSite(
 ): Promise<{ siteId: string; origin: string; dashboardId: string; totalsId: string }> {
 	const site = await liveSite(install, staff, workspaceId, domain);
 	await staff.api.consentBanner.setSettings({ siteId: site.siteId, mode: "none", layout: "bar" });
+	// A Site's own server must be on the public internet (`tests/email/site-smtp-network.test.ts`).
+	install.dns.answer(SITE_SERVER.host, ["93.184.216.40"]);
 	await staff.api.siteSmtp.update({ siteId: site.siteId, fromName: null, replyTo: null, server: SITE_SERVER });
 	const { dashboard } = await staff.api.dashboards.create({ siteId: site.siteId, name: "Overview" });
 	const added = await staff.api.dashboards.widgets.add({

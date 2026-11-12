@@ -25,6 +25,9 @@ beforeAll(async () => {
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
+	// A Site's own server must be on the public internet (`site-smtp-network.test.ts`).
+	install.dns.answer(SERVER.host, ["93.184.216.40"]);
+	install.dns.answer("smtp.elsewhere.example", ["93.184.216.41"]);
 });
 
 afterAll(async () => {

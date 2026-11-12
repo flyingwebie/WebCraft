@@ -189,7 +189,7 @@ export function createSystemEmailSender(options: SenderOptions) {
 				: { to, ...rendered, headers: SYSTEM_HEADERS };
 			const outcome = await send(
 				options,
-				{ settings: smtp, password: site?.password ?? INSTALL_SMTP_PASSWORD },
+				{ label: site?.smtp ?? "install", settings: smtp, password: site?.password ?? INSTALL_SMTP_PASSWORD },
 				emailOf(message, smtp),
 				test.password,
 			);

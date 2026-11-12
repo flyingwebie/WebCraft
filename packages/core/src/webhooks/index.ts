@@ -60,7 +60,8 @@ export {
  * A Site's Webhooks (spec story 139): calls to outside addresses when something happens on the Site,
  * signed with a secret, sent by the worker through the guarded fetcher with retries, and kept in a
  * delivery log. Site settings: open the Site with `site.view` to read them and `structure.edit` to
- * change them; each change saves at once and is recorded in the Audit log.
+ * change them or read the delivery log (its bodies can hold Form Submissions); each change saves at
+ * once and is recorded in the Audit log.
  */
 export type Webhooks = {
 	/** The Site's Webhooks, oldest first. */

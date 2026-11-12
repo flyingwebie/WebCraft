@@ -37,6 +37,7 @@ describe("Install SMTP", () => {
 		expect(await browser.api.install.smtp.get()).toEqual({
 			settings: null,
 			health: { state: "not-set", failuresInARow: 0, failingSince: null, lastResponse: null },
+			sitePrivateServers: false,
 		});
 	});
 
@@ -52,6 +53,7 @@ describe("Install SMTP", () => {
 				updatedAt: install.clock.now(),
 			},
 			health: { state: "working" as const, failuresInARow: 0, failingSince: null, lastResponse: null },
+			sitePrivateServers: false,
 		};
 		expect(saved).toEqual(expected);
 		expect(await browser.api.install.smtp.get()).toEqual(expected);
