@@ -187,7 +187,7 @@ test("a Member is refused arranging while it is off, and Components that aren't 
 
 	// Off: nothing to arrange with, and the write is refused.
 	expect(await read()).toMatchObject({ canArrange: false, components: [] });
-	await expectRefused(save([placement]), "ENTRY_INVALID");
+	await expectRefused(save([placement]), "PAGE_LAYOUT_REFUSED");
 	await expect(
 		editor.api.pageLayouts.save({
 			siteId,
@@ -195,12 +195,12 @@ test("a Member is refused arranging while it is off, and Components that aren't 
 			basedOn: (await read()).version,
 			layout: { placements: [placement] },
 		}),
-	).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+	).rejects.toMatchObject({ code: "PAGE_LAYOUT_REFUSED", status: 403 });
 
 	// On, with no Allowed components: still nothing a Member may insert.
 	await staff.api.pageLayouts.configure({ siteId, enabled: true });
 	expect(await read()).toMatchObject({ canArrange: true, components: [] });
-	await expectRefused(save([placement]), "ENTRY_INVALID");
+	await expectRefused(save([placement]), "PAGE_LAYOUT_REFUSED");
 
 	await staff.api.pageLayouts.configure({ siteId, allowedComponents: [componentId] });
 	expect((await read()).components.map((component) => component.id)).toEqual([componentId]);
@@ -232,7 +232,8 @@ test("a Member is refused moving, hiding and removing a locked Placement", async
 		[first], // removed
 		[first, { ...locked, locked: false }], // unlocked
 	]) {
-		await expectRefused(save(placements), "ENTRY_INVALID");
+		// Staff's alone: refused as such (403), not as invalid input.
+		await expectRefused(save(placements), "PAGE_LAYOUT_REFUSED");
 	}
 	// What a Member may still do beside it: hide the unlocked one.
 	expect((await save([{ ...first, hidden: true }, locked])).status).toBe(200);
