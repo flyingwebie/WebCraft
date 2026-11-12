@@ -1,0 +1,1 @@
+ALTER TABLE "sites" ADD COLUMN "cdn_secret_hash" text;

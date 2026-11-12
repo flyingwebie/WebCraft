@@ -70,6 +70,12 @@ export const sites = pgTable(
 		 * published address ranges (`cdn_ranges`), the visitor's address is the one in the CDN's own header.
 		 */
 		cdn: text("cdn"),
+		/**
+		 * The SHA-256 hash of the Site's CDN secret, or null while it has none. The CDN's visitor header
+		 * is believed only on a request that also carries the secret: the CDN's ranges are every
+		 * customer's, the secret is this Site's own.
+		 */
+		cdnSecretHash: text("cdn_secret_hash"),
 		pageCacheGeneration: bigint("page_cache_generation", { mode: "number" }).notNull().default(0),
 		/**
 		 * Which version of WebCraft's search index the Site's index was last rebuilt for; 0 when a

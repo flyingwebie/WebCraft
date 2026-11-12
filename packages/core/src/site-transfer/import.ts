@@ -836,6 +836,7 @@ async function insertSite(
 	const fresh = new Set([
 		"staging_password_hash",
 		"staging_password_changed_at",
+		"cdn_secret_hash",
 		"page_cache_generation",
 		"search_index_version",
 		"search_rebuild_claimed_at",

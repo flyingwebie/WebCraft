@@ -90,6 +90,7 @@ export function errorMessage(error: unknown): MessageKey {
 		case "ARCHIVE_UNAVAILABLE":
 		case "DOMAIN_TAKEN":
 		case "DOMAIN_NOT_FOUND":
+		case "CDN_NOT_SET":
 		case "FILTER_NOT_FOUND":
 		case "FILTER_INVALID":
 		case "FILTER_NAME_TAKEN":

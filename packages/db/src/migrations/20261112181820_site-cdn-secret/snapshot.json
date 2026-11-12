@@ -1,0 +1,47 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "76add50c-3c07-406d-9b3c-a9704beef0bd",
+  "prevIds": [
+    "225dc6c6-4967-4f4c-8d48-2640876ce1a3"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "sites",
+        "cdn_secret_hash"
+      ],
+      "writes": [
+        "s|col|public.sites.cdn_secret_hash",
+        "n|col|public.sites.cdn_secret_hash",
+        "e|col|public.sites.cdn_secret_hash"
+      ],
+      "reads": [
+        "n|tbl|public.sites",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "sites",
+        "name": "cdn_secret_hash",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

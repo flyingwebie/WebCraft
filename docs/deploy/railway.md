@@ -47,7 +47,7 @@ Railway publishes no address ranges for its edge, and its hop count isn't fixed,
 
 Known limits:
 
-- Behind another proxy or CDN in front of Railway's edge, `X-Real-IP` holds that proxy's address, not the visitor's. For a CDN, choose it on the Site's Domains & Staging screen: the CDN's own header then names the visitor.
+- Behind another proxy or CDN in front of Railway's edge, `X-Real-IP` holds that proxy's address, not the visitor's. For a CDN, choose it on the Site's Domains & Staging screen and set up the Site's CDN secret there (see "A CDN in front of a Site" in `README.md`): the CDN's own header then names the visitor.
 - Requests over Railway's private network (`*.railway.internal`) or a TCP proxy skip the edge, and anything there can write `X-Real-IP`. Don't add a TCP proxy to the web service, and run nothing else in the project that calls it privately.
 
 ## Updating, Backups and commands

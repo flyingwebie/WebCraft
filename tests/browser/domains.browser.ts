@@ -25,6 +25,8 @@ beforeAll(async () => {
 	for (const name of ["acmebakery.ie", "www.acmebakery.ie", "acmebakery.fr"]) local.connectDomain(name);
 	await local.clock.advance(60_000);
 	expect((await local.drainJobs()).failed).toEqual([]);
+	// A CDN in front of the Site, its secret not made yet.
+	await api.domains.setCdn({ siteId, cdn: "cloudflare" });
 });
 
 afterAll(async () => {
@@ -77,6 +79,21 @@ for (const theme of THEMES) {
 				"dialog",
 				`Domains › Change the Primary domain (${theme})`,
 			);
+		});
+
+		test("the Site's CDN secret is made from the keyboard and shown once, with the header to send it in", async () => {
+			const page = await open();
+			const make = page.getByRole("button", { name: /^Make (the|a new) CDN secret$/ });
+			await make.focus();
+			await page.keyboard.press("Enter");
+			await page.getByText(/^X-CDN-Secret: [A-Za-z0-9_-]{43}$/).waitFor();
+			await page.getByText("This Site has a CDN secret.").waitFor();
+
+			await expectAccessibleScreen(page, `Domains & Staging, the CDN secret shown (${theme})`);
+			// Shown only then: the screen opened again says only that there is one.
+			await page.reload();
+			await page.getByRole("button", { name: "Make a new CDN secret" }).waitFor();
+			expect(await page.getByText(/X-CDN-Secret:/).count()).toBe(0);
 		});
 
 		test("removing a domain shows what stops before it is confirmed", async () => {
