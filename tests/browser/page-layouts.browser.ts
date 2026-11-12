@@ -170,6 +170,22 @@ for (const theme of THEMES) {
 			await expectNoAxeViolations(page, `Page layout keyboard ${theme}`);
 			const state = await site.staff.api.pageLayouts.get({ siteId: site.siteId, entryId: site.entryId });
 			expect(state.placements.map((p) => p.values.heading)).toEqual(["North", "South", "Still editable"]);
+			await page.keyboard.press("Shift+F6");
+			await rows.filter({ hasText: "Hero · South" }).click();
+			await page.keyboard.press("Space");
+			await page.keyboard.press("ArrowUp");
+			await firstIs(page, "South");
+			await page.getByRole("button", { name: "Props", exact: true }).click();
+			expect(await page.locator('[data-grabbed="true"]').count()).toBe(0);
+			const heading = page.locator('[data-editor-region="inspector"]').getByLabel("Heading", { exact: true });
+			await heading.fill("Finished move");
+			await heading.press("Tab");
+			await firstIs(page, "Finished move");
+			await page.keyboard.press("Shift+F6");
+			await rows.filter({ hasText: "Hero · Finished move" }).click();
+			await page.keyboard.press("Escape");
+			const finished = await site.staff.api.pageLayouts.get({ siteId: site.siteId, entryId: site.entryId });
+			expect(finished.placements.map((p) => p.values.heading)).toEqual(["Finished move", "North", "Still editable"]);
 		} finally {
 			await page.close();
 		}

@@ -188,7 +188,10 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 			el.toggleAttribute("data-wc-placement-selected", el.dataset.wcPagePlacement === selected && kit.editing());
 	}
 	function select(id: string | null, options: { reveal?: boolean; focus?: boolean } = {}) {
-		if (id !== selected) for (const flush of flushers) flush();
+		if (id !== selected) {
+			for (const flush of flushers) flush();
+			if (grabbed) void grab("drop");
+		}
 		selected = id;
 		if (options.reveal) panel = "tree";
 		if (options.focus) focusRequest++;
@@ -201,6 +204,7 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 		const id = selected;
 		return enqueue(async () => {
 			if (!allowed(action, id, true)) return;
+			if (action !== "moveUp" && action !== "moveDown") finishGrab();
 			const next = structuredClone(state.layout);
 			const index = next.placements.findIndex((p) => p.id === id);
 			const p = next.placements[index];
@@ -241,6 +245,7 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 		return enqueue(async () => {
 			const component = state.components.find((c) => c.id === componentId);
 			if (!component) return;
+			finishGrab();
 			const p = { id: crypto.randomUUID(), component: componentId, props: component.props, values: {} };
 			const next = structuredClone(state.layout);
 			next.placements.splice(
@@ -257,6 +262,7 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 	async function prop(id: string, field: FieldDefinition, value: Json) {
 		if (!canEdit()) return;
 		return enqueue(async () => {
+			finishGrab();
 			const next = structuredClone(state.layout);
 			const p = next.placements.find((p) => p.id === id);
 			if (!p?.props.some((f) => f.id === field.id && f.key === field.key && f.type === field.type)) return;
@@ -341,13 +347,7 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 			void enqueue(async () => {
 				const layout = (shared.draft() as { layout?: unknown })?.layout;
 				if (sameValue(layout ?? { placements: [] }, state.layout)) return;
-				if (grabbed) {
-					const before = grabbed;
-					grabbed = null;
-					if (!sameValue(before, state.layout))
-						for (const listener of finished)
-							listener({ before, after: state.layout, label: kit.word("pageLayout.move"), selection: selected, panel });
-				}
+				finishGrab();
 				await reload();
 				await refreshPage();
 			});
@@ -364,6 +364,14 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 		}
 	};
 	kit.doc.defaultView?.addEventListener("beforeunload", leaving);
+	function finishGrab() {
+		if (!grabbed) return;
+		const before = grabbed;
+		grabbed = null;
+		if (!sameValue(before, state.layout))
+			for (const listener of finished)
+				listener({ before, after: state.layout, label: kit.word("pageLayout.move"), selection: selected, panel });
+	}
 	async function grab(change: "pick" | "drop" | "cancel") {
 		if (change === "pick") {
 			if (!busy && canEdit() && selection() && (!selection()?.locked || state.canLock)) {
@@ -373,15 +381,17 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 			return;
 		}
 		return enqueue(async () => {
-			if (grabbed) {
-				const before = grabbed;
+			if (grabbed && change === "cancel") {
+				const positions = new Map(grabbed.placements.map((p, i) => [p.id, i]));
 				grabbed = null;
-				if (change === "cancel") {
-					await save(before, kit.word("pageLayout.move"), state.layout, false, true);
-				} else if (!sameValue(before, state.layout))
-					for (const listener of finished)
-						listener({ before, after: state.layout, label: kit.word("pageLayout.move"), selection: selected, panel });
-			}
+				// Cancel only this movement. Keep the latest Props and flags on every surviving row.
+				const next = structuredClone(state.layout);
+				next.placements.sort(
+					(a, b) =>
+						(positions.get(a.id) ?? Number.POSITIVE_INFINITY) - (positions.get(b.id) ?? Number.POSITIVE_INFINITY),
+				);
+				await save(next, kit.word("pageLayout.move"), state.layout, false, true);
+			} else finishGrab();
 			emit();
 		});
 	}
@@ -413,35 +423,46 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 		},
 		openProps(focus = true) {
 			if (!canEdit()) return;
+			if (grabbed) void grab("drop");
 			panel = "inspector";
 			if (focus) focusRequest++;
 			emit();
 		},
 		openPicker() {
 			if (!canEdit()) return;
+			if (grabbed) void grab("drop");
 			panel = "picker";
 			focusRequest++;
 			emit();
 		},
 		close() {
 			for (const flush of flushers) flush();
+			if (grabbed) void grab("drop");
 			panel = null;
 			emit();
 		},
 		async drop(from: number, to: number) {
 			const p = state.layout.placements[from];
-			if (!p || to < 0 || to >= state.layout.placements.length) return;
+			const target = state.layout.placements[to];
+			if (!p || !target || !canEdit() || busy) return;
 			select(p.id);
-			if (!canEdit() || (!state.canLock && p.locked)) return;
-			if (
-				!state.canLock &&
-				state.layout.placements.slice(Math.min(from, to), Math.max(from, to) + 1).some((p) => p.locked)
-			)
-				return;
 			await enqueue(async () => {
+				// Resolve both stable identities after queued peer updates, never reuse a stale row or index.
+				const sourceAt = state.layout.placements.findIndex((row) => row.id === p.id);
+				const targetAt = state.layout.placements.findIndex((row) => row.id === target.id);
+				if (!canEdit() || sourceAt < 0 || targetAt < 0) return;
+				if (
+					!state.canLock &&
+					state.layout.placements
+						.slice(Math.min(sourceAt, targetAt), Math.max(sourceAt, targetAt) + 1)
+						.some((p) => p.locked)
+				)
+					return;
+				finishGrab();
 				const next = structuredClone(state.layout);
-				next.placements.splice(from, 1);
-				next.placements.splice(to, 0, p);
+				const [moving] = next.placements.splice(sourceAt, 1);
+				if (!moving) return;
+				next.placements.splice(targetAt + (from < to ? 1 : 0) - (sourceAt < targetAt ? 1 : 0), 0, moving);
 				await save(next, kit.word("pageLayout.move"), state.layout, true, true);
 			});
 		},
