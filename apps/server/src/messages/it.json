@@ -4358,18 +4358,7 @@
 		},
 		"insert": {
 			"open": "Inserisci",
-			"close": "Chiudi",
-			"title": "Inserisci",
-			"intro": "Prima gli elementi semantici. Scrivi per filtrare, poi premi Invio.",
-			"search": "Trova un elemento",
-			"searchPlaceholder": "Titolo, elenco, Loop…",
-			"none": "Nessun risultato.",
 			"where": "Dove",
-			"whereOptions": {
-				"inside": "Dentro il livello selezionato",
-				"after": "Dopo",
-				"before": "Prima"
-			},
 			"groups": {
 				"sections": "Sezioni",
 				"text": "Testo",
@@ -4377,7 +4366,8 @@
 				"values": "Valori",
 				"commands": "Template command",
 				"components": "Componenti",
-				"other": "Altro"
+				"other": "Altro",
+				"elements": "Elementi HTML"
 			},
 			"tags": {
 				"section": "Sezione",
@@ -4698,7 +4688,166 @@
 			"notPlaced": "Non posizionato su alcuna pagina",
 			"saveFirst": "Salva prima il template"
 		},
-		"scriptPreview": "Gli script vengono eseguiti sulla pagina. Usa Visualizza su una pagina per eseguire questa bozza in modalità codice."
+		"scriptPreview": "Gli script vengono eseguiti sulla pagina. Usa Visualizza su una pagina per eseguire questa bozza in modalità codice.",
+		"commandMenu": {
+			"title": "Menu comandi",
+			"open": "Menu comandi",
+			"close": "Chiudi",
+			"tabs": {
+				"label": "Schede del menu comandi",
+				"actions": "Azioni",
+				"goTo": "Vai a",
+				"insert": "Inserisci"
+			},
+			"search": {
+				"actions": "Cerca azioni",
+				"goTo": "Vai a una pagina, un Template, un Component o un livello",
+				"insert": "Trova un elemento"
+			},
+			"placeholder": {
+				"actions": "Salva, Duplica, Racchiudi in…",
+				"goTo": "Chi siamo, Hero, Articoli…",
+				"insert": "Titolo, elenco, Loop…"
+			},
+			"results": "Risultati",
+			"recent": "Recenti",
+			"count": "{count, plural, =0 {Nessun risultato} one {# risultato} other {# risultati}}",
+			"none": "Nessun risultato.",
+			"loading": "Caricamento…",
+			"option": "{label}, {group}",
+			"optionKeys": "{label}, {group}, {keys}",
+			"groups": {
+				"editor": "Editor",
+				"element": "Elemento",
+				"placement": "Placement",
+				"pages": "Pagine",
+				"templates": "Template",
+				"components": "Component",
+				"layers": "Livelli in questa pagina"
+			},
+			"actions": {
+				"save": "Salva bozza",
+				"publish": "Pubblica",
+				"undo": "Annulla",
+				"redo": "Ripeti",
+				"openBuilder": "Apri nel builder",
+				"viewOnPage": "Vedi su una pagina",
+				"siteCss": "Apri il CSS del sito",
+				"pageScript": "Apri lo script della pagina",
+				"safeModeOn": "Attiva la modalità sicura",
+				"safeModeOff": "Disattiva la modalità sicura",
+				"preview": "Anteprima",
+				"leave": "Esci dalla modalità modifica",
+				"rename": "Rinomina",
+				"duplicate": "Duplica",
+				"copy": "Copia",
+				"paste": "Incolla",
+				"delete": "Elimina",
+				"parent": "Seleziona il genitore",
+				"wrap": "Racchiudi in {what}",
+				"unwrap": "Togli il contenitore",
+				"editComponent": "Modifica il Component",
+				"hidePlacement": "Nascondi il Placement",
+				"showPlacement": "Mostra il Placement"
+			},
+			"wrap": {
+				"div": "div",
+				"section": "section",
+				"a": "link",
+				"loop": "Loop",
+				"condition": "Condizione"
+			},
+			"keywords": {
+				"save": "bozza salva conserva",
+				"publish": "pubblica online",
+				"undo": "indietro annulla",
+				"redo": "ripeti avanti",
+				"switchCanvas": "builder modalità codice canvas pagina",
+				"siteCss": "foglio di stile css sito",
+				"pageScript": "javascript js script pagina",
+				"safeMode": "script sicura disattiva",
+				"preview": "anteprima vedi",
+				"leave": "esci chiudi fine modifica",
+				"rename": "etichetta nome livello",
+				"duplicate": "copia clona",
+				"copy": "appunti",
+				"paste": "appunti",
+				"delete": "rimuovi cancella",
+				"parent": "su seleziona contenitore",
+				"wrap": "racchiudi contenitore gruppo",
+				"unwrap": "togli contenitore appiattisci",
+				"editComponent": "component apri modifica",
+				"hidePlacement": "nascondi mostra nascosto visibile placement"
+			},
+			"nothingToUndo": "Niente da annullare.",
+			"nothingToRedo": "Niente da ripetere.",
+			"noParent": "{name} non ha un livello genitore.",
+			"wrapped": "{name} racchiuso in {what}.",
+			"unwrapped": "Tolto il contenitore di {name}.",
+			"cannotUnwrap": "{name} non contiene niente da estrarre.",
+			"cannotUnwrapBranches": "{name} ha contenuti in un altro ramo (un Altrimenti o uno stato Vuoto): togliendo il contenitore andrebbero persi, quindi resta com'è.",
+			"publishConfirm": {
+				"title": "Pubblicare {name}?",
+				"body": "I visitatori vedono subito la versione pubblicata, in ogni pagina che la usa.",
+				"confirm": "Pubblica",
+				"cancel": "Annulla"
+			},
+			"insert": {
+				"inside": "Inserisce dentro {name}",
+				"after": "Inserisce dopo {name}",
+				"end": "Inserisce alla fine del corpo della pagina",
+				"inverseAfter": "Inserisci dopo, invece",
+				"inverseInside": "Inserisci dentro, invece",
+				"inverse": "Inserisci nell'altro modo",
+				"inverseHint": "{keys}: {action}"
+			},
+			"templates": {
+				"siteTemplate": "Template del sito",
+				"searchTemplate": "Template dei risultati di ricerca",
+				"entryTemplate": "{postType} · Template della voce",
+				"archiveTemplate": "{postType} · Template dell'archivio"
+			},
+			"shortcuts": {
+				"open": "Scorciatoie da tastiera",
+				"title": "Scorciatoie da tastiera",
+				"intro": "Ogni tasto usato dall'editor, per area. Gli stessi tasti compaiono nei suggerimenti e nel menu comandi.",
+				"keys": "Tasti",
+				"action": "Cosa fa",
+				"close": "Chiudi"
+			},
+			"areas": {
+				"menu": "Menu comandi",
+				"editor": "Editor",
+				"element": "Elemento selezionato, fuori dai pannelli del codice",
+				"tree": "Pannello dei livelli",
+				"insert": "Scheda Inserisci"
+			},
+			"keys": {
+				"rows": "Spostati tra i livelli",
+				"ends": "Vai al primo o all'ultimo livello",
+				"openClose": "Apri o chiudi un livello, o vai al suo genitore",
+				"toggle": "Apri o chiudi un livello",
+				"pick": "Prendi un livello, o posalo",
+				"putBack": "Rimetti a posto un livello preso"
+			},
+			"keyNames": {
+				"command": "Comando",
+				"control": "Controllo",
+				"shift": "Maiuscole",
+				"option": "Opzione",
+				"alt": "Alt",
+				"up": "Freccia su",
+				"down": "Freccia giù",
+				"left": "Freccia sinistra",
+				"right": "Freccia destra",
+				"enter": "Invio",
+				"delete": "Elimina",
+				"forwardDelete": "Elimina avanti",
+				"escape": "Esc",
+				"space": "Spazio",
+				"slash": "Barra"
+			}
+		}
 	},
 	"siteEmail": {
 		"pageTitle": "Email (SMTP)",
@@ -7627,6 +7776,8 @@
 		"reviewPublish": "Rivedi e pubblica il Popup"
 	},
 	"editorHistory": {
+		"wrap": "Raggruppa {name}",
+		"unwrap": "Rimuovi il contenitore {name}",
 		"undid": "Annullato {label}",
 		"redid": "Ripetuto {label}",
 		"skipped": "Saltato {label}.",

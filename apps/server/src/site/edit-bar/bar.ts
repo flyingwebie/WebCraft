@@ -662,6 +662,18 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 			render: () => renderPublish(publishPanel),
 		};
 		popupTrigger(publishPopup);
+		// Code mode's Command menu (#131) asks the bar for what only the bar does: Publish opens its
+		// confirmation, never publishes at once.
+		doc.addEventListener("webcraft:edit-command", (event) => {
+			const action = (event as CustomEvent<{ action?: string }>).detail?.action;
+			if (action === "publish" && !publishButton.disabled) openPanel(publishPopup);
+			else if (action === "safeMode") void switchSafe(!safe);
+			else if (action === "preview") void switchCode(false, true);
+			else if (action === "leave")
+				void call("end", {}).then(() => {
+					win.location.reload();
+				});
+		});
 
 		const account = button(
 			{ class: "avatar", "aria-haspopup": "menu", "aria-expanded": "false" },

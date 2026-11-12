@@ -108,17 +108,23 @@ export function codeMode(
 
 	let inspectorRef: string | undefined;
 	let openBuilderButton: HTMLButtonElement;
+	let commandButton: HTMLButtonElement;
 	let openingBuilder = false;
 	let inputRevision = 0;
 	let panelsAdapter:
 		| {
 				history: EditorHistory;
+				historyShortcuts: Record<"undo" | "redo", { keys: string; title(label: string): string }>;
 				select(ref: string | null): void;
 				hover(ref: string | null): void;
 				refresh(): void;
 				save(): Promise<boolean>;
 				depart(): Promise<boolean>;
 				markup(ref: string): Promise<string | null>;
+				/** Opens the Command menu (#131) at Actions. */
+				openCommandMenu(): void;
+				/** The Command menu button's name, tooltip and keys, from the shared shortcut registry. */
+				commandButton: { label: string; title: string; keys: string };
 		  }
 		| undefined;
 	const win = window;
@@ -156,6 +162,7 @@ export function codeMode(
 		play: ["M6 3l14 9-14 9z"],
 		check: ["M20 6 9 17l-5-5"],
 		x: ["M18 6 6 18", "m6 6 12 12"],
+		command: ["M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"],
 	};
 	/** Elements whose content Format may put on lines of its own: block containers. */
 	const CONTAINERS = new Set(
@@ -467,6 +474,31 @@ export function codeMode(
 				showInsertion();
 			},
 			hover: setHover,
+			// What only Code mode's own panels and the editing bar do, for the Command menu (#131).
+			commands: {
+				safeMode: doc.querySelector('meta[name="webcraft-safe-mode"]')?.getAttribute("content") === "on",
+				async save() {
+					await saveHtml(null);
+					if (jsDirty()) await saveScript(undefined);
+				},
+				openBuilder: () => void openBuilder(),
+				showPanels: () => showPanels(true),
+				openPageScript() {
+					showPanels(true);
+					switchScript(scripts?.page ? "page" : "site");
+					jsEditor.area.focus();
+				},
+				async leaveTo(url: string) {
+					const revision = inputRevision;
+					if (panelsAdapter && !(await panelsAdapter.depart())) return;
+					if (jsDirty() && !(await saveScript(undefined))) return;
+					const destination = await panelsAdapter?.history.departure(url);
+					if (revision === inputRevision) win.location.assign(destination ?? url);
+				},
+				bar(action: "publish" | "safeMode" | "preview" | "leave") {
+					doc.dispatchEvent(new CustomEvent("webcraft:edit-command", { detail: { action } }));
+				},
+			},
 		});
 		doc.addEventListener(
 			"click",
@@ -524,14 +556,25 @@ export function codeMode(
 			const state = panelsAdapter?.history.state();
 			undoButton.disabled = !state?.undo || state.busy;
 			redoButton.disabled = !state?.redo || state.busy;
-			undoButton.title = `${word("undo")} ${state?.undo ?? ""}`.trim();
-			redoButton.title = `${word("redo")} ${state?.redo ?? ""}`.trim();
+			undoButton.title =
+				panelsAdapter?.historyShortcuts.undo.title(`${word("undo")} ${state?.undo ?? ""}`.trim()) ?? "";
+			undoButton.setAttribute("aria-keyshortcuts", panelsAdapter?.historyShortcuts.undo.keys ?? "");
+			redoButton.title =
+				panelsAdapter?.historyShortcuts.redo.title(`${word("redo")} ${state?.redo ?? ""}`.trim()) ?? "";
+			redoButton.setAttribute("aria-keyshortcuts", panelsAdapter?.historyShortcuts.redo.keys ?? "");
 		};
 		panelsAdapter?.history.subscribe(refreshHistory);
 		refreshHistory();
 
 		syncCover();
 		panelsAdapter?.select(selectedRef ?? opened?.ref ?? null);
+		if (panelsAdapter) {
+			const named = panelsAdapter.commandButton;
+			commandButton.setAttribute("aria-label", named.label);
+			commandButton.setAttribute("title", named.title);
+			commandButton.setAttribute("aria-keyshortcuts", named.keys);
+			commandButton.hidden = false;
+		}
 		editorReady();
 		openAskedScript();
 		await preview();
@@ -728,6 +771,9 @@ export function codeMode(
 		listbox.addEventListener("mousedown", (event) => event.preventDefault());
 
 		openBuilderButton = button({ class: "secondary", disabled: "" }, word("openBuilder"));
+		// The Command menu's button (#131): named and keyed by the shared panels once they load.
+		commandButton = button({ class: "icon-button", "aria-haspopup": "dialog", hidden: "" }, icon("command"));
+		commandButton.addEventListener("click", () => panelsAdapter?.openCommandMenu());
 		openBuilderButton.addEventListener("click", () => void openBuilder());
 		// In the drawer layout the tree and the Inspector open from here (or with F6), one at a time.
 		const drawerToggle = (which: EditorDrawer, id: string) => {
@@ -756,7 +802,8 @@ export function codeMode(
 			tooNarrowTitle,
 			tooNarrowText,
 		);
-		const panels = el("div", { class: "panels", id: newId("panels") });
+		// Keys that act on the selected layer (⌘D, ⌫, Esc) leave the code panels alone.
+		const panels = el("div", { class: "panels", id: newId("panels"), "data-code-panel": "" });
 		panels.append(buildHtmlPanel(), buildCssPanel(), buildJsPanel());
 		toggleButton.setAttribute("aria-controls", panels.id);
 		shell = el(
@@ -770,6 +817,7 @@ export function codeMode(
 				usage,
 				layersToggle,
 				inspectorToggle,
+				commandButton,
 				openBuilderButton,
 				toggleButton,
 			),
@@ -848,13 +896,6 @@ export function codeMode(
 			if (bottom > top) win.scrollBy({ top: bottom - top, behavior: "instant" });
 		});
 		root.addEventListener("focusout", () => panelsAdapter?.history.boundary());
-		win.addEventListener("keydown", (event) => {
-			if (!(event.ctrlKey || event.metaKey) || event.altKey || !panelsAdapter || event.defaultPrevented) return;
-			const key = event.key.toLowerCase();
-			if (key !== "z" && key !== "y") return;
-			event.preventDefault();
-			void (key === "y" || event.shiftKey ? panelsAdapter.history.redo() : panelsAdapter.history.undo());
-		});
 		root.addEventListener("keydown", (event) => {
 			const key = (event as KeyboardEvent).key;
 			if (key === "Escape" && !dialog.hidden) {

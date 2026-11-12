@@ -1,3 +1,4 @@
+import type { CommandMenuData, Permission } from "@webcraft/core";
 import { type Json, reverseChange, sameValue } from "@webcraft/core/draft-document";
 import type { ElementTree, TreeNode } from "@webcraft/renderer/builder";
 import { DialogContainer } from "@webcraft/ui/components/dialog.tsx";
@@ -7,25 +8,36 @@ import { createRoot } from "react-dom/client";
 import { type SharedDraft, useSharedDraft } from "../co-editing/shared-draft.ts";
 import { useAnnouncement } from "../content/reorder.tsx";
 import { errorMessage } from "../errors.ts";
-import { AdminIntl, useT } from "../i18n.tsx";
+import { AdminIntl, adminMessages, useT } from "../i18n.tsx";
+import { CommandMenu, type MenuState, ShortcutsDialog, useEditorKeys, useHistoryKeys } from "./CommandMenu.tsx";
 import { CssPanel, type CssPanelPort, type CssTarget } from "./CssPanel.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
+import {
+	type CommandTab,
+	type EditorCommandTarget,
+	editorCommands,
+	historyCommandTarget,
+	type WrapKind,
+} from "./commands.ts";
 import { type EditorApi, EditorApiContext, EditorEnvironment } from "./editor-api.tsx";
 import { editorHistory, type HistoryLocation } from "./editor-history.ts";
 import { FixedTextDialog } from "./FixedTextDialog.tsx";
 import { type FixedTextLocation, rememberFixedText, resolveFixedText } from "./fixed-text.ts";
+import { goToCommands } from "./go-to.ts";
 import { historyLanguage } from "./history-language.ts";
 import { inspectorHistoryTab, revealInspectorHistory } from "./history-reveal.ts";
 import { connectHistory } from "./history-transport.ts";
-import { InsertDialog, type InsertWhere } from "./InsertDialog.tsx";
 import { InsertToolbar } from "./InsertToolbar.tsx";
 import { Inspector } from "./Inspector.tsx";
-import { type LayerAction, type LayerSource, LayersPanel } from "./LayersPanel.tsx";
+import { elementBuilder, type InsertWhere, insertItems, insertNow } from "./insert-items.tsx";
+import { type LayerAction, type LayerSource, LayersPanel, rowKey } from "./LayersPanel.tsx";
 import { type LayerClipboard, layerLocation, runLayerAction } from "./layer-actions.ts";
-import { type BuilderTarget, layerName, type Opened, type Selection } from "./model.ts";
+import { type BuilderTarget, layerName, type Opened, type Selection, targetPath } from "./model.ts";
 import { hoveredRow, selectionKey, selectionOf } from "./selection-ref.ts";
+import { ariaKeys, withKeys } from "./shortcuts.ts";
 import {
 	canHoldChildren,
+	canUnwrap,
 	childLists,
 	insertAt,
 	insertionPlace,
@@ -36,6 +48,8 @@ import {
 	placeBy,
 	replaceAt,
 	treeProblem,
+	unwrapAt,
+	wrapAt,
 } from "./tree.ts";
 
 export type PanelSource = {
@@ -71,6 +85,21 @@ export type LivePanelBridge = {
 		where: InsertWhere,
 		context?: { ref: string; markup: string; offset: number; label: string },
 	): void;
+	/** What only Code mode's own panels and the editing bar do, for the Command menu (#131). */
+	commands?: CodeModeCommands;
+};
+export type CodeModeCommands = {
+	/** Whether this browser is in Safe mode (ADR 0022). */
+	safeMode: boolean;
+	/** Saves the HTML, CSS and JS panels, as Ctrl+S does in each. */
+	save(): Promise<void>;
+	openBuilder(): void;
+	showPanels(): void;
+	openPageScript(): void;
+	/** Leaves for another address once every panel saved (switching pages keeps the Draft). */
+	leaveTo(url: string): Promise<void>;
+	/** The editing bar's own actions: Publish opens its confirmation. */
+	bar(action: "publish" | "safeMode" | "preview" | "leave"): void;
 };
 type PanelCommands = {
 	save(): Promise<boolean>;
@@ -150,6 +179,9 @@ export function mount(bridge: LivePanelBridge) {
 	const commands: PanelCommands = { save: async () => false, markup: async () => null };
 	const oneOffDeparture = { current: null as (() => Promise<boolean>) | null };
 	const cssDeparture = { current: null as (() => Promise<boolean>) | null };
+	/** Opens the Command menu: Code mode's own toolbar button calls it. */
+	const menuOpener = { current: null as ((tab: CommandTab) => void) | null };
+	const opener = adminMessages[bridge.language].builder.commandMenu.open;
 	const show = (ref: string | null) => {
 		selection = ref;
 		react.render(
@@ -163,6 +195,7 @@ export function mount(bridge: LivePanelBridge) {
 							commands={commands}
 							oneOffDeparture={oneOffDeparture}
 							cssDeparture={cssDeparture}
+							menuOpener={menuOpener}
 						/>
 					</DialogContainer>
 				</EditorApiContext>
@@ -172,6 +205,10 @@ export function mount(bridge: LivePanelBridge) {
 	show(null);
 	return {
 		history: editorHistory(),
+		historyShortcuts: {
+			undo: { keys: ariaKeys("editor.undo"), title: (label: string) => withKeys(label, "editor.undo") },
+			redo: { keys: ariaKeys("editor.redo"), title: (label: string) => withKeys(label, "editor.redo") },
+		},
 		select: show,
 		refresh: () => show(selection),
 		depart: async () =>
@@ -180,6 +217,9 @@ export function mount(bridge: LivePanelBridge) {
 			(await commands.save()),
 		save: async () => (!cssDeparture.current || (await cssDeparture.current())) && (await commands.save()),
 		markup: (ref: string) => commands.markup(ref),
+		openCommandMenu: () => menuOpener.current?.("actions"),
+		/** The toolbar button's name, tooltip and keys, from the shortcut registry. */
+		commandButton: { label: opener, title: withKeys(opener, "menu.actions"), keys: ariaKeys("menu.actions") },
 		hover: (ref: string | null) => {
 			hovered = ref;
 			show(selection);
@@ -194,7 +234,9 @@ function LivePanels({
 	commands,
 	oneOffDeparture,
 	cssDeparture,
+	menuOpener,
 }: {
+	menuOpener: { current: ((tab: CommandTab) => void) | null };
 	bridge: LivePanelBridge;
 	selected: string | null;
 	hovered: string | null;
@@ -205,6 +247,7 @@ function LivePanels({
 	const t = useT();
 	const history = editorHistory();
 	history.configure(historyLanguage(t));
+	useHistoryKeys(historyCommandTarget(history));
 	const [sources, setSources] = useState<Record<string, PanelSource>>({});
 	const [active, setActive] = useState<string | null>(null);
 	const [error, setError] = useState("");
@@ -647,6 +690,7 @@ function LivePanels({
 			))}
 			{source ? (
 				<SourcePanels
+					menuOpener={menuOpener}
 					oneOffDeparture={oneOffDeparture}
 					cssDeparture={cssDeparture}
 					bridge={bridge}
@@ -860,6 +904,7 @@ function DraftConnection({
 }
 
 function SourcePanels({
+	menuOpener,
 	bridge,
 	source,
 	reload,
@@ -878,6 +923,7 @@ function SourcePanels({
 	oneOffDeparture,
 	cssDeparture,
 }: {
+	menuOpener: { current: ((tab: CommandTab) => void) | null };
 	oneOffDeparture: { current: (() => Promise<boolean>) | null };
 	cssDeparture: { current: (() => Promise<boolean>) | null };
 	bridge: LivePanelBridge;
@@ -922,10 +968,13 @@ function SourcePanels({
 		);
 	}, [requested, bridge]);
 	const [announcement, announce] = useAnnouncement();
-	const [inserting, setInserting] = useState(false);
-	const [quick, setQuick] = useState<string | null>(null);
 	const [where, setWhere] = useState<InsertWhere>("inside");
-	const trigger = useRef<HTMLButtonElement>(null);
+	const [menu, setMenu] = useState<MenuState | null>(null);
+	const [shortcutsOpen, setShortcutsOpen] = useState(false);
+	const [menuData, setMenuData] = useState<CommandMenuData | null>(null);
+	const [focusRows, setFocusRows] = useState(0);
+	const [renameRequest, setRenameRequest] = useState(0);
+	const [siteCssRequest, setSiteCssRequest] = useState(0);
 	const clipboard = useRef<LayerClipboard | null>(null);
 	const [grabbed, setGrabbed] = useState<{
 		tree: ElementTree;
@@ -1067,8 +1116,8 @@ function SourcePanels({
 			);
 	};
 
-	const insert = (nodes: TreeNode[]) => {
-		const at = insertionPlace(tree, selection, where);
+	const insert = (nodes: TreeNode[], way: InsertWhere = where) => {
+		const at = insertionPlace(tree, selection, way);
 		const made = insertAt(tree, at, nodes);
 		const node = nodeAt(made.tree, made.path);
 		return apply(
@@ -1144,6 +1193,184 @@ function SourcePanels({
 	};
 	const node = selection?.kind === "node" ? nodeAt(tree, selection.path) : null;
 	const cssPort = useCssPort(bridge);
+
+	// ---------------------------------------------------------------------------------------------
+	// The Command menu (#131): the same commands as the Builder's, for Code mode's canvas
+
+	const commands = bridge.commands;
+	const [, historyChanged] = useState(0);
+	useEffect(() => editorHistory().subscribe(() => historyChanged((version) => version + 1)), []);
+	// The menu's data loads when Actions or Go to first opens (Insert needs only `structure.edit`, which
+	// opening the editor already proved); Go to reads its lists again each time it opens.
+	const menuTab = menu?.tab;
+	const menuLoaded = useRef(false);
+	useEffect(() => {
+		if (!menuTab || menuTab === "insert" || (menuLoaded.current && menuTab !== "goTo")) return;
+		menuLoaded.current = true;
+		// The newest answer wins; switching tabs never drops a read in flight.
+		bridge
+			.call<CommandMenuData>("code/commandMenu", {})
+			.then(setMenuData)
+			.catch((failure) => announce(t(errorMessage(failure))));
+	}, [bridge, menuTab, announce, t]);
+	/** `can()`'s answer for the Site, from the server; Code mode already needed `structure.edit`. */
+	const can = useCallback(
+		(permission: Permission) =>
+			menuData ? (menuData.permissions as readonly Permission[]).includes(permission) : permission === "structure.edit",
+		[menuData],
+	);
+	const editComponent =
+		node?.type === "component"
+			? () => {
+					const component = forest.find((each) => each.ref === `${source.ref}/${node.id}`);
+					const first = component?.tree.nodes.find((each) => "id" in each);
+					bridge.select(first && "id" in first ? `${source.ref}/${node.id}#${first.id}` : `${source.ref}/${node.id}`);
+				}
+			: undefined;
+	const nameIn = (at: ElementTree, path: NodePath) => {
+		const found = nodeAt(at, path);
+		return found ? layerName(t, found, catalogue).name : "";
+	};
+	/** Selects a layer of the page, in this source or another, and opens every layer on the way to it. */
+	const selectLayer = (ref: string, path: NodePath) => {
+		const owner = forest.find((each) => each.ref === ref);
+		if (!owner) return;
+		const next: Selection = { kind: "node", path };
+		if (ref === source.ref) select(next);
+		else onSourceSelect(ref, next);
+		setCollapsed((before) => {
+			const opened = new Set(before);
+			for (let length = 1; length < path.length; length += 2) {
+				const ownerPath = path.slice(0, length);
+				const ownerNode = nodeAt(owner.tree, ownerPath);
+				if (ownerNode) opened.delete(`${ref}:${rowKey(ownerNode, ownerPath)}`);
+			}
+			return opened;
+		});
+		const found = nodeAt(owner.tree, path);
+		if (found) announce(t("builder.selected", { name: layerName(t, found, owner.catalogue).name }));
+	};
+	const selectParent = () => {
+		if (selection?.kind !== "node") return;
+		if (selection.path.length > 1) {
+			selectLayer(source.ref, selection.path.slice(0, -2));
+			return;
+		}
+		// The top of a Component's tree: its parent is the Placement showing it.
+		const cut = source.ref.lastIndexOf("/");
+		if (cut > 0) {
+			const parentRef = source.ref.slice(0, cut);
+			const owner = forest.find((each) => each.ref === parentRef);
+			const path = owner && pathOfId(owner.tree, source.ref.slice(cut + 1));
+			if (path) {
+				selectLayer(parentRef, path);
+				return;
+			}
+		}
+		announce(t("builder.commandMenu.noParent", { name: nameIn(tree, selection.path) }));
+	};
+	const wrapSelected = (wrapper: TreeNode): string | undefined => {
+		if (selection?.kind !== "node") return t("builder.moves.refused.gone", { name: "" });
+		const name = nameIn(tree, selection.path);
+		const wrapped = wrapAt(tree, selection.path, wrapper);
+		if ("refused" in wrapped) return t("builder.moves.refused.gone", { name });
+		return apply(
+			wrapped.tree,
+			{ kind: "node", path: wrapped.path },
+			t("builder.commandMenu.wrapped", { name, what: layerName(t, wrapper, catalogue).name }),
+		);
+	};
+	const wrap = (kind: WrapKind) => {
+		if (kind === "loop" || kind === "condition") {
+			setMenu({ tab: "insert", step: { item: kind === "loop" ? "command-loop" : "command-if", mode: "wrap" } });
+			return;
+		}
+		const made = elementBuilder(tree)(kind, [], kind === "a" ? { href: "/" } : {});
+		if (!wrapSelected(made)) setFocusRows((count) => count + 1);
+	};
+	const unwrap = () => {
+		if (selection?.kind !== "node") return;
+		const name = nameIn(tree, selection.path);
+		const result = unwrapAt(tree, selection.path);
+		if ("refused" in result)
+			announce(
+				t(
+					result.refused === "other-branches"
+						? "builder.commandMenu.cannotUnwrapBranches"
+						: "builder.commandMenu.cannotUnwrap",
+					{ name },
+				),
+			);
+		else apply(result.tree, { kind: "node", path: result.path }, t("builder.commandMenu.unwrapped", { name }));
+	};
+	const leaveTo = (url: string) => {
+		if (commands) void commands.leaveTo(url);
+		else window.location.assign(url);
+	};
+	const go = {
+		page: (path: string) => leaveTo(path),
+		builder: (next: BuilderTarget) =>
+			leaveTo(new URL(`/builder/${source.siteId}/${targetPath(next)}`, source.adminOrigin).href),
+		layer: selectLayer,
+	};
+	const commandTarget: EditorCommandTarget = {
+		canvas: "code",
+		selection: node
+			? {
+					kind: node.type === "element" ? "element" : node.type === "component" ? "placement" : "other",
+					name: layerName(t, node, catalogue).name,
+					hidden: node.type === "component" ? !!node.hidden : undefined,
+					canUnwrap: canUnwrap(node),
+				}
+			: null,
+		history: historyCommandTarget(editorHistory()),
+		save: () => commands?.save(),
+		publish: () => commands?.bar("publish"),
+		...(commands
+			? {
+					switchCanvas: commands.openBuilder,
+					openPageScript: commands.openPageScript,
+					safeMode: { on: commands.safeMode, set: () => commands.bar("safeMode") },
+					preview: () => commands.bar("preview"),
+					leave: () => commands.bar("leave"),
+				}
+			: {}),
+		openSiteCss: () => {
+			commands?.showPanels();
+			setSiteCssRequest((count) => count + 1);
+		},
+		layer: (change) =>
+			change === "parent"
+				? selectParent()
+				: change === "rename"
+					? setRenameRequest((count) => count + 1)
+					: action(change),
+		wrap,
+		unwrap,
+		...(node?.type === "component"
+			? {
+					editComponent,
+					toggleHidden: () => {
+						if (selection?.kind === "node" && onHidden(selection.path, !node.hidden))
+							announce(t("builder.inspector.changed"));
+					},
+				}
+			: {}),
+	};
+	// Code mode's own toolbar button opens the menu (it lives in Code mode's top line, not here).
+	menuOpener.current = (tab) => setMenu({ tab });
+	useEditorKeys({
+		enabled: !fixed,
+		// Below the smallest width a notice covers the editor: the menu can't be reached.
+		blocked: () => document.documentElement.classList.contains("wc-code-covered"),
+		menu,
+		setMenu,
+		openShortcuts: () => setShortcutsOpen(true),
+		element: node
+			? { duplicate: () => action("duplicate"), delete: () => action("delete"), parent: selectParent }
+			: null,
+	});
+
 	/** Whether this source can change now: editable, not being created, and its shared Draft connected and writable. */
 	const writable =
 		source.editable && !creating && (!(source.opened.template || source.opened.component) || !!shared?.writable);
@@ -1168,6 +1395,7 @@ function SourcePanels({
 							editable={writable}
 							fromModule={!source.editable}
 							designVersion={designVersion}
+							showSiteCss={siteCssRequest}
 							onClasses={(classes, message, step) => {
 								// The class list changes in the element's current shared document, as the Inspector's does.
 								if (selection?.kind !== "node" || node?.type !== "element") return t("coEditing.status.readOnly");
@@ -1195,10 +1423,14 @@ function SourcePanels({
 						where={node && !canHoldChildren(node) ? "after" : where}
 						canInside={!!node && canHoldChildren(node)}
 						onWhere={setWhere}
-						onPick={(item, button) => {
-							setQuick(item);
-							trigger.current = button;
-							setInserting(true);
+						onPick={(item) => {
+							if (item === null) return setMenu({ tab: "insert" });
+							if (item === "components") return setMenu({ tab: "insert", only: "components" });
+							const found = insertItems(t, tree, catalogue).find((each) => each.id === item);
+							if (!found) return;
+							const nodes = insertNow(found, tree, catalogue);
+							if (!nodes) setMenu({ tab: "insert", step: { item, mode: "insert" } });
+							else if (!insert(nodes)) setFocusRows((count) => count + 1);
 						}}
 						onPreview={(show) => void previewInsertion(show)}
 					/>
@@ -1221,7 +1453,8 @@ function SourcePanels({
 						collapsed={collapsed}
 						grabbed={grabCurrent}
 						canPaste={clipboard.current !== null}
-						focusRequest={0}
+						focusRequest={focusRows}
+						renameRequest={renameRequest}
 						onSelect={select}
 						onToggle={(key, open) =>
 							setCollapsed((before) => {
@@ -1281,10 +1514,7 @@ function SourcePanels({
 									}),
 								);
 						}}
-						onInsert={() => {
-							setQuick(null);
-							setInserting(true);
-						}}
+						onInsert={() => setMenu({ tab: "insert" })}
 					/>
 				</fieldset>
 			</aside>
@@ -1294,17 +1524,7 @@ function SourcePanels({
 						departure={oneOffDeparture}
 						cssInDock
 						key={source.opened.component?.id ?? source.ref}
-						onEditComponent={
-							node?.type === "component"
-								? () => {
-										const component = forest.find((each) => each.ref === `${source.ref}/${node.id}`);
-										const first = component?.tree.nodes.find((each) => "id" in each);
-										bridge.select(
-											first && "id" in first ? `${source.ref}/${node.id}#${first.id}` : `${source.ref}/${node.id}`,
-										);
-									}
-								: undefined
-						}
+						onEditComponent={editComponent}
 						siteId={source.siteId}
 						tree={tree}
 						selection={selection}
@@ -1427,20 +1647,41 @@ function SourcePanels({
 				/>
 			) : null}
 
-			<InsertDialog
-				quick={quick}
-				open={inserting}
-				onOpenChange={setInserting}
-				finalFocus={trigger}
-				siteId={source.siteId}
-				tree={tree}
-				catalogue={catalogue}
-				where={node && !canHoldChildren(node) ? "after" : where}
-				onWhere={setWhere}
-				canInside={!!node && canHoldChildren(node)}
-				hasSelection={!!selection}
-				onInsert={insert}
+			<CommandMenu
+				canvas="code"
+				state={menu}
+				onState={setMenu}
+				can={can}
+				actions={editorCommands(commandTarget, t)}
+				goTo={
+					menu?.tab === "goTo" && menuData
+						? goToCommands(
+								t,
+								menuData,
+								forest.filter((each) => each.ref !== "layout"),
+								go,
+							)
+						: null
+				}
+				insert={
+					writable
+						? {
+								siteId: source.siteId,
+								tree,
+								catalogue,
+								where: node && !canHoldChildren(node) ? "after" : where === "inside" ? "inside" : "after",
+								canInside: !!node && canHoldChildren(node),
+								onWhere: setWhere,
+								selected: node ? layerName(t, node, catalogue).name : null,
+								onInsert: (nodes, way) => insert(nodes, way),
+								onWrap: wrapSelected,
+								onPreview: (show) => void previewInsertion(show),
+							}
+						: null
+				}
+				onRowFocus={() => setFocusRows((count) => count + 1)}
 			/>
+			<ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} can={can} />
 		</EditorEnvironment>
 	);
 }

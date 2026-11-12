@@ -28,6 +28,7 @@ import { type DragEvent, type KeyboardEvent, useEffect, useRef, useState } from 
 import { useAfterRender } from "../after-render.ts";
 import { useT } from "../i18n.tsx";
 import { type Catalogue, layerName, listName, type Selection } from "./model.ts";
+import { ariaKeys, type ShortcutId, withKeys } from "./shortcuts.ts";
 import {
 	canHoldChildren,
 	childLists,
@@ -137,17 +138,17 @@ export type LayerAction =
 	| "rename"
 	| "delete";
 
-const ACTIONS: readonly { action: LayerAction; icon: LucideIcon; keys: string }[] = [
-	{ action: "moveUp", icon: ArrowUpIcon, keys: "Alt+ArrowUp" },
-	{ action: "moveDown", icon: ArrowDownIcon, keys: "Alt+ArrowDown" },
-	{ action: "moveIn", icon: CornerDownRightIcon, keys: "Alt+ArrowRight" },
-	{ action: "moveOut", icon: CornerUpLeftIcon, keys: "Alt+ArrowLeft" },
-	{ action: "cut", icon: ScissorsIcon, keys: "Control+X" },
-	{ action: "copy", icon: CopyIcon, keys: "Control+C" },
-	{ action: "paste", icon: ClipboardPasteIcon, keys: "Control+V" },
-	{ action: "duplicate", icon: CopyPlusIcon, keys: "Control+D" },
-	{ action: "rename", icon: PencilIcon, keys: "F2" },
-	{ action: "delete", icon: Trash2Icon, keys: "Delete" },
+const ACTIONS: readonly { action: LayerAction; icon: LucideIcon; shortcut: ShortcutId }[] = [
+	{ action: "moveUp", icon: ArrowUpIcon, shortcut: "tree.moveUp" },
+	{ action: "moveDown", icon: ArrowDownIcon, shortcut: "tree.moveDown" },
+	{ action: "moveIn", icon: CornerDownRightIcon, shortcut: "tree.moveIn" },
+	{ action: "moveOut", icon: CornerUpLeftIcon, shortcut: "tree.moveOut" },
+	{ action: "cut", icon: ScissorsIcon, shortcut: "tree.cut" },
+	{ action: "copy", icon: CopyIcon, shortcut: "tree.copy" },
+	{ action: "paste", icon: ClipboardPasteIcon, shortcut: "tree.paste" },
+	{ action: "duplicate", icon: CopyPlusIcon, shortcut: "element.duplicate" },
+	{ action: "rename", icon: PencilIcon, shortcut: "tree.rename" },
+	{ action: "delete", icon: Trash2Icon, shortcut: "element.delete" },
 ];
 
 /** How far each level of the Layers panel is indented (classes, not inline styles). */
@@ -179,6 +180,7 @@ export function LayersPanel({
 	onDrop,
 	onInsert,
 	focusRequest,
+	renameRequest = 0,
 	forest,
 	activeSource,
 	onSourceSelect,
@@ -189,6 +191,8 @@ export function LayersPanel({
 }: {
 	/** Changes when the selected row should take focus (after a click on the canvas). */
 	focusRequest: number;
+	/** Changes when the selected layer should start renaming (the Command menu's Rename). */
+	renameRequest?: number;
 	forest?: readonly LayerSource[];
 	activeSource?: string;
 	onSourceSelect?(source: string, selection: Selection): void;
@@ -218,6 +222,7 @@ export function LayersPanel({
 	const afterRender = useAfterRender();
 	const [renaming, setRenaming] = useState<string | null>(null);
 	const handledRequest = useRef(focusRequest);
+	const handledRename = useRef(renameRequest);
 	const [dragging, setDragging] = useState<NodePath | null>(null);
 	/** The last pointer pressed on a row: a finger never starts a drag (#126: Move up and Move down instead). */
 	const pointer = useRef("");
@@ -253,6 +258,13 @@ export function LayersPanel({
 		const row = element.querySelector<HTMLElement>(`[data-row-key="${CSS.escape(focusKey ?? "")}"]`);
 		if (row && row !== active) row.focus();
 	}, [focusKey, renaming, focusRequest]);
+
+	// The Command menu's Rename starts renaming the selected element's row.
+	useEffect(() => {
+		if (renameRequest === handledRename.current) return;
+		handledRename.current = renameRequest;
+		if (selectedRow?.kind === "node" && selectedRow.node.type === "element") setRenaming(selectedRow.key);
+	}, [renameRequest, selectedRow]);
 
 	const select = (row: LayerRow) => {
 		const selection: Selection =
@@ -408,14 +420,21 @@ export function LayersPanel({
 				<h2 id="layers-heading" className="text-sm font-semibold">
 					{t("builder.layers.heading")}
 				</h2>
-				<Button type="button" size="sm" variant="outline" onClick={onInsert} aria-keyshortcuts="Control+I">
+				<Button
+					type="button"
+					size="sm"
+					variant="outline"
+					onClick={onInsert}
+					aria-keyshortcuts={ariaKeys("menu.insert")}
+					title={withKeys(t("builder.insert.open"), "menu.insert")}
+				>
 					<PlusIcon aria-hidden="true" />
 					{t("builder.insert.open")}
 				</Button>
 			</div>
 			<fieldset className="flex flex-wrap gap-0.5 border-b px-2 py-1">
 				<legend className="sr-only">{t("builder.layers.actions")}</legend>
-				{ACTIONS.map(({ action, icon: Icon, keys }) => {
+				{ACTIONS.map(({ action, icon: Icon, shortcut }) => {
 					const disabled =
 						action === "paste" ? !canPaste || !selectedRow : action === "rename" ? !nodeSelected : !nodeSelected;
 					return (
@@ -426,8 +445,8 @@ export function LayersPanel({
 							size="icon-sm"
 							disabled={disabled}
 							aria-label={t(`builder.layers.action.${action}`)}
-							title={`${t(`builder.layers.action.${action}`)} (${keys.replace("Control", "Ctrl")})`}
-							aria-keyshortcuts={keys}
+							title={withKeys(t(`builder.layers.action.${action}`), shortcut)}
+							aria-keyshortcuts={ariaKeys(shortcut)}
 							onClick={() => (action === "rename" ? startRename() : onAction(action))}
 						>
 							<Icon aria-hidden="true" />

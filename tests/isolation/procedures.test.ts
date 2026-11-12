@@ -533,6 +533,7 @@ describe("the visual builder", () => {
 		}),
 	);
 	isolation.refuses("builder.historyDesign", (api, target) => api.builder.historyDesign({ siteId: target.siteId }));
+	isolation.refuses("builder.commandMenu", (api, target) => api.builder.commandMenu({ siteId: target.siteId }));
 	isolation.refuses("builder.destinations", async (api, target) =>
 		api.builder.destinations({ siteId: target.siteId, target: await entryTemplateIn(target) }),
 	);

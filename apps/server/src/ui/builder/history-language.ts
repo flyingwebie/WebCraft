@@ -13,6 +13,8 @@ const actions = [
 	["builder.moves.inserted", "insert"],
 	["builder.css.created", "createClass"],
 	["builder.css.renamed", "rename"],
+	["builder.commandMenu.wrapped", "wrap"],
+	["builder.commandMenu.unwrapped", "unwrap"],
 ] as const;
 
 /** Finished-action announcements and history labels share their translated subject. */
@@ -21,8 +23,9 @@ export function historyLanguage(t: Translate) {
 	const patterns = actions.map(([source, action]) => ({
 		action,
 		pattern: new RegExp(
-			`^${escapePattern(t(source, { name: "__NAME__", where: "__WHERE__" }).replace(/\.$/, ""))
+			`^${escapePattern(t(source, { name: "__NAME__", where: "__WHERE__", what: "__WHAT__" }).replace(/\.$/, ""))
 				.replace("__NAME__", "(.+?)")
+				.replace("__WHAT__", ".*")
 				.replace("__WHERE__", ".*")}$`,
 		),
 	}));

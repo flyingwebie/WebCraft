@@ -71,6 +71,14 @@ export const builder = {
 				input.to as DocumentJson,
 			);
 		}),
+	/**
+	 * What the Command menu needs (both canvases): which of its commands' Permissions the person holds
+	 * on the Site, checked with `can()`, and Go to's Pages, Entries by Post Type, Templates and Components.
+	 */
+	commandMenu: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
+		const site = await context.services.data.site(context.access, input.siteId, "site.view");
+		return context.services.builder.commandMenu(site);
+	}),
 	/** Renderable editing destinations, including never-published Entries and repeated Component Placements. */
 	destinations: signedIn
 		.input(z.object({ siteId: id, target, entryId: id.optional() }))

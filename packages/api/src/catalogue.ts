@@ -215,6 +215,7 @@ export const PROCEDURES = {
 	"builder.claimHistory": internal(),
 	"builder.reverseHistory": internal(),
 	"builder.historyDesign": internal(),
+	"builder.commandMenu": internal(),
 	"builder.open": internal(),
 	"builder.destinations": internal(),
 	"builder.preview": internal(),

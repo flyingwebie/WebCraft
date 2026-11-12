@@ -1,6 +1,6 @@
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
@@ -22,7 +22,10 @@ export function BuilderNavigation({
 	returnPage,
 	revision,
 	list = false,
+	viewRequest = 0,
 }: {
+	/** Changes when View on a page is asked for elsewhere (the Command menu). */
+	viewRequest?: number;
 	revision?: string | null;
 	siteId: string;
 	target: BuilderTarget;
@@ -109,6 +112,15 @@ export function BuilderNavigation({
 			setBusy(false);
 		}
 	};
+	const openNow = useRef(open);
+	openNow.current = open;
+	const handledView = useRef(viewRequest);
+	useEffect(() => {
+		if (viewRequest === handledView.current) return;
+		handledView.current = viewRequest;
+		if (destinations?.reason && !destinations.pages.length) toast.error(t(`builder.navigation.${destinations.reason}`));
+		else void openNow.current();
+	}, [viewRequest, destinations, t]);
 	return (
 		<div className="flex flex-wrap items-center gap-2">
 			{returnPage ? (

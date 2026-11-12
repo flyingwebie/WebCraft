@@ -63,6 +63,9 @@ export {
 	type BuilderTarget,
 	CANVAS_SOURCE,
 	type CanvasPlaceholder,
+	COMMAND_PERMISSIONS,
+	type CommandMenuData,
+	type GoToPage,
 	type PendingStyles,
 } from "./builder/index.ts";
 export * from "./cdns/index.ts";

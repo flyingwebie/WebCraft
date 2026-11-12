@@ -37,8 +37,8 @@ for (const theme of THEMES) {
 			await page.getByRole("textbox", { name: "Layer label of p" }).fill("Lead");
 			await page.keyboard.press("Enter");
 			await layers.getByRole("treeitem", { name: /^Lead/ }).waitFor();
-			expect(await page.getByRole("button", { name: "Undo", exact: true }).getAttribute("title")).toBe(
-				"Undo Rename Lead",
+			expect(await page.getByRole("button", { name: "Undo", exact: true }).getAttribute("title")).toStartWith(
+				"Undo Rename Lead (",
 			);
 			await page.getByRole("button", { name: "Save", exact: true }).first().click();
 			await page.getByRole("status").filter({ hasText: "HistoryCard is saved to its Draft." }).first().waitFor();
@@ -51,7 +51,10 @@ for (const theme of THEMES) {
 			await page.frameLocator("iframe[title^='Canvas']").getByText("Peer heading").waitFor();
 			const html = page.getByRole("textbox", { name: "Template markup" });
 			await html.focus();
-			await page.keyboard.press("ControlOrMeta+z");
+			await page.keyboard.press("ControlOrMeta+k");
+			const menu = page.getByRole("dialog", { name: "Command menu" });
+			await menu.getByRole("combobox").fill("Undo");
+			await menu.getByRole("option", { name: /^Undo Rename Lead/ }).click();
 			await paragraph.waitFor();
 			expect(await html.evaluate((element) => element === document.activeElement)).toBe(true);
 			await page.frameLocator("iframe[title^='Canvas']").getByText("Peer heading").waitFor();
@@ -117,7 +120,10 @@ for (const theme of THEMES) {
 				.getByRole("status")
 				.filter({ hasText: /Saved to Draft/ })
 				.waitFor();
-			await js.press("ControlOrMeta+z");
+			await js.press("ControlOrMeta+k");
+			const menu = page.getByRole("dialog", { name: "Command menu" });
+			await menu.getByRole("combobox").fill("Undo");
+			await menu.getByRole("option", { name: /^Undo Edit JS/ }).click();
 			await page.waitForFunction(
 				() => document.querySelector<HTMLTextAreaElement>('section[aria-label="JS"] textarea')?.value === "",
 			);
@@ -469,7 +475,10 @@ for (const theme of THEMES) {
 				.getByText(/Saved to Draft/)
 				.first()
 				.waitFor();
-			await js.press("ControlOrMeta+z");
+			await js.press("ControlOrMeta+k");
+			const menu = page.getByRole("dialog", { name: "Command menu" });
+			await menu.getByRole("combobox").fill("Undo");
+			await menu.getByRole("option", { name: /^Undo Edit JS/ }).click();
 			await page.getByRole("button", { name: "Redo", exact: true }).and(page.locator(":not([disabled])")).waitFor();
 			expect(await js.inputValue()).toBe("");
 			await js.press("ControlOrMeta+z");
@@ -496,60 +505,96 @@ for (const theme of THEMES) {
 	});
 }
 
-test("page navigation keeps earlier Draft steps and announces their canvas without changing this page", async () => {
-	const workspace = await install.install.createWorkspace("Page history");
-	const site = await install.install.createSite(workspace.id, { name: "Page history", slug: "page-history" });
-	const staff = await install.install.createStaff({ workspaces: [workspace.id] });
-	const api = staff.browser.api;
-	const first = await api.postTypes.create({ siteId: site.id, name: "First type", urlPattern: "/first/{slug}" });
-	const second = await api.postTypes.create({ siteId: site.id, name: "Second type", urlPattern: "/second/{slug}" });
-	for (const [postTypeId, title] of [
-		[first.postType.id, "First"],
-		[second.postType.id, "Second"],
-	]) {
-		const made = await api.entries.create({
-			siteId: site.id,
-			postTypeId: postTypeId as string,
-			title: title as string,
-		});
-		await api.entries.publish({ siteId: site.id, entryId: made.entry.id });
-		const saved = await api.templates.saveEntryTemplateMarkup({
-			siteId: site.id,
-			postTypeId: postTypeId as string,
-			markup: `<h1>{{ title }}</h1><p data-wc-id="lead">${title} original</p>`,
-		});
-		await api.templates.publish({ siteId: site.id, templateId: saved.template.id });
-	}
-	const page = await install.newPage("light");
-	page.setDefaultTimeout(10000);
-	try {
-		await install.signIn(page, staff.account);
-		await page.goto(install.adminUrl(`/builder/${site.id}/entry-template/${first.postType.id}`));
-		await page.frameLocator("iframe[title^='Canvas']").getByText("First original").waitFor();
-		await page.getByRole("button", { name: "View on a page", exact: true }).click();
-		await page.waitForURL((url) => url.pathname === "/first/first");
-		const html = page.getByRole("textbox", { name: /^HTML of/ });
-		await html.and(page.locator(":not([readonly])")).waitFor();
-		await html.fill((await html.inputValue()).replace("First original", "My first change"));
-		await page.locator('p[data-wc-code="content#lead"]').filter({ hasText: "My first change" }).waitFor();
-		await page.getByRole("button", { name: /^Page:.*Switch page/ }).click();
-		await page.getByRole("menuitem", { name: /^Second/ }).click();
-		await page.waitForURL((url) => url.pathname === "/second/second");
-		await page.getByRole("button", { name: "Undo", exact: true }).and(page.locator(":not([disabled])")).waitFor();
-		await page.getByRole("textbox", { name: /^JS:/ }).focus();
-		await page.keyboard.press("ControlOrMeta+z");
-		await page
-			.getByRole("status")
-			.filter({ hasText: /Undid Edit HTML.* on First/ })
-			.waitFor();
-		expect(await page.locator('p[data-wc-code="content#lead"]').textContent()).toBe("Second original");
-		expect(
-			(await api.templates.getEntryTemplateMarkup({ siteId: site.id, postTypeId: first.postType.id })).markup?.draft,
-		).toContain("First original");
-	} finally {
-		await page.close();
-	}
-});
+for (const navigation of ["page menu", "Code Command menu", "Builder Command menu"] as const)
+	test(`${navigation} navigation keeps earlier Draft steps and announces their canvas without changing this page`, async () => {
+		const workspace = await install.install.createWorkspace("Page history");
+		const site = await install.install.createSite(workspace.id, { name: "Page history", slug: "page-history" });
+		const staff = await install.install.createStaff({ workspaces: [workspace.id] });
+		const api = staff.browser.api;
+		const first = await api.postTypes.create({ siteId: site.id, name: "First type", urlPattern: "/first/{slug}" });
+		const second = await api.postTypes.create({ siteId: site.id, name: "Second type", urlPattern: "/second/{slug}" });
+		for (const [postTypeId, title] of [
+			[first.postType.id, "First"],
+			[second.postType.id, "Second"],
+		]) {
+			const made = await api.entries.create({
+				siteId: site.id,
+				postTypeId: postTypeId as string,
+				title: title as string,
+			});
+			await api.entries.publish({ siteId: site.id, entryId: made.entry.id });
+			const saved = await api.templates.saveEntryTemplateMarkup({
+				siteId: site.id,
+				postTypeId: postTypeId as string,
+				markup: `<h1>{{ title }}</h1><p data-wc-id="lead">${title} original</p>`,
+			});
+			await api.templates.publish({ siteId: site.id, templateId: saved.template.id });
+		}
+		const page = await install.newPage("light");
+		page.setDefaultTimeout(10000);
+		try {
+			await install.signIn(page, staff.account);
+			await page.goto(install.adminUrl(`/builder/${site.id}/entry-template/${first.postType.id}`));
+			await page.frameLocator("iframe[title^='Canvas']").getByText("First original").waitFor();
+			if (navigation !== "Builder Command menu") {
+				await page.getByRole("button", { name: "View on a page", exact: true }).click();
+				await page.waitForURL((url) => url.pathname === "/first/first");
+			}
+			const html = page.getByRole("textbox", {
+				name: navigation === "Builder Command menu" ? "Template markup" : /^HTML of/,
+			});
+			await html.and(page.locator(":not([readonly])")).waitFor();
+			await html.fill((await html.inputValue()).replace("First original", "My first change"));
+			if (navigation === "Builder Command menu") {
+				await page.frameLocator("iframe[title^='Canvas']").getByText("My first change").waitFor();
+			} else await page.locator('p[data-wc-code="content#lead"]').filter({ hasText: "My first change" }).waitFor();
+			if (navigation === "page menu") {
+				await page.getByRole("button", { name: /^Page:.*Switch page/ }).click();
+				await page.getByRole("menuitem", { name: /^Second/ }).click();
+			} else {
+				await page.keyboard.press("ControlOrMeta+p");
+				const menu = page.getByRole("dialog", { name: "Command menu" });
+				await menu.getByRole("combobox").fill("Second");
+				if (navigation === "Builder Command menu")
+					await menu.getByRole("option", { name: /Second type.*Entry template/ }).click();
+				else await menu.getByRole("option").filter({ hasText: "/second/second" }).click();
+			}
+			await page.waitForURL(
+				(url) =>
+					url.pathname ===
+					(navigation === "Builder Command menu"
+						? `/builder/${site.id}/entry-template/${second.postType.id}`
+						: "/second/second"),
+			);
+			await page.getByRole("button", { name: "Undo", exact: true }).and(page.locator(":not([disabled])")).waitFor();
+			await page
+				.getByRole("textbox", { name: navigation === "Builder Command menu" ? "Template markup" : /^JS:/ })
+				.focus();
+			await page.keyboard.press("ControlOrMeta+z");
+			await page
+				.getByRole("status")
+				.filter({ hasText: /Undid Edit HTML.* on First/ })
+				.waitFor();
+			if (navigation === "Builder Command menu")
+				await page.frameLocator("iframe[title^='Canvas']").getByText("Second original").waitFor();
+			else expect(await page.locator('p[data-wc-code="content#lead"]').textContent()).toBe("Second original");
+			expect(
+				(await api.templates.getEntryTemplateMarkup({ siteId: site.id, postTypeId: first.postType.id })).markup?.draft,
+			).toContain("First original");
+		} catch (failure) {
+			console.error({
+				navigation,
+				url: page.url(),
+				statuses: await page.getByRole("status").allTextContents(),
+				errors: pageErrors(page),
+				undo: await page.getByRole("button", { name: "Undo", exact: true }).getAttribute("title"),
+				first: (await api.templates.getEntryTemplateMarkup({ siteId: site.id, postTypeId: first.postType.id })).markup,
+			});
+			throw failure;
+		} finally {
+			await page.close();
+		}
+	});
 
 test("typing during Class creation remains a separate finished step", async () => {
 	const local = install.install;

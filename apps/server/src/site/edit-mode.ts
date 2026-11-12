@@ -139,6 +139,14 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 		const input = parse(z.object({ resource: z.string().max(1000), from: z.json(), to: z.json() }), body);
 		return json(200, await services.builder.reverseHistory(scope, input.resource, input.from, input.to));
 	},
+	/**
+	 * What the Command menu needs in Code mode: the Permissions the person holds on the Site (checked
+	 * with `can()`) and Go to's Pages, Entries by Post Type, Templates and Components.
+	 */
+	"code/commandMenu": async (services, session) => {
+		const scope = await services.codeMode.access(session);
+		return json(200, await services.builder.commandMenu(scope));
+	},
 	"code/editorService": async (services, session, body) => {
 		const scope = await services.codeMode.access(session);
 		const { method, input } = parse(
