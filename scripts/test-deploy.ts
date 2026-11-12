@@ -160,7 +160,9 @@ try {
 		await run(["docker", "build", "-f", "apps/worker/Dockerfile", "-t", `${image}-worker:${version}`, "."]);
 	}
 	console.log(`Starting Compose project ${project} (HTTP on ${httpPort}, HTTPS on ${httpsPort})…`);
-	await run([...compose, "up", "--detach", "--no-build", "--pull", "never"], { quiet: true }).then((started) => {
+	// "missing": the web and worker images are this commit's, built above or by the CI job, so they are
+	// never pulled; Postgres and Caddy are fetched when the machine (a fresh CI runner) doesn't have them.
+	await run([...compose, "up", "--detach", "--no-build", "--pull", "missing"], { quiet: true }).then((started) => {
 		if (started.code !== 0) throw new Error(`docker compose up failed:\n${started.stderr}`);
 	});
 
