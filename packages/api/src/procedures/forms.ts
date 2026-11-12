@@ -69,6 +69,9 @@ export const forms = {
 	/**
 	 * Saves a Form's emails Draft: its Notifications (the full list) and its Auto-reply, each part
 	 * given replacing that part. A Submission sets off nothing different until they are published.
+	 * A change to who receives Submissions (a Notification's recipients or routing) is the Sensitive
+	 * action `formRecipients.change`, which `services.forms.saveEmails` checks itself: only that kind
+	 * of change is one, so the procedure carries no `sensitive(…)` of its own.
 	 */
 	saveEmails: signedIn
 		.input(z.object({ siteId: id, formId: id, emails: emailsChange }))

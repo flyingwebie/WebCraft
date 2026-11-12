@@ -112,6 +112,32 @@ describe("rollups", () => {
 			{ start: yesterday.to, pageviews: 2, visitors: 1, visits: 1, events: 0 },
 		]);
 	});
+
+	test("hours the worker missed are built once, even when several workers take the hourly jobs at once", async () => {
+		const site = await newSite();
+		const start = install.clock.now();
+		for (let hour = 0; hour < 4; hour++) {
+			for (let page = 0; page < 40; page++) {
+				await analyticsVisitor(install, site.origin, { address: `203.0.113.${page + 1}` }).view(`/page-${page}`);
+			}
+			// No worker runs: each hour's job stays queued.
+			await install.clock.advance(HOUR);
+		}
+
+		const workers = await Promise.all([
+			install.drainJobs({ batchSize: 1 }),
+			install.drainJobs({ batchSize: 1 }),
+			install.drainJobs({ batchSize: 1 }),
+		]);
+
+		expect(workers.flatMap((worker) => worker.failed)).toEqual([]);
+		const now = install.clock.now();
+		const thisHour = new Date(Math.floor(now.getTime() / HOUR) * HOUR);
+		const { rolledUp } = await (await stats()).coverage({ siteId: site.siteId });
+		expect(rolledUp?.hours).toEqual(thisHour);
+		const hours = await (await stats()).series({ siteId: site.siteId, from: start, to: thisHour, interval: "hour" });
+		expect(hours.points.reduce((views, point) => views + point.pageviews, 0)).toBe(160);
+	});
 });
 
 describe("raw events", () => {

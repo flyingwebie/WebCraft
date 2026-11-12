@@ -1,6 +1,6 @@
-// Spam rules: a honeypot, a minimum fill time (the time trap), a hard limit on post size and per-address
-// limits (5 a minute, 30 an hour per Form; Staff change them). A post failing one is kept in the Spam
-// folder, answered as if it went through, and deleted after 30 days.
+// Spam rules: a honeypot, a minimum fill time (the time trap) and per-address limits (5 a minute, 30
+// an hour per Form; Staff change them). A post failing one is kept in the Spam folder, answered as if
+// it went through, and deleted after 30 days. What bounds a flood of them is in `flood.test.ts`.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type forms from "@webcraft/module-forms";
 
@@ -113,17 +113,6 @@ describe("spam goes to the Spam folder, and looks sent to whoever sent it", () =
 		expect((await folder("spam"))[0]?.values).toEqual([
 			{ key: "email", label: "Email", type: "email", value: "not an email" },
 		]);
-	});
-
-	test("a post larger than any Form takes is refused, and noted in the Spam folder", async () => {
-		const visitor = formVisitor(install);
-		const page = await visitor.open(PAGE);
-		await install.clock.advance(5000);
-
-		const answer = await visitor.send(page, { email: "a".repeat(600 * 1024) });
-
-		expect(answer.status).toBe(413);
-		expect((await folder("spam"))[0]).toMatchObject({ spamReason: "size", values: [] });
 	});
 });
 

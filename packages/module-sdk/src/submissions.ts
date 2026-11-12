@@ -21,11 +21,14 @@ export type SpamReason =
 	| "honeypot"
 	/** It was sent sooner after the page loaded than a person could fill it in. */
 	| "too-fast"
-	/** It came without the token the Form's page gives, or with a forged one. */
+	/** It came without the token the Form's page gives, with a forged one, or with one more than a day old. */
 	| "token"
 	/** One address sent the Form more often than its limits allow. */
 	| "rate-limit"
-	/** The post was larger than any Form takes; its values were not read. */
+	/**
+	 * The post was larger than any Form takes; its values were not read. No longer given: such a post
+	 * is refused and never kept. Submissions kept before that still carry it.
+	 */
 	| "size"
 	/** The Site's CAPTCHA couldn't be checked when it came. */
 	| "captcha";

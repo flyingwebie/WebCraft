@@ -16,6 +16,7 @@ import {
 	readFilterState,
 	SCRIPT_PATH,
 	SEARCH_RATE_LIMIT,
+	SENT_PARAMETER,
 	SITE_SECURITY_HEADERS,
 	SITEMAP_LIMITS,
 	type SiteHost,
@@ -230,7 +231,7 @@ async function pageAnswer(
 	// Which page of a paginated Loop: `?page=2`; anything else that isn't a page number is no page.
 	// (`?page=1` goes on to the page itself, keeping its search and Filters' choices: see `render`.)
 	const number = pageNumberIn(url.searchParams);
-	if (number === undefined) return notFoundPage(services, host, url.pathname);
+	if (number === undefined) return notFoundPage(services, request, host, url.pathname);
 	if (edit.session) {
 		return editModePage(
 			services,
@@ -377,6 +378,10 @@ async function visitorPage(
 		const cached = cache.get(host.site.id, host.cacheGeneration, key, services.clock.now());
 		if (cached) return pageResponse(services, request, host, cached, "HIT", { filtered: state.query !== "" });
 	}
+	// A filtered page past the Site's limit of them is rendered for this request alone.
+	if (state && state.query !== "" && state.search === undefined && !cache.takesVariants(host.site.id)) {
+		if (!(await withinUnkeptLimit(services, request, host))) return tooMany(host, UNKEPT_PAGE_LIMIT);
+	}
 	// A page kept in the cache holds no visitor's Form token: each answer fills in its own.
 	const answer = await services.sitePages.render(host, pathname, undefined, {
 		forms: { cached: true },
@@ -386,10 +391,10 @@ async function visitorPage(
 	});
 	if (!answer) {
 		// Where an Entry was until it was unpublished: gone for good, not missing (and not a miss).
-		if (await services.sitePages.gone(host, pathname)) return gonePage(services, host, pathname);
+		if (await services.sitePages.gone(host, pathname)) return gonePage(services, request, host, pathname);
 		// A path with no page: the Site's 404 log hears of it (a page past a paginated Loop's last isn't one).
 		if (number === 1 && !fragment) noteMiss(services, request, host);
-		return notFoundPage(services, host, pathname);
+		return notFoundPage(services, request, host, pathname);
 	}
 	if (answer.kind === "redirect") return redirect(host, withQuery(answer, url), answer.temporary);
 	cache.setReader(host.site.id, host.cacheGeneration, pathKey, answer.filters.reader);
@@ -430,7 +435,11 @@ async function beforePage(
 	const url = new URL(request.url);
 	const { pathname } = url;
 	const segments = pathSegments(pathname);
-	if (!segments) return { response: await notFoundPage(services, host, pathname) };
+	if (!segments) return { response: await notFoundPage(services, request, host, pathname) };
+	// A Form's message once sent is a page answered for the visitor alone.
+	if (url.searchParams.has(SENT_PARAMETER) && !showsDrafts(host)) {
+		if (!(await withinUnkeptLimit(services, request, host))) return { response: tooMany(host, UNKEPT_PAGE_LIMIT) };
+	}
 	const sent = await sentPage(services, request, host, number, addressHeaders(host));
 	if (sent) return { response: sent };
 	const search = searchQueryIn(url.searchParams);
@@ -459,7 +468,7 @@ async function draftPage(services: InstallServices, request: Request, host: Site
 		search: first.search,
 		query: url.searchParams,
 	});
-	if (!answer) return notFoundPage(services, host, pathname);
+	if (!answer) return notFoundPage(services, request, host, pathname);
 	if (answer.kind === "redirect") return redirect(host, withQuery(answer, url), answer.temporary);
 	return new Response(answer.html, {
 		status: 200,
@@ -642,11 +651,32 @@ async function pageResponse(
 
 /** A client address that searched more than `SEARCH_RATE_LIMIT` allows: asked to wait until its minute ends. */
 function tooManySearches(host: SiteHost): Response {
+	return tooMany(host, SEARCH_RATE_LIMIT);
+}
+
+/** A client address past a limit: asked to wait until the limit's window ends. */
+function tooMany(host: SiteHost, limit: { windowMs: number }): Response {
 	return plainText(429, "Too Many Requests", {
-		"retry-after": String(SEARCH_RATE_LIMIT.windowMs / 1000),
+		"retry-after": String(limit.windowMs / 1000),
 		"cache-control": "no-store",
 		...addressHeaders(host),
 	});
+}
+
+/**
+ * How many pages the page cache keeps for nobody one client address may ask a Site for: 60 a minute,
+ * together. Each is rendered for that request alone: the Site's 404 page (a path with no page, a page
+ * past a paginated Loop's last), a filtered page past the Site's limit of them, a Form's message once
+ * sent. Past it, a path with no page gets a plain 404 and the others wait until the minute ends, so
+ * no client keeps the web process rendering. The Staging address renders everything afresh, for
+ * people it knows: nothing is counted there.
+ */
+const UNKEPT_PAGE_LIMIT = { limit: 60, windowMs: 60_000 } as const;
+
+/** Counts a page nobody keeps against the client address's limit: whether it is within it. */
+function withinUnkeptLimit(services: InstallServices, request: Request, host: SiteHost): Promise<boolean> {
+	const address = clientAddress(request, services.config) ?? "unknown";
+	return services.rateLimits.count(`unkept:${host.site.id}:${address}`, UNKEPT_PAGE_LIMIT);
 }
 
 /**
@@ -682,7 +712,15 @@ const FILTERED_ROBOTS = "noindex, follow";
  * page cache, nor by browsers and proxies, so every miss reaches the Site (and its 404 log) and a page
  * published at the path shows at once.
  */
-async function notFoundPage(services: InstallServices, host: SiteHost, pathname: string): Promise<Response> {
+async function notFoundPage(
+	services: InstallServices,
+	request: Request,
+	host: SiteHost,
+	pathname: string,
+): Promise<Response> {
+	if (!showsDrafts(host) && !(await withinUnkeptLimit(services, request, host))) {
+		return plainText(404, "Not Found", { "cache-control": "no-store", ...addressHeaders(host) });
+	}
 	const page = await services.sitePages.notFound(host, pathname);
 	return new Response(page.html, {
 		status: 404,
@@ -701,7 +739,15 @@ async function notFoundPage(services: InstallServices, host: SiteHost, pathname:
  * it, with the Site's 404 page as its body. Like the 404 page, never kept, so publishing it again
  * shows at once.
  */
-async function gonePage(services: InstallServices, host: SiteHost, pathname: string): Promise<Response> {
+async function gonePage(
+	services: InstallServices,
+	request: Request,
+	host: SiteHost,
+	pathname: string,
+): Promise<Response> {
+	if (!(await withinUnkeptLimit(services, request, host))) {
+		return plainText(410, "Gone", { "cache-control": "no-store", "x-robots-tag": "noindex", ...addressHeaders(host) });
+	}
 	const page = await services.sitePages.notFound(host, pathname);
 	return new Response(page.html, {
 		status: 410,

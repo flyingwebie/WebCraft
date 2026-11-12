@@ -5099,7 +5099,7 @@
 		"spamReasons": {
 			"honeypot": "è stato compilato un campo che le persone non vedono",
 			"tooFast": "è stato inviato prima di quanto una persona possa compilarlo",
-			"token": "è arrivato senza il token della pagina",
+			"token": "è arrivato senza il token della pagina, o con uno più vecchio di un giorno",
 			"rateLimit": "un indirizzo l'ha inviato troppe volte",
 			"size": "era troppo grande",
 			"captcha": "non è stato possibile verificare il CAPTCHA",
@@ -6761,6 +6761,9 @@
 			},
 			"formEmails": {
 				"publish": "Email del Form pubblicate"
+			},
+			"formRecipients": {
+				"change": "Destinatari del Form modificati"
 			},
 			"globals": {
 				"publish": "Globali pubblicati",

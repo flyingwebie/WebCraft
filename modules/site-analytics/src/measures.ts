@@ -1,11 +1,16 @@
 import {
 	and,
+	asc,
 	count,
 	countDistinct,
+	desc,
 	eq,
 	inArray,
 	isNotNull,
+	isNull,
 	type ModuleContext,
+	notInArray,
+	or,
 	type SQL,
 	z,
 } from "@webcraft/module-sdk";
@@ -89,10 +94,71 @@ export async function rawTotals(context: ModuleContext, where: SQL | undefined):
 }
 
 /**
+ * How many values of one dimension a period keeps on their own: an hour's rollup, and a day's (which
+ * anything read from the raw events is held to as well). Visitors choose some dimensions' values
+ * (pages, sources, links, custom events), so without a bound anyone could grow the rollups, kept
+ * forever, one made-up value at a time.
+ */
+export const KEPT_VALUES = { hour: 100, day: 500 } as const;
+
+/** The value every value past a period's `KEPT_VALUES` is counted under, together. */
+export const OTHER = "(other)";
+
+/** The raw events `dimension` counts among those matching `where`, and the column holding its values. */
+function countedBy(where: SQL | undefined, dimension: Dimension) {
+	if (isGoalDimension(dimension)) {
+		const goal = GOAL_DIMENSIONS[dimension];
+		return {
+			column: goal.value,
+			where: and(where, eq(events.type, goal.type), goal.name === null ? undefined : eq(events.name, goal.name)),
+		};
+	}
+	// Sources count arrivals only: a move within the Site has none.
+	return {
+		column: VISIT_DIMENSIONS[dimension],
+		where: dimension === "source" ? and(where, isNotNull(events.source)) : where,
+	};
+}
+
+/**
  * The raw events matching `where`, measured by a value of `dimension`: a map from the value (empty
- * for none, such as an unknown country) to its measures.
+ * for none, such as an unknown country) to its measures. At most `keep` values are measured on their
+ * own, those with the most events; the rest are measured together, under `OTHER`. Postgres picks
+ * them, so however many values there are, only `keep` of them are ever read.
  */
 export async function rawBreakdown(
+	context: ModuleContext,
+	where: SQL | undefined,
+	dimension: Dimension,
+	keep: number,
+): Promise<Map<string, Measures>> {
+	const counted = countedBy(where, dimension);
+	// One more than kept says whether any are left over.
+	const biggest = await context.data.aggregate(events, {
+		where: counted.where,
+		groupBy: { value: counted.column },
+		values: { n: count() },
+		orderBy: [desc(count()), asc(counted.column)],
+		limit: keep + 1,
+	});
+	if (biggest.length <= keep) return measuredByValue(context, counted.where, dimension);
+	const kept = biggest.slice(0, keep).map((row) => row.value);
+	const named = kept.filter((value) => value !== null);
+	const unnamedKept = named.length < kept.length;
+	const among = unnamedKept
+		? or(inArray(counted.column, named), isNull(counted.column))
+		: inArray(counted.column, named);
+	const beyond = unnamedKept
+		? and(notInArray(counted.column, named), isNotNull(counted.column))
+		: or(notInArray(counted.column, named), isNull(counted.column));
+	const found = await measuredByValue(context, and(counted.where, among), dimension);
+	const rest = await measuredTogether(context, and(counted.where, beyond), dimension);
+	found.set(OTHER, plus(found.get(OTHER) ?? ZERO, rest));
+	return found;
+}
+
+/** The raw events matching `where` (already those `dimension` counts), measured by each of its values. */
+async function measuredByValue(
 	context: ModuleContext,
 	where: SQL | undefined,
 	dimension: Dimension,
@@ -103,11 +169,9 @@ export async function rawBreakdown(
 		found.set(key, { ...(found.get(key) ?? ZERO), [measure]: (found.get(key)?.[measure] ?? 0) + n });
 	};
 	if (isGoalDimension(dimension)) {
-		const goal = GOAL_DIMENSIONS[dimension];
-		const of = and(where, eq(events.type, goal.type), goal.name === null ? undefined : eq(events.name, goal.name));
 		const rows = await context.data.aggregate(events, {
-			where: of,
-			groupBy: { value: goal.value },
+			where,
+			groupBy: { value: GOAL_DIMENSIONS[dimension].value },
 			values: { events: count(), visitors: countDistinct(events.visitor) },
 		});
 		for (const row of rows) {
@@ -117,11 +181,9 @@ export async function rawBreakdown(
 		return found;
 	}
 	const column = VISIT_DIMENSIONS[dimension];
-	// Sources count arrivals only: a move within the Site has none.
-	const counted = dimension === "source" ? and(where, isNotNull(events.source)) : where;
 	const grouped = async (extra: SQL, measure: keyof Measures, value: SQL<number>) => {
 		const rows = await context.data.aggregate(events, {
-			where: and(counted, extra),
+			where: and(where, extra),
 			groupBy: { value: column },
 			values: { n: value },
 		});
@@ -132,4 +194,18 @@ export async function rawBreakdown(
 	await grouped(eq(events.startsVisit, true), "visits", count());
 	await grouped(inArray(events.type, GOAL_TYPES), "events", count());
 	return found;
+}
+
+/** The raw events matching `where` (already those `dimension` counts), measured as one value. */
+async function measuredTogether(
+	context: ModuleContext,
+	where: SQL | undefined,
+	dimension: Dimension,
+): Promise<Measures> {
+	if (!isGoalDimension(dimension)) return rawTotals(context, where);
+	const [row] = await context.data.aggregate(events, {
+		where,
+		values: { events: count(), visitors: countDistinct(events.visitor) },
+	});
+	return { ...ZERO, events: Number(row?.events ?? 0), visitors: Number(row?.visitors ?? 0) };
 }

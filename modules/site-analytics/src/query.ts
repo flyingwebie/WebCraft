@@ -11,8 +11,10 @@
  */
 import {
 	and,
+	asc,
 	count,
 	countDistinct,
+	desc,
 	eq,
 	gte,
 	inArray,
@@ -20,13 +22,24 @@ import {
 	lt,
 	type ModuleContext,
 	min,
+	ne,
 	type SQL,
 	sum,
 } from "@webcraft/module-sdk";
 
 import { type Filters, filtersWhere, isFiltered } from "./filters.ts";
 import { type Goal, goalWhere } from "./goals.ts";
-import { type Dimension, isGoalDimension, type Measures, plus, rawBreakdown, rawTotals, ZERO } from "./measures.ts";
+import {
+	type Dimension,
+	isGoalDimension,
+	KEPT_VALUES,
+	type Measures,
+	OTHER,
+	plus,
+	rawBreakdown,
+	rawTotals,
+	ZERO,
+} from "./measures.ts";
 import { type Built, builtUntil, DAY_MS, HOUR_MS, lengthOf, type Period, startOf, within } from "./rollups.ts";
 import { events, rollups } from "./tables.ts";
 
@@ -153,6 +166,10 @@ export async function series(
  * A range's measures by the values of one dimension (pages, sources, countries, devices, browsers,
  * operating systems; or links, custom events and Forms for Goals), the biggest first: by page views,
  * or by events for Goals' dimensions. An empty value is none: a direct visit, an unknown country.
+ * `OTHER` is what periods counted together past their `KEPT_VALUES`: it comes last, and only when
+ * every value on its own fits in `limit`, so the rows then add up to the range's whole.
+ *
+ * Postgres orders and cuts the rollups; only `limit` values and those of the raw part are ever read.
  */
 export async function breakdown(
 	context: ModuleContext,
@@ -163,27 +180,37 @@ export async function breakdown(
 ): Promise<({ value: string } & Measures)[]> {
 	const { period, ...whole } = granularity(range);
 	const { rolled, raw } = split(period, whole, await rolledUntil(context, filters));
+	const by: keyof Measures = isGoalDimension(dimension) ? "events" : "pageviews";
 	const found = new Map<string, Measures>();
 	const add = (value: string, measures: Measures) => found.set(value, plus(found.get(value) ?? ZERO, measures));
-	if (!isEmpty(rolled)) {
-		const rows = await context.data.aggregate(rollups, {
-			where: rolledWhere(period, dimension, rolled),
-			groupBy: { value: rollups.value },
-			values: SUMS,
-		});
-		for (const row of rows) add(row.value, measuresOf(row));
-	}
 	if (!isEmpty(raw)) {
 		const where = and(within(raw.from, raw.to), await filtersWhere(context, whole, filters));
-		for (const [value, measures] of await rawBreakdown(context, where, dimension)) {
+		for (const [value, measures] of await rawBreakdown(context, where, dimension, KEPT_VALUES.day)) {
 			add(value, measures);
 		}
 	}
-	const by: keyof Measures = isGoalDimension(dimension) ? "events" : "pageviews";
-	return [...found]
+	if (!isEmpty(rolled)) {
+		const of = rolledWhere(period, dimension, rolled);
+		const byValue = { groupBy: { value: rollups.value }, values: SUMS };
+		const biggest = await context.data.aggregate(rollups, {
+			where: and(of, ne(rollups.value, OTHER)),
+			...byValue,
+			orderBy: [desc(SUMS[by]), desc(SUMS.visitors), asc(rollups.value)],
+			limit,
+		});
+		// A value of the raw part may join the biggest, so its rollups count too; OTHER takes no place among them.
+		const read = new Set(biggest.map((row) => row.value));
+		const also = [OTHER, ...found.keys()].filter((value) => !read.has(value));
+		const more = await context.data.aggregate(rollups, { where: and(of, inArray(rollups.value, also)), ...byValue });
+		for (const row of [...biggest, ...more]) add(row.value, measuresOf(row));
+	}
+	const other = found.get(OTHER);
+	found.delete(OTHER);
+	const rows = [...found]
 		.map(([value, measures]) => ({ value, ...measures }))
 		.sort((a, b) => b[by] - a[by] || b.visitors - a.visitors || a.value.localeCompare(b.value))
 		.slice(0, limit);
+	return other && found.size < limit ? [...rows, { value: OTHER, ...other }] : rows;
 }
 
 /**

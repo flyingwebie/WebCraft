@@ -108,6 +108,8 @@ describe("the CSV export", () => {
 	test("holds what the filters read, and a value can never become a formula", async () => {
 		const workspace = (await install.createWorkspace('=HYPERLINK("https://evil.example")')).id;
 		await superadmin.api.sites.create({ workspaceId: workspace, name: "+Plus site", slug: "plus-site" });
+		// The full-width signs start a formula too, where spreadsheets read East Asian text.
+		await superadmin.api.sites.create({ workspaceId: workspace, name: "＋Full-width site", slug: "full-width-site" });
 
 		const file = await superadmin.api.audit.export({ workspaceId: workspace });
 
@@ -116,9 +118,14 @@ describe("the CSV export", () => {
 		const lines = file.csv.replace(/^﻿/, "").trim().split("\r\n");
 		expect(lines[0]).toBe('"time_utc","action","person","email","via","via_name","workspace","site","details"');
 		// Newest first: the Site, then the Workspace that holds it.
-		expect(lines.slice(1).map((line) => line.split(",")[1])).toEqual(['"site.create"', '"workspace.create"']);
-		expect(lines[1]).toContain(`"'=HYPERLINK(""https://evil.example"")"`);
-		expect(lines[1]).toContain(`"'+Plus site"`);
+		expect(lines.slice(1).map((line) => line.split(",")[1])).toEqual([
+			'"site.create"',
+			'"site.create"',
+			'"workspace.create"',
+		]);
+		expect(lines[1]).toContain(`"'＋Full-width site"`);
+		expect(lines[2]).toContain(`"'=HYPERLINK(""https://evil.example"")"`);
+		expect(lines[2]).toContain(`"'+Plus site"`);
 	});
 
 	test("follows the same rules as reading", async () => {

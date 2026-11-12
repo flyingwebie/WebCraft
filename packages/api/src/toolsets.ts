@@ -116,8 +116,10 @@ export const TOOL_PLACES = {
 	"popups.publishContent": publishing(["content", "publishing"], "entry.publish"),
 	"forms.list": place(["forms"], "structure.edit", "formEmails.edit"),
 	"forms.get": place(["forms"], "structure.edit", "formEmails.edit"),
-	"forms.saveEmails": place(["forms"], "formEmails.edit"),
-	"forms.publishEmails": publishing(["forms", "publishing"], "formEmails.edit"),
+	// A Form's emails decide who is sent its Submissions: the same opt-in as reading them. Changing
+	// their recipients or routing is a Sensitive action besides (`formRecipients.change`).
+	"forms.saveEmails": place(["submissions"], "formEmails.edit"),
+	"forms.publishEmails": publishing(["submissions"], "formEmails.edit"),
 	"forms.create": place(["forms"], "structure.edit"),
 	"forms.saveDraft": place(["forms"], "structure.edit"),
 	"forms.publish": publishing(["forms", "publishing"], "structure.edit"),

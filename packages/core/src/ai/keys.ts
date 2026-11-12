@@ -446,7 +446,9 @@ export function createAiKeys(options: AiKeysOptions): AiKeys {
 			});
 			throw error;
 		}
-		const usage = answer.usage ?? { inputTokens: 0, outputTokens: 0 };
+		// A provider that reports no usage is counted by the estimate reserved for the call, never as
+		// free: else its calls would cost nothing and the monthly cap would never fill.
+		const usage = answer.usage ?? estimate;
 		await settle(callId, where, reservedCost, { status: "done", usage, cost: costOf(usage, key.price) });
 		await noticesAfter(place.workspaceId, key.kind, month, key.cap);
 		return answer.value as never;

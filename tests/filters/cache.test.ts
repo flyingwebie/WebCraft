@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, fromAddress, type TestInstall } from "../harness/index.ts";
+import { expectSiteHeaders } from "../harness/site-safety.ts";
 import { buildShop, listed, type Shop } from "./shop.ts";
 
 let install: TestInstall;
@@ -77,5 +78,48 @@ describe("the page cache", () => {
 		expect(tooMany.headers.get("retry-after")).toBe("60");
 		// Choices without a search are pages like any other.
 		expect((await get("/shop?category=bread", address)).status).toBe(200);
+	});
+});
+
+describe("pages nobody keeps", () => {
+	test("one address gets 60 filtered pages a minute past the Site's limit, then waits; kept pages still answer", async () => {
+		const address = "198.51.100.201";
+		for (let asked = 0; asked < 60; asked++) {
+			const past = await get(`/shop?price=1-${asked + 2}`, address);
+			expect(past.status).toBe(200);
+			expect(past.headers.get("cache-control")).toBe("no-store");
+		}
+
+		const tooMany = await get("/shop?price=1-99", address);
+
+		expect(tooMany.status).toBe(429);
+		expect(tooMany.headers.get("retry-after")).toBe("60");
+		expect(tooMany.headers.get("cache-control")).toBe("no-store");
+		expectSiteHeaders(tooMany);
+		// What the cache keeps is answered as ever, and so is anyone else.
+		expect((await get("/shop", address)).headers.get("x-cache")).toBe("HIT");
+		expect((await get("/shop?category=bread", address)).headers.get("x-cache")).toBe("HIT");
+		expect((await get("/shop?price=1-99", "198.51.100.202")).status).toBe(200);
+		await install.clock.advance(60_000);
+		expect((await get("/shop?price=1-99", address)).status).toBe(200);
+	});
+
+	test("one address gets the Site's 404 page 60 times a minute, then a plain 404", async () => {
+		const address = "198.51.100.203";
+		for (let asked = 0; asked < 60; asked++) {
+			const missing = await get(`/no-such-page-${asked}`, address);
+			expect(missing.status).toBe(404);
+			expect(missing.headers.get("content-type")).toBe("text/html; charset=utf-8");
+		}
+
+		const plain = await get("/no-such-page-60", address);
+
+		expect(plain.status).toBe(404);
+		expect(plain.headers.get("content-type")).toBe("text/plain; charset=utf-8");
+		expect(await plain.text()).toBe("Not Found");
+		expectSiteHeaders(plain);
+		// A page past a Loop's last is no page either.
+		expect((await get("/shop?page=999", address)).headers.get("content-type")).toBe("text/plain; charset=utf-8");
+		expect((await get("/no-such-page", "198.51.100.204")).headers.get("content-type")).toBe("text/html; charset=utf-8");
 	});
 });

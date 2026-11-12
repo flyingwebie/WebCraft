@@ -254,7 +254,9 @@ export const PROCEDURES = {
 	"popups.publishContent": write("Publish a Popup’s Content."),
 	"forms.list": read("Lists the Site's Forms, with where each is placed."),
 	"forms.get": read("One Form: its Draft and published version."),
-	"forms.saveEmails": write("Saves a Form's emails Draft: its Notifications and Auto-reply."),
+	"forms.saveEmails": write(
+		"Saves a Form's emails Draft: its Notifications and Auto-reply (changing recipients or routing is Sensitive: admin only).",
+	),
 	"forms.publishEmails": write("Publishes a Form's emails (API clients confirm a preview first)."),
 	"forms.create": write("Creates a Form."),
 	"forms.saveDraft": write("Saves a Form's Draft: its fields, button, success and spam settings."),

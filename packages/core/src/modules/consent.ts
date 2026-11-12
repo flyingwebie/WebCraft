@@ -1,15 +1,14 @@
 import { type ModuleManifest, wordsIn } from "@webcraft/module-sdk";
 
-import type { LoadedModule } from "./registry.ts";
+import type { LoadedModule, RunnableModule } from "./registry.ts";
 
 /**
  * What a Module asks for, as the Superadmin approves it: one consent item per grant, such as
  * `permission:sample.notes.edit:owner` (Owners get the Module's Permission to edit notes),
  * `use:email`, `host:api.example.com`, `script:analytics`, or `script:analytics:before-consent` for a
- * Site script that runs before visitors accept its category (SDK 1.4). An approval stores the items
- * it granted; a later version asks for more when it has an item the approval doesn't.
+ * Site script that runs before visitors accept its category (SDK 1.4).
  */
-export function consentItems(manifest: ModuleManifest, beforeConsent = false): string[] {
+function askedItems(manifest: ModuleManifest, beforeConsent: boolean): string[] {
 	return [
 		...manifest.permissions.flatMap((permission) =>
 			permission.roles.map((role) => `permission:${manifest.id}.${permission.key}:${role}`),
@@ -21,9 +20,59 @@ export function consentItems(manifest: ModuleManifest, beforeConsent = false): s
 	];
 }
 
-/** Whether everything `manifest` asks for was granted. */
-export function isCovered(manifest: ModuleManifest, granted: readonly string[], beforeConsent = false): boolean {
-	return consentItems(manifest, beforeConsent).every((item) => granted.includes(item));
+/**
+ * The capabilities of a Module that widen what it sees or does, each a consent item of its own and
+ * the part of the consent screen's "adds" it is shown as: keeping the Sites' Form Submissions, their
+ * Redirect rules (which answer before every page) or their 404 log, answering visitors on Site
+ * routes, reacting to an event, importing content from a source.
+ */
+function capabilities(module: RunnableModule): { item: string; shownAs: Capability }[] {
+	return [
+		...(module.receiver ? [{ item: "keeps:submissions", shownAs: "submissions" as const }] : []),
+		...(module.redirects ? [{ item: "keeps:redirects", shownAs: "redirectRules" as const }] : []),
+		...(module.notFoundLog ? [{ item: "keeps:notFoundLog", shownAs: "notFoundLog" as const }] : []),
+		...(module.routes.length > 0 ? [{ item: "routes", shownAs: "siteRoutes" as const }] : []),
+		...[...module.events].map((event) => ({ item: `event:${event}`, shownAs: "events" as const })),
+		...[...module.importSources.keys()].map((key) => ({
+			item: `importSource:${key}`,
+			shownAs: "importSources" as const,
+		})),
+	];
+}
+
+/** A part of the consent screen's "adds" that an approval covers on its own. */
+export type Capability = "submissions" | "redirectRules" | "notFoundLog" | "siteRoutes" | "events" | "importSources";
+
+/**
+ * The item of an approval that lists the Module's capabilities with what it asked for. Approvals made
+ * before capabilities were consent items don't have it, and say nothing about capabilities: they keep
+ * covering whatever the Module does, as they did, until the Module is approved again.
+ */
+const CAPABILITIES_LISTED = "capabilities";
+
+/**
+ * Everything an approval of the Module grants now: what it asks for and its capabilities. An approval
+ * stores these; a later version waits for approval when it has an item the approval doesn't.
+ */
+export function consentItems(module: RunnableModule): string[] {
+	return [
+		...askedItems(module.manifest, module.siteScript?.beforeConsent === true),
+		CAPABILITIES_LISTED,
+		...capabilities(module).map((capability) => capability.item),
+	];
+}
+
+/** The capabilities of the Module that an approval listing capabilities doesn't cover. */
+function uncovered(module: RunnableModule, granted: readonly string[]): Capability[] {
+	if (!granted.includes(CAPABILITIES_LISTED)) return [];
+	const missing = capabilities(module).filter((capability) => !granted.includes(capability.item));
+	return [...new Set(missing.map((capability) => capability.shownAs))];
+}
+
+/** Whether an approval that granted `granted` covers everything the Module asks for and does. */
+export function isCovered(module: RunnableModule, granted: readonly string[]): boolean {
+	const asked = askedItems(module.manifest, module.siteScript?.beforeConsent === true);
+	return asked.every((item) => granted.includes(item)) && uncovered(module, granted).length === 0;
 }
 
 /** What a Module asks for, in the person's language, each marked new when the approval didn't grant it. */
@@ -57,6 +106,8 @@ export type AdditionsView = {
 	schedules: ("hour" | "day")[];
 	/** What it imports content from (SDK 1.7): its import sources' labels. */
 	importSources: string[];
+	/** The capabilities among these that its approval doesn't cover yet: what an update added. */
+	unapproved: Capability[];
 };
 
 export function consentView(
@@ -91,7 +142,11 @@ export function consentView(
 	};
 }
 
-export function additionsView(module: LoadedModule, language: string): AdditionsView {
+export function additionsView(
+	module: LoadedModule,
+	granted: readonly string[] | null,
+	language: string,
+): AdditionsView {
 	if (!module.runnable) {
 		return {
 			siteRoutes: null,
@@ -104,6 +159,7 @@ export function additionsView(module: LoadedModule, language: string): Additions
 			notFoundLog: false,
 			schedules: [],
 			importSources: [],
+			unapproved: [],
 		};
 	}
 	const { manifest } = module;
@@ -120,5 +176,6 @@ export function additionsView(module: LoadedModule, language: string): Additions
 		importSources: [...module.importSources.values()].map((source) =>
 			wordsIn(source.label, language, manifest.adminLanguages),
 		),
+		unapproved: granted === null ? [] : uncovered(module, granted),
 	};
 }

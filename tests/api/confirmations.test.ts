@@ -4,6 +4,7 @@
 // removing a Library take one call in the admin (a person pressed the button on what they see) and
 // two through an API token; deleting and removing elsewhere take two steps for everyone.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { TOOLSETS, type Toolset } from "@webcraft/core";
 
 import { createApiToken, type TokenClient, tokenClient } from "../harness/api-tokens.ts";
 import { fakeNpmPackage } from "../harness/fake-npm.ts";
@@ -30,8 +31,11 @@ afterAll(async () => {
 	await install.close();
 });
 
-/** A Site with a Post Type, its Entry template and a Draft Entry, and a token for its Workspace. */
-async function fixture() {
+/**
+ * A Site with a Post Type, its Entry template and a Draft Entry, and a token for its Workspace: with
+ * the Toolsets a new token starts with, unless `toolsets` names them.
+ */
+async function fixture(toolsets?: Toolset[]) {
 	const workspace = await install.createWorkspace();
 	const site = await install.createSite(workspace.id);
 	const siteId = site.id;
@@ -42,7 +46,7 @@ async function fixture() {
 		tree: tree(element("h1", [value("title")])),
 	});
 	const { entry } = await admin.api.entries.create({ siteId, postTypeId: postType.id, title: "Fresh bread" });
-	const { secret } = await createApiToken(admin, { workspaceId: workspace.id, name: "Publisher" });
+	const { secret } = await createApiToken(admin, { workspaceId: workspace.id, name: "Publisher", toolsets });
 	return { siteId, entryId: entry.id, script: tokenClient(install, secret) };
 }
 
@@ -121,7 +125,8 @@ describe("publishing through a token", () => {
 	});
 
 	test("every kind of item a token publishes takes the two steps", async () => {
-		const { siteId, script } = await fixture();
+		// A Form's emails are published only with the Submissions Toolset, which no token starts with.
+		const { siteId, script } = await fixture([...TOOLSETS]);
 		const { template } = await admin.api.templates.saveSiteTemplateMarkup({
 			siteId,
 			markup: "<header>Hello</header><main>{{@outlet}}</main>",

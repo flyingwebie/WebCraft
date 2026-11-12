@@ -4,7 +4,6 @@ import { FORM_INPUTS, type FormState, type FormVersion, formTextIn, formWords } 
 import { and, eq, isNotNull } from "drizzle-orm";
 
 import type { Clock } from "../clock.ts";
-import { siteLanguages } from "../content/languages.ts";
 import { pathSegments } from "../content/url-patterns.ts";
 import type { GuardedFetch } from "../guarded-fetch.ts";
 import { isUuid } from "../ids.ts";
@@ -20,15 +19,23 @@ import type { FormTokens } from "./tokens.ts";
 import { cleanFileName, type FormUploads, uploadContentType, uploadFormat } from "./uploads.ts";
 import { checkValues, type SentFields, type SentFiles, sentValues } from "./values.ts";
 
+/** A post's body once read: its fields as sent, and the files sent with it, by field name. */
+export type FormPostBody = {
+	fields: SentFields;
+	files?: ReadonlyMap<string, readonly { name: string; bytes: Uint8Array }[]>;
+};
+
 /**
- * What a visitor sends to a Form (`POST /_webcraft/forms/<id>` on the Site's domain), after the web
- * process read it: the fields as sent, or null for a post larger than any Form takes (its values are
- * never read).
+ * What a visitor sends to a Form (`POST /_webcraft/forms/<id>` on the Site's domain). Its body is
+ * still unread: WebCraft reads it only once it knows the Form takes posts from that address.
  */
 export type FormPost = {
-	fields: SentFields | null;
-	/** The files sent with it (a post with files), by field name, each with its name and bytes. */
-	files?: ReadonlyMap<string, readonly { name: string; bytes: Uint8Array }[]>;
+	/**
+	 * Reads the body, as far as the Form takes one: a post with files (`takesFiles`: the Form has a file
+	 * field) up to `FORM_UPLOAD_POST_MAX_BYTES`, any other up to `FORM_POST_MAX_BYTES`. Null for a
+	 * larger one, which is never read to its end.
+	 */
+	body(takesFiles: boolean): Promise<FormPostBody | null>;
 	/** The client address it came from (`clientAddress`), for the per-address limits; null when unknown. */
 	clientAddress: string | null;
 	/** The address of the page the browser says it came from (`Referer`), for hidden fields. */
@@ -44,7 +51,9 @@ export type FormPost = {
 /**
  * What a post answers:
  * - `notFound`: no published Form of the Site has that id, or Forms don't run on the Site;
- * - `tooLarge`: the post was larger than any Form takes (kept in the Spam folder);
+ * - `refused`: the address sent more than the Form takes from one address (`REFUSED_FROM` times its
+ *   limits): nothing is read or kept until `retryAfterSeconds` have passed;
+ * - `tooLarge`: the post was larger than the Form takes (nothing is kept);
  * - `invalid`: what was sent breaks the Form's rules: the page is shown again with the visitor's
  *   input and each field's error (nothing is kept);
  * - `sent`: kept (in the inbox, or the Spam folder, which looks the same to the sender); the visitor
@@ -52,6 +61,7 @@ export type FormPost = {
  */
 export type FormPostAnswer =
 	| { kind: "notFound" }
+	| { kind: "refused"; retryAfterSeconds: number }
 	| { kind: "tooLarge" }
 	| {
 			kind: "invalid";
@@ -68,8 +78,16 @@ export type FormPostAnswer =
 			message: string | null;
 	  };
 
-/** The largest post a Form takes, in bytes: anything larger is spam. */
+/** The largest post a Form takes, in bytes: anything larger is refused. */
 export const FORM_POST_MAX_BYTES = 512 * 1024;
+
+/**
+ * How many times a Form's per-address limits one address may send before its posts are refused
+ * outright. Up to the limits, posts reach the inbox; past them they are kept as spam, so a person who
+ * sends a few too many loses nothing; past this many times the limits nothing is read, rendered or
+ * kept, so one address can't fill the Spam folder or keep the web process busy.
+ */
+export const REFUSED_FROM = 10;
 
 /** The name of a Site's CAPTCHA secret key. */
 export const CAPTCHA_SECRET = "forms.captcha.secret";
@@ -78,7 +96,7 @@ export type ReceiveDeps = {
 	data: DataLayer;
 	uploads: Pick<FormUploads, "store" | "discard">;
 	modules: Pick<ModuleHost, "submissionsKeptBy" | "receiveSubmission">;
-	rateLimits: Pick<RateLimits, "count">;
+	rateLimits: Pick<RateLimits, "count" | "tally">;
 	tokens: FormTokens;
 	fetch: GuardedFetch;
 	clock: Clock;
@@ -90,10 +108,12 @@ export const SENT_PARAMETER = "wc-sent";
 
 /**
  * Receives a post to one of the Site's Forms: checks it, then hands the Submission to the Module
- * that keeps them. The checks, in order: the post's size; the time trap (a token this Install made
- * for the Site, at least the Form's fill time old); the honeypot; the Form's rules (failing which
- * the page comes back with errors, and nothing is kept); the per-address limits; the Site's CAPTCHA.
- * Failing a spam check keeps the post in the Spam folder and answers as if it went through.
+ * that keeps them. The checks, in order: how much the address has sent (past `REFUSED_FROM` times the
+ * Form's limits the post is refused unread); the post's size (a larger one is refused, its body never
+ * read to the end); the time trap (a token this Install made for the Site, at least the Form's fill
+ * time old); the honeypot; the Form's rules (failing which the page comes back with errors, and
+ * nothing is kept); the per-address limits; the Site's CAPTCHA. Failing a spam check keeps the post
+ * in the Spam folder and answers as if it went through.
  */
 export async function receiveFormPost(
 	deps: ReceiveDeps,
@@ -118,12 +138,11 @@ export async function receiveFormPost(
 			},
 		);
 
-	if (post.fields === null) {
-		const { defaultLanguage } = await siteLanguages(scope);
-		await keep({ language: defaultLanguage, page: null, spam: "size", values: [] });
-		return { kind: "tooLarge" };
-	}
-	const sent = post.fields;
+	const retryAfterSeconds = await refusedFor(deps, row.id, version, post.clientAddress);
+	if (retryAfterSeconds !== null) return { kind: "refused", retryAfterSeconds };
+	const body = await post.body(version.fields.some((field) => field.type === "file"));
+	if (body === null) return { kind: "tooLarge" };
+	const sent = body.fields;
 	const { path, number } = pageOf(sent.get(FORM_INPUTS.page)?.[0]);
 	// The page's address as visitors saw it: page N of a paginated Loop keeps its `?page=N`.
 	const page = pageHref(path, number);
@@ -132,7 +151,7 @@ export async function receiveFormPost(
 	const from = sentFrom(host, page, post.referer);
 	const sentLocation = await afterSending(deps, host, version, page, instance, language);
 	const sentMessage = version.success.kind === "message" ? formTextIn(version.success.message, language) : null;
-	const files = sentFilesOf(post.files);
+	const files = sentFilesOf(body.files);
 
 	let spam: SpamReason | null = null;
 	const issuedAt = await deps.tokens.issuedAt(host.site.id, sent.get(FORM_INPUTS.token)?.[0] ?? "");
@@ -201,7 +220,7 @@ export async function receiveFormPost(
 }
 
 /** The files sent, each with what its bytes are: a format Forms take, or null. */
-function sentFilesOf(files: FormPost["files"]): SentFiles {
+function sentFilesOf(files: FormPostBody["files"]): SentFiles {
 	const read = new Map<string, SentFiles extends ReadonlyMap<string, infer List> ? List : never>();
 	for (const [key, list] of files ?? []) {
 		read.set(
@@ -282,6 +301,34 @@ async function afterSending(
 		if (location) return location;
 	}
 	return `${page}${page.includes("?") ? "&" : "?"}${SENT_PARAMETER}=${instance}#wc-form-${instance}`;
+}
+
+/**
+ * Counts a post against what the Form takes from one address at all (`REFUSED_FROM` times its limits,
+ * per minute and per hour): null while it is within both, else how many seconds until the address may
+ * send again. Every post counts, whatever becomes of it.
+ */
+async function refusedFor(
+	deps: ReceiveDeps,
+	formId: string,
+	version: FormVersion,
+	clientAddress: string | null,
+): Promise<number | null> {
+	const address = clientAddress ?? "unknown";
+	const tallies = [
+		await deps.rateLimits.tally(`form:${formId}:all:minute:${address}`, {
+			limit: version.spam.perMinute * REFUSED_FROM,
+			windowMs: 60_000,
+		}),
+		await deps.rateLimits.tally(`form:${formId}:all:hour:${address}`, {
+			limit: version.spam.perHour * REFUSED_FROM,
+			windowMs: 3_600_000,
+		}),
+	];
+	const over = tallies.filter((tally) => !tally.within);
+	if (over.length === 0) return null;
+	const until = Math.max(...over.map((tally) => tally.resetsAt.getTime()));
+	return Math.max(1, Math.ceil((until - deps.clock.now().getTime()) / 1000));
 }
 
 /** Counts a kept post against the Form's limits for the address it came from: per minute, and per hour. */

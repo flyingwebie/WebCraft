@@ -31,6 +31,7 @@ import { getApi } from "../api.ts";
 import { languageName } from "../content/DraftParts.tsx";
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
+import { useSensitiveAction } from "../identity-check.tsx";
 import { type FormField, type FormProblem, problemsOf, withText } from "./model.ts";
 import { StatusBadge } from "./StatusBadge.tsx";
 
@@ -41,7 +42,8 @@ type Form = Awaited<ReturnType<ApiClient["forms"]["get"]>>["form"];
  * each to a list of addresses, optionally routed by the answer to a select or radio field, with a
  * subject and an opening text (WebCraft's words when left empty); and the Auto-reply to the visitor,
  * with its subject and text in each of the Site's languages. Changes are kept in the browser until
- * saved to the emails' Draft, and go out once published, apart from the Form's fields.
+ * saved to the emails' Draft, and go out once published, apart from the Form's fields. A save that
+ * changes who receives Submissions is a Sensitive action: the person confirms who they are first.
  */
 export function EmailsTab({
 	siteId,
@@ -60,6 +62,7 @@ export function EmailsTab({
 	onSaved(): Promise<void>;
 }) {
 	const t = useT();
+	const runSensitive = useSensitiveAction();
 	const saved = form.emails.draft as FormEmails;
 	const [emails, setEmails] = useState<FormEmails>(saved);
 	const attachmentsId = useId();
@@ -80,7 +83,7 @@ export function EmailsTab({
 		setProblems([]);
 		try {
 			const api = await getApi();
-			const { form: stored } = await api.forms.saveEmails({ siteId, formId: form.id, emails });
+			const { form: stored } = await runSensitive(() => api.forms.saveEmails({ siteId, formId: form.id, emails }));
 			setEmails(stored.emails.draft as FormEmails);
 			await onSaved();
 			toast.success(t("formEmails.saved"));

@@ -5,6 +5,7 @@
 // the article stays free to be translated again.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
+import { taggedTranslation } from "../harness/fake-ai.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { freshBread, type TranslatedSite, translatedSite } from "./support.ts";
 
@@ -118,6 +119,32 @@ describe("a value a person wrote", () => {
 		const entry = await italian(site, entryId);
 		expect(entry.draft.fields.summary).toBe("[it] Crusty sourdough");
 		expect(entry.translation?.aiWritten).toContain("fields.summary");
+	});
+
+	test("Re-translate asks the AI itself, never the answer it gave before, and that answer is the one kept", async () => {
+		const site = await translatedSite(install, { it: "review" });
+		const entryId = await freshBread(site);
+		const again = () =>
+			site.editor.api.translations.retranslate({
+				siteId: site.siteId,
+				item: { kind: "entry", id: entryId },
+				language: "it",
+				at: "fields.summary",
+			});
+		await again();
+		expect((await italian(site, entryId)).draft.fields.summary).toBe("[it] Crusty sourdough");
+
+		// The AI answers differently now (a better model, or an answer nobody steered).
+		install.ai.translateWith((text) => `[it, again] ${text}`);
+		await again();
+
+		expect((await italian(site, entryId)).draft.fields.summary).toBe("[it, again] Crusty sourdough");
+		// The same words elsewhere on the Site get that answer from then on, whatever the AI would say now.
+		install.ai.translateWith(taggedTranslation);
+		const other = await freshBread(site, "More bread");
+		await site.owner.api.entries.publish({ siteId: site.siteId, entryId: other });
+		await install.drainJobs();
+		expect((await italian(site, other)).draft.fields.summary).toBe("[it, again] Crusty sourdough");
 	});
 
 	test("an AI translation whose source changed is written again; a person's in Automatic mode stays live", async () => {

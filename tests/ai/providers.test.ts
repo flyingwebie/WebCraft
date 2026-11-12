@@ -162,6 +162,17 @@ describe("each provider's own API", () => {
 		expect(JSON.parse(lastRequestTo("llm.client.example").body).model).toBe("llama-4-scout");
 	});
 
+	test("a provider that reports no usage is counted by what the call was expected to use, never as free", async () => {
+		install.http.respond("POST", "https://api.openai.com/v1/chat/completions", {
+			body: JSON.stringify({ choices: [{ message: { content: '["Bonjour"]' } }] }),
+		});
+		const { owner, workspaceId } = await ownerWithKey({ provider: "openai", model: "gpt-5-mini" });
+
+		expect(await owner.api.aiKeys.testOwn({ workspaceId })).toMatchObject({ ok: true });
+
+		expect((await owner.api.aiKeys.get({ workspaceId })).usage.own?.spent).toBeGreaterThan(0);
+	});
+
 	test("an image is sent as the provider reads one, for Suggest alt text", async () => {
 		const { siteId, owner } = await ownerWithKey({ provider: "anthropic", model: "claude-haiku-5-5" });
 		install.http.respond("POST", "https://api.anthropic.com/v1/messages", {
