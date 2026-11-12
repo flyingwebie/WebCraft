@@ -278,7 +278,7 @@ test("a refused Component save is announced and is not refreshed as a saved inse
 			.getByRole("button", { name: "Insert", exact: true })
 			.click();
 		await page
-			.locator('webcraft-edit-bar [role="status"]')
+			.locator('[data-editor-messages] [role="alert"]')
 			.filter({ hasText: /Not saved:/ })
 			.waitFor();
 		expect(JSON.stringify(await bodyOf(entryId))).not.toContain("Must not be saved.");

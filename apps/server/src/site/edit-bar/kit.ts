@@ -31,7 +31,7 @@ export type PageLanguage = { code: string; name: string; path: string; current: 
 
 /** What the bar knows of the page, as the `state` edit request answers it (the parts' view of it). */
 export type BarState = {
-	page: { title: string; path: string; item: string | null };
+	page: { title: string; path: string; item: string | null; layout: boolean };
 	canPublish: boolean;
 	canCode: boolean;
 	person: { name: string };

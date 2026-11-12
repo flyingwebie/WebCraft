@@ -75,7 +75,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		changedSinceSubmitted: boolean;
 	};
 	type State = {
-		page: { title: string; path: string; item: string | null };
+		page: { title: string; path: string; item: string | null; layout: boolean };
 		canPublish: boolean;
 		canCode: boolean;
 		changes: Change[];
@@ -418,7 +418,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		kit.openImage = images.open;
 		setUpRegions();
 		loadBody();
-		if (!coding) loadLayout();
+		if (!coding && state.page.layout) loadLayout();
 		openDrafts();
 		every(() => void refresh(), 60_000);
 		doc.addEventListener("visibilitychange", () => {
