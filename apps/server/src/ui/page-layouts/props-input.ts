@@ -18,10 +18,12 @@ function targetsRemain(before: DocumentJson, after: DocumentJson, current: Docum
 		return before.every((row, index) => {
 			if (!object(row) || typeof row.id !== "string") return true;
 			const wanted = after.find((item) => object(item) && item.id === row.id);
+			// A missing row will not be restored; a peer may have removed it while input continued.
+			if (!wanted) return true;
 			const moved = after[index] && object(after[index]) && after[index].id !== row.id;
-			if (wanted && sameValue(row, wanted) && !moved) return true;
+			if (sameValue(row, wanted) && !moved) return true;
 			const live = current.find((item) => object(item) && item.id === row.id);
-			return live !== undefined && (!wanted || targetsRemain(row, wanted, live));
+			return live !== undefined && targetsRemain(row, wanted, live);
 		});
 	}
 	if (object(before) && object(after)) {

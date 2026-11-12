@@ -532,3 +532,44 @@ for (const theme of THEMES) {
 		}
 	});
 }
+
+for (const theme of THEMES) {
+	test(`continued Repeater typing preserves a peer's unrelated row deletion (${theme})`, async () => {
+		const site = await fixture(
+			[{ key: "rows", label: "Rows", type: "repeater", fields: [{ key: "text", label: "Text", type: "text" }] }],
+			{
+				rows: {
+					rows: [
+						{ id: "north", values: { text: { en: "North" } } },
+						{ id: "south", values: { text: { en: "South" } } },
+					],
+				},
+			},
+		);
+		const first = await enter(site, theme);
+		const second = await enter(site, theme, true);
+		try {
+			await field(first, "Text").nth(1).focus();
+			await field(first, "Text").nth(1).press("End");
+			await first.keyboard.type("a");
+			await second.getByRole("button", { name: "Actions for row 1", exact: true }).click();
+			await second.getByRole("menuitem", { name: "Remove row", exact: true }).click();
+			await first.waitForFunction(
+				() =>
+					document
+						.querySelector("#webcraft-page-layout")
+						?.shadowRoot?.querySelectorAll('[data-editor-region="inspector"] input').length === 1,
+			);
+			expect(await field(first, "Text").inputValue()).toBe("Southa");
+			expect(await field(first, "Text").evaluate((el) => (el.getRootNode() as ShadowRoot).activeElement === el)).toBe(
+				true,
+			);
+			await first.keyboard.type("b");
+			await field(first, "Text").press("Tab");
+			await savedValues(site, { rows: [{ id: "south", text: "Southab" }] });
+		} finally {
+			await first.close();
+			await second.close();
+		}
+	});
+}
