@@ -42,6 +42,7 @@ import { ComponentDialog, type ComponentPrompt, componentNameFrom, componentRefu
 import { ComponentScriptPanel } from "./ComponentScriptPanel.tsx";
 import { CssPanel, type CssPanelPort } from "./CssPanel.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
+import { classHistoryPort } from "./class-history.ts";
 import { type EditorCommandTarget, editorCommands, historyCommandTarget, type WrapKind } from "./commands.ts";
 import { editorAccessibility } from "./editor-accessibility.ts";
 import { type EditorDrawer, focusInto, useEditorFit } from "./editor-fit.ts";
@@ -812,40 +813,14 @@ export function Builder({
 			read: async (classes) => (await getApi()).builder.css({ siteId, classes: [...classes] }),
 			save: async (cssTarget, text, version) =>
 				(await getApi()).builder.saveCss({ siteId, target: cssTarget, text, version }),
-			createClass: async (name, step) => {
-				const api = await getApi();
-				const before = await api.builder.historyDesign({ siteId });
-				const made = await api.designSystem.createClass({ siteId, name });
-				const fresh = await api.builder.historyDesign({ siteId });
-				const created = fresh.classes.find((each) => each.id === made.class.id);
-				if (created)
-					history.record({
-						step,
-						resource: `draft:${siteId}:designSystem`,
-						before: before as unknown as Json,
-						after: { ...before, classes: [...before.classes, created] } as unknown as Json,
-						label: t("builder.css.created", { name }),
-						location: historyLocation(selection, "css"),
-					});
-				return { id: made.class.id, name: made.class.name };
-			},
-			renameClass: async (classId, name) => {
-				const api = await getApi();
-				const before = await api.builder.historyDesign({ siteId });
-				await api.designSystem.updateClass({ siteId, classId, name });
-				history.record({
-					resource: `draft:${siteId}:designSystem`,
-					before: before as unknown as Json,
-					after: {
-						...before,
-						classes: before.classes.map((each) => (each.id === classId ? { ...each, name } : each)),
-					} as unknown as Json,
-					label: t("builder.css.renamed", { name }),
-					location: historyLocation(selection, "css"),
-				});
-			},
+			...classHistoryPort({
+				create: async (name) => (await getApi()).designSystem.createClass({ siteId, name }),
+				rename: async (classId, name) => (await getApi()).designSystem.updateClass({ siteId, classId, name }),
+				location: () => historyLocation(selection, "css"),
+				label: (action, name) => t(`builder.css.${action}`, { name }),
+			}),
 		}),
-		[siteId, history, historyLocation, selection, t],
+		[siteId, historyLocation, selection, t],
 	);
 	const canvasSelected: CanvasTarget | null =
 		selectedNode?.type === "element"
@@ -935,22 +910,16 @@ export function Builder({
 						...propsChange(snapshot),
 					})
 				).markup;
-				const designBefore = await api.builder.historyDesign({ siteId });
 				stored = await saveDraft(api, siteId, target, {
 					markup: text,
 					props: propsChange(snapshot).props ?? null,
 					basedOn: version,
 				});
-				const designAfter = await api.builder.historyDesign({ siteId });
-				const used = JSON.stringify(stored.history.after);
-				const created = designAfter.classes.filter(
-					(each) => !designBefore.classes.some((old) => old.id === each.id) && used.includes(`"${each.id}"`),
-				);
-				if (created.length)
+				if (stored.designHistory)
 					history.attach(stage.id, {
 						resource: `draft:${siteId}:designSystem`,
-						before: designBefore as unknown as Json,
-						after: { ...designBefore, classes: [...designBefore.classes, ...created] } as unknown as Json,
+						before: stored.designHistory.before as unknown as Json,
+						after: stored.designHistory.after as unknown as Json,
 					});
 				history.attach(stage.id, {
 					resource: historyKey,

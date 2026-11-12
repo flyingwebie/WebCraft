@@ -41,6 +41,7 @@ import { askConfirmation, type Confirmation, useConfirmation } from "../confirma
 import { isUniqueViolation } from "../db-errors.ts";
 import { type ClassCatalogue, ClassRaceError, classCatalogue, saveCreatedClasses } from "../design-system/classes.ts";
 import { draftDesignSystem } from "../design-system/design-systems.ts";
+import type { DesignSystemReceipt } from "../design-system/drafts.ts";
 import { NO_FILTERS, type SiteFilters, siteFilters } from "../filters/filters.ts";
 import { NO_FORMS, type SiteForms, siteForms } from "../forms/forms.ts";
 import { noteDraftChange } from "../history/checkpoints.ts";
@@ -163,6 +164,8 @@ export type ComponentDraftChange = { props?: FieldInput[]; tree?: unknown };
 
 /** A Component's Draft saved from Template markup, with its markup as stored now and notices. */
 export type SavedComponentMarkup = {
+	/** Only Classes created by this save, captured in its transaction. */
+	designHistory: DesignSystemReceipt | null;
 	component: Component;
 	markup: string;
 	/** The Draft's version, which the next save names as `basedOn`. */
@@ -328,10 +331,11 @@ export async function saveComponentMarkup(
 				classNamed: classes.named,
 				classForStyle: classes.forStyle,
 			});
-			await saveCreatedClasses(tx, classes);
+			const designHistory = await saveCreatedClasses(tx, classes);
 			const component = await writeDraft(tx, row, { props, tree }, catalogue);
 			return {
 				component,
+				designHistory,
 				markup: printPropDeclarations(props) + printMarkup(component.draft.tree, classes, catalogue),
 				version: componentVersion(component.draft),
 				notices,

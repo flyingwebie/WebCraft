@@ -21,6 +21,7 @@ export type {
 	DesignSystemView,
 	EditableClass,
 	EditableDesignSystem,
+	SavedClass,
 	TokensInput,
 } from "./drafts.ts";
 export {

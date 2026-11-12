@@ -79,7 +79,7 @@ import type {
 	DesignSystemImportPreview,
 	DesignSystemPreview,
 	DesignSystemView,
-	EditableClass,
+	SavedClass,
 } from "./design-system/index.ts";
 import type { Discovery } from "./discovery/index.ts";
 import type { DiskSpace } from "./disk.ts";
@@ -506,16 +506,9 @@ export type InstallServices = InstallPorts & {
 		get(scope: SiteScope): Promise<DesignSystemView>;
 		/** Saves a change to the Draft: each section given replaces that section. */
 		saveDraft(scope: SiteScope, change: DesignSystemChange): Promise<DesignSystemView>;
-		createClass(
-			scope: SiteScope,
-			input: ClassChange,
-		): Promise<{ class: EditableClass; designSystem: DesignSystemView }>;
+		createClass(scope: SiteScope, input: ClassChange): Promise<SavedClass>;
 		/** Renames or restyles a Class; elements and CSS using it follow, since they refer to it by id. */
-		updateClass(
-			scope: SiteScope,
-			classId: string,
-			change: Partial<ClassChange>,
-		): Promise<{ class: EditableClass; designSystem: DesignSystemView }>;
+		updateClass(scope: SiteScope, classId: string, change: Partial<ClassChange>): Promise<SavedClass>;
 		/** Deletes a Class; refused while something uses it (`ClassInUseError` says where). */
 		deleteClass(scope: SiteScope, classId: string): Promise<DesignSystemView>;
 		/** The Draft's or the published Design tokens as a DTCG file. */

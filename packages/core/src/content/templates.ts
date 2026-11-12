@@ -19,6 +19,7 @@ import { clientNameOf } from "../audit.ts";
 import { isUniqueViolation } from "../db-errors.ts";
 import { type ClassCatalogue, ClassRaceError, classCatalogue, saveCreatedClasses } from "../design-system/classes.ts";
 import { draftDesignSystem } from "../design-system/design-systems.ts";
+import type { DesignSystemReceipt } from "../design-system/drafts.ts";
 import { noteDraftChange } from "../history/checkpoints.ts";
 import { isUuid } from "../ids.ts";
 import { personIdOf } from "../permissions/can.ts";
@@ -76,7 +77,14 @@ type TemplateRow = typeof templates.$inferSelect;
  * A Template's Draft saved from Template markup: the Template, its markup as printed now, the Draft's
  * version (which the next save names as `basedOn`), and notices.
  */
-export type SavedTemplateMarkup = { template: Template; markup: string; version: string; notices: MarkupNotice[] };
+export type SavedTemplateMarkup = {
+	template: Template;
+	markup: string;
+	version: string;
+	notices: MarkupNotice[];
+	/** Only Classes created by this save, captured in its transaction. */
+	designHistory: DesignSystemReceipt | null;
+};
 
 /** A Template's Draft and published version as Template markup. */
 export type TemplateMarkup = { draft: string; published: string | null };
@@ -437,10 +445,11 @@ async function saveTemplateMarkup(
 				classNamed: catalogue.named,
 				classForStyle: catalogue.forStyle,
 			});
-			await saveCreatedClasses(tx, catalogue);
+			const designHistory = await saveCreatedClasses(tx, catalogue);
 			const template = await writeTemplateDraft(tx, target, tree, components);
 			return {
 				template,
+				designHistory,
 				markup: printMarkup(template.draft, catalogue, components),
 				version: draftVersion(template.draft),
 				notices,

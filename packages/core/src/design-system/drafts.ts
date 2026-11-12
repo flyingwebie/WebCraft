@@ -77,6 +77,10 @@ export type DesignSystemView = {
 	lastPublishedAt: Date | null;
 };
 
+/** The exact stored change made under the Design system lock, before any later peer edit. */
+export type DesignSystemReceipt = { before: DesignSystem; after: DesignSystem };
+export type SavedClass = { class: EditableClass; designSystem: DesignSystemView; history: DesignSystemReceipt };
+
 type WithOptionalId<T> = Omit<T, "id"> & { id?: string };
 
 /** Tokens to save: a token without an id is new. */
@@ -177,15 +181,12 @@ export async function saveDesignSystemDraft(scope: SiteScope, change: DesignSyst
 }
 
 /** Adds a Class to the Draft, answering it. */
-export async function createClass(
-	scope: SiteScope,
-	input: ClassChange,
-): Promise<{ class: EditableClass; designSystem: DesignSystemView }> {
-	const designSystem = await changeDraft(scope, (draft) => ({ classes: [...keepClasses(draft), input] }));
+export async function createClass(scope: SiteScope, input: ClassChange): Promise<SavedClass> {
+	const saved = await changeDraftWithReceipt(scope, (draft) => ({ classes: [...keepClasses(draft), input] }));
 	// Class names are unique on the Site.
-	const made = designSystem.draft.classes.find((each) => each.name === input.name);
+	const made = saved.designSystem.draft.classes.find((each) => each.name === input.name);
 	if (!made) throw new ClassNotFoundError();
-	return { class: made, designSystem };
+	return { class: made, ...saved };
 }
 
 /** Renames or restyles a Class of the Draft: its id stays, so every element and CSS using it follows. */
@@ -193,8 +194,8 @@ export async function updateClass(
 	scope: SiteScope,
 	classId: string,
 	change: Partial<ClassChange>,
-): Promise<{ class: EditableClass; designSystem: DesignSystemView }> {
-	const designSystem = await changeDraft(scope, (draft) => {
+): Promise<SavedClass> {
+	const saved = await changeDraftWithReceipt(scope, (draft) => {
 		const current = draft.classes.find((each) => each.id === classId);
 		if (!current) throw new ClassNotFoundError();
 		return {
@@ -203,7 +204,7 @@ export async function updateClass(
 			),
 		};
 	});
-	return { class: classIn(designSystem, classId), designSystem };
+	return { class: classIn(saved.designSystem, classId), ...saved };
 }
 
 /** Deletes a Class from the Draft; refused while an element or CSS uses it (`ClassInUseError`). */
@@ -261,6 +262,13 @@ export async function changeDraft(
 	scope: SiteScope,
 	changeFor: (draft: DesignSystem) => DesignSystemChange,
 ): Promise<DesignSystemView> {
+	return (await changeDraftWithReceipt(scope, changeFor)).designSystem;
+}
+
+async function changeDraftWithReceipt(
+	scope: SiteScope,
+	changeFor: (draft: DesignSystem) => DesignSystemChange,
+): Promise<{ designSystem: DesignSystemView; history: DesignSystemReceipt }> {
 	return scope.transaction(async (tx) => {
 		const locked = await lockDesignSystem(tx);
 		const next = applyChange(locked.draft, changeFor(locked.draft));
@@ -268,7 +276,10 @@ export async function changeDraft(
 		const problems = designSystemProblems(next);
 		if (problems.length > 0) throw new DesignSystemInvalidError(problems);
 		await writeDraft(tx, locked, next);
-		return viewOf({ ...locked.row, draft: next, updatedAt: tx.now() });
+		return {
+			designSystem: viewOf({ ...locked.row, draft: next, updatedAt: tx.now() }),
+			history: { before: locked.draft, after: next },
+		};
 	});
 }
 

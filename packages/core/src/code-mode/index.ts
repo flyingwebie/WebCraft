@@ -26,7 +26,7 @@ import type { PageEditing, SiteHost, SitePages } from "../site-pages/index.ts";
 import type { ConsentCategory } from "../site-scripts/outside-scripts.ts";
 import type { DataLayer, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
-import { type CodeClass, type CodeCss, type CssTarget, makeClass, readCss, saveCss } from "./css.ts";
+import { type CodeCss, type CssTarget, makeClass, readCss, saveCss } from "./css.ts";
 import { type MarkupChange, previewMarkup, type SavedMarkup, saveMarkup } from "./markup.ts";
 import {
 	type CodeComponentScript,
@@ -135,7 +135,7 @@ export type CodeMode = {
 		version: string;
 	}>;
 	/** Makes a Class of the Design system's Draft, for a name the HTML panel doesn't know yet. */
-	createClass(scope: SiteScope, name: string): Promise<{ class: CodeClass }>;
+	createClass: typeof makeClass;
 	/**
 	 * The scripts of the page at `path`, for the JS panel: the Site script and the page's own, and with
 	 * `ref` (the element selected) the Component script of its Placement (`component`, null when the

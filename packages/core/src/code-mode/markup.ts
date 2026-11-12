@@ -16,6 +16,7 @@ import {
 	saveSiteTemplateMarkup,
 } from "../content/templates.ts";
 import { draftDesignSystem } from "../design-system/design-systems.ts";
+import type { DesignSystemReceipt } from "../design-system/drafts.ts";
 import { draftStyles, draftTrees } from "../design-system/stylesheet.ts";
 import type { CodePreview, SiteHost } from "../site-pages/index.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
@@ -108,23 +109,17 @@ export async function saveMarkup(
 	return scope.transaction(async (scope) => {
 		const { source } = await resolveSource(scope, deps, host, input.path, readCodeRef(input.ref));
 		const base = { basedOn: input.version };
-		const designBefore = await draftDesignSystem(scope);
 		const finish = async (
-			saved: { markup: string; version: string; notices: MarkupNotice[] },
+			saved: { markup: string; version: string; notices: MarkupNotice[]; designHistory: DesignSystemReceipt | null },
 			item: { id: string; draft: unknown },
 			kind: string,
 		): Promise<SavedMarkup> => {
-			const designAfter = await draftDesignSystem(scope);
-			const used = JSON.stringify(item.draft);
-			const created = designAfter.classes.filter(
-				(each) => !designBefore.classes.some((old) => old.id === each.id) && used.includes(`"${each.id}"`),
-			);
 			const history: SavedMarkup["history"] = [];
-			if (created.length)
+			if (saved.designHistory)
 				history.push({
 					resource: `draft:${scope.site.id}:designSystem`,
-					before: designBefore as unknown as Json,
-					after: { ...designBefore, classes: [...designBefore.classes, ...created] } as unknown as Json,
+					before: saved.designHistory.before as unknown as Json,
+					after: saved.designHistory.after as unknown as Json,
 				});
 			history.push({
 				resource: `draft:${scope.site.id}:${kind}:${item.id}`,

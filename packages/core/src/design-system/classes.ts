@@ -16,6 +16,7 @@ import {
 
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { lockDesignSystem, writeDraft } from "./design-systems.ts";
+import type { DesignSystemReceipt } from "./drafts.ts";
 
 /**
  * The Site's Classes while Template markup is read and printed: names to ids and back, and the
@@ -91,14 +92,20 @@ export class ClassRaceError extends Error {
  * `ClassRaceError` when another save took one of their names meanwhile, so the save can run again
  * and find that Class.
  */
-export async function saveCreatedClasses(scope: SiteScope, catalogue: ClassCatalogue): Promise<void> {
-	if (catalogue.created.length === 0) return;
+export async function saveCreatedClasses(
+	scope: SiteScope,
+	catalogue: ClassCatalogue,
+): Promise<DesignSystemReceipt | null> {
+	if (catalogue.created.length === 0) return null;
 	const locked = await lockDesignSystem(scope);
 	const taken = new Set(designSystemNames(locked.draft).classIds);
 	const takenNames = new Set(locked.draft.classes.map((each) => each.name));
 	const added = catalogue.created.filter((made) => !taken.has(made.id));
+	if (added.length === 0) return null;
 	if (added.some((made) => takenNames.has(made.name))) throw new ClassRaceError();
-	await writeDraft(scope, locked, { ...locked.draft, classes: [...locked.draft.classes, ...added] });
+	const after = { ...locked.draft, classes: [...locked.draft.classes, ...added] };
+	await writeDraft(scope, locked, after);
+	return { before: locked.draft, after };
 }
 
 /** 8 hexadecimal digits from the text (FNV-1a): short, stable names for generated Classes. */

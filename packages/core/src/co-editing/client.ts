@@ -321,10 +321,10 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 		async reverse(from, to) {
 			// A restored tab history may be invoked before this connection's first sync, or while
 			// the action being undone is still saving. Both must settle before computing its inverse.
-			const ready = Date.now();
+			const ready = now();
 			flush();
 			while (settled() === "connecting" || settled() === "saving" || resetting) {
-				if (Date.now() - ready > 10_000) return { ok: false, code: "HISTORY_UNAVAILABLE" };
+				if (now() - ready > 10_000) return { ok: false, code: "HISTORY_UNAVAILABLE" };
 				await new Promise((resolve) => setTimeout(resolve, 10));
 				flush();
 			}
@@ -341,9 +341,9 @@ export function createDraftClient(options: DraftClientOptions = {}): DraftClient
 			changeDocument(doc, after);
 			options.onChange?.(readDocument(doc), "local");
 			flush();
-			const start = Date.now();
+			const start = now();
 			while (settled() === "saving" || resetting) {
-				if (Date.now() - start > 10_000) return { ok: false, code: "HISTORY_UNAVAILABLE" };
+				if (now() - start > 10_000) return { ok: false, code: "HISTORY_UNAVAILABLE" };
 				await new Promise((resolve) => setTimeout(resolve, 10));
 			}
 			if (lastRefusal !== refusal) return { ok: false, code: lastRefusal?.code ?? "HISTORY_UNAVAILABLE" };

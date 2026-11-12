@@ -13,6 +13,7 @@ import { CommandMenu, type MenuState, ShortcutsDialog, useEditorKeys, useHistory
 import { ComponentDialog, type ComponentPrompt, componentNameFrom, componentRefusal } from "./ComponentDialog.tsx";
 import { CssPanel, type CssPanelPort, type CssTarget } from "./CssPanel.tsx";
 import { loopCounts } from "./canvas-metadata.ts";
+import { type ClassReceipt, classHistoryPort } from "./class-history.ts";
 import {
 	type CommandTab,
 	type EditorCommandTarget,
@@ -503,6 +504,7 @@ function LivePanels({
 			const { ref, source, shared } = begin();
 			if (!ref || !source) return false;
 			const run = generation;
+			const committedStep = step;
 			const markup = area.value;
 			try {
 				const read = await bridge.call<{ tree: ElementTree; styles: Record<string, string>; props?: Json | null }>(
@@ -516,7 +518,7 @@ function LivePanels({
 						markup,
 						version: source.opened.version,
 					});
-					for (const change of saved.history) history.attach(step, change);
+					for (const change of saved.history) history.attach(committedStep, change);
 					const draft = saved.history.at(-1);
 					if (draft) history.renameResource(resourceOf(source), draft.resource);
 					await load(ref);
@@ -536,18 +538,18 @@ function LivePanels({
 						return false;
 					}
 					const draft = shared.draft();
-					history.attach(step, { resource: resourceOf(source), before, after: draft });
+					history.attach(committedStep, { resource: resourceOf(source), before, after: draft });
 					const tree = (source.opened.component ? (draft as { tree: Json }).tree : draft) as unknown as ElementTree;
 					update(ref, tree, source.opened.component ? (draft as unknown as { props: Opened["props"] }).props : null);
 					if (!(await shared.flush())) return false;
 					if (Object.keys(read.styles).length) {
 						// Inline styles become generated Classes through the existing validated markup saver.
 						const saved = await saveOneOffStyles(bridge, ref, read.styles);
-						for (const change of saved.history) history.attach(step, change);
+						for (const change of saved.history) history.attach(committedStep, change);
 						await load(ref);
 					}
 				}
-				history.settleInput(step);
+				history.settleInput(committedStep);
 				while (run === generation) {
 					const changeCount = draftChangeCount.current;
 					const saved = await bridge.call<{ markup: string }>("code/open", { ref });
@@ -837,38 +839,13 @@ function useCssPort(bridge: LivePanelBridge): CssPanelPort {
 	port.current ??= {
 		read: (classes) => bridge.call("code/css", { ref: null, classes }),
 		save: (target, text, version) => bridge.call("code/saveCss", { target, text, version }),
-		createClass: async (name, step) => {
-			const before = await bridge.call<{ classes: { id: string }[] }>("code/historyDesign", {});
-			const made = (await bridge.call<{ class: { id: string; name: string } }>("code/createClass", { name })).class;
-			const fresh = await bridge.call<{ classes: { id: string }[] }>("code/historyDesign", {});
-			const created = fresh.classes.find((each) => each.id === made.id);
-			const history = editorHistory();
-			if (created)
-				history.record({
-					step,
-					resource: `draft:${history.siteId}:designSystem`,
-					before: before as unknown as Json,
-					after: { ...before, classes: [...before.classes, created] } as unknown as Json,
-					label: name,
-					location: { siteId: history.siteId, title: document.title, panel: "css" },
-				});
-			return made;
-		},
-		renameClass: async (classId, name) => {
-			const before = await bridge.call<{ classes: { id: string; name: string }[] }>("code/historyDesign", {});
-			await bridge.call("code/editorService", { method: "classes.update", input: { classId, name } });
-			const history = editorHistory();
-			history.record({
-				resource: `draft:${history.siteId}:designSystem`,
-				before: before as unknown as Json,
-				after: {
-					...before,
-					classes: before.classes.map((each) => (each.id === classId ? { ...each, name } : each)),
-				} as unknown as Json,
-				label: t("editorHistory.rename", { name: `.${name}` }),
-				location: { siteId: history.siteId, title: document.title, panel: "css" },
-			});
-		},
+		...classHistoryPort({
+			create: (name) => bridge.call<ClassReceipt>("code/createClass", { name }),
+			rename: (classId, name) =>
+				bridge.call<ClassReceipt>("code/editorService", { method: "classes.update", input: { classId, name } }),
+			location: () => ({ siteId: editorHistory().siteId, title: document.title, panel: "css" }),
+			label: (action, name) => t(`builder.css.${action}`, { name }),
+		}),
 		preview: (change) => bridge.previewCss?.(change),
 	};
 	return port.current;
@@ -1837,21 +1814,10 @@ function SourcePanels({
 						const next = replaceAt(current, path, { type: "value", path: made.path });
 						const message = t("builder.fixedText.made", { binding: `{{ ${made.path} }}` });
 						if (made.props) {
-							const props = identifyNewProps(made.props);
-							const changed = shared?.change((current) => ({
-								...(current as Record<string, Json>),
-								props: props as unknown as Json,
-								tree: next as unknown as Json,
-							}));
-							if (!changed) {
-								const problem = t(`coEditing.status.${shared?.status ?? "connecting"}`);
-								announce(problem);
-								return problem;
-							}
+							const refused = changeProps(made.props, message, next);
+							if (refused) return refused;
 							setSelection({ kind: "node", path });
 							selectedId.current = selectionKey(next, { kind: "node", path });
-							onTree(next);
-							announce(message);
 						} else {
 							const refused = apply(next, { kind: "node", path }, message);
 							if (refused) return refused;

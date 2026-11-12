@@ -17,6 +17,7 @@ import {
 	type EditableDesignSystem,
 	editable,
 	keepClasses,
+	type SavedClass,
 	withChange,
 } from "../design-system/drafts.ts";
 import { ClassNotFoundError } from "../design-system/errors.ts";
@@ -161,9 +162,15 @@ export function previewCss(draft: DesignSystem, change: { target: CssTarget; tex
 }
 
 /** Makes a Class of the Draft from a name the HTML panel doesn't know, with no styles yet. */
-export async function makeClass(scope: SiteScope, name: string): Promise<{ class: CodeClass }> {
+export async function makeClass(
+	scope: SiteScope,
+	name: string,
+): Promise<{ class: CodeClass; history: SavedClass["history"] }> {
 	const made = await createClass(scope, { name });
-	return { class: { ...made.class, version: classVersion(made.class), usage: { elements: 0, pages: 0 } } };
+	return {
+		class: { ...made.class, version: classVersion(made.class), usage: { elements: 0, pages: 0 } },
+		history: made.history,
+	};
 }
 
 /** The design tokens' custom properties, by kind, with their light values. */
