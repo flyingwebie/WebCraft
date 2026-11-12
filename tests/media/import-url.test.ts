@@ -4,6 +4,7 @@
 // inside a network after DNS and after each redirect, too many redirects, too large, too slow, and a
 // DNS answer that changes between the check and the connection.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { MEDIA_IMPORT_LIMITS } from "@webcraft/core";
 
 import { photo } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
@@ -32,10 +33,19 @@ afterAll(async () => {
 	await install.close();
 });
 
+/**
+ * Imports `url` as the Author, once the time one import can take has passed: these tests are about
+ * each import, not about how many run at once (`import-url-limits.test.ts`).
+ */
+async function importUrl(url: string) {
+	await install.clock.advance(MEDIA_IMPORT_LIMITS.person.windowMs);
+	return author.api.media.importUrl({ siteId, url });
+}
+
 /** Imports `url` as the Author, expecting a refusal with `problem`; answers the requests it made. */
 async function refused(url: string, problem: string) {
 	const before = install.http.requests.length;
-	await expect(author.api.media.importUrl({ siteId, url })).rejects.toMatchObject({
+	await expect(importUrl(url)).rejects.toMatchObject({
 		code: "MEDIA_IMPORT_REFUSED",
 		data: { problem },
 	});
@@ -50,10 +60,7 @@ describe("Import from URL", () => {
 		});
 		const before = install.http.requests.length;
 
-		const { media } = await author.api.media.importUrl({
-			siteId,
-			url: "https://photos.example/bakes/Sourdough%20Loaf.jpg",
-		});
+		const { media } = await importUrl("https://photos.example/bakes/Sourdough%20Loaf.jpg");
 
 		expect(media).toMatchObject({ kind: "image", status: "processing", fileName: "Sourdough Loaf.jpg", canEdit: true });
 		expect(install.http.requests.slice(before).map((call) => [call.url, call.address])).toEqual([
@@ -78,7 +85,7 @@ describe("Import from URL", () => {
 		install.http.respond("GET", "https://cdn.example/files/croissant.jpg", { body: image });
 		const before = install.http.requests.length;
 
-		const { media } = await author.api.media.importUrl({ siteId, url: "https://photos.example/moved.jpg" });
+		const { media } = await importUrl("https://photos.example/moved.jpg");
 
 		expect(media.fileName).toBe("croissant.jpg");
 		expect(install.http.requests.slice(before).map((call) => call.address)).toEqual([PUBLIC, OTHER_PUBLIC]);
@@ -124,7 +131,7 @@ describe("Import from URL", () => {
 		// A service name only the server's own network knows: its answer would map that network.
 		install.dns.answer("postgres", ["172.18.0.3"]);
 		const refusal = (url: string) =>
-			author.api.media.importUrl({ siteId, url }).then(
+			importUrl(url).then(
 				() => {
 					throw new Error(`${url} was imported.`);
 				},
@@ -160,7 +167,7 @@ describe("Import from URL", () => {
 		install.dns.answer("db.internal.example", ["10.9.8.7"]);
 		install.http.respond("GET", "https://photos.example/again", { status: 302, headers: { location: "/again" } });
 		const messageOf = (url: string) =>
-			author.api.media.importUrl({ siteId, url }).then(
+			importUrl(url).then(
 				() => "imported",
 				(error: { message?: string }) => error.message,
 			);
@@ -238,7 +245,7 @@ describe("Import from URL", () => {
 		install.http.respond("GET", "https://rebind.example/a.jpg", { body: image });
 		const before = install.http.requests.length;
 
-		await author.api.media.importUrl({ siteId, url: "https://rebind.example/a.jpg" });
+		await importUrl("https://rebind.example/a.jpg");
 
 		expect(install.http.requests.slice(before).map((call) => call.address)).toEqual([PUBLIC]);
 	});
@@ -252,13 +259,12 @@ describe("Import from URL", () => {
 			await refused(url, "scheme");
 		}
 		install.http.respond("GET", "https://photos.example/missing.jpg", { status: 404, body: "Not Found" });
-		await expect(
-			author.api.media.importUrl({ siteId, url: "https://photos.example/missing.jpg" }),
-		).rejects.toMatchObject({ code: "MEDIA_IMPORT_REFUSED", data: { problem: "status", status: 404 } });
+		await expect(importUrl("https://photos.example/missing.jpg")).rejects.toMatchObject({
+			code: "MEDIA_IMPORT_REFUSED",
+			data: { problem: "status", status: 404 },
+		});
 
 		install.http.respond("GET", "https://photos.example/page.jpg", { body: "<!doctype html><title>Hi</title>" });
-		await expect(author.api.media.importUrl({ siteId, url: "https://photos.example/page.jpg" })).rejects.toMatchObject({
-			code: "MEDIA_TYPE_REFUSED",
-		});
+		await expect(importUrl("https://photos.example/page.jpg")).rejects.toMatchObject({ code: "MEDIA_TYPE_REFUSED" });
 	});
 });

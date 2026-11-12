@@ -19,6 +19,12 @@ export function servedName(hash: string, fileName: string, extension: string, wi
 
 /** The SHA-256 of a file, in hexadecimal. */
 export async function contentHash(data: Uint8Array): Promise<string> {
-	const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new Uint8Array(data)));
+	// Web Crypto reads bytes in a buffer of their own as they are; only shared memory is copied first,
+	// so a large file isn't held twice while it is hashed.
+	const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", inOwnBuffer(data) ? data : new Uint8Array(data)));
 	return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function inOwnBuffer(data: Uint8Array): data is Uint8Array<ArrayBuffer> {
+	return data.buffer instanceof ArrayBuffer;
 }

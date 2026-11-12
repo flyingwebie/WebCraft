@@ -33,7 +33,7 @@ export {
 	type VariantFormat,
 	variantWidths,
 } from "./images.ts";
-export { MEDIA_IMPORT_TIMEOUT_MS, MediaImportRefusedError } from "./import.ts";
+export { MEDIA_IMPORT_LIMITS, MEDIA_IMPORT_TIMEOUT_MS, MediaImportRefusedError } from "./import.ts";
 export {
 	type InstallStorage,
 	STORAGE_S3_SECRET,

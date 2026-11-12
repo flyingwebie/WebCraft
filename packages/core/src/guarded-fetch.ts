@@ -211,7 +211,10 @@ function redirected(hop: Hop, url: URL, status: number): Hop {
 	return { url, method: "GET", headers, body: null };
 }
 
-/** The response, with its body read in full: refused once it grows past `maxBytes`. */
+/**
+ * The response, with its body read in full: refused once it grows past `maxBytes`. The answer's body
+ * hands out the chunks as they were read, never joined into a second copy of a large file.
+ */
 async function readLimited(response: Response, maxBytes: number, isHead: boolean): Promise<Response> {
 	const declared = Number(response.headers.get("content-length"));
 	// HEAD declares the representation's GET size, not a response body. Actual bytes remain bounded.
@@ -234,17 +237,23 @@ async function readLimited(response: Response, maxBytes: number, isHead: boolean
 			chunks.push(value);
 		}
 	}
-	const body = new Uint8Array(size);
-	let offset = 0;
-	for (const chunk of chunks) {
-		body.set(chunk, offset);
-		offset += chunk.byteLength;
-	}
 	const empty = response.status === 204 || response.status === 304 || response.status === 205;
-	return new Response(empty ? null : body, {
+	return new Response(empty ? null : replayed(chunks), {
 		status: response.status,
 		statusText: response.statusText,
 		headers: response.headers,
+	});
+}
+
+/** A body of chunks read before, handed out one at a time. */
+function replayed(chunks: readonly Uint8Array[]): ReadableStream<Uint8Array> {
+	let next = 0;
+	return new ReadableStream({
+		pull(controller) {
+			const chunk = chunks[next++];
+			if (chunk) controller.enqueue(chunk);
+			else controller.close();
+		},
 	});
 }
 

@@ -122,7 +122,8 @@ export const media = {
 	 * Import from URL: fetches the file at a public address and takes it as an upload. Refused
 	 * (`MEDIA_IMPORT_REFUSED`, `data.problem`) for anything but http(s), addresses inside a network
 	 * (after DNS and after each redirect), more than 3 redirects, more than 30 seconds, a file larger
-	 * than the Install's largest, or an error answer (`status`).
+	 * than the Install's largest, or an error answer (`status`). A person starts at most 5 imports, and
+	 * a Site takes at most 15, within 30 seconds (`TOO_MANY_REQUESTS` past either, with `Retry-After`).
 	 */
 	importUrl: signedIn
 		.input(z.object({ siteId: id, url: z.string().trim().min(1).max(2048), folderId: id.nullable().optional() }))

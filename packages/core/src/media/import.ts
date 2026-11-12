@@ -1,8 +1,19 @@
 import { type GuardedFetch, GuardedFetchError, type GuardedFetchProblem } from "../guarded-fetch.ts";
 import type { Logger } from "../log.ts";
+import type { RateLimitRule } from "../rate-limits.ts";
 
 /** How long Import from URL waits for a whole file: the most the guarded fetcher allows. */
 export const MEDIA_IMPORT_TIMEOUT_MS = 30_000;
+
+/**
+ * How many Imports from URL a person, and a Site, may start within the time one import can take.
+ * Each holds its whole file in the web process's memory while it is fetched, so these bound how many
+ * files are held at once: at most twice the limit, for imports started either side of a window's end.
+ */
+export const MEDIA_IMPORT_LIMITS = {
+	person: { limit: 5, windowMs: MEDIA_IMPORT_TIMEOUT_MS },
+	site: { limit: 15, windowMs: MEDIA_IMPORT_TIMEOUT_MS },
+} as const satisfies Record<string, RateLimitRule>;
 
 /**
  * Import from URL refused the address or what it answered: one of the guarded fetcher's problems
