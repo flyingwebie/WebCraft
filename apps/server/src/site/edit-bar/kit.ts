@@ -1,4 +1,6 @@
 import type { DraftClient } from "@webcraft/core/draft-document";
+import type { HistoryTarget } from "../../ui/builder/commands.ts";
+import type { PageLayoutController } from "../../ui/page-layouts/controller.ts";
 /**
  * What the editing bar hands its parts (the image popover, Loop item tools, Page details): the
  * browser functions it kept before any Site script ran, its words, its requests and its shared
@@ -36,6 +38,7 @@ export type BarState = {
 	canPublish: boolean;
 	canCode: boolean;
 	person: { name: string };
+	site: { id: string; name: string };
 	language: { code: string; name: string };
 	defaultLanguage: string;
 	languages: PageLanguage[];
@@ -150,6 +153,68 @@ export type SharedDraft = {
 	listen(listener: (draft: unknown) => void): () => void;
 	/** Sends what is waiting and waits (a few seconds at most) until the server saved it; false if it didn't. */
 	saved(): Promise<boolean>;
+	/**
+	 * Takes back (or makes again) one of the person's own steps in this Draft, as the Undo history asks:
+	 * only what the step changed, on the Draft as it is now, saved like any other change. The page then
+	 * shows it, as it shows someone else's change.
+	 */
+	reverse: DraftClient["reverse"];
+};
+
+/** The exact change a save made to a Draft, as the `save` edit request answers it (`RegionHistory` on the server). */
+export type SavedChange = { resource: string; before: unknown; after: unknown };
+
+/** A place kept in the Undo history for an own action while its save is on its way. */
+export type HistoryPlace = {
+	/** The action was accepted: its change becomes a step, labelled, shown again at `item`'s `field`. */
+	record(change: SavedChange, label: string, shown: { item: string; field: string }): void;
+	/** The action is over, accepted or refused: later actions no longer wait behind it. */
+	settle(): void;
+};
+
+/** One of the bar's Undo and Redo buttons, as the history words it now. */
+export type HistoryButton = {
+	/** "Undo Edit Subtitle": what it does to which step, or plain "Undo" when there is none. */
+	label: string;
+	/** The label with the keys, for a tooltip: "Undo Edit Subtitle (⌘Z)". */
+	title: string;
+	/** The keys, for `aria-keyshortcuts`. */
+	keys: string;
+	enabled: boolean;
+};
+
+/**
+ * Edit mode's Undo history (ADR 0036) as the Command menu and the keys use it: the one history's
+ * target, whose Undo and Redo first finish what the person is still typing.
+ */
+export type EditHistory = HistoryTarget & {
+	/** Called when availability or labels change; answers what stops it. */
+	subscribe(listener: () => void): () => void;
+};
+
+/** What the Undo history's module (`ui/edit-history`) gives the bar back. */
+export type HistoryTools = {
+	target: EditHistory;
+	buttons(): { undo: HistoryButton; redo: HistoryButton };
+	/** Keeps the next place among the person's steps for an action being saved. */
+	reserve(): HistoryPlace;
+	/** One of the page's shared Drafts opened: its steps are taken back through it. */
+	opened(item: string): void;
+	/** The Page layout's controller, once it is there: its finished actions are steps. */
+	layout(controller: PageLayoutController): void;
+	/**
+	 * The address to leave for with the history handed over (#136's `departure`), once what the person
+	 * was typing is saved and recorded. Null cancels leaving: the history changed while it was handed over.
+	 */
+	departure(url: string): Promise<string | null>;
+};
+
+/** What the bar gives the Undo history's module. */
+export type HistoryHost = {
+	/** Saves what the person is still typing, and waits until each save is answered. */
+	finish(): Promise<void>;
+	/** Brings a region into view without moving focus; false when the page doesn't show it. */
+	reveal(item: string, field: string): boolean;
 };
 
 /** What `kit.panel` takes: everything the mechanic needs but what the caller's own panel differs in. */

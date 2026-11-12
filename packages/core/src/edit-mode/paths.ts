@@ -21,6 +21,20 @@ export function isEditPath(path: string): boolean {
 	return path.length <= 2000 && /^\/(?![/\\])[^\s\\?#]*$/.test(path);
 }
 
+/**
+ * Whether `address` is a page of a Site with its query, as Edit mode shows the same page again after
+ * a mode switch: a path as `isEditPath` takes them, then at most a query; never a fragment, a
+ * backslash or whitespace.
+ */
+export function isEditPageAddress(address: string): boolean {
+	const query = address.indexOf("?");
+	return (
+		address.length <= 4000 &&
+		isEditPath(query < 0 ? address : address.slice(0, query)) &&
+		!/[\s\\#]/.test(query < 0 ? "" : address.slice(query))
+	);
+}
+
 /** A Code-mode source/Placement chain and optional stored or derived selection carried between canvases. */
 export function isCodeSelection(selection: string): boolean {
 	return (
