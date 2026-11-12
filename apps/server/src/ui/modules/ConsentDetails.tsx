@@ -96,35 +96,47 @@ export function ConsentDetails({ module, headingLevel = 3 }: { module: ModuleVie
 			: []),
 	];
 
-	const added: string[] = [
-		...(adds.siteRoutes ? [t("modules.consent.siteRoutes", { path: adds.siteRoutes })] : []),
+	/** What an update added among the Module's capabilities, which its approval doesn't cover yet. */
+	const fresh = (capability: (typeof adds.unapproved)[number]) => adds.unapproved.includes(capability);
+	const added: { text: string; isNew?: boolean }[] = [
+		...(adds.siteRoutes
+			? [{ text: t("modules.consent.siteRoutes", { path: adds.siteRoutes }), isNew: fresh("siteRoutes") }]
+			: []),
 		...(adds.adminPages.length > 0
-			? [t("modules.consent.adminPages", { pages: joinWords(adds.adminPages, and) })]
+			? [{ text: t("modules.consent.adminPages", { pages: joinWords(adds.adminPages, and) }) }]
 			: []),
-		...(adds.tables > 0 ? [t("modules.consent.tables", { level: module.level })] : []),
-		...module.partitions.map((partition) =>
-			t("modules.consent.partitions", { label: partition.label, months: partition.keepMonths }),
-		),
+		...(adds.tables > 0 ? [{ text: t("modules.consent.tables", { level: module.level }) }] : []),
+		...module.partitions.map((partition) => ({
+			text: t("modules.consent.partitions", { label: partition.label, months: partition.keepMonths }),
+		})),
 		...(adds.components.length > 0
-			? [t("modules.consent.components", { names: joinWords(adds.components, and) })]
+			? [{ text: t("modules.consent.components", { names: joinWords(adds.components, and) }) }]
 			: []),
-		...(adds.submissions ? [t("modules.consent.submissions")] : []),
-		...(adds.redirectRules ? [t("modules.consent.redirectRules")] : []),
-		...(adds.notFoundLog ? [t("modules.consent.notFoundLog")] : []),
+		...(adds.submissions ? [{ text: t("modules.consent.submissions"), isNew: fresh("submissions") }] : []),
+		...(adds.redirectRules ? [{ text: t("modules.consent.redirectRules"), isNew: fresh("redirectRules") }] : []),
+		...(adds.notFoundLog ? [{ text: t("modules.consent.notFoundLog"), isNew: fresh("notFoundLog") }] : []),
 		...(adds.importSources.length > 0
-			? [t("modules.consent.importSources", { sources: joinWords(adds.importSources, and) })]
+			? [
+					{
+						text: t("modules.consent.importSources", { sources: joinWords(adds.importSources, and) }),
+						isNew: fresh("importSources"),
+					},
+				]
 			: []),
-		...[...new Set(adds.schedules)].map((every) => t("modules.consent.schedule", { every })),
+		...[...new Set(adds.schedules)].map((every) => ({ text: t("modules.consent.schedule", { every }) })),
 		...(adds.events.length > 0
 			? [
-					t("modules.consent.events", {
-						events: joinWords(
-							adds.events.map((event) =>
-								t(EVENT_KEYS[event as keyof typeof EVENT_KEYS] ?? "modules.events.entryPublished"),
+					{
+						text: t("modules.consent.events", {
+							events: joinWords(
+								adds.events.map((event) =>
+									t(EVENT_KEYS[event as keyof typeof EVENT_KEYS] ?? "modules.events.entryPublished"),
+								),
+								t("modules.and"),
 							),
-							t("modules.and"),
-						),
-					}),
+						}),
+						isNew: fresh("events"),
+					},
 				]
 			: []),
 	];
@@ -154,8 +166,15 @@ export function ConsentDetails({ module, headingLevel = 3 }: { module: ModuleVie
 					<p className="text-muted-foreground">{t("modules.consent.addsNothing")}</p>
 				) : (
 					<ul className="grid list-disc gap-1.5 ps-5">
-						{added.map((text) => (
-							<li key={text}>{text}</li>
+						{added.map((item) => (
+							<li key={item.text}>
+								{item.text}
+								{showNew && item.isNew ? (
+									<Badge variant="secondary" className="ms-2 align-middle">
+										{t("modules.consent.new")}
+									</Badge>
+								) : null}
+							</li>
 						))}
 					</ul>
 				)}

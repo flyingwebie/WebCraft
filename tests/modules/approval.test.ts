@@ -1,7 +1,7 @@
 // Approving Modules (story 148): the Superadmin sees what each Module asks for and approves it on
 // the consent screen; an update that asks for more waits for approval, off everywhere until then.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { ModuleDefinition } from "@webcraft/module-sdk";
+import { type ModuleDefinition, submissionReceiver } from "@webcraft/module-sdk";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { sampleBoard } from "./sample/board.ts";
@@ -72,6 +72,7 @@ describe("the Modules screen", () => {
 				notFoundLog: false,
 				schedules: [],
 				importSources: [],
+				unapproved: [],
 			},
 			partitions: [],
 		});
@@ -138,6 +139,10 @@ describe("approving a Module", () => {
 					"use:email",
 					"host:hooks.sample.example",
 					"script:analytics",
+					// Its capabilities are approved with what it asks for.
+					"capabilities",
+					"routes",
+					"event:entry.published",
 				],
 			},
 		});
@@ -205,6 +210,57 @@ describe("updates", () => {
 			await (await updates.superadmin()).api.modules.approve({ moduleId: "sample", version: "2.0.0" });
 			const after = await (await updates.superadmin()).api.modules.list();
 			expect(after.modules[0]).toMatchObject({ status: "approved", approval: { version: "2.0.0" } });
+		} finally {
+			await updates.close();
+		}
+	});
+
+	test("an update that starts keeping Form Submissions waits for approval, though it asks for nothing more", async () => {
+		const updates = await createTestInstall({ modules: [sample] });
+		try {
+			const admin = await updates.superadmin();
+			await admin.api.modules.approve({ moduleId: "sample", version: "1.0.0" });
+			expect((await admin.api.modules.list()).modules[0]?.adds).toMatchObject({ submissions: false, unapproved: [] });
+			// The next version keeps what visitors send through every Site's Forms, with the same manifest.
+			const keeping: ModuleDefinition = {
+				...sampleAt("1.1.0"),
+				formSubmissions: submissionReceiver({
+					readPermission: "notes.view",
+					receive: async () => ({ id: crypto.randomUUID() }),
+				}),
+			};
+
+			await updates.restart({ modules: [keeping] });
+
+			const { modules } = await (await updates.superadmin()).api.modules.list();
+			expect(modules[0]).toMatchObject({
+				version: "1.1.0",
+				status: "update-waiting",
+				approval: { version: "1.0.0" },
+				adds: { submissions: true, unapproved: ["submissions"] },
+			});
+			expect(modules[0]?.asks.permissions.every((permission) => !permission.isNew)).toBe(true);
+
+			await (await updates.superadmin()).api.modules.approve({ moduleId: "sample", version: "1.1.0" });
+			const after = await (await updates.superadmin()).api.modules.list();
+			expect(after.modules[0]).toMatchObject({ status: "approved", adds: { submissions: true, unapproved: [] } });
+		} finally {
+			await updates.close();
+		}
+	});
+
+	test("so does one that starts answering on Sites, reacting to an event or importing from somewhere new", async () => {
+		const updates = await createTestInstall({ modules: [sampleAt("1.0.0")] });
+		try {
+			const quiet: ModuleDefinition = { ...sampleAt("1.0.0"), siteRoutes: [], events: {} };
+			await updates.restart({ modules: [quiet] });
+			await (await updates.superadmin()).api.modules.approve({ moduleId: "sample", version: "1.0.0" });
+
+			await updates.restart({ modules: [sampleAt("1.1.0")] });
+
+			const { modules } = await (await updates.superadmin()).api.modules.list();
+			expect(modules[0]).toMatchObject({ status: "update-waiting" });
+			expect(modules[0]?.adds.unapproved).toEqual(expect.arrayContaining(["siteRoutes", "events"]));
 		} finally {
 			await updates.close();
 		}
