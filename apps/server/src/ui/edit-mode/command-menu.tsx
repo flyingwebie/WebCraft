@@ -47,15 +47,20 @@ const NO_HISTORY: HistoryTarget = { undo() {}, redo() {}, canUndo: () => false, 
 
 const WITHOUT_INSERT: readonly CommandTab[] = ["actions", "goTo"];
 
-/** Where Edit mode's text takes formatting: rich text regions and the body, as the page tags them. */
-const RICH_TEXT = '[data-wc-type="richText"], [data-wc-type="body"]';
-
 /**
- * In rich text, ⌘K and ⌘I are the text's own (a link, italic): the menu's Actions and Insert open
- * there from the Edit bar's search button, and Go to's key (⌘P) still works.
+ * Where a tab's key is the text's own instead: ⌘I is italic in rich text regions and in the Body, and
+ * ⌘K asks for a link's address in the Body alone (a rich text region's link is its toolbar's, so the
+ * key opens the menu there: it is never a dead key). The Edit bar's search button opens the menu from
+ * anywhere, and Go to's key (⌘P) is nobody else's.
  */
+const TEXT_KEYS: Partial<Record<CommandTab, string>> = {
+	actions: '[data-wc-type="body"]',
+	insert: '[data-wc-type="richText"], [data-wc-type="body"]',
+};
+
 function typingInRichText(event: KeyboardEvent, tab: CommandTab): boolean {
-	return tab !== "goTo" && event.composedPath().some((each) => each instanceof Element && each.matches(RICH_TEXT));
+	const text = TEXT_KEYS[tab];
+	return !!text && event.composedPath().some((each) => each instanceof Element && each.matches(text));
 }
 
 /**
@@ -201,18 +206,20 @@ function EditCommandMenu({
 		return () => kit.win.removeEventListener("keydown", key);
 	}, [kit, bar, wide, editing]);
 
-	/** Leaves for another page once what is on its way to the Draft is saved; stays when it wasn't. */
-	const leaveTo = async (url: string) => {
-		if (await bar.settle()) kit.win.location.assign(url);
-	};
 	const actions = editActions(t, { bar, editing, history: history ?? NO_HISTORY, layout });
+	// Leaving is the bar's: it saves what is on its way to the Draft and hands the Undo history over.
 	const goTo = data
-		? editGoTo(t, data, layout, {
-				page: (path) => void leaveTo(path),
-				builder: (target: BuilderTarget) =>
-					void leaveTo(new URL(`/builder/${data.siteId}/${targetPath(target)}`, data.adminOrigin).href),
-				selected: (label) => announce(t("builder.commandMenu.editMode.selected", { name: label })),
-			})
+		? editGoTo(
+				t,
+				data,
+				{ layout, editing },
+				{
+					page: (path) => bar.go(path),
+					builder: (target: BuilderTarget) =>
+						bar.go(new URL(`/builder/${data.siteId}/${targetPath(target)}`, data.adminOrigin).href),
+					selected: (label) => announce(t("builder.commandMenu.editMode.selected", { name: label })),
+				},
+			)
 		: null;
 
 	return (
@@ -236,7 +243,8 @@ function EditCommandMenu({
 				open={shortcutsOpen && wide}
 				onOpenChange={setShortcutsOpen}
 				can={can}
-				edit={{ arranging: arranging(layout), history: history !== null }}
+				// In Preview nothing is edited: the keys that save, undo and redo aren't bound there.
+				edit={{ arranging: arranging(layout), history: editing && history !== null, editing }}
 			/>
 		</>
 	);

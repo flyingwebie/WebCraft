@@ -26,14 +26,15 @@ export type Shortcut = {
 	/**
 	 * Set on the shortcuts that also work in Edit mode (#139), where Members use them: the Permission
 	 * each needs there, its words there when they differ (the tree is the Page layout drawer: Placements,
-	 * not layers), and what else it needs: a Page layout the person may arrange, or an Undo history.
+	 * not layers), and what else it needs: a Page layout the person may arrange, the page being edited
+	 * (not Preview), or its Undo history while it is edited.
 	 */
-	editMode?: { permission: Permission; label?: MessageKey; needs?: "arranging" | "history" };
+	editMode?: { permission: Permission; label?: MessageKey; needs?: "arranging" | "history" | "editing" };
 };
 
 /** In Edit mode: the Page layout drawer's keys and Insert, for those who may arrange the page. */
 const ARRANGING = { permission: "entry.edit", needs: "arranging" } as const;
-/** In Edit mode: Undo and Redo, once the page has an Undo history (#140). */
+/** In Edit mode: Undo and Redo, once the page's Undo history is there (#140), while the page is edited. */
 const HISTORY = { permission: "entry.edit", needs: "history" } as const;
 
 /**
@@ -74,7 +75,7 @@ export const SHORTCUTS = [
 		area: "editor",
 		chords: [{ key: "s", mod: true }],
 		label: "builder.commandMenu.actions.save",
-		editMode: { permission: "entry.edit" },
+		editMode: { permission: "entry.edit", needs: "editing" },
 	},
 	{
 		id: "editor.undo",

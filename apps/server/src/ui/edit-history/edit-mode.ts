@@ -32,6 +32,21 @@ class Refused extends Error {
 	}
 }
 
+/**
+ * A value read from JSON (a Page layout as the server answers it) as a Draft's document types it:
+ * what JSON holds and nothing else, a key without a value left out as JSON leaves it out.
+ */
+function documentValue(value: unknown): Json {
+	if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+		return value;
+	if (Array.isArray(value)) return value.map(documentValue);
+	if (typeof value === "object")
+		return Object.fromEntries(
+			Object.entries(value).flatMap(([key, each]) => (each === undefined ? [] : [[key, documentValue(each)]])),
+		);
+	throw new TypeError("A Page layout holds only what JSON does.");
+}
+
 /** Where a key press keeps the browser's own undo: dialogs, and what the history doesn't hold. */
 const OWN_UNDO = "[role=dialog], dialog, [data-wc-type=body], [data-wc-item^='loop:']";
 
@@ -86,8 +101,17 @@ async function mount(kit: BarKit, host: HistoryHost): Promise<HistoryTools> {
 	const resourceOf = (item: string) => `draft:${siteId}:${item}`;
 	const title = () => kit.state().page.title || kit.state().page.path;
 
+	// A step that was kept or skipped is said where everyone sees it, until the history next moves.
+	let told = false;
 	history.listen({
-		announce: (message, refused) => editorAccessibility(kit.doc).announce(message, refused ? "interrupt" : "polite"),
+		announce(message, refused) {
+			if (refused) host.say(message);
+			else {
+				if (told) host.say(null);
+				editorAccessibility(kit.doc).announce(message, "polite");
+			}
+			told = Boolean(refused);
+		},
 		async reveal(shown) {
 			const item = shown.draft?.startsWith(`draft:${siteId}:`) ? shown.draft.slice(`draft:${siteId}:`.length) : null;
 			if (!item || !kit.shared(item)) return false;
@@ -145,8 +169,8 @@ async function mount(kit: BarKit, host: HistoryHost): Promise<HistoryTools> {
 		// The step's own change to the Draft's layout: its receipt, never the layout as it reads later.
 		history.record({
 			resource,
-			before: { layout: step.before } as unknown as Json,
-			after: { layout: step.after } as unknown as Json,
+			before: { layout: documentValue(step.before) },
+			after: { layout: documentValue(step.after) },
 			label: step.label,
 			location: {
 				siteId,
@@ -197,7 +221,7 @@ async function mount(kit: BarKit, host: HistoryHost): Promise<HistoryTools> {
 	} catch (error) {
 		// A handoff that couldn't be claimed leaves this page's history empty; it works from here on.
 		if (!(error instanceof Refused)) throw error;
-		editorAccessibility(kit.doc).announce(kit.errorText(error.code), "interrupt");
+		host.say(kit.word("historyLost", { reason: kit.word("historyLostReasons.failed") }));
 	}
 
 	return {
@@ -209,14 +233,14 @@ async function mount(kit: BarKit, host: HistoryHost): Promise<HistoryTools> {
 		reserve(): HistoryPlace {
 			const place = order.reserve();
 			return {
-				record(change, label, shown) {
+				record(change, label, field) {
 					place.record(() => {
 						history.record({
 							resource: change.resource,
 							before: change.before,
 							after: change.after,
 							label,
-							location: { siteId, draft: change.resource, panel: "page", ref: shown.field, title: title() },
+							location: { siteId, draft: change.resource, panel: "page", ref: field, title: title() },
 						});
 					});
 				},

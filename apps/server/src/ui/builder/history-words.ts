@@ -1,4 +1,13 @@
-const OUTCOMES = ["undid", "redid", "skipped", "HISTORY_OBSOLETE", "HISTORY_UNAVAILABLE", "HISTORY_PARTIAL"];
+const OUTCOMES = [
+	"undid",
+	"redid",
+	"skipped",
+	"keptUndo",
+	"keptRedo",
+	"HISTORY_OBSOLETE",
+	"HISTORY_UNAVAILABLE",
+	"HISTORY_PARTIAL",
+];
 
 /**
  * How every host of the one Undo history words a step's outcome (the Builder, Code mode and Edit

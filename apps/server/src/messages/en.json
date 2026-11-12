@@ -1630,6 +1630,15 @@
 		"published": "Published. Visitors see the changes now.",
 		"publishedWaiting": "Published. A Loop's item changes still wait for Staff to publish.",
 		"savedToDraft": "Saved to Draft",
+		"notSaved": "Not everything is saved to the Draft. Check what you changed last, then save again.",
+		"stayedUnsaved": "You are still on this page: not everything is saved to the Draft. Check what you changed last, then try again.",
+		"historyLost": "The Undo history couldn't be brought to this page: {reason} Your changes are saved, but the earlier ones can't be undone from here.",
+		"historyLostReasons": {
+			"slow": "handing it over took too long.",
+			"tooLong": "it had grown too long.",
+			"failed": "the handover failed."
+		},
+		"historyUnavailable": "The Undo history couldn't be loaded, so Undo and Redo are off. Reload the page to get them back.",
 		"otherDraftsNone": "No other Drafts on this Site.",
 		"otherDraftsOne": "1 other Draft on this Site.",
 		"otherDraftsOther": "{count} other Drafts on this Site.",
@@ -4903,7 +4912,9 @@
 					"insert": "Hero, Gallery…"
 				},
 				"selected": "Selected {name}",
-				"insertEnd": "Inserts at the end of the page"
+				"insertEnd": "Inserts at the end of the page",
+				"besideLocked": "Next to a locked Placement",
+				"notAllowed": "Its Component can't be added here"
 			}
 		},
 		"components": {
@@ -7921,8 +7932,10 @@
 		"undid": "Undid {label}",
 		"redid": "Redid {label}",
 		"skipped": "Skipped {label}.",
+		"keptUndo": "{label} wasn't undone and stays in the history.",
+		"keptRedo": "{label} wasn't redone and stays in the history.",
 		"HISTORY_OBSOLETE": "This step overlaps a newer change or its target no longer exists.",
-		"HISTORY_UNAVAILABLE": "The Draft is not available for editing.",
+		"HISTORY_UNAVAILABLE": "The Draft can't be changed right now. Try again in a moment.",
 		"refused": "The server refused this step.",
 		"html": "Edit HTML of {name}",
 		"css": "Edit CSS of {name}",

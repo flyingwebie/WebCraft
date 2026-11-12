@@ -160,12 +160,16 @@ export type BarCommands = {
 	/** The bar's search button: hidden until the menu sets its name, tooltip and keys, and opens from it. */
 	button: HTMLButtonElement;
 	/**
-	 * Saves what is still on its way to the Draft (text being typed, a Page layout change, the shared
-	 * Drafts' batches) and waits for it; false when something wasn't saved (the bar has said what).
+	 * Save Draft: saves what is still on its way to the Draft (text being typed, a Page layout change,
+	 * the shared Drafts' batches), then says the Draft is saved, or, for everyone to see, that not
+	 * everything is.
 	 */
-	settle(): Promise<boolean>;
-	/** Save Draft: settles, then says the Draft is saved. */
 	save(): Promise<void>;
+	/**
+	 * Go to: leaves for another address once everything is saved, with the Undo history handed over
+	 * (ADR 0036). While something isn't saved the person stays, and the bar says why.
+	 */
+	go(url: string): void;
 	/** Opens the bar's Publish menu (Changes, with "Submit for review", for those who can't publish). */
 	publish(): void;
 	/** Turns editing in place on (Edit) or off (Preview). */
@@ -203,8 +207,8 @@ export type SavedChange = { resource: string; before: Json; after: Json };
 
 /** A place kept in the Undo history for an own action while its save is on its way. */
 export type HistoryPlace = {
-	/** The action was accepted: its change becomes a step, labelled, shown again at `item`'s `field`. */
-	record(change: SavedChange, label: string, shown: { item: string; field: string }): void;
+	/** The action was accepted: its change becomes a step, labelled, shown again at the region of `field`. */
+	record(change: SavedChange, label: string, field: string): void;
 	/** The action is over, accepted or refused: later actions no longer wait behind it. */
 	settle(): void;
 };
@@ -243,6 +247,11 @@ export type HistoryHost = {
 	finish(): Promise<void>;
 	/** Brings a region into view without moving focus; false when the page doesn't show it. */
 	reveal(item: string, field: string): boolean;
+	/**
+	 * Says something under the bar for everyone to see, and reads it out (a step kept or skipped, a
+	 * history that didn't arrive), until it is dismissed; null takes it away.
+	 */
+	say(message: string | null): void;
 };
 
 /** What `kit.panel` takes: everything the mechanic needs but what the caller's own panel differs in. */

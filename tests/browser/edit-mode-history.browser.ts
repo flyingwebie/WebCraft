@@ -8,7 +8,14 @@ import type { Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
-import { type BrowserInstall, pageErrors, startBrowserInstall, THEMES, type Theme } from "./harness.ts";
+import {
+	type BrowserInstall,
+	forgetPageErrors,
+	pageErrors,
+	startBrowserInstall,
+	THEMES,
+	type Theme,
+} from "./harness.ts";
 
 let install: BrowserInstall;
 // Each case signs its own people into its own Site: Edit mode's links share the sign-in rate limit.
@@ -116,12 +123,15 @@ async function bakery(slug: string, headings = ["North", "South"]) {
 	return { api, siteId, workspaceId, homeId, aboutId, postId: post.id, componentId: component.id, member, read };
 }
 
-/** Opens the Site in Edit mode as `account`, on its home page; `prepare` sets the page up before it loads anything. */
+/**
+ * Opens the Site in Edit mode as `account`, on its home page; `prepare` sets the page up before it
+ * loads anything, and `loaded` waits for something other than the Page layout's button.
+ */
 async function enter(
 	theme: Theme,
 	siteId: string,
 	account: TestAccount,
-	options: { phone?: boolean; prepare?(page: Page): Promise<void> } = {},
+	options: { phone?: boolean; prepare?(page: Page): Promise<void>; loaded?(page: Page): Promise<void> } = {},
 ): Promise<Page> {
 	const page = await install.newPage(theme, { touch: options.phone });
 	page.setDefaultTimeout(10000);
@@ -131,7 +141,7 @@ async function enter(
 	await page.goto(install.adminUrl(`/sites/${siteId}`));
 	await page.getByRole("button", { name: "Edit on site" }).click();
 	await page.waitForURL((url) => url.hostname !== new URL(install.adminUrl("/")).hostname);
-	await layoutButton(page).waitFor();
+	await (options.loaded ?? ((page) => layoutButton(page).waitFor()))(page);
 	return page;
 }
 
@@ -144,6 +154,8 @@ const redoButton = (page: Page) =>
 	page.getByRole("group", { name: "Undo history" }).getByRole("button", { name: "Redo" });
 const tagline = (page: Page) => page.locator('header [data-wc-item="globals"][data-wc-field="tagline"]');
 const said = (page: Page, text: string) => page.locator("[data-editor-messages]").filter({ hasText: text }).waitFor();
+/** The message the bar shows under itself, for everyone to see, until it is dismissed. */
+const shownMessage = (page: Page) => page.locator("webcraft-edit-bar .message");
 
 /** Waits until the history offers `label` as its next Undo (its tooltip starts with it), or none for null. */
 async function nextUndo(page: Page, label: string | null): Promise<void> {
@@ -153,6 +165,24 @@ async function nextUndo(page: Page, label: string | null): Promise<void> {
 		if (!button) return false;
 		return label === null ? button.disabled : !button.disabled && button.title.startsWith(`Undo ${label} (`);
 	}, label);
+}
+
+/** Whether the history offers `label` as its next Undo within a few seconds. */
+async function nextUndoSoon(page: Page, label: string): Promise<boolean> {
+	return page
+		.waitForFunction(
+			(label) => {
+				const bar = document.querySelector("webcraft-edit-bar")?.shadowRoot;
+				const button = bar?.querySelector<HTMLButtonElement>('.history button[aria-label="Undo"]');
+				return !!button && !button.disabled && button.title.startsWith(`Undo ${label} (`);
+			},
+			label,
+			{ timeout: 3000 },
+		)
+		.then(
+			() => true,
+			() => false,
+		);
 }
 
 /** Types over the Tagline in place and leaves it, so the burst is saved as one finished action. */
@@ -518,8 +548,6 @@ test("one finished action is one step: a move however many rows, a burst of typi
 		expect(await order()).toEqual(["West", "North", "South"]);
 
 		// Dragged to a new row: one step.
-		const target = await row("West").boundingBox();
-		if (!target) throw new Error("Missing target row");
 		await row("South").dragTo(row("West"), { targetPosition: { x: 15, y: 2 } });
 		await page.waitForFunction(() =>
 			document.querySelector("main [data-wc-page-placement]")?.textContent?.includes("South"),
@@ -918,6 +946,242 @@ test("steps keep the order they were made in when an earlier save is answered la
 		await said(page, "Undid Props Hero · North");
 		await nextUndo(page, null);
 		expect(await site.read()).toEqual({ tagline: "Baked daily", placements: ["North", "South"] });
+	} catch (error) {
+		console.error(await debug(page));
+		throw error;
+	} finally {
+		await page.close();
+	}
+});
+
+test("a handoff that fails doesn't swallow the link: the page is left, and the next one says the history stayed behind", async () => {
+	const site = await bakery("history-lost");
+	const page = await enter("light", site.siteId, site.member.account);
+	try {
+		await typeTagline(page, "Typed before leaving");
+		await nextUndo(page, "Edit Tagline");
+		// The server refuses the handoff, as it does a history that grew past what it takes.
+		await page.route("**/_webcraft/edit/api/history/transfer", (route) =>
+			route.fulfill({ status: 400, contentType: "application/json", body: JSON.stringify({ code: "BAD_REQUEST" }) }),
+		);
+		await page.getByRole("link", { name: "About us", exact: true }).click();
+		await page.waitForURL((url) => url.pathname === "/about");
+		await layoutButton(page).waitFor();
+		// What was typed is saved; only the history stayed behind, and the page says so for everyone to see.
+		const lost =
+			"The Undo history couldn't be brought to this page: it had grown too long. Your changes are saved, but the earlier ones can't be undone from here.";
+		await shownMessage(page).filter({ hasText: lost }).waitFor();
+		await said(page, lost);
+		expect(await page.locator("[data-editor-messages]").count()).toBe(1);
+		await nextUndo(page, null);
+		expect((await site.read()).tagline).toBe("Typed before leaving");
+		expect(new URL(page.url()).hash).toBe("");
+		// The browser notes the refused handoff in its console: that is this test's doing, not the page's.
+		forgetPageErrors(page, 0, (error) => error.startsWith("Failed to load resource"));
+		await expectAccessibleScreen(page, "Edit mode after a history that couldn't be handed over");
+		await shownMessage(page).getByRole("button", { name: "Dismiss", exact: true }).click();
+		await shownMessage(page).waitFor({ state: "hidden" });
+		// It is said once: loading the page again says nothing.
+		await page.reload();
+		await layoutButton(page).waitFor();
+		await nextUndo(page, null);
+		expect(await shownMessage(page).isVisible()).toBe(false);
+
+		// The bar's own page switcher leaves the same way.
+		await typeTagline(page, "Typed on About");
+		await nextUndo(page, "Edit Tagline");
+		await page.getByRole("button", { name: "Page: About. Switch page" }).click();
+		await page.getByRole("menuitem", { name: /Home/ }).click();
+		await page.waitForURL((url) => url.pathname === "/");
+		await shownMessage(page).filter({ hasText: "it had grown too long" }).waitFor();
+
+		// Edit mode ended meanwhile (signed out elsewhere): a link is still a link, and nothing is said about a history.
+		await page.unroute("**/_webcraft/edit/api/history/transfer");
+		await shownMessage(page).getByRole("button", { name: "Dismiss", exact: true }).click();
+		await typeTagline(page, "Typed before the session ended");
+		await nextUndo(page, "Edit Tagline");
+		await page.route("**/_webcraft/edit/api/history/transfer", (route) =>
+			route.fulfill({
+				status: 401,
+				contentType: "application/json",
+				body: JSON.stringify({ code: "EDIT_MODE_ENDED" }),
+			}),
+		);
+		await page.getByRole("link", { name: "About us", exact: true }).click();
+		await page.waitForURL((url) => url.pathname === "/about");
+		await layoutButton(page).waitFor();
+		await nextUndo(page, null);
+		expect(await shownMessage(page).isVisible()).toBe(false);
+	} catch (error) {
+		console.error(await debug(page));
+		throw error;
+	} finally {
+		await page.close();
+	}
+});
+
+test("a handoff that is never answered doesn't hold a link for good", async () => {
+	const site = await bakery("history-slow");
+	const page = await enter("light", site.siteId, site.member.account);
+	try {
+		await typeTagline(page, "Typed before a slow handoff");
+		await nextUndo(page, "Edit Tagline");
+		// The request hangs: neither an answer nor an error.
+		await page.route("**/_webcraft/edit/api/history/transfer", () => {});
+		await page.getByRole("link", { name: "About us", exact: true }).click();
+		await page.waitForURL((url) => url.pathname === "/about", { timeout: 20_000 });
+		await layoutButton(page).waitFor();
+		await shownMessage(page)
+			.filter({ hasText: "The Undo history couldn't be brought to this page: handing it over took too long." })
+			.waitFor();
+		await nextUndo(page, null);
+		expect((await site.read()).tagline).toBe("Typed before a slow handoff");
+	} catch (error) {
+		console.error(await debug(page));
+		throw error;
+	} finally {
+		await page.close();
+	}
+});
+
+test("a switch to Code mode goes ahead without the history when it can't be handed over", async () => {
+	const site = await bakery("history-lost-code");
+	const staff = (await install.install.createStaff({ workspaces: [site.workspaceId] })).account;
+	const page = await enter("light", site.siteId, staff);
+	try {
+		await typeTagline(page, "Typed before Code mode");
+		await nextUndo(page, "Edit Tagline");
+		await page.route("**/_webcraft/edit/api/history/transfer", (route) => route.abort());
+		await page.getByRole("button", { name: "Code", exact: true }).click();
+		await page.getByRole("textbox", { name: /^HTML of / }).waitFor();
+		await shownMessage(page)
+			.filter({ hasText: "The Undo history couldn't be brought to this page: the handover failed." })
+			.waitFor();
+		expect(await page.getByRole("button", { name: "Undo", exact: true }).isDisabled()).toBe(true);
+		expect((await site.read()).tagline).toBe("Typed before Code mode");
+	} catch (error) {
+		console.error(JSON.stringify({ errors: pageErrors(page), url: page.url() }));
+		throw error;
+	} finally {
+		await page.close();
+	}
+});
+
+for (const theme of THEMES) {
+	test(`Undo while the Draft can't be reached keeps every step, says so, and works once it is back (${theme})`, async () => {
+		const site = await bakery(`history-offline-${theme}`);
+		// The page's shared Drafts go through the test, which can break them as a network would.
+		let down = false;
+		const upstreams: { close(): Promise<void> }[] = [];
+		const page = await enter(theme, site.siteId, site.member.account, {
+			prepare: (page) =>
+				page.routeWebSocket(/\/_webcraft\/edit\/drafts\//, (socket) => {
+					if (down) {
+						socket.close({ code: 1006 }).catch(() => {});
+						return;
+					}
+					const upstream = socket.connectToServer();
+					upstreams.push({ close: () => upstream.close() });
+				}),
+		});
+		try {
+			// Two steps: text typed in place (saved by a request) and a Page layout action.
+			await typeTagline(page, "Typed while online");
+			await nextUndo(page, "Edit Tagline");
+			await layoutButton(page).click();
+			await page.getByRole("treeitem", { name: /Hero · South/ }).click();
+			await page.getByRole("button", { name: "Hide or show", exact: true }).click();
+			await nextUndo(page, "Hide or show Hero · South");
+
+			// The server goes away. Undo can't reach the Draft: the step stays where it is, and so does the one before it.
+			down = true;
+			for (const upstream of upstreams.splice(0)) await upstream.close();
+			const kept =
+				"Hide or show Hero · South wasn't undone and stays in the history. The Draft can't be changed right now. Try again in a moment.";
+			await undoButton(page).click();
+			await said(page, kept);
+			await shownMessage(page).filter({ hasText: kept }).waitFor();
+			await nextUndo(page, "Hide or show Hero · South");
+			expect(await redoButton(page).isDisabled()).toBe(true);
+			// Pressed again, the same: nothing is thrown away however often it is tried.
+			await page.keyboard.press("ControlOrMeta+z");
+			await page.waitForTimeout(500);
+			await nextUndo(page, "Hide or show Hero · South");
+			expect(await site.read()).toEqual({ tagline: "Typed while online", placements: ["North", "South (hidden)"] });
+			await expectAccessibleScreen(page, `Edit mode Undo while the Draft can't be reached ${theme}`);
+
+			// It is back: the same steps are taken back, newest first, and the message goes.
+			down = false;
+			let undone = false;
+			for (let tries = 0; tries < 40 && !undone; tries++) {
+				await undoButton(page).click();
+				undone = await nextUndoSoon(page, "Edit Tagline");
+			}
+			expect(undone).toBe(true);
+			await said(page, "Undid Hide or show Hero · South");
+			await shownMessage(page).waitFor({ state: "hidden" });
+			await undoButton(page).click();
+			await said(page, "Undid Edit Tagline");
+			await nextUndo(page, null);
+			expect(await site.read()).toEqual({ tagline: "Baked daily", placements: ["North", "South"] });
+			expect(await redoButton(page).getAttribute("title")).toStartWith("Redo Edit Tagline (");
+		} catch (error) {
+			console.error(await debug(page));
+			throw error;
+		} finally {
+			await page.close();
+		}
+	});
+}
+
+test("what is typed before the Undo history has loaded is a step all the same", async () => {
+	const site = await bakery("history-early");
+	// The history's module is held back, as on a slow connection.
+	let release = () => {};
+	const held = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	// So are the page's shared Drafts: what they hold arrives after the person has typed.
+	let synced = false;
+	const waiting: (() => void)[] = [];
+	const page = await enter("light", site.siteId, site.member.account, {
+		async prepare(page) {
+			await page.route(/\/_webcraft\/edit\/assets\/history-[0-9a-f]+\.js$/, async (route) => {
+				await held;
+				await route.continue();
+			});
+			await page.routeWebSocket(/\/_webcraft\/edit\/drafts\//, (socket) => {
+				const server = socket.connectToServer();
+				socket.onMessage((message) => server.send(message));
+				server.onMessage((message) => {
+					if (synced) socket.send(message);
+					else waiting.push(() => socket.send(message));
+				});
+			});
+		},
+		loaded: (page) => tagline(page).and(page.locator("[contenteditable]")).waitFor(),
+	});
+	try {
+		// Typed and left at once, before there is a history to keep it in.
+		await typeTagline(page, "Typed early");
+		await page.waitForTimeout(300);
+		expect(await undoButton(page).isDisabled()).toBe(true);
+		// The Draft as the server holds it arrives meanwhile: what was typed and isn't saved yet stays.
+		synced = true;
+		for (const deliver of waiting.splice(0)) deliver();
+		await page.waitForTimeout(400);
+		expect(await tagline(page).textContent()).toBe("Typed early");
+		release();
+		// Once the history is there, what was typed is its first step, and is taken back like any other.
+		await nextUndo(page, "Edit Tagline");
+		expect((await site.read()).tagline).toBe("Typed early");
+		await layoutButton(page).waitFor();
+		await undoButton(page).click();
+		await said(page, "Undid Edit Tagline");
+		await tagline(page)
+			.filter({ hasText: /^Baked daily$/ })
+			.waitFor();
+		expect((await site.read()).tagline).toBe("Baked daily");
 	} catch (error) {
 		console.error(await debug(page));
 		throw error;

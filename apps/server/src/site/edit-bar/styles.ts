@@ -6,7 +6,7 @@
  */
 export const PAGE_STYLES = `
 html.wc-edit-on.wc-arrange-on [data-wc-page-placement]{outline:1px dashed #64748b;outline-offset:2px}
-html.wc-edit-on.wc-arrange-on [data-wc-placement-selected]{outline:3px solid #2563eb;outline-offset:3px}
+html.wc-edit-on [data-wc-placement-selected]{outline:3px solid #2563eb;outline-offset:3px}
 [data-wc-placement-prop][contenteditable="true"]:focus{outline:2px solid #2563eb}
 
 webcraft-edit-bar { display: block !important; }
@@ -254,10 +254,14 @@ svg { flex: none; }
 .others svg { margin-top: 0.125rem; }
 .others a { color: var(--text); font-weight: 600; }
 
-.notice {
+/* What the bar says under itself: a failed script's notice, and its own messages, one under the other. */
+.notices {
 	position: fixed; z-index: 2147483000; inset-block-start: 4rem; inset-inline: 0.75rem; margin-inline: auto;
+	display: grid; gap: 0.5rem; max-width: 48rem; pointer-events: none;
+}
+.notice {
 	display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem;
-	max-width: 48rem; padding: 0.75rem 0.75rem 0.75rem 1rem;
+	padding: 0.75rem 0.75rem 0.75rem 1rem; pointer-events: auto;
 	background: var(--problem-bg); color: var(--problem-text);
 	border: 1px solid var(--problem-border); border-radius: 0.75rem; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
 }

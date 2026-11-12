@@ -137,8 +137,8 @@ export function useEditorKeys(options: {
 	/** The tabs the menu has here (all three unless a canvas leaves one out). */
 	tabs?: readonly CommandTab[];
 	/**
-	 * True where a tab's key belongs to what is being typed in instead (Edit mode's rich text, where ⌘K
-	 * makes a link and ⌘I italic): the key is left alone there.
+	 * True where a tab's key belongs to what is being typed in instead (Edit mode's text: ⌘I is italic in
+	 * rich text, ⌘K a link in the Body): the key is left alone there.
 	 */
 	typing?(event: KeyboardEvent, tab: CommandTab): boolean;
 	openShortcuts(): void;
@@ -663,7 +663,9 @@ export function CommandMenu({
 								id={`${id}-list`}
 								role="listbox"
 								aria-label={t(`builder.commandMenu.tabs.${tab}`)}
-								className="grid max-h-80 overflow-y-auto rounded-md border p-1"
+								// Positioned, so what its rows hold for screen readers alone scrolls with them and is
+								// clipped here: left to the dialog, it made the dialog itself scroll under a long list.
+								className="relative grid max-h-80 overflow-y-auto rounded-md border p-1"
 							>
 								{tab === "goTo" && goTo === null ? (
 									<p className="text-muted-foreground p-2 text-sm">{t("builder.commandMenu.loading")}</p>
@@ -740,7 +742,7 @@ export function ShortcutsDialog({
 	open: boolean;
 	onOpenChange(open: boolean): void;
 	can(permission: Permission): boolean;
-	edit?: { arranging: boolean; history: boolean };
+	edit?: { arranging: boolean; history: boolean; editing: boolean };
 }) {
 	const t = useT();
 	const id = useId();

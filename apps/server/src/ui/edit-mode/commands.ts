@@ -4,7 +4,12 @@ import type { BarCommands } from "../../site/edit-bar/kit.ts";
 import { type Canvas, type Command, type HistoryTarget, historyCommands } from "../builder/commands.ts";
 import { destinationCommands, type GoToTarget } from "../builder/go-to.ts";
 import type { useT } from "../i18n.tsx";
-import type { LayoutAction, PageLayoutController } from "../page-layouts/controller.ts";
+import {
+	HEADER_ROW,
+	type LayoutAction,
+	type LayoutRefusal,
+	type PageLayoutController,
+} from "../page-layouts/controller.ts";
 
 type T = ReturnType<typeof useT>;
 
@@ -13,9 +18,6 @@ export type EditMenuData = CommandMenuData & { siteId: string; adminOrigin: stri
 
 /** Edit mode's own commands show nowhere else. */
 const EDIT: readonly Canvas[] = ["edit"];
-
-/** The rows of the Page layout drawer that aren't Placements: the Page template's header and footer. */
-const CONTEXT = { header: "context:header", footer: "context:footer" };
 
 /**
  * The Placement selected in the Page layout, where the person may arrange the page now: its id and
@@ -29,8 +31,15 @@ function selectedPlacement(layout: PageLayoutController | null) {
 
 /** Whether the person may arrange the page's layout now (never in Preview, or where arranging is off). */
 export function arranging(layout: PageLayoutController | null): boolean {
-	const state = layout?.state();
-	return !!state?.editing && state.data.canArrange;
+	return !!layout?.state().editing;
+}
+
+/** Why the Page layout refuses an action, in words, where there is something to tell: a save under way passes. */
+function refusalWords(t: T, refusal: LayoutRefusal | null): string | undefined {
+	if (refusal === "locked") return t("pageLayout.locked");
+	if (refusal === "besideLocked") return t("builder.commandMenu.editMode.besideLocked");
+	if (refusal === "notAllowed") return t("builder.commandMenu.editMode.notAllowed");
+	return undefined;
 }
 
 /**
@@ -118,16 +127,17 @@ export function editActions(
 		canvases: EDIT,
 	} as const;
 	// A locked Placement keeps its place for everyone who can't unlock it; its Props stay theirs to edit.
-	const locked = placement.locked && !layout.state().data.canLock ? t("pageLayout.locked") : undefined;
+	// What the Page layout refuses is listed all the same, off, with the layout's own reason.
 	const act = (action: LayoutAction, label: string, keywords: string, more: Partial<Command> = {}): Command => {
-		const allowed = layout.allowed(action, placement.id);
+		const refusal = layout.refusal(action, placement.id);
+		const reason = refusalWords(t, refusal);
 		return {
 			...on,
 			id: `placement-${action}`,
 			label,
 			keywords: words(keywords),
-			disabled: !allowed,
-			...(!allowed && locked ? { reason: locked } : {}),
+			disabled: refusal !== null,
+			...(reason ? { reason } : {}),
 			run: async () => {
 				await layout.action(action, placement.id);
 			},
@@ -161,17 +171,19 @@ export function editActions(
 
 /**
  * Edit mode's Go to (#139): Pages and Entries of the Site (and, for those who may change Structure,
- * Templates and Components), then the page's Placements by their Page layout drawer label, where the
- * person may arrange the page. Picking a Placement selects it, which scrolls to it.
+ * Templates and Components), then, while the page is being edited, its Placements by their Page layout
+ * drawer label, for everyone who may edit it, arranging or not. Picking a Placement selects it, which
+ * scrolls to it. In Preview nothing is selected, so there are none to go to.
  */
 export function editGoTo(
 	t: T,
 	data: EditMenuData,
-	layout: PageLayoutController | null,
+	target: { layout: PageLayoutController | null; editing: boolean },
 	go: Pick<GoToTarget, "page" | "builder"> & { selected(label: string): void },
 ): Command[] {
 	const commands = destinationCommands(t, data, go);
-	if (!layout || !arranging(layout)) return commands;
+	const { layout, editing } = target;
+	if (!layout || !editing) return commands;
 	const group = t("builder.commandMenu.groups.placements");
 	for (const placement of layout.state().data.placements) {
 		const label = layout.label(placement.id);
@@ -202,15 +214,11 @@ export function editInserts(
 	layout: PageLayoutController | null,
 ): { commands: Command[]; where: string; empty: string } | null {
 	if (!layout || !arranging(layout)) return null;
-	const { data, selected, busy } = layout.state();
+	const { data, busy } = layout.state();
 	const group = t("builder.insert.groups.components");
-	// The words for where `insert` puts it: after the selected row, or at the end with none (or the footer) selected.
-	const after =
-		selected === CONTEXT.header
-			? t("pageLayout.header")
-			: data.placements.some((placement) => placement.id === selected) && selected
-				? layout.label(selected)
-				: null;
+	// Where the Page layout itself puts a new Placement: after one of its rows, or at the end.
+	const row = layout.insertsAfter();
+	const after = row === null ? null : row === HEADER_ROW ? t("pageLayout.header") : layout.label(row);
 	return {
 		commands: data.components.map((component) => ({
 			id: `place:${component.id}`,

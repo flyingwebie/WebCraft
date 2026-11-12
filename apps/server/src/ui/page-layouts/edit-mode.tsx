@@ -1,4 +1,5 @@
 import type { FieldDefinition } from "@webcraft/core";
+import type { AdminLanguageCode } from "@webcraft/core/admin-languages";
 import { DialogContainer } from "@webcraft/ui/components/dialog.tsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -12,7 +13,13 @@ import { loadMedia } from "../content/loaders.ts";
 import { toolsHost } from "../edit-mode/host.ts";
 import { AdminIntl, useT } from "../i18n.tsx";
 import type { MediaItem } from "../media/preview.ts";
-import { type LayoutState, type PageLayoutController, pageLayoutController } from "./controller.ts";
+import {
+	FOOTER_ROW,
+	HEADER_ROW,
+	type LayoutState,
+	type PageLayoutController,
+	pageLayoutController,
+} from "./controller.ts";
 
 const catalogue: Catalogue = {
 	elements: [],
@@ -109,7 +116,7 @@ function LayoutEditor({
 	}, [focusRequest, panel, phone, kit]);
 	const p = data.layout.placements.find((p) => p.id === selected);
 	const nodes = [
-		{ type: "component" as const, id: "context:header", component: "context:header", props: [] },
+		{ type: "component" as const, id: HEADER_ROW, component: HEADER_ROW, props: [] },
 		...data.layout.placements.map((p) => ({
 			type: "component" as const,
 			id: p.id,
@@ -117,14 +124,14 @@ function LayoutEditor({
 			props: [],
 			hidden: p.hidden,
 		})),
-		{ type: "component" as const, id: "context:footer", component: "context:footer", props: [] },
+		{ type: "component" as const, id: FOOTER_ROW, component: FOOTER_ROW, props: [] },
 	];
 	const idOf = (row: LayerRow) => (row.kind === "node" && "id" in row.node ? row.node.id : "");
-	const contextual = (id: string) => id === "context:header" || id === "context:footer";
+	const contextual = (id: string) => id === HEADER_ROW || id === FOOTER_ROW;
 	const label = (row: LayerRow) =>
-		idOf(row) === "context:header"
+		idOf(row) === HEADER_ROW
 			? t("pageLayout.header")
-			: idOf(row) === "context:footer"
+			: idOf(row) === FOOTER_ROW
 				? t("pageLayout.footer")
 				: controller.label(idOf(row));
 	const toolbar = p ? (
@@ -343,17 +350,27 @@ function Props({
 	);
 }
 
-async function mount(kit: BarKit, language: "en" | "it", styles: string) {
+/**
+ * Puts the Page layout on a Page in Edit mode, for the editing bar (`loadTools`). Its controller is
+ * everyone's who edits the page: the Command menu goes to the page's Placements through it. The drawer
+ * and its button are only for those who may arrange the page.
+ */
+async function mount(kit: BarKit, language: AdminLanguageCode, styles: string) {
 	const item = kit.state().page.item;
 	if (!item?.startsWith("entry:")) return;
 	const entryId = item.slice(6);
 	const response = await kit.call("layout/get", { entryId, language: kit.state().language.code });
 	if (!response.ok) return;
 	const initial = response.data as LayoutState;
-	if (!initial.canArrange) return;
+	const controller = pageLayoutController(kit, initial, entryId);
+	if (initial.canArrange) drawer(kit, controller, language, styles);
+	kit.doc.dispatchEvent(new CustomEvent("webcraft:page-layout", { detail: controller }));
+}
+
+/** The Page layout drawer and the Edit bar's button that opens it. */
+function drawer(kit: BarKit, controller: PageLayoutController, language: AdminLanguageCode, styles: string) {
 	const container = toolsHost(kit, "webcraft-page-layout", styles);
 	if (!container) return;
-	const controller = pageLayoutController(kit, initial, entryId);
 	const button = kit.button({ type: "button", class: "control" }, kit.word("pageLayout.title"));
 	kit.root.querySelector(".bar")?.append(button);
 	button.addEventListener("click", () => controller.openLayout());
@@ -380,6 +397,5 @@ async function mount(kit: BarKit, language: "en" | "it", styles: string) {
 			</DialogContainer>
 		</AdminIntl>,
 	);
-	kit.doc.dispatchEvent(new CustomEvent("webcraft:page-layout", { detail: controller }));
 }
 document.dispatchEvent(new CustomEvent("webcraft:layout-tools", { detail: { mount } }));

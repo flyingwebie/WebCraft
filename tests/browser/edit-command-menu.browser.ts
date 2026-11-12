@@ -4,7 +4,8 @@
 // (Pages, Entries, Placements by their drawer label; never Templates or Components), Insert (Allowed
 // components, only where arranging is allowed), the Edit bar's search button with its key, the
 // Keyboard shortcuts list (only what the person may do) and no menu under 768px. An Author sends to
-// Review instead of publishing; Staff see Templates and Components too. Axe checks every open state.
+// Review instead of publishing; Staff see Templates and Components too. Undo and Redo are Edit mode's
+// own Undo history (#140): its steps by name, taken along by Go to. Axe checks every open state.
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import type { Locator, Page } from "playwright";
 
@@ -53,7 +54,7 @@ async function fixture(slug: string, options: { headings?: string[]; locked?: bo
 		markup: "<article><h1>{{ title }}</h1><div>{{ intro }}</div></article>",
 	});
 	await api.templates.publish({ siteId, templateId: template.id });
-	await api.entries.create({
+	const { entry: story } = await api.entries.create({
 		siteId,
 		postTypeId: postType.id,
 		title: "First tale",
@@ -91,7 +92,7 @@ async function fixture(slug: string, options: { headings?: string[]; locked?: bo
 	await api.entries.publish({ siteId, entryId: entry.id });
 	if (!arranging) await api.pageLayouts.configure({ siteId, enabled: false });
 	const layout = () => api.pageLayouts.get({ siteId, entryId: entry.id });
-	return { local, api, workspaceId, siteId, slug, entryId: entry.id, layout };
+	return { local, api, workspaceId, siteId, slug, entryId: entry.id, storyId: story.id, layout };
 }
 
 /** Opens the Site's home page in Edit mode as someone, from the admin, as they would. */
@@ -165,6 +166,89 @@ async function untilHeadings(page: Page, expected: string[]): Promise<void> {
 			JSON.stringify(wanted),
 		expected,
 	);
+}
+
+/** The message the bar shows under itself, for everyone to see, until it is dismissed. */
+function shownMessage(page: Page) {
+	return page.locator("webcraft-edit-bar .message");
+}
+
+/** Waits until the Undo history is there: the Edit bar's Undo then has its keys. */
+async function historyReady(page: Page): Promise<void> {
+	await page.waitForFunction(() =>
+		document
+			.querySelector("webcraft-edit-bar")
+			?.shadowRoot?.querySelector('.history button[aria-label="Undo"]')
+			?.hasAttribute("aria-keyshortcuts"),
+	);
+}
+
+/** Waits until the Edit bar's Undo offers `label` (its tooltip starts with it), or nothing for null. */
+async function barUndo(page: Page, label: string | null): Promise<void> {
+	await page.waitForFunction((label) => {
+		const bar = document.querySelector("webcraft-edit-bar")?.shadowRoot;
+		const button = bar?.querySelector<HTMLButtonElement>('.history button[aria-label="Undo"]');
+		if (!button?.hasAttribute("aria-keyshortcuts")) return false;
+		return label === null ? button.disabled : !button.disabled && button.title.startsWith(`Undo ${label} (`);
+	}, label);
+}
+
+/** Types at the end of a Placement's heading on the page and leaves it: one finished action. */
+async function typeHeading(page: Page, placement: string, text: string): Promise<void> {
+	// The Page layout's tools make it editable once they are there.
+	await page
+		.locator(`main [data-wc-placement="${placement}"][data-wc-placement-prop="heading"][contenteditable="true"]`)
+		.click();
+	await page.keyboard.press("End");
+	await page.keyboard.type(text);
+	await page.keyboard.press("Enter");
+}
+
+/** Undo and Redo as the open menu lists them, Undo first, wherever "Recent" puts the one used last. */
+async function steps(menu: Locator): Promise<string[]> {
+	return (await options(menu))
+		.filter((option) => /^(Undo|Redo)/.test(option))
+		.sort()
+		.reverse();
+}
+
+/** The rows of the open Keyboard shortcuts list, by group. */
+async function listedShortcuts(list: Locator): Promise<[string, string[]][]> {
+	return list
+		.locator("table")
+		.evaluateAll((tables) =>
+			tables.map((table): [string, string[]] => [
+				table.querySelector("caption")?.textContent ?? "",
+				[...table.querySelectorAll("tbody tr td:last-child")].map((cell) => cell.textContent ?? ""),
+			]),
+		);
+}
+
+/**
+ * The Edit bar's controls that lie over one another or outside the window, as "<one> over <next>":
+ * none when the bar's groups keep clear of each other.
+ */
+async function barClashes(page: Page): Promise<string[]> {
+	return page.evaluate(() => {
+		const bar = document.querySelector("webcraft-edit-bar")?.shadowRoot?.querySelector(".bar");
+		if (!bar) return ["no bar"];
+		const parts = [...bar.querySelectorAll<HTMLElement>(".start > *, .middle > *, .end > *, :scope > button")]
+			.map((part) => ({
+				name: part.getAttribute("aria-label") || part.textContent?.trim() || part.className,
+				box: part.getBoundingClientRect(),
+			}))
+			.filter((part) => part.box.width > 0 && part.box.height > 0)
+			.sort((a, b) => a.box.left - b.box.left);
+		const clashes: string[] = [];
+		parts.forEach((part, index) => {
+			const next = parts[index + 1];
+			if (next && part.box.right > next.box.left + 0.5) clashes.push(`${part.name} over ${next.name}`);
+		});
+		const last = parts.at(-1);
+		if ((parts[0]?.box.left ?? 0) < 0 || (last?.box.right ?? 0) > window.innerWidth + 0.5)
+			clashes.push("outside the window");
+		return clashes;
+	});
 }
 
 /** Opens a tab with its key, types into its search box and runs the result with Enter. */
@@ -315,7 +399,8 @@ for (const theme of THEMES) {
 			await run(page, "k", "hide");
 			await page.locator('main [data-wc-page-placement][data-wc-hidden-placement="true"]').waitFor();
 			await page.keyboard.press("ControlOrMeta+k");
-			await search.fill("show");
+			// "show" alone finds the step just made as well ("Undo Hide or show…"): the history is the page's own.
+			await search.fill("show the");
 			expect(await options(menu)).toEqual(["Show the Placement, Placement"]);
 			await page.keyboard.press("Enter");
 			await page.waitForFunction(() => !document.querySelector("main [data-wc-hidden-placement]"));
@@ -379,21 +464,14 @@ for (const theme of THEMES) {
 			const member = await site.local.createMember({ workspaceId: site.workspaceId, role: "editor" });
 			const page = await enter(theme, site, member.account);
 			await searchButton(page).waitFor();
+			await historyReady(page);
 			await page.keyboard.press("ControlOrMeta+/");
 			const list = page.getByRole("dialog", { name: "Keyboard shortcuts" });
 			await list.waitFor();
-			const listed = async () =>
-				list
-					.locator("table")
-					.evaluateAll((tables) =>
-						tables.map((table) => [
-							table.querySelector("caption")?.textContent ?? "",
-							[...table.querySelectorAll("tbody tr td:last-child")].map((cell) => cell.textContent ?? ""),
-						]),
-					);
-			expect(await listed()).toEqual([
+			// Undo and Redo are everyone's who may edit: Edit mode keeps their history.
+			expect(await listedShortcuts(list)).toEqual([
 				["Command menu", ["Actions", "Go to", "Insert", "Keyboard shortcuts"]],
-				["Editor", ["Save Draft", "Move between editor regions"]],
+				["Editor", ["Save Draft", "Undo", "Redo", "Move between editor regions"]],
 				[
 					"Page layout",
 					[
@@ -410,7 +488,173 @@ for (const theme of THEMES) {
 			await expectNoAxeViolations(page, `Edit mode Keyboard shortcuts (${theme})`);
 			await page.keyboard.press("Escape");
 			await list.waitFor({ state: "hidden" });
+
+			// In Preview nothing is edited: the keys that save, undo, redo and arrange aren't bound, nor listed.
+			await page.getByRole("button", { name: "Preview", exact: true }).click();
+			await page.getByRole("button", { name: "Preview", exact: true, pressed: true }).waitFor();
+			await page.keyboard.press("ControlOrMeta+/");
+			await list.waitFor();
+			expect(await listedShortcuts(list)).toEqual([["Command menu", ["Actions", "Go to", "Keyboard shortcuts"]]]);
 		});
+	});
+}
+
+for (const theme of THEMES) {
+	for (const who of ["a Member", "Staff"] as const) {
+		test(`the menu's Undo and Redo are Edit mode's own Undo history, for ${who} (${theme})`, async () => {
+			const site = await fixture(`menu-history-${who === "Staff" ? "staff" : "member"}-${theme}`);
+			const account =
+				who === "Staff"
+					? (await site.local.createStaff({ workspaces: [site.workspaceId] })).account
+					: (await site.local.createMember({ workspaceId: site.workspaceId, role: "editor" })).account;
+			const page = await enter(theme, site, account);
+			await searchButton(page).waitFor();
+			const command = (await onApple(page)) ? "Command" : "Control";
+			const menu = menuOf(page);
+			const heading = async () => (await site.layout()).placements[0]?.values.heading;
+
+			// Nothing done yet: both are listed, off, and say why.
+			await barUndo(page, null);
+			await page.keyboard.press("ControlOrMeta+k");
+			await menu.waitFor();
+			expect(await steps(menu)).toEqual([
+				`Undo, Page, ${command} Z, Nothing to undo.`,
+				`Redo, Page, ${command} Shift Z, Nothing to redo.`,
+			]);
+			await page.keyboard.press("Escape");
+			await menu.waitFor({ state: "hidden" });
+
+			// One finished action on the page is one step: the menu names it, as the Edit bar does.
+			await typeHeading(page, "hero-0", "!");
+			await barUndo(page, "Props Hero · Welcome to Cork");
+			expect(await heading()).toBe("Welcome to Cork!");
+			await page.keyboard.press("ControlOrMeta+k");
+			await menu.waitFor();
+			expect(await steps(menu)).toEqual([
+				`Undo Props Hero · Welcome to Cork, Page, ${command} Z`,
+				`Redo, Page, ${command} Shift Z, Nothing to redo.`,
+			]);
+			expect(await menu.getByRole("option", { name: /^Undo/ }).getAttribute("aria-disabled")).not.toBe("true");
+			await page.waitForTimeout(250);
+			await expectNoAxeViolations(page, `Edit mode Command menu with a step to undo, ${who} (${theme})`);
+
+			// The menu's Undo is the history's: the Draft goes back, it is said once in the shared message
+			// area, and the Edit bar's own buttons follow.
+			await menu.getByRole("combobox").fill("undo");
+			await page.keyboard.press("Enter");
+			await menu.waitFor({ state: "hidden" });
+			await expectAnnounced(page, "Undid Props Hero · Welcome to Cork");
+			expect(await page.locator("[data-editor-messages]").count()).toBe(1);
+			await barUndo(page, null);
+			expect(await heading()).toBe("Welcome to Cork");
+			expect(
+				await page
+					.getByRole("group", { name: "Undo history" })
+					.getByRole("button", { name: "Redo" })
+					.getAttribute("title"),
+			).toStartWith("Redo Props Hero · Welcome to Cork (");
+
+			// The menu follows the history as it changes, and makes the step again.
+			await page.keyboard.press("ControlOrMeta+k");
+			await menu.waitFor();
+			expect(await steps(menu)).toEqual([
+				`Undo, Page, ${command} Z, Nothing to undo.`,
+				`Redo Props Hero · Welcome to Cork, Page, ${command} Shift Z`,
+			]);
+			await menu.getByRole("combobox").fill("redo");
+			await page.keyboard.press("Enter");
+			await menu.waitFor({ state: "hidden" });
+			await expectAnnounced(page, "Redid Props Hero · Welcome to Cork");
+			await barUndo(page, "Props Hero · Welcome to Cork");
+			expect(await heading()).toBe("Welcome to Cork!");
+
+			// The Keyboard shortcuts list shows Undo and Redo to everyone who may edit.
+			await page.keyboard.press("ControlOrMeta+/");
+			const list = page.getByRole("dialog", { name: "Keyboard shortcuts" });
+			await list.waitFor();
+			expect((await listedShortcuts(list)).find(([group]) => group === "Editor")?.[1]).toEqual([
+				"Save Draft",
+				"Undo",
+				"Redo",
+				"Move between editor regions",
+			]);
+			await page.keyboard.press("Escape");
+			await list.waitFor({ state: "hidden" });
+
+			// In Preview nothing is edited: the menu offers neither.
+			await page.getByRole("button", { name: "Preview", exact: true }).click();
+			await page.getByRole("button", { name: "Preview", exact: true, pressed: true }).waitFor();
+			await page.keyboard.press("ControlOrMeta+k");
+			await menu.waitFor();
+			expect(await steps(menu)).toEqual([]);
+		});
+
+		test(`Go to takes the Undo history along to the page it opens, for ${who} (${theme})`, async () => {
+			const site = await fixture(`menu-go-history-${who === "Staff" ? "staff" : "member"}-${theme}`);
+			const account =
+				who === "Staff"
+					? (await site.local.createStaff({ workspaces: [site.workspaceId] })).account
+					: (await site.local.createMember({ workspaceId: site.workspaceId, role: "editor" })).account;
+			const page = await enter(theme, site, account);
+			await searchButton(page).waitFor();
+			const command = (await onApple(page)) ? "Command" : "Control";
+			const menu = menuOf(page);
+			await typeHeading(page, "hero-0", "!");
+			await barUndo(page, "Props Hero · Welcome to Cork");
+
+			// Go to a Page: the history is handed over, and its token doesn't stay in the address.
+			await run(page, "p", "about");
+			await page.waitForURL((url) => url.pathname === "/about-us");
+			await searchButton(page).waitFor();
+			await barUndo(page, "Props Hero · Welcome to Cork");
+			expect(new URL(page.url()).hash).toBe("");
+			expect(await shownMessage(page).isVisible()).toBe(false);
+
+			// The step made on the other page is the menu's Undo here, and is taken back there.
+			await page.keyboard.press("ControlOrMeta+k");
+			await menu.waitFor();
+			expect((await steps(menu))[0]).toBe(`Undo Props Hero · Welcome to Cork, Page, ${command} Z`);
+			await menu.getByRole("combobox").fill("undo");
+			await page.keyboard.press("Enter");
+			await menu.waitFor({ state: "hidden" });
+			await expectAnnounced(page, "Undid Props Hero · Welcome to Cork on Home");
+			await barUndo(page, null);
+			expect((await site.layout()).placements[0]?.values.heading).toBe("Welcome to Cork");
+		});
+	}
+
+	test(`the Edit bar's controls keep clear of one another at 1280px with a peer, the search button and Undo and Redo (${theme})`, async () => {
+		const site = await fixture(`menu-bar-${theme}`);
+		const member = await site.local.createMember({
+			workspaceId: site.workspaceId,
+			role: "editor",
+			name: "Mia Member",
+		});
+		const staff = await site.local.createStaff({ workspaces: [site.workspaceId], name: "Sam Staff" });
+		// A Member's bar and Staff's (the fullest: it has the Code switch too), each with the other's avatar.
+		const memberPage = await enter(theme, site, member.account);
+		const staffPage = await enter(theme, site, staff.account);
+		for (const page of [memberPage, staffPage]) {
+			await searchButton(page).waitFor();
+			await page.locator("webcraft-edit-bar .others .other").first().waitFor();
+		}
+		// Each has made a step: Undo is on, and the bar says the Draft is saved.
+		await typeHeading(memberPage, "hero-0", "!");
+		await barUndo(memberPage, "Props Hero · Welcome to Cork");
+		await typeHeading(staffPage, "hero-1", "?");
+		await barUndo(staffPage, "Props Hero · Fresh bread");
+		for (const [who, page] of [
+			["a Member", memberPage],
+			["Staff", staffPage],
+		] as const) {
+			expect(page.viewportSize()?.width).toBe(1280);
+			for (const name of ["Command menu", "Undo", "Redo", "Page layout"])
+				expect(
+					await page.getByRole("region", { name: "Edit mode" }).getByRole("button", { name, exact: true }).isVisible(),
+				).toBe(true);
+			expect({ who, clashes: await barClashes(page) }).toEqual({ who, clashes: [] });
+			await expectNoAxeViolations(page, `Edit bar with a peer, the search button and Undo and Redo, ${who} (${theme})`);
+		}
 	});
 }
 
@@ -435,10 +679,25 @@ test("an Author sends to Review instead of publishing, and gets no Insert where 
 	await page.keyboard.press("Tab");
 	await menu.getByRole("tab", { name: /^Go to/, selected: true }).waitFor();
 	await menu.getByRole("option").first().waitFor();
-	expect(await groups(menu)).toEqual(["Pages", "Stories"]);
+	// Go to lists the page's Placements for everyone who may edit the page, arranging or not.
+	expect(await groups(menu)).toEqual(["Pages", "Stories", "Placements on this page"]);
 	// Tab goes round the two tabs there are.
 	await page.keyboard.press("Tab");
 	await menu.getByRole("tab", { name: /^Actions/, selected: true }).waitFor();
+	await page.keyboard.press("Escape");
+	// Picking a Placement selects it and scrolls to it; there is still nothing to arrange it with.
+	await run(page, "p", "fresh");
+	const selected = page.locator("main [data-wc-placement-selected]");
+	await selected.waitFor();
+	expect(await selected.locator("h1").textContent()).toBe("Fresh bread");
+	expect(await selected.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe("solid");
+	await expectAnnounced(page, "Selected Hero · Fresh bread");
+	await page.keyboard.press("ControlOrMeta+k");
+	await menu.waitFor();
+	expect(await groups(menu)).toEqual(["Page"]);
+	expect(
+		await page.getByRole("region", { name: "Edit mode" }).getByRole("button", { name: "Page layout" }).count(),
+	).toBe(0);
 	await page.keyboard.press("Escape");
 	// Insert's key opens nothing.
 	await page.keyboard.press("ControlOrMeta+i");
@@ -446,6 +705,7 @@ test("an Author sends to Review instead of publishing, and gets no Insert where 
 	expect(await menu.count()).toBe(0);
 
 	// The shortcuts list leaves out Insert and the Page layout's keys.
+	await historyReady(page);
 	await page.keyboard.press("ControlOrMeta+/");
 	const list = page.getByRole("dialog", { name: "Keyboard shortcuts" });
 	await list.waitFor();
@@ -455,6 +715,8 @@ test("an Author sends to Review instead of publishing, and gets no Insert where 
 		"Go to",
 		"Keyboard shortcuts",
 		"Save Draft",
+		"Undo",
+		"Redo",
 	]);
 	await page.keyboard.press("Escape");
 	await list.waitFor({ state: "hidden" });
@@ -496,6 +758,107 @@ test("a Member can't move, hide or remove a locked Placement from the menu, but 
 		"Hero · Welcome to Cork",
 		"Hero · Fresh bread",
 	]);
+	await page.keyboard.press("Escape");
+	await menu.waitFor({ state: "hidden" });
+
+	// The Placement above it isn't locked: it can't move down past the locked one, and the menu says that,
+	// not "Locked". It is the first, so there is nowhere up to move it either, which needs no saying.
+	await run(page, "p", "welcome");
+	await page.keyboard.press("ControlOrMeta+k");
+	await menu.waitFor();
+	const above = (await options(menu)).filter((option) => option.includes(", Placement"));
+	expect(above.map((option) => option.replace(/, (Option|Alt) (Up|Down) Arrow/, ""))).toEqual([
+		"Props, Placement",
+		"Move up, Placement",
+		"Move down, Placement, Next to a locked Placement",
+		"Duplicate, Placement",
+		"Hide the Placement, Placement",
+		"Remove, Placement",
+	]);
+	expect(await menu.getByRole("option", { name: /^Move up/ }).getAttribute("aria-disabled")).toBe("true");
+	await page.keyboard.press("Escape");
+	await menu.waitFor({ state: "hidden" });
+
+	// Staff stop allowing its Component: the locked Placement can't be duplicated, and the reason given
+	// is the Component, not the lock.
+	await site.api.pageLayouts.configure({ siteId: site.siteId, allowedComponents: [] });
+	await page.reload();
+	await searchButton(page).waitFor();
+	await run(page, "p", "fresh");
+	await page.keyboard.press("ControlOrMeta+k");
+	await menu.waitFor();
+	expect((await options(menu)).filter((option) => option.startsWith("Duplicate"))).toEqual([
+		"Duplicate, Placement, Its Component can't be added here",
+	]);
+});
+
+test("a refused Insert leaves focus in the Page layout drawer, and Go to still leaves: nothing is left unsaved", async () => {
+	const site = await fixture("menu-refused");
+	const member = await site.local.createMember({ workspaceId: site.workspaceId, role: "editor" });
+	const page = await enter("light", site, member.account);
+	await searchButton(page).waitFor();
+	// Staff stop allowing Hero while the Member has the page open: the Member's Insert is refused.
+	await site.api.pageLayouts.configure({ siteId: site.siteId, allowedComponents: [] });
+	await page
+		.getByRole("region", { name: "Edit mode" })
+		.getByRole("button", { name: "Page layout", exact: true })
+		.click();
+	await page.getByRole("button", { name: "Insert", exact: true }).click();
+	await page.locator("[data-picker]").getByRole("button", { name: "Hero", exact: true }).click();
+	await page.locator('[data-editor-messages] [role="alert"]').filter({ hasText: /\S/ }).waitFor();
+	// The list it was chosen from is gone; focus is on a row of the tree, not lost on the page.
+	await page.waitForFunction(() => {
+		let active = document.activeElement;
+		while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+		return active?.getAttribute("role") === "treeitem";
+	});
+	expect((await site.layout()).placements).toHaveLength(2);
+
+	// The refusal was said, and left nothing unsaved behind: Go to a Page leaves for it.
+	await run(page, "p", "about");
+	await page.waitForURL((url) => url.pathname === "/about-us");
+	await page.locator("webcraft-edit-bar").waitFor({ state: "attached" });
+});
+
+test("while something isn't saved, Save Draft and Go to say so and the person stays; saved, Go to leaves", async () => {
+	const site = await fixture("menu-unsaved");
+	const member = await site.local.createMember({ workspaceId: site.workspaceId, role: "editor" });
+	const page = await enter("light", site, member.account);
+	await searchButton(page).waitFor();
+	await page.goto(install.siteUrl(site.slug, "/stories/first-tale"));
+	await searchButton(page).waitFor();
+	const title = async () =>
+		(await site.api.entries.get({ siteId: site.siteId, entryId: site.storyId })).entry.draft.title;
+
+	// The server can't be reached for saves: what is typed stays unsaved.
+	await page.route("**/_webcraft/edit/api/save", (route) => route.abort());
+	await page.locator('h1[data-wc-field="title"]').click();
+	await page.keyboard.press("End");
+	await page.keyboard.type(" again");
+
+	// Save Draft doesn't say "Saved": it says what isn't, where everyone sees it.
+	await run(page, "k", "save");
+	const unsaved = "Not everything is saved to the Draft. Check what you changed last, then save again.";
+	await shownMessage(page).filter({ hasText: unsaved }).waitFor();
+	await expectAnnounced(page, unsaved);
+	expect(await page.locator("[data-editor-messages]").textContent()).not.toContain("Saved to Draft");
+
+	// Go to stays on the page, and says why.
+	await run(page, "p", "about");
+	const stayed =
+		"You are still on this page: not everything is saved to the Draft. Check what you changed last, then try again.";
+	await shownMessage(page).filter({ hasText: stayed }).waitFor();
+	await expectAnnounced(page, stayed);
+	expect(new URL(page.url()).pathname).toBe("/stories/first-tale");
+	expect(await title()).toBe("First tale");
+	await page.waitForTimeout(250);
+	await expectNoAxeViolations(page, "Edit mode saying why the person stays");
+
+	// The server is back: the same Go to saves what was typed, then leaves.
+	await page.unroute("**/_webcraft/edit/api/save");
+	await run(page, "p", "about");
+	await page.waitForURL((url) => url.pathname === "/about-us");
+	expect(await title()).toBe("First tale again");
 });
 
 test("Staff see Templates and Components in Go to, and every Component in Insert", async () => {
@@ -519,94 +882,27 @@ test("Staff see Templates and Components in Go to, and every Component in Insert
 	await page.waitForURL((url) => url.pathname === `/builder/${site.siteId}/site-template`);
 });
 
-test("Undo and Redo call the Undo history that is handed over, named after its step", async () => {
-	const site = await fixture("menu-history");
-	const member = await site.local.createMember({ workspaceId: site.workspaceId, role: "editor" });
-	const page = await enter("light", site, member.account);
-	await searchButton(page).waitFor();
-	const command = (await onApple(page)) ? "Command" : "Control";
-	// A history's owner hands it over in a document event, whenever it is made (here: after the menu).
-	await page.evaluate(() => {
-		const calls: string[] = [];
-		const listeners = new Set<() => void>();
-		let undone = false;
-		const step = (name: string, next: boolean) => () => {
-			calls.push(name);
-			undone = next;
-			for (const listener of listeners) listener();
-		};
-		Object.assign(window, { historyCalls: calls });
-		document.dispatchEvent(
-			new CustomEvent("webcraft:edit-history", {
-				detail: {
-					undo: step("undo", true),
-					redo: step("redo", false),
-					canUndo: () => !undone,
-					canRedo: () => undone,
-					undoLabel: () => (undone ? null : "Move Hero"),
-					redoLabel: () => (undone ? "Move Hero" : null),
-					subscribe(listener: () => void) {
-						listeners.add(listener);
-						return () => listeners.delete(listener);
-					},
-				},
-			}),
-		);
-	});
-	const calls = () => page.evaluate(() => (window as unknown as { historyCalls: string[] }).historyCalls);
-	const menu = menuOf(page);
-	// Undo before Redo, wherever "Recent" lists the one used last.
-	const steps = async () =>
-		(await options(menu))
-			.filter((option) => /^(Undo|Redo)/.test(option))
-			.sort()
-			.reverse();
-
-	await page.keyboard.press("ControlOrMeta+k");
-	await menu.waitFor();
-	expect(await steps()).toEqual([
-		`Undo Move Hero, Page, ${command} Z`,
-		`Redo, Page, ${command} Shift Z, Nothing to redo.`,
-	]);
-	await menu.getByRole("combobox").fill("undo");
-	await page.keyboard.press("Enter");
-	await menu.waitFor({ state: "hidden" });
-	expect(await calls()).toEqual(["undo"]);
-
-	// The menu follows the history as it changes.
-	await page.keyboard.press("ControlOrMeta+k");
-	await menu.waitFor();
-	expect(await steps()).toEqual([
-		`Undo, Page, ${command} Z, Nothing to undo.`,
-		`Redo Move Hero, Page, ${command} Shift Z`,
-	]);
-	await menu.getByRole("combobox").fill("redo");
-	await page.keyboard.press("Enter");
-	await menu.waitFor({ state: "hidden" });
-	expect(await calls()).toEqual(["undo", "redo"]);
-
-	// With a history, the Keyboard shortcuts list shows Undo and Redo too.
-	await page.keyboard.press("ControlOrMeta+/");
-	const list = page.getByRole("dialog", { name: "Keyboard shortcuts" });
-	await list.waitFor();
-	expect(await list.locator("tbody tr td:last-child").allTextContents()).toEqual(
-		expect.arrayContaining(["Save Draft", "Undo", "Redo"]),
-	);
-	await page.keyboard.press("Escape");
-	await list.waitFor({ state: "hidden" });
-
-	// Taken away again, both are disabled.
-	await page.evaluate(() => document.dispatchEvent(new CustomEvent("webcraft:edit-history", { detail: null })));
-	await page.keyboard.press("ControlOrMeta+k");
-	await menu.waitFor();
-	expect(await steps()).toEqual([
-		`Undo, Page, ${command} Z, Nothing to undo.`,
-		`Redo, Page, ${command} Shift Z, Nothing to redo.`,
-	]);
-});
-
-test("rich text keeps its own keys: there the menu opens with Go to's key or the search button", async () => {
+test("a key the text itself uses stays the text's: italic in rich text, a link in the Body; everywhere else it opens the menu", async () => {
 	const site = await fixture("menu-text");
+	// A Post Type whose Entries have a Body: the block editor makes links with the Actions tab's key.
+	const { postType } = await site.api.postTypes.create({
+		siteId: site.siteId,
+		name: "Articles",
+		urlPattern: "/articles/{slug}",
+		fields: [{ key: "body", label: "Story", type: "body" }],
+	});
+	const { template } = await site.api.templates.saveEntryTemplateMarkup({
+		siteId: site.siteId,
+		postTypeId: postType.id,
+		markup: "<article><h1>{{ title }}</h1><div>{{ body }}</div></article>",
+	});
+	await site.api.templates.publish({ siteId: site.siteId, templateId: template.id });
+	await site.api.entries.create({
+		siteId: site.siteId,
+		postTypeId: postType.id,
+		title: "Long read",
+		fields: { body: [{ type: "paragraph", text: [{ text: "Baked at seven." }] }] },
+	});
 	const member = await site.local.createMember({ workspaceId: site.workspaceId, role: "editor" });
 	const page = await enter("light", site, member.account);
 	await searchButton(page).waitFor();
@@ -615,27 +911,26 @@ test("rich text keeps its own keys: there the menu opens with Go to's key or the
 	const menu = menuOf(page);
 	const intro = page.locator('div[data-wc-field="intro"]');
 
-	// In rich text, the Insert tab's key is italic and the Actions tab's key stays the text's.
+	// In rich text, the Insert tab's key is italic.
 	await intro.focus();
 	await page.keyboard.press("ControlOrMeta+A");
 	await page.keyboard.press("ControlOrMeta+i");
 	await page.waitForFunction(() =>
 		/<(i|em)\b/.test(document.querySelector('div[data-wc-field="intro"]')?.innerHTML ?? ""),
 	);
-	await page.keyboard.press("ControlOrMeta+k");
-	await page.waitForTimeout(300);
 	expect(await menu.count()).toBe(0);
-	// Go to's key works there, and focus goes back into the text.
+	// Nothing there uses the Actions tab's key (a link is the toolbar's): it opens the menu, never a dead key.
+	await page.keyboard.press("ControlOrMeta+k");
+	await menu.getByRole("tab", { name: /^Actions/, selected: true }).waitFor();
+	await page.keyboard.press("Escape");
+	await menu.waitFor({ state: "hidden" });
+	expect(await intro.evaluate((element) => element === document.activeElement)).toBe(true);
+	// Go to's key works there too, and focus goes back into the text.
 	await page.keyboard.press("ControlOrMeta+p");
 	await menu.getByRole("tab", { name: /^Go to/, selected: true }).waitFor();
 	await page.keyboard.press("Escape");
 	await menu.waitFor({ state: "hidden" });
 	expect(await intro.evaluate((element) => element === document.activeElement)).toBe(true);
-	// So does the search button.
-	await searchButton(page).click();
-	await menu.getByRole("tab", { name: /^Actions/, selected: true }).waitFor();
-	await page.keyboard.press("Escape");
-	await menu.waitFor({ state: "hidden" });
 
 	// Plain text has no formatting: the menu's keys open it from there.
 	await page.locator('h1[data-wc-field="title"]').focus();
@@ -643,6 +938,22 @@ test("rich text keeps its own keys: there the menu opens with Go to's key or the
 	await menu.getByRole("tab", { name: /^Actions/, selected: true }).waitFor();
 	// An Entry has no Page layout: no Insert tab, no Placements to go to.
 	expect(await menu.getByRole("tab").count()).toBe(2);
+	await page.keyboard.press("Escape");
+	await menu.waitFor({ state: "hidden" });
+
+	// In the Body the same key asks for a link's address, as the block editor binds it; the menu stays shut.
+	await page.goto(install.siteUrl(site.slug, "/articles/long-read"));
+	await searchButton(page).waitFor();
+	const paragraph = page.locator('[data-wc-type="body"] [data-wc-block-id]').first();
+	await paragraph.click();
+	await page.keyboard.press("ControlOrMeta+A");
+	await page.keyboard.press("ControlOrMeta+k");
+	await page.getByRole("textbox", { name: "Link", exact: true }).waitFor();
+	expect(await menu.count()).toBe(0);
+	await page.keyboard.press("Escape");
+	// The search button opens the menu from the Body all the same.
+	await searchButton(page).click();
+	await menu.getByRole("tab", { name: /^Actions/, selected: true }).waitFor();
 });
 
 test("the menu in Italian, for a Member whose Admin language it is", async () => {
@@ -679,6 +990,28 @@ test("the menu in Italian, for a Member whose Admin language it is", async () =>
 	await list.waitFor();
 	expect(await list.locator("caption").allTextContents()).toEqual(["Menu comandi", "Editor", "Layout della Pagina"]);
 	expect(await list.locator("tbody tr td:last-child").allTextContents()).toContain("Spostati tra i Placement");
+});
+
+test("a page without a Page layout that starts under 768px gets the menu once the window widens", async () => {
+	const site = await fixture("menu-narrow-entry");
+	const member = await site.local.createMember({ workspaceId: site.workspaceId, role: "editor" });
+	const page = await enter("light", site, member.account, 767);
+	// An Entry's own page: nothing of Edit mode's tools is loaded for a narrow window there.
+	await page.goto(install.siteUrl(site.slug, "/stories/first-tale"));
+	await page.locator('h1[data-wc-field="title"][contenteditable]').waitFor();
+	await page.waitForTimeout(300);
+	expect(await searchButton(page).count()).toBe(0);
+	await page.keyboard.press("ControlOrMeta+k");
+	await page.waitForTimeout(300);
+	expect(await menuOf(page).count()).toBe(0);
+
+	await page.setViewportSize({ width: 768, height: 800 });
+	await searchButton(page).waitFor();
+	await page.keyboard.press("ControlOrMeta+k");
+	await menuOf(page)
+		.getByRole("tab", { name: /^Actions/, selected: true })
+		.waitFor();
+	expect(await menuOf(page).getByRole("tab").count()).toBe(2);
 });
 
 test("the menu isn't offered in a window under 768px, and comes back when it widens", async () => {
