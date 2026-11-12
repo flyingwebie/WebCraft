@@ -33,8 +33,9 @@ import {
 	type ComponentSources,
 	componentSource,
 	componentVersion,
-	createComponent,
+	insertComponent,
 	NO_MODULE_COMPONENTS,
+	namingComponent,
 	saveComponentDraft,
 } from "./components.ts";
 import { ComponentInvalidError, type ContentProblem, DraftChangedError } from "./errors.ts";
@@ -98,35 +99,39 @@ export async function makeComponent(
 	input: MakeComponentInput,
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
 ): Promise<MadeComponent> {
-	return scope.transaction(async (tx) => {
-		const source = await readTarget(tx, input.source, sources);
-		const found = at(source.tree, input.path);
-		if (!found || !sameJson(found.node, input.node)) throw new DraftChangedError(source.version);
-		if (found.node.type !== "element" && found.node.type !== "component") {
-			throw new ComponentInvalidError([
-				{ at: "path", message: "Only an element or a Placement can become a Component." },
-			]);
-		}
-		const context = await readingContext(tx, source, found.loops);
-		const extracted = withBindingProps(structuredClone(found.node), context);
-		const texts = withTextProps(extracted.node, input.texts ?? [], extracted.props);
-		const props = [...extracted.props, ...texts.props];
-		const component = await createComponent(tx, { name: input.name }, sources);
-		const saved = await saveComponentDraft(
-			tx,
-			component.id,
-			{ props, tree: { version: 1, nodes: [texts.node] } },
-			sources,
-		);
-		const placement: PlacementNode = {
-			type: "component",
-			id: freshId(source.tree),
-			component: component.id,
-			props: [...extracted.values, ...texts.values],
-		};
-		const version = await writeTarget(tx, input.source, replaced(source.tree, input.path, placement), sources);
-		return { component: saved, placement: { id: placement.id, path: [...input.path] }, version };
-	});
+	// The name is checked under the Site's Component lock inside; a clash only words itself once the
+	// whole step has rolled back (`namingComponent`), since a nested transaction has no savepoint.
+	return namingComponent(scope, input.name, () =>
+		scope.transaction(async (tx) => {
+			const source = await readTarget(tx, input.source, sources);
+			const found = at(source.tree, input.path);
+			if (!found || !sameJson(found.node, input.node)) throw new DraftChangedError(source.version);
+			if (found.node.type !== "element" && found.node.type !== "component") {
+				throw new ComponentInvalidError([
+					{ at: "path", message: "Only an element or a Placement can become a Component." },
+				]);
+			}
+			const context = await readingContext(tx, source, found.loops);
+			const extracted = withBindingProps(structuredClone(found.node), context);
+			const texts = withTextProps(extracted.node, input.texts ?? [], extracted.props);
+			const props = [...extracted.props, ...texts.props];
+			const component = await insertComponent(tx, { name: input.name }, sources);
+			const saved = await saveComponentDraft(
+				tx,
+				component.id,
+				{ props, tree: { version: 1, nodes: [texts.node] } },
+				sources,
+			);
+			const placement: PlacementNode = {
+				type: "component",
+				id: freshId(source.tree),
+				component: component.id,
+				props: [...extracted.values, ...texts.values],
+			};
+			const version = await writeTarget(tx, input.source, replaced(source.tree, input.path, placement), sources);
+			return { component: saved, placement: { id: placement.id, path: [...input.path] }, version };
+		}),
+	);
 }
 
 /** Makes an empty Component with its name and places it where `place` says, in one transaction. */
@@ -136,22 +141,24 @@ export async function createPlacedComponent(
 	place: NewComponentPlace,
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
 ): Promise<MadeComponent> {
-	return scope.transaction(async (tx) => {
-		const source = await readTarget(tx, place.source, sources);
-		const index = place.path.at(-1);
-		const list = index === undefined ? undefined : listAt(source.tree, place.path.slice(0, -1));
-		if (index === undefined || !list || index > list.length || !sameJson(list, place.list))
-			throw new DraftChangedError(source.version);
-		const component = await createComponent(tx, input, sources);
-		const placement: PlacementNode = {
-			type: "component",
-			id: freshId(source.tree),
-			component: component.id,
-			props: [],
-		};
-		const version = await writeTarget(tx, place.source, inserted(source.tree, place.path, placement), sources);
-		return { component, placement: { id: placement.id, path: [...place.path] }, version };
-	});
+	return namingComponent(scope, input.name, () =>
+		scope.transaction(async (tx) => {
+			const source = await readTarget(tx, place.source, sources);
+			const index = place.path.at(-1);
+			const list = index === undefined ? undefined : listAt(source.tree, place.path.slice(0, -1));
+			if (index === undefined || !list || index > list.length || !sameJson(list, place.list))
+				throw new DraftChangedError(source.version);
+			const component = await insertComponent(tx, input, sources);
+			const placement: PlacementNode = {
+				type: "component",
+				id: freshId(source.tree),
+				component: component.id,
+				props: [],
+			};
+			const version = await writeTarget(tx, place.source, inserted(source.tree, place.path, placement), sources);
+			return { component, placement: { id: placement.id, path: [...place.path] }, version };
+		}),
+	);
 }
 
 // ---------------------------------------------------------------------------------------------------
