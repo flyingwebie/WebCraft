@@ -372,6 +372,35 @@ describe("New Component, placed", () => {
 	});
 });
 
+describe("another Workspace's sources", () => {
+	test("a Template or Component of another Site can't be the source: nothing is made", async () => {
+		const otherWorkspace = (await install.createWorkspace("Other Ltd")).id;
+		const otherSite = (await install.createSite(otherWorkspace, { slug: "elsewhere" })).id;
+		const { api: superadmin } = await install.superadmin();
+		const { component: theirs } = await superadmin.components.create({ siteId: otherSite, name: "Theirs" });
+		const saved = await superadmin.components.saveMarkup({
+			siteId: otherSite,
+			componentId: theirs.id,
+			markup: '<p data-wc-id="p">Theirs</p>',
+		});
+		const names = await componentNames();
+		const source = { kind: "component" as const, componentId: theirs.id };
+
+		const made = await staff.api.components
+			.make({ siteId, name: "Stolen", source, path: [0], node: saved.component.draft.tree.nodes[0] })
+			.catch((error: unknown) => error);
+		const placed = await staff.api.components
+			.create({ siteId, name: "Planted", place: { source, path: [0], list: saved.component.draft.tree.nodes } })
+			.catch((error: unknown) => error);
+
+		expect(made).toMatchObject({ code: "COMPONENT_NOT_FOUND" });
+		expect(placed).toMatchObject({ code: "COMPONENT_NOT_FOUND" });
+		expect(await componentNames()).toEqual(names);
+		const { markup } = await superadmin.components.getMarkup({ siteId: otherSite, componentId: theirs.id });
+		expect(withoutIds(markup.draft)).toBe("{{@props}}\n{{/props}}\n<p>Theirs</p>");
+	});
+});
+
 describe("from Code mode", () => {
 	test("Make Component and New Component are Code mode actions with the same rules", async () => {
 		const { postTypeId, path } = await entryPage("<article><div><h2>{{ title }}</h2></div></article>");
