@@ -47,7 +47,7 @@ function PostTypesLayout() {
 	const linkClass =
 		"hover:bg-muted focus-visible:ring-ring/50 aria-[current=page]:bg-muted flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none focus-visible:ring-3 aria-[current=page]:font-medium";
 	return (
-		<div className="grid gap-8 lg:grid-cols-[14rem_minmax(0,1fr)]">
+		<div className="grid gap-8 @2xl/page:grid-cols-[14rem_minmax(0,1fr)]">
 			<nav aria-labelledby="post-types-nav-heading" className="grid content-start gap-2">
 				<div className="flex items-center justify-between gap-2 px-2">
 					<h2 id="post-types-nav-heading" className="font-semibold">

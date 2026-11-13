@@ -101,7 +101,7 @@ export function ControlsTab({
 	const full = controls.length >= FILTER_LIMITS.controls;
 
 	return (
-		<div className="grid gap-6 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]">
+		<div className="grid gap-6 @2xl/page:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]">
 			<section aria-labelledby="filter-controls-heading" className="grid min-w-0 content-start gap-3">
 				<div className="flex items-center justify-between gap-2">
 					<h2 id="filter-controls-heading" className="text-muted-foreground text-xs font-medium uppercase">

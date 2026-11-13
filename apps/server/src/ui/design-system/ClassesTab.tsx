@@ -75,7 +75,7 @@ export function ClassesTab({
 	};
 
 	return (
-		<div className="grid gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
+		<div className="grid gap-6 @2xl/page:grid-cols-[16rem_minmax(0,1fr)]">
 			<div className="grid content-start gap-4">
 				<form onSubmit={create} className="grid gap-2" noValidate>
 					<Field data-invalid={newProblem ? true : undefined}>

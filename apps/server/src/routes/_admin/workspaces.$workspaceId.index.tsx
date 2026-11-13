@@ -81,7 +81,7 @@ function SitesPage() {
 					</EmptyHeader>
 				</Empty>
 			) : (
-				<ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+				<ul className="grid gap-4 sm:grid-cols-2 @2xl/page:grid-cols-3">
 					{place.sites.map((site) => (
 						<li key={site.id}>
 							<Card className="relative h-full overflow-hidden pt-0">

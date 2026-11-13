@@ -174,7 +174,11 @@ function PageCard({ shell, place, children }: { shell: ShellContext; place: Admi
 						) : null}
 						{shell.twoFactor?.reminder ? <TwoFactorReminderBanner /> : null}
 						{shell.banners.update && place.level === "install" ? <UpdateBanner update={shell.banners.update} /> : null}
-						<div className="p-4 md:p-8">
+						{/*
+						 * The page's own breakpoints follow this area, not the window: a screen's columns
+						 * (`@2xl/page:`, `@4xl/page:`, `@6xl/page:`) fit whether a secondary sidebar is there.
+						 */}
+						<div className="@container/page p-4 md:p-8">
 							<PageColumn width={width}>{children}</PageColumn>
 						</div>
 					</div>

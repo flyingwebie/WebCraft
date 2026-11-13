@@ -280,7 +280,7 @@ export function SourceImportFlow({
 				</FieldError>
 			) : null}
 
-			<div className={cn("grid gap-8 lg:grid-cols-[16rem_minmax(0,1fr)_18rem]", step !== "source" && "hidden")}>
+			<div className={cn("grid gap-8 @2xl/page:grid-cols-[16rem_minmax(0,1fr)_18rem]", step !== "source" && "hidden")}>
 				{chooser}
 				<section aria-labelledby={`${ids}-file-title`} className="grid content-start gap-6 rounded-lg border p-6">
 					<div className="grid gap-1">
@@ -555,7 +555,7 @@ function MapStep({
 		onChange({ ...settings, types: settings.types.map((each) => (each.type === next.type ? next : each)) });
 
 	return (
-		<div className="grid gap-6 xl:grid-cols-[17rem_minmax(0,1fr)_20rem]">
+		<div className="grid gap-6 @4xl/page:grid-cols-[17rem_minmax(0,1fr)_20rem]">
 			<nav aria-labelledby={`${ids}-types`} className="grid content-start gap-2">
 				<h2 id={`${ids}-types`} className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
 					{t("imports.sourceFlow.types")}
@@ -1143,7 +1143,7 @@ function PreviewEntries({
 	const [chosen, setChosen] = useState(entries[0]?.sourceId ?? "");
 	const entry = entries.find((each) => each.sourceId === chosen) ?? shown[0];
 	return (
-		<div className="grid gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
+		<div className="grid gap-6 @2xl/page:grid-cols-[20rem_minmax(0,1fr)]">
 			<div className="grid content-start gap-3">
 				<Field>
 					<FieldLabel htmlFor={`${ids}-search`} className="sr-only">
@@ -1218,7 +1218,7 @@ function PreviewEntryDetail({ entry }: { entry: PreviewEntryView }) {
 					{t("imports.sourceFlow.sourceId")} <code>{entry.sourceId}</code>
 				</p>
 			</div>
-			<div className="grid gap-4 xl:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
+			<div className="grid gap-4 @4xl/page:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
 				<div className="grid content-start gap-4 rounded-lg border p-4">
 					<h3 className="font-medium">{t("imports.sourceFlow.fields")}</h3>
 					<EntrySummary entry={{ ...entry, body: null, leftovers: [], skippedKeys: [] }} />

@@ -54,9 +54,7 @@ export function ContextSwitcher({ shell, place }: { shell: ShellContext; place: 
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger
-				render={<SidebarMenuButton size="lg" className="data-popup-open:bg-sidebar-accent" />}
-			>
+			<PopoverTrigger render={<SidebarMenuButton size="lg" className="data-popup-open:bg-sidebar-accent" />}>
 				<Avatar className="size-8 rounded-lg">
 					<AvatarFallback className="bg-primary text-primary-foreground rounded-lg text-[13px] font-semibold">
 						{initials(title)}

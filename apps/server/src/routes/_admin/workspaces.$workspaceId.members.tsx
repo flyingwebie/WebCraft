@@ -120,7 +120,7 @@ function MembersPage() {
 			>
 				{t("members.intro", { workspace: place.workspace.name })}
 			</PageHeader>
-			<div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_16rem]">
+			<div className="grid gap-10 @2xl/page:grid-cols-[minmax(0,1fr)_16rem]">
 				<div className="grid min-w-0 content-start gap-10">
 					<div className="grid gap-4">
 						<div className="flex flex-wrap items-end justify-between gap-3">

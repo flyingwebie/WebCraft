@@ -92,7 +92,7 @@ export function Tabs({
 				))}
 			</div>
 			{aside ? (
-				<div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
+				<div className="grid gap-6 @6xl/page:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)]">
 					<div className="min-w-0">{panels}</div>
 					{aside}
 				</div>

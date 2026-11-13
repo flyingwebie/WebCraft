@@ -106,7 +106,10 @@ export function FieldSettingsPanel({
 	const keyFollowsLabel = !draft.saved && field.key === freeKey(keyFromLabel(field.label) || "field", others);
 
 	return (
-		<section aria-labelledby="field-settings-heading" className="grid content-start gap-6 xl:border-s xl:ps-6">
+		<section
+			aria-labelledby="field-settings-heading"
+			className="grid content-start gap-6 @4xl/page:border-s @4xl/page:ps-6"
+		>
 			<div className="flex items-start gap-3">
 				<span className="bg-primary text-primary-foreground flex size-9 shrink-0 items-center justify-center rounded-md">
 					<Icon className="size-4" aria-hidden="true" />
@@ -132,7 +135,7 @@ export function FieldSettingsPanel({
 
 			{elsewhere.length > 0 ? <SettingNotes id="setting-other" problems={elsewhere} /> : null}
 
-			<div className="grid gap-4 border-t pt-5 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+			<div className="grid gap-4 border-t pt-5 sm:grid-cols-2 @4xl/page:grid-cols-1 @6xl/page:grid-cols-2">
 				<SettingField id="setting-label" label="postTypes.settings.label" problems={at("label")}>
 					{(described) => (
 						<Input
@@ -540,7 +543,7 @@ function TypeSettings({
 				<div className="grid gap-4 border-t pt-5">
 					<fieldset className="grid gap-2" aria-describedby="setting-blocksOff-help">
 						<legend className="mb-1 text-sm font-medium">{t("postTypes.settings.blocks")}</legend>
-						<div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+						<div className="grid gap-2 sm:grid-cols-2 @4xl/page:grid-cols-1 @6xl/page:grid-cols-2">
 							{BLOCK_TYPES.filter((type) => !ALWAYS_ON_BLOCKS.includes(type)).map((type) => (
 								<div key={type} className="flex items-center gap-2">
 									<Checkbox

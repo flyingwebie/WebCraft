@@ -137,7 +137,7 @@ export function HistoryScreen({
 			</div>
 			{first.revisions.on ? null : <RevisionsOff off={first.revisions.off} retention={first.retention} />}
 
-			<div className="grid gap-8 lg:grid-cols-[18rem_minmax(0,1fr)]">
+			<div className="grid gap-8 @2xl/page:grid-cols-[18rem_minmax(0,1fr)]">
 				<nav aria-labelledby="history-copies-heading" className="grid content-start gap-3">
 					<h2 id="history-copies-heading" className="text-lg font-semibold">
 						{t("history.copies.heading")}

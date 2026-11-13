@@ -108,7 +108,7 @@ export function ConsentBannerWords({
 	};
 
 	return (
-		<section aria-labelledby="consent-words-heading" className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
+		<section aria-labelledby="consent-words-heading" className="grid gap-8 @4xl/page:grid-cols-[minmax(0,1fr)_20rem]">
 			<div className="grid min-w-0 content-start gap-6">
 				<div className="grid gap-1">
 					<div className="flex flex-wrap items-center gap-3">

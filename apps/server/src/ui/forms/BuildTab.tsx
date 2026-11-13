@@ -91,7 +91,7 @@ export function BuildTab({
 		setFields([...fields, newField(fields, type, t(`forms.types.${type}`), t("forms.field.option"))], fields.length);
 
 	return (
-		<div className="grid gap-6 lg:grid-cols-[13rem_minmax(0,1fr)_22rem]">
+		<div className="grid gap-6 @2xl/page:grid-cols-[13rem_minmax(0,1fr)_22rem]">
 			<section aria-labelledby="palette-heading" className="grid content-start gap-2">
 				<h2 id="palette-heading" className="text-muted-foreground text-xs font-medium uppercase">
 					{t("forms.addField")}

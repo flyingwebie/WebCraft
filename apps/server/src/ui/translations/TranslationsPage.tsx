@@ -221,7 +221,7 @@ export function TranslationsPage({
 				</Card>
 			) : (
 				<div className="grid max-w-6xl gap-8">
-					<ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+					<ul className="grid gap-4 md:grid-cols-2 @4xl/page:grid-cols-3">
 						{overview.languages.map((language) => (
 							<li key={language.code}>
 								<LanguageCard siteId={siteId} language={language} canManage={canManage} />
