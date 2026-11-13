@@ -1,4 +1,4 @@
-import { isCodeSelection } from "@webcraft/core";
+import { isAdminReturnPath, isBuildingDocument, isCodeSelection } from "@webcraft/core";
 import { z } from "zod";
 
 import { inAdminSession, notWhileImpersonating } from "../context.ts";
@@ -12,7 +12,9 @@ export const editMode = {
 	 * following it signs this browser into Edit mode there for at most 8 hours, tied to this admin
 	 * session. Needs `entry.edit` on the Site; `EDIT_MODE_UNAVAILABLE` while the Site has no address.
 	 * With `safeMode`, it opens Safe mode: the pages run none of the Site's own scripts (ADR 0022), so a
-	 * broken script can't lock anyone out of editing.
+	 * broken script can't lock anyone out of editing. With `building`, it opens the building area
+	 * (ADR 0037) instead: `open` names the document (`/page/<path>`; the page at `path` unless given)
+	 * and `returnTo` the admin path its logo tile goes back to.
 	 */
 	open: inAdminSession
 		.use(notWhileImpersonating("editMode"))
@@ -23,6 +25,9 @@ export const editMode = {
 				safeMode: z.boolean().default(false),
 				code: z.boolean().default(false),
 				selection: z.string().refine(isCodeSelection).optional(),
+				building: z.boolean().default(false),
+				open: z.string().max(4000).refine(isBuildingDocument).optional(),
+				returnTo: z.string().max(2000).refine(isAdminReturnPath).optional(),
 			}),
 		)
 		.handler(async ({ context, input }) => {
@@ -37,6 +42,9 @@ export const editMode = {
 				safeMode: input.safeMode,
 				code: input.code,
 				selection: input.selection,
+				building: input.building,
+				open: input.building ? input.open : undefined,
+				returnTo: input.building ? input.returnTo : undefined,
 			});
 		}),
 };
