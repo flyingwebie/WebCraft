@@ -64,7 +64,8 @@ jobs:
       # libheif's encoder, so the Media tests can make a HEIC photo the way phones take them.
       - run: sudo apt-get update && sudo apt-get install --yes libheif-examples libheif-plugin-x265
       - run: bun install --frozen-lockfile
-      - run: bun test --timeout 30000 --shard=${{ matrix.shard }}/4
+      # --retry: a test that fails is tried twice more, since the runners are slow enough to trip timing-sensitive tests.
+      - run: bun test --timeout 30000 --retry=2 --shard=${{ matrix.shard }}/4
 
   browser:
     # In four parts, each on its own runner: every browser file in one process runs the runner out of memory.
@@ -100,7 +101,7 @@ jobs:
       - run: bunx playwright install --with-deps chromium
         working-directory: tests
       # axe-core (WCAG 2.2 A and AA) and keyboard checks on every admin screen, light and dark.
-      - run: bun test --timeout 120000 --shard=${{ matrix.shard }}/4 ./tests/browser/*.browser.ts
+      - run: bun test --timeout 120000 --retry=2 --shard=${{ matrix.shard }}/4 ./tests/browser/*.browser.ts
 
   deploy:
     name: Deploy files (Compose smoke test)

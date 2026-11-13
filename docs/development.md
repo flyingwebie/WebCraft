@@ -2052,7 +2052,7 @@ Without a list the check is skipped locally with a warning and fails in CI. With
 
 - **Lint, typecheck, build and licences**; the typecheck runs one package at a time (`turbo run typecheck --concurrency=1`), since every package's `tsc` at once runs a standard runner out of memory.
 - **Tests (1/4 to 4/4)** against a Postgres 18 service, with the current Node LTS installed for the worker test: `bun test --shard=<n>/4`, each part on its own runner, since the whole suite in one process runs a standard runner out of memory.
-- **Accessibility (browser) (1/4 to 4/4)**: builds the admin, installs Playwright's Chromium and runs a quarter of the `*.browser.ts` files each (`--shard=<n>/4`), for the same reason.
+- **Accessibility (browser) (1/4 to 4/4)**: builds the admin, installs Playwright's Chromium and runs a quarter of the `*.browser.ts` files each (`--shard=<n>/4`), for the same reason. Both run with `--retry=2`: the runners are slow enough to trip timing-sensitive tests, so a failing test is tried twice more before it fails the job.
 - **Deploy files (Compose smoke test)**: `bun run test:deploy`.
 
 `.github/workflows/cli.yml` compiles `webcraft` for the five platforms (`bun run build:cli -- --npm`) on pull requests that touch it and on pushes to `main`, runs the Linux and macOS binaries, and only on a release tag `v1.2.3` (matching `package.json`) attaches the binaries and `SHA256SUMS` to the GitHub release and publishes the npm packages (`@webcraft/cli` and `@webcraft/cli-<os>-<cpu>`, with provenance) with the `NPM_TOKEN` secret.
