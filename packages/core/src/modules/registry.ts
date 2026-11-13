@@ -451,6 +451,9 @@ function checkDefinition(definition: AnyModuleDefinition, manifest: ModuleManife
 	if (receiver !== null) {
 		if (level !== "site") problem("Only Site-level Modules keep Form Submissions: Forms are on Sites.");
 		if (typeof receiver.receive !== "function") problem("Its formSubmissions has no receive function.");
+		if (receiver.unread !== undefined && typeof receiver.unread !== "function") {
+			problem("Its formSubmissions' unread is a function, when it has one.");
+		}
 	}
 
 	const compiledComponents = compileComponents(definition, manifest);

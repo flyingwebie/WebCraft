@@ -153,6 +153,13 @@ export type SubmissionReceiver = {
 	 * `submissions.view`: WebCraft lets only them download Form uploads. Without it, nobody does.
 	 */
 	readPermission?: string;
+	/**
+	 * How many Submissions in the inbox (never the Spam folder) nobody has opened yet, by Form id
+	 * (SDK 1.14): the admin shows them beside each Form and the Site's Forms ("5 new"), only to people
+	 * holding `readPermission`. A Form with none may be left out. It runs each time the admin loads a
+	 * Site, so it must be quick: one read of the Module's tables. Without it, the admin shows no count.
+	 */
+	unread?(context: ModuleContext): Promise<Record<string, number>>;
 };
 
 /** Declares a Module's Submission receiver. */
