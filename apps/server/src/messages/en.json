@@ -580,8 +580,6 @@
 		"nameHelp": "Shown at the top of the admin. Leave it empty to show WebCraft.",
 		"defaultLanguage": "Default Admin language",
 		"defaultLanguageHelp": "The language of signed-out pages and of everyone who hasn't chosen their own.",
-		"save": "Save",
-		"saved": "Saved.",
 		"version": {
 			"heading": "WebCraft version",
 			"running": "This Install runs WebCraft {version}.",

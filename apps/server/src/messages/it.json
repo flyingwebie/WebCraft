@@ -580,8 +580,6 @@
 		"nameHelp": "Compare in alto nell'admin. Lascialo vuoto per mostrare WebCraft.",
 		"defaultLanguage": "Lingua predefinita dell'admin",
 		"defaultLanguageHelp": "La lingua delle pagine senza accesso e di chiunque non ne abbia scelta una.",
-		"save": "Salva",
-		"saved": "Salvato.",
 		"version": {
 			"heading": "Versione di WebCraft",
 			"running": "Questa Install usa WebCraft {version}.",
