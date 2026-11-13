@@ -1,0 +1,134 @@
+import { type ModuleData, ModuleRefusedError, type ModuleTable, type NewModuleRow } from "@webcraft/module-sdk";
+import { getTableColumns, getTableName, type SQL } from "drizzle-orm";
+import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
+
+import { clearPageCache } from "../content/page-cache.ts";
+import type { ScopedQueries, SiteScope, SiteTable, WorkspaceScope, WorkspaceTable } from "../tenancy/data-layer.ts";
+import type { CompiledPartitioning, RunnableModule } from "./registry.ts";
+
+/** Makes sure the partition a new row of a partitioned table goes into exists (see `partitions.ts`). */
+export type EnsurePartition = (
+	module: RunnableModule,
+	partitioning: CompiledPartitioning,
+	at: Date,
+	scope: PlaceScope,
+) => Promise<void>;
+
+/** A Site or a Workspace, opened through the data layer: where a Module acts, or where Staff switch it. */
+export type PlaceScope = SiteScope | WorkspaceScope;
+
+/**
+ * The scope's queries, for any tenant table, with one signature: a Site scope's take Site tables and
+ * a Workspace scope's Workspace tables, which TypeScript can't call through the union.
+ */
+export function placeQueries(scope: PlaceScope): ScopedQueries<WorkspaceTable, "workspaceId"> {
+	return scope as unknown as ScopedQueries<WorkspaceTable, "workspaceId">;
+}
+
+/** The columns placing a row in its Workspace and Site: the data layer's to fill, never a Module's to change. */
+const TENANCY_KEYS = new Set(["workspaceId", "siteId"]);
+
+/**
+ * A Module's tables, limited to the place `scope` opened: the data layer adds the place's condition
+ * to every query and fills in the Workspace (and Site); a table that isn't one of the Module's is
+ * refused. A change to a table its Redirect rules read (SDK 1.5) clears the Site's page cache with
+ * it, as the Site pipeline keeps their answers with the Site's pages.
+ */
+export function moduleData(
+	module: RunnableModule,
+	scope: PlaceScope,
+	options: { inTransaction?: boolean; ensurePartition?: EnsurePartition } = {},
+): ModuleData {
+	const { ensurePartition } = options;
+	const queries = placeQueries(scope);
+	const own = <Table extends ModuleTable>(table: Table): Table & WorkspaceTable => {
+		if (!module.tables.has(table)) {
+			let name = "something that isn't a table";
+			try {
+				name = getTableName(table as PgTable);
+			} catch {
+				// Not a table at all.
+			}
+			throw new ModuleRefusedError("table", `The table ${name} isn't one of the Module ${module.id}'s tables.`);
+		}
+		return table as Table & WorkspaceTable;
+	};
+	/** A new row: in a Site the Site is filled in; in a Workspace a Site table's row names its Site. */
+	const values = <Table extends ModuleTable>(table: Table, row: NewModuleRow<Table> | Partial<NewModuleRow<Table>>) =>
+		(scope.level === "site" && "siteId" in table ? { ...row, siteId: scope.site.id } : row) as never;
+	// In one transaction the Site's pages go once: nobody sees the change before it commits.
+	let cleared = false;
+	/** After a change to a table the Site pipeline keeps answers of: the Site's pages go, with the change. */
+	const changed = async <Result>(table: ModuleTable, result: Result, rows: number): Promise<Result> => {
+		if (rows === 0 || scope.level !== "site" || !module.redirects?.tables.includes(table)) return result;
+		if (cleared && options.inTransaction) return result;
+		await clearPageCache(scope);
+		cleared = true;
+		return result;
+	};
+	return {
+		select: (table, where?: SQL, options = {}) => queries.select(own(table), where, options) as never,
+		first: (table, where?: SQL, options = {}) => queries.first(own(table), where, options) as never,
+		count: (table, where?: SQL) => queries.count(own(table), where),
+		insert: async (table, row) => {
+			const partitioning = module.partitions.find((each) => each.table === table);
+			if (partitioning && ensurePartition) {
+				const at = (row as Record<string, unknown>)[partitioning.columnKey];
+				await ensurePartition(module, partitioning, at instanceof Date ? at : scope.now(), scope);
+			}
+			const inserted = await queries.insert(own(table), values(table, row));
+			return changed(table, inserted, 1) as never;
+		},
+		update: async (table, set, where?: SQL) => {
+			const owned = own(table);
+			// A row stays in its place: whatever the Module sends, its Workspace and Site never change.
+			const columns = getTableColumns(owned);
+			const changes = Object.fromEntries(
+				Object.entries(set as Record<string, unknown>).filter(
+					([key]) => Object.hasOwn(columns, key) && !TENANCY_KEYS.has(key),
+				),
+			);
+			if (Object.keys(changes).length === 0) return queries.select(owned, where) as never;
+			const updated = await queries.update(owned, changes as never, where);
+			return changed(table, updated, updated.length) as never;
+		},
+		delete: async (table, where?: SQL) => {
+			const deleted = await queries.delete(own(table), where);
+			return changed(table, deleted, deleted);
+		},
+		aggregate: async (table, query) => {
+			const owned = own(table);
+			const columns = new Set(Object.values(getTableColumns(owned)));
+			const groups = Object.entries(query.groupBy ?? {}) as [string, AnyPgColumn][];
+			for (const [, column] of groups) {
+				if (!columns.has(column)) {
+					throw new ModuleRefusedError("table", `A group of an aggregate isn't a column of ${getTableName(owned)}.`);
+				}
+			}
+			let select = scope.db
+				.select({ ...Object.fromEntries(groups), ...query.values } as never)
+				.from(owned as never)
+				.where(queries.where(owned, query.where))
+				.$dynamic();
+			if (groups.length > 0) select = select.groupBy(...groups.map(([, column]) => column));
+			if (query.orderBy?.length) select = select.orderBy(...query.orderBy);
+			if (query.limit !== undefined) select = select.limit(query.limit);
+			return (await select) as never;
+		},
+		values: (table, column, where?: SQL) => {
+			const owned = own(table);
+			if (!new Set(Object.values(getTableColumns(owned))).has(column)) {
+				throw new ModuleRefusedError("table", `The column of values isn't a column of ${getTableName(owned)}.`);
+			}
+			return scope.db
+				.select({ value: column })
+				.from(owned as never)
+				.where(queries.where(owned, where));
+		},
+	};
+}
+
+/** Whether a table is a Site table, by its columns. */
+export function isSiteTable(table: ModuleTable): table is ModuleTable & SiteTable {
+	return "siteId" in table;
+}

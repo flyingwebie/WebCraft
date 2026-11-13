@@ -1,0 +1,50 @@
+name: Browser checks
+
+# The accessibility and keyboard checks in a real browser. Not on pull requests: GitHub's standard
+# runners are slow enough that timing-sensitive checks fail there for no fault of the change, so they
+# run every night on main and whenever someone starts them (Actions > Browser checks > Run workflow,
+# on any branch). Run them on your own computer before merging: `bun run build && bun run test:browser`.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    # In four parts, each on its own runner: every browser file in one process runs the runner out of memory.
+    name: Accessibility (browser) (${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/webcraft
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      # The browser checks run against the production web process.
+      - run: bun run build
+      # The Chromium build that matches the tests' Playwright version, with its system libraries.
+      - run: bunx playwright install --with-deps chromium
+        working-directory: tests
+      # axe-core (WCAG 2.2 A and AA) and keyboard checks on every admin screen, light and dark.
+      - run: bun test --timeout 120000 --retry=2 --shard=${{ matrix.shard }}/4 ./tests/browser/*.browser.ts

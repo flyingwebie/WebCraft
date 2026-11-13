@@ -1,0 +1,43 @@
+{
+	"name": "@webcraft/tests",
+	"version": "0.0.0",
+	"private": true,
+	"license": "AGPL-3.0-or-later",
+	"description": "Seam-1 tests and the shared test harness: a fresh Install per test file, driven with standard Requests.",
+	"type": "module",
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@orpc/client": "catalog:",
+		"@orpc/server": "catalog:",
+		"@webcraft/api": "workspace:*",
+		"@webcraft/cli": "workspace:*",
+		"@webcraft/core": "workspace:*",
+		"@webcraft/db": "workspace:*",
+		"@webcraft/mcp": "workspace:*",
+		"@webcraft/module-forms": "workspace:*",
+		"@webcraft/module-redirects": "workspace:*",
+		"@webcraft/module-sdk": "workspace:*",
+		"@webcraft/module-site-analytics": "workspace:*",
+		"@webcraft/server": "workspace:*",
+		"@webcraft/worker": "workspace:*",
+		"pg": "catalog:",
+		"pg-boss": "catalog:",
+		"use-intl": "^4.14.9",
+		"@webcraft/module-wordpress-import": "workspace:*"
+	},
+	"devDependencies": {
+		"@axe-core/playwright": "4.14.0",
+		"@modelcontextprotocol/client": "2.4.0",
+		"@types/bun": "catalog:",
+		"@types/pg": "catalog:",
+		"@types/smtp-server": "^3.5.13",
+		"@webcraft/config": "workspace:*",
+		"fast-check": "^4.10.2",
+		"playwright": "1.65.0",
+		"sharp": "0.35.5",
+		"smtp-server": "^3.21.3",
+		"typescript": "catalog:"
+	}
+}

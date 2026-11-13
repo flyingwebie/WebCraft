@@ -1,0 +1,96 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, typecheck, build and licences
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - run: bun run lint
+      # `bun run typecheck`, one package at a time: every package's tsc at once runs the runner out of memory.
+      - run: bun x turbo run typecheck --concurrency=1 && bun x tsc -p tsconfig.json
+      - run: bun run build
+      # Blocks dependencies whose licence isn't compatible with AGPL-3.0-or-later (ADR 0012).
+      - run: bun run check:licences
+
+  test:
+    # The suite in four parts, each on its own runner: all of it in one process runs the runner out of memory.
+    name: Tests (${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      # Tests create and drop databases named webcraft_test_<run>_<n> on this server.
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/webcraft
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      # The worker runs on the current Node LTS; one test starts it with `node`.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+      # libheif's encoder, so the Media tests can make a HEIC photo the way phones take them.
+      - run: sudo apt-get update && sudo apt-get install --yes libheif-examples libheif-plugin-x265
+      - run: bun install --frozen-lockfile
+      # --retry: a test that fails is tried twice more, since the runners are slow enough to trip timing-sensitive tests.
+      - run: bun test --timeout 30000 --retry=2 --shard=${{ matrix.shard }}/4
+
+  deploy:
+    name: Deploy files (Compose smoke test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      # Builds the web and worker images from this commit, brings up deploy/compose/docker-compose.yml
+      # (web, worker, the migrate step, Postgres and Caddy) and checks /readyz through Caddy.
+      - run: bun run test:deploy
+
+  denylist:
+    name: Reference-material denylist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      # Fails closed: without the REFERENCE_DENYLIST secret (as on pull requests from forks) the
+      # check fails. It prints where a match is, never the list (ADR 0013).
+      - name: Check tracked files, commit messages and the branch name
+        env:
+          WEBCRAFT_DENYLIST: ${{ secrets.REFERENCE_DENYLIST }}
+          RANGE: ${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || format('{0}..{1}', github.event.before, github.sha) }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: sh scripts/check-denylist.sh --range "$RANGE" --branch "$BRANCH"

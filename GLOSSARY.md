@@ -196,6 +196,26 @@ _Avoid_: Asset manager, uploads, file manager, shared library
 The spot on a Media image that must stay visible whenever a design shows the image at a different shape. Set once per image and shared by every language.
 _Avoid_: Crop, hotspot, anchor
 
+**Trash**:
+Where a deleted Media library file waits for 30 days before it is deleted for good. A file in the Trash isn't served or shown on pages and can't be chosen for a Field, and it can be restored as it was until it goes. Emptying the Trash deletes every file in it at once.
+_Avoid_: Recycle bin, bin, archive, soft delete
+
+**Used in**:
+The places on a Site that use a Media library file: Entries (in any language, Draft or published), Globals, Templates, Components, Loops and the Design system. It is shown with a file's details and before the file goes to the Trash.
+_Avoid_: References, usages, where used, backlinks
+
+**Replace file**:
+Uploading new bytes for a Media library file that already exists. The file keeps its id, texts and every place it is used in; the old bytes are still served for 30 days, so pages and caches that name them keep working.
+_Avoid_: Re-upload, overwrite, new version
+
+**Import from URL**:
+Adding one file to a Media library from an `https` address: WebCraft fetches it once, checks it like an upload and keeps its own copy. It is not an Import, which brings a whole source's content into a Site, and not an External image, which is never fetched.
+_Avoid_: Sideload, remote upload, hotlink
+
+**Media quota**:
+The most storage a Workspace's Media libraries may take together, an optional limit set by Staff. The Workspace's Owners and Staff are told once it is 80% used, and an upload that would take it past 100% is refused. The largest single file is a separate Install setting.
+_Avoid_: Storage limit, disk quota, plan limit
+
 **Form upload**:
 A file a visitor attaches to a Form Submission. It is private: it never enters the Media library, has no public address, can only be downloaded through the admin by people who may see that Form's Submissions, and is deleted with its Submission.
 _Avoid_: Private media, attachment (except in a Notification email)
@@ -203,7 +223,7 @@ _Avoid_: Private media, attachment (except in a Notification email)
 ### Importing
 
 **Import**:
-A saved way of bringing outside content into one Site: its source (a WordPress export file, a live WordPress site, or a CSV file) and how that source maps onto Post Types and Fields. It can be run more than once.
+A saved way of bringing outside content into one Site: its source (a WordPress export file, a live WordPress site, or a CSV file) and how that source maps onto Post Types and Fields. It can be run more than once. Fetching a single file into the Media library is Import from URL, not an Import.
 _Avoid_: Migration, sync, Site export (that moves a WebCraft Site)
 
 **Import run**:
@@ -225,7 +245,7 @@ _Avoid_: External id, legacy id, original id
 ### Styling
 
 **Design system**:
-A Site's Design tokens, Classes and custom CSS, published together as one item. It is Structure, so clients never change it.
+A Site's Design tokens, Classes, base styles, custom CSS and Dark mode setting, published together as one item. It is Structure, so clients never change it.
 _Avoid_: Theme, style guide, global styles
 
 **Design token**:
@@ -235,6 +255,18 @@ _Avoid_: Variable, setting, style value
 **Class**:
 A named set of styles that Staff create in the builder and give to elements, so every element with that Class looks the same.
 _Avoid_: Style, preset, global style
+
+**Generated Class**:
+A Class WebCraft makes from a one-off inline style in Template markup, so pages never carry inline styles. It goes live with the Template that made it, and stops being generated once Staff change it.
+_Avoid_: Inline class, auto class
+
+**Token utility**:
+A class made from one Design token for one property, such as a background colour or a padding, that elements can be given like a Class. Only the token utilities published elements use are sent to visitors.
+_Avoid_: Utility class, helper class, atomic class
+
+**Dark mode**:
+A Site's dark values for its colours, which follow the visitor's device and an optional theme toggle.
+_Avoid_: Night mode
 
 ### Publishing
 
@@ -274,6 +306,10 @@ _Avoid_: Approval workflow, moderation
 Several people, AI clients or AI translation changing the same Draft at the same time, each seeing the others' changes as they happen. Drafts are never locked.
 _Avoid_: Collaboration mode, multiplayer, edit lock
 
+**Presence**:
+Who else has a Draft open while it is co-edited, and which value or element each person is in, shown by name. An API client, an AI client or AI translation shows as "<person> via <client>" for a moment after it changes the Draft.
+_Avoid_: Cursors, live users, collaborators
+
 **Primary domain**:
 The one domain a Site is served on. Its other domains redirect to it.
 _Avoid_: Main domain, live URL
@@ -282,9 +318,17 @@ _Avoid_: Main domain, live URL
 A domain attached to a Site that sends visitors to the same path on the Site's Primary domain, such as `www` or an old domain.
 _Avoid_: Alias, secondary domain, parked domain
 
+**Paused domain**:
+A domain a Site import brought with the Site, kept off its domains until Staff switch it on, when it is added and verified like any new domain: the Site it came from may still have it.
+_Avoid_: Disabled domain, inactive domain, parked domain
+
 **Webhook**:
 A call the Install makes to an outside address when something happens on a Site, such as a form being submitted or an Entry being published.
 _Avoid_: Callback, hook, integration
+
+**Delivery log**:
+The record of every call a Webhook made in the last 30 days: what was sent, each attempt, and what the receiving system answered. Staff send a failed delivery again from it.
+_Avoid_: Webhook history, event log, call log
 
 ### Search and discovery
 
@@ -300,8 +344,24 @@ _Avoid_: OG image, share image, preview image
 The kind of thing a Post Type's Entries describe to search engines (Article, Product, Event and so on), with each property mapped to a Field. WebCraft outputs it as structured data on every page.
 _Avoid_: Rich snippet, schema markup, JSON-LD type
 
+**Summary**:
+The short text that says what an Entry is about, from the Field its Post Type names as its Summary field. A page without a description of its own takes it as its description, and llms.txt and Markdown copies show it. A Post Type need not have one.
+_Avoid_: Excerpt, teaser, abstract, description (an SEO field)
+
+**Sitemap**:
+The files that list a Site's indexable pages for search engines, on each of its domains: an index with one sitemap per Post Type, each address with when it was last published and its other languages. Staff may leave a Post Type out.
+_Avoid_: XML sitemap, site index
+
+**AI crawler setting**:
+The one Site setting that decides what the Site's robots.txt tells AI crawlers: allow them all, allow AI search but keep out crawlers collecting pages for training, or keep them all out. Search engines are never affected.
+_Avoid_: AI blocking, bot setting, robots setting
+
+**Markdown copy**:
+A copy of an indexable Entry's page in Markdown, at the page's address plus `.md`, for AI engines to read cleanly. Each language's llms.txt lists them.
+_Avoid_: Markdown export, .md version, plain-text page
+
 **Redirect rule**:
-A rule on a Site that sends visitors from one path to another, added by people on the Redirects screen or by WebCraft when a published slug changes. It is Content. Not to be confused with a Redirect domain, which redirects a whole domain.
+A rule on a Site that sends visitors from one path (or every path under one) to another path or site, added by people on the Redirects screen or by WebCraft when a published path changes (a new slug, a moved Page, a new URL pattern or Default language). It is Content, without a Draft: it applies once saved. Not to be confused with a Redirect domain, which redirects a whole domain.
 _Avoid_: Redirect, 301, URL forward
 
 **404 log**:
@@ -315,6 +375,18 @@ _Avoid_: Search engine, full-text search, finder
 **Searched fields**:
 The Fields of a Post Type that Site search and every Filter's search box look in, each with a weight, set once on the Post Type.
 _Avoid_: Search index, indexed fields
+
+**Search results page**:
+The Page Staff choose to answer Site search, like the home page and the 404 page. It shows the Search results template, at the Page's own address in each language.
+_Avoid_: Search page, results URL
+
+**Search results template**:
+The Template the search results page shows: the hits for what a visitor searched for, through a built-in Loop, with the hit count, a snippet of each and links to more pages. Staff write it; until they publish one, a built-in one shows.
+_Avoid_: Results layout, search template page
+
+**Search element**:
+The search box Staff place in a Template, which sends visitors to the search results page in their language and works without JavaScript.
+_Avoid_: Search bar, search widget, search form
 
 **Check**:
 A warning WebCraft shows while a Template, Component, Entry or the Design system is edited, such as a page with two main headings, an image with no alt text that is not Decorative, vague link text, or a colour pair with too little contrast. Every Site has one list of its open Checks. Checks never stop publishing.
@@ -334,6 +406,10 @@ _Avoid_: Contact form, form block, form widget
 One filled-in Form as received by the Install, kept with the language and page it came from.
 _Avoid_: Entry, lead, response, message
 
+**Spam folder**:
+Where a Site keeps the Submissions its spam checks caught (a honeypot filled in, sent sooner than a person could, too often from one address, too large), for 30 days. They set off no Notification, Auto-reply or Webhook, and the sender is never told.
+_Avoid_: Junk, quarantine, blocked submissions
+
 **Notification**:
 An email the Install sends to a Form's recipients when a Submission arrives. The recipients are Content.
 _Avoid_: Alert, form email
@@ -351,6 +427,10 @@ _Avoid_: Transactional email (too broad), notification (that is a Form email), a
 **Install branding**:
 The sender name, logo, accent colour and footer text the Superadmin sets for every System email of an Install.
 _Avoid_: White label, email theme, agency branding
+
+**Site SMTP**:
+A Site's own mail server, set by Staff, that sends the Site's mail: its Form Notifications and Auto-replies, and the emails of Modules running on it. Without one, the Site's mail goes through the Install's mail server under the Site's name. When it fails, its mail is retried and never sent another way, and the Site's Owners and Staff are told.
+_Avoid_: Client SMTP, custom mail server
 
 **Email log**:
 The record of every email an Install sends, one line per email with its type, recipient, subject, status and the mail server's last answer, but never its body. Each person sees only the lines for what they can reach.
@@ -428,13 +508,29 @@ _Avoid_: Frontend editing, live editing, visual editing
 A way of viewing a Site on its own domain that shows Drafts and lets a signed-in person change Content in place. Previewing is Edit mode with the editing tools turned off.
 _Avoid_: Preview mode, draft mode, admin bar
 
+**Page details**:
+The drawer in Edit mode with the values of a page's Entry that don't show on the page: its title, its address, its SEO fields, its Summary, its social image and noindex.
+_Avoid_: Page settings, page properties, inspector
+
 **Code mode**:
 A third way of using Edit mode, for Staff and the Superadmin only: selecting an element on the page opens its HTML (from its Template or Component), its CSS (its Class or the Site CSS) and a page or Site script, all editable and saved to the Draft.
 _Avoid_: God mode, dev mode, developer tools
 
+**Command menu**:
+A search box for Staff in the builder and Code mode, opened from the keyboard, with three tabs: Actions (for the page, or for the selected element), Go to (Pages, Templates, Components and elements on the page) and Insert.
+_Avoid_: Command palette, command bar, spotlight
+
 **Safe mode**:
 Edit mode with none of the Site's own scripts running, so a broken script can never lock anyone out of editing.
 _Avoid_: Recovery mode, scriptless mode, debug mode
+
+**Site script**:
+A script that runs on every page of a Site: the one Staff write for the whole Site in Code mode, or one a Module adds. Like every script on a Site, it is a file served from the Site's own domain, never written into the page.
+_Avoid_: Global script, custom code, header code
+
+**Page script**:
+A script Staff write in Code mode for one page, which runs there only, after the Site script. Both are Structure, with a Draft, published like a Template.
+_Avoid_: Inline script, page code
 
 **Library**:
 A ready-made script package, such as an animation library, that Staff add to a Site at a fixed version. WebCraft keeps its own copy and serves it from the Site, so it never changes unless Staff update it.
@@ -452,6 +548,22 @@ _Avoid_: API key (that is an AI key or a provider's credential), access key, PAT
 An outside AI app or agent that works with an Install on a person's behalf, after they approve it or give it an API token.
 _Avoid_: Bot, integration, agent (too generic)
 
+**MCP server**:
+The way AI clients work with an Install: one tool for each public action of the Management API, named after it, listed only as far as the client's Toolsets and its person's Permissions allow.
+_Avoid_: AI API, agent endpoint, plugin
+
+**OAuth grant**:
+A person's approval of an AI client, or of the CLI signing in with a device code, made in their browser: the Workspace, Sites and Toolsets it may work in, whether it only reads, and May publish. It lasts until they revoke it, lose that access, or the client leaves it unused for 30 days.
+_Avoid_: Connection, authorization, AI session
+
+**CLI**:
+The `webcraft` command: on a person's computer, one command for each public action of the Management API, signed in with a device code they approve in their browser (an OAuth grant) or an API token, and `structure pull/push` for a Site's Structure as files; on the server, the server commands (`webcraft admin …`). Each Install it signs in to is a profile.
+_Avoid_: Terminal client, SDK, tool
+
+**May publish**:
+Whether a person lets an AI client they approve publish. Without it the client saves Drafts but never makes them what visitors see; with it, publishing still shows a preview to confirm first.
+_Avoid_: Publish scope, publish permission
+
 **Toolset**:
 A named group of related actions, such as Content, Media, Structure, Publishing or Submissions, that a person switches on for an AI client or API token. The client can only use the actions in the Toolsets switched on, and only those the person may do.
 _Avoid_: Scope, capability, plugin
@@ -459,6 +571,26 @@ _Avoid_: Scope, capability, plugin
 **Sensitive action**:
 An action that needs a fresh password, passkey or 2FA check, such as changing secrets, creating API tokens, changing roles or Site access, or deleting a Site or Workspace. AI clients and API tokens can never perform one.
 _Avoid_: Admin action, dangerous action
+
+**Recent identity check**:
+Proof, within the last 10 minutes in the same admin session, that the person is who they say: signing in, or confirming with their password, a code from their Authenticator app or a Passkey. Every Sensitive action needs one.
+_Avoid_: Sudo mode, re-authentication, step-up
+
+**Two-factor authentication (2FA)**:
+Signing in with something only the person has besides their password: a code from their Authenticator app, or a Passkey. The Superadmin can require it across the Install, and Owners or Staff for a Workspace's Members; people who must use it set it up before they can do anything else.
+_Avoid_: MFA, two-step login, second password
+
+**Authenticator app**:
+An app on a person's phone that shows a new 6-digit code every 30 seconds for their account (TOTP), added by scanning a QR code or typing its key.
+_Avoid_: OTP app, token generator, any product name
+
+**Backup code**:
+One of 10 single-use codes a person gets with their first second factor, for signing in when their Authenticator app or Passkey is out of reach. Making new ones ends the old ones.
+_Avoid_: Recovery code, emergency code
+
+**Passkey**:
+A key kept on a person's device (or synced between their devices) for the admin, unlocked with their fingerprint, face or device PIN. It signs in on its own, counting as both factors, or serves as the second step or a Recent identity check.
+_Avoid_: Security key (only for hardware keys), WebAuthn credential, FIDO key
 
 **Management API**:
 WebCraft's documented, versioned API for changing and reading an Install as a person, used by the admin, the MCP server, the CLI and agencies' own scripts through API tokens.
@@ -484,6 +616,14 @@ _Avoid_: Kernel, platform, base
 The one published, versioned package a Module may use to reach WebCraft. It is the "public Module boundary" named in the licence.
 _Avoid_: Plugin API, hooks, extension API
 
+**Consent screen**:
+Where the Superadmin reads, in WebCraft's own words, everything a Module asks for (the Permissions it gives roles, the outside hosts it calls, sending email, a Site script) and approves it. A Module runs only once approved, and an update that asks for more waits, switched off, until it is approved again.
+_Avoid_: Permission prompt, install dialog. Not the Consent banner, which asks visitors.
+
+**Module log**:
+The record of what each Module wrote and of everything that went wrong while it ran, such as a background job that failed, kept for 90 days and read by the Superadmin.
+_Avoid_: Error log (that is the Install's unexpected failures), Audit log (that is who did what)
+
 **Impersonation**:
 Superadmin or Staff acting in the admin as a particular Staff member or Member, for a limited time, with every action recorded under both names.
 _Avoid_: View as, log in as, masquerade
@@ -505,6 +645,14 @@ _Avoid_: Snapshot, dump, export (that is one Site)
 **Site export**:
 A file holding one Site, its Structure, Content, Media, history, Submissions and Members, used to copy it into a Workspace on the same or another Install. Importing always creates a new Site. It is not a Backup.
 _Avoid_: Clone, site template, migration, transfer
+
+**Site import**:
+Bringing a Site export into a Workspace as a new Site, never over an existing one: its Content arrives as Drafts, its domains as Paused domains, and its Members matched by email or invited. It is not an Import, which brings outside content into one Site.
+_Avoid_: Restore, Import (that is outside content), migration
+
+**Site import report**:
+The record of a Site import: what came in, and what was reassigned, invited, paused, set or left out, such as secrets without their passphrase, Content keys and Scheduled publishes. It is not an Import report.
+_Avoid_: Import report (that is an Import run's), import log
 
 **Install health**:
 The Superadmin's view of whether an Install is working: its web and worker processes, database, job queue, storage, Backups, email settings, Site domains and Error log, each shown as OK, Warning or Failing.
@@ -533,12 +681,16 @@ Something a visitor does on a Site that counts as a result: a Form Submission, a
 _Avoid_: Conversion (that is a Goal being reached), target, KPI
 
 **Funnel**:
-An ordered list of two to five Goals or page visits, showing how many visitors in one visit reach each step.
+An ordered list of two to five Goals or page visits, showing how many visitors reach each step in order within one day.
 _Avoid_: Journey, flow, path
 
 **Dashboard**:
 A grid of Widgets showing a Site's analytics, or all of a Workspace's Sites added together. Staff build dashboards; Owners view them.
 _Avoid_: Report (that is the scheduled PDF), board, overview
+
+**Dashboard template**:
+A Dashboard's Widgets and date range, kept to start new Dashboards from on other Sites. Its Widgets find each Site's Goals and Funnels by their names.
+_Avoid_: Preset, layout, theme
 
 **Widget**:
 One chart, table, number or note on a Dashboard, chosen from WebCraft's built-in set, with its own date range and filters.
@@ -555,6 +707,10 @@ _Avoid_: Public link, client portal, guest access
 **Services list**:
 The services an agency offers, written by Staff for the whole Install, that the suggestions in Reports may point to.
 _Avoid_: Offerings, products, upsells
+
+**Report branding**:
+How Reports and Share links show the agency brand (the Superadmin's for the Install, or a Workspace's own), the client brand (the Site's or Workspace's name and logo) and "Made with WebCraft", each switched on or off. Kept apart from Install branding, which is for System emails.
+_Avoid_: White label, theme, agency branding (that means Install branding)
 
 **Consent banner**:
 The notice on a Site that asks visitors which categories of tracking and outside content they accept. WebCraft's built-in banner can be replaced by an outside consent service or turned off.

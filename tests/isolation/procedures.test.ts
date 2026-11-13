@@ -1,0 +1,2594 @@
+// Workspace isolation (ADR 0007): every procedure that takes a Workspace or a Site refuses another
+// Workspace's data. Each procedure gets one line here; the last test fails when one is missing.
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { traverseContractProcedures } from "@orpc/server";
+import { type ApiClient, apiRouter } from "@webcraft/api";
+import type forms from "@webcraft/module-forms";
+import type redirects from "@webcraft/module-redirects";
+import type { AnyModuleDefinition, ModuleApi, ModuleProcedures } from "@webcraft/module-sdk";
+import type siteAnalytics from "@webcraft/module-site-analytics";
+import { formVisitor } from "../harness/forms.ts";
+import { pdf, upload } from "../harness/images.ts";
+import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { type IsolationTarget, workspaceIsolation } from "../harness/isolation.ts";
+import { authorizationParameters, pkcePair, registerClient } from "../harness/mcp.ts";
+import { TEST_MODULES } from "../harness/modules.ts";
+import { exportedArchive, uploadArchive } from "../harness/site-transfer.ts";
+import { goLive } from "../harness/staging.ts";
+import { element, outlet, text, tree, value } from "../harness/trees.ts";
+import { OLD_MILL, partsDigest, sendParts, WORDPRESS } from "../imports/wordpress.ts";
+
+import type { sampleBoard } from "../modules/sample/board.ts";
+import type { sample } from "../modules/sample/index.ts";
+
+let install: TestInstall;
+
+beforeAll(async () => {
+	install = await createTestInstall({ modules: TEST_MODULES });
+	const admin = await install.superadmin();
+	await admin.api.modules.approve({ moduleId: "sample", version: "1.0.0" });
+	await admin.api.modules.approve({ moduleId: "sample-board", version: "1.0.0" });
+	await admin.api.modules.approve({ moduleId: "forms", version: "1.2.0" });
+	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
+	await admin.api.modules.approve({ moduleId: "redirects", version: "1.1.0" });
+	await admin.api.modules.approve({ moduleId: "wordpress-import", version: "1.1.0" });
+	install.dns.answer("isolated.example", ["93.184.216.34"]);
+	install.http.respond("GET", /^https:\/\/isolated.example\//, (request) => ({
+		body: new URL(request.url).pathname.endsWith("/users/me") ? '{"roles":["editor"]}' : "{}",
+	}));
+});
+
+afterAll(async () => {
+	await install.close();
+});
+
+const isolation = workspaceIsolation(() => install);
+
+/** A slug no other call has used. */
+let slugs = 0;
+const newSlug = () => `isolation-${++slugs}`;
+
+/** Content in a target's Site, made once by the Superadmin: a Post Type, its Entry template and an Entry. */
+const contents = new Map<string, Promise<{ postTypeId: string; templateId: string; entryId: string }>>();
+function contentIn(target: IsolationTarget) {
+	let content = contents.get(target.siteId);
+	if (!content) {
+		content = (async () => {
+			const { api } = await install.superadmin();
+			const { siteId } = target;
+			const { postType } = await api.postTypes.create({ siteId, name: "Posts", urlPattern: "/posts/{slug}" });
+			const { template } = await api.templates.saveEntryTemplate({
+				siteId,
+				postTypeId: postType.id,
+				tree: tree(element("h1", [value("title")])),
+			});
+			const { entry } = await api.entries.create({ siteId, postTypeId: postType.id, title: "Hello" });
+			return { postTypeId: postType.id, templateId: template.id, entryId: entry.id };
+		})();
+		contents.set(target.siteId, content);
+	}
+	return content;
+}
+
+/** An email address no other call has used. */
+let addresses = 0;
+const newAddress = () => `isolation-${++addresses}@client.example`;
+
+/** A pending Member invite in the Workspace, made by the Superadmin, who reaches every Workspace. */
+async function inviteIn(workspaceId: string): Promise<string> {
+	const admin = await install.superadmin();
+	const { invite } = await admin.api.members.invite({ workspaceId, email: newAddress(), role: "author", sites: "all" });
+	return invite.id;
+}
+
+/** A Member of the Workspace, made the way people become one. */
+async function memberOf(workspaceId: string): Promise<string> {
+	return (await install.createMember({ workspaceId, role: "author" })).personId;
+}
+
+describe("API tokens", () => {
+	isolation.refuses(
+		"apiTokens.create",
+		(api, { workspaceId }) => api.apiTokens.create({ workspaceId, name: "Isolation" }),
+		{ as: ["staff", "author"] },
+	);
+});
+
+describe("AI clients", () => {
+	/** An AI client's authorization request, as it sends the person to the approval page. */
+	let authorization: Record<string, string> | undefined;
+	const request = async () => {
+		if (!authorization) {
+			const { body } = await registerClient(install);
+			authorization = authorizationParameters(install, String(body.client_id), (await pkcePair()).challenge);
+		}
+		return authorization;
+	};
+	isolation.refuses(
+		"oauth.approve",
+		async (api, { workspaceId }) => api.oauth.approve({ parameters: await request(), workspaceId }),
+		{ as: ["staff", "author"] },
+	);
+
+	/** A device client (`webcraft login`), registered once; each approval needs a new user code. */
+	let deviceClientId: string | undefined;
+	const userCode = async () => {
+		if (!deviceClientId) {
+			const { body } = await registerClient(install, {
+				client_name: "webcraft CLI",
+				redirect_uris: undefined,
+				response_types: undefined,
+				grant_types: ["urn:ietf:params:oauth:grant-type:device_code", "refresh_token"],
+			});
+			deviceClientId = String(body.client_id);
+		}
+		const response = await install.request(
+			new Request(install.adminUrl("/oauth/device_authorization"), {
+				method: "POST",
+				headers: { "content-type": "application/x-www-form-urlencoded" },
+				body: new URLSearchParams({ client_id: deviceClientId }),
+			}),
+		);
+		return String(((await response.json()) as { user_code: string }).user_code);
+	};
+	isolation.refuses(
+		"oauth.approveDevice",
+		async (api, { workspaceId }) => api.oauth.approveDevice({ userCode: await userCode(), workspaceId }),
+		{ as: ["staff", "author"] },
+	);
+});
+
+describe("Workspaces", () => {
+	isolation.refuses("workspaces.get", (api, { workspaceId }) => api.workspaces.get({ workspaceId }), {
+		as: ["staff", "owner", "author"],
+	});
+	isolation.refuses("workspaces.storage", (api, { workspaceId }) => api.workspaces.storage({ workspaceId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("workspaces.setQuota", (api, { workspaceId }) =>
+		api.workspaces.setQuota({ workspaceId, quotaBytes: 1024 * 1024 * 1024 }),
+	);
+});
+
+describe("Sites", () => {
+	isolation.refuses("sites.list", (api, { workspaceId }) => api.sites.list({ workspaceId }), {
+		as: ["staff", "editor"],
+	});
+	isolation.refuses("sites.get", (api, { siteId }) => api.sites.get({ siteId }), { as: ["staff", "author"] });
+	isolation.refuses("sites.create", (api, { workspaceId }) =>
+		api.sites.create({ workspaceId, name: "Leaked Site", slug: newSlug() }),
+	);
+});
+
+describe("Post Types", () => {
+	isolation.refuses("postTypes.list", (api, { siteId }) => api.postTypes.list({ siteId }), { as: ["staff", "author"] });
+	isolation.refuses(
+		"postTypes.get",
+		async (api, target) =>
+			api.postTypes.get({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses("postTypes.create", (api, { siteId }) =>
+		api.postTypes.create({ siteId, name: "Leaked", key: newSlug(), urlPattern: `/${newSlug()}/{slug}` }),
+	);
+	isolation.refuses("postTypes.update", async (api, target) =>
+		api.postTypes.update({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId, name: "Renamed" }),
+	);
+	isolation.refuses("postTypes.data", async (api, target) =>
+		api.postTypes.data({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+	);
+});
+
+describe("Entries", () => {
+	isolation.refuses(
+		"entries.list",
+		async (api, target) =>
+			api.entries.list({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"entries.get",
+		async (api, target) => api.entries.get({ siteId: target.siteId, entryId: (await contentIn(target)).entryId }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"entries.bodyComponents",
+		async (api, target) =>
+			api.entries.bodyComponents({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"entries.pasteBody",
+		async (api, target) =>
+			api.entries.pasteBody({
+				siteId: target.siteId,
+				postTypeId: (await contentIn(target)).postTypeId,
+				text: "Private draft",
+			}),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"entries.create",
+		async (api, target) =>
+			api.entries.create({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId, title: "Leaked" }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"entries.saveDraft",
+		async (api, target) =>
+			api.entries.saveDraft({ siteId: target.siteId, entryId: (await contentIn(target)).entryId, title: "Changed" }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"entries.publish",
+		async (api, target) => api.entries.publish({ siteId: target.siteId, entryId: (await contentIn(target)).entryId }),
+		{ as: ["staff", "editor", "owner"] },
+	);
+	// Without a confirmation it only answers what deleting would do.
+	isolation.refuses(
+		"entries.delete",
+		async (api, target) => api.entries.delete({ siteId: target.siteId, entryId: (await contentIn(target)).entryId }),
+		{ as: ["staff", "editor"] },
+	);
+});
+
+describe("Globals", () => {
+	isolation.refuses("globals.get", (api, { siteId }) => api.globals.get({ siteId }), { as: ["staff", "author"] });
+	isolation.refuses("globals.setFields", (api, { siteId }) =>
+		api.globals.setFields({ siteId, fields: [{ key: "phone", label: "Phone", type: "text" }] }),
+	);
+	isolation.refuses("globals.data", (api, { siteId }) => api.globals.data({ siteId }));
+	isolation.refuses("globals.saveDraft", (api, { siteId }) => api.globals.saveDraft({ siteId, fields: {} }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("globals.publish", (api, { siteId }) => api.globals.publish({ siteId }), {
+		as: ["staff", "editor"],
+	});
+});
+
+describe("Templates", () => {
+	isolation.refuses("templates.getEntryTemplate", async (api, target) =>
+		api.templates.getEntryTemplate({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+	);
+	isolation.refuses("templates.saveEntryTemplate", async (api, target) =>
+		api.templates.saveEntryTemplate({
+			siteId: target.siteId,
+			postTypeId: (await contentIn(target)).postTypeId,
+			tree: tree(element("h2", [value("title")])),
+		}),
+	);
+	isolation.refuses("templates.getEntryTemplateMarkup", async (api, target) =>
+		api.templates.getEntryTemplateMarkup({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+	);
+	isolation.refuses("templates.saveEntryTemplateMarkup", async (api, target) =>
+		api.templates.saveEntryTemplateMarkup({
+			siteId: target.siteId,
+			postTypeId: (await contentIn(target)).postTypeId,
+			markup: "<h2>{{ title }}</h2>",
+		}),
+	);
+	isolation.refuses("templates.publish", async (api, target) =>
+		api.templates.publish({ siteId: target.siteId, templateId: (await contentIn(target)).templateId }),
+	);
+	isolation.refuses("templates.getSiteTemplate", (api, { siteId }) => api.templates.getSiteTemplate({ siteId }));
+	isolation.refuses("templates.saveSiteTemplate", (api, { siteId }) =>
+		api.templates.saveSiteTemplate({ siteId, tree: tree(element("main", [outlet()])) }),
+	);
+	isolation.refuses("templates.getSiteTemplateMarkup", (api, { siteId }) =>
+		api.templates.getSiteTemplateMarkup({ siteId }),
+	);
+	isolation.refuses("templates.saveSiteTemplateMarkup", (api, { siteId }) =>
+		api.templates.saveSiteTemplateMarkup({ siteId, markup: "<main>{{@outlet}}</main>" }),
+	);
+	isolation.refuses("templates.list", (api, { siteId }) => api.templates.list({ siteId }));
+	isolation.refuses("templates.getSearchTemplate", (api, { siteId }) => api.templates.getSearchTemplate({ siteId }));
+	isolation.refuses("templates.saveSearchTemplate", (api, { siteId }) =>
+		api.templates.saveSearchTemplate({ siteId, tree: { version: 1, nodes: [] } }),
+	);
+	isolation.refuses("templates.getSearchTemplateMarkup", (api, { siteId }) =>
+		api.templates.getSearchTemplateMarkup({ siteId }),
+	);
+	isolation.refuses("templates.saveSearchTemplateMarkup", (api, { siteId }) =>
+		api.templates.saveSearchTemplateMarkup({ siteId, markup: "<p>Search</p>" }),
+	);
+	isolation.refuses("templates.getArchiveTemplate", async (api, target) =>
+		api.templates.getArchiveTemplate({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+	);
+	isolation.refuses("templates.saveArchiveTemplate", async (api, target) =>
+		api.templates.saveArchiveTemplate({
+			siteId: target.siteId,
+			postTypeId: (await contentIn(target)).postTypeId,
+			tree: tree(element("h2", [text("All posts")])),
+		}),
+	);
+	isolation.refuses("templates.getArchiveTemplateMarkup", async (api, target) =>
+		api.templates.getArchiveTemplateMarkup({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+	);
+	isolation.refuses("templates.saveArchiveTemplateMarkup", async (api, target) =>
+		api.templates.saveArchiveTemplateMarkup({
+			siteId: target.siteId,
+			postTypeId: (await contentIn(target)).postTypeId,
+			markup: "<h2>All posts</h2>",
+		}),
+	);
+});
+
+describe("Scripts", () => {
+	/** The Site script of a target's Site, made once by the Superadmin. */
+	const siteScripts = new Map<string, Promise<string>>();
+	const siteScriptIn = (target: IsolationTarget) => {
+		let made = siteScripts.get(target.siteId);
+		if (!made) {
+			made = (async () => {
+				const { api } = await install.superadmin();
+				return (await api.scripts.saveDraft({ siteId: target.siteId, entryId: null, code: "1;" })).script.id;
+			})();
+			siteScripts.set(target.siteId, made);
+		}
+		return made;
+	};
+	isolation.refuses("scripts.get", (api, { siteId }) => api.scripts.get({ siteId, entryId: null }));
+	isolation.refuses("scripts.saveDraft", async (api, target) =>
+		api.scripts.saveDraft({ siteId: target.siteId, entryId: (await contentIn(target)).entryId, code: "1;" }),
+	);
+	isolation.refuses("scripts.publish", async (api, target) =>
+		api.scripts.publish({ siteId: target.siteId, scriptId: await siteScriptIn(target) }),
+	);
+});
+
+describe("SEO", () => {
+	isolation.refuses("seoSettings.get", (api, { siteId }) => api.seoSettings.get({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("seoSettings.update", (api, { siteId }) => api.seoSettings.update({ siteId, separator: "|" }));
+	isolation.refuses(
+		"seoSettings.setAiCrawlers",
+		(api, { siteId }) => api.seoSettings.setAiCrawlers({ siteId, aiCrawlers: "allowSearch" }),
+		{ as: ["staff", "owner"] },
+	);
+});
+
+/** A Content key of a target's Site, made by the Superadmin. */
+async function contentKeyIn(target: IsolationTarget): Promise<string> {
+	const { api } = await install.superadmin();
+	const { key } = await api.contentApi.keys.create({ siteId: target.siteId, name: `Frontend ${newSlug()}` });
+	return key.id;
+}
+
+describe("the Content API", () => {
+	isolation.refuses("contentApi.get", (api, { siteId }) => api.contentApi.get({ siteId }));
+	isolation.refuses("contentApi.update", (api, { siteId }) => api.contentApi.update({ siteId, enabled: true }));
+	isolation.refuses("contentApi.keys.create", (api, { siteId }) =>
+		api.contentApi.keys.create({ siteId, name: "Isolation frontend" }),
+	);
+	isolation.refuses("contentApi.keys.update", async (api, target) =>
+		api.contentApi.keys.update({ siteId: target.siteId, keyId: await contentKeyIn(target), name: "Renamed" }),
+	);
+	isolation.refuses("contentApi.keys.revoke", async (api, target) =>
+		api.contentApi.keys.revoke({ siteId: target.siteId, keyId: await contentKeyIn(target) }),
+	);
+});
+
+describe("Site script safety", () => {
+	isolation.refuses("consentBanner.get", (api, { siteId }) => api.consentBanner.get({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("consentBanner.setSettings", (api, { siteId }) =>
+		api.consentBanner.setSettings({ siteId, mode: "optOut", layout: "box" }),
+	);
+	isolation.refuses(
+		"consentBanner.saveDraft",
+		(api, { siteId }) => api.consentBanner.saveDraft({ siteId, fields: { heading: "Choices" } }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses("consentBanner.publish", (api, { siteId }) => api.consentBanner.publish({ siteId }), {
+		as: ["staff", "editor"],
+	});
+	/** A Consent record in a target's Site, as a visitor's choice on its banner leaves one. */
+	const consentRecords = new Map<string, Promise<string>>();
+	const consentRecordIn = (target: IsolationTarget) => {
+		let made = consentRecords.get(target.siteId);
+		if (!made) {
+			made = (async () => {
+				// A visitor's choice, on the Site's domain.
+				const origin = await goLive(install, target.siteId);
+				const answer = await install.request(`${origin}/_wc/consent`, {
+					method: "POST",
+					headers: { "content-type": "application/json", origin, "sec-fetch-site": "same-origin" },
+					body: JSON.stringify({
+						choices: { analytics: true, marketing: true, media: true },
+						version: 1,
+						language: "en",
+					}),
+				});
+				return ((await answer.json()) as { id: string }).id;
+			})();
+			consentRecords.set(target.siteId, made);
+		}
+		return made;
+	};
+	isolation.refuses(
+		"consentBanner.record",
+		async (api, target) => api.consentBanner.record({ siteId: target.siteId, recordId: await consentRecordIn(target) }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses("csp.get", (api, { siteId }) => api.csp.get({ siteId }));
+	isolation.refuses("csp.setMode", (api, { siteId }) => api.csp.setMode({ siteId, mode: "relaxed" }));
+	isolation.refuses("csp.addHost", (api, { siteId }) => api.csp.addHost({ siteId, host: "tags.example.com" }));
+	isolation.refuses("csp.removeHost", (api, { siteId }) => api.csp.removeHost({ siteId, host: "tags.example.com" }));
+
+	const outside = {
+		name: "Chat widget",
+		placement: "bodyEnd" as const,
+		consentCategory: "marketing" as const,
+		source: { kind: "url" as const, url: "https://widgets.example.com/chat.js" },
+	};
+	/** An outside script on a target's Site, added by the Superadmin. */
+	const outsideScriptIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		return (await api.outsideScripts.add({ siteId: target.siteId, ...outside })).outsideScript.id;
+	};
+	isolation.refuses("outsideScripts.list", (api, { siteId }) => api.outsideScripts.list({ siteId }));
+	isolation.refuses("outsideScripts.add", (api, { siteId }) => api.outsideScripts.add({ siteId, ...outside }));
+	isolation.refuses("outsideScripts.update", async (api, target) =>
+		api.outsideScripts.update({ siteId: target.siteId, outsideScriptId: await outsideScriptIn(target), ...outside }),
+	);
+	isolation.refuses("outsideScripts.remove", async (api, target) =>
+		api.outsideScripts.remove({ siteId: target.siteId, outsideScriptId: await outsideScriptIn(target) }),
+	);
+
+	/** A Library by address (the fake outgoing HTTP answers it). */
+	const libraryUrl = "https://cdn.example.org/slider.js";
+	const library = { source: "url" as const, url: libraryUrl };
+	const prepared = () => {
+		install.dns.answer("cdn.example.org", ["93.184.215.14"]);
+		install.http.respond("GET", libraryUrl, { body: "window.slider = {};" });
+	};
+	/** A Library on a target's Site, added by the Superadmin. */
+	const libraryIn = async (target: IsolationTarget) => {
+		prepared();
+		const { api } = await install.superadmin();
+		return (await api.libraries.add({ siteId: target.siteId, library })).library.id;
+	};
+	isolation.refuses("libraries.list", (api, { siteId }) => api.libraries.list({ siteId }));
+	isolation.refuses("libraries.add", (api, { siteId }) => {
+		prepared();
+		return api.libraries.add({ siteId, library });
+	});
+	isolation.refuses("libraries.checkUpdates", (api, { siteId }) => api.libraries.checkUpdates({ siteId }));
+	isolation.refuses("libraries.update", async (api, target) =>
+		api.libraries.update({ siteId: target.siteId, libraryId: await libraryIn(target) }),
+	);
+	isolation.refuses("libraries.remove", async (api, target) =>
+		api.libraries.remove({ siteId: target.siteId, libraryId: await libraryIn(target) }),
+	);
+});
+
+describe("Components", () => {
+	/** A name no other call has used. */
+	let names = 0;
+	const newName = () => `Card${++names}`;
+	/** A new Component in a target's Site, made by the Superadmin. */
+	const componentIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		return (await api.components.create({ siteId: target.siteId, name: newName() })).component.id;
+	};
+
+	isolation.refuses("components.list", (api, { siteId }) => api.components.list({ siteId }));
+	isolation.refuses("components.get", async (api, target) =>
+		api.components.get({ siteId: target.siteId, componentId: await componentIn(target) }),
+	);
+	isolation.refuses("components.create", (api, { siteId }) => api.components.create({ siteId, name: newName() }));
+	// New Component, placed (#134): the same procedure placing the new Component in a Component of the Site.
+	isolation.refuses("components.create", async (api, target) =>
+		api.components.create({
+			siteId: target.siteId,
+			name: newName(),
+			place: { source: { kind: "component", componentId: await componentIn(target) }, path: [0], list: [] },
+		}),
+	);
+	isolation.refuses("components.make", async (api, target) => {
+		const { api: superadmin } = await install.superadmin();
+		const componentId = await componentIn(target);
+		const { component } = await superadmin.components.saveDraft({
+			siteId: target.siteId,
+			componentId,
+			tree: tree(element("p")),
+		});
+		return api.components.make({
+			siteId: target.siteId,
+			name: newName(),
+			source: { kind: "component", componentId },
+			path: [0],
+			node: component.draft.tree.nodes[0],
+		});
+	});
+	isolation.refuses("components.saveDraft", async (api, target) =>
+		api.components.saveDraft({
+			siteId: target.siteId,
+			componentId: await componentIn(target),
+			tree: tree(element("p")),
+		}),
+	);
+	isolation.refuses("components.getMarkup", async (api, target) =>
+		api.components.getMarkup({ siteId: target.siteId, componentId: await componentIn(target) }),
+	);
+	isolation.refuses("components.saveMarkup", async (api, target) =>
+		api.components.saveMarkup({ siteId: target.siteId, componentId: await componentIn(target), markup: "<p>Hi</p>" }),
+	);
+	isolation.refuses("components.getScript", async (api, target) =>
+		api.components.getScript({ siteId: target.siteId, componentId: await componentIn(target) }),
+	);
+	isolation.refuses("components.saveScriptDraft", async (api, target) =>
+		api.components.saveScriptDraft({
+			siteId: target.siteId,
+			componentId: await componentIn(target),
+			code: "export default () => {};",
+		}),
+	);
+	isolation.refuses("components.publish", async (api, target) =>
+		api.components.publish({ siteId: target.siteId, componentId: await componentIn(target) }),
+	);
+	isolation.refuses("components.rename", async (api, target) =>
+		api.components.rename({ siteId: target.siteId, componentId: await componentIn(target), name: newName() }),
+	);
+	isolation.refuses("components.delete", async (api, target) =>
+		api.components.delete({ siteId: target.siteId, componentId: await componentIn(target) }),
+	);
+});
+
+describe("the visual builder", () => {
+	const entryTemplateIn = async (target: IsolationTarget) => ({
+		kind: "entryTemplate" as const,
+		postTypeId: (await contentIn(target)).postTypeId,
+	});
+	isolation.refuses("builder.transferHistory", (api, target) =>
+		api.builder.transferHistory({ siteId: target.siteId, payload: "{}" }),
+	);
+	isolation.refuses("builder.claimHistory", (api, target) =>
+		api.builder.claimHistory({ siteId: target.siteId, token: "missing" }),
+	);
+	isolation.refuses("builder.reverseHistory", (api, target) =>
+		api.builder.reverseHistory({
+			siteId: target.siteId,
+			resource: `css:${target.siteId}:{"kind":"site"}`,
+			from: "",
+			to: "",
+		}),
+	);
+	isolation.refuses("builder.historyDesign", (api, target) => api.builder.historyDesign({ siteId: target.siteId }));
+	isolation.refuses("builder.commandMenu", (api, target) => api.builder.commandMenu({ siteId: target.siteId }));
+	isolation.refuses("builder.destinations", async (api, target) =>
+		api.builder.destinations({ siteId: target.siteId, target: await entryTemplateIn(target) }),
+	);
+	isolation.refuses("builder.open", async (api, target) =>
+		api.builder.open({ siteId: target.siteId, target: await entryTemplateIn(target) }),
+	);
+	isolation.refuses("builder.preview", async (api, target) =>
+		api.builder.preview({ siteId: target.siteId, target: await entryTemplateIn(target), tree: tree(element("p")) }),
+	);
+	isolation.refuses("builder.markup", async (api, target) =>
+		api.builder.markup({ siteId: target.siteId, target: await entryTemplateIn(target), tree: tree(element("p")) }),
+	);
+	isolation.refuses("builder.read", async (api, target) =>
+		api.builder.read({ siteId: target.siteId, target: await entryTemplateIn(target), markup: "<p>Hi</p>" }),
+	);
+	isolation.refuses("builder.css", (api, target) => api.builder.css({ siteId: target.siteId, classes: [] }));
+	isolation.refuses("builder.saveCss", async (api, target) => {
+		const { siteCss } = await api.builder.css({ siteId: target.siteId, classes: [] }).catch(() => ({
+			siteCss: { version: null },
+		}));
+		return api.builder.saveCss({ siteId: target.siteId, target: { kind: "site" }, text: "", version: siteCss.version });
+	});
+});
+
+describe("Popups", () => {
+	let keys = 0;
+	const created: { siteId: string; popupId: string; componentId: string }[] = [];
+	const createPopup = async (api: ApiClient, siteId: string, name: string) => {
+		const result = await api.popups.create({ siteId, name });
+		created.push({ siteId, popupId: result.popup.id, componentId: result.popup.componentId });
+		return result;
+	};
+	// These Components belong to this group; later whole-Site Checks need not scan its fixtures.
+	afterAll(async () => {
+		if (!created.length) return;
+		const { api } = await install.superadmin();
+		for (const { siteId, popupId, componentId } of created) {
+			const popup = await api.popups.delete({ siteId, popupId });
+			if (!popup.deleted) await api.popups.delete({ siteId, popupId, confirmation: popup.confirmation.id });
+			const component = await api.components.delete({ siteId, componentId });
+			if (!component.deleted)
+				await api.components.delete({ siteId, componentId, confirmation: component.confirmation.id });
+		}
+	});
+	/** One Popup and backing Component per Site, as with the shared Content fixtures above. */
+	const popupIds = new Map<string, Promise<string>>();
+	const popupIn = (target: IsolationTarget) => {
+		let made = popupIds.get(target.siteId);
+		if (!made) {
+			made = (async () => {
+				const { api } = await install.superadmin();
+				return (await createPopup(api, target.siteId, `Popup ${++keys}`)).popup.id;
+			})();
+			popupIds.set(target.siteId, made);
+		}
+		return made;
+	};
+	isolation.refuses("popups.list", (api, { siteId }) => api.popups.list({ siteId }));
+	isolation.refuses("popups.get", async (api, target) =>
+		api.popups.get({ siteId: target.siteId, popupId: await popupIn(target) }),
+	);
+	isolation.refuses("popups.create", (api, { siteId }) => createPopup(api, siteId, `Ours ${++keys}`));
+	isolation.refuses("popups.saveDraft", async (api, target) =>
+		api.popups.saveDraft({ siteId: target.siteId, popupId: await popupIn(target), popup: { layout: "bar" } }),
+	);
+	isolation.refuses(
+		"popups.saveContent",
+		async (api, target) =>
+			api.popups.saveContent({ siteId: target.siteId, popupId: await popupIn(target), values: { title: "Our offer" } }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses("popups.publish", async (api, target) =>
+		api.popups.publish({ siteId: target.siteId, popupId: await popupIn(target) }),
+	);
+	isolation.refuses(
+		"popups.publishContent",
+		async (api, target) => api.popups.publishContent({ siteId: target.siteId, popupId: await popupIn(target) }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses("popups.delete", async (api, target) =>
+		api.popups.delete({ siteId: target.siteId, popupId: await popupIn(target) }),
+	);
+});
+
+describe("Forms", () => {
+	let keys = 0;
+	/** A new Form in a target's Site, made by the Superadmin. */
+	const formIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		return (await api.forms.create({ siteId: target.siteId, name: `Form ${++keys}` })).form.id;
+	};
+
+	isolation.refuses("forms.list", (api, { siteId }) => api.forms.list({ siteId }));
+	isolation.refuses("forms.get", async (api, target) =>
+		api.forms.get({ siteId: target.siteId, formId: await formIn(target) }),
+	);
+	isolation.refuses("forms.create", (api, { siteId }) => api.forms.create({ siteId, name: `Ours ${++keys}` }));
+	isolation.refuses("forms.saveDraft", async (api, target) =>
+		api.forms.saveDraft({
+			siteId: target.siteId,
+			formId: await formIn(target),
+			form: { fields: [{ key: "email", type: "email", label: "Email" }] },
+		}),
+	);
+	isolation.refuses("forms.publish", async (api, target) =>
+		api.forms.publish({ siteId: target.siteId, formId: await formIn(target) }),
+	);
+	isolation.refuses("forms.rename", async (api, target) =>
+		api.forms.rename({ siteId: target.siteId, formId: await formIn(target), name: "Renamed" }),
+	);
+	isolation.refuses("forms.delete", async (api, target) =>
+		api.forms.delete({ siteId: target.siteId, formId: await formIn(target) }),
+	);
+	isolation.refuses(
+		"forms.saveEmails",
+		async (api, target) =>
+			api.forms.saveEmails({ siteId: target.siteId, formId: await formIn(target), emails: { notifications: [] } }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"forms.publishEmails",
+		async (api, target) => api.forms.publishEmails({ siteId: target.siteId, formId: await formIn(target) }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses("forms.captcha.get", (api, { siteId }) => api.forms.captcha.get({ siteId }));
+	isolation.refuses("forms.captcha.set", (api, { siteId }) => api.forms.captcha.set({ siteId, captcha: null }));
+	isolation.refuses(
+		"m.forms.submissions.list",
+		(api, { siteId }) => moduleOf<typeof forms>(api, "forms").submissions.list({ siteId }),
+		{ as: ["staff", "editor"] },
+	);
+	const someId = "00000000-0000-4000-8000-000000000089";
+	/** Each target's Form on a page of its own, made once by the Superadmin. */
+	const formPages = new Map<string, Promise<{ formId: string; page: string }>>();
+	const formPageIn = (target: IsolationTarget) => {
+		let made = formPages.get(target.siteId);
+		if (!made) {
+			made = (async () => {
+				const { api } = await install.superadmin();
+				const { siteId } = target;
+				const key = `kept-${++keys}`;
+				const { form } = await api.forms.create({ siteId, name: key, key });
+				await api.forms.saveDraft({
+					siteId,
+					formId: form.id,
+					form: { fields: [{ key: "name", type: "text", label: "Name" }] },
+				});
+				await api.forms.publish({ siteId, formId: form.id });
+				const { postType } = await api.postTypes.create({ siteId, name: key, urlPattern: `/${key}/{slug}` });
+				const { template } = await api.templates.saveEntryTemplateMarkup({
+					siteId,
+					postTypeId: postType.id,
+					markup: `<div data-wc-id="f1">{{@form ${key}}}</div>`,
+				});
+				await api.templates.publish({ siteId, templateId: template.id });
+				const { entry } = await api.entries.create({ siteId, postTypeId: postType.id, title: "Form", slug: "form" });
+				await api.entries.publish({ siteId, entryId: entry.id });
+				const live = await goLive(install, siteId);
+				return { formId: form.id, page: `${live}/${key}/form` };
+			})();
+			formPages.set(target.siteId, made);
+		}
+		return made;
+	};
+	/** A Submission sent to the target's Form by a visitor (to its Spam folder when `spam`); answers its id. */
+	const submissionIn = async (target: IsolationTarget, spam = false): Promise<string> => {
+		const { formId, page } = await formPageIn(target);
+		const visitor = formVisitor(install);
+		const loaded = await visitor.open(page);
+		await install.clock.advance(5_000);
+		await visitor.send(loaded, { name: "Ada" }, { hidden: spam ? { "wc-website": "spam" } : {} });
+		const { api } = await install.superadmin();
+		const listed = await moduleOf<typeof forms>(api, "forms").submissions.list({
+			siteId: target.siteId,
+			formId,
+			folder: spam ? "spam" : "inbox",
+			limit: 1,
+		});
+		const id = listed.submissions[0]?.id;
+		if (!id) throw new Error("No Submission was kept.");
+		return id;
+	};
+	const formsModule = (api: Parameters<Parameters<typeof isolation.refuses>[1]>[0]) =>
+		moduleOf<typeof forms>(api, "forms");
+	isolation.refuses(
+		"m.forms.submissions.get",
+		async (api, target) => formsModule(api).submissions.get({ siteId: target.siteId, id: await submissionIn(target) }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"m.forms.submissions.setRead",
+		(api, { siteId }) => formsModule(api).submissions.setRead({ siteId, ids: [someId], read: true }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"m.forms.submissions.notSpam",
+		async (api, target) =>
+			formsModule(api).submissions.notSpam({ siteId: target.siteId, id: await submissionIn(target, true) }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"m.forms.submissions.delete",
+		(api, { siteId }) => formsModule(api).submissions.delete({ siteId, ids: [someId] }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"m.forms.submissions.export",
+		(api, { siteId }) => formsModule(api).submissions.export({ siteId, formId: someId }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"m.forms.retention.get",
+		(api, { siteId }) => formsModule(api).retention.get({ siteId, formId: someId }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"m.forms.retention.set",
+		(api, { siteId }) => formsModule(api).retention.set({ siteId, formId: someId, keepDays: 30 }),
+		{ as: ["staff", "editor"] },
+	);
+});
+
+describe("Site SMTP", () => {
+	isolation.refuses("siteSmtp.get", (api, { siteId }) => api.siteSmtp.get({ siteId }));
+	isolation.refuses("siteSmtp.update", (api, { siteId }) =>
+		api.siteSmtp.update({ siteId, fromName: null, replyTo: null, server: null }),
+	);
+	isolation.refuses("siteSmtp.sendTest", (api, { siteId }) =>
+		api.siteSmtp.sendTest({ siteId, to: "test@agency.example", fromName: null, replyTo: null, server: null }),
+	);
+});
+
+describe("Redirect rules and the 404 log", () => {
+	let paths = 0;
+	const redirectsOf = (api: ApiClient) => moduleOf<typeof redirects>(api, "redirects");
+	/** A Redirect rule in a target's Site, made by the Superadmin. */
+	async function ruleIn(target: IsolationTarget) {
+		const admin = await install.superadmin();
+		const from = `/isolation-${++paths}`;
+		return (await redirectsOf(admin.api).rules.add({ siteId: target.siteId, from, to: "/", status: 301 })).rule.id;
+	}
+	/** A path of a target's 404 log: a visitor's browser asked for it. */
+	async function missIn(target: IsolationTarget) {
+		const admin = await install.superadmin();
+		const origin = await goLive(install, target.siteId);
+		const path = `/missing-${++paths}`;
+		const userAgent = "Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/131.0";
+		await install.request(new Request(`${origin}${path}`, { headers: { "user-agent": userAgent } }));
+		await install.drainJobs();
+		const { misses } = await redirectsOf(admin.api).notFound.list({ siteId: target.siteId });
+		const miss = misses.find((each) => each.path === path);
+		if (!miss) throw new Error(`${path} should be in the 404 log.`);
+		return miss.id;
+	}
+	isolation.refuses("m.redirects.rules.list", (api, { siteId }) => redirectsOf(api).rules.list({ siteId }), {
+		as: ["staff", "editor"],
+	});
+	isolation.refuses(
+		"m.redirects.rules.add",
+		(api, { siteId }) => redirectsOf(api).rules.add({ siteId, from: `/ours-${++paths}`, to: "/", status: 302 }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("m.redirects.rules.update", async (api, target) =>
+		redirectsOf(api).rules.update({ siteId: target.siteId, ruleId: await ruleIn(target), status: 302 }),
+	);
+	isolation.refuses("m.redirects.rules.remove", async (api, target) =>
+		redirectsOf(api).rules.remove({ siteId: target.siteId, ruleId: await ruleIn(target) }),
+	);
+	isolation.refuses("m.redirects.notFound.list", (api, { siteId }) => redirectsOf(api).notFound.list({ siteId }), {
+		as: ["staff", "editor"],
+	});
+	isolation.refuses("m.redirects.notFound.ignore", async (api, target) =>
+		redirectsOf(api).notFound.ignore({ siteId: target.siteId, missId: await missIn(target) }),
+	);
+});
+
+describe("Loops", () => {
+	/** A name no other call has used. */
+	let names = 0;
+	const newName = () => `loop-${++names}`;
+	/** A new Loop of its own items in a target's Site, made by the Superadmin. */
+	const loopIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		const fields = [{ key: "label", label: "Label", type: "text" as const }];
+		return (await api.loops.create({ siteId: target.siteId, name: newName(), source: "items", fields })).loop.id;
+	};
+
+	isolation.refuses("loops.list", (api, { siteId }) => api.loops.list({ siteId }));
+	isolation.refuses("loops.get", async (api, target) =>
+		api.loops.get({ siteId: target.siteId, loopId: await loopIn(target) }),
+	);
+	isolation.refuses("loops.create", (api, { siteId }) =>
+		api.loops.create({ siteId, name: newName(), source: "query" }),
+	);
+	isolation.refuses("loops.saveDraft", async (api, target) =>
+		api.loops.saveDraft({ siteId: target.siteId, loopId: await loopIn(target), query: { limit: 5 } }),
+	);
+	isolation.refuses("loops.saveItems", async (api, target) =>
+		api.loops.saveItems({ siteId: target.siteId, loopId: await loopIn(target), items: [{ label: "One" }] }),
+	);
+	isolation.refuses("loops.data", async (api, target) =>
+		api.loops.data({ siteId: target.siteId, loopId: await loopIn(target) }),
+	);
+	isolation.refuses("loops.publish", async (api, target) =>
+		api.loops.publish({ siteId: target.siteId, loopId: await loopIn(target) }),
+	);
+});
+
+describe("Filters", () => {
+	let names = 0;
+	/** A new published query Loop of Pages in a target's Site, made by the Superadmin: one Filter each. */
+	const loopIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		const name = `filtered-${++names}`;
+		const { loop } = await api.loops.create({
+			siteId: target.siteId,
+			name,
+			source: "query",
+			query: { postTypes: ["page"] },
+		});
+		await api.loops.publish({ siteId: target.siteId, loopId: loop.id });
+		return name;
+	};
+	/** A new Filter in a target's Site, made by the Superadmin. */
+	const filterIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		const loop = await loopIn(target);
+		return (await api.filters.create({ siteId: target.siteId, name: `filter-${loop}`, loop })).filter.id;
+	};
+
+	isolation.refuses("filters.list", (api, { siteId }) => api.filters.list({ siteId }));
+	isolation.refuses("filters.get", async (api, target) =>
+		api.filters.get({ siteId: target.siteId, filterId: await filterIn(target) }),
+	);
+	isolation.refuses("filters.create", async (api, target) => {
+		const loop = await loopIn(target);
+		return api.filters.create({ siteId: target.siteId, name: `made-${loop}`, loop });
+	});
+	isolation.refuses("filters.preview", async (api, target) =>
+		api.filters.preview({ siteId: target.siteId, filterId: await filterIn(target), layout: "topbar" }),
+	);
+	isolation.refuses("filters.saveDraft", async (api, target) =>
+		api.filters.saveDraft({ siteId: target.siteId, filterId: await filterIn(target), mode: "submit" }),
+	);
+	isolation.refuses("filters.publish", async (api, target) =>
+		api.filters.publish({ siteId: target.siteId, filterId: await filterIn(target) }),
+	);
+});
+
+describe("Design system", () => {
+	/** A new Class in a target's Site's Design system, made by the Superadmin. */
+	const classIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		return (await api.designSystem.createClass({ siteId: target.siteId, name: `card-${newSlug()}` })).class.id;
+	};
+
+	isolation.refuses("designSystem.get", (api, { siteId }) => api.designSystem.get({ siteId }));
+	isolation.refuses("designSystem.saveDraft", (api, { siteId }) =>
+		api.designSystem.saveDraft({ siteId, customCss: "p { margin: 0; }" }),
+	);
+	isolation.refuses("designSystem.createClass", (api, { siteId }) =>
+		api.designSystem.createClass({ siteId, name: `leaked-${newSlug()}` }),
+	);
+	isolation.refuses("designSystem.updateClass", async (api, target) =>
+		api.designSystem.updateClass({ siteId: target.siteId, classId: await classIn(target), styles: "color: red;" }),
+	);
+	isolation.refuses("designSystem.deleteClass", async (api, target) =>
+		api.designSystem.deleteClass({ siteId: target.siteId, classId: await classIn(target) }),
+	);
+	isolation.refuses("designSystem.publish", (api, { siteId }) => api.designSystem.publish({ siteId }));
+	isolation.refuses("designSystem.exportTokens", (api, { siteId }) => api.designSystem.exportTokens({ siteId }));
+	isolation.refuses("designSystem.importTokens", (api, { siteId }) =>
+		api.designSystem.importTokens({ siteId, tokens: { width: { content: { $value: { value: 70, unit: "rem" } } } } }),
+	);
+	isolation.refuses("designSystem.preview", (api, { siteId }) => api.designSystem.preview({ siteId, darkMode: true }));
+	isolation.refuses("designSystem.exportFile", (api, { siteId }) => api.designSystem.exportFile({ siteId }));
+	isolation.refuses("designSystem.importFile", async (api, target) => {
+		const { api: admin } = await install.superadmin();
+		const { file } = await admin.designSystem.exportFile({ siteId: target.siteId });
+		return api.designSystem.importFile({ siteId: target.siteId, file: { ...file, darkMode: true } });
+	});
+});
+
+describe("Pages", () => {
+	/** A Page in a target's Site, made by the Superadmin. */
+	const pageIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		const { postTypes } = await api.postTypes.list({ siteId: target.siteId });
+		const pages = postTypes.find((postType) => postType.builtIn === "page");
+		const { entry } = await api.entries.create({ siteId: target.siteId, postTypeId: pages?.id ?? "", title: "Page" });
+		return entry.id;
+	};
+
+	isolation.refuses("pages.settings", (api, { siteId }) => api.pages.settings({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("pages.setHomePage", async (api, target) =>
+		api.pages.setHomePage({ siteId: target.siteId, pageId: await pageIn(target) }),
+	);
+	isolation.refuses("pages.setNotFoundPage", async (api, target) =>
+		api.pages.setNotFoundPage({ siteId: target.siteId, pageId: await pageIn(target) }),
+	);
+	isolation.refuses("pages.setSearchPage", async (api, target) =>
+		api.pages.setSearchPage({ siteId: target.siteId, pageId: await pageIn(target) }),
+	);
+});
+
+describe("Languages", () => {
+	isolation.refuses("languages.list", (api, { siteId }) => api.languages.list({ siteId }), {
+		as: ["staff", "author"],
+	});
+	// Each call adds a language the Site doesn't have yet.
+	const newLanguages = ["nl", "sv", "da", "fi", "pl", "cs"];
+	isolation.refuses("languages.add", (api, { siteId }) =>
+		api.languages.add({ siteId, code: newLanguages.shift() ?? "el" }),
+	);
+	isolation.refuses("languages.update", (api, { siteId }) =>
+		api.languages.update({ siteId, code: "en", name: "Inglese" }),
+	);
+	// Without a confirmation it only answers what the change would do.
+	isolation.refuses("languages.setDefault", async (api, target) => {
+		const admin = await install.superadmin();
+		await admin.api.languages.add({ siteId: target.siteId, code: "fr" }).catch(() => undefined);
+		return api.languages.setDefault({ siteId: target.siteId, code: "fr" });
+	});
+	isolation.refuses("languages.remove", async (api, target) => {
+		const admin = await install.superadmin();
+		await admin.api.languages.add({ siteId: target.siteId, code: "de" }).catch(() => undefined);
+		return api.languages.remove({ siteId: target.siteId, code: "de" });
+	});
+	isolation.refuses("languages.setBrowserRedirect", (api, { siteId }) =>
+		api.languages.setBrowserRedirect({ siteId, browserLanguageRedirect: true }),
+	);
+});
+
+/** The Primary domain of a target's Site (waiting for DNS), added by the Superadmin when it has none. */
+async function domainIn(target: IsolationTarget): Promise<string> {
+	const { api } = await install.superadmin();
+	const { domains } = await api.domains.list({ siteId: target.siteId });
+	const primary = domains.find((domain) => domain.role === "primary");
+	if (primary) return primary.id;
+	const added = await api.domains.add({ siteId: target.siteId, name: `${newSlug()}.example` });
+	return added.domains[0]?.id ?? "";
+}
+
+/** The Workspace's own AI key, set once by the Superadmin (who reaches every Workspace), with the fake provider answering. */
+const ownKeys = new Map<string, Promise<void>>();
+function ownKeyIn(target: IsolationTarget) {
+	let set = ownKeys.get(target.workspaceId);
+	if (!set) {
+		set = (async () => {
+			const { api } = await install.superadmin();
+			await api.aiKeys.setOwn({
+				workspaceId: target.workspaceId,
+				provider: "openai",
+				model: "gpt-5-mini",
+				endpoint: null,
+				key: "sk-isolation-key-0123456789abcdef",
+			});
+		})();
+		ownKeys.set(target.workspaceId, set);
+	}
+	install.ai.translateWith((text, request) => `[${request.to.code}] ${text}`);
+	return set;
+}
+
+/** Italian on the target's Site, and an Entry whose Italian title a person wrote. */
+async function italianIn(target: IsolationTarget) {
+	const { api } = await install.superadmin();
+	await api.languages.add({ siteId: target.siteId, code: "it" }).catch(() => undefined);
+	const { entryId } = await contentIn(target);
+	await api.entries.saveDraft({ siteId: target.siteId, entryId, language: "it", title: "Ciao" });
+	return entryId;
+}
+
+/** A Protected term of the target's Workspace, added by the Superadmin. */
+async function termIn(target: IsolationTarget): Promise<string> {
+	const { api } = await install.superadmin();
+	const term = `Term ${newSlug()}`;
+	await api.protectedTerms.add({ workspaceId: target.workspaceId, siteId: null, terms: [{ term, matchCase: true }] });
+	const { terms } = await api.protectedTerms.list({ workspaceId: target.workspaceId });
+	return terms.find((candidate) => candidate.term === term)?.id ?? "";
+}
+
+describe("AI keys", () => {
+	isolation.refuses("aiKeys.get", (api, { workspaceId }) => api.aiKeys.get({ workspaceId }), {
+		as: ["staff", "owner"],
+	});
+	isolation.refuses(
+		"aiKeys.setOwn",
+		(api, { workspaceId }) =>
+			api.aiKeys.setOwn({
+				workspaceId,
+				provider: "openai",
+				model: "gpt-5-mini",
+				endpoint: null,
+				key: "sk-isolation-key-0123456789abcdef",
+			}),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"aiKeys.setOwnCap",
+		async (api, target) => {
+			await ownKeyIn(target);
+			return api.aiKeys.setOwnCap({ workspaceId: target.workspaceId, monthlyCap: 50 });
+		},
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"aiKeys.testOwn",
+		async (api, target) => {
+			await ownKeyIn(target);
+			return api.aiKeys.testOwn({ workspaceId: target.workspaceId });
+		},
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"aiKeys.removeOwn",
+		async (api, target) => {
+			const answer = await api.aiKeys.removeOwn({ workspaceId: target.workspaceId });
+			ownKeys.delete(target.workspaceId);
+			return answer;
+		},
+		{ as: ["staff", "owner"] },
+	);
+});
+
+describe("AI translation", () => {
+	isolation.refuses("translations.overview", (api, { siteId }) => api.translations.overview({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses(
+		"translations.setMode",
+		async (api, target) => {
+			await italianIn(target);
+			return api.translations.setMode({ siteId: target.siteId, language: "it", mode: "review" });
+		},
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("translations.translateNow", (api, { siteId }) => api.translations.translateNow({ siteId }), {
+		as: ["staff", "owner"],
+	});
+	isolation.refuses("translations.queue", (api, { siteId }) => api.translations.queue({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses(
+		"translations.approve",
+		async (api, target) => {
+			await italianIn(target);
+			return api.translations.approve({ siteId: target.siteId, language: "it" });
+		},
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"translations.confirm",
+		async (api, target) => {
+			const entryId = await italianIn(target);
+			return api.translations.confirm({
+				siteId: target.siteId,
+				item: { kind: "entry", id: entryId },
+				language: "it",
+				at: "title",
+			});
+		},
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"translations.retranslate",
+		async (api, target) => {
+			const entryId = await italianIn(target);
+			await ownKeyIn(target);
+			return api.translations.retranslate({
+				siteId: target.siteId,
+				item: { kind: "entry", id: entryId },
+				language: "it",
+				at: "title",
+			});
+		},
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses("protectedTerms.list", (api, { workspaceId }) => api.protectedTerms.list({ workspaceId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses(
+		"protectedTerms.add",
+		(api, { workspaceId, siteId }) =>
+			api.protectedTerms.add({ workspaceId, siteId, terms: [{ term: `Kept ${newSlug()}`, matchCase: true }] }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"protectedTerms.remove",
+		async (api, target) => api.protectedTerms.remove({ workspaceId: target.workspaceId, termId: await termIn(target) }),
+		{ as: ["staff", "editor"] },
+	);
+});
+
+describe("Domains", () => {
+	isolation.refuses("domains.list", (api, { siteId }) => api.domains.list({ siteId }), { as: ["staff", "owner"] });
+	isolation.refuses("domains.add", (api, { siteId }) => api.domains.add({ siteId, name: `${newSlug()}.example` }));
+	isolation.refuses("domains.setCdn", (api, { siteId }) => api.domains.setCdn({ siteId, cdn: "cloudflare" }));
+	isolation.refuses("domains.newCdnSecret", (api, { siteId }) => api.domains.newCdnSecret({ siteId }));
+	isolation.refuses("domains.check", async (api, target) =>
+		api.domains.check({ siteId: target.siteId, domainId: await domainIn(target) }),
+	);
+	// Without a confirmation it only answers what removing would do.
+	isolation.refuses("domains.remove", async (api, target) =>
+		api.domains.remove({ siteId: target.siteId, domainId: await domainIn(target) }),
+	);
+	// Making the Primary domain the Primary domain again changes nothing, but must still be allowed.
+	isolation.refuses("domains.makePrimary", async (api, target) =>
+		api.domains.makePrimary({ siteId: target.siteId, domainId: await domainIn(target) }),
+	);
+});
+
+/** A Webhook of a target's Site, added by the Superadmin, whose receiver refuses everything (410). */
+async function webhookIn(target: IsolationTarget): Promise<string> {
+	const { api } = await install.superadmin();
+	install.dns.answer("hooks.isolation.example", ["93.184.216.34"]);
+	install.http.respond("POST", /^https:\/\/hooks\.isolation\.example\//, { status: 410 });
+	const { webhook } = await api.webhooks.add({
+		siteId: target.siteId,
+		url: `https://hooks.isolation.example/${newSlug()}`,
+		events: ["publish"],
+	});
+	return webhook.id;
+}
+
+/** A Webhook of a target's Site with one failed delivery. */
+async function failedDeliveryIn(target: IsolationTarget): Promise<{ webhookId: string; deliveryId: string }> {
+	const { api } = await install.superadmin();
+	const webhookId = await webhookIn(target);
+	await api.globals.publish({ siteId: target.siteId });
+	await install.drainJobs();
+	const { deliveries } = await api.webhooks.deliveries({ siteId: target.siteId, webhookId });
+	return { webhookId, deliveryId: deliveries[0]?.id ?? "" };
+}
+
+describe("Webhooks", () => {
+	const webhook = { url: "https://hooks.isolation.example/added", events: ["publish" as const] };
+	isolation.refuses("webhooks.list", (api, { siteId }) => api.webhooks.list({ siteId }), { as: ["staff", "owner"] });
+	isolation.refuses("webhooks.add", (api, { siteId }) => api.webhooks.add({ siteId, ...webhook }));
+	isolation.refuses("webhooks.update", async (api, target) =>
+		api.webhooks.update({ siteId: target.siteId, webhookId: await webhookIn(target), ...webhook }),
+	);
+	isolation.refuses("webhooks.changeSecret", async (api, target) =>
+		api.webhooks.changeSecret({ siteId: target.siteId, webhookId: await webhookIn(target) }),
+	);
+	isolation.refuses("webhooks.setEnabled", async (api, target) =>
+		api.webhooks.setEnabled({ siteId: target.siteId, webhookId: await webhookIn(target), enabled: false }),
+	);
+	// Without a confirmation it only answers what removing would do.
+	isolation.refuses("webhooks.remove", async (api, target) =>
+		api.webhooks.remove({ siteId: target.siteId, webhookId: await webhookIn(target) }),
+	);
+	isolation.refuses("webhooks.deliveries", async (api, target) =>
+		api.webhooks.deliveries({ siteId: target.siteId, webhookId: await webhookIn(target) }),
+	);
+	isolation.refuses("webhooks.test", async (api, target) =>
+		api.webhooks.test({ siteId: target.siteId, webhookId: await webhookIn(target) }),
+	);
+	isolation.refuses("webhooks.redeliver", async (api, target) =>
+		api.webhooks.redeliver({ siteId: target.siteId, ...(await failedDeliveryIn(target)) }),
+	);
+});
+
+describe("Edit mode", () => {
+	isolation.refuses("editMode.open", (api, { siteId }) => api.editMode.open({ siteId, path: "/" }), {
+		as: ["staff", "author"],
+	});
+});
+
+describe("the Staging address", () => {
+	isolation.refuses("staging.open", (api, { siteId }) => api.staging.open({ siteId, path: "/" }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("staging.get", (api, { siteId }) => api.staging.get({ siteId }), { as: ["staff", "author"] });
+	isolation.refuses("staging.setPassword", (api, { siteId }) => api.staging.setPassword({ siteId, password: null }), {
+		as: ["staff", "owner"],
+	});
+});
+
+describe("Publish all", () => {
+	isolation.refuses("publishing.drafts", (api, { siteId }) => api.publishing.drafts({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses("publishing.count", (api, { siteId }) => api.publishing.count({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses(
+		"publishing.publishAll",
+		async (api, target) => {
+			// A Draft of its own in the target's Site, made by the Superadmin.
+			const admin = await install.superadmin();
+			const { postTypeId } = await contentIn(target);
+			const { entry } = await admin.api.entries.create({ siteId: target.siteId, postTypeId, title: "Draft" });
+			return api.publishing.publishAll({ siteId: target.siteId, items: [{ kind: "entry", id: entry.id }] });
+		},
+		{ as: ["staff", "editor"] },
+	);
+});
+
+describe("Scheduled publish", () => {
+	const anHourFromNow = () => new Date(install.clock.now().getTime() + 60 * 60_000);
+	/** A Draft Entry of its own in the target's Site, made by the Superadmin. */
+	const draftIn = async (target: IsolationTarget) => {
+		const admin = await install.superadmin();
+		const { postTypeId } = await contentIn(target);
+		return (await admin.api.entries.create({ siteId: target.siteId, postTypeId, title: "Scheduled" })).entry.id;
+	};
+	/** A Scheduled publish of its own in the target's Site, made by the Superadmin. */
+	const scheduleIn = async (target: IsolationTarget) => {
+		const admin = await install.superadmin();
+		const id = await draftIn(target);
+		const { scheduled } = await admin.api.publishing.schedule({
+			siteId: target.siteId,
+			item: { kind: "entry", id },
+			at: anHourFromNow(),
+		});
+		return scheduled.id;
+	};
+	isolation.refuses("publishing.scheduled", (api, { siteId }) => api.publishing.scheduled({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses(
+		"publishing.schedule",
+		async (api, target) =>
+			api.publishing.schedule({
+				siteId: target.siteId,
+				item: { kind: "entry", id: await draftIn(target) },
+				at: anHourFromNow(),
+			}),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"publishing.scheduleAll",
+		async (api, target) =>
+			api.publishing.scheduleAll({
+				siteId: target.siteId,
+				items: [{ kind: "entry", id: await draftIn(target) }],
+				at: anHourFromNow(),
+			}),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"publishing.scheduleUnpublish",
+		async (api, target) =>
+			api.publishing.scheduleUnpublish({ siteId: target.siteId, entryId: await draftIn(target), at: anHourFromNow() }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"publishing.reschedule",
+		async (api, target) =>
+			api.publishing.reschedule({ siteId: target.siteId, scheduleId: await scheduleIn(target), at: anHourFromNow() }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"publishing.updateScheduled",
+		async (api, target) =>
+			api.publishing.updateScheduled({ siteId: target.siteId, scheduleId: await scheduleIn(target) }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"publishing.cancelScheduled",
+		async (api, target) =>
+			api.publishing.cancelScheduled({ siteId: target.siteId, scheduleId: await scheduleIn(target) }),
+		{ as: ["staff", "editor"] },
+	);
+});
+
+describe("Review", () => {
+	/** A new Draft Entry in the target's Site, made by the Superadmin. */
+	const draftIn = async (target: IsolationTarget) => {
+		const admin = await install.superadmin();
+		const { postTypeId } = await contentIn(target);
+		return (await admin.api.entries.create({ siteId: target.siteId, postTypeId, title: "Reviewed" })).entry.id;
+	};
+	/** A Review of its own in the target's Site, submitted by `api`'s person, or by the Superadmin where they can't. */
+	const reviewIn = async (api: ApiClient, target: IsolationTarget) => {
+		const items = [{ kind: "entry" as const, id: await draftIn(target) }];
+		const submitted = await api.reviews
+			.submit({ siteId: target.siteId, items })
+			.catch(async () => (await install.superadmin()).api.reviews.submit({ siteId: target.siteId, items }));
+		return submitted.reviews[0]?.id as string;
+	};
+	isolation.refuses("reviews.list", (api, { siteId }) => api.reviews.list({ siteId }), { as: ["staff", "author"] });
+	isolation.refuses("reviews.count", (api, { siteId }) => api.reviews.count({ siteId }), { as: ["staff", "author"] });
+	isolation.refuses(
+		"reviews.get",
+		async (api, target) => api.reviews.get({ siteId: target.siteId, reviewId: await reviewIn(api, target) }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"reviews.submit",
+		async (api, target) =>
+			api.reviews.submit({ siteId: target.siteId, items: [{ kind: "entry", id: await draftIn(target) }] }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"reviews.withdraw",
+		async (api, target) => api.reviews.withdraw({ siteId: target.siteId, reviewId: await reviewIn(api, target) }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"reviews.sendBack",
+		async (api, target) =>
+			api.reviews.sendBack({ siteId: target.siteId, reviewId: await reviewIn(api, target), comment: "Not yet." }),
+		{ as: ["staff", "editor"] },
+	);
+});
+
+/** The Revision a target's Entry was published with, made once by the Superadmin. */
+const revisions = new Map<string, Promise<{ entryId: string; revisionId: string }>>();
+function revisionIn(target: IsolationTarget) {
+	let revision = revisions.get(target.siteId);
+	if (!revision) {
+		revision = (async () => {
+			const { api } = await install.superadmin();
+			const { entryId } = await contentIn(target);
+			await api.entries.publish({ siteId: target.siteId, entryId });
+			const { copies } = await api.history.list({ siteId: target.siteId, item: { kind: "entry", id: entryId } });
+			return { entryId, revisionId: copies.find((copy) => copy.type === "revision")?.id ?? "" };
+		})();
+		revisions.set(target.siteId, revision);
+	}
+	return revision;
+}
+
+describe("history", () => {
+	isolation.refuses(
+		"history.list",
+		async (api, target) =>
+			api.history.list({ siteId: target.siteId, item: { kind: "entry", id: (await contentIn(target)).entryId } }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"history.get",
+		async (api, target) => {
+			const { entryId, revisionId } = await revisionIn(target);
+			return api.history.get({
+				siteId: target.siteId,
+				item: { kind: "entry", id: entryId },
+				copy: { type: "revision", id: revisionId },
+			});
+		},
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"history.compare",
+		async (api, target) => {
+			const { entryId, revisionId } = await revisionIn(target);
+			return api.history.compare({
+				siteId: target.siteId,
+				item: { kind: "entry", id: entryId },
+				copy: { type: "revision", id: revisionId },
+			});
+		},
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"history.restore",
+		async (api, target) => {
+			const { entryId, revisionId } = await revisionIn(target);
+			return api.history.restore({
+				siteId: target.siteId,
+				item: { kind: "entry", id: entryId },
+				copy: { type: "revision", id: revisionId },
+			});
+		},
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"history.leave",
+		async (api, target) =>
+			api.history.leave({ siteId: target.siteId, item: { kind: "entry", id: (await contentIn(target)).entryId } }),
+		{ as: ["staff", "author"] },
+	);
+});
+
+describe("the Audit log", () => {
+	isolation.refuses("audit.list", (api, { workspaceId }) => api.audit.list({ workspaceId }), {
+		as: ["staff", "owner"],
+	});
+	isolation.refuses("audit.export", (api, { workspaceId }) => api.audit.export({ workspaceId }), {
+		as: ["staff", "owner"],
+	});
+	isolation.refuses("audit.people", (api, { workspaceId }) => api.audit.people({ workspaceId }), {
+		as: ["staff", "owner"],
+	});
+});
+
+describe("Members", () => {
+	isolation.refuses("members.list", (api, { workspaceId }) => api.members.list({ workspaceId }), {
+		as: ["staff", "owner"],
+	});
+	isolation.refuses(
+		"members.invite",
+		(api, { workspaceId }) => api.members.invite({ workspaceId, email: newAddress(), role: "author", sites: "all" }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"members.resendInvite",
+		async (api, { workspaceId }) => api.members.resendInvite({ workspaceId, inviteId: await inviteIn(workspaceId) }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"members.revokeInvite",
+		async (api, { workspaceId }) => api.members.revokeInvite({ workspaceId, inviteId: await inviteIn(workspaceId) }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"members.changeAccess",
+		async (api, { workspaceId }) =>
+			api.members.changeAccess({ workspaceId, personId: await memberOf(workspaceId), role: "editor", sites: "all" }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"members.remove",
+		async (api, { workspaceId }) => api.members.remove({ workspaceId, personId: await memberOf(workspaceId) }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("members.twoFactor", (api, { workspaceId }) => api.members.twoFactor({ workspaceId }), {
+		as: ["staff", "owner"],
+	});
+	// Switching it off: switching it on needs the caller's own second factor first.
+	isolation.refuses(
+		"members.requireTwoFactor",
+		(api, { workspaceId }) => api.members.requireTwoFactor({ workspaceId, required: false }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"members.resetTwoFactor",
+		async (api, { workspaceId }) => api.members.resetTwoFactor({ workspaceId, personId: await memberOf(workspaceId) }),
+		{ as: ["staff"] },
+	);
+});
+
+/** A file in a target's Media library and a folder, made by the Superadmin. */
+async function mediaIn(target: IsolationTarget): Promise<{ mediaId: string; folderId: string }> {
+	const { api } = await install.superadmin();
+	const { media } = await api.media.upload({ siteId: target.siteId, file: upload(pdf(), "isolation.pdf") });
+	const { folder } = await api.media.folders.create({ siteId: target.siteId, name: `Folder ${newSlug()}` });
+	return { mediaId: media.id, folderId: folder.id };
+}
+
+/** A file in a target's Trash, put there by the Superadmin. */
+async function trashedIn(target: IsolationTarget): Promise<string> {
+	const { api } = await install.superadmin();
+	const { mediaId } = await mediaIn(target);
+	const asked = await api.media.delete({ siteId: target.siteId, mediaId });
+	if (!asked.trashed) await api.media.delete({ siteId: target.siteId, mediaId, confirmation: asked.confirmation.id });
+	return mediaId;
+}
+
+/** An Import in a target's Site, made once by the Superadmin, with one run that ended. */
+const importsIn = new Map<string, Promise<{ importId: string; runId: string; settings: CsvImportSettings }>>();
+type CsvImportSettings = {
+	postTypeId: string;
+	language: string | null;
+	match: string;
+	columns: { column: string; to: string | null }[];
+};
+function importIn(target: IsolationTarget) {
+	let found = importsIn.get(target.siteId);
+	if (!found) {
+		found = (async () => {
+			const { api } = await install.superadmin();
+			const { siteId } = target;
+			const { postType } = await api.postTypes.create({ siteId, name: "Imported", urlPattern: "/imported/{slug}" });
+			const settings: CsvImportSettings = {
+				postTypeId: postType.id,
+				language: null,
+				match: "title",
+				columns: [{ column: "name", to: "title" }],
+			};
+			const { import: created } = await api.imports.create({ siteId, name: "Isolated", source: "csv", settings });
+			const { file } = await api.imports.uploadCsv({ siteId, file: csvFile() });
+			const { run } = await api.imports.start({ siteId, importId: created.id, fileId: file.id });
+			await install.drainJobs();
+			return { importId: created.id, runId: run.id, settings };
+		})();
+		importsIn.set(target.siteId, found);
+	}
+	return found;
+}
+
+const csvFile = () => upload("name\nRye\n", "isolation.csv", "text/csv");
+
+/**
+ * A CSV file the caller uploaded to the target's Site. They can't upload to another Workspace's Site,
+ * so a made-up id stands in there: the call is refused for the Site before the file is looked for.
+ */
+async function csvFileIn(api: ApiClient, target: IsolationTarget): Promise<string> {
+	try {
+		return (await api.imports.uploadCsv({ siteId: target.siteId, file: csvFile() })).file.id;
+	} catch {
+		return crypto.randomUUID();
+	}
+}
+
+/**
+ * A WordPress export file the caller uploaded (in parts) to the target's Site and the worker
+ * surveyed, with the mapping it suggests. Another Workspace's Site refuses the upload, so a made-up
+ * id stands in there.
+ */
+async function exportIn(api: ApiClient, target: IsolationTarget) {
+	try {
+		const bytes = new TextEncoder().encode(OLD_MILL);
+		const { file } = await api.imports.startUpload({
+			siteId: target.siteId,
+			source: WORDPRESS,
+			fileName: "export.xml",
+			size: bytes.length,
+			partBytes: 4096,
+		});
+		const hashes = await sendParts(api, target.siteId, file, bytes);
+		await api.imports.finishUpload({ siteId: target.siteId, fileId: file.id, sha256: partsDigest(hashes) });
+		await install.drainJobs();
+		const { file: surveyed } = await api.imports.file({ siteId: target.siteId, fileId: file.id });
+		return { fileId: file.id, settings: surveyed.suggested ?? { language: null, types: [] } };
+	} catch {
+		return { fileId: crypto.randomUUID(), settings: { language: null, types: [] } };
+	}
+}
+
+describe("Imports", () => {
+	isolation.refuses("imports.connect", (api, { siteId }) =>
+		api.imports.connect({
+			siteId,
+			source: "wordpress-import.live",
+			name: "Isolated",
+			address: "https://isolated.example",
+			username: "login",
+			applicationPassword: "application-password",
+		}),
+	);
+	isolation.refuses("imports.refresh", async (api, target) => {
+		const connected = await (await install.superadmin()).api.imports.connect({
+			siteId: target.siteId,
+			source: "wordpress-import.live",
+			name: "Refresh",
+			address: "https://isolated.example",
+			username: "login",
+			applicationPassword: "application-password",
+		});
+		return api.imports.refresh({ siteId: target.siteId, importId: connected.importId });
+	});
+	isolation.refuses("imports.remove", async (api, target) =>
+		api.imports.remove({ siteId: target.siteId, importId: (await importIn(target)).importId }),
+	);
+	isolation.refuses("imports.sources", (api, { siteId }) => api.imports.sources({ siteId }), {
+		as: ["staff", "editor"],
+	});
+	isolation.refuses("imports.startUpload", (api, { siteId }) =>
+		api.imports.startUpload({ siteId, source: WORDPRESS, fileName: "export.xml", size: 100 }),
+	);
+	isolation.refuses("imports.uploadPart", async (api, target) => {
+		const bytes = new TextEncoder().encode(OLD_MILL);
+		let file: { id: string; partBytes: number } = { id: crypto.randomUUID(), partBytes: bytes.length };
+		try {
+			file = (
+				await api.imports.startUpload({
+					siteId: target.siteId,
+					source: WORDPRESS,
+					fileName: "export.xml",
+					size: bytes.length,
+				})
+			).file;
+		} catch {
+			// Another Workspace's Site: refused before the file is looked for.
+		}
+		return sendParts(api, target.siteId, file, bytes);
+	});
+	isolation.refuses("imports.finishUpload", async (api, target) => {
+		const bytes = new TextEncoder().encode(OLD_MILL);
+		let file: { id: string; partBytes: number } = { id: crypto.randomUUID(), partBytes: bytes.length };
+		try {
+			file = (
+				await api.imports.startUpload({
+					siteId: target.siteId,
+					source: WORDPRESS,
+					fileName: "export.xml",
+					size: bytes.length,
+				})
+			).file;
+			const hashes = await sendParts(api, target.siteId, file, bytes);
+			return api.imports.finishUpload({ siteId: target.siteId, fileId: file.id, sha256: partsDigest(hashes) });
+		} catch {
+			return api.imports.finishUpload({ siteId: target.siteId, fileId: file.id, sha256: "0".repeat(64) });
+		}
+	});
+	isolation.refuses("imports.file", async (api, target) =>
+		api.imports.file({ siteId: target.siteId, fileId: (await exportIn(api, target)).fileId }),
+	);
+	isolation.refuses("imports.sample", async (api, target) => {
+		const { fileId, settings } = await exportIn(api, target);
+		return api.imports.sample({ siteId: target.siteId, fileId, settings, type: "post", index: 0 });
+	});
+	isolation.refuses("imports.previewSource", async (api, target) => {
+		const { fileId, settings } = await exportIn(api, target);
+		return api.imports.previewSource({ siteId: target.siteId, fileId, settings });
+	});
+	isolation.refuses("imports.uploadCsv", (api, { siteId }) => api.imports.uploadCsv({ siteId, file: csvFile() }), {
+		as: ["staff", "editor"],
+	});
+	isolation.refuses(
+		"imports.preview",
+		async (api, target) =>
+			api.imports.preview({
+				siteId: target.siteId,
+				fileId: await csvFileIn(api, target),
+				settings: (await importIn(target)).settings,
+			}),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("imports.list", (api, { siteId }) => api.imports.list({ siteId }), { as: ["staff", "editor"] });
+	isolation.refuses(
+		"imports.get",
+		async (api, target) => api.imports.get({ siteId: target.siteId, importId: (await importIn(target)).importId }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"imports.create",
+		async (api, target) =>
+			api.imports.create({
+				siteId: target.siteId,
+				name: "Leaked",
+				source: "csv",
+				settings: (await importIn(target)).settings,
+			}),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"imports.update",
+		async (api, target) =>
+			api.imports.update({ siteId: target.siteId, importId: (await importIn(target)).importId, name: "Renamed" }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"imports.start",
+		async (api, target) => {
+			// A new Import each time: one run of an Import at a time, and this one is never drained.
+			const { settings } = await importIn(target);
+			const { api: admin } = await install.superadmin();
+			const { import: created } = await admin.imports.create({
+				siteId: target.siteId,
+				name: "Start",
+				source: "csv",
+				settings,
+			});
+			return api.imports.start({ siteId: target.siteId, importId: created.id, fileId: await csvFileIn(api, target) });
+		},
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"imports.stop",
+		async (api, target) => api.imports.stop({ siteId: target.siteId, runId: (await importIn(target)).runId }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"imports.report",
+		async (api, target) => api.imports.report({ siteId: target.siteId, runId: (await importIn(target)).runId }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"imports.undo",
+		async (api, target) => api.imports.undo({ siteId: target.siteId, runId: (await importIn(target)).runId }),
+		{ as: ["staff", "editor"] },
+	);
+});
+
+describe("Media", () => {
+	isolation.refuses("media.list", (api, { siteId }) => api.media.list({ siteId }), { as: ["staff", "author"] });
+	isolation.refuses(
+		"media.get",
+		async (api, target) => api.media.get({ siteId: target.siteId, mediaId: (await mediaIn(target)).mediaId }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"media.upload",
+		(api, { siteId }) => api.media.upload({ siteId, file: upload(pdf(), "leaked.pdf") }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"media.update",
+		async (api, target) =>
+			api.media.update({ siteId: target.siteId, mediaId: (await mediaIn(target)).mediaId, alt: "Changed" }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("media.overview", (api, { siteId }) => api.media.overview({ siteId }), { as: ["staff", "author"] });
+	isolation.refuses(
+		"media.importUrl",
+		(api, { siteId }) => {
+			install.dns.answer("files.isolation.example", ["93.184.216.34"]);
+			install.http.respond("GET", "https://files.isolation.example/menu.pdf", { body: pdf("Imported") });
+			return api.media.importUrl({ siteId, url: "https://files.isolation.example/menu.pdf" });
+		},
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"media.replace",
+		async (api, target) =>
+			api.media.replace({
+				siteId: target.siteId,
+				mediaId: (await mediaIn(target)).mediaId,
+				file: upload(pdf("Replaced"), "replaced.pdf"),
+			}),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"media.suggestAltText",
+		// The file is a document, so it is refused where it is (400); another Workspace's Site before that.
+		async (api, target) =>
+			api.media
+				.suggestAltText({ siteId: target.siteId, mediaId: (await mediaIn(target)).mediaId })
+				.catch((error: { code?: string }) => {
+					if (error.code !== "ALT_TEXT_UNAVAILABLE") throw error;
+				}),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"media.usage",
+		async (api, target) => api.media.usage({ siteId: target.siteId, mediaId: (await mediaIn(target)).mediaId }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"media.delete",
+		async (api, target) => api.media.delete({ siteId: target.siteId, mediaId: (await mediaIn(target)).mediaId }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"media.restore",
+		async (api, target) => api.media.restore({ siteId: target.siteId, mediaId: await trashedIn(target) }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"media.deleteForever",
+		async (api, target) => api.media.deleteForever({ siteId: target.siteId, mediaId: await trashedIn(target) }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("media.emptyTrash", (api, { siteId }) => api.media.emptyTrash({ siteId }), {
+		as: ["staff", "editor"],
+	});
+	isolation.refuses("media.folders.list", (api, { siteId }) => api.media.folders.list({ siteId }), {
+		as: ["staff", "author"],
+	});
+	isolation.refuses(
+		"media.folders.create",
+		(api, { siteId }) => api.media.folders.create({ siteId, name: `Leaked ${newSlug()}` }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"media.folders.rename",
+		async (api, target) =>
+			api.media.folders.rename({
+				siteId: target.siteId,
+				folderId: (await mediaIn(target)).folderId,
+				name: `Renamed ${newSlug()}`,
+			}),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"media.folders.delete",
+		async (api, target) =>
+			api.media.folders.delete({ siteId: target.siteId, folderId: (await mediaIn(target)).folderId }),
+		{ as: ["staff", "editor"] },
+	);
+});
+
+describe("Site analytics", () => {
+	const day = { from: new Date("2026-03-02T00:00:00Z"), to: new Date("2026-03-03T00:00:00Z") };
+	/** Site analytics' procedures, on a Site where the Superadmin switched it on (it is off by default). */
+	const analytics = async (api: ApiClient, siteId: string) => {
+		await (await install.superadmin()).api.modules.setOnSite({ siteId, moduleId: "site-analytics", on: true });
+		return moduleOf<typeof siteAnalytics>(api, "site-analytics");
+	};
+	isolation.refuses(
+		"m.site-analytics.stats.totals",
+		async (api, { siteId }) => (await analytics(api, siteId)).stats.totals({ siteId, ...day }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"m.site-analytics.stats.series",
+		async (api, { siteId }) => (await analytics(api, siteId)).stats.series({ siteId, ...day, interval: "hour" }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"m.site-analytics.stats.breakdown",
+		async (api, { siteId }) => (await analytics(api, siteId)).stats.breakdown({ siteId, ...day, dimension: "page" }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"m.site-analytics.stats.coverage",
+		async (api, { siteId }) => (await analytics(api, siteId)).stats.coverage({ siteId }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("m.site-analytics.settings.get", async (api, { siteId }) =>
+		(await analytics(api, siteId)).settings.get({ siteId }),
+	);
+	isolation.refuses("m.site-analytics.settings.update", async (api, { siteId }) =>
+		(await analytics(api, siteId)).settings.update({ siteId, excludedRanges: ["203.0.113.0/24"] }),
+	);
+
+	let names = 0;
+	/** A Goal and a Funnel using it on a target's Site, made by the Superadmin. */
+	const goalIn = async (target: IsolationTarget) => {
+		const admin = await analytics((await install.superadmin()).api, target.siteId);
+		const { goal } = await admin.goals.create({
+			siteId: target.siteId,
+			name: `Goal ${++names}`,
+			definition: { kind: "event", event: "signup" },
+		});
+		return goal;
+	};
+	const funnelIn = async (target: IsolationTarget) => {
+		const admin = await analytics((await install.superadmin()).api, target.siteId);
+		const { funnel } = await admin.funnels.create({
+			siteId: target.siteId,
+			name: `Funnel ${++names}`,
+			steps: [
+				{ kind: "page", path: "/", match: "exact" },
+				{ kind: "page", path: "/thanks", match: "exact" },
+			],
+		});
+		return funnel;
+	};
+	isolation.refuses(
+		"m.site-analytics.goals.list",
+		async (api, { siteId }) => (await analytics(api, siteId)).goals.list({ siteId }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("m.site-analytics.goals.create", async (api, { siteId }) =>
+		(await analytics(api, siteId)).goals.create({
+			siteId,
+			name: `Ours ${++names}`,
+			definition: { kind: "page", path: "/thanks", match: "exact" },
+		}),
+	);
+	isolation.refuses("m.site-analytics.goals.update", async (api, target) =>
+		(await analytics(api, target.siteId)).goals.update({
+			siteId: target.siteId,
+			goalId: (await goalIn(target)).id,
+			name: `Renamed ${++names}`,
+		}),
+	);
+	isolation.refuses("m.site-analytics.goals.delete", async (api, target) =>
+		(await analytics(api, target.siteId)).goals.delete({ siteId: target.siteId, goalId: (await goalIn(target)).id }),
+	);
+	isolation.refuses(
+		"m.site-analytics.funnels.list",
+		async (api, { siteId }) => (await analytics(api, siteId)).funnels.list({ siteId }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("m.site-analytics.funnels.create", async (api, { siteId }) =>
+		(await analytics(api, siteId)).funnels.create({
+			siteId,
+			name: `Ours ${++names}`,
+			steps: [
+				{ kind: "page", path: "/", match: "exact" },
+				{ kind: "page", path: "/menu", match: "prefix" },
+			],
+		}),
+	);
+	isolation.refuses("m.site-analytics.funnels.update", async (api, target) =>
+		(await analytics(api, target.siteId)).funnels.update({
+			siteId: target.siteId,
+			funnelId: (await funnelIn(target)).id,
+			name: `Renamed ${++names}`,
+		}),
+	);
+	isolation.refuses("m.site-analytics.funnels.delete", async (api, target) =>
+		(await analytics(api, target.siteId)).funnels.delete({
+			siteId: target.siteId,
+			funnelId: (await funnelIn(target)).id,
+		}),
+	);
+	isolation.refuses(
+		"m.site-analytics.stats.goals",
+		async (api, { siteId }) => (await analytics(api, siteId)).stats.goals({ siteId, ...day }),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"m.site-analytics.stats.funnel",
+		async (api, target) =>
+			(await analytics(api, target.siteId)).stats.funnel({
+				siteId: target.siteId,
+				...day,
+				funnel: (await funnelIn(target)).name,
+			}),
+		{ as: ["staff", "owner"] },
+	);
+});
+
+describe("Dashboards", () => {
+	/**
+	 * Calls a procedure on a Site's Dashboard and on a Workspace Dashboard: both must answer on our
+	 * Workspace, and both must be refused on theirs (one refusal alone fails the line).
+	 */
+	const onBoth = async (site: () => Promise<unknown>, workspace: () => Promise<unknown>) => {
+		const results = await Promise.allSettled([site(), workspace()]);
+		const refused = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+		if (refused.length === 1) throw new Error("Only one of a Site's and a Workspace's Dashboards was refused.");
+		if (refused[0]) throw refused[0].reason;
+	};
+	/** A Site Dashboard and a Workspace Dashboard in a target, each with a note, made by the Superadmin. */
+	const boardsIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		const made = async (place: { siteId: string } | { workspaceId: string }) => {
+			const { dashboard } = await api.dashboards.create({ ...place, name: "Board" });
+			const { widgetId } = await api.dashboards.widgets.add({ ...place, dashboardId: dashboard.id, kind: "note" });
+			return { dashboardId: dashboard.id, widgetId };
+		};
+		return { site: await made({ siteId: target.siteId }), workspace: await made({ workspaceId: target.workspaceId }) };
+	};
+	/** Calls `call` on both kinds of Dashboard in a target, with a fresh Site and Workspace Dashboard. */
+	const both =
+		(
+			call: (
+				api: ApiClient,
+				place: { siteId: string } | { workspaceId: string },
+				board: { dashboardId: string; widgetId: string },
+			) => Promise<unknown>,
+		) =>
+		async (api: ApiClient, target: IsolationTarget) => {
+			const boards = await boardsIn(target);
+			await onBoth(
+				() => call(api, { siteId: target.siteId }, boards.site),
+				() => call(api, { workspaceId: target.workspaceId }, boards.workspace),
+			);
+		};
+	const places =
+		(call: (api: ApiClient, place: { siteId: string } | { workspaceId: string }) => Promise<unknown>) =>
+		async (api: ApiClient, target: IsolationTarget) =>
+			onBoth(
+				() => call(api, { siteId: target.siteId }),
+				() => call(api, { workspaceId: target.workspaceId }),
+			);
+
+	isolation.refuses(
+		"dashboards.catalog",
+		places((api, place) => api.dashboards.catalog(place)),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"dashboards.options",
+		places((api, place) => api.dashboards.options({ ...place, kind: "site-analytics:totals", setting: "filter:goal" })),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"dashboards.list",
+		places((api, place) => api.dashboards.list(place)),
+		{ as: ["staff", "owner", "author"] },
+	);
+	isolation.refuses(
+		"dashboards.get",
+		both((api, place, board) => api.dashboards.get({ ...place, dashboardId: board.dashboardId })),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"dashboards.create",
+		places((api, place) => api.dashboards.create({ ...place, name: "Ours" })),
+	);
+	isolation.refuses(
+		"dashboards.update",
+		both((api, place, board) => api.dashboards.update({ ...place, dashboardId: board.dashboardId, name: "Renamed" })),
+	);
+	isolation.refuses(
+		"dashboards.delete",
+		both((api, place, board) => api.dashboards.delete({ ...place, dashboardId: board.dashboardId })),
+	);
+	isolation.refuses(
+		"dashboards.saveAsTemplate",
+		both((api, place, board) =>
+			api.dashboards.saveAsTemplate({ ...place, dashboardId: board.dashboardId, name: "Kept" }),
+		),
+	);
+	isolation.refuses(
+		"dashboards.export",
+		both((api, place, board) => api.dashboards.export({ ...place, dashboardId: board.dashboardId })),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"dashboards.widgets.add",
+		both((api, place, board) => api.dashboards.widgets.add({ ...place, dashboardId: board.dashboardId, kind: "note" })),
+	);
+	isolation.refuses(
+		"dashboards.widgets.update",
+		both((api, place, board) => api.dashboards.widgets.update({ ...place, ...board, settings: { text: "Ours" } })),
+	);
+	isolation.refuses(
+		"dashboards.widgets.move",
+		both((api, place, board) => api.dashboards.widgets.move({ ...place, ...board, x: 2, y: 1, w: 4, h: 3 })),
+	);
+	isolation.refuses(
+		"dashboards.widgets.remove",
+		both((api, place, board) => api.dashboards.widgets.remove({ ...place, ...board })),
+	);
+	isolation.refuses(
+		"dashboards.widgets.data",
+		both((api, place, board) => api.dashboards.widgets.data({ ...place, ...board })),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"dashboards.widgets.export",
+		both((api, place, board) => api.dashboards.widgets.export({ ...place, ...board })),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("dashboardTemplates.delete", async (api, target) => {
+		const { api: admin } = await install.superadmin();
+		const { dashboard } = await admin.dashboards.create({ siteId: target.siteId, name: "Board" });
+		const { template } = await admin.dashboards.saveAsTemplate({
+			siteId: target.siteId,
+			dashboardId: dashboard.id,
+			name: "Template",
+		});
+		return api.dashboardTemplates.delete({ workspaceId: target.workspaceId, templateId: template.id });
+	});
+});
+
+describe("Reports, Share links and their branding", () => {
+	type Place = { siteId: string } | { workspaceId: string };
+	type Made = { dashboardId: string; reportId: string; sendId: string; shareLinkId: string };
+	/**
+	 * In each place of a target, once, made by the Superadmin: a Dashboard (one the Dashboards' lines
+	 * left there, else a new one), a Report, a test sent of it, and a Share link. `fresh` makes a new
+	 * Report and Share link on the same Dashboard, for calls that remove them.
+	 */
+	const made = new Map<string, Promise<Made>>();
+	const madeIn = (place: Place, fresh = false): Promise<Made> => {
+		const key = JSON.stringify(place);
+		const cached = made.get(key);
+		if (cached && !fresh) return cached;
+		const making = (async () => {
+			const { api } = await install.superadmin();
+			const dashboardId =
+				(cached ? (await cached).dashboardId : undefined) ??
+				(await api.dashboards.list(place)).dashboards[0]?.id ??
+				(await api.dashboards.create({ ...place, name: "Board" })).dashboard.id;
+			const { report } = await api.reports.create({
+				...place,
+				dashboardId,
+				name: "Weekly",
+				schedule: "weekly",
+				language: "en",
+				recipients: ["client@client.example"],
+				review: false,
+				active: true,
+			});
+			const { send } = await api.reports.sendTest({ ...place, reportId: report.id });
+			const { link } = await api.shareLinks.create({ ...place, dashboardId, name: "Link" });
+			return { dashboardId, reportId: report.id, sendId: send.id, shareLinkId: link.id };
+		})();
+		if (!fresh) made.set(key, making);
+		return making;
+	};
+	const reportsIn = async (target: IsolationTarget, fresh: boolean) => ({
+		site: await madeIn({ siteId: target.siteId }, fresh),
+		workspace: await madeIn({ workspaceId: target.workspaceId }, fresh),
+	});
+	/** Calls `call` on a Site Dashboard's and a Workspace Dashboard's: both answer on ours, both are refused on theirs. */
+	const both =
+		(call: (api: ApiClient, place: Place, made: Made) => Promise<unknown>, fresh = false) =>
+		async (api: ApiClient, target: IsolationTarget) => {
+			const made = await reportsIn(target, fresh);
+			const results = await Promise.allSettled([
+				call(api, { siteId: target.siteId }, made.site),
+				call(api, { workspaceId: target.workspaceId }, made.workspace),
+			]);
+			const refused = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
+			if (refused.length === 1) throw new Error("Only one of a Site's and a Workspace's Dashboards was refused.");
+			if (refused[0]) throw refused[0].reason;
+		};
+	/**
+	 * A call on a history entry that may be refused for the entry's state (a test still being made has
+	 * no PDF, isn't waiting for review): that refusal (409) means it reached the entry, as on our
+	 * Workspace; access refusals (403, 404) go on.
+	 */
+	const reached = (call: Promise<unknown>) =>
+		call.catch((error: { code?: string }) => {
+			if (error.code !== "REPORT_SEND_REFUSED") throw error;
+		});
+
+	isolation.refuses(
+		"reports.list",
+		both((api, place, made) => api.reports.list({ ...place, dashboardId: made.dashboardId })),
+	);
+	isolation.refuses(
+		"reports.create",
+		both((api, place, made) =>
+			api.reports.create({
+				...place,
+				dashboardId: made.dashboardId,
+				name: "Ours",
+				schedule: "monthly",
+				language: "it",
+				recipients: [],
+				review: true,
+				active: false,
+			}),
+		),
+	);
+	isolation.refuses(
+		"reports.update",
+		both((api, place, made) => api.reports.update({ ...place, reportId: made.reportId, name: "Renamed" })),
+	);
+	isolation.refuses(
+		"reports.setRecipients",
+		both((api, place, made) => api.reports.setRecipients({ ...place, reportId: made.reportId, recipients: [] })),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"reports.delete",
+		both((api, place, made) => api.reports.delete({ ...place, reportId: made.reportId }), true),
+	);
+	isolation.refuses(
+		"reports.sendTest",
+		both((api, place, made) => api.reports.sendTest({ ...place, reportId: made.reportId })),
+	);
+	isolation.refuses(
+		"reports.history",
+		both((api, place, made) => api.reports.history({ ...place, reportId: made.reportId })),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"reports.sends.get",
+		both((api, place, made) => api.reports.sends.get({ ...place, sendId: made.sendId })),
+	);
+	isolation.refuses(
+		"reports.sends.pdf",
+		both((api, place, made) => reached(api.reports.sends.pdf({ ...place, sendId: made.sendId }))),
+	);
+	isolation.refuses(
+		"reports.sends.editText",
+		both((api, place, made) =>
+			reached(
+				api.reports.sends.editText({
+					...place,
+					sendId: made.sendId,
+					text: { widgets: {}, whatHappened: "Ours.", suggestions: [] },
+				}),
+			),
+		),
+	);
+	isolation.refuses(
+		"reports.sends.approve",
+		both((api, place, made) => reached(api.reports.sends.approve({ ...place, sendId: made.sendId }))),
+	);
+	isolation.refuses(
+		"reports.sends.discard",
+		both((api, place, made) => reached(api.reports.sends.discard({ ...place, sendId: made.sendId }))),
+	);
+	isolation.refuses(
+		"reports.sends.resend",
+		both((api, place, made) => reached(api.reports.sends.resend({ ...place, sendId: made.sendId }))),
+	);
+	isolation.refuses(
+		"shareLinks.list",
+		both((api, place, made) => api.shareLinks.list({ ...place, dashboardId: made.dashboardId })),
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"shareLinks.create",
+		both((api, place, made) => api.shareLinks.create({ ...place, dashboardId: made.dashboardId, name: "Ours" })),
+	);
+	isolation.refuses(
+		"shareLinks.update",
+		both((api, place, made) => api.shareLinks.update({ ...place, shareLinkId: made.shareLinkId, name: "Renamed" })),
+	);
+	isolation.refuses(
+		"shareLinks.revoke",
+		both((api, place, made) => api.shareLinks.revoke({ ...place, shareLinkId: made.shareLinkId }), true),
+	);
+	isolation.refuses("reportBranding.workspace.get", (api, { workspaceId }) =>
+		api.reportBranding.workspace.get({ workspaceId }),
+	);
+	isolation.refuses("reportBranding.workspace.update", (api, { workspaceId }) =>
+		api.reportBranding.workspace.update({ workspaceId, client: { name: "Ours" }, madeWith: false }),
+	);
+	isolation.refuses("reportBranding.site.get", (api, { siteId }) => api.reportBranding.site.get({ siteId }));
+	isolation.refuses("reportBranding.site.update", (api, { siteId }) =>
+		api.reportBranding.site.update({ siteId, client: { name: "Ours" } }),
+	);
+});
+
+/** A Module's procedures, from the person's Management API (`m.<module id>`). */
+function moduleOf<
+	Definition extends typeof sample | typeof sampleBoard | typeof forms | typeof siteAnalytics | typeof redirects,
+>(api: ApiClient, moduleId: string) {
+	return (api as unknown as { m: Record<string, ModuleApi<Definition>> }).m[moduleId] as ModuleApi<Definition>;
+}
+
+/** Switches the sample board on in the Workspace, as the Superadmin. */
+async function boardOn(workspaceId: string): Promise<void> {
+	const admin = await install.superadmin();
+	await admin.api.modules.setOnWorkspace({ workspaceId, moduleId: "sample-board", on: true });
+}
+
+describe("Modules", () => {
+	isolation.refuses("modules.siteList", (api, { siteId }) => api.modules.siteList({ siteId }));
+	isolation.refuses("modules.workspaceList", (api, { workspaceId }) => api.modules.workspaceList({ workspaceId }));
+	isolation.refuses("modules.setOnSite", (api, { siteId }) =>
+		api.modules.setOnSite({ siteId, moduleId: "sample", on: true }),
+	);
+	isolation.refuses("modules.setOnWorkspace", (api, { workspaceId }) =>
+		api.modules.setOnWorkspace({ workspaceId, moduleId: "sample-board", on: false }),
+	);
+	isolation.refuses("modules.removeSiteData", (api, { siteId }) =>
+		api.modules.removeSiteData({ siteId, moduleId: "sample" }),
+	);
+	isolation.refuses("modules.removeWorkspaceData", (api, { workspaceId }) =>
+		api.modules.removeWorkspaceData({ workspaceId, moduleId: "sample-board" }),
+	);
+	isolation.refuses(
+		"m.sample.notes.list",
+		(api, { siteId }) => moduleOf<typeof sample>(api, "sample").notes.list({ siteId }),
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"m.sample.notes.add",
+		(api, { siteId }) => moduleOf<typeof sample>(api, "sample").notes.add({ siteId, body: "Ours" }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"m.sample.notes.share",
+		async (api, { siteId }) => {
+			const notes = moduleOf<typeof sample>(api, "sample").notes;
+			const { note } = await notes.add({ siteId, body: "To share" });
+			return notes.share({ siteId, noteId: note.id, email: "someone@client.example" });
+		},
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"m.sample.notes.remind",
+		async (api, { siteId }) => {
+			const notes = moduleOf<typeof sample>(api, "sample").notes;
+			const { note } = await notes.add({ siteId, body: "To remember" });
+			return notes.remind({ siteId, noteId: note.id, delaySeconds: 60 });
+		},
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("m.sample.settings.checkHook", (api, { siteId }) =>
+		moduleOf<typeof sample>(api, "sample").settings.checkHook({ siteId }),
+	);
+	isolation.refuses("m.sample.settings.setHookToken", (api, { siteId }) =>
+		moduleOf<typeof sample>(api, "sample").settings.setHookToken({ siteId, token: "our-hook-token" }),
+	);
+	isolation.refuses("m.sample.settings.echoHook", async (api, { siteId }) => {
+		install.dns.answer("hooks.sample.example", ["93.184.216.34"]);
+		install.http.respond("GET", /^https:\/\/hooks\.sample\.example\/echo\?/, { status: 204 });
+		const settings = moduleOf<typeof sample>(api, "sample").settings;
+		await settings.setHookToken({ siteId, token: "our-echo-token" });
+		return settings.echoHook({ siteId });
+	});
+	isolation.refuses(
+		"m.sample.changeNote",
+		async (api, { siteId }) => {
+			const sampleApi = moduleOf<typeof sample>(api, "sample");
+			const { note } = await sampleApi.notes.add({ siteId, body: "To change" });
+			return sampleApi.changeNote({ siteId, noteId: note.id, changes: { body: "Changed" } });
+		},
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses("m.sample.probe", (api, { siteId }) =>
+		moduleOf<typeof sample>(api, "sample").probe({ siteId, attempt: "undeclared-host" }),
+	);
+	isolation.refuses(
+		"m.sample.broken",
+		// It always fails where the Module runs (500); another Workspace's Site is refused before that.
+		(api, { siteId }) =>
+			moduleOf<typeof sample>(api, "sample")
+				.broken({ siteId })
+				.catch((error: { status?: number }) => {
+					if (error.status !== 500) throw error;
+				}),
+		{ as: ["author"] },
+	);
+	isolation.refuses(
+		"m.sample-board.pins.list",
+		async (api, { workspaceId }) => {
+			await boardOn(workspaceId);
+			return moduleOf<typeof sampleBoard>(api, "sample-board").pins.list({ workspaceId });
+		},
+		{ as: ["staff", "author"] },
+	);
+	isolation.refuses(
+		"m.sample-board.pins.add",
+		async (api, { workspaceId }) => {
+			await boardOn(workspaceId);
+			return moduleOf<typeof sampleBoard>(api, "sample-board").pins.add({ workspaceId, text: "Ours" });
+		},
+		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses(
+		"m.sample-board.pins.change",
+		async (api, { workspaceId }) => {
+			await boardOn(workspaceId);
+			const pins = moduleOf<typeof sampleBoard>(api, "sample-board").pins;
+			const { pin } = await pins.add({ workspaceId, text: "To change" });
+			return pins.change({ workspaceId, pinId: pin.id, changes: { text: "Changed" } });
+		},
+		{ as: ["staff", "owner"] },
+	);
+});
+
+/** A Site export of a small Site with a domain, made once by the Superadmin in a Workspace of its own. */
+let siteArchive: Promise<Uint8Array> | undefined;
+function siteArchiveBytes(): Promise<Uint8Array> {
+	siteArchive ??= (async () => {
+		const admin = await install.superadmin();
+		const workspaceId = (await install.createWorkspace("Exported")).id;
+		const siteId = (await install.createSite(workspaceId, { name: "Exported", slug: newSlug() })).id;
+		const [domain] = (await admin.api.domains.add({ siteId, name: `${newSlug()}.example` })).domains;
+		const archive = await exportedArchive(install, admin, siteId);
+		// The domain is freed, so the Sites imported from the archive may switch theirs on.
+		const asked = await admin.api.domains.remove({ siteId, domainId: domain?.id ?? "" });
+		const confirmation = (asked as { confirmation?: { id: string } }).confirmation?.id;
+		await admin.api.domains.remove({ siteId, domainId: domain?.id ?? "", confirmation });
+		return archive;
+	})();
+	return siteArchive;
+}
+
+/** An export of the target's Site the caller asked for and the worker wrote; a made-up id where they may not. */
+async function siteExportIn(api: ApiClient, target: IsolationTarget): Promise<string> {
+	try {
+		const { export: started } = await api.siteExports.start({ siteId: target.siteId, passphrase: null });
+		await install.drainJobs();
+		return started.id;
+	} catch {
+		return crypto.randomUUID();
+	}
+}
+
+/** A Site export the caller uploaded into the target's Workspace, ready to start; a made-up id where they may not. */
+async function siteImportIn(api: ApiClient, target: IsolationTarget): Promise<string> {
+	try {
+		return (await uploadArchive({ api }, target.workspaceId, await siteArchiveBytes())).id;
+	} catch {
+		return crypto.randomUUID();
+	}
+}
+
+/** A Site import the caller ran into the target's Workspace (its Site has a Paused domain). */
+async function siteImportDoneIn(
+	api: ApiClient,
+	target: IsolationTarget,
+): Promise<{ importId: string; siteId: string }> {
+	const importId = await siteImportIn(api, target);
+	try {
+		await api.siteImports.start({
+			workspaceId: target.workspaceId,
+			importId,
+			name: "Imported",
+			slug: newSlug(),
+			passphrase: null,
+		});
+		await install.drainJobs();
+		const { import: done } = await api.siteImports.get({ workspaceId: target.workspaceId, importId });
+		return { importId, siteId: done.site?.id ?? target.siteId };
+	} catch {
+		return { importId, siteId: target.siteId };
+	}
+}
+
+/** A Paused domain of a Site the caller imported into the target's Workspace; a made-up one where they may not. */
+async function pausedIn(api: ApiClient, target: IsolationTarget): Promise<{ siteId: string; pausedId: string }> {
+	const { siteId } = await siteImportDoneIn(api, target);
+	try {
+		const { paused } = await api.domains.paused({ siteId });
+		return { siteId, pausedId: paused[0]?.id ?? crypto.randomUUID() };
+	} catch {
+		return { siteId, pausedId: crypto.randomUUID() };
+	}
+}
+
+describe("Site export and import", () => {
+	isolation.refuses("siteExports.start", async (api, { siteId }) => {
+		const started = await api.siteExports.start({ siteId, passphrase: null });
+		await install.drainJobs();
+		return started;
+	});
+	isolation.refuses("siteExports.list", (api, { siteId }) => api.siteExports.list({ siteId }));
+	isolation.refuses("siteExports.get", async (api, target) =>
+		api.siteExports.get({ siteId: target.siteId, exportId: await siteExportIn(api, target) }),
+	);
+	isolation.refuses("siteImports.startUpload", (api, { workspaceId }) =>
+		api.siteImports.startUpload({ workspaceId, fileName: "site.tar", size: 2048 }),
+	);
+	isolation.refuses("siteImports.uploadPart", async (api, { workspaceId }) => {
+		let importId: string = crypto.randomUUID();
+		try {
+			importId = (await api.siteImports.startUpload({ workspaceId, fileName: "site.tar", size: 4 })).import.id;
+		} catch {
+			// Another Workspace: refused before the upload is looked for.
+		}
+		const part = new Uint8Array([1, 2, 3, 4]);
+		const sha256 = new Bun.CryptoHasher("sha256").update(part).digest("hex");
+		return api.siteImports.uploadPart({ workspaceId, importId, offset: 0, sha256, part: new File([part], "part") });
+	});
+	isolation.refuses("siteImports.finishUpload", async (api, target) => {
+		const importId = await siteImportIn(api, target);
+		// Finished already in our Workspace: asking again says so, which is still an answer about our own upload.
+		return api.siteImports
+			.finishUpload({ workspaceId: target.workspaceId, importId, sha256: "0".repeat(64) })
+			.catch((error: { code?: string }) => {
+				if (error.code === "SITE_IMPORT_UPLOAD_REFUSED") return error;
+				throw error;
+			});
+	});
+	isolation.refuses("siteImports.start", async (api, target) => {
+		const importId = await siteImportIn(api, target);
+		const started = await api.siteImports.start({
+			workspaceId: target.workspaceId,
+			importId,
+			name: "Imported",
+			slug: newSlug(),
+			passphrase: null,
+		});
+		await install.drainJobs();
+		return started;
+	});
+	isolation.refuses("siteImports.list", (api, { workspaceId }) => api.siteImports.list({ workspaceId }));
+	isolation.refuses("siteImports.get", async (api, target) =>
+		api.siteImports.get({ workspaceId: target.workspaceId, importId: await siteImportIn(api, target) }),
+	);
+	isolation.refuses("siteImports.sendInvitations", async (api, target) =>
+		api.siteImports.sendInvitations({
+			workspaceId: target.workspaceId,
+			importId: (await siteImportDoneIn(api, target)).importId,
+		}),
+	);
+	isolation.refuses("domains.paused", (api, { siteId }) => api.domains.paused({ siteId }));
+	isolation.refuses("domains.switchOnPaused", async (api, target) =>
+		api.domains.switchOnPaused(await pausedIn(api, target)),
+	);
+	isolation.refuses("domains.discardPaused", async (api, target) =>
+		api.domains.discardPaused(await pausedIn(api, target)),
+	);
+});
+
+// Site-wide Checks render all content; their positive leg must not inherit earlier procedures' fixtures.
+const checksIsolation = workspaceIsolation(() => install);
+
+describe("Checks and Accessibility statement", () => {
+	checksIsolation.refuses("checks.list", (api, { siteId }) => api.checks.list({ siteId }), { as: ["staff", "author"] });
+	checksIsolation.refuses(
+		"checks.entry",
+		async (api, target) => api.checks.entry({ siteId: target.siteId, entryId: (await contentIn(target)).entryId }),
+		{ as: ["staff", "author"] },
+	);
+	checksIsolation.refuses("accessibilityStatement.get", (api, { siteId }) =>
+		api.accessibilityStatement.get({ siteId }),
+	);
+	checksIsolation.refuses("accessibilityStatement.setEnabled", (api, { siteId }) =>
+		api.accessibilityStatement.setEnabled({ siteId, enabled: true }),
+	);
+	checksIsolation.refuses("accessibilityStatement.generate", (api, { siteId }) =>
+		api.accessibilityStatement.generate({
+			siteId,
+			organisation: "Example Council",
+			website: "https://example.test",
+			standard: "Applicable national legislation",
+			status: "notAssessed",
+			limitations: "Assessment pending.",
+			burden: "None claimed.",
+			excluded: "None identified.",
+			alternatives: "Contact us for accessible copies.",
+			preparedOn: "2026-11-10",
+			reviewedOn: "2026-11-10",
+			method: "Self assessment; manual audit pending.",
+			feedback: "Contact the accessibility officer.",
+			feedbackUrl: "mailto:access@example.test",
+			enforcement: "Contact the national enforcement body.",
+			enforcementUrl: "https://example.test/enforcement",
+		}),
+	);
+});
+
+test("every procedure that takes a Workspace or a Site has an isolation test above", async () => {
+	const scoped: string[] = [];
+	await traverseContractProcedures({ router: apiRouter, path: [] }, ({ contract, path }) => {
+		const shape = (contract["~orpc"].inputSchema as { shape?: Record<string, unknown> } | undefined)?.shape ?? {};
+		if ("workspaceId" in shape || "siteId" in shape) scoped.push(path.join("."));
+	});
+	// Every Module procedure takes its Site or Workspace: `m.<module id>.<name>`.
+	for (const module of TEST_MODULES) scoped.push(...moduleProcedureNames(module));
+
+	expect(scoped.length).toBeGreaterThan(0);
+	const covered = new Set([...isolation.covered, ...checksIsolation.covered]);
+	expect(scoped.filter((procedure) => !covered.has(procedure))).toEqual([]);
+});
+
+/** A Module's procedures as the Management API names them: `m.sample.notes.list`. */
+function moduleProcedureNames(module: AnyModuleDefinition): string[] {
+	const names: string[] = [];
+	const walk = (group: ModuleProcedures, path: readonly string[]) => {
+		for (const [name, entry] of Object.entries(group)) {
+			if ("run" in entry && "input" in entry) names.push([...path, name].join("."));
+			else walk(entry as ModuleProcedures, [...path, name]);
+		}
+	};
+	walk(module.procedures ?? {}, ["m", module.manifest.id]);
+	return names;
+}
+
+// Page layout procedures own Page fixtures; generic content fixtures use a templated Post Type.
+describe("Page layouts", () => {
+	const pages = new Map<string, Promise<string>>();
+	const pageIn = (target: IsolationTarget) => {
+		let page = pages.get(target.siteId);
+		if (!page) {
+			page = (async () => {
+				const admin = await install.superadmin();
+				const { postTypes } = await admin.api.postTypes.list({ siteId: target.siteId });
+				const pageType = postTypes.find((type) => type.builtIn === "page");
+				if (!pageType) throw new Error("Missing Page Post Type");
+				return (await admin.api.entries.create({ siteId: target.siteId, postTypeId: pageType.id, title: "Layout" }))
+					.entry.id;
+			})();
+			pages.set(target.siteId, page);
+		}
+		return page;
+	};
+	isolation.refuses("pageLayouts.settings", (api, { siteId }) => api.pageLayouts.settings({ siteId }));
+	isolation.refuses("pageLayouts.configure", (api, { siteId }) => api.pageLayouts.configure({ siteId, enabled: true }));
+	isolation.refuses("pageLayouts.get", async (api, target) =>
+		api.pageLayouts.get({ siteId: target.siteId, entryId: await pageIn(target) }),
+	);
+	isolation.refuses("pageLayouts.save", async (api, target) => {
+		const entryId = await pageIn(target);
+		const admin = await install.superadmin();
+		const state = await admin.api.pageLayouts.get({ siteId: target.siteId, entryId });
+		return api.pageLayouts.save({ siteId: target.siteId, entryId, basedOn: state.version, layout: state.layout });
+	});
+});

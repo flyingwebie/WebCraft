@@ -1,0 +1,135 @@
+import type { RouterClient } from "@orpc/server";
+import { access } from "./procedures/access.ts";
+import { accessibilityStatement } from "./procedures/accessibility-statement.ts";
+import { accounts } from "./procedures/accounts.ts";
+import { aiKeys, sharedAiKeys } from "./procedures/ai-keys.ts";
+import { apiTokens } from "./procedures/api-tokens.ts";
+import { audit } from "./procedures/audit.ts";
+import { builder } from "./procedures/builder.ts";
+import { checks } from "./procedures/checks.ts";
+import { components } from "./procedures/components.ts";
+import { consentBanner } from "./procedures/consent.ts";
+import { contentApi } from "./procedures/content-api.ts";
+import { dashboards, dashboardTemplates } from "./procedures/dashboards.ts";
+import { designSystem } from "./procedures/design-system.ts";
+import { domains } from "./procedures/domains.ts";
+import { editMode } from "./procedures/edit-mode.ts";
+import { entries } from "./procedures/entries.ts";
+import { errorLog } from "./procedures/error-log.ts";
+import { filters } from "./procedures/filters.ts";
+import { forms } from "./procedures/forms.ts";
+import { globals } from "./procedures/globals.ts";
+import { history } from "./procedures/history.ts";
+import { impersonation } from "./procedures/impersonation.ts";
+import { imports } from "./procedures/imports.ts";
+import { install } from "./procedures/install.ts";
+import { installHealth } from "./procedures/install-health.ts";
+import { invites } from "./procedures/invites.ts";
+import { languages } from "./procedures/languages.ts";
+import { loops } from "./procedures/loops.ts";
+import { me } from "./procedures/me.ts";
+import { media } from "./procedures/media.ts";
+import { members } from "./procedures/members.ts";
+import { modules } from "./procedures/modules.ts";
+import { aiClients, oauth } from "./procedures/oauth.ts";
+import { pageLayouts } from "./procedures/page-layouts.ts";
+import { pages } from "./procedures/pages.ts";
+import { passwordReset } from "./procedures/password-reset.ts";
+import { popups } from "./procedures/popups.ts";
+import { postTypes } from "./procedures/post-types.ts";
+import { publishing } from "./procedures/publishing.ts";
+import { reportBranding, reports, servicesListProcedures, shareLinks } from "./procedures/reports.ts";
+import { reviews } from "./procedures/reviews.ts";
+import { scripts } from "./procedures/scripts.ts";
+import { seoSettings } from "./procedures/seo.ts";
+import { session } from "./procedures/session.ts";
+import { setup } from "./procedures/setup.ts";
+import { shell } from "./procedures/shell.ts";
+import { csp, libraries, outsideScripts } from "./procedures/site-scripts.ts";
+import { siteSmtp } from "./procedures/site-smtp.ts";
+import { siteExports, siteImports } from "./procedures/site-transfer.ts";
+import { sites } from "./procedures/sites.ts";
+import { staff } from "./procedures/staff.ts";
+import { staging } from "./procedures/staging.ts";
+import { templates } from "./procedures/templates.ts";
+import { protectedTerms, translations } from "./procedures/translations.ts";
+import { webhooks } from "./procedures/webhooks.ts";
+import { workspaces } from "./procedures/workspaces.ts";
+
+/**
+ * Every procedure, by name. The admin calls them all at `/api/rpc`; the public ones (`PROCEDURES`
+ * in `catalogue.ts` says which) are also served to API tokens at `/api/v1`, with an OpenAPI document.
+ */
+export const apiRouter = {
+	pageLayouts,
+	accessibilityStatement,
+	checks,
+	setup,
+	session,
+	passwordReset,
+	shell,
+	me,
+	apiTokens,
+	access,
+	oauth,
+	aiClients,
+	install,
+	installHealth,
+	sharedAiKeys,
+	aiKeys,
+	workspaces,
+	sites,
+	postTypes,
+	entries,
+	globals,
+	languages,
+	translations,
+	protectedTerms,
+	domains,
+	webhooks,
+	siteSmtp,
+	templates,
+	components,
+	filters,
+	forms,
+	popups,
+	loops,
+	scripts,
+	libraries,
+	outsideScripts,
+	csp,
+	consentBanner,
+	seoSettings,
+	contentApi,
+	designSystem,
+	builder,
+	media,
+	imports,
+	pages,
+	editMode,
+	staging,
+	publishing,
+	reviews,
+	history,
+	members,
+	staff,
+	accounts,
+	invites,
+	audit,
+	errorLog,
+	impersonation,
+	modules,
+	dashboards,
+	dashboardTemplates,
+	reports,
+	shareLinks,
+	reportBranding,
+	servicesList: servicesListProcedures,
+	siteExports,
+	siteImports,
+};
+
+export type ApiRouter = typeof apiRouter;
+
+/** A typed client for the Management API, as the admin and tests use it. */
+export type ApiClient = RouterClient<ApiRouter>;

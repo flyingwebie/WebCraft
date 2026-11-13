@@ -1,0 +1,250 @@
+import { type Auth, normaliseEmail } from "@webcraft/auth";
+import type { Database, Transaction } from "@webcraft/db";
+import { installRoles, setupTokens } from "@webcraft/db/schema";
+import { and, eq, gt, sql } from "drizzle-orm";
+
+import type { AdminLanguageCode } from "./admin-languages.ts";
+import { type AuditVia, recordAudit } from "./audit.ts";
+import type { Clock } from "./clock.ts";
+import type { InstallConfig } from "./config.ts";
+import { readSettingsRow, writeSettingsRow } from "./install-settings.ts";
+import type { Logger } from "./log.ts";
+import { SUPERADMIN_ROLE } from "./permissions/roles.ts";
+import { printedOnPurpose } from "./redaction.ts";
+import { hashToken, newToken } from "./tokens.ts";
+
+/**
+ * Where an Install is in its setup:
+ * - `claim`: no Superadmin yet. The setup wizard is open to whoever holds a setup token.
+ * - `continue`: the Superadmin exists and is going through the wizard's remaining steps.
+ * - `done`: setup is finished. The wizard never opens again.
+ */
+export type SetupStage = "claim" | "continue" | "done";
+
+/** The Superadmin's account, as the wizard or `webcraft admin create-superadmin` takes it. */
+export type SuperadminAccount = {
+	name: string;
+	email: string;
+	password: string;
+	/** The Superadmin's Admin language; it becomes the Install's default Admin language too. */
+	adminLanguage: AdminLanguageCode;
+};
+
+export type InstallSetup = {
+	stage(): Promise<SetupStage>;
+	/**
+	 * Run by the web process when it starts. On an Install with no Superadmin it makes a new setup
+	 * token and prints it in the log; otherwise it does nothing.
+	 */
+	announce(): Promise<void>;
+	/**
+	 * A new one-time setup token and the wizard's link with it, while the Install has no Superadmin
+	 * (null once it has one): `webcraft admin setup`, for whoever can't find the web process's log.
+	 * Only the newest token works, for 24 hours (`SETUP_TOKEN_MS`): making one retires the others.
+	 */
+	newSetupLink(): Promise<{ token: string; setupUrl: string } | null>;
+	/** Refuses a setup token that can't claim the Install: `SetupClosedError` or `SetupTokenInvalidError`. */
+	checkToken(token: string): Promise<void>;
+	/**
+	 * Claims the Install with a setup token: creates the Superadmin. Every setup token stops working.
+	 * Refuses with `SetupClosedError` once a Superadmin exists and `SetupTokenInvalidError` for a token
+	 * the web process never printed; a bad account refuses as `Auth.createPerson` does. Recorded in
+	 * the Audit log as `install.claim`, done by the new Superadmin through `via`.
+	 */
+	claim(token: string, account: SuperadminAccount, via: AuditVia): Promise<{ personId: string }>;
+	/**
+	 * Creates the Superadmin without the wizard (`webcraft admin create-superadmin`): setup is then
+	 * finished, and every setup token stops working. Refuses with `SetupClosedError` once a
+	 * Superadmin exists. Recorded in the Audit log as `superadmin.create`, through the command.
+	 */
+	createSuperadmin(account: SuperadminAccount): Promise<{ personId: string }>;
+	/**
+	 * The Superadmin finished the wizard's remaining steps; it never opens again. Refuses with
+	 * `SetupStageError` unless setup is at the `continue` stage. Given `executor`, a transaction, it
+	 * finishes setup in it, so that setup is finished only if the rest of that transaction is saved
+	 * (the first client step creates the first Workspace and Site with it); the caller then notes it
+	 * in the log once the transaction commits.
+	 */
+	finish(personId: string, executor?: Database["db"] | Transaction): Promise<void>;
+};
+
+/** The Install already has a Superadmin, so it can't be claimed again. */
+export class SetupClosedError extends Error {
+	override name = "SetupClosedError";
+	constructor() {
+		super("This Install already has a Superadmin, so the setup wizard is closed.");
+	}
+}
+
+/** The setup token isn't one the web process printed for this Install. */
+export class SetupTokenInvalidError extends Error {
+	override name = "SetupTokenInvalidError";
+	constructor() {
+		super(
+			"That setup token doesn't open this Install: only the newest one works, for 24 hours. Copy it again from the web process's log, or make a new one with `webcraft admin setup`.",
+		);
+	}
+}
+
+/** Setup is in another stage than the action needs. */
+export class SetupStageError extends Error {
+	override name = "SetupStageError";
+}
+
+/**
+ * How long a setup token works. It is printed in the web process's log, and logs are kept and copied
+ * about, so an old one must not open an Install that was left unclaimed: after this, a restart or
+ * `webcraft admin setup` gives a new one.
+ */
+export const SETUP_TOKEN_MS = 24 * 60 * 60 * 1000;
+
+/** Serialises everything that can create the Superadmin, across processes (web and CLI). */
+const SETUP_LOCK = sql`select pg_advisory_xact_lock(hashtextextended('webcraft:install-setup', 0))`;
+
+type SetupOptions = {
+	database: Database;
+	auth: Auth;
+	config: InstallConfig;
+	clock: Clock;
+	log: Logger;
+};
+
+export function createInstallSetup({ database, auth, config, clock, log }: SetupOptions): InstallSetup {
+	const { db } = database;
+
+	const superadminExists = async (executor: Database["db"] | Transaction) => {
+		const [row] = await executor
+			.select({ personId: installRoles.personId })
+			.from(installRoles)
+			.where(eq(installRoles.role, SUPERADMIN_ROLE))
+			.limit(1);
+		return row !== undefined;
+	};
+
+	/** Whether a token opens the Install: it is the one made last, less than 24 hours ago. */
+	const tokenWorks = async (executor: Database["db"] | Transaction, token: string) => {
+		const [row] = await executor
+			.select({ tokenHash: setupTokens.tokenHash })
+			.from(setupTokens)
+			.where(
+				and(
+					eq(setupTokens.tokenHash, await hashToken(token)),
+					gt(setupTokens.createdAt, new Date(clock.now().getTime() - SETUP_TOKEN_MS)),
+				),
+			);
+		return row !== undefined;
+	};
+
+	/**
+	 * Creates the Superadmin in one transaction, after `check` passes, holding the setup lock, and
+	 * records it in the Audit log as `action`.
+	 */
+	const createInLock = (
+		account: SuperadminAccount,
+		check: (tx: Transaction) => Promise<void>,
+		finished: boolean,
+		audit: { action: string; via: AuditVia },
+	) =>
+		db.transaction(async (tx) => {
+			await tx.execute(SETUP_LOCK);
+			if (await superadminExists(tx)) throw new SetupClosedError();
+			await check(tx);
+			const now = clock.now();
+			const { personId } = await auth.createPerson(tx, account);
+			await tx.insert(installRoles).values({ personId, role: SUPERADMIN_ROLE, createdAt: now });
+			await tx.delete(setupTokens);
+			await writeSettingsRow(tx, {
+				defaultAdminLanguage: account.adminLanguage,
+				...(finished ? { setupFinishedAt: now } : {}),
+			});
+			await recordAudit(tx, now, {
+				personId,
+				via: audit.via,
+				workspaceId: null,
+				siteId: null,
+				action: audit.action,
+				details: { email: normaliseEmail(account.email) },
+			});
+			return { personId };
+		});
+
+	const newSetupLink = async () => {
+		if (await superadminExists(db)) return null;
+		const token = newToken();
+		const tokenHash = await hashToken(token);
+		// Only the newest works: the one a restart or the command just made replaces every earlier one.
+		await db.transaction(async (tx) => {
+			// Two processes starting together take turns, so one token is left, not one each.
+			await tx.execute(SETUP_LOCK);
+			await tx.delete(setupTokens);
+			await tx.insert(setupTokens).values({ tokenHash, createdAt: clock.now() });
+		});
+		const setupUrl = new URL("/setup", config.adminOrigin);
+		setupUrl.searchParams.set("token", token);
+		return { token, setupUrl: setupUrl.toString() };
+	};
+
+	const stageOn = async (executor: Database["db"] | Transaction): Promise<SetupStage> => {
+		if (!(await superadminExists(executor))) return "claim";
+		const settings = await readSettingsRow(executor);
+		return settings?.setupFinishedAt ? "done" : "continue";
+	};
+
+	return {
+		stage: () => stageOn(db),
+
+		async announce() {
+			const link = await newSetupLink();
+			if (!link) return;
+			log.warn(
+				"This Install has no Superadmin yet. Open the setup wizard and enter the setup token to claim it; it works once.",
+				// Printed as it is: the person with access to the server claims the Install with it (spec story 5).
+				{ setupToken: printedOnPurpose(link.token), setupUrl: printedOnPurpose(link.setupUrl) },
+			);
+		},
+
+		newSetupLink,
+
+		async checkToken(token) {
+			if (await superadminExists(db)) throw new SetupClosedError();
+			if (!(await tokenWorks(db, token))) throw new SetupTokenInvalidError();
+		},
+
+		async claim(token, account, via) {
+			const result = await createInLock(
+				account,
+				async (tx) => {
+					if (!(await tokenWorks(tx, token))) throw new SetupTokenInvalidError();
+				},
+				false,
+				{ action: "install.claim", via },
+			);
+			log.info("The setup wizard created the Superadmin; setup tokens no longer work", { personId: result.personId });
+			return result;
+		},
+
+		async createSuperadmin(account) {
+			const result = await createInLock(account, async () => {}, true, {
+				action: "superadmin.create",
+				via: { kind: "command", name: "create-superadmin" },
+			});
+			log.info("The Superadmin was created without the setup wizard; setup tokens no longer work", {
+				personId: result.personId,
+			});
+			return result;
+		},
+
+		async finish(personId, executor) {
+			const work = async (tx: Database["db"] | Transaction) => {
+				// Two finishes at once can't both pass the stage check.
+				await tx.execute(SETUP_LOCK);
+				const stage = await stageOn(tx);
+				if (stage !== "continue") throw new SetupStageError(`Setup can't be finished at the ${stage} stage.`);
+				await writeSettingsRow(tx, { setupFinishedAt: clock.now() });
+			};
+			if (executor && executor !== db) return work(executor);
+			await db.transaction(work);
+			log.info("The Superadmin finished the setup wizard", { personId });
+		},
+	};
+}

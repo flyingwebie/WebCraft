@@ -1,0 +1,29 @@
+{
+	"name": "@webcraft/cli",
+	"version": "0.0.0",
+	"private": true,
+	"license": "AGPL-3.0-or-later",
+	"description": "The webcraft command line (Bun): the Install's remote commands, signing in, structure pull/push and the server commands.",
+	"type": "module",
+	"bin": {
+		"webcraft": "./src/main.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@webcraft/auth": "workspace:*",
+		"@webcraft/core": "workspace:*",
+		"@webcraft/db": "workspace:*",
+		"@webcraft/server": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/bun": "catalog:",
+		"@webcraft/config": "workspace:*",
+		"typescript": "catalog:"
+	},
+	"exports": {
+		"./run": "./src/cli.ts",
+		"./credentials": "./src/account/credentials.ts"
+	}
+}

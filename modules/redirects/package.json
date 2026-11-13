@@ -1,0 +1,20 @@
+{
+	"name": "@webcraft/module-redirects",
+	"version": "1.0.0",
+	"private": true,
+	"license": "AGPL-3.0-or-later",
+	"description": "The Redirects and 404 log Module: a Site's Redirect rules (added by people, and by WebCraft when a published path changes) and the 404 log of paths visitors asked for that have no page. It imports nothing from WebCraft but the Module SDK (ADR 0024).",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@webcraft/module-sdk": "workspace:*"
+	},
+	"devDependencies": {
+		"typescript": "catalog:"
+	}
+}

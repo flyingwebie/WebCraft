@@ -1,0 +1,401 @@
+import type { FieldDefinition } from "@webcraft/core";
+import type { AdminLanguageCode } from "@webcraft/core/admin-languages";
+import { DialogContainer } from "@webcraft/ui/components/dialog.tsx";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createRoot } from "react-dom/client";
+import type { BarKit } from "../../site/edit-bar/kit.ts";
+import { editorAccessibility } from "../builder/editor-accessibility.ts";
+import { type EditorApi, EditorEnvironment, MediaApiContext } from "../builder/editor-api.tsx";
+import { type LayerAction, type LayerRow, LayersPanel } from "../builder/LayersPanel.tsx";
+import type { Catalogue } from "../builder/model.ts";
+import { FieldValueList } from "../content/FieldValues.tsx";
+import { loadMedia } from "../content/loaders.ts";
+import { toolsHost } from "../edit-mode/host.ts";
+import { AdminIntl, useT } from "../i18n.tsx";
+import type { MediaItem } from "../media/preview.ts";
+import {
+	FOOTER_ROW,
+	HEADER_ROW,
+	type LayoutState,
+	type PageLayoutController,
+	pageLayoutController,
+} from "./controller.ts";
+
+const catalogue: Catalogue = {
+	elements: [],
+	commands: [],
+	classes: [],
+	utilities: [],
+	tokens: [],
+	components: [],
+	loops: [],
+	forms: [],
+	popups: [],
+	filters: [],
+	values: [],
+};
+const layerActions: LayerAction[] = ["moveUp", "moveDown", "duplicate", "delete"];
+
+function LayoutEditor({
+	controller,
+	kit,
+	launcher,
+}: {
+	controller: PageLayoutController;
+	kit: BarKit;
+	launcher: HTMLButtonElement;
+}) {
+	const t = useT();
+	const [, render] = useState(0);
+	useEffect(() => controller.subscribe(() => render((n) => n + 1)), [controller]);
+	const { data, selected, panel, focusRequest, grabbed, busy, editing } = controller.state();
+	const dialog = useRef<HTMLDialogElement>(null);
+	const [modalOwner, setModalOwner] = useState<HTMLDialogElement | null>(null);
+	const ownDialog = useCallback((node: HTMLDialogElement | null) => {
+		dialog.current = node;
+		setModalOwner(node);
+	}, []);
+	const root = useRef<HTMLDivElement>(null);
+	const previous = useRef(panel);
+	const handledFocus = useRef(0);
+	const treeFocusRequest = useRef(0);
+	if (panel === "tree") treeFocusRequest.current = focusRequest;
+	const phone = kit.phone();
+	useEffect(() => {
+		if (!editing || phone) return;
+		return editorAccessibility(kit.doc).registerRegionLayout({
+			hiddenRegions: () => ["tree", "inspector"],
+			reveal(name, focus) {
+				if (name === "tree") controller.openLayout(false);
+				if (name === "inspector") controller.openProps(false);
+				const requested = controller.state();
+				requestAnimationFrame(() => {
+					const current = controller.state();
+					if (
+						current.panel !== name ||
+						current.selected !== requested.selected ||
+						current.focusRequest !== requested.focusRequest
+					)
+						return;
+					let active = kit.doc.activeElement;
+					while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+					// The person's input may already have taken focus while the region was opening.
+					if (root.current?.querySelector(`[data-editor-region="${name}"]`)?.contains(active)) return;
+					focus();
+				});
+			},
+		});
+	}, [controller, kit, editing, phone]);
+	useEffect(() => {
+		if (phone && panel && !dialog.current?.open) dialog.current?.showModal();
+		if (!panel && previous.current) launcher.focus();
+		previous.current = panel;
+	}, [panel, phone, launcher]);
+	useEffect(() => {
+		if (!focusRequest || focusRequest === handledFocus.current) return;
+		if (!panel) {
+			// Nothing is open to take it: the request is spent, so a panel opened later doesn't answer it.
+			handledFocus.current = focusRequest;
+			return;
+		}
+		const frame = requestAnimationFrame(() => {
+			handledFocus.current = focusRequest;
+			if (phone) {
+				const target = root.current?.querySelector<HTMLElement>(
+					panel === "tree"
+						? '[role="treeitem"][aria-selected="true"], [role="treeitem"][tabindex="0"]'
+						: panel === "inspector"
+							? '[data-editor-region="inspector"] input, [data-editor-region="inspector"] button, [data-editor-region="inspector"]'
+							: "[data-picker] button",
+				);
+				target?.focus();
+			} else if (panel !== "picker") editorAccessibility(kit.doc).focusRegion(panel);
+			else root.current?.querySelector<HTMLElement>("[data-picker] button")?.focus();
+		});
+		return () => cancelAnimationFrame(frame);
+	}, [focusRequest, panel, phone, kit]);
+	const p = data.layout.placements.find((p) => p.id === selected);
+	const nodes = [
+		{ type: "component" as const, id: HEADER_ROW, component: HEADER_ROW, props: [] },
+		...data.layout.placements.map((p) => ({
+			type: "component" as const,
+			id: p.id,
+			component: p.component,
+			props: [],
+			hidden: p.hidden,
+		})),
+		{ type: "component" as const, id: FOOTER_ROW, component: FOOTER_ROW, props: [] },
+	];
+	const idOf = (row: LayerRow) => (row.kind === "node" && "id" in row.node ? row.node.id : "");
+	const contextual = (id: string) => id === HEADER_ROW || id === FOOTER_ROW;
+	const label = (row: LayerRow) =>
+		idOf(row) === HEADER_ROW
+			? t("pageLayout.header")
+			: idOf(row) === FOOTER_ROW
+				? t("pageLayout.footer")
+				: controller.label(idOf(row));
+	const toolbar = p ? (
+		<fieldset className="flex flex-wrap gap-2 border-b p-3" aria-label={controller.label(p.id)}>
+			<button type="button" className="min-h-11 rounded border px-3" onClick={() => controller.openProps()}>
+				{t("pageLayout.props")}
+			</button>
+			{phone ? (
+				<button type="button" className="min-h-11 rounded border px-3" onClick={() => controller.openLayout()}>
+					{t("pageLayout.move")}
+				</button>
+			) : null}
+			{(["moveUp", "moveDown", "duplicate", "hide", "delete", "lock"] as const)
+				.filter((a) => a !== "lock" || data.canLock)
+				.map((action) => (
+					<button
+						key={action}
+						type="button"
+						className="min-h-11 rounded border px-3 disabled:opacity-50"
+						disabled={!controller.allowed(action)}
+						aria-pressed={action === "lock" ? !!p.locked : action === "hide" ? !!p.hidden : undefined}
+						onClick={() => void controller.action(action)}
+					>
+						{t(`pageLayout.${action}`)}
+					</button>
+				))}
+		</fieldset>
+	) : null;
+	const content = (
+		<div ref={root}>
+			<div className="flex items-center justify-between border-b p-3">
+				<h2 id="page-layout-title" className="font-semibold">
+					{t(panel === "inspector" ? "pageLayout.props" : panel === "picker" ? "pageLayout.add" : "pageLayout.title")}
+				</h2>
+				<button type="button" className="min-h-11 rounded border px-3" onClick={() => controller.close()}>
+					{t("pageLayout.close")}
+				</button>
+			</div>
+			{toolbar}
+			<div data-editor-region="tree" hidden={panel !== "tree"}>
+				<LayersPanel
+					tree={{ version: 1, nodes }}
+					catalogue={catalogue}
+					selection={selected ? { kind: "node", path: [nodes.findIndex((n) => n.id === selected)] } : null}
+					collapsed={new Set()}
+					grabbed={grabbed}
+					canPaste={false}
+					focusRequest={treeFocusRequest.current}
+					placementRows={{
+						label,
+						locked: (row) => contextual(idOf(row)) || !!data.layout.placements.find((p) => p.id === idOf(row))?.locked,
+						movable: (row) =>
+							!contextual(idOf(row)) &&
+							(data.canLock || !data.layout.placements.find((p) => p.id === idOf(row))?.locked),
+						actions: layerActions,
+						canInsert: data.canArrange && !busy,
+						canAction: (row, action) =>
+							controller.allowed(action as "moveUp" | "moveDown" | "duplicate" | "delete", idOf(row)),
+					}}
+					onSelect={(s) => {
+						if (s.kind === "node") controller.select(nodes[s.path[0] ?? 0]?.id ?? null);
+					}}
+					onToggle={() => {}}
+					onAction={(a) => {
+						if (layerActions.includes(a)) void controller.action(a as "moveUp" | "moveDown" | "duplicate" | "delete");
+					}}
+					onGrab={(change) => void controller.grab(change)}
+					onRename={() => {}}
+					onDrop={(from, to, position) => {
+						const a = (from[0] ?? 0) - 1;
+						const b = (to[0] ?? 0) - 1;
+						void controller.drop(a, b + (position === "after" ? 1 : 0) - (a < b ? 1 : 0));
+					}}
+					onInsert={() => controller.openPicker()}
+					onHidden={(path) => void controller.action("hide", nodes[path[0] ?? -1]?.id ?? null)}
+				/>
+			</div>
+			<div data-picker hidden={panel !== "picker"} className="grid gap-2 p-4">
+				{data.components.map((c) => (
+					<button
+						type="button"
+						className="min-h-11 rounded border p-3 text-start"
+						key={c.id}
+						disabled={busy}
+						onClick={() => void controller.insert(c.id)}
+					>
+						{c.name}
+					</button>
+				))}
+				{!data.components.length ? <p>{t("pageLayout.noComponents")}</p> : null}
+			</div>
+			<div data-editor-region="inspector" tabIndex={-1} hidden={panel !== "inspector"} className="p-4">
+				{p ? (
+					<Props key={p.id} controller={controller} id={p.id} fields={p.props} kit={kit} />
+				) : (
+					<p>{t("pageLayout.select")}</p>
+				)}
+			</div>
+		</div>
+	);
+	if (!editing) return null;
+	const floating =
+		!panel && selected ? (
+			<aside
+				className="bg-background text-foreground fixed inset-x-4 bottom-4 z-50 rounded-lg border shadow-lg"
+				aria-label={t("pageLayout.title")}
+			>
+				{toolbar}
+				<button type="button" className="min-h-11 p-3" onClick={() => controller.openLayout()}>
+					{t("pageLayout.title")}
+				</button>
+			</aside>
+		) : null;
+	if (phone)
+		return panel ? (
+			<dialog
+				ref={ownDialog}
+				aria-labelledby="page-layout-title"
+				className={`bg-background text-foreground fixed m-0 w-full max-w-none overflow-auto p-0 ${panel === "tree" ? "inset-0 h-dvh max-h-none" : "inset-x-0 top-auto bottom-0 max-h-[85dvh] rounded-t-xl"}`}
+				onCancel={(event) => {
+					event.preventDefault();
+					controller.close();
+				}}
+			>
+				<DialogContainer value={modalOwner ?? undefined}>{content}</DialogContainer>
+			</dialog>
+		) : (
+			floating
+		);
+	return (
+		<>
+			{floating}
+			<aside
+				aria-labelledby="page-layout-title"
+				hidden={!panel}
+				className={`bg-background text-foreground fixed top-16 bottom-0 z-50 w-96 max-w-full overflow-auto border shadow-lg ${panel === "inspector" ? "end-0" : "start-0"}`}
+			>
+				{content}
+			</aside>
+		</>
+	);
+}
+
+function Props({
+	controller,
+	id,
+	fields,
+	kit,
+}: {
+	controller: PageLayoutController;
+	id: string;
+	fields: FieldDefinition[];
+	kit: BarKit;
+}) {
+	const { data } = controller.state();
+
+	const values = controller.values(id);
+	const [media, setMedia] = useState<Record<string, MediaItem>>({});
+	const flush = useCallback(() => {
+		void controller.flushProps(id);
+	}, [controller, id]);
+	useEffect(() => controller.flushWith(flush), [controller, flush]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: media references can change with the accepted layout version.
+	useEffect(() => {
+		let active = true;
+		void loadMedia(
+			{
+				media: {
+					get: async (input) => {
+						const result = await kit.call("layout/mediaGet", input);
+						if (!result.ok) throw new Error(result.code);
+						return result.data as { media: MediaItem };
+					},
+				},
+			},
+			data.siteId,
+			fields,
+			controller.values(id),
+		)
+			.then((items) => {
+				if (active) setMedia(items);
+			})
+			.catch(() => {
+				if (active) editorAccessibility(kit.doc).announce(kit.errorText("generic"), "interrupt");
+			});
+		return () => {
+			active = false;
+		};
+	}, [kit, data.siteId, fields, id, controller, data.version]);
+	return (
+		<FieldValueList
+			fields={fields}
+			values={values}
+			at="props."
+			wrap={(_field, control) => <div onBlurCapture={flush}>{control}</div>}
+			onChange={(key, value) => {
+				const field = fields.find((f) => f.key === key);
+				if (!field) return;
+				controller.prop(id, field, value, true);
+				let active: Element | null = kit.doc.activeElement;
+				while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+				if (!active?.matches("textarea,[contenteditable],input:not([type=checkbox]):not([type=radio])")) flush();
+			}}
+			context={{
+				siteId: data.siteId,
+				idPrefix: `placement-${id}`,
+				language: data.language,
+				defaultLanguage: data.defaultLanguage,
+				problems: [],
+				relationships: data.relationships,
+				media,
+				onMediaChosen: (item) => setMedia((before) => ({ ...before, [item.id]: item })),
+				markShared: true,
+			}}
+		/>
+	);
+}
+
+/**
+ * Puts the Page layout on a Page in Edit mode, for the editing bar (`loadTools`). Its controller is
+ * everyone's who edits the page: the Command menu goes to the page's Placements through it. The drawer
+ * and its button are only for those who may arrange the page.
+ */
+async function mount(kit: BarKit, language: AdminLanguageCode, styles: string) {
+	const item = kit.state().page.item;
+	if (!item?.startsWith("entry:")) return;
+	const entryId = item.slice(6);
+	const response = await kit.call("layout/get", { entryId, language: kit.state().language.code });
+	if (!response.ok) return;
+	const initial = response.data as LayoutState;
+	const controller = pageLayoutController(kit, initial, entryId);
+	if (initial.canArrange) drawer(kit, controller, language, styles);
+	kit.doc.dispatchEvent(new CustomEvent("webcraft:page-layout", { detail: controller }));
+}
+
+/** The Page layout drawer and the Edit bar's button that opens it. */
+function drawer(kit: BarKit, controller: PageLayoutController, language: AdminLanguageCode, styles: string) {
+	const container = toolsHost(kit, "webcraft-page-layout", styles);
+	if (!container) return;
+	const button = kit.button({ type: "button", class: "control" }, kit.word("pageLayout.title"));
+	kit.root.querySelector(".bar")?.append(button);
+	button.addEventListener("click", () => controller.openLayout());
+	controller.subscribe(() => {
+		button.disabled = !controller.state().editing;
+	});
+	const root = createRoot(container);
+	root.render(
+		<AdminIntl language={language}>
+			<DialogContainer value={container}>
+				<MediaApiContext
+					value={{
+						list: async (input) => {
+							const result = await kit.call("layout/media", input);
+							if (!result.ok) throw new Error(kit.errorText(result.code));
+							return result.data as Awaited<ReturnType<EditorApi["media"]["list"]>>;
+						},
+					}}
+				>
+					<EditorEnvironment value={{ siteMedia: true, adminOrigin: "" }}>
+						<LayoutEditor controller={controller} kit={kit} launcher={button} />
+					</EditorEnvironment>
+				</MediaApiContext>
+			</DialogContainer>
+		</AdminIntl>,
+	);
+}
+document.dispatchEvent(new CustomEvent("webcraft:layout-tools", { detail: { mount } }));

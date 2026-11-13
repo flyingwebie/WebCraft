@@ -1,0 +1,1116 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "eb13a2cb-d8f0-46bc-8b79-7c7a7edd3e9c",
+  "prevIds": [
+    "0c663804-45ef-478f-84db-49b93ea62266"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "gone_paths"
+      ],
+      "writes": [
+        "s|tbl|public.gone_paths",
+        "n|tbl|public.gone_paths",
+        "e|tbl|public.gone_paths",
+        "n|rel|public.gone_paths",
+        "n|type|public.gone_paths",
+        "n|rel|public.gone_paths_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "scheduled_publish_items"
+      ],
+      "writes": [
+        "s|tbl|public.scheduled_publish_items",
+        "n|tbl|public.scheduled_publish_items",
+        "e|tbl|public.scheduled_publish_items",
+        "n|rel|public.scheduled_publish_items",
+        "n|type|public.scheduled_publish_items",
+        "n|rel|public.scheduled_publish_items_pkey",
+        "n|rel|public.scheduled_publish_items_item_unique"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "scheduled_publishes"
+      ],
+      "writes": [
+        "s|tbl|public.scheduled_publishes",
+        "n|tbl|public.scheduled_publishes",
+        "e|tbl|public.scheduled_publishes",
+        "n|rel|public.scheduled_publishes",
+        "n|type|public.scheduled_publishes",
+        "n|rel|public.scheduled_publishes_pkey",
+        "n|rel|public.scheduled_publishes_site_id_id_unique"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "entries",
+        "unpublished_at"
+      ],
+      "writes": [
+        "s|col|public.entries.unpublished_at",
+        "n|col|public.entries.unpublished_at",
+        "e|col|public.entries.unpublished_at"
+      ],
+      "reads": [
+        "n|tbl|public.entries",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "gone_paths",
+        "gone_paths_entry_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.gone_paths_entry_id_idx",
+        "n|idx|public.gone_paths_entry_id_idx",
+        "e|idx|public.gone_paths_entry_id_idx",
+        "n|rel|public.gone_paths_entry_id_idx"
+      ],
+      "reads": [
+        "n|tbl|public.gone_paths",
+        "n|sch|public",
+        "n|col|public.gone_paths.entry_id"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "scheduled_publishes",
+        "scheduled_publishes_at_idx"
+      ],
+      "writes": [
+        "s|idx|public.scheduled_publishes_at_idx",
+        "n|idx|public.scheduled_publishes_at_idx",
+        "e|idx|public.scheduled_publishes_at_idx",
+        "n|rel|public.scheduled_publishes_at_idx"
+      ],
+      "reads": [
+        "n|tbl|public.scheduled_publishes",
+        "n|sch|public",
+        "n|col|public.scheduled_publishes.at"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "scheduled_publishes",
+        "scheduled_publishes_site_id_at_idx"
+      ],
+      "writes": [
+        "s|idx|public.scheduled_publishes_site_id_at_idx",
+        "n|idx|public.scheduled_publishes_site_id_at_idx",
+        "e|idx|public.scheduled_publishes_site_id_at_idx",
+        "n|rel|public.scheduled_publishes_site_id_at_idx"
+      ],
+      "reads": [
+        "n|tbl|public.scheduled_publishes",
+        "n|sch|public",
+        "n|col|public.scheduled_publishes.site_id",
+        "n|col|public.scheduled_publishes.at"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "gone_paths"
+      ],
+      "writes": [
+        "s|fk|public.gone_paths.gone_paths_site_fkey",
+        "n|fk|public.gone_paths.gone_paths_site_fkey",
+        "e|fk|public.gone_paths.gone_paths_site_fkey",
+        "n|con|public.gone_paths.gone_paths_site_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.gone_paths",
+        "n|sch|public",
+        "n|tbl|public.sites",
+        "n|sch|public",
+        "n|col|public.gone_paths.workspace_id",
+        "n|col|public.gone_paths.site_id",
+        "n|col|public.sites.workspace_id",
+        "n|col|public.sites.id",
+        "e|uniqueness|public.sites.id.workspace_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "gone_paths"
+      ],
+      "writes": [
+        "s|fk|public.gone_paths.gone_paths_entry_fkey",
+        "n|fk|public.gone_paths.gone_paths_entry_fkey",
+        "e|fk|public.gone_paths.gone_paths_entry_fkey",
+        "n|con|public.gone_paths.gone_paths_entry_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.gone_paths",
+        "n|sch|public",
+        "n|tbl|public.entries",
+        "n|sch|public",
+        "n|col|public.gone_paths.site_id",
+        "n|col|public.gone_paths.entry_id",
+        "n|col|public.entries.site_id",
+        "n|col|public.entries.id",
+        "e|uniqueness|public.entries.id.site_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "scheduled_publish_items"
+      ],
+      "writes": [
+        "s|fk|public.scheduled_publish_items.scheduled_publish_items_site_fkey",
+        "n|fk|public.scheduled_publish_items.scheduled_publish_items_site_fkey",
+        "e|fk|public.scheduled_publish_items.scheduled_publish_items_site_fkey",
+        "n|con|public.scheduled_publish_items.scheduled_publish_items_site_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.scheduled_publish_items",
+        "n|sch|public",
+        "n|tbl|public.sites",
+        "n|sch|public",
+        "n|col|public.scheduled_publish_items.workspace_id",
+        "n|col|public.scheduled_publish_items.site_id",
+        "n|col|public.sites.workspace_id",
+        "n|col|public.sites.id",
+        "e|uniqueness|public.sites.id.workspace_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "scheduled_publish_items"
+      ],
+      "writes": [
+        "s|fk|public.scheduled_publish_items.scheduled_publish_items_schedule_fkey",
+        "n|fk|public.scheduled_publish_items.scheduled_publish_items_schedule_fkey",
+        "e|fk|public.scheduled_publish_items.scheduled_publish_items_schedule_fkey",
+        "n|con|public.scheduled_publish_items.scheduled_publish_items_schedule_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.scheduled_publish_items",
+        "n|sch|public",
+        "n|tbl|public.scheduled_publishes",
+        "n|sch|public",
+        "n|col|public.scheduled_publish_items.site_id",
+        "n|col|public.scheduled_publish_items.schedule_id",
+        "n|col|public.scheduled_publishes.site_id",
+        "n|col|public.scheduled_publishes.id",
+        "e|uniqueness|public.scheduled_publishes.id.site_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "scheduled_publishes"
+      ],
+      "writes": [
+        "s|fk|public.scheduled_publishes.scheduled_publishes_created_by_people_id_fkey",
+        "n|fk|public.scheduled_publishes.scheduled_publishes_created_by_people_id_fkey",
+        "e|fk|public.scheduled_publishes.scheduled_publishes_created_by_people_id_fkey",
+        "n|con|public.scheduled_publishes.scheduled_publishes_created_by_people_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.scheduled_publishes",
+        "n|sch|public",
+        "n|tbl|public.people",
+        "n|sch|public",
+        "n|col|public.scheduled_publishes.created_by",
+        "n|col|public.people.id",
+        "e|uniqueness|public.people.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "scheduled_publishes"
+      ],
+      "writes": [
+        "s|fk|public.scheduled_publishes.scheduled_publishes_updated_by_people_id_fkey",
+        "n|fk|public.scheduled_publishes.scheduled_publishes_updated_by_people_id_fkey",
+        "e|fk|public.scheduled_publishes.scheduled_publishes_updated_by_people_id_fkey",
+        "n|con|public.scheduled_publishes.scheduled_publishes_updated_by_people_id_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.scheduled_publishes",
+        "n|sch|public",
+        "n|tbl|public.people",
+        "n|sch|public",
+        "n|col|public.scheduled_publishes.updated_by",
+        "n|col|public.people.id",
+        "e|uniqueness|public.people.id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "scheduled_publishes"
+      ],
+      "writes": [
+        "s|fk|public.scheduled_publishes.scheduled_publishes_site_fkey",
+        "n|fk|public.scheduled_publishes.scheduled_publishes_site_fkey",
+        "e|fk|public.scheduled_publishes.scheduled_publishes_site_fkey",
+        "n|con|public.scheduled_publishes.scheduled_publishes_site_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.scheduled_publishes",
+        "n|sch|public",
+        "n|tbl|public.sites",
+        "n|sch|public",
+        "n|col|public.scheduled_publishes.workspace_id",
+        "n|col|public.scheduled_publishes.site_id",
+        "n|col|public.sites.workspace_id",
+        "n|col|public.sites.id",
+        "e|uniqueness|public.sites.id.workspace_id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "gone_paths",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "scheduled_publish_items",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "scheduled_publishes",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "entries",
+        "name": "unpublished_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "gone_paths",
+        "name": "workspace_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "gone_paths",
+        "name": "site_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "gone_paths",
+        "name": "entry_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "gone_paths",
+        "name": "language",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "gone_paths",
+        "name": "path",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "gone_paths",
+        "name": "gone_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publish_items",
+        "name": "schedule_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publish_items",
+        "name": "workspace_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publish_items",
+        "name": "site_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publish_items",
+        "name": "position",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publish_items",
+        "name": "action",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publish_items",
+        "name": "item_kind",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publish_items",
+        "name": "item_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publish_items",
+        "name": "name",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publish_items",
+        "name": "content",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publish_items",
+        "name": "version",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publishes",
+        "name": "id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "gen_random_uuid()",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publishes",
+        "name": "workspace_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publishes",
+        "name": "site_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publishes",
+        "name": "action",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publishes",
+        "name": "kind",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publishes",
+        "name": "at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publishes",
+        "name": "created_by",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publishes",
+        "name": "created_via",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publishes",
+        "name": "created_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publishes",
+        "name": "updated_by",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publishes",
+        "name": "updated_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publishes",
+        "name": "attempts",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "0",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "gone_paths",
+        "name": "gone_paths_entry_id_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "entry_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publishes",
+        "name": "scheduled_publishes_at_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "at",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publishes",
+        "name": "scheduled_publishes_site_id_at_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "site_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          },
+          {
+            "value": "at",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "gone_paths",
+        "name": "gone_paths_site_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "site_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "sites",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "gone_paths",
+        "name": "gone_paths_entry_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "entry_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "entries",
+        "columnsTo": [
+          "site_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publish_items",
+        "name": "scheduled_publish_items_site_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "site_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "sites",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publish_items",
+        "name": "scheduled_publish_items_schedule_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "schedule_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "scheduled_publishes",
+        "columnsTo": [
+          "site_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publishes",
+        "name": "scheduled_publishes_created_by_people_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "created_by"
+        ],
+        "schemaTo": "public",
+        "tableTo": "people",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publishes",
+        "name": "scheduled_publishes_updated_by_people_id_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "updated_by"
+        ],
+        "schemaTo": "public",
+        "tableTo": "people",
+        "columnsTo": [
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "SET NULL",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publishes",
+        "name": "scheduled_publishes_site_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "workspace_id",
+          "site_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "sites",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "gone_paths",
+        "name": "gone_paths_pkey",
+        "columns": [
+          "site_id",
+          "language",
+          "path"
+        ],
+        "nameExplicit": true,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publish_items",
+        "name": "scheduled_publish_items_pkey",
+        "columns": [
+          "schedule_id",
+          "position"
+        ],
+        "nameExplicit": true,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publishes",
+        "name": "scheduled_publishes_pkey",
+        "columns": [
+          "id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publish_items",
+        "name": "scheduled_publish_items_item_unique",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "action",
+          "item_kind",
+          "item_id"
+        ],
+        "nullsNotDistinct": true,
+        "entityType": "uniques"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "scheduled_publishes",
+        "name": "scheduled_publishes_site_id_id_unique",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "id"
+        ],
+        "nullsNotDistinct": false,
+        "entityType": "uniques"
+      }
+    }
+  ]
+}

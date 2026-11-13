@@ -1,0 +1,29 @@
+{
+	"name": "@webcraft/api",
+	"version": "0.0.0",
+	"private": true,
+	"license": "AGPL-3.0-or-later",
+	"description": "The Management API: oRPC procedures with Zod schemas.",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@orpc/openapi": "catalog:",
+		"@orpc/server": "catalog:",
+		"@orpc/zod": "catalog:",
+		"@webcraft/auth": "workspace:*",
+		"@webcraft/core": "workspace:*",
+		"@webcraft/module-sdk": "workspace:*",
+		"@webcraft/renderer": "workspace:*",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@types/node": "catalog:",
+		"@webcraft/config": "workspace:*",
+		"typescript": "catalog:"
+	}
+}

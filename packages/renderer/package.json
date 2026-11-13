@@ -1,0 +1,35 @@
+{
+	"name": "@webcraft/renderer",
+	"version": "0.0.0",
+	"private": true,
+	"license": "AGPL-3.0-or-later",
+	"description": "Template markup and the renderer that turns a Site's stored data into semantic HTML.",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./rich-text": "./src/rich-text.ts",
+		"./body": "./src/body/index.ts",
+		"./body/editing": "./src/body/editing.ts",
+		"./filters": "./src/filters/version.ts",
+		"./filters/words": "./src/filters/words.ts",
+		"./forms": "./src/forms/version.ts",
+		"./forms/emails": "./src/forms/emails.ts",
+		"./forms/email-words": "./src/forms/email-words.ts",
+		"./builder": "./src/builder.ts"
+	},
+	"scripts": {
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@types/css-tree": "^3.2.0",
+		"@types/node": "catalog:",
+		"@webcraft/config": "workspace:*",
+		"typescript": "catalog:"
+	},
+	"dependencies": {
+		"css-tree": "^3.2.1",
+		"entities": "^9.0.0",
+		"parse5": "^8.1.1",
+		"re2js": "^2.9.1"
+	}
+}

@@ -1,0 +1,128 @@
+# WebCraft on one server with Docker Compose: web, worker, Postgres 18 and Caddy, which issues each
+# hostname's certificate on demand once the Install says the hostname is its own (ADR 0015).
+#
+#   cp .env.example .env    # then fill it in: see docs/deploy/compose.md
+#   docker compose up -d
+#
+# Updating: change WEBCRAFT_VERSION in .env, then `docker compose pull && docker compose up -d`. The
+# `migrate` step runs first (taking a Backup into the `backups` volume when anything is pending), and
+# web and worker start only once it has finished (ADR 0031).
+
+name: webcraft
+
+# The settings web, worker and the migrate step share (docs/development.md, "Environment variables").
+x-webcraft-environment: &webcraft-environment
+  DATABASE_URL: postgres://webcraft:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/webcraft
+  WEBCRAFT_ADMIN_HOST: ${WEBCRAFT_ADMIN_HOST:?Set WEBCRAFT_ADMIN_HOST in .env}
+  WEBCRAFT_SITES_DOMAIN: ${WEBCRAFT_SITES_DOMAIN:-}
+  WEBCRAFT_EDGE: caddy
+  WEBCRAFT_PUBLIC_ADDRESSES: ${WEBCRAFT_PUBLIC_ADDRESSES:-}
+  # Unset: the private ranges, where Caddy reaches the web process on this file's networks.
+  WEBCRAFT_TRUSTED_PROXIES: ${WEBCRAFT_TRUSTED_PROXIES:-}
+  WEBCRAFT_SECRET_KEY: ${WEBCRAFT_SECRET_KEY:?Set WEBCRAFT_SECRET_KEY in .env (openssl rand -base64 32)}
+  WEBCRAFT_STORAGE_DIR: /var/lib/webcraft/storage
+  # Backups go here while Install settings › Backups says "Backups folder" (see docs/deploy/compose.md).
+  WEBCRAFT_BACKUP_DIR: /var/lib/webcraft/backups
+  # Optional: another release feed for the update check, or `off`.
+  WEBCRAFT_UPDATE_FEED: ${WEBCRAFT_UPDATE_FEED:-}
+  # Logs: one JSON object per line from web, worker and the migrate step; the level, and optionally an
+  # error tracker's DSN (docs/development.md, "Logs" and "The Error log").
+  WEBCRAFT_LOG_FORMAT: json
+  WEBCRAFT_LOG_LEVEL: ${WEBCRAFT_LOG_LEVEL:-info}
+  WEBCRAFT_ERROR_DSN: ${WEBCRAFT_ERROR_DSN:-}
+  PORT: "3000"
+
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: webcraft
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: webcraft
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U webcraft -d webcraft"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  # The migrate step (ADR 0031): when migrations are pending it takes a Backup (the database and the
+  # storage volume's files) into the backups volume, applies them, then stops. Web and worker wait for it.
+  migrate:
+    image: ${WEBCRAFT_IMAGE:-ghcr.io/flyingwebie/webcraft}-web:${WEBCRAFT_VERSION:?Set WEBCRAFT_VERSION in .env}
+    command: ["webcraft", "admin", "migrate"]
+    restart: "no"
+    environment: *webcraft-environment
+    volumes:
+      - storage:/var/lib/webcraft/storage
+      - backups:/var/lib/webcraft/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    image: ${WEBCRAFT_IMAGE:-ghcr.io/flyingwebie/webcraft}-web:${WEBCRAFT_VERSION:?Set WEBCRAFT_VERSION in .env}
+    restart: unless-stopped
+    environment: *webcraft-environment
+    volumes:
+      - storage:/var/lib/webcraft/storage
+      - backups:/var/lib/webcraft/backups
+    networks:
+      default: {}
+      # Caddy asks the web process about a hostname at http://<admin host>:3000/caddy/ask, which only
+      # answers on the admin host: on this network the admin host is the web service.
+      edge:
+        aliases:
+          - ${WEBCRAFT_ADMIN_HOST:?Set WEBCRAFT_ADMIN_HOST in .env}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    image: ${WEBCRAFT_IMAGE:-ghcr.io/flyingwebie/webcraft}-worker:${WEBCRAFT_VERSION:?Set WEBCRAFT_VERSION in .env}
+    restart: unless-stopped
+    environment: *webcraft-environment
+    volumes:
+      - storage:/var/lib/webcraft/storage
+      - backups:/var/lib/webcraft/backups
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  caddy:
+    image: caddy:2.11
+    restart: unless-stopped
+    ports:
+      - "${WEBCRAFT_HTTP_PORT:-80}:80"
+      - "${WEBCRAFT_HTTPS_PORT:-443}:443"
+      - "${WEBCRAFT_HTTPS_PORT:-443}:443/udp"
+    environment:
+      WEBCRAFT_ADMIN_HOST: ${WEBCRAFT_ADMIN_HOST:?Set WEBCRAFT_ADMIN_HOST in .env}
+      # Extra global options for the Caddyfile, such as `email you@agency.example`.
+      WEBCRAFT_CADDY_OPTIONS: ${WEBCRAFT_CADDY_OPTIONS:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - edge
+    depends_on:
+      web:
+        condition: service_healthy
+
+networks:
+  default: {}
+  # Caddy and the web process only: the admin host's alias is visible here, nowhere else.
+  edge: {}
+
+volumes:
+  postgres-data:
+  # Media and other files while the Install's storage is local disk: web and worker share it.
+  storage:
+  # Backups while they go to the Backups folder: the worker (daily), the migrate step (before it changes
+  # anything) and `webcraft admin backup` write here. Copy them off the server too.
+  backups:
+  caddy-data:
+  caddy-config:

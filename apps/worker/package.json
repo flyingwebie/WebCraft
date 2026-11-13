@@ -1,0 +1,35 @@
+{
+	"name": "@webcraft/worker",
+	"version": "0.0.0",
+	"private": true,
+	"license": "AGPL-3.0-or-later",
+	"description": "The background worker (Node LTS): runs pg-boss jobs, including image processing.",
+	"type": "module",
+	"exports": {
+		"./images": "./src/images.ts",
+		"./social-cards": "./src/social-cards.ts",
+		"./pdf": "./src/pdf.ts"
+	},
+	"engines": {
+		"node": ">=22.18.0"
+	},
+	"scripts": {
+		"dev": "node --watch src/main.ts",
+		"start": "node src/main.ts",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@webcraft/core": "workspace:*",
+		"@webcraft/db": "workspace:*",
+		"dompurify": "3.4.17",
+		"heic-decode": "2.1.0",
+		"jsdom": "27.4.0",
+		"sharp": "0.35.5"
+	},
+	"devDependencies": {
+		"@types/jsdom": "27.0.0",
+		"@types/node": "catalog:",
+		"@webcraft/config": "workspace:*",
+		"typescript": "catalog:"
+	}
+}

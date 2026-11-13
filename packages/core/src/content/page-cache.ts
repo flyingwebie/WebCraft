@@ -1,0 +1,25 @@
+import { sites } from "@webcraft/db/schema";
+import { and, eq, sql } from "drizzle-orm";
+
+import type { Executor, Site } from "../tenancy/data-layer.ts";
+
+/**
+ * Clears the Site's whole page cache, inside the scope's transaction when it has one, so the pages
+ * change together with what was published. The web process keeps each rendered page under the Site's
+ * page cache generation; raising it here retires every page it holds for the Site. It works the
+ * same from the web process and the worker, and from any number of web processes.
+ */
+export async function clearPageCache(scope: { db: Executor; site: Site }): Promise<void> {
+	await scope.db
+		.update(sites)
+		.set({ pageCacheGeneration: sql`${sites.pageCacheGeneration} + 1` })
+		.where(and(eq(sites.id, scope.site.id), eq(sites.workspaceId, scope.site.workspaceId)));
+}
+
+/**
+ * Clears every Site's page cache, for a change to what all of them may render: approving or
+ * withdrawing a Module whose Components Sites place.
+ */
+export async function clearEveryPageCache(scope: { db: Executor }): Promise<void> {
+	await scope.db.update(sites).set({ pageCacheGeneration: sql`${sites.pageCacheGeneration} + 1` });
+}

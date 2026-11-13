@@ -1,0 +1,10 @@
+# Bun settings for the whole repo. Bun loads `.env` from the directory it runs in,
+# so run scripts and tests from the repo root.
+
+[test]
+# Drops the test databases this run created, once every test file has finished.
+preload = ["./tests/harness/preload.ts"]
+# The per-test timeout (30 s: creating and migrating a test database can take a few seconds on a
+# busy server) is passed as `--timeout` by `bun run test`, because Bun ignores a `timeout` set here.
+# Gitignored local folders (private reference material, design files) are never part of the suite.
+pathIgnorePatterns = ["REA-Apps/**", "design/**", "node_modules/**"]

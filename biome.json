@@ -1,0 +1,138 @@
+{
+	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true
+	},
+	"files": {
+		"ignoreUnknown": true,
+		"includes": ["**", "!**/*.md", "!**/routeTree.gen.ts", "!packages/db/src/migrations"]
+	},
+	"formatter": {
+		"enabled": true,
+		"indentStyle": "tab",
+		"lineWidth": 120
+	},
+	"assist": { "actions": { "source": { "organizeImports": "on" } } },
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"preset": "recommended",
+			"correctness": {
+				"useExhaustiveDependencies": "info",
+				"useImportExtensions": "error"
+			},
+			"nursery": {
+				"useTailwindSortedClasses": {
+					"level": "warn",
+					"fix": "safe"
+				}
+			},
+			"style": {
+				"noParameterAssign": "error",
+				"useAsConstAssertion": "error",
+				"useDefaultParameterLast": "error",
+				"useEnumInitializers": "error",
+				"useSelfClosingElements": "error",
+				"useSingleVarDeclarator": "error",
+				"noUnusedTemplateLiteral": "error",
+				"useNumberNamespace": "error",
+				"noInferrableTypes": "error",
+				"noUselessElse": "error"
+			}
+		}
+	},
+	"javascript": {
+		"formatter": {
+			"quoteStyle": "double"
+		}
+	},
+	"css": {
+		"parser": {
+			"tailwindDirectives": true
+		}
+	},
+	"overrides": [
+		{
+			"includes": ["packages/**", "apps/worker/**"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedGlobals": {
+							"level": "error",
+							"options": {
+								"deniedGlobals": {
+									"Bun": "Shared packages and the worker also run on Node (ADR 0006): use standard Web or Node APIs."
+								}
+							}
+						},
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"patterns": [
+									{
+										"group": ["bun", "bun:*"],
+										"message": "Shared packages and the worker also run on Node (ADR 0006): use standard Web or Node APIs."
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"includes": ["modules/**", "tests/modules/sample/**"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"patterns": [
+									{
+										"group": ["@webcraft/**", "!@webcraft/module-sdk"],
+										"message": "A Module imports nothing from WebCraft but @webcraft/module-sdk (ADR 0024)."
+									},
+									{
+										"group": [
+											"drizzle-orm",
+											"drizzle-orm/**",
+											"zod",
+											"zod/**",
+											"pg",
+											"pg/**",
+											"pg-boss",
+											"pg-boss/**",
+											"node:*",
+											"node:*/**",
+											"bun",
+											"bun:*"
+										],
+										"message": "A Module reaches the database, the server and the outside world only through @webcraft/module-sdk, which also gives it Drizzle's builders and Zod."
+									}
+								]
+							}
+						},
+						"noRestrictedGlobals": {
+							"level": "error",
+							"options": {
+								"deniedGlobals": {
+									"fetch": "A Module calls outside hosts with context.http, which checks them against its manifest.",
+									"XMLHttpRequest": "A Module calls outside hosts with context.http, which checks them against its manifest.",
+									"WebSocket": "A Module calls outside hosts with context.http, which checks them against its manifest.",
+									"process": "A Module never reads the server's environment: everything it needs comes through its context.",
+									"Bun": "A Module runs on Bun and Node alike, and later in a sandbox: it uses only its context.",
+									"require": "A Module imports nothing from WebCraft but @webcraft/module-sdk (ADR 0024).",
+									"globalThis": "A Module reaches nothing through the global object: everything it needs comes through its context.",
+									"global": "A Module reaches nothing through the global object: everything it needs comes through its context."
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	]
+}

@@ -1,0 +1,47 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "da12747c-9283-46bf-9266-fce1d798fc60",
+  "prevIds": [
+    "8c25495c-3e65-4378-9b86-8add4fd45f0b"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "sites",
+        "search_rebuild_claimed_at"
+      ],
+      "writes": [
+        "s|col|public.sites.search_rebuild_claimed_at",
+        "n|col|public.sites.search_rebuild_claimed_at",
+        "e|col|public.sites.search_rebuild_claimed_at"
+      ],
+      "reads": [
+        "n|tbl|public.sites",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "sites",
+        "name": "search_rebuild_claimed_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

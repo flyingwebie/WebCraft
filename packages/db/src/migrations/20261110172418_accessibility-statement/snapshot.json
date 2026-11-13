@@ -1,0 +1,307 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "8f8bd3e3-e695-409a-adb0-1cd45289c070",
+  "prevIds": [
+    "8595813e-a59a-4955-9f42-a9035aecea49"
+  ],
+  "footprints": [
+    {
+      "statementType": "create_table",
+      "statementTarget": [
+        "table",
+        "public",
+        "accessibility_statements"
+      ],
+      "writes": [
+        "s|tbl|public.accessibility_statements",
+        "n|tbl|public.accessibility_statements",
+        "e|tbl|public.accessibility_statements",
+        "n|rel|public.accessibility_statements",
+        "n|type|public.accessibility_statements",
+        "n|rel|public.accessibility_statements_pkey"
+      ],
+      "reads": [
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "accessibility_statements"
+      ],
+      "writes": [
+        "s|fk|public.accessibility_statements.accessibility_statements_C1RdOsQKMe6Y_fkey",
+        "n|fk|public.accessibility_statements.accessibility_statements_C1RdOsQKMe6Y_fkey",
+        "e|fk|public.accessibility_statements.accessibility_statements_C1RdOsQKMe6Y_fkey",
+        "n|con|public.accessibility_statements.accessibility_statements_C1RdOsQKMe6Y_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.accessibility_statements",
+        "n|sch|public",
+        "n|tbl|public.sites",
+        "n|sch|public",
+        "n|col|public.accessibility_statements.workspace_id",
+        "n|col|public.accessibility_statements.site_id",
+        "n|col|public.sites.workspace_id",
+        "n|col|public.sites.id",
+        "e|uniqueness|public.sites.id.workspace_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "accessibility_statements"
+      ],
+      "writes": [
+        "s|fk|public.accessibility_statements.accessibility_statements_umNqLtOfnm10_fkey",
+        "n|fk|public.accessibility_statements.accessibility_statements_umNqLtOfnm10_fkey",
+        "e|fk|public.accessibility_statements.accessibility_statements_umNqLtOfnm10_fkey",
+        "n|con|public.accessibility_statements.accessibility_statements_umNqLtOfnm10_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.accessibility_statements",
+        "n|sch|public",
+        "n|tbl|public.entries",
+        "n|sch|public",
+        "n|col|public.accessibility_statements.site_id",
+        "n|col|public.accessibility_statements.page_id",
+        "n|col|public.entries.site_id",
+        "n|col|public.entries.id",
+        "e|uniqueness|public.entries.id.site_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "accessibility_statements"
+      ],
+      "writes": [
+        "s|fk|public.accessibility_statements.accessibility_statements_Jjn1SJaejBh2_fkey",
+        "n|fk|public.accessibility_statements.accessibility_statements_Jjn1SJaejBh2_fkey",
+        "e|fk|public.accessibility_statements.accessibility_statements_Jjn1SJaejBh2_fkey",
+        "n|con|public.accessibility_statements.accessibility_statements_Jjn1SJaejBh2_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.accessibility_statements",
+        "n|sch|public",
+        "n|tbl|public.components",
+        "n|sch|public",
+        "n|col|public.accessibility_statements.site_id",
+        "n|col|public.accessibility_statements.component_id",
+        "n|col|public.components.site_id",
+        "n|col|public.components.id",
+        "e|uniqueness|public.components.id.site_id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "name": "accessibility_statements",
+        "isRlsEnabled": false,
+        "entityType": "tables"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "accessibility_statements",
+        "name": "workspace_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "accessibility_statements",
+        "name": "site_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "accessibility_statements",
+        "name": "page_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "accessibility_statements",
+        "name": "component_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "accessibility_statements",
+        "name": "field_key",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "accessibility_statements",
+        "name": "enabled",
+        "type": "boolean",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "true",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "accessibility_statements",
+        "name": "forms",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'{}'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "accessibility_statements",
+        "name": "accessibility_statements_C1RdOsQKMe6Y_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "workspace_id",
+          "site_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "sites",
+        "columnsTo": [
+          "workspace_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "accessibility_statements",
+        "name": "accessibility_statements_umNqLtOfnm10_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "site_id",
+          "page_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "entries",
+        "columnsTo": [
+          "site_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "accessibility_statements",
+        "name": "accessibility_statements_Jjn1SJaejBh2_fkey",
+        "nameExplicit": false,
+        "columns": [
+          "site_id",
+          "component_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "components",
+        "columnsTo": [
+          "site_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "accessibility_statements",
+        "name": "accessibility_statements_pkey",
+        "columns": [
+          "site_id"
+        ],
+        "nameExplicit": false,
+        "entityType": "pks"
+      }
+    }
+  ]
+}

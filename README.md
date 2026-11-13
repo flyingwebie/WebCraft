@@ -1,0 +1,19 @@
+# WebCraft
+
+An open-source, self-hosted, multi-tenant CMS where agencies build websites and their clients edit them while browsing the live site.
+
+WebCraft is being built. The v1 spec is [issue #46](https://github.com/flyingwebie/WebCraft/issues/46); its vocabulary is in [`GLOSSARY.md`](GLOSSARY.md) and its decisions in [`docs/adr/`](docs/adr/).
+
+To run it locally and contribute, see [`docs/development.md`](docs/development.md):
+
+```sh
+bun install
+cp .env.example .env   # then set WEBCRAFT_SECRET_KEY: openssl rand -base64 32
+bun run dev
+```
+
+Then open the link to the setup wizard that the web process prints in its log, and create the Superadmin.
+
+To run an Install for real (Docker Compose with Caddy on a server of your own, Coolify or Railway), see [`docs/deploy/`](docs/deploy/README.md). To work with an Install from your terminal (its API's commands, Structure as files), see the `webcraft` CLI in [`docs/cli.md`](docs/cli.md).
+
+WebCraft is licensed AGPL-3.0-or-later (see ADR 0012).

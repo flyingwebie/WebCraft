@@ -1,0 +1,112 @@
+import type { VisitorConsent } from "./context.ts";
+import type { ConsentCategory } from "./manifest.ts";
+
+/**
+ * What happened on a Site that a Module can react to. Modules react afterwards, as background jobs
+ * (ADR 0024): the change is saved first, and a Module that fails never undoes or blocks it; the
+ * failure goes to the Module log. An event reaches a Module only where it is switched on.
+ *
+ * New events are additions (a minor SDK version); a payload only ever gains fields.
+ */
+export type ModuleEvents = {
+	/**
+	 * An Entry was published: its Draft went live. `path` is where visitors find it now, and
+	 * `pathChanges` every published path the publish changed (its new slug, a Page that moved and
+	 * every Page under it), so a Module can send the old paths on.
+	 */
+	"entry.published": {
+		entryId: string;
+		postTypeId: string;
+		path: string;
+		pathChanges: { entryId: string; language: string; from: string; to: string }[];
+	};
+	/** An Entry was deleted. */
+	"entry.deleted": { entryId: string; postTypeId: string };
+	/** A Template was published. */
+	"template.published": { templateId: string };
+	/** The Site's Globals were published. */
+	"globals.published": Record<string, never>;
+	/**
+	 * A visitor sent one of the Site's Forms and its Submission was kept (never spam), SDK 1.4: which
+	 * Form, the path of the page it was sent from (null when the post didn't say), its language, and
+	 * what WebCraft knew of the sender then (`sender`). Nothing the visitor typed.
+	 *
+	 * `visitor` (SDK 1.8) is the sender's id for the day, the one a Site route's
+	 * `visitor.dailyId("analytics")` answers for the same browser, when the sender had accepted
+	 * Analytics on the Site's banner (null otherwise, and for a Submission taken out of spam later), so
+	 * analytics can link the Submission to the visit it ended. WebCraft never keeps it with the
+	 * Submission: it lives only as long as the day's ids do.
+	 */
+	"form.submitted": {
+		formId: string;
+		formKey: string;
+		page: string | null;
+		language: string;
+		sender: FormSender;
+		visitor: string | null;
+	};
+	/**
+	 * Published paths changed without a publish (SDK 1.5): Staff changed a Post Type's URL pattern
+	 * (`reason: "urlPattern"`, with its `postTypeId`), or the Site's Default language (`reason:
+	 * "defaultLanguage"`), and every published Entry's address in `pathChanges` moved with it.
+	 */
+	"paths.changed": {
+		reason: "urlPattern" | "defaultLanguage";
+		postTypeId: string | null;
+		pathChanges: { entryId: string; language: string; from: string; to: string }[];
+	};
+};
+
+/**
+ * What WebCraft knew of the visitor who sent a Form, worked out as the Submission came in (SDK 1.4):
+ * what a Site route can ask of its `SiteVisitor`, answered then, since an event runs later and the
+ * request is gone. Never the visitor's address.
+ */
+export type FormSender = {
+	/** How the post reached the Site: on its Staging address, or on one of its domains. */
+	via: "staging" | "domain";
+	/** Whether someone of the Install sent it (see `SiteVisitor.signedIn`). */
+	signedIn: boolean;
+	/** Whether the browser asked not to be tracked: it sent Do Not Track or Global Privacy Control. */
+	doNotTrack: boolean;
+	/**
+	 * How the Site asks for consent and what the visitor had accepted, as WebCraft read it (see
+	 * `VisitorConsent`): `necessary` always; where an outside consent service asks, only `necessary`,
+	 * since only the page can read that answer.
+	 */
+	consent: { asks: VisitorConsent["asks"]; accepted: ConsentCategory[] };
+};
+
+/**
+ * Whether a Form Submission's sender is counted by analytics (SDK 1.8): sent on one of the Site's own
+ * domains (never its Staging address), no one of the Install signed in, no Do Not Track or Global
+ * Privacy Control, and Analytics accepted on the Site's own banner (never with an outside consent
+ * service, which only the page can read). Core asks this to decide whether to give `form.submitted`
+ * the sender's daily id; Site analytics asks it to decide whether to count the Submission at all. One
+ * rule in the SDK, so the two can't say different things.
+ */
+export function formSenderCounted(sender: FormSender): boolean {
+	return (
+		sender.via === "domain" && !sender.signedIn && !sender.doNotTrack && sender.consent.accepted.includes("analytics")
+	);
+}
+
+export type ModuleEventName = keyof ModuleEvents;
+
+/** Every event, in the order of `ModuleEvents`. */
+export const MODULE_EVENTS = [
+	"entry.published",
+	"entry.deleted",
+	"template.published",
+	"globals.published",
+	"form.submitted",
+	"paths.changed",
+] as const satisfies readonly ModuleEventName[];
+
+/** One event as a Module receives it: what happened, on which Site, and when. */
+export type ModuleEvent<Name extends ModuleEventName = ModuleEventName> = {
+	name: Name;
+	siteId: string;
+	occurredAt: Date;
+	data: ModuleEvents[Name];
+};

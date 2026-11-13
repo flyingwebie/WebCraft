@@ -1,0 +1,10 @@
+{
+	"extends": "@webcraft/config/tsconfig.base.json",
+	"compilerOptions": {
+		"jsx": "react-jsx",
+		"types": ["bun"],
+		"lib": ["ES2023", "DOM", "DOM.Iterable"]
+	},
+	"include": ["**/*.ts"],
+	"exclude": ["node_modules"]
+}

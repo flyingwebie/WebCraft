@@ -1,0 +1,115 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "431bf114-0104-431a-8041-74b7a9405325",
+  "prevIds": [
+    "f33dd3e8-7b63-4501-b0d9-e36099634b97"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "post_types",
+        "sitemap"
+      ],
+      "writes": [
+        "s|col|public.post_types.sitemap",
+        "n|col|public.post_types.sitemap",
+        "e|col|public.post_types.sitemap"
+      ],
+      "reads": [
+        "n|tbl|public.post_types",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "seo_settings",
+        "ai_crawlers"
+      ],
+      "writes": [
+        "s|col|public.seo_settings.ai_crawlers",
+        "n|col|public.seo_settings.ai_crawlers",
+        "e|col|public.seo_settings.ai_crawlers"
+      ],
+      "reads": [
+        "n|tbl|public.seo_settings",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "seo_settings",
+        "robots_lines"
+      ],
+      "writes": [
+        "s|col|public.seo_settings.robots_lines",
+        "n|col|public.seo_settings.robots_lines",
+        "e|col|public.seo_settings.robots_lines"
+      ],
+      "reads": [
+        "n|tbl|public.seo_settings",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "post_types",
+        "name": "sitemap",
+        "type": "boolean",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "true",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "seo_settings",
+        "name": "ai_crawlers",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'allowAll'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "seo_settings",
+        "name": "robots_lines",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "''",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

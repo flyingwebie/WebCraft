@@ -1,0 +1,28 @@
+# Caddy for WebCraft (ADR 0015): every hostname gets a certificate on demand, once the Install says it
+# is its own (the admin host, a Site's Staging address, a verified Site domain); any other hostname gets
+# no certificate at all. See docs/deploy/compose.md.
+{
+	on_demand_tls {
+		ask http://{$WEBCRAFT_ADMIN_HOST}:3000/caddy/ask
+	}
+	{$WEBCRAFT_CADDY_OPTIONS}
+}
+
+https:// {
+	tls {
+		on_demand
+	}
+	encode zstd gzip
+	reverse_proxy web:3000
+}
+
+# Plain HTTP: a new domain's verification request is answered here, since the domain has no certificate
+# until it is verified; everything else goes on to HTTPS.
+http:// {
+	handle /_webcraft/verify/* {
+		reverse_proxy web:3000
+	}
+	handle {
+		redir https://{host}{uri} 308
+	}
+}

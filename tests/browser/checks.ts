@@ -1,0 +1,279 @@
+// The checks every admin screen and every kind of Site page must pass in a browser: axe-core for
+// WCAG 2.2 A and AA (plus axe's best practices), and keyboard use (skip link, visible focus, tab
+// order, no traps).
+import { expect } from "bun:test";
+import { AxeBuilder } from "@axe-core/playwright";
+import type { Locator, Page } from "playwright";
+
+import { forgetPageErrors, pageErrors } from "./harness.ts";
+
+/** WCAG 2.0, 2.1 and 2.2 at levels A and AA, and axe's best practices. */
+const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22a", "wcag22aa", "best-practice"];
+
+/**
+ * What a check leaves out: `exclude` names parts of the page axe doesn't look inside, each with its
+ * reason at the call (the visual builder's canvas shows Staff's own Template, which Checks look at,
+ * and runs no script, so axe can't look inside it anyway).
+ */
+export type CheckOptions = { exclude?: readonly string[] };
+
+/** Runs every check on the page as it is now. */
+export async function expectAccessibleScreen(page: Page, where: string, options: CheckOptions = {}): Promise<void> {
+	await expectNoAxeViolations(page, where, [], options);
+	await expectKeyboardUsable(page, where);
+	expect({ where, errors: pageErrors(page) }).toEqual({ where, errors: [] });
+}
+
+/**
+ * axe-core finds no violation of WCAG 2.2 A or AA, or of its best practices. `skipRules` names
+ * rules that don't apply to the state being checked, each with its reason at the call.
+ */
+export async function expectNoAxeViolations(
+	page: Page,
+	where: string,
+	skipRules: string[] = [],
+	options: CheckOptions = {},
+): Promise<void> {
+	await nextPaint(page);
+	const reported = pageErrors(page).length;
+	let builder = new AxeBuilder({ page }).withTags(AXE_TAGS).disableRules(skipRules);
+	for (const selector of options.exclude ?? []) builder = builder.exclude(selector);
+	const results = await builder.analyze();
+	// axe sets inline styles while it measures, which a page under a strict CSP (Edit mode) reports;
+	// those reports are axe's own, not the page's.
+	forgetPageErrors(page, reported, (error) => error.startsWith("Applying inline style violates"));
+	const violations = results.violations.map((violation) => ({
+		rule: violation.id,
+		impact: violation.impact,
+		help: violation.help,
+		elements: violation.nodes.map((node) => `${node.target.join(" ")}: ${node.failureSummary ?? ""}`),
+	}));
+	expect({ where, violations }).toEqual({ where, violations: [] });
+}
+
+type FocusStop = { index: number; label: string; visibleFocus: boolean; inside: boolean; segmented: boolean };
+
+/**
+ * The keyboard reaches everything on the page, in the order it appears, with a visible focus
+ * indicator at every stop, starting with a working skip link, and Tab always moves on (no traps).
+ */
+export async function expectKeyboardUsable(page: Page, where: string): Promise<void> {
+	const tabbable = await markTabbableElements(page);
+	expect({ where, positiveTabIndex: tabbable.positiveTabIndex }).toEqual({ where, positiveTabIndex: [] });
+	expect({ where, stops: tabbable.count }).not.toEqual({ where, stops: 0 });
+
+	await moveFocusToPageStart(page);
+	const stops: FocusStop[] = [];
+	// Every stop once, then one more Tab must leave the last element: focus never gets stuck.
+	for (let press = 0; press <= tabbable.count; press++) {
+		await page.keyboard.press("Tab");
+		await nextPaint(page);
+		let stop = await currentStop(page);
+		// A date or time box takes one Tab per part (day, month, year, hours…) before focus moves on.
+		for (let part = 0; part < 8 && stop.segmented && stop.index === stops.at(-1)?.index; part++) {
+			await page.keyboard.press("Tab");
+			await nextPaint(page);
+			stop = await currentStop(page);
+		}
+		stops.push(stop);
+	}
+	const visited = stops.slice(0, tabbable.count);
+	const after = stops[tabbable.count];
+
+	expect({ where, first: visited[0]?.label ?? null }).toEqual({ where, first: tabbable.skipLinkLabel });
+	expect({ where, order: visited.map((stop) => stop.index) }).toEqual({
+		where,
+		order: Array.from({ length: tabbable.count }, (_, index) => index),
+	});
+	expect({
+		where,
+		withoutVisibleFocus: visited.filter((stop) => !stop.visibleFocus).map((stop) => stop.label),
+	}).toEqual({ where, withoutVisibleFocus: [] });
+	const stuck = after?.inside === true && after.index === tabbable.count - 1;
+	expect({ where, stuckOn: stuck ? after?.label : null }).toEqual({
+		where,
+		stuckOn: null,
+	});
+
+	await expectSkipLinkWorks(page, where);
+}
+
+/**
+ * The first Tab reaches "Skip to main content", and following it moves focus to the page's main part:
+ * the <main> the link points at.
+ */
+async function expectSkipLinkWorks(page: Page, where: string): Promise<void> {
+	await moveFocusToPageStart(page);
+	await page.keyboard.press("Tab");
+	const target = await page.evaluate(() => {
+		const link = document.activeElement;
+		return link instanceof HTMLAnchorElement ? decodeURIComponent(link.hash.slice(1)) : "";
+	});
+	await page.keyboard.press("Enter");
+	const inMain = await page.evaluate((id) => {
+		if (id === "wc-editor-layers") {
+			const root = document.querySelector("webcraft-code-mode")?.shadowRoot;
+			return !!root?.querySelector('[role="tree"]')?.contains(root.activeElement);
+		}
+		const main = document.getElementById(id);
+		return Boolean(
+			main?.tagName === "MAIN" && (document.activeElement === main || main.contains(document.activeElement)),
+		);
+	}, target);
+	expect({ where, skipLinkMovesFocusToMain: inMain }).toEqual({ where, skipLinkMovesFocusToMain: true });
+}
+
+/**
+ * Opens an overlay (a menu or a dialog) from the keyboard, checks it with axe, then closes it with
+ * Escape: focus must return to the control that opened it.
+ */
+export async function expectOverlayUsable(
+	page: Page,
+	trigger: Locator,
+	overlayRole: "menu" | "dialog",
+	where: string,
+	options: CheckOptions = {},
+): Promise<void> {
+	await trigger.focus();
+	await page.keyboard.press("Enter");
+	const overlay = page.getByRole(overlayRole);
+	await overlay.waitFor({ state: "visible" });
+	await page.waitForTimeout(250);
+	// An open menu or dialog is placed at the end of the page, outside the landmarks, as menus and
+	// dialogs are: people reach it from the control that opened it, so the landmark rule is skipped.
+	await expectNoAxeViolations(page, `${where} (open)`, ["region"], options);
+	const focusInside = await overlay.evaluate((element) => {
+		let active = document.activeElement;
+		while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+		return element.contains(active);
+	});
+	expect({ where, focusMovesIntoOverlay: focusInside }).toEqual({ where, focusMovesIntoOverlay: true });
+
+	await page.keyboard.press("Escape");
+	await overlay.waitFor({ state: "hidden" });
+	// Focus may come back a frame or two after the overlay hides (a button disabled while its action
+	// ran is enabled again first), so it gets a moment to settle.
+	const backOnTrigger = await trigger.evaluate((element) => {
+		const deadline = performance.now() + 1000;
+		const focused = () => {
+			let active = document.activeElement;
+			while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+			return active;
+		};
+		return new Promise<boolean>((resolve) => {
+			const check = () => {
+				if (element === focused()) resolve(true);
+				else if (performance.now() > deadline) resolve(false);
+				else requestAnimationFrame(check);
+			};
+			check();
+		});
+	});
+	expect({ where, escapeClosesAndReturnsFocus: backOnTrigger }).toEqual({ where, escapeClosesAndReturnsFocus: true });
+}
+
+/**
+ * Numbers every element the keyboard should reach, in document order, as `data-tab-stop`: links,
+ * buttons and form fields that are rendered and enabled, text people edit in place (once, links in it
+ * included), and one radio button per group. Elements inside open shadow roots (Edit mode's editing bar) count where their
+ * host is, as the keyboard reaches them.
+ */
+async function markTabbableElements(page: Page) {
+	return page.evaluate(() => {
+		const selector = [
+			"a[href]",
+			"button:not([disabled])",
+			"input:not([disabled]):not([type=hidden])",
+			"select:not([disabled])",
+			"textarea:not([disabled])",
+			"summary",
+			"[tabindex]",
+			"[contenteditable]:not([contenteditable=false])",
+		].join(",");
+		const everything: HTMLElement[] = [];
+		const walk = (root: Document | ShadowRoot) => {
+			for (const element of root.querySelectorAll<HTMLElement>("*")) {
+				everything.push(element);
+				if (element.shadowRoot) walk(element.shadowRoot);
+			}
+		};
+		walk(document);
+		const rendered = (element: Element) => {
+			if (element.closest("[inert], [aria-hidden=true]")) return false;
+			const style = getComputedStyle(element);
+			return element.getClientRects().length > 0 && style.visibility !== "hidden" && style.display !== "none";
+		};
+		const radioGroups = new Set<string>();
+		const elements = everything.filter((element) => {
+			if (!element.matches(selector)) return false;
+			// Text edited in place takes focus from the keyboard, though Chromium says its tabIndex is -1
+			// unless the page gives it one.
+			const editable = element.isContentEditable && !element.hasAttribute("tabindex");
+			if ((element.tabIndex < 0 && !editable) || element.matches(":disabled") || !rendered(element)) return false;
+			// A link inside text being edited is part of that text: the keyboard stops at the text once.
+			if (element.parentElement?.closest("[contenteditable]:not([contenteditable=false])")) return false;
+			if (element instanceof HTMLInputElement && element.type === "radio") {
+				const group = element.name;
+				const checked = document.querySelector<HTMLInputElement>(`input[type=radio][name="${group}"]:checked`);
+				if (checked ? checked !== element : radioGroups.has(group)) return false;
+				radioGroups.add(group);
+			}
+			return true;
+		});
+		for (const element of everything) element.removeAttribute("data-tab-stop");
+		elements.forEach((element, index) => {
+			element.dataset.tabStop = String(index);
+		});
+		const label = (element: HTMLElement) =>
+			(element.getAttribute("aria-label") ?? element.textContent ?? element.id).trim().replace(/\s+/g, " ");
+		return {
+			count: elements.length,
+			skipLinkLabel: elements[0] ? label(elements[0]) : null,
+			positiveTabIndex: elements.filter((element) => element.tabIndex > 0).map(label),
+		};
+	});
+}
+
+/**
+ * Waits until the page has painted twice. Right after a change, a property with a transition still
+ * has its old value until the next frame; people only ever see painted frames.
+ */
+async function nextPaint(page: Page): Promise<void> {
+	await page.evaluate(
+		() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+	);
+}
+
+/** Puts the keyboard's starting point at the top of the page, as after loading it. */
+async function moveFocusToPageStart(page: Page): Promise<void> {
+	await page.evaluate(() => {
+		const marker = document.createElement("span");
+		marker.tabIndex = -1;
+		document.body.prepend(marker);
+		marker.focus();
+		marker.remove();
+	});
+}
+
+async function currentStop(page: Page): Promise<FocusStop> {
+	return page.evaluate(() => {
+		// Focus inside a shadow root shows as its host on the document: follow it down.
+		let element = document.activeElement as HTMLElement | null;
+		while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement as HTMLElement;
+		if (!element || element === document.body) {
+			return { index: -1, label: "(page)", visibleFocus: true, inside: false, segmented: false };
+		}
+		const style = getComputedStyle(element);
+		const outline = style.outlineStyle !== "none" && Number.parseFloat(style.outlineWidth) > 0;
+		const ring = style.boxShadow !== "none" && style.boxShadow !== "";
+		return {
+			index: Number(element.dataset.tabStop ?? -1),
+			label: (element.getAttribute("aria-label") ?? element.textContent ?? element.id).trim().replace(/\s+/g, " "),
+			visibleFocus: outline || ring,
+			inside: true,
+			segmented: element.matches(
+				"input[type=date], input[type=time], input[type=datetime-local], input[type=month], input[type=week]",
+			),
+		};
+	});
+}

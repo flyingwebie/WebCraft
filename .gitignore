@@ -1,2 +1,66 @@
 REA-Apps
 design/
+
+# Dependencies
+node_modules
+.pnp
+.pnp.js
+
+# Build outputs
+dist
+build
+*.tsbuildinfo
+
+# Local Media storage in development (WEBCRAFT_STORAGE_DIR)
+/storage/
+# Backups taken in development (WEBCRAFT_BACKUP_DIR)
+/backups/
+
+# Generated files (apps/server/src/routeTree.gen.ts is committed: the typecheck needs it)
+local.db
+local.db-*
+
+# Environment variables (.env.example is committed)
+.env
+.env.*
+!.env.example
+
+# IDEs and editors
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+/logs
+.evlog/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Turbo
+.turbo
+.nx
+
+
+# Testing
+coverage
+.nyc_output
+
+# Misc
+*.tgz
+.cache
+tmp
+temp
+
+# Temporary files bun build --compile leaves when it is stopped.
+*.bun-build

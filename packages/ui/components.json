@@ -1,0 +1,25 @@
+{
+	"$schema": "https://ui.shadcn.com/schema.json",
+	"style": "base-vega",
+	"rsc": false,
+	"tsx": true,
+	"tailwind": {
+		"config": "",
+		"css": "src/styles/globals.css",
+		"baseColor": "zinc",
+		"cssVariables": true,
+		"prefix": ""
+	},
+	"iconLibrary": "lucide",
+	"rtl": true,
+	"aliases": {
+		"components": "@webcraft/ui/components",
+		"utils": "@webcraft/ui/lib/utils",
+		"hooks": "@webcraft/ui/hooks",
+		"lib": "@webcraft/ui/lib",
+		"ui": "@webcraft/ui/components"
+	},
+	"menuColor": "default",
+	"menuAccent": "subtle",
+	"registries": {}
+}

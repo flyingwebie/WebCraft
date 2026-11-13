@@ -1,0 +1,350 @@
+import { ConfigError, type Environment } from "../config.ts";
+
+/** The environment variable that holds the Install's Master key. */
+export const MASTER_KEY_VARIABLE = "WEBCRAFT_SECRET_KEY";
+
+/** The shortest Master key WebCraft accepts, in characters. */
+export const MASTER_KEY_MIN_LENGTH = 32;
+
+const MAKE_ONE = "Make one with `openssl rand -base64 32` and keep a copy outside the server.";
+
+/**
+ * Every key below is derived from the Master key with HKDF-SHA256, using this salt and a label
+ * (the HKDF "info") per purpose, so a fingerprint reveals nothing about the encryption keys.
+ */
+const HKDF_SALT = new TextEncoder().encode("webcraft master key");
+const FINGERPRINT_LABEL = "webcraft master key fingerprint";
+const SESSION_SIGNING_LABEL = "webcraft session cookie signing";
+const EDIT_MODE_LABEL = "webcraft edit mode header token";
+const DOMAIN_VERIFICATION_LABEL = "webcraft domain verification";
+const FORM_TIME_LABEL = "webcraft form time trap";
+const VISITOR_ID_LABEL = "webcraft visitor daily ids hmac-sha256 key";
+const RATE_LIMIT_LABEL = "webcraft rate limit keys hmac-sha256 key";
+const SIGN_IN_NETWORK_LABEL = "webcraft sign-in networks hmac-sha256 key";
+const STAGING_PASSWORD_LABEL = "webcraft staging password access";
+const SHARE_LINK_PASSWORD_LABEL = "webcraft share link password v1";
+const API_TOKEN_LABEL = "webcraft api tokens hmac-sha256 key";
+const OAUTH_LABEL = "webcraft oauth codes and tokens hmac-sha256 key";
+const MCP_REQUEST_STATE_LABEL = "webcraft mcp request state hmac-sha256 key";
+const CONTENT_KEY_LABEL = "webcraft content keys hmac-sha256 key";
+const CONTENT_CURSOR_LABEL = "webcraft content api cursors hmac-sha256 key";
+const SITE_EXPORT_LINK_LABEL = "webcraft site export download links hmac-sha256 key";
+const secretsKeyLabel = (version: number) => `webcraft secrets aes-256-gcm key version ${version}`;
+
+type Derived = {
+	/** The Master key imported for HKDF; it can't be exported again. */
+	base: Promise<CryptoKey>;
+	fingerprint?: Promise<string>;
+	secretsKeys: Map<number, Promise<CryptoKey>>;
+};
+
+/** What each Master key derives. Only this module can reach it. */
+const derived = new WeakMap<MasterKey, Derived>();
+
+/**
+ * The secret an Install is started with, which encrypts every stored secret. The key itself can't
+ * be read back from this object: it only derives the keys the secrets module encrypts with, and a
+ * fingerprint that is safe to store.
+ */
+export class MasterKey {
+	/**
+	 * A one-way value that identifies this key without revealing it: 64 hexadecimal characters,
+	 * safe to store and show. Backup manifests carry it, and restore compares it with the running
+	 * Install's key (ADR 0032). The same key always gives the same fingerprint.
+	 */
+	fingerprint(): Promise<string> {
+		const state = stateOf(this);
+		state.fingerprint ??= state.base.then(async (base) => {
+			const bits = await crypto.subtle.deriveBits(hkdf(FINGERPRINT_LABEL), base, 256);
+			return Array.from(new Uint8Array(bits), (byte) => byte.toString(16).padStart(2, "0")).join("");
+		});
+		return state.fingerprint;
+	}
+
+	toJSON(): string {
+		return "[Master key]";
+	}
+
+	toString(): string {
+		return "[Master key]";
+	}
+}
+
+/**
+ * Checks a Master key: at least 32 characters once surrounding whitespace is trimmed. `source`
+ * names where it came from, such as `WEBCRAFT_SECRET_KEY`, in the error a bad key gives.
+ */
+export function parseMasterKey(value: string | undefined, source: string): MasterKey {
+	const key = value?.trim() ?? "";
+	if (key === "") {
+		throw new ConfigError(
+			`${source} is not set. It holds the Master key, which encrypts every stored secret. ${MAKE_ONE}`,
+		);
+	}
+	if (Array.from(key).length < MASTER_KEY_MIN_LENGTH) {
+		throw new ConfigError(
+			`${source} is shorter than ${MASTER_KEY_MIN_LENGTH} characters. The Master key encrypts every stored secret, so it must be long and random. ${MAKE_ONE}`,
+		);
+	}
+	return createMasterKey(key);
+}
+
+/** Reads the Master key from `WEBCRAFT_SECRET_KEY`, refusing to go on when it is missing or short. */
+export function loadMasterKey(env: Environment): MasterKey {
+	return parseMasterKey(env[MASTER_KEY_VARIABLE], MASTER_KEY_VARIABLE);
+}
+
+/**
+ * The AES-256-GCM key that secrets of one key version are encrypted with, derived from the Master
+ * key. It can encrypt and decrypt but never be exported. Only the secrets module uses it, so it is
+ * not part of `@webcraft/core`'s public exports.
+ */
+export function secretsKey(masterKey: MasterKey, version: number): Promise<CryptoKey> {
+	const state = stateOf(masterKey);
+	let key = state.secretsKeys.get(version);
+	if (!key) {
+		key = state.base.then((base) =>
+			crypto.subtle.deriveKey(hkdf(secretsKeyLabel(version)), base, { name: "AES-GCM", length: 256 }, false, [
+				"encrypt",
+				"decrypt",
+			]),
+		);
+		state.secretsKeys.set(version, key);
+	}
+	return key;
+}
+
+/**
+ * The secret that signs admin session cookies, derived from the Master key: every web process of an
+ * Install has the same one without storing it, and a new Master key signs everyone out. Only the
+ * Install's start-up uses it, so it is not part of `@webcraft/core`'s public exports.
+ */
+export async function sessionSigningSecret(masterKey: MasterKey): Promise<string> {
+	const bits = await crypto.subtle.deriveBits(hkdf(SESSION_SIGNING_LABEL), await stateOf(masterKey).base, 256);
+	return Array.from(new Uint8Array(bits), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * The key Edit mode signs each Edit mode session's header token with (HMAC-SHA256), derived from
+ * the Master key, so every web process makes and checks the same tokens without storing them. Only
+ * the Install's start-up uses it, so it is not part of `@webcraft/core`'s public exports.
+ */
+export async function editModeSigningKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(EDIT_MODE_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign", "verify"],
+	);
+}
+
+/**
+ * The key the Staging address signs what its password lets in with (HMAC-SHA256), derived from the
+ * Master key: the cookie the password page sets names the Site, when its password was set and until
+ * when it holds, so every web process checks it without storing anything, and a new password (or a
+ * new Master key) shuts out every cookie made before. Only the Install's start-up uses it.
+ */
+export async function stagingPasswordKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(STAGING_PASSWORD_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign", "verify"],
+	);
+}
+
+/**
+ * The key a Share link's password access is signed with (HMAC-SHA256), derived from the Master key:
+ * the cookie the right password sets carries an expiry signed over the link and its password's hash,
+ * so a new password, removing it (or a new Master key) shuts out every browser it let in.
+ */
+export async function shareLinkPasswordKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(SHARE_LINK_PASSWORD_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign", "verify"],
+	);
+}
+
+/**
+ * The key domain verification signs with (HMAC-SHA256), derived from the Master key: each domain's
+ * token, and the answer `/_webcraft/verify/<token>` gives for it, which only this Install can make.
+ * Web and worker derive the same one, so neither stores tokens. Only the Install's start-up uses it.
+ */
+export async function domainVerificationKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(DOMAIN_VERIFICATION_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign", "verify"],
+	);
+}
+
+/**
+ * The key Forms sign their time-trap tokens with (HMAC-SHA256), derived from the Master key: the
+ * time a page holding a Form was handed out, which a post sends back. Web processes make and check
+ * them without storing them. Only the Install's start-up uses it.
+ */
+export async function formTimeKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(FORM_TIME_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign", "verify"],
+	);
+}
+
+/**
+ * The key visitors' daily ids are made with (HMAC-SHA256, ADR 0020), derived from the Master key,
+ * together with the day's salt: someone holding the database alone can't work out whose an id is,
+ * and once the day's salt is deleted nobody can. Only the Install's start-up uses it.
+ */
+export async function visitorIdKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(VISITOR_ID_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign"],
+	);
+}
+
+/**
+ * The key rate limit counters are kept under (HMAC-SHA256): their keys name client addresses, which
+ * are never kept. Derived from the Master key, so every process counts under the same hashes.
+ */
+export async function rateLimitKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(RATE_LIMIT_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign"],
+	);
+}
+
+/**
+ * The key the networks wrong passwords come from are kept under (HMAC-SHA256): attempts are counted
+ * per network, and a client address is never kept. Derived from the Master key, so every process
+ * counts under the same hashes; a new Master key forgets which networks people signed in from.
+ */
+export async function signInNetworkKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(SIGN_IN_NETWORK_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign"],
+	);
+}
+
+/**
+ * The key API tokens are kept under (HMAC-SHA256): only a keyed hash of each token is stored, and a
+ * request finds its token by hashing what it carries. Derived from the Master key, so a new Master
+ * key ends every API token, as it signs everyone out.
+ */
+export async function apiTokenKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(API_TOKEN_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign"],
+	);
+}
+
+/**
+ * The key Content keys are kept under (HMAC-SHA256): only a keyed hash of each key is stored, and a
+ * Content API request finds its key by hashing what it carries. Derived from the Master key, so a new
+ * Master key ends every Content key, as it ends every API token.
+ */
+export async function contentKeyKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(CONTENT_KEY_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign"],
+	);
+}
+
+/**
+ * The key the Content API signs its cursors with (HMAC-SHA256): a cursor carries where a list stopped
+ * and which query it belongs to, and the signature keeps frontends from changing either. Every web
+ * process signs and checks the same, without storing anything.
+ */
+export async function contentCursorKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(CONTENT_CURSOR_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign", "verify"],
+	);
+}
+
+/**
+ * The key OAuth authorization codes, access and refresh tokens and AI clients' secrets are kept
+ * under (HMAC-SHA256): only keyed hashes of them are stored. Derived from the Master key, so a new
+ * Master key ends every AI client's tokens, as it signs everyone out.
+ */
+export async function oauthKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(OAUTH_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign"],
+	);
+}
+
+/**
+ * The 32 bytes the MCP server signs the state of a question it asks an AI client's person with (a
+ * confirmation, carried by the client between two calls), so every web process accepts what
+ * another signed, and nobody else can make one.
+ */
+export async function mcpRequestStateKey(masterKey: MasterKey): Promise<Uint8Array> {
+	return new Uint8Array(
+		await crypto.subtle.deriveBits(hkdf(MCP_REQUEST_STATE_LABEL), await stateOf(masterKey).base, 256),
+	);
+}
+
+/** Only keys made here derive anything; a `new MasterKey()` made elsewhere refuses to be used. */
+function createMasterKey(value: string): MasterKey {
+	const key = new MasterKey();
+	derived.set(key, {
+		base: crypto.subtle.importKey("raw", new TextEncoder().encode(value), "HKDF", false, ["deriveKey", "deriveBits"]),
+		secretsKeys: new Map(),
+	});
+	return key;
+}
+
+function hkdf(label: string) {
+	return { name: "HKDF", hash: "SHA-256", salt: HKDF_SALT, info: new TextEncoder().encode(label) };
+}
+
+function stateOf(masterKey: MasterKey): Derived {
+	const state = derived.get(masterKey);
+	if (!state) throw new TypeError("Not a Master key: use parseMasterKey or loadMasterKey.");
+	return state;
+}
+
+/**
+ * The key a Site export's download link is signed with (HMAC-SHA256): the link names the export and
+ * when it stops working, and only this Install can make one that holds.
+ */
+export async function siteExportLinkKey(masterKey: MasterKey): Promise<CryptoKey> {
+	return crypto.subtle.deriveKey(
+		hkdf(SITE_EXPORT_LINK_LABEL),
+		await stateOf(masterKey).base,
+		{ name: "HMAC", hash: "SHA-256", length: 256 },
+		false,
+		["sign", "verify"],
+	);
+}

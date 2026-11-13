@@ -1,0 +1,103 @@
+name: CLI
+
+# The single-file `webcraft` CLI (scripts/build-cli.ts, `bun build --compile`) for macOS (x64, arm64),
+# Linux (x64, arm64) and Windows (x64). On pull requests that touch it and on pushes to main, every
+# platform is compiled and the Linux and macOS binaries are run. On a release tag `v1.2.3` the
+# binaries and their SHA256SUMS are attached to the GitHub release, and the npm packages are
+# published (`@webcraft/cli` and `@webcraft/cli-<os>-<cpu>`, with provenance) with the NPM_TOKEN
+# secret. Nothing is published from anywhere else.
+#
+# Every action is named by its commit (the version beside it is for people): a tag can be moved to
+# other code, a commit can't, and the release job holds what publishes the CLI.
+
+on:
+  pull_request:
+    paths:
+      - apps/cli/**
+      - scripts/build-cli.ts
+      - docs/api/openapi.json
+      - package.json
+      - bun.lock
+      - .github/workflows/cli.yml
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cli-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build every platform
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - run: bun install --frozen-lockfile
+      - name: Compile for every platform, with the npm packages
+        run: bun run build:cli -- --npm
+      - name: The Linux binary runs
+        run: dist/cli/webcraft-linux-x64 --version
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: webcraft-cli
+          path: dist/cli
+          if-no-files-found: error
+
+  macos:
+    name: The macOS binary runs
+    needs: build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: webcraft-cli
+          path: dist/cli
+      - run: chmod +x dist/cli/webcraft-darwin-arm64 && dist/cli/webcraft-darwin-arm64 --version
+
+  release:
+    name: Attach to the release and publish on npm
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: webcraft-cli
+          path: dist/cli
+      - name: The tag is the version being released
+        run: |
+          version="$(jq -r .version package.json)"
+          if [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "The tag ${GITHUB_REF_NAME} isn't v${version}, the version in package.json." >&2
+            exit 1
+          fi
+      - name: Attach the binaries to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME"
+          gh release upload "$GITHUB_REF_NAME" dist/cli/webcraft-* dist/cli/SHA256SUMS --clobber
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: lts/*
+          registry-url: https://registry.npmjs.org
+      - name: Publish the npm packages, each platform's first
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          chmod +x dist/cli/npm/cli-*/bin/*
+          for package in dist/cli/npm/cli-*/ dist/cli/npm/cli/; do
+            npm publish "$package" --access public --provenance
+          done
