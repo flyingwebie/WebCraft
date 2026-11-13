@@ -138,6 +138,17 @@ export type Dashboards = {
 		input: WidgetInput & { kind: string; at?: Partial<Rect> },
 		language: string,
 	): Promise<{ dashboard: DashboardView; widgetId: string }>;
+	/**
+	 * A copy of a Widget: its kind, title, range, filters, settings and rows, at its size, in the first
+	 * free place (as a new Widget lands).
+	 */
+	duplicateWidget(
+		access: Access,
+		place: DashboardPlace,
+		dashboardId: string,
+		widgetId: string,
+		language: string,
+	): Promise<{ dashboard: DashboardView; widgetId: string }>;
 	updateWidget(
 		access: Access,
 		place: DashboardPlace,
@@ -836,6 +847,22 @@ export function createDashboards(deps: {
 						: freePlace(widgets, size);
 				const widget: StoredWidget = { id, kind: info.kind, ...rect, ...checked(info, input, null) };
 				return { widgets: placeWidget([...widgets, widget], id, rect) };
+			});
+			return { dashboard: viewOf(opened, row, language), widgetId: id };
+		},
+
+		async duplicateWidget(access, place, dashboardId, widgetId, language) {
+			const opened = await open(access, place, true);
+			const id = crypto.randomUUID();
+			const row = await change(opened, dashboardId, (_row, widgets) => {
+				const original = widgets.find((widget) => widget.id === widgetId);
+				if (!original) throw new WidgetNotFoundError();
+				if (widgets.length >= MAX_WIDGETS) {
+					throw new DashboardInvalidError("widgets", `A Dashboard holds at most ${MAX_WIDGETS} Widgets.`);
+				}
+				const rect = freePlace(widgets, { w: original.w, h: original.h });
+				const copy: StoredWidget = { ...structuredClone(original), id, ...rect };
+				return { widgets: [...widgets, copy] };
 			});
 			return { dashboard: viewOf(opened, row, language), widgetId: id };
 		},

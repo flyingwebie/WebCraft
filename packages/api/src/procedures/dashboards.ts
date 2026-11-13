@@ -211,6 +211,23 @@ export const dashboards = {
 				);
 			}),
 
+		/**
+		 * A copy of a Widget: its kind, title, range, filters, settings and rows, at its size, in the first
+		 * free place, as a new Widget lands. Answers the Dashboard and the copy's id.
+		 */
+		duplicate: signedIn
+			.input(z.object({ ...place, dashboardId: id, widgetId: id }))
+			.handler(
+				async ({ context, input }) =>
+					await context.services.dashboards.duplicateWidget(
+						context.access,
+						placeOf(input),
+						input.dashboardId,
+						input.widgetId,
+						await languageOf(context.services, context.person),
+					),
+			),
+
 		/** Changes a Widget's title, range, filters, settings or rows. */
 		update: signedIn
 			.input(z.object({ ...place, dashboardId: id, widgetId: id, ...widgetFields }))

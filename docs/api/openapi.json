@@ -20678,6 +20678,62 @@
 				"x-webcraft-permissions": ["dashboard.manage"]
 			}
 		},
+		"/dashboards/widgets/duplicate": {
+			"post": {
+				"operationId": "dashboards.widgets.duplicate",
+				"summary": "Copies a Widget, with its settings, into the first free place.",
+				"tags": ["dashboards"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"dashboardId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"widgetId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["dashboardId", "widgetId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["dashboard.manage"]
+			}
+		},
 		"/dashboards/widgets/update": {
 			"post": {
 				"operationId": "dashboards.widgets.update",

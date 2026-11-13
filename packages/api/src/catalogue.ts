@@ -477,6 +477,7 @@ export const PROCEDURES = {
 	"dashboards.saveAsTemplate": write("Keeps a Dashboard's Widgets and range as a Dashboard template."),
 	"dashboards.export": read("Every Widget of a Dashboard as one CSV file (recorded in the Audit log)."),
 	"dashboards.widgets.add": write("Adds a Widget from the catalog to a Dashboard."),
+	"dashboards.widgets.duplicate": write("Copies a Widget, with its settings, into the first free place."),
 	"dashboards.widgets.update": write("Changes a Widget's title, range, filters, settings or rows."),
 	"dashboards.widgets.move": write("Moves and resizes a Widget on its Dashboard's grid."),
 	"dashboards.widgets.remove": write("Takes a Widget off its Dashboard."),
