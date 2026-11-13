@@ -996,7 +996,9 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 		async unreadSubmissions(scope) {
 			const module = receiving();
 			const unread = module?.receiver?.unread;
-			if (!module || !unread || !(await this.maySeeSubmissions(scope))) return null;
+			const permission = module?.receiver?.readPermission;
+			if (!module || !unread || !permission || !(await runsAt(scope, module))) return null;
+			if (!holds(scope, module, permission)) return null;
 			const place = placeOf(scope);
 			const failed = (message: string, details: Record<string, unknown>) => async () => {
 				await writeLine(options, module, place, "warn", message, details).catch(() => {});

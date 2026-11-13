@@ -233,3 +233,46 @@ describe("another Site", () => {
 		expect(await newOnSite()).toBe(2);
 	});
 });
+
+describe("a Module that can't count", () => {
+	test("gives no number, says why in the Module log, and never keeps the Site from loading", async () => {
+		let answer: () => Promise<unknown> = async () => {
+			throw new Error("The count failed.");
+		};
+		const receiver = forms.formSubmissions;
+		if (!receiver) throw new Error("The Forms Module keeps no Submissions.");
+		const failing = {
+			...forms,
+			formSubmissions: { ...receiver, unread: () => answer() as Promise<Record<string, number>> },
+		};
+		const other = await createTestInstall({ modules: [failing] });
+		try {
+			const admin = await other.superadmin();
+			await admin.api.modules.approve({ moduleId: "forms", version: forms.manifest.version });
+			const otherWorkspace = (await other.createWorkspace("Acme Ltd")).id;
+			const otherSite = (await other.createSite(otherWorkspace, { name: "Acme Bakery", slug: "bakery" })).id;
+			const person = (await other.createStaff({ workspaces: [otherWorkspace] })).browser;
+			await person.api.forms.create({ siteId: otherSite, name: "Contact", key: "contact" });
+
+			expect((await person.api.sites.get({ siteId: otherSite })).newSubmissions).toBeNull();
+			expect((await person.api.forms.list({ siteId: otherSite })).forms.map((form) => form.newSubmissions)).toEqual([
+				null,
+			]);
+			const { lines } = await admin.api.modules.log({ moduleId: "forms" });
+			expect(lines[0]).toMatchObject({
+				level: "warn",
+				message: "It couldn't count the new Form Submissions.",
+				details: { error: { message: "The count failed." } },
+			});
+
+			// An answer that isn't counts by Form is no number either.
+			answer = async () => ["3"];
+			expect((await person.api.sites.get({ siteId: otherSite })).newSubmissions).toBeNull();
+			expect((await admin.api.modules.log({ moduleId: "forms" })).lines[0]?.message).toBe(
+				"Its count of new Form Submissions isn't counts by Form.",
+			);
+		} finally {
+			await other.close();
+		}
+	});
+});
