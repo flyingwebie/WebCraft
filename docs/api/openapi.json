@@ -21053,7 +21053,7 @@
 		"/dashboards/widgets/data": {
 			"post": {
 				"operationId": "dashboards.widgets.data",
-				"summary": "What a Widget shows now: its counts for its range, or why it shows nothing.",
+				"summary": "What a Widget shows now: its counts for its range (and the period before, when asked), or why it shows nothing.",
 				"tags": ["dashboards"],
 				"requestBody": {
 					"required": true,
@@ -21119,6 +21119,9 @@
 												"additionalProperties": false
 											}
 										]
+									},
+									"compare": {
+										"type": "boolean"
 									}
 								},
 								"required": ["dashboardId", "widgetId"]

@@ -55,6 +55,8 @@ import {
 	NOTE_MAX_LENGTH,
 	placeWidget,
 	type Rect,
+	type ResolvedRange,
+	rangeBefore,
 	rangeProblem,
 	resolveRange,
 	type StoredWidget,
@@ -70,6 +72,7 @@ import type {
 	DashboardView,
 	WidgetAnswerView,
 	WidgetDataView,
+	WidgetPeriodView,
 	WidgetView,
 	WidgetViewShape,
 } from "./views.ts";
@@ -173,13 +176,17 @@ export type Dashboards = {
 		widgetId: string,
 		language: string,
 	): Promise<DashboardView>;
-	/** What one Widget shows now: for its own range, else `range` when given (exploring), else the Dashboard's. */
+	/**
+	 * What one Widget shows now: for its own range, else `range` when given (exploring), else the
+	 * Dashboard's. With `compare`, also `previous`: the period of the same length just before it (null
+	 * for a Widget that doesn't compare); without it, no `previous` at all.
+	 */
 	widgetData(
 		access: Access,
 		place: DashboardPlace,
 		dashboardId: string,
 		widgetId: string,
-		options: { range?: DashboardRange; language: string },
+		options: { range?: DashboardRange; compare?: boolean; language: string },
 	): Promise<WidgetAnswerView>;
 	/** Every Widget of a Dashboard, worked out as `widgetData` does (the seam for Reports and Share links, #104). */
 	widgetAnswers(
@@ -287,6 +294,9 @@ const SIZES: Record<WidgetViewShape, { w: number; h: number }> = {
 	table: { w: 6, h: 5 },
 	funnel: { w: 6, h: 4 },
 };
+
+/** The shapes that can show the period before their range beside it: a number, and lines over time. */
+const COMPARES: ReadonlySet<WidgetViewShape> = new Set(["number", "series"]);
 
 /** What `options` is asked for the Goals a Widget's Goal filter offers. */
 export const GOAL_FILTER = "filter:goal";
@@ -517,11 +527,30 @@ export function createDashboards(deps: {
 		language: string,
 		known: Map<string, KindInfo>,
 		explore: WidgetFilters = {},
+		compare = false,
 	): Promise<WidgetAnswerView> => {
 		const info = known.get(widget.kind);
 		const range = resolveRange(widget.range ?? override ?? storedRange(row.range), clock.now());
 		const title = widget.title ?? (info ? wordsIn(info.label, language, info.languages) : widget.kind);
-		const base = { widgetId: widget.id, title, range, countedFrom: null, sites: null };
+		const now = await counted(opened, widget, info, range, language, explore);
+		if (!compare) return { widgetId: widget.id, title, ...now };
+		const previous =
+			info?.moduleId && COMPARES.has(info.shape)
+				? await counted(opened, widget, info, rangeBefore(range), language, explore)
+				: null;
+		return { widgetId: widget.id, title, ...now, previous };
+	};
+
+	/** What a Widget shows for one period: its Module's counts on the Site, or added up over the Sites. */
+	const counted = async (
+		opened: Opened,
+		widget: StoredWidget,
+		info: KindInfo | undefined,
+		range: ResolvedRange,
+		language: string,
+		explore: WidgetFilters,
+	): Promise<WidgetPeriodView> => {
+		const base = { range, countedFrom: null, sites: null };
 		if (widget.kind === NOTE_KIND) {
 			const text = typeof widget.settings.text === "string" ? widget.settings.text : "";
 			return { ...base, data: { shape: "note", text }, problem: null };
@@ -710,6 +739,7 @@ export function createDashboards(deps: {
 					settings: info.settings.map((setting) => settingView(setting, info, language)),
 					available,
 					size: SIZES[info.shape],
+					compares: info.moduleId !== null && COMPARES.has(info.shape),
 				});
 			}
 			return catalog;
@@ -908,6 +938,8 @@ export function createDashboards(deps: {
 				options.range,
 				options.language,
 				kinds(options.language),
+				{},
+				options.compare === true,
 			);
 		},
 

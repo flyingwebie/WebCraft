@@ -158,6 +158,19 @@ export function resolveRange(range: DashboardRange, now: Date): ResolvedRange {
 	return { from: new Date(from), to: new Date(to), interval: to - from <= 2 * DAY_MS ? "hour" : "day" };
 }
 
+/**
+ * The period of the same length just before a range, counted the same way (by hour or by day), so its
+ * points line up with the range's one for one: what "Compare with the period before" shows.
+ */
+export function rangeBefore(range: ResolvedRange): ResolvedRange {
+	const length = range.to.getTime() - range.from.getTime();
+	return {
+		from: new Date(range.from.getTime() - length),
+		to: new Date(range.from.getTime()),
+		interval: range.interval,
+	};
+}
+
 /** The problem with a custom range, or null: real days, the first not after the last, at most ten years. */
 export function rangeProblem(range: DashboardRange): string | null {
 	if (range.preset !== "custom") return null;

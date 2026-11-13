@@ -481,7 +481,9 @@ export const PROCEDURES = {
 	"dashboards.widgets.update": write("Changes a Widget's title, range, filters, settings or rows."),
 	"dashboards.widgets.move": write("Moves and resizes a Widget on its Dashboard's grid."),
 	"dashboards.widgets.remove": write("Takes a Widget off its Dashboard."),
-	"dashboards.widgets.data": read("What a Widget shows now: its counts for its range, or why it shows nothing."),
+	"dashboards.widgets.data": read(
+		"What a Widget shows now: its counts for its range (and the period before, when asked), or why it shows nothing.",
+	),
 	"dashboards.widgets.export": read("One Widget as a CSV file (recorded in the Audit log)."),
 	"dashboardTemplates.list": read(
 		"Lists the Dashboard templates of the Workspaces where the caller builds Dashboards.",

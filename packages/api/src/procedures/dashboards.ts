@@ -275,17 +275,33 @@ export const dashboards = {
 		/**
 		 * What a Widget shows now: counts (a rate as two counts) for its own range, else `range` when
 		 * given, else the Dashboard's; or the `problem` that keeps it from counting (no such Goal here,
-		 * its Module off). A Workspace Dashboard's add up the Sites the caller sees (`sites`).
+		 * its Module off). A Workspace Dashboard's add up the Sites the caller sees (`sites`). With
+		 * `compare`, also `previous`: the same figures for the period of the same length just before the
+		 * range, counted the same way (by hour or by day), for a Widget showing a number or lines over
+		 * time (`compares` in the catalog), and null for any other; without it, no `previous`.
 		 */
 		data: signedIn
-			.input(z.object({ ...place, dashboardId: id, widgetId: id, ...exploring }))
+			.input(
+				z.object({
+					...place,
+					dashboardId: id,
+					widgetId: id,
+					...exploring,
+					/** Also count the period of the same length just before the range. */
+					compare: z.boolean().optional(),
+				}),
+			)
 			.handler(async ({ context, input }) => ({
 				widget: await context.services.dashboards.widgetData(
 					context.access,
 					placeOf(input),
 					input.dashboardId,
 					input.widgetId,
-					{ range: input.range, language: await languageOf(context.services, context.person) },
+					{
+						range: input.range,
+						compare: input.compare,
+						language: await languageOf(context.services, context.person),
+					},
 				),
 			})),
 

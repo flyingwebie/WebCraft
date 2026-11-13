@@ -31,6 +31,8 @@ export type CatalogKind = {
 	available: boolean;
 	/** The size a new one takes, in grid cells. */
 	size: { w: number; h: number };
+	/** Whether it can show the period before its range beside it (a number, or lines over time). */
+	compares: boolean;
 };
 
 /** A Dashboard in a list. */
@@ -77,10 +79,8 @@ export type WidgetDataView =
 	  }
 	| { shape: "funnel"; steps: { label: string; count: number }[] };
 
-/** What a Widget shows now, for the range it counts. */
-export type WidgetAnswerView = {
-	widgetId: string;
-	title: string;
+/** What a Widget shows for one period: its data, or why it shows nothing. */
+export type WidgetPeriodView = {
 	range: { from: Date; to: Date; interval: "hour" | "day" };
 	data: WidgetDataView | null;
 	/** Why it shows nothing: its Module's refusal (`GOAL_NOT_FOUND`), `MODULE_NOT_RUNNING`, `WIDGET_FAILED`… */
@@ -89,4 +89,15 @@ export type WidgetAnswerView = {
 	countedFrom: Date | null;
 	/** A Workspace Dashboard's: how many of the Sites the person sees it counted on. */
 	sites: { counted: number; of: number } | null;
+};
+
+/** What a Widget shows now, for the range it counts. */
+export type WidgetAnswerView = WidgetPeriodView & {
+	widgetId: string;
+	title: string;
+	/**
+	 * Only when asked for (`compare`): the same figures for the period of the same length just before
+	 * `range`, counted the same way; null for a Widget that doesn't compare (`CatalogKind.compares`).
+	 */
+	previous?: WidgetPeriodView | null;
 };
