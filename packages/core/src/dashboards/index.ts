@@ -74,6 +74,7 @@ import type {
 	WidgetViewShape,
 } from "./views.ts";
 
+export * from "./built-in.ts";
 export { csvCell } from "./csv.ts";
 export * from "./errors.ts";
 export * from "./model.ts";
@@ -222,6 +223,8 @@ type Row = {
 	range: unknown;
 	sharedWithEveryone: boolean;
 	widgets: unknown;
+	/** A Site Dashboard's: whether it is the built-in one (Workspace Dashboards have none). */
+	builtIn?: boolean;
 	createdAt: Date;
 	updatedAt: Date;
 };
@@ -388,6 +391,7 @@ export function createDashboards(deps: {
 			name: row.name,
 			range: storedRange(row.range),
 			sharedWithEveryone: row.sharedWithEveryone,
+			builtIn: row.builtIn === true,
 			widgets: storedWidgets(row.widgets).map((widget): WidgetView => {
 				const info = known.get(widget.kind);
 				return {
@@ -719,13 +723,16 @@ export function createDashboards(deps: {
 			const rows = await queries(opened).select(opened.table, undefined, {
 				orderBy: [asc(opened.table.name), asc(opened.table.createdAt)],
 			});
+			// The built-in Dashboard first, then the rest by name.
 			return rows
 				.filter((row) => all || row.sharedWithEveryone)
+				.sort((a, b) => Number(b.builtIn === true) - Number(a.builtIn === true))
 				.map((row) => ({
 					id: row.id,
 					name: row.name,
 					widgets: storedWidgets(row.widgets).length,
 					sharedWithEveryone: row.sharedWithEveryone,
+					builtIn: row.builtIn === true,
 					updatedAt: row.updatedAt,
 				}));
 		},
@@ -802,6 +809,12 @@ export function createDashboards(deps: {
 		async delete(access, place, dashboardId) {
 			const opened = await open(access, place, true);
 			const row = await find(opened, dashboardId);
+			if (row.builtIn) {
+				throw new DashboardInvalidError(
+					"builtIn",
+					"This Dashboard is built in: every Site keeps it. Arrange or rename it, or show it to fewer people, instead.",
+				);
+			}
 			await queries(opened).transaction(async (tx) => {
 				await (tx as unknown as ReturnType<typeof queries>).delete(opened.table, eq(opened.table.id, dashboardId));
 				await tx.audit("dashboard.delete", { dashboardId, name: row.name });

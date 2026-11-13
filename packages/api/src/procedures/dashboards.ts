@@ -98,7 +98,7 @@ export const dashboards = {
 			),
 		})),
 
-	/** The Dashboards here the caller sees, by name. */
+	/** The Dashboards here the caller sees: a Site's built-in "Site analytics" Dashboard first, then the rest by name. */
 	list: signedIn.input(z.object({ ...place })).handler(async ({ context, input }) => ({
 		dashboards: await context.services.dashboards.list(context.access, placeOf(input)),
 	})),
@@ -151,7 +151,10 @@ export const dashboards = {
 			),
 		})),
 
-	/** Deletes a Dashboard. Its data stay where Site analytics keeps them. */
+	/**
+	 * Deletes a Dashboard. Its data stay where Site analytics keeps them. A Site's built-in "Site
+	 * analytics" Dashboard is never deleted: `DASHBOARD_INVALID` with `data.problem` `builtIn`.
+	 */
 	delete: signedIn.input(z.object({ ...place, dashboardId: id })).handler(async ({ context, input }) => {
 		await context.services.dashboards.delete(context.access, placeOf(input), input.dashboardId);
 		return { deleted: true as const };

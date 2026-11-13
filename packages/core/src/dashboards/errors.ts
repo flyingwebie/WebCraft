@@ -25,9 +25,18 @@ export class DashboardTemplateNotFoundError extends Error {
 /**
  * What a Dashboard or Widget can't be: `kind` (no such Widget kind), `filter` (one the kind doesn't
  * take), `setting` (one it doesn't have, or a value it doesn't offer), `range`, `widgets` (too many on
- * one Dashboard), `dashboards` (too many in one place), `templates` (too many in one Workspace).
+ * one Dashboard), `dashboards` (too many in one place), `templates` (too many in one Workspace),
+ * `builtIn` (the Site's built-in Dashboard, which is never deleted).
  */
-export type DashboardProblem = "kind" | "filter" | "setting" | "range" | "widgets" | "dashboards" | "templates";
+export type DashboardProblem =
+	| "kind"
+	| "filter"
+	| "setting"
+	| "range"
+	| "widgets"
+	| "dashboards"
+	| "templates"
+	| "builtIn";
 
 export class DashboardInvalidError extends Error {
 	override name = "DashboardInvalidError";

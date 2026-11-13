@@ -136,7 +136,9 @@ describe("a test, Owners and the history", () => {
 		const site = reported[1] as { siteId: string };
 		const owner = (await install.createMember({ workspaceId, role: "owner", email: "owner@acme.example" })).browser;
 		const editor = (await install.createMember({ workspaceId, role: "editor" })).browser;
-		const dashboardId = (await staff.api.dashboards.list({ siteId: site.siteId })).dashboards[0]?.id as string;
+		const dashboardId = (await staff.api.dashboards.list({ siteId: site.siteId })).dashboards.find(
+			(each) => !each.builtIn,
+		)?.id as string;
 		const [report] = (await owner.api.reports.list({ siteId: site.siteId, dashboardId })).reports;
 
 		const changed = await owner.api.reports.setRecipients({
@@ -291,7 +293,9 @@ describe("the history", () => {
 		const site = reported[0] as { siteId: string };
 		await runUntil(install, "2027-06-01T07:00:00Z");
 		const fresh = await staffNow();
-		const dashboardId = (await fresh.api.dashboards.list({ siteId: site.siteId })).dashboards[0]?.id as string;
+		const dashboardId = (await fresh.api.dashboards.list({ siteId: site.siteId })).dashboards.find(
+			(each) => !each.builtIn,
+		)?.id as string;
 		const [report] = (await fresh.api.reports.list({ siteId: site.siteId, dashboardId })).reports;
 		const { sends } = await fresh.api.reports.history({
 			siteId: site.siteId,

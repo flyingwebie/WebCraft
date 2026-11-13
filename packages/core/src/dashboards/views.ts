@@ -39,6 +39,8 @@ export type DashboardSummary = {
 	name: string;
 	widgets: number;
 	sharedWithEveryone: boolean;
+	/** The Site's built-in "Site analytics" Dashboard: listed first, never deleted. */
+	builtIn: boolean;
 	updatedAt: Date;
 };
 
@@ -51,6 +53,8 @@ export type DashboardView = {
 	name: string;
 	range: DashboardRange;
 	sharedWithEveryone: boolean;
+	/** The Site's built-in "Site analytics" Dashboard: arranged and renamed like any other, never deleted. */
+	builtIn: boolean;
 	widgets: WidgetView[];
 	updatedAt: Date;
 	/** Whether the person may change it (`dashboard.manage`). */

@@ -20006,7 +20006,7 @@
 		"/dashboards/list": {
 			"post": {
 				"operationId": "dashboards.list",
-				"summary": "Lists a Site's Dashboards, or a Workspace's, that the caller sees.",
+				"summary": "Lists a Site's Dashboards, or a Workspace's, that the caller sees (a Site's built-in one first).",
 				"tags": ["dashboards"],
 				"requestBody": {
 					"required": true,
@@ -20274,7 +20274,7 @@
 		"/dashboards/delete": {
 			"post": {
 				"operationId": "dashboards.delete",
-				"summary": "Deletes a Dashboard.",
+				"summary": "Deletes a Dashboard (never a Site's built-in Site analytics Dashboard).",
 				"tags": ["dashboards"],
 				"requestBody": {
 					"required": true,
