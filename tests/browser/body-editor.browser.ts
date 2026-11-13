@@ -163,7 +163,17 @@ describe("writing with the keyboard", () => {
 		await page.keyboard.type("## ");
 		// The shortcut swaps the paragraph for a heading and moves the caret into it; keys sent before a
 		// slow machine has done so are typed faster than any person types, and were lost on CI runners.
-		await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label")?.startsWith("Heading 2"));
+		const inHeading = () =>
+			page.evaluate(() => document.activeElement?.getAttribute("aria-label")?.startsWith("Heading 2") ?? false);
+		for (let look = 0; look < 100 && !(await inHeading()); look++) await page.waitForTimeout(100);
+		if (!(await inHeading())) {
+			// Says where the caret went instead, with every Block's name: this has only failed on CI runners.
+			const seen = await page.evaluate(() => ({
+				active: [document.activeElement?.tagName, document.activeElement?.getAttribute("aria-label")],
+				textboxes: [...document.querySelectorAll('[role="textbox"]')].map((box) => box.getAttribute("aria-label")),
+			}));
+			throw new Error(`The caret isn't in the new heading: ${JSON.stringify(seen)}`);
+		}
 		await page.keyboard.type("Tarts");
 
 		const blocks = await draftBlocks((saved) => JSON.stringify(saved.at(-1)).includes("Tarts"));
