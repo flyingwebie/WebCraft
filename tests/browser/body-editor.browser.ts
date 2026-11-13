@@ -160,7 +160,11 @@ describe("writing with the keyboard", () => {
 		await page.keyboard.type("Pain au chocolat");
 		await page.keyboard.press("Enter");
 		await page.keyboard.press("Enter");
-		await page.keyboard.type("## Tarts");
+		await page.keyboard.type("## ");
+		// The shortcut swaps the paragraph for a heading and moves the caret into it; keys sent before a
+		// slow machine has done so are typed faster than any person types, and were lost on CI runners.
+		await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label")?.startsWith("Heading 2"));
+		await page.keyboard.type("Tarts");
 
 		const blocks = await draftBlocks((saved) => JSON.stringify(saved.at(-1)).includes("Tarts"));
 		expect(blocks.slice(12).map(({ id: _, ...block }) => block)).toEqual([
