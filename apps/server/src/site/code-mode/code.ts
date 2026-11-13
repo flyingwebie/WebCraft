@@ -22,7 +22,8 @@ export type CodeModeFitting = {
  * Code mode's panels (ADR 0016): WebCraft's own script on a page in Code mode, loaded only there (a
  * page in Content editing never loads it). It is served as a file from the Site's domain, made of
  * this function's source text and its config (`assets.ts` beside the editing bar's), so the function
- * must use nothing from outside itself.
+ * must use nothing from outside itself, `import()` included: the shared panels are loaded with
+ * `loadModule`, which `assets.ts` writes after the function (`LOAD_MODULE` there says why).
  *
  * Clicking an element of the page (every element carries `data-wc-code`, where it comes from) opens
  * its Template or Component in the HTML panel, its Classes and the Site CSS in the CSS panel (the
@@ -41,6 +42,7 @@ export function codeMode(
 	editCodeKey: typeof codeKeyEdit,
 	fitting: CodeModeFitting,
 	propFix: { declare: typeof declareMissingProp; blockAt: typeof propsBlockAt },
+	loadModule: (address: string) => Promise<unknown>,
 ): void {
 	type Words = { [key: string]: string | Words };
 	type Answer = { ok: true; data: unknown } | { ok: false; code: string; data: Record<string, unknown> };
@@ -402,7 +404,9 @@ export function codeMode(
 		const selectionHash = new URLSearchParams(win.location.hash.slice(1)).get("wc-selection");
 		if (selectionHash || historyToken) win.history.replaceState(null, "", win.location.pathname + win.location.search);
 		await Promise.all([open(selectionHash), loadScripts()]);
-		const module = await import(config.panels);
+		// Never `import()` here: this function is served as its source text, and `bun run dev` would
+		// rewrite it into a helper only the server has (see `LOAD_MODULE` in `edit-bar/assets.ts`).
+		const module = (await loadModule(config.panels)) as { mount(bridge: object): typeof panelsAdapter };
 		panelsAdapter = module.mount({
 			historyToken,
 			root,
