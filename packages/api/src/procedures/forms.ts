@@ -1,4 +1,14 @@
+import { JSON_SCHEMA_REGISTRY, ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { type Access, can, type InstallServices, PermissionDeniedError, publishPermission } from "@webcraft/core";
+import {
+	FORM_AUTOCOMPLETE,
+	FORM_CONDITION_OPS,
+	FORM_FIELD_TYPES,
+	FORM_FIELD_WIDTHS,
+	FORM_LIMITS,
+	FORM_UPLOAD_FORMATS,
+	type FormUploadFormat,
+} from "@webcraft/renderer";
 import { z } from "zod";
 
 import { confirmationInput, confirmedPublish } from "../confirm.ts";
@@ -36,12 +46,105 @@ const formName = z.string().max(400);
 /** A Form's key, as `{{@form <key>}}` names it; the server checks its form. */
 const formKey = z.string().max(200);
 
+/** Text in a Form: as written, or with its own text in other languages by BCP 47 tag. */
+const formText = z.union([
+	z.string(),
+	z.object({ text: z.string(), translations: z.record(z.string(), z.string()).optional() }),
+]);
+
+/** A setting left unset: null, or left out. */
+const unset = <Schema extends z.ZodType>(schema: Schema) => schema.nullable().optional();
+
+/**
+ * What one item of a Form's fields holds, for the API's document only: its settings as
+ * `@webcraft/renderer`'s `FormField` keeps them. Nothing is checked against it (see `formItem`).
+ */
+const formItemShape = z.object({
+	key: z
+		.string()
+		.max(FORM_LIMITS.keyLength)
+		.describe("Names its value in Submissions: a lower-case letter, then lower-case letters, digits and underscores."),
+	type: z
+		.enum(FORM_FIELD_TYPES)
+		.describe(
+			"A field visitors fill in, or a section or a step: those hold the items after them and no value. Each type takes only its own settings.",
+		),
+	label: formText,
+	hideLabel: unset(z.boolean()),
+	help: unset(formText),
+	placeholder: unset(formText),
+	message: unset(formText).describe("The error shown for a value the field refuses, in place of WebCraft's own words."),
+	required: unset(z.boolean()),
+	width: z
+		.enum(FORM_FIELD_WIDTHS)
+		.nullable()
+		.default("whole")
+		.describe(
+			"How much of a line the field takes on a page: fields narrower than the whole line sit side by side and wrap; under a narrow width every field is whole. A section or a step has no width (null).",
+		),
+	minLength: unset(z.number()),
+	maxLength: unset(z.number()),
+	pattern: unset(z.string().max(FORM_LIMITS.patternLength)),
+	autocomplete: unset(z.enum(FORM_AUTOCOMPLETE)),
+	min: unset(z.number()),
+	max: unset(z.number()),
+	integer: unset(z.boolean()),
+	minDate: unset(z.string()).describe("The earliest day, such as 2026-03-02."),
+	maxDate: unset(z.string()).describe("The latest day, such as 2026-03-02."),
+	options: z
+		.array(z.object({ value: z.string().max(FORM_LIMITS.optionValueLength), label: formText }))
+		.max(FORM_LIMITS.options)
+		.optional(),
+	minChoices: unset(z.number()),
+	maxChoices: unset(z.number()),
+	source: unset(
+		z.union([
+			z.object({ kind: z.literal("query"), name: z.string() }),
+			z.object({ kind: z.literal("page") }),
+			z.object({ kind: z.literal("fixed"), value: z.string() }),
+		]),
+	).describe("A hidden field's value: a parameter of the page's address, the page's address, or fixed text."),
+	accept: z
+		.array(z.enum(Object.keys(FORM_UPLOAD_FORMATS) as [FormUploadFormat, ...FormUploadFormat[]]))
+		.optional()
+		.describe("The file formats a file field takes."),
+	maxFileBytes: unset(z.number()),
+	maxFiles: unset(z.number()),
+	condition: unset(
+		z.object({
+			match: z.enum(["all", "any"]),
+			rules: z
+				.array(
+					z.object({
+						field: z.string(),
+						op: z.enum(FORM_CONDITION_OPS),
+						value: unset(z.union([z.string(), z.number()])),
+					}),
+				)
+				.max(FORM_LIMITS.conditionRules),
+		}),
+	).describe("When the item shows: rules about the values of fields before it."),
+});
+
+/**
+ * One item of a Form's fields, as a procedure takes it: anything, since the server checks every
+ * setting against the item's type and answers each problem where it is (`FORM_INVALID` at
+ * `fields[2].width`), which a schema refusing the whole request couldn't. The API's document
+ * describes it by `formItemShape` instead.
+ */
+const formItem = z.unknown();
+// The registry types a schema's own JSON Schema by that schema's values; this one is another schema's.
+JSON_SCHEMA_REGISTRY.add(
+	formItem,
+	new ZodToJsonSchemaConverter().convert(formItemShape, { strategy: "input" })[1] as object,
+);
+
 /**
  * A change to a Form's Draft: each part given replaces that part. Fields are checked by the server,
  * which answers every problem where it is (`FORM_INVALID`, `data.problems`).
  */
 const formChange = z.object({
-	fields: z.array(z.unknown()).max(1000).optional(),
+	fields: z.array(formItem).max(1000).optional(),
 	submitLabel: z.unknown().optional(),
 	success: z.unknown().optional(),
 	spam: z.unknown().optional(),

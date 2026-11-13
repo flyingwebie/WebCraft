@@ -108,6 +108,28 @@ const FORM_PARTS = [
 ];
 
 /**
+ * A Form's fields narrower than the whole line (`data-wc-width`: `half`, `third`), side by side from
+ * where phones end (`phoneWidth`): whatever holds such a field (the Form itself, a section or a step)
+ * becomes six columns, a half taking three and a third two, in order and wrapping onto the next line;
+ * everything else in it keeps the whole line, and fields on one line start at its top. Below that
+ * width, and in a Form without such fields, none of these rules applies: every field is whole, as it
+ * always was. Staff restyle them in the Site's custom CSS (a later layer, so it wins as it is).
+ */
+function formWidthParts(phoneWidth: number): string[] {
+	const holders = [".wc-form", ".wc-form-section", ".wc-form-step"].map((holder) => `${holder}:has(>[data-wc-width])`);
+	return [
+		`@media (min-width:${phoneWidth}px){${[
+			`${holders.join(",")}{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));column-gap:1em}`,
+			// No specificity of its own: a field's width below, and any Class, wins whatever the order.
+			`:where(${holders.join(",")})>*{grid-column:1/-1}`,
+			".wc-form-field[data-wc-width]{align-self:start}",
+			".wc-form-field[data-wc-width=half]{grid-column:span 3}",
+			".wc-form-field[data-wc-width=third]{grid-column:span 2}",
+		].join("")}}`,
+	];
+}
+
+/**
  * The Search element's hooks (`SEARCH_HOOKS`): its box and button on one row (wrapping on narrow
  * screens), both big enough to tap, in the page's own colours so they read in light and dark. Staff
  * restyle them in the Site's custom CSS.
@@ -275,6 +297,7 @@ export function compileStylesheet(designSystem: DesignSystem, use: StylesheetUse
 
 	const focusColour = names.tokens.propertyOf({ token: tokens.focus.colour.colour, step: tokens.focus.colour.step });
 	const primary = names.tokens.propertyOf({ token: "colour-primary", step: "60" });
+	const phoneWidth = phoneWidthOf(tokens.breakpoints);
 	const baseRules = [
 		`:root{--wc-focus-color:var(${focusColour});--wc-focus-width:${tokens.focus.width}px;--wc-focus-offset:${tokens.focus.offset}px;}`,
 		`:root{${calloutTones(primary)}}`,
@@ -288,8 +311,9 @@ export function compileStylesheet(designSystem: DesignSystem, use: StylesheetUse
 		...PAGE_PARTS,
 		...BODY_PARTS,
 		...FORM_PARTS,
+		...formWidthParts(phoneWidth),
 		...SEARCH_PARTS,
-		...filterParts(phoneWidthOf(tokens.breakpoints)),
+		...filterParts(phoneWidth),
 		...CONSENT_PARTS,
 		`.wc-popup{color:CanvasText;background:Canvas;border:1px solid GrayText;border-radius:.5rem;padding:1.5rem;max-width:min(36rem,calc(100vw - 2rem));max-height:calc(100dvh - 2rem);overflow:auto}.wc-popup::backdrop{background:rgb(0 0 0 / .5)}.wc-popup[data-layout="slide-in"]{position:fixed;inset:auto 1rem 1rem auto;margin:0;z-index:999}.wc-popup[data-layout="bar"]{position:fixed;inset:auto 0 0;margin:0;max-width:none;width:100%;max-height:40dvh;border-radius:0;z-index:1000}.wc-popup[data-layout="bar"][data-bar-position="top"]{inset:0 0 auto}.wc-popup-space{display:block;flex-shrink:0;pointer-events:none;visibility:hidden}.wc-popup[data-layout="full-screen"]{width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;border-radius:0}.wc-popup [data-wc-popup-close]{display:block;margin-inline-start:auto;min-width:44px;min-height:44px}.wc-popup :focus-visible{outline:3px solid Highlight;outline-offset:3px}@media(prefers-reduced-motion:no-preference){.wc-popup[open][data-animation="fade"]{animation:wc-popup-fade .15s ease-out}.wc-popup[open][data-animation="slide"]{animation:wc-popup-in .15s ease-out}.wc-popup[open][data-animation="zoom"]{animation:wc-popup-zoom .15s ease-out}@keyframes wc-popup-fade{from{opacity:0}to{opacity:1}}@keyframes wc-popup-zoom{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:none}}@keyframes wc-popup-in{from{opacity:0;transform:translateY(.5rem)}to{opacity:1;transform:none}}}`,
 

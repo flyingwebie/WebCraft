@@ -46,6 +46,20 @@ export function isLayoutItem(field: Pick<FormField, "type">): boolean {
 }
 
 /**
+ * How much of a line a field takes: all of it (`whole`, unless Staff say otherwise), half or a third,
+ * so fields sit side by side and wrap onto the next line. Under a narrow width every field is whole.
+ * A section or a step has none: it holds the fields after it, each with its own.
+ */
+export const FORM_FIELD_WIDTHS = ["whole", "half", "third"] as const;
+
+export type FormFieldWidth = (typeof FORM_FIELD_WIDTHS)[number];
+
+/** Whether `value` is a width a field may have. */
+export function isFieldWidth(value: unknown): value is FormFieldWidth {
+	return typeof value === "string" && (FORM_FIELD_WIDTHS as readonly string[]).includes(value);
+}
+
+/**
  * The file formats a Form upload field may take, by name, each with the extensions a browser offers
  * and the type it is stored and sent as. What a file is comes from its bytes, never its name; SVG is
  * never among them (an image that can hold scripts).
@@ -145,6 +159,8 @@ export type FormField = {
 	message: FormText | null;
 	/** A value must be given (a choice made, the consent ticked). Hidden fields never are. */
 	required: boolean;
+	/** How much of a line the field takes (`FORM_FIELD_WIDTHS`); null for a section or a step, which have none. */
+	width: FormFieldWidth | null;
 	/** Text and textareas: the shortest and longest value, in characters. */
 	minLength: number | null;
 	maxLength: number | null;
@@ -315,6 +331,7 @@ export function emptyField(key: string, type: FormFieldType, label: FormText): F
 		placeholder: null,
 		message: null,
 		required: false,
+		width: type === "section" || type === "step" ? null : "whole",
 		minLength: null,
 		maxLength: null,
 		pattern: null,
