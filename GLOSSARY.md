@@ -407,7 +407,7 @@ A set of fields, sections and optional steps that visitors fill in on a Site. It
 _Avoid_: Contact form, form block, form widget
 
 **Submission**:
-One filled-in Form as received by the Install, kept with the language and page it came from.
+One filled-in Form as received by the Install, kept with the language and page it came from. One in a Form's inbox that nobody has opened yet is new; opening it makes it read for everyone.
 _Avoid_: Entry, lead, response, message
 
 **Spam folder**:
