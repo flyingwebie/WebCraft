@@ -7,7 +7,7 @@ import { PageHeader } from "../../ui/PageHeader.tsx";
 import { SiteSeoSettings } from "../../ui/seo/SiteSeoSettings.tsx";
 
 export const Route = createFileRoute("/_admin/sites/$siteId/seo")({
-	staticData: { crumb: "shell.nav.seo" },
+	staticData: { crumb: "shell.nav.seo", width: "form" },
 	loader: async ({ params, context }) => {
 		if (!context.place.permissions.includes("structure.edit")) return null;
 		const api = await getApi();

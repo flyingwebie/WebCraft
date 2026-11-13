@@ -1,7 +1,7 @@
-import { Link, useRouter, useRouterState } from "@tanstack/react-router";
+import { createLink, useRouter, useRouterState } from "@tanstack/react-router";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
-import { cn } from "cn";
-import { createContext, type ReactNode, useContext, useMemo } from "react";
+import { cn } from "@webcraft/ui/lib/utils.ts";
+import { type ComponentProps, createContext, forwardRef, type ReactNode, useContext, useMemo } from "react";
 
 import { type MessageKey, useT } from "../i18n.tsx";
 import type { ShellContext } from "./context.ts";
@@ -10,7 +10,6 @@ import {
 	type LevelNavigation,
 	type NavBadge,
 	type NavPosition,
-	type NavRow,
 	type NavTarget,
 	navigationFor,
 	positionIn,
@@ -65,21 +64,26 @@ export function useRowLabel(): (label: MessageKey | { text: string }) => string 
  */
 export type Current = "page" | "true" | undefined;
 
+/** An anchor that says it is current only when the shell says so (`current`), never by itself. */
+const RowAnchor = forwardRef<HTMLAnchorElement, ComponentProps<"a"> & { current?: Current; "data-status"?: string }>(
+	function RowAnchor({ current, "aria-current": _router, "data-status": _status, ...props }, ref) {
+		return <a ref={ref} {...props} aria-current={current} />;
+	},
+);
+
+const CurrentLink = createLink(RowAnchor);
+
 /**
- * A row's link. The router marks a link current on every page under its address, which made two
- * rows current at once; here the link is the router's own only on its exact address, and the shell
- * says which one row is current.
+ * A row's link. The router marks every link to the page on screen current, which made two rows
+ * current at once (a row and the row of its secondary sidebar leading to the same page); here the
+ * shell says which one row is current at each level, and only that row says so.
  */
-export function RowLink({ row, current, ...props }: { row: NavRow; current: Current } & Record<string, unknown>) {
-	return (
-		<Link
-			to={row.to}
-			params={row.params as never}
-			activeOptions={{ exact: true, includeSearch: false }}
-			aria-current={current}
-			{...props}
-		/>
-	);
+export function RowLink({
+	row,
+	current,
+	...props
+}: { row: NavTarget; current: Current } & Omit<ComponentProps<"a">, "href" | "aria-current">) {
+	return <CurrentLink to={row.to} params={row.params as never} current={current} {...props} />;
 }
 
 /** The words at a row's end: "5 new", "2 to review", "Staff only". */

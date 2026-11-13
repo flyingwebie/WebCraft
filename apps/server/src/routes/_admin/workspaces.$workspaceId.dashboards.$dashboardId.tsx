@@ -11,7 +11,7 @@ import { pageTitleOf } from "../../ui/i18n.tsx";
 const search = z.object({ range: z.string().max(40).optional().catch(undefined) });
 
 export const Route = createFileRoute("/_admin/workspaces/$workspaceId/dashboards/$dashboardId")({
-	staticData: { wide: true },
+	staticData: { width: "wide" },
 	validateSearch: search,
 	loader: async ({ params }) => {
 		const api = await getApi();

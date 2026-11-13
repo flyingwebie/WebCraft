@@ -28,7 +28,7 @@ import type { AdminPlace } from "../../ui/shell/levels.ts";
 import { slugFrom } from "../../ui/site-slug.ts";
 
 export const Route = createFileRoute("/_admin/workspaces/$workspaceId/")({
-	staticData: { crumb: "sites.pageTitle" },
+	staticData: { crumb: "sites.pageTitle", width: "wide" },
 	loader: async ({ params }) => {
 		const api = await getApi();
 		return { storage: await api.workspaces.storage({ workspaceId: params.workspaceId }) };

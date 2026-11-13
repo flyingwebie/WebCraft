@@ -8,7 +8,7 @@ import { Forbidden } from "../../ui/PageHeader.tsx";
  * report. For Staff, Owners and Editors (`import.run`); anyone else is told they can't open it.
  */
 export const Route = createFileRoute("/_admin/sites/$siteId/imports")({
-	staticData: { crumb: "imports.pageTitle", wide: true },
+	staticData: { crumb: "imports.pageTitle", width: "wide" },
 	component: ImportsLayout,
 });
 

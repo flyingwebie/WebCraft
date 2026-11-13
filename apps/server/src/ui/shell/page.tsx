@@ -9,7 +9,7 @@ import {
 	DialogTitle,
 } from "@webcraft/ui/components/dialog.tsx";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@webcraft/ui/components/sheet.tsx";
-import { cn } from "cn";
+import { cn } from "@webcraft/ui/lib/utils.ts";
 import {
 	type ComponentProps,
 	createContext,
@@ -166,7 +166,10 @@ export function SaveBar({
 				>
 					<p
 						role="status"
-						className={cn("min-w-0 flex-1 truncate text-sm", state === "failed" ? "text-destructive" : "text-muted-foreground")}
+						className={cn(
+							"min-w-0 flex-1 truncate text-sm",
+							state === "failed" ? "text-destructive" : "text-muted-foreground",
+						)}
 					>
 						{t(`shell.saveBar.${state}`)}
 					</p>

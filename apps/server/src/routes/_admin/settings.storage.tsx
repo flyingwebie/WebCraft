@@ -16,7 +16,7 @@ import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 import { PasswordInput } from "../../ui/PasswordInput.tsx";
 
 export const Route = createFileRoute("/_admin/settings/storage")({
-	staticData: { crumb: "storageSettings.pageTitle" },
+	staticData: { crumb: "storageSettings.pageTitle", width: "form" },
 	loader: async ({ context }) => {
 		if (!context.shell.permissions.includes("install.manage")) return null;
 		const api = await getApi();

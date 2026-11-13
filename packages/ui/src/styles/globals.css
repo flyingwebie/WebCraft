@@ -70,6 +70,16 @@
 	--radius-2xl: calc(var(--radius) * 1.8);
 	--radius-3xl: calc(var(--radius) * 2.2);
 	--radius-4xl: calc(var(--radius) * 2.6);
+	/* The admin's route-change line under the top bar: a short bar crossing the width while a page loads. */
+	--animate-route-progress: route-progress 1.2s ease-in-out infinite;
+	@keyframes route-progress {
+		from {
+			translate: -100% 0;
+		}
+		to {
+			translate: 300% 0;
+		}
+	}
 }
 
 :root {

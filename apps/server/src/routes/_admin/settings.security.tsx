@@ -12,7 +12,7 @@ import { useSensitiveAction } from "../../ui/identity-check.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 
 export const Route = createFileRoute("/_admin/settings/security")({
-	staticData: { crumb: "securitySettings.pageTitle" },
+	staticData: { crumb: "securitySettings.pageTitle", width: "form" },
 	loader: async ({ context }) => {
 		if (!context.shell.permissions.includes("install.manage")) return { security: null };
 		const api = await getApi();

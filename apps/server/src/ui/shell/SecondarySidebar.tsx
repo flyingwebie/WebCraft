@@ -7,7 +7,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@webcraft/ui/components/dropdown-menu.tsx";
-import { cn } from "cn";
+import { cn } from "@webcraft/ui/lib/utils.ts";
 import { CheckIcon, ChevronsUpDownIcon } from "lucide-react";
 import { type ComponentProps, Fragment, type ReactNode, useId } from "react";
 
@@ -95,9 +95,7 @@ export function NavigationSecondary({ parent, current }: { parent: NavRow; curre
 			</SecondaryTitle>
 			{(parent.sections ?? []).map((section) => (
 				<Fragment key={section.id}>
-					{section.label ? (
-						<SecondaryLabel id={`${id}-${section.id}`}>{label(section.label)}</SecondaryLabel>
-					) : null}
+					{section.label ? <SecondaryLabel id={`${id}-${section.id}`}>{label(section.label)}</SecondaryLabel> : null}
 					<SecondaryList aria-labelledby={section.label ? `${id}-${section.id}` : `${id}-title`}>
 						{section.rows.map((row) => (
 							<SecondaryRow key={row.id} row={row} current={row.id === current?.id ? "page" : undefined} />

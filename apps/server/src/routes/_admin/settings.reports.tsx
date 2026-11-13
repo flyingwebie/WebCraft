@@ -6,7 +6,7 @@ import { Forbidden } from "../../ui/PageHeader.tsx";
 import { InstallBrandingPage } from "../../ui/reports/Branding.tsx";
 
 export const Route = createFileRoute("/_admin/settings/reports")({
-	staticData: { crumb: "branding.installPageTitle" },
+	staticData: { crumb: "branding.installPageTitle", width: "form" },
 	loader: async ({ context }) => {
 		if (!context.shell.permissions.includes("install.manage")) return null;
 		return (await (await getApi()).reportBranding.install.get()).branding;

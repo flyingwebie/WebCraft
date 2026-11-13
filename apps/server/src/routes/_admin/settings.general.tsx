@@ -15,7 +15,7 @@ import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 
 export const Route = createFileRoute("/_admin/settings/general")({
-	staticData: { crumb: "generalSettings.pageTitle" },
+	staticData: { crumb: "generalSettings.pageTitle", width: "form" },
 	loader: async ({ context }) => {
 		if (!context.shell.permissions.includes("install.manage")) return { settings: null, updates: null };
 		const api = await getApi();

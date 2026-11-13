@@ -1,4 +1,4 @@
-import { Link, useMatches } from "@tanstack/react-router";
+import { useMatches } from "@tanstack/react-router";
 import {
 	Breadcrumb,
 	BreadcrumbItem,
@@ -10,8 +10,8 @@ import {
 import { Fragment } from "react";
 
 import { type MessageKey, useT } from "../i18n.tsx";
-import { type AdminPlace, levelCrumbs } from "./levels.ts";
-import { useNavigation, useRowLabel } from "./navigation.tsx";
+import { type AdminPlace, levelCrumbs, type NavTarget } from "./levels.ts";
+import { RowLink, useNavigation, useRowLabel } from "./navigation.tsx";
 import type { PageWidth } from "./page.tsx";
 
 declare module "@tanstack/react-router" {
@@ -49,7 +49,7 @@ export function Breadcrumbs({ place, installName }: { place: AdminPlace; install
 		...levelCrumbs(place, installName).map((crumb) => ({
 			key: `level-${crumb.label}-${String(crumb.to)}`,
 			label: crumb.label,
-			link: <Link to={crumb.to} params={crumb.params as never} />,
+			link: <RowLink row={{ to: crumb.to, params: crumb.params }} current={undefined} />,
 		})),
 		// The row the page sits under, leading to the first page of its secondary sidebar.
 		...(parent && parent.crumb !== null && pages.length > 0
@@ -57,11 +57,15 @@ export function Breadcrumbs({ place, installName }: { place: AdminPlace; install
 					{
 						key: `parent-${parent.id}`,
 						label: parent.crumb ? t(parent.crumb) : label(parent.label),
-						link: <Link to={parent.to} params={parent.params as never} />,
+						link: <RowLink row={parent} current={undefined} />,
 					},
 				]
 			: []),
-		...pages.map((page) => ({ key: page.key, label: page.label, link: <Link to={page.pathname} /> })),
+		...pages.map((page) => ({
+			key: page.key,
+			label: page.label,
+			link: <RowLink row={{ to: page.pathname as NavTarget["to"], params: {} }} current={undefined} />,
+		})),
 	];
 	return (
 		<Breadcrumb aria-label={t("shell.breadcrumbLabel")} className="min-w-0">

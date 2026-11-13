@@ -26,7 +26,7 @@ import { Forbidden } from "../../ui/PageHeader.tsx";
  * Members never see it: the sidebar hides the Structure group, and the page says they can't open it.
  */
 export const Route = createFileRoute("/_admin/sites/$siteId/loops")({
-	staticData: { crumb: "loops.pageTitle", wide: true },
+	staticData: { crumb: "loops.pageTitle", width: "wide" },
 	loader: async ({ context, params }) => {
 		if (!context.place.permissions.includes("structure.edit")) return { loops: null };
 		const api = await getApi();

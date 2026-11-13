@@ -6,7 +6,7 @@ import { pageTitleOf } from "../../ui/i18n.tsx";
 
 /** A Post Type's Entries (Content): its list and the Entry editor below it. Everyone who reaches the Site sees them. */
 export const Route = createFileRoute("/_admin/sites/$siteId/entries/$postTypeId")({
-	staticData: { wide: true },
+	staticData: { width: "wide" },
 	loader: async ({ params }) => {
 		const api = await getApi();
 		try {

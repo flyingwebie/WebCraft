@@ -27,7 +27,7 @@ import { Forbidden } from "../../ui/PageHeader.tsx";
  * the page says they can't open it.
  */
 export const Route = createFileRoute("/_admin/sites/$siteId/post-types")({
-	staticData: { crumb: "postTypes.pageTitle", wide: true },
+	staticData: { crumb: "postTypes.pageTitle", width: "wide" },
 	loader: async ({ context, params }) => {
 		if (!context.place.permissions.includes("structure.edit")) return { postTypes: null };
 		const api = await getApi();

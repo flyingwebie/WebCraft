@@ -945,12 +945,13 @@ export function positionIn(
 	};
 	let best: { row: NavRow; parent: NavRow | null; inSidebar: boolean; score: number } | null = null;
 	const consider = (row: NavRow, parent: NavRow | null, inSidebar: boolean) => {
+		// The rows of its secondary sidebar first: a row leads to one of them, and that one is current.
+		for (const section of row.sections ?? []) for (const child of section.rows) consider(child, row, inSidebar);
 		// Twice the length, so a row's own address beats an equally long address that only covers the page.
 		const own = under(row, row.exact) * 2 + 1;
 		const covered = Math.max(-1, ...row.covers.map((target) => under(target, false))) * 2;
 		const score = Math.max(own, covered);
 		if (score > 0 && (!best || score > best.score)) best = { row, parent, inSidebar, score };
-		for (const section of row.sections ?? []) for (const child of section.rows) consider(child, row, inSidebar);
 	};
 	for (const group of navigation.groups) for (const row of group.rows) consider(row, null, true);
 	for (const row of navigation.footer) consider(row, null, true);
