@@ -397,28 +397,40 @@
 		"navLabel": "Admin",
 		"toggleSidebar": "Mostra o nascondi la barra laterale",
 		"breadcrumbLabel": "Percorso",
-		"levels": {
-			"install": "Install"
-		},
 		"switcher": {
 			"label": "Cambia Workspace o Site",
 			"installSubtitle": "Install · {role}",
-			"heading": "Passa a",
 			"install": "Install",
 			"workspaceSubtitle": "Workspace · {count, plural, one {# Site} other {# Site}}",
 			"siteSubtitle": "{workspace} · {slug}",
 			"workspaces": "Workspace",
-			"sitesIn": "Site in {workspace}"
+			"sitesIn": "Site in {workspace}",
+			"title": "Cambia Workspace o Site",
+			"installArea": "Area dell'Install",
+			"findWorkspace": "Trova un Workspace",
+			"noWorkspaces": "Nessun Workspace corrisponde.",
+			"noSites": "Qui non ci sono ancora Site.",
+			"loadingSites": "Caricamento dei Site…",
+			"sitesFailed": "Non è stato possibile caricare i Site.",
+			"openWorkspace": "Apri {workspace}",
+			"newWorkspace": "Nuovo Workspace",
+			"newSite": "Nuovo Site",
+			"workspaceSettings": "Impostazioni del Workspace",
+			"current": "{name}, dove ti trovi"
 		},
 		"userMenu": {
 			"label": "Apri il menu dell'account",
-			"account": "Il tuo account",
+			"account": "Account",
 			"signOut": "Esci",
 			"apiTokens": "Token API",
 			"aiClients": "Client AI",
-			"activity": "Attività"
+			"activity": "Attività",
+			"adminLanguage": "Lingua dell'admin",
+			"theme": "Tema",
+			"themeSystem": "Sistema",
+			"themeLight": "Chiaro",
+			"themeDark": "Scuro"
 		},
-		"darkTheme": "Tema scuro",
 		"nav": {
 			"installGroup": "Install",
 			"installSettingsGroup": "Impostazioni dell'Install",
@@ -431,7 +443,6 @@
 			"staff": "Staff",
 			"workspaceGroup": "Workspace",
 			"sites": "Site",
-			"siteGroup": "Site",
 			"members": "Membri",
 			"media": "Media",
 			"storage": "Archiviazione",
@@ -476,7 +487,56 @@
 			"siteExport": "Esporta",
 			"siteImports": "Importazioni di Siti",
 			"checks": "Controlli",
-			"popups": "Popup"
+			"popups": "Popup",
+			"insightsGroup": "Analisi",
+			"analytics": "Analytics",
+			"measure": "Misure",
+			"logsAndHealth": "Registri e stato",
+			"workspaceSettings": "Impostazioni del Workspace",
+			"settingsCrumb": "Impostazioni",
+			"newCount": "{count, plural, one {# nuova} other {# nuove}}",
+			"settings": {
+				"general": "Generali",
+				"translation": "Traduzione",
+				"searchAndPrivacy": "Ricerca e privacy",
+				"integrations": "Integrazioni",
+				"data": "Dati"
+			}
+		},
+		"loading": "Caricamento della pagina",
+		"siteActions": "Altro per questo Site",
+		"search": {
+			"label": "Cerca",
+			"title": "Cerca nell'admin",
+			"description": "Trova una schermata, un Site o un Workspace e aprilo.",
+			"placeholder": "Vai a una schermata, un Site o un Workspace",
+			"results": "Risultati",
+			"screens": "Schermate",
+			"none": "Nessun risultato per “{query}”.",
+			"close": "Chiudi",
+			"keys": "Frecce per spostarti, Invio per aprire, Esc per chiudere.",
+			"within": "{parent} › {name}"
+		},
+		"saveBar": {
+			"label": "Salvataggio di questa schermata",
+			"clean": "Nessuna modifica",
+			"dirty": "Modifiche non salvate",
+			"saving": "Salvataggio…",
+			"saved": "Salvato",
+			"failed": "Impossibile salvare",
+			"discard": "Annulla modifiche",
+			"save": "Salva",
+			"retry": "Riprova"
+		},
+		"leaveGuard": {
+			"title": "Uscire senza salvare?",
+			"body": "Questa schermata ha modifiche non salvate. Se esci ora, andranno perse.",
+			"stay": "Continua a modificare",
+			"leave": "Esci senza salvare",
+			"close": "Chiudi"
+		},
+		"sheet": {
+			"close": "Chiudi"
 		}
 	},
 	"masterKeyBanner": {

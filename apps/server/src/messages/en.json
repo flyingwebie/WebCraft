@@ -397,28 +397,40 @@
 		"navLabel": "Admin",
 		"toggleSidebar": "Show or hide the sidebar",
 		"breadcrumbLabel": "Breadcrumb",
-		"levels": {
-			"install": "Install"
-		},
 		"switcher": {
 			"label": "Switch Workspace or Site",
 			"installSubtitle": "Install · {role}",
-			"heading": "Switch to",
 			"install": "Install",
 			"workspaceSubtitle": "Workspace · {count, plural, one {# Site} other {# Sites}}",
 			"siteSubtitle": "{workspace} · {slug}",
 			"workspaces": "Workspaces",
-			"sitesIn": "Sites in {workspace}"
+			"sitesIn": "Sites in {workspace}",
+			"title": "Switch Workspace or Site",
+			"installArea": "Install area",
+			"findWorkspace": "Find a Workspace",
+			"noWorkspaces": "No Workspace matches.",
+			"noSites": "No Sites here yet.",
+			"loadingSites": "Loading the Sites…",
+			"sitesFailed": "The Sites could not be loaded.",
+			"openWorkspace": "Open {workspace}",
+			"newWorkspace": "New Workspace",
+			"newSite": "New Site",
+			"workspaceSettings": "Workspace settings",
+			"current": "{name}, where you are"
 		},
 		"userMenu": {
 			"label": "Open the account menu",
-			"account": "Your account",
+			"account": "Account",
 			"signOut": "Sign out",
 			"apiTokens": "API tokens",
 			"aiClients": "AI clients",
-			"activity": "Activity"
+			"activity": "Activity",
+			"adminLanguage": "Admin language",
+			"theme": "Theme",
+			"themeSystem": "System",
+			"themeLight": "Light",
+			"themeDark": "Dark"
 		},
-		"darkTheme": "Dark theme",
 		"nav": {
 			"installGroup": "Install",
 			"installSettingsGroup": "Install settings",
@@ -431,7 +443,6 @@
 			"staff": "Staff",
 			"workspaceGroup": "Workspace",
 			"sites": "Sites",
-			"siteGroup": "Site",
 			"members": "Members",
 			"media": "Media",
 			"storage": "Storage",
@@ -476,7 +487,56 @@
 			"siteExport": "Export",
 			"siteImports": "Site imports",
 			"checks": "Checks",
-			"popups": "Popups"
+			"popups": "Popups",
+			"insightsGroup": "Insights",
+			"analytics": "Analytics",
+			"measure": "Measure",
+			"logsAndHealth": "Logs and health",
+			"workspaceSettings": "Workspace settings",
+			"settingsCrumb": "Settings",
+			"newCount": "{count} new",
+			"settings": {
+				"general": "General",
+				"translation": "Translation",
+				"searchAndPrivacy": "Search and privacy",
+				"integrations": "Integrations",
+				"data": "Data"
+			}
+		},
+		"loading": "Loading the page",
+		"siteActions": "More for this Site",
+		"search": {
+			"label": "Search",
+			"title": "Search the admin",
+			"description": "Find a screen, a Site or a Workspace and go there.",
+			"placeholder": "Go to a screen, a Site or a Workspace",
+			"results": "Results",
+			"screens": "Screens",
+			"none": "Nothing matches “{query}”.",
+			"close": "Close",
+			"keys": "Arrow keys to move, Enter to open, Escape to close.",
+			"within": "{parent} › {name}"
+		},
+		"saveBar": {
+			"label": "Saving this screen",
+			"clean": "No changes",
+			"dirty": "Unsaved changes",
+			"saving": "Saving…",
+			"saved": "Saved",
+			"failed": "Could not save",
+			"discard": "Discard",
+			"save": "Save",
+			"retry": "Try again"
+		},
+		"leaveGuard": {
+			"title": "Leave without saving?",
+			"body": "This screen has changes that are not saved. If you leave now, they are lost.",
+			"stay": "Keep editing",
+			"leave": "Leave without saving",
+			"close": "Close"
+		},
+		"sheet": {
+			"close": "Close"
 		}
 	},
 	"masterKeyBanner": {
