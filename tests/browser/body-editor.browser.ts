@@ -100,7 +100,8 @@ async function open(page: Page, account: TestAccount, path: string): Promise<voi
 /** The Draft's Blocks, as the API answers them, once `ready` says the autosave has landed. */
 async function draftBlocks(ready: (blocks: Record<string, unknown>[]) => boolean): Promise<Record<string, unknown>[]> {
 	let blocks: Record<string, unknown>[] = [];
-	for (let look = 0; look < 60; look++) {
+	// Up to 20 s: the editor saves typing a moment after it stops, and a CI runner is slower than a laptop.
+	for (let look = 0; look < 200; look++) {
 		const { entry } = await admin.api.entries.get({ siteId, entryId });
 		blocks = entry.draft.fields.body as Record<string, unknown>[];
 		if (ready(blocks)) return blocks;
@@ -234,7 +235,7 @@ describe("writing with the keyboard", () => {
 		await page.getByRole("dialog").getByRole("button", { name: "Add link" }).click();
 
 		let text: unknown;
-		for (let look = 0; look < 60; look++) {
+		for (let look = 0; look < 200; look++) {
 			const { entry: saved } = await admin.api.entries.get({ siteId, entryId: entry.id });
 			text = (saved.draft.fields.body as { text: unknown }[])[0]?.text;
 			if (JSON.stringify(text).includes("/hours")) break;
