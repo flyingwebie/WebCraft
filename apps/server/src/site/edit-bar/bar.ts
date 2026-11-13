@@ -50,7 +50,8 @@ export type EditingBarParts = {
 /**
  * The editing bar: WebCraft's own script on a page in Edit mode (ADR 0022). It is served as a file
  * from the Site's domain, made of this function's source text and its config (`assets.ts`), so the
- * function must use nothing from outside itself.
+ * function must use nothing from outside itself, `import()` included: a module is loaded with
+ * `loadModule`, which `assets.ts` writes after the function (`LOAD_MODULE` there says why).
  *
  * It runs first on the page, keeping the browser functions it needs before any Site script could
  * replace them, and draws itself in a shadow root, so the Site's CSS can't reach it. It shows the
@@ -62,7 +63,11 @@ export type EditingBarParts = {
  * or the page's script) throws or doesn't load, and says so, with a way into Safe mode (ADR 0022) and,
  * for Staff, to the script in Code mode. In Safe mode the page runs none of them, and the bar says so.
  */
-export function editingBar(config: EditingBarConfig, parts: EditingBarParts): void {
+export function editingBar(
+	config: EditingBarConfig,
+	parts: EditingBarParts,
+	loadModule: (address: string) => Promise<unknown>,
+): void {
 	type Words = { [key: string]: string | Words };
 	type Change = {
 		item: string;
@@ -2365,7 +2370,7 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 	/** The colours people get (as the admin's), each with white text that reads on it. */
 	const PRESENCE_COLOURS = ["#0369a1", "#6d28d9", "#047857", "#b45309", "#be123c", "#0e7490", "#a21caf", "#4d7c0f"];
 
-	/** Loads the shared-Draft module (it hands itself over in an event), then opens each item the page edits. */
+	/** Loads the shared-Draft module, then opens each item the page edits. */
 	function openDrafts(): void {
 		// The page's Entry and the Globals its regions show (a Loop's items aren't opened live): presence on
 		// images and Loop items goes through them too.
@@ -2377,8 +2382,10 @@ export function editingBar(config: EditingBarConfig, parts: EditingBarParts): vo
 		];
 		const items = [...new Set(shown)].filter((item) => item === "globals" || item.startsWith("entry:"));
 		if (items.length === 0) return;
-		void import(config.drafts).then((module: DraftsModule) => {
-			for (const item of items) openDraft(module, item);
+		// Never `import()` here: this function is served as its source text, and `bun run dev` would
+		// rewrite it into a helper only the server has (see `LOAD_MODULE` in `assets.ts`).
+		void loadModule(config.drafts).then((module) => {
+			for (const item of items) openDraft(module as DraftsModule, item);
 		});
 	}
 
