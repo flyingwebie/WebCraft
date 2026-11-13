@@ -214,9 +214,10 @@ for (const theme of THEMES) {
 				.click();
 			const guard = page.getByRole("dialog", { name: "Leave without saving?" });
 			await guard.waitFor();
-			expect(
-				await guard.getByRole("button", { name: "Keep editing" }).evaluate((b) => b === document.activeElement),
-			).toBe(true);
+			// Focus lands on "Keep editing", the choice that loses nothing.
+			await page.waitForFunction(() => document.activeElement?.textContent === "Keep editing", undefined, {
+				timeout: 2000,
+			});
 			await page.keyboard.press("Enter");
 			await guard.waitFor({ state: "hidden" });
 			expect(new URL(page.url()).pathname).toBe("/settings/general");
@@ -256,6 +257,7 @@ describe("navigation", () => {
 		await page.keyboard.press("Enter");
 		await page.waitForURL((url) => url.pathname === `/sites/${siteId}/crawlers`);
 		await search.waitFor({ state: "hidden" });
+		await page.getByRole("heading", { level: 1, name: "Crawlers" }).waitFor();
 		expect((await currentRows(page)).secondary).toEqual(["Crawlers (page)"]);
 	});
 
@@ -303,6 +305,10 @@ describe("navigation", () => {
 		await page.getByRole("menuitemradio", { name: "Light" }).click();
 		await page.waitForFunction(() => document.documentElement.className === "light");
 		await page.keyboard.press("Escape");
+		// The choice is kept: the next page opens light although the device is dark.
+		await page.reload();
+		await page.waitForLoadState("networkidle");
+		expect(await page.evaluate(() => document.documentElement.className)).toBe("light");
 		await expectAccessibleScreen(page, "Install › Overview (switched to light)");
 
 		await menu.click();

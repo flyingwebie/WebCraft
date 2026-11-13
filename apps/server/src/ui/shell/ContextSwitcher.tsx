@@ -56,7 +56,6 @@ export function ContextSwitcher({ shell, place }: { shell: ShellContext; place: 
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger
 				render={<SidebarMenuButton size="lg" className="data-popup-open:bg-sidebar-accent" />}
-				aria-label={`${t("shell.switcher.label")}: ${title}`}
 			>
 				<Avatar className="size-8 rounded-lg">
 					<AvatarFallback className="bg-primary text-primary-foreground rounded-lg text-[13px] font-semibold">
@@ -67,6 +66,8 @@ export function ContextSwitcher({ shell, place }: { shell: ShellContext; place: 
 					<span className="truncate font-semibold">{title}</span>
 					<span className="text-muted-foreground truncate text-xs">{subtitle}</span>
 				</span>
+				{/* Its name starts with what it shows, then says what it does. */}
+				<span className="sr-only">{t("shell.switcher.label")}</span>
 				<ChevronsUpDownIcon className="ms-auto size-4" aria-hidden="true" />
 			</PopoverTrigger>
 			<PopoverContent
