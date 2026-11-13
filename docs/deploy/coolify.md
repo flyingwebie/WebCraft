@@ -6,10 +6,11 @@
 
 1. In Coolify, create a new resource from a **Docker Compose** file (an empty Compose service, or this repository with `deploy/coolify/docker-compose.yml` as the Compose file), on the server that should run the Install.
 2. Coolify fills in its generated variables when it reads the file:
-   - `SERVICE_FQDN_WEB_3000`: the web service's domain, routed to port 3000 of the web service. It becomes `WEBCRAFT_ADMIN_HOST`, so set the web service's domain to the admin host you want, such as `https://admin.agency.example:3000` (the `:3000` is the port inside the container; visitors use 443).
+   - `SERVICE_FQDN_WEB_3000`: the web service's domain, routed to port 3000 of the web service. Set the web service's domain to the admin host you want, such as `https://admin.agency.example:3000` (the `:3000` is the port inside the container; visitors use 443).
    - `SERVICE_USER_POSTGRES` and `SERVICE_PASSWORD_POSTGRES`: the database's user and password (letters and digits, safe in a connection string).
    - `SERVICE_REALBASE64_MASTERKEY`: the Master key, 32 random bytes in Base64. Copy it from Coolify's environment variables into your password manager now: it is never in a Backup.
 3. Set, in the resource's environment variables:
+   - `WEBCRAFT_ADMIN_HOST`: the same admin host as the web service's domain, as a hostname only: `admin.agency.example`, with no `https://` and no `:3000`. It is required (Coolify's `SERVICE_FQDN_WEB_3000` carries the port, which WebCraft refuses), and the deployment stops until it is set.
    - `WEBCRAFT_VERSION`: the release to run, such as `1.0.0` (the file defaults to `main` until the first release).
    - Optionally `WEBCRAFT_PUBLIC_ADDRESSES` (the server's public IP addresses) and `WEBCRAFT_SITES_DOMAIN`. On Coolify each Staging address is a domain to add to the web service like a Site's (below), unless you set up Coolify's proxy for a wildcard certificate.
 4. Deploy. The migrate step runs first (Coolify leaves it out of the resource's health, `exclude_from_hc`), then web and worker. Coolify waits for the web image's health check.
@@ -20,7 +21,7 @@
 Coolify's proxy only answers for domains it knows, so connecting a domain takes one step in each:
 
 1. In WebCraft, add the domain on the Site's **Domains & Staging** screen; it shows the DNS records to create.
-2. In Coolify, add the domain to the **web** service's domains, after the admin host (keep the admin host first: it is `WEBCRAFT_ADMIN_HOST`), with the same `:3000` port: `https://admin.agency.example:3000,https://bakery.example:3000`. Redeploy so the proxy picks it up.
+2. In Coolify, add the domain to the **web** service's domains, after the admin host (keep the admin host, `WEBCRAFT_ADMIN_HOST`, first), with the same `:3000` port: `https://admin.agency.example:3000,https://bakery.example:3000`. Redeploy so the proxy picks it up.
 3. Create the DNS records. Coolify's proxy issues the certificate; WebCraft verifies the domain with its HTTP self-check, following Coolify's redirect from plain HTTP to HTTPS, every few minutes for the first hour.
 
 ## Visitors' addresses
