@@ -13,6 +13,12 @@ Self-hosted · Multi-tenant · Visual builder + real code · Live co-editing · 
 ![Database: Postgres](https://img.shields.io/badge/database-Postgres-336791)
 ![Self-hosted](https://img.shields.io/badge/hosting-self--hosted-success)
 
+<br><br>
+
+<img src="docs/images/edit-on-the-live-site.png" alt="A client editing the intro text of their bakery's home page in Edit mode, with a formatting toolbar above the paragraph and Draft, Preview and Publish controls in the top bar" width="900">
+
+<sub>Edit mode: the client clicks a paragraph on their live home page and types. The change is saved to a Draft until someone publishes.<br>Images in this README are from WebCraft's product designs; shipped screens may differ in detail.</sub>
+
 </div>
 
 ---
@@ -37,8 +43,14 @@ Clients browse their own live site, click on what they want to change, and type.
 ### ✏️ Edit on the live site
 Clients turn on **Edit mode** and change text, images and lists right on the page they are looking at. What they see is what visitors get.
 
+Where you allow it, clients can also rearrange the page: drag a section to a new place, or add one from the Components you've approved. The header and footer stay locked.
+
+<img src="docs/images/page-layout.png" alt="The Page layout panel listing the home page's Components, with the Customer quote being dragged above Our bakes and a line on the page showing where it will land" width="900">
+
 ### 🧱 A visual builder that writes real code
 Staff design with a visual builder backed by **classes and design tokens**, not inline-style soup. Switch to **Code mode** on the live page to edit the HTML, CSS and scripts of any element: one editor, two canvases, one undo history.
+
+<img src="docs/images/code-mode.png" alt="Code mode: a layers tree on the left, the selected quote highlighted on the live page, its tag, classes and attributes on the right, and HTML, CSS and JS editors below" width="900">
 
 ### 👥 Real-time co-editing
 Two people can work on the same draft at once, in forms, the block editor, the builder or Code mode. Edits merge as you type. No locks, no "someone else is editing this page".
@@ -46,11 +58,15 @@ Two people can work on the same draft at once, in forms, the block editor, the b
 ### 🚦 Draft, stage, publish all
 Every change lands in a draft first. Preview it on a **Staging address**, send a **Share link** to a client, then **Publish all** staged changes in one go.
 
+<img src="docs/images/publish-all.png" alt="The Publish all dialog listing changed Pages, blog posts, a translation in review, the Design system and a form, each with a checkbox and a View link" width="900">
+
 ### 🗂 A content model that grows with the site
 Post Types, Fields, Groups, Repeaters, two-way Relationships, Loops, Globals and a **block editor** for long-form writing. Model a blog, a team page or a product catalogue without a plugin.
 
 ### 🌍 Multilingual from day one
-Translations are stored **per field** (and per block), served under clean language path prefixes like `/fr/`, with optional **AI translation**.
+Translations are stored **per field** (and per block), served under clean language path prefixes like `/fr/`, with optional **AI translation**. AI drafts are marked for review, hand-edited text is never overwritten, and outdated translations are flagged when the source changes.
+
+<img src="docs/images/translations.png" alt="The bakery home page in Italian, with AI-translated headings marked to check, a hand-edited paragraph marked so AI won't overwrite it, and a language menu showing each language's status" width="900">
 
 ### 🤖 AI built in, on your terms
 Bring your own key for any major provider or any OpenAI-compatible endpoint, including self-hosted models. WebCraft tracks tokens and cost per call and enforces monthly caps per Workspace. No gateway account required.
@@ -78,6 +94,8 @@ Build your own with the **Module SDK**. Third-party Modules always run sandboxed
 ---
 
 ## Built for agencies
+
+<img src="docs/images/admin.png" alt="The admin showing a Site's blog posts with their status, languages, author and last update, and Staging, Edit on site and Publish all buttons in the top bar" width="900">
 
 - **Multi-tenant by design.** One Install holds every client **Workspace**, each with its own Sites, Members and settings.
 - **Clear roles.** Superadmin and Staff on the agency side; Owner, Editor and Author on the client side. Every role is a fixed set of named Permissions.
