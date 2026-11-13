@@ -164,6 +164,10 @@ _Avoid_: Pinned block, fixed section
 A Placement a Member has hidden on its Page. It stays in the Draft, shown faded in Edit mode, but is not rendered for visitors.
 _Avoid_: Disabled block, draft section
 
+**Page layout drawer**:
+The list of a Page's Placements, in order, that Members open from the Edit bar to move, hide, add and remove them, with the Page template's header and footer as locked rows. It is the Members' view of the layers tree: Placements only, never what is inside a Component.
+_Avoid_: Layers panel (for Members), outline, navigator
+
 **Condition**:
 A rule that shows or hides an element depending on a Field or Prop value, the current language, the date, or the element's position in a Loop.
 _Avoid_: Visibility rule, display logic
@@ -516,9 +520,21 @@ _Avoid_: Page settings, page properties, inspector
 A third way of using Edit mode, for Staff and the Superadmin only: selecting an element on the page opens its HTML (from its Template or Component), its CSS (its Class or the Site CSS) and a page or Site script, all editable and saved to the Draft.
 _Avoid_: God mode, dev mode, developer tools
 
+**Builder**:
+The full-screen editor for Templates and Components, opened from the admin, that shows them with preview data instead of a real page. It has the same tree, Inspector, code panels and Command menu as Code mode.
+_Avoid_: Visual builder, page builder, editor
+
 **Command menu**:
-A search box for Staff in the builder and Code mode, opened from the keyboard, with three tabs: Actions (for the page, or for the selected element), Go to (Pages, Templates, Components and elements on the page) and Insert.
+A search box in Edit mode, Code mode and the Builder, opened from the keyboard or the Edit bar's search button, with three tabs: Actions (for the page, or for the selected element or Placement), Go to (Pages, Entries, Templates, Components and elements on the page) and Insert. Each person sees only the commands they have the Permission for, so Members get a smaller menu.
 _Avoid_: Command palette, command bar, spotlight
+
+**Undo history**:
+The list of a person's own recent steps in Edit mode, Code mode or the Builder, one per finished action, that Undo and Redo move through. It covers everything the person changes on the page, including the tree, the Inspector, the code panels, inline text, Props and Page layout moves, lasts as long as the browser tab, and never takes back anyone else's edit.
+_Avoid_: Edit history, change log
+
+**Revert**:
+To take back one changed item from the Edit bar's list of changes, whenever the change was made, without stepping through the Undo history.
+_Avoid_: Undo (for this), discard, reset
 
 **Safe mode**:
 Edit mode with none of the Site's own scripts running, so a broken script can never lock anyone out of editing.
@@ -531,6 +547,10 @@ _Avoid_: Global script, custom code, header code
 **Page script**:
 A script Staff write in Code mode for one page, which runs there only, after the Site script. Both are Structure, with a Draft, published like a Template.
 _Avoid_: Inline script, page code
+
+**Component script**:
+A script Staff write in Code mode for one Component, loaded once on each page that shows it and run for each of its Placements, between the Site script and the Page script. It is Structure, with a Draft, published with the Component.
+_Avoid_: Block script, widget script, element script
 
 **Library**:
 A ready-made script package, such as an animation library, that Staff add to a Site at a fixed version. WebCraft keeps its own copy and serves it from the Site, so it never changes unless Staff update it.

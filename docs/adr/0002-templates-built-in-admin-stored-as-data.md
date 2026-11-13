@@ -1,6 +1,6 @@
 # Templates and Components are built in the admin and stored as data
 
-Staff build Templates, Components and Page layouts in a visual builder inside the admin, and WebCraft stores them as element trees in the database, with an escape hatch for custom HTML, CSS and code. Sites are served from the database by hostname, so a per-Site code build and deploy would not fit a multi-tenant Install, and both Inline editing and client-editable Page layouts need the component tree to be data that WebCraft can read and change.
+Staff build Templates and Components in a visual builder inside the admin (Page layouts are arranged on the live page, see ADR 0035), and WebCraft stores them as element trees in the database, with an escape hatch for custom HTML, CSS and code. Sites are served from the database by hostname, so a per-Site code build and deploy would not fit a multi-tenant Install, and both Inline editing and client-editable Page layouts need the component tree to be data that WebCraft can read and change.
 
 ## Considered Options
 
