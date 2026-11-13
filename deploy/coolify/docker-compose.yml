@@ -1,7 +1,9 @@
 # WebCraft on Coolify: web, worker, the migrate step and Postgres 18. Coolify's own proxy answers HTTPS
 # and issues every certificate, so there is no Caddy here (ADR 0015). Coolify fills in its generated
 # variables: the web service's domain (SERVICE_FQDN_WEB_3000, routed to port 3000), the Postgres user
-# and password, and the Master key. Every step is in docs/deploy/coolify.md.
+# and password, and the Master key. WEBCRAFT_ADMIN_HOST is yours to set: the admin's hostname alone,
+# because Coolify's value for SERVICE_FQDN_WEB_3000 carries the port. Every step is in
+# docs/deploy/coolify.md.
 #
 # Updating: change WEBCRAFT_VERSION in Coolify's environment variables and redeploy. The `migrate` step
 # runs first, and web and worker start only once it has finished (ADR 0031).
@@ -33,7 +35,7 @@ services:
     exclude_from_hc: true
     environment:
       DATABASE_URL: postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/webcraft
-      WEBCRAFT_ADMIN_HOST: ${SERVICE_FQDN_WEB_3000}
+      WEBCRAFT_ADMIN_HOST: ${WEBCRAFT_ADMIN_HOST:?Set WEBCRAFT_ADMIN_HOST to the admin's hostname, such as admin.agency.example}
       WEBCRAFT_EDGE: coolify
       WEBCRAFT_SECRET_KEY: ${SERVICE_REALBASE64_MASTERKEY}
       WEBCRAFT_STORAGE_DIR: /var/lib/webcraft/storage
@@ -51,10 +53,10 @@ services:
     image: ghcr.io/flyingwebie/webcraft-web:${WEBCRAFT_VERSION:-main}
     restart: unless-stopped
     environment:
-      # Coolify routes the web service's domains to port 3000; the first one is the admin host.
+      # Coolify routes the web service's domains to port 3000; the first one must be WEBCRAFT_ADMIN_HOST.
       SERVICE_FQDN_WEB_3000:
       DATABASE_URL: postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/webcraft
-      WEBCRAFT_ADMIN_HOST: ${SERVICE_FQDN_WEB_3000}
+      WEBCRAFT_ADMIN_HOST: ${WEBCRAFT_ADMIN_HOST:?Set WEBCRAFT_ADMIN_HOST to the admin's hostname, such as admin.agency.example}
       WEBCRAFT_SITES_DOMAIN: ${WEBCRAFT_SITES_DOMAIN:-}
       WEBCRAFT_EDGE: coolify
       WEBCRAFT_PUBLIC_ADDRESSES: ${WEBCRAFT_PUBLIC_ADDRESSES:-}
@@ -81,7 +83,7 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://${SERVICE_USER_POSTGRES}:${SERVICE_PASSWORD_POSTGRES}@postgres:5432/webcraft
-      WEBCRAFT_ADMIN_HOST: ${SERVICE_FQDN_WEB_3000}
+      WEBCRAFT_ADMIN_HOST: ${WEBCRAFT_ADMIN_HOST:?Set WEBCRAFT_ADMIN_HOST to the admin's hostname, such as admin.agency.example}
       WEBCRAFT_SITES_DOMAIN: ${WEBCRAFT_SITES_DOMAIN:-}
       WEBCRAFT_EDGE: coolify
       WEBCRAFT_PUBLIC_ADDRESSES: ${WEBCRAFT_PUBLIC_ADDRESSES:-}
