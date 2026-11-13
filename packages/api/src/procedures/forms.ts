@@ -1,5 +1,14 @@
 import { JSON_SCHEMA_REGISTRY, ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
-import { type Access, can, type InstallServices, PermissionDeniedError, publishPermission } from "@webcraft/core";
+import {
+	type Access,
+	type ApiClientUse,
+	can,
+	type InstallServices,
+	type NewSubmissions,
+	PermissionDeniedError,
+	publishPermission,
+	type SiteScope,
+} from "@webcraft/core";
 import {
 	FORM_AUTOCOMPLETE,
 	FORM_CONDITION_OPS,
@@ -30,6 +39,19 @@ async function formsReader(context: { services: InstallServices; access: Access 
 		throw new PermissionDeniedError("formEmails.edit");
 	}
 	return site;
+}
+
+/**
+ * How many Submissions nobody has opened yet wait in the Site's inbox, by Form and in all, for people
+ * who may read them; null for anyone else. An API client (a token, or an AI client) gets them only
+ * with the Submissions Toolset switched on: they are about what visitors sent.
+ */
+export async function newSubmissionsOf(
+	context: { services: InstallServices; client?: ApiClientUse },
+	site: SiteScope,
+): Promise<NewSubmissions | null> {
+	if (context.client && !context.client.client.toolsets.includes("submissions")) return null;
+	return context.services.forms.newSubmissions(site);
 }
 
 /** A change to a Form's emails Draft: each part given replaces that part; the server checks them. */
@@ -157,10 +179,17 @@ const formChange = z.object({
  * change and publish them (`formEmails.edit`).
  */
 export const forms = {
-	/** The Site's Forms, by name, each with where it is placed (Staff, and the clients who change their emails). */
+	/**
+	 * The Site's Forms, by name, each with where it is placed (Staff, and the clients who change their
+	 * emails), and how many of its Submissions are new: in its inbox, opened by nobody yet. That number
+	 * is null for people who may not read Submissions (`newSubmissionsOf`).
+	 */
 	list: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
 		const site = await formsReader(context, input.siteId);
-		return { forms: await context.services.forms.list(site) };
+		const [list, counts] = await Promise.all([context.services.forms.list(site), newSubmissionsOf(context, site)]);
+		return {
+			forms: list.map((form) => ({ ...form, newSubmissions: counts ? (counts.byForm[form.id] ?? 0) : null })),
+		};
 	}),
 
 	/** One Form: its Draft and published version and its emails, with the Templates and Components placing it. */
