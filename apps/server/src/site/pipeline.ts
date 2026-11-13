@@ -1,4 +1,5 @@
 import {
+	buildingAreaPageAddress,
 	canonicalPath,
 	type EditSession,
 	FILE_POLICY,
@@ -36,6 +37,7 @@ import { FILTER_FRAGMENTS_PATH } from "@webcraft/renderer";
 import { clientAddress, recordVisitorAddress, sameClient } from "../client-address.ts";
 import { matchesETag, mediaFileResponse } from "../media-response.ts";
 import { type Handler, json, notFound, payloadTooLarge, plainText, readOnly, withinBodyCeiling } from "../responses.ts";
+import { buildingAreaEndpoint } from "./building-area/route.ts";
 import { consentRecordPost, isConsentPath } from "./consent.ts";
 import { contentApiAnswer, isContentApiPath } from "./content-api.ts";
 import { discoveryFile, stagingRobots } from "./discovery.ts";
@@ -46,6 +48,7 @@ import {
 	editModeEndpoint,
 	editModeHtml,
 	editSessionOf,
+	inBuildingArea,
 	pageEditing,
 	safeModeOf,
 } from "./edit-mode.ts";
@@ -155,6 +158,9 @@ async function siteAnswer(
 	}
 	const editing = await editModeEndpoint(services, request, host);
 	if (editing) return editing;
+	// The building area (ADR 0037): its shell, beside Edit mode's own paths.
+	const building = await buildingAreaEndpoint(services, request, host);
+	if (building) return building;
 	if (url.pathname === MODULE_ROUTES || url.pathname.startsWith(`${MODULE_ROUTES}/`)) {
 		// Modules' Site routes: answered by the Module, any method it declares, never cached as pages.
 		// The Module learns of the visitor only what WebCraft tells it (never the address or WebCraft's cookies).
@@ -239,6 +245,27 @@ async function pageAnswer(
 	const number = pageNumberIn(url.searchParams);
 	if (number === undefined) return notFoundPage(services, request, host, url.pathname);
 	if (edit.session) {
+		if (inBuildingArea(request)) {
+			// A page opened at the top level goes into the building area's shell, which frames it. The
+			// page agent does the same in browsers that don't say what a request is for.
+			if (request.headers.get("sec-fetch-dest") === "document") {
+				return new Response(null, {
+					status: 303,
+					headers: { location: buildingAreaPageAddress(`${url.pathname}${url.search}`), ...EDIT_MODE_PAGE_HEADERS },
+				});
+			}
+			return editModePage(
+				services,
+				host,
+				edit.session,
+				url.pathname,
+				null,
+				safeModeOf(request),
+				number,
+				url.searchParams,
+				true,
+			);
+		}
 		return editModePage(
 			services,
 			host,
@@ -492,7 +519,7 @@ const DRAFT_CACHE_CONTROL = "private, no-store";
  * The page at a path in Edit mode: the same page visitors would get, rendered afresh for the person
  * with the Drafts of its Content and its editable regions tagged; in Code mode (`code`, the Site
  * opened with `structure.edit`), with the Drafts of the Structure too, every element tagged. It never
- * touches the page cache.
+ * touches the page cache. `building` renders it for the building area's frame (ADR 0037).
  */
 async function editModePage(
 	services: InstallServices,
@@ -503,8 +530,9 @@ async function editModePage(
 	safe: boolean,
 	page: number,
 	query: URLSearchParams,
+	building = false,
 ): Promise<Response> {
-	const editing = await pageEditing(session, code, safe);
+	const editing = await pageEditing(session, code, safe, building);
 	const answer = pathSegments(pathname)
 		? await services.sitePages.render(host, pathname, editing, { page, search: searchQueryIn(query), query })
 		: null;
@@ -514,9 +542,9 @@ async function editModePage(
 			headers: { location: answer.location, ...EDIT_MODE_PAGE_HEADERS },
 		});
 	}
-	if (answer) return editModeHtml(200, answer.html, answer.headers);
+	if (answer) return editModeHtml(200, answer.html, answer.headers, building);
 	const notFoundPage = await services.sitePages.notFound(host, pathname, editing);
-	return editModeHtml(404, notFoundPage.html, notFoundPage.headers);
+	return editModeHtml(404, notFoundPage.html, notFoundPage.headers, building);
 }
 
 /**

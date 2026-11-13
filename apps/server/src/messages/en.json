@@ -8072,5 +8072,47 @@
 			"pick": "Pick a Placement up, or put it down",
 			"putBack": "Put a picked-up Placement back"
 		}
+	},
+	"buildingArea": {
+		"pageTitle": "Building area",
+		"open": "Open the building area (in progress)",
+		"openHelp": "The new editor, while it is being built",
+		"opening": "Opening the building area…",
+		"skipToContent": "Skip to main content",
+		"rail": "Building area",
+		"backToAdmin": "Back to the admin",
+		"canvas": "Page",
+		"frameTitle": "The page you are editing",
+		"bar": "Bottom bar",
+		"title": "Title",
+		"saved": "Saved",
+		"saveFailed": "Couldn't save: {reason}",
+		"ended": "Edit mode has ended. Open it again from the admin.",
+		"droppedOn": "Dropped on {name}",
+		"dropOutside": "Dropped outside the page",
+		"elements": {
+			"heading": "Heading",
+			"paragraph": "Paragraph",
+			"link": "Link",
+			"button": "Button",
+			"image": "Image",
+			"list": "List",
+			"listItem": "List item",
+			"section": "Section",
+			"header": "Header",
+			"footer": "Footer",
+			"navigation": "Navigation",
+			"main": "Main",
+			"article": "Article",
+			"form": "Form",
+			"field": "Field",
+			"figure": "Figure",
+			"page": "Page"
+		},
+		"signedOut": {
+			"pageTitle": "Open the building area from the admin",
+			"text": "This browser isn't editing this Site, or its editing session has ended. Open the building area again from the admin.",
+			"link": "Go to the admin"
+		}
 	}
 }

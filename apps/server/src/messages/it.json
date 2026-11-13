@@ -1945,7 +1945,7 @@
 				"CODE_SOURCE_NOT_FOUND": "Questa pagina non lo mostra più. Ricarica la pagina.",
 				"COMPONENT_FROM_MODULE": "Viene da un modulo, quindi qui non si può cambiare.",
 				"FORBIDDEN": "Solo lo Staff può cambiare il codice.",
-				"EDIT_MODE_ENDED": "La modalità di modifica è terminata. Riaprila dall'admin."
+				"EDIT_MODE_ENDED": "La modalità modifica è terminata. Riaprila dall'admin."
 			},
 			"openBuilder": "Apri nel Builder",
 			"archiveTemplate": "{name} · Template archivio",
@@ -8071,6 +8071,48 @@
 			"typeahead": "Trova un Placement digitandone il nome",
 			"pick": "Prendi un Placement, o posalo",
 			"putBack": "Rimetti a posto un Placement preso"
+		}
+	},
+	"buildingArea": {
+		"pageTitle": "Area di costruzione",
+		"open": "Apri l'area di costruzione (in sviluppo)",
+		"openHelp": "Il nuovo editor, mentre viene costruito",
+		"opening": "Apertura dell'area di costruzione…",
+		"skipToContent": "Vai al contenuto principale",
+		"rail": "Area di costruzione",
+		"backToAdmin": "Torna all'admin",
+		"canvas": "Pagina",
+		"frameTitle": "La pagina che stai modificando",
+		"bar": "Barra inferiore",
+		"title": "Titolo",
+		"saved": "Salvato",
+		"saveFailed": "Impossibile salvare: {reason}",
+		"ended": "La modalità modifica è terminata. Riaprila dall'admin.",
+		"droppedOn": "Rilasciato su {name}",
+		"dropOutside": "Rilasciato fuori dalla pagina",
+		"elements": {
+			"heading": "Titolo",
+			"paragraph": "Paragrafo",
+			"link": "Link",
+			"button": "Pulsante",
+			"image": "Immagine",
+			"list": "Elenco",
+			"listItem": "Voce di elenco",
+			"section": "Sezione",
+			"header": "Intestazione",
+			"footer": "Piè di pagina",
+			"navigation": "Navigazione",
+			"main": "Contenuto principale",
+			"article": "Articolo",
+			"form": "Modulo",
+			"field": "Campo",
+			"figure": "Figura",
+			"page": "Pagina"
+		},
+		"signedOut": {
+			"pageTitle": "Apri l'area di costruzione dall'admin",
+			"text": "Questo browser non sta modificando questo sito, oppure la sessione di modifica è terminata. Riapri l'area di costruzione dall'admin.",
+			"link": "Vai all'admin"
 		}
 	}
 }

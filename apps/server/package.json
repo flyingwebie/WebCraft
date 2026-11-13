@@ -12,7 +12,9 @@
 		"./outgoing-http": "./src/outgoing-http.ts",
 		"./editor/live-panels": "./src/ui/builder/live-panels.tsx",
 		"./editor/edit-tools": "./src/ui/edit-mode/tools.ts",
-		"./editor/edit-history": "./src/ui/edit-history/edit-mode.ts"
+		"./editor/edit-history": "./src/ui/edit-history/edit-mode.ts",
+		"./building-area/shell": "./src/ui/building-area/main.tsx",
+		"./building-area/agent": "./src/ui/building-area/agent/agent.ts"
 	},
 	"scripts": {
 		"dev": "bun --bun vite dev",
