@@ -149,7 +149,7 @@ Every significant design decision is recorded as an [Architecture Decision Recor
 
 ## Contributing
 
-Issues and ideas are welcome in [GitHub Issues](https://github.com/flyingwebie/WebCraft/issues). Outside contributors sign a CLA so the project can keep its licensing options open.
+Issues and ideas are welcome in [GitHub Issues](https://github.com/flyingwebie/WebCraft/issues). Read [CONTRIBUTING.md](CONTRIBUTING.md) for setup, conventions and how pull requests are reviewed. Outside contributors agree to the [Contributor Licence Agreement](CLA.md), a licence rather than a copyright assignment, so the project can keep its licensing options open.
 
 ## License
 
