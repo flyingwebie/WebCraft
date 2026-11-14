@@ -590,7 +590,8 @@
 			"off": "The update check is off (WEBCRAFT_UPDATE_FEED=off).",
 			"problem": "The last check couldn't read the release feed.",
 			"notes": "Release notes"
-		}
+		},
+		"installCard": "Install"
 	},
 	"securitySettings": {
 		"pageTitle": "Security",
@@ -598,15 +599,16 @@
 		"intro": "How the Install protects people's accounts.",
 		"leakedPasswordCheck": "Check new passwords against lists of leaked passwords",
 		"leakedPasswordCheckHelp": "Only the first 5 characters of a password's SHA-1 hash leave the server, so the password itself is never sent. When the lookup can't be reached, the password is accepted. Switch the check off for an Install that is always offline.",
-		"save": "Save",
-		"saved": "Saved.",
 		"requireTwoFactor": "Require two-factor authentication for everyone",
 		"requireTwoFactorHelp": "Everyone without it, Staff included, is asked to set it up right after signing in and can do nothing else until they have. API tokens keep working.",
 		"requireTwoFactorOwnFirst": "Add two-factor authentication to your own account first (Your account).",
 		"auditRetention": "Keep Audit log entries for",
 		"auditRetentionHelp": "Older entries are removed every day, for good. Changing this needs you to confirm who you are.",
 		"auditRetentionDays": "{days, plural, one {# day} other {# days}}",
-		"auditRetentionYears": "{years, plural, one {# year} other {# years}}"
+		"auditRetentionYears": "{years, plural, one {# year} other {# years}}",
+		"signInCard": "Signing in",
+		"signInCardIntro": "How people prove who they are.",
+		"auditCard": "Audit log"
 	},
 	"storageSettings": {
 		"pageTitle": "Storage",
@@ -4343,7 +4345,8 @@
 			"heading": "Restoring",
 			"body": "A Backup is restored on the server, into an empty database, with the Master key the Install had then. Stop web and worker first, then run:",
 			"site": "Restoring brings back the whole Install. To move or copy one Site, use a Site export instead."
-		}
+		},
+		"scheduleCard": "Schedule"
 	},
 	"templates": {
 		"pageTitle": "Templates",
@@ -6076,7 +6079,10 @@
 		"checkpointDaysHelp": "Checkpoints are the Draft saved while it is edited; older ones are removed every night.",
 		"outOfRange": "Use a whole number from {min} to {max}.",
 		"save": "Save",
-		"saved": "Saved."
+		"saved": "Saved.",
+		"invalid": "Some values are out of range.",
+		"revisionsCard": "Revisions",
+		"checkpointsCard": "Checkpoints"
 	},
 	"filters": {
 		"pageTitle": "Filters",

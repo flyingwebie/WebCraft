@@ -1,14 +1,11 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import type { ApiClient } from "@webcraft/api";
-import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import { Card, CardContent, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@webcraft/ui/components/empty.tsx";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { ArchiveIcon, LockIcon } from "lucide-react";
-import { type FormEvent, useEffect, useState } from "react";
-import { toast } from "sonner";
+import { useEffect, useState } from "react";
 
 import { getApi } from "../../ui/api.ts";
 import { errorMessage } from "../../ui/errors.ts";
@@ -17,6 +14,15 @@ import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
 import { useSensitiveAction } from "../../ui/identity-check.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 import { PasswordInput } from "../../ui/PasswordInput.tsx";
+import { SettingsForm, useSettingsPart } from "../../ui/settings/form.tsx";
+import {
+	describedBy as rowHelp,
+	SettingsCard,
+	SettingsRow,
+	SettingsRows,
+	StateBadge,
+	Switch,
+} from "../../ui/settings/layout.tsx";
 
 export const Route = createFileRoute("/_admin/settings/backups")({
 	staticData: { crumb: "backupSettings.pageTitle", width: "form" },
@@ -40,26 +46,23 @@ type BackupLine = BackupsView["backups"][number];
 function BackupSettingsPage() {
 	const t = useT();
 	const data = Route.useLoaderData();
-	// A new form after each save, so it starts from what was saved.
-	const [version, setVersion] = useState(0);
 	if (!data) return <Forbidden heading={t("forbidden.heading")} body={t("forbidden.body")} />;
 	return (
 		<>
 			<PageHeader heading={t("backupSettings.heading")}>{t("backupSettings.intro")}</PageHeader>
-			<div className="flex max-w-4xl flex-col gap-10">
-				<BackupForm key={version} view={data.settings} onSaved={() => setVersion((current) => current + 1)} />
-				<BackupLog backups={data.backups} />
-				<section aria-labelledby="backup-restore-heading" className="grid max-w-3xl gap-3">
-					<h2 id="backup-restore-heading" className="text-lg font-semibold tracking-tight">
-						{t("backupSettings.restore.heading")}
-					</h2>
-					<p className="text-muted-foreground text-sm">{t("backupSettings.restore.body")}</p>
-					<pre className="bg-muted overflow-x-auto rounded-md border px-3 py-2 text-sm">
-						<code>webcraft admin restore /var/lib/webcraft/backups/webcraft-backup-….tar</code>
-					</pre>
-					<p className="text-muted-foreground text-sm">{t("backupSettings.restore.site")}</p>
-				</section>
-			</div>
+			<SettingsForm>
+				<div className="flex flex-col gap-6">
+					{/* A new form after each save, so it starts from what was saved. */}
+					<BackupForm key={JSON.stringify(data.settings)} view={data.settings} />
+					<BackupLog backups={data.backups} />
+					<SettingsCard title={t("backupSettings.restore.heading")} description={t("backupSettings.restore.body")}>
+						<pre className="bg-muted overflow-x-auto rounded-md border px-3 py-2 text-sm">
+							<code>webcraft admin restore /var/lib/webcraft/backups/webcraft-backup-….tar</code>
+						</pre>
+						<p className="text-muted-foreground text-sm">{t("backupSettings.restore.site")}</p>
+					</SettingsCard>
+				</div>
+			</SettingsForm>
 		</>
 	);
 }
@@ -68,23 +71,31 @@ type FieldName = "endpoint" | "region" | "bucket" | "accessKeyId" | "secretAcces
 
 const S3_FIELDS: readonly FieldName[] = ["endpoint", "region", "bucket", "accessKeyId", "secretAccessKey"];
 
-function BackupForm({ view, onSaved }: { view: BackupsView["settings"]; onSaved(): void }) {
+function BackupForm({ view }: { view: BackupsView["settings"] }) {
 	const t = useT();
-	const router = useRouter();
 	const runSensitive = useSensitiveAction();
-	const [scheduled, setScheduled] = useState(view.scheduled);
-	const [target, setTarget] = useState<"folder" | "s3">(view.target);
-	const [endpoint, setEndpoint] = useState(view.s3?.endpoint ?? "");
-	const [region, setRegion] = useState(view.s3?.region ?? "");
-	const [bucket, setBucket] = useState(view.s3?.bucket ?? "");
-	const [prefix, setPrefix] = useState(view.s3?.prefix ?? "");
-	const [pathStyle, setPathStyle] = useState(view.s3?.pathStyle ?? true);
-	const [accessKeyId, setAccessKeyId] = useState(view.s3?.accessKeyId ?? "");
+	const initial = {
+		scheduled: view.scheduled,
+		target: view.target,
+		endpoint: view.s3?.endpoint ?? "",
+		region: view.s3?.region ?? "",
+		bucket: view.s3?.bucket ?? "",
+		prefix: view.s3?.prefix ?? "",
+		pathStyle: view.s3?.pathStyle ?? true,
+		accessKeyId: view.s3?.accessKeyId ?? "",
+	};
+	const [scheduled, setScheduled] = useState(initial.scheduled);
+	const [target, setTarget] = useState<"folder" | "s3">(initial.target);
+	const [endpoint, setEndpoint] = useState(initial.endpoint);
+	const [region, setRegion] = useState(initial.region);
+	const [bucket, setBucket] = useState(initial.bucket);
+	const [prefix, setPrefix] = useState(initial.prefix);
+	const [pathStyle, setPathStyle] = useState(initial.pathStyle);
+	const [accessKeyId, setAccessKeyId] = useState(initial.accessKeyId);
 	const stored = view.s3?.secretAccessKey.set ? view.s3.secretAccessKey : null;
 	const [replacing, setReplacing] = useState(!stored);
 	const [secretAccessKey, setSecretAccessKey] = useState("");
 	const [errors, setErrors] = useState<Partial<Record<FieldName | "form", MessageKey>>>({});
-	const [busy, setBusy] = useState(false);
 	const [focusSecret, setFocusSecret] = useState(false);
 
 	useEffect(() => {
@@ -92,8 +103,21 @@ function BackupForm({ view, onSaved }: { view: BackupsView["settings"]; onSaved(
 		setFocusSecret(false);
 	}, [focusSecret]);
 
-	const save = async (event: FormEvent) => {
-		event.preventDefault();
+	const changed =
+		scheduled !== initial.scheduled ||
+		target !== initial.target ||
+		(target === "s3" &&
+			(endpoint !== initial.endpoint ||
+				region !== initial.region ||
+				bucket !== initial.bucket ||
+				prefix !== initial.prefix ||
+				pathStyle !== initial.pathStyle ||
+				accessKeyId !== initial.accessKeyId ||
+				(stored !== null && replacing) ||
+				secretAccessKey !== ""));
+
+	/** Saves the form; answers whether it was saved. */
+	const store = async (): Promise<boolean> => {
 		const found: Partial<Record<FieldName, MessageKey>> = {};
 		if (target === "s3") {
 			const values: Record<FieldName, string> = { endpoint, region, bucket, accessKeyId, secretAccessKey };
@@ -109,9 +133,8 @@ function BackupForm({ view, onSaved }: { view: BackupsView["settings"]; onSaved(
 		const first = S3_FIELDS.find((field) => found[field]);
 		if (first) {
 			document.getElementById(`backups-${first}`)?.focus();
-			return;
+			return false;
 		}
-		setBusy(true);
 		try {
 			const api = await getApi();
 			// A Sensitive action: a bucket's secret access key is a secret.
@@ -133,15 +156,37 @@ function BackupForm({ view, onSaved }: { view: BackupsView["settings"]; onSaved(
 								},
 				}),
 			);
-			toast.success(t("backupSettings.saved"));
-			await router.invalidate();
-			onSaved();
+			return true;
 		} catch (failure) {
 			setErrors({ form: errorMessage(failure) });
-		} finally {
-			setBusy(false);
+			return false;
 		}
 	};
+
+	const part = useSettingsPart({
+		changed,
+		save: store,
+		discard: () => {
+			setScheduled(initial.scheduled);
+			setTarget(initial.target);
+			setEndpoint(initial.endpoint);
+			setRegion(initial.region);
+			setBucket(initial.bucket);
+			setPrefix(initial.prefix);
+			setPathStyle(initial.pathStyle);
+			setAccessKeyId(initial.accessKeyId);
+			setReplacing(!stored);
+			setSecretAccessKey("");
+			setErrors({});
+		},
+	});
+	/** A setter that also tells the foot bar the person edited something. */
+	const edit =
+		<Value,>(set: (value: Value) => void) =>
+		(value: Value) => {
+			set(value);
+			part.edited();
+		};
 
 	const describedBy = (field: FieldName, help?: string) =>
 		[help, errors[field] ? `backups-${field}-error` : undefined].filter(Boolean).join(" ") || undefined;
@@ -174,157 +219,146 @@ function BackupForm({ view, onSaved }: { view: BackupsView["settings"]; onSaved(
 	);
 
 	return (
-		<form onSubmit={save} className="flex max-w-3xl flex-col gap-6" noValidate>
-			<label className="flex items-start gap-3 text-sm">
-				<input
-					type="checkbox"
-					checked={scheduled}
-					onChange={(event) => setScheduled(event.target.checked)}
-					aria-describedby="backups-scheduled-help"
-					className="accent-primary mt-0.5 size-4 shrink-0"
-				/>
-				<span className="flex flex-col gap-1">
-					<span className="font-medium">{t("backupSettings.scheduled")}</span>
-					<span id="backups-scheduled-help" className="text-muted-foreground">
-						{t("backupSettings.scheduledHelp", { daily: view.keep.daily, weekly: view.keep.weekly })}
-					</span>
-				</span>
-			</label>
+		<form {...part.formProps} className="flex flex-col gap-6">
+			<SettingsCard title={t("backupSettings.scheduleCard")}>
+				<SettingsRows>
+					<SettingsRow
+						label={t("backupSettings.scheduled")}
+						help={t("backupSettings.scheduledHelp", { daily: view.keep.daily, weekly: view.keep.weekly })}
+						htmlFor="backups-scheduled"
+					>
+						<Switch
+							id="backups-scheduled"
+							checked={scheduled}
+							onCheckedChange={edit(setScheduled)}
+							aria-describedby={rowHelp("backups-scheduled")}
+						/>
+					</SettingsRow>
+				</SettingsRows>
+			</SettingsCard>
 
-			<fieldset className="grid gap-3">
-				<legend className="mb-3 text-sm font-medium">{t("backupSettings.where")}</legend>
-				<TargetOption
-					value="folder"
-					checked={target === "folder"}
-					onChange={setTarget}
-					label={t("backupSettings.folder")}
-					help={t("backupSettings.folderHelp", { directory: view.folder })}
-				/>
-				<TargetOption
-					value="s3"
-					checked={target === "s3"}
-					onChange={setTarget}
-					label={t("backupSettings.s3")}
-					help={t("backupSettings.s3Help")}
-				/>
-			</fieldset>
+			<SettingsCard title={t("backupSettings.where")}>
+				<fieldset className="grid gap-3">
+					<legend className="sr-only">{t("backupSettings.where")}</legend>
+					<TargetOption
+						value="folder"
+						checked={target === "folder"}
+						onChange={edit(setTarget)}
+						label={t("backupSettings.folder")}
+						help={t("backupSettings.folderHelp", { directory: view.folder })}
+					/>
+					<TargetOption
+						value="s3"
+						checked={target === "s3"}
+						onChange={edit(setTarget)}
+						label={t("backupSettings.s3")}
+						help={t("backupSettings.s3Help")}
+					/>
+				</fieldset>
+				{errors.form ? <FieldError>{t(errors.form)}</FieldError> : null}
+			</SettingsCard>
 
 			{target === "s3" ? (
-				<Card>
-					<CardHeader>
-						<CardTitle>
-							<h2>{t("storageSettings.bucketHeading")}</h2>
-						</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<FieldGroup className="gap-5">
-							{textField("endpoint", endpoint, setEndpoint, "storageSettings.endpointHelp")}
-							<div className="grid gap-5 md:grid-cols-2">
-								{textField("region", region, setRegion, "storageSettings.regionHelp")}
-								{textField("bucket", bucket, setBucket)}
-							</div>
-							<Field>
-								<FieldLabel htmlFor="backups-prefix">{t("storageSettings.prefix")}</FieldLabel>
-								<Input
-									id="backups-prefix"
-									value={prefix}
-									onChange={(event) => setPrefix(event.target.value)}
-									autoComplete="off"
-									spellCheck={false}
-									aria-describedby="backups-prefix-help"
-								/>
-								<FieldDescription id="backups-prefix-help">{t("backupSettings.prefixHelp")}</FieldDescription>
-							</Field>
-							<label className="flex items-start gap-3 text-sm">
-								<input
-									type="checkbox"
+				<SettingsCard title={t("storageSettings.bucketHeading")}>
+					<FieldGroup className="gap-5">
+						{textField("endpoint", endpoint, edit(setEndpoint), "storageSettings.endpointHelp")}
+						<div className="grid gap-5 md:grid-cols-2">
+							{textField("region", region, edit(setRegion), "storageSettings.regionHelp")}
+							{textField("bucket", bucket, edit(setBucket))}
+						</div>
+						<Field>
+							<FieldLabel htmlFor="backups-prefix">{t("storageSettings.prefix")}</FieldLabel>
+							<Input
+								id="backups-prefix"
+								value={prefix}
+								onChange={(event) => edit(setPrefix)(event.target.value)}
+								autoComplete="off"
+								spellCheck={false}
+								aria-describedby="backups-prefix-help"
+							/>
+							<FieldDescription id="backups-prefix-help">{t("backupSettings.prefixHelp")}</FieldDescription>
+						</Field>
+						<SettingsRows>
+							<SettingsRow
+								label={t("storageSettings.pathStyle")}
+								help={t("storageSettings.pathStyleHelp")}
+								htmlFor="backups-pathStyle"
+							>
+								<Switch
+									id="backups-pathStyle"
 									checked={pathStyle}
-									onChange={(event) => setPathStyle(event.target.checked)}
-									aria-describedby="backups-pathStyle-help"
-									className="accent-primary mt-0.5 size-4 shrink-0"
+									onCheckedChange={edit(setPathStyle)}
+									aria-describedby={rowHelp("backups-pathStyle")}
 								/>
-								<span className="flex flex-col gap-1">
-									<span className="font-medium">{t("storageSettings.pathStyle")}</span>
-									<span id="backups-pathStyle-help" className="text-muted-foreground">
-										{t("storageSettings.pathStyleHelp")}
-									</span>
-								</span>
-							</label>
-							<div className="grid gap-5 md:grid-cols-2">
-								{textField("accessKeyId", accessKeyId, setAccessKeyId)}
-								{stored && !replacing ? (
-									<Field>
-										<p id="backups-secret-label" className="text-sm font-medium">
-											{t("storageSettings.secretAccessKey")}
+							</SettingsRow>
+						</SettingsRows>
+						<div className="grid gap-5 md:grid-cols-2">
+							{textField("accessKeyId", accessKeyId, edit(setAccessKeyId))}
+							{stored && !replacing ? (
+								<Field>
+									<p id="backups-secret-label" className="text-sm font-medium">
+										{t("storageSettings.secretAccessKey")}
+									</p>
+									<div className="flex items-center gap-3">
+										<p
+											id="backups-secret-status"
+											className="bg-muted text-muted-foreground flex h-9 flex-1 items-center gap-2 rounded-md border px-3 text-sm"
+										>
+											<LockIcon className="size-4 shrink-0" aria-hidden="true" />
+											{stored.lastFour
+												? t("storageSettings.secretSet", { lastFour: stored.lastFour })
+												: t("storageSettings.secretSetHidden")}
 										</p>
-										<div className="flex items-center gap-3">
-											<p
-												id="backups-secret-status"
-												className="bg-muted text-muted-foreground flex h-9 flex-1 items-center gap-2 rounded-md border px-3 text-sm"
-											>
-												<LockIcon className="size-4 shrink-0" aria-hidden="true" />
-												{stored.lastFour
-													? t("storageSettings.secretSet", { lastFour: stored.lastFour })
-													: t("storageSettings.secretSetHidden")}
-											</p>
+										<Button
+											type="button"
+											variant="outline"
+											onClick={() => {
+												edit(setReplacing)(true);
+												setFocusSecret(true);
+											}}
+											aria-describedby="backups-secret-label backups-secret-status"
+										>
+											{t("storageSettings.replace")}
+										</Button>
+									</div>
+									<FieldDescription>{t("storageSettings.secretHelp")}</FieldDescription>
+								</Field>
+							) : (
+								<Field data-invalid={invalid("secretAccessKey")}>
+									<FieldLabel htmlFor="backups-secretAccessKey">{t("storageSettings.secretAccessKey")}</FieldLabel>
+									<PasswordInput
+										id="backups-secretAccessKey"
+										value={secretAccessKey}
+										onChange={(event) => edit(setSecretAccessKey)(event.target.value)}
+										autoComplete="new-password"
+										aria-invalid={invalid("secretAccessKey")}
+										aria-describedby={describedBy("secretAccessKey", "backups-secretAccessKey-help")}
+									/>
+									<FieldDescription id="backups-secretAccessKey-help">
+										{t("storageSettings.secretHelp")}
+									</FieldDescription>
+									{error("secretAccessKey")}
+									{stored ? (
+										<div>
 											<Button
 												type="button"
 												variant="outline"
+												size="sm"
 												onClick={() => {
-													setReplacing(true);
-													setFocusSecret(true);
+													edit(setReplacing)(false);
+													setSecretAccessKey("");
 												}}
-												aria-describedby="backups-secret-label backups-secret-status"
 											>
-												{t("storageSettings.replace")}
+												{t("storageSettings.keep")}
 											</Button>
 										</div>
-										<FieldDescription>{t("storageSettings.secretHelp")}</FieldDescription>
-									</Field>
-								) : (
-									<Field data-invalid={invalid("secretAccessKey")}>
-										<FieldLabel htmlFor="backups-secretAccessKey">{t("storageSettings.secretAccessKey")}</FieldLabel>
-										<PasswordInput
-											id="backups-secretAccessKey"
-											value={secretAccessKey}
-											onChange={(event) => setSecretAccessKey(event.target.value)}
-											autoComplete="new-password"
-											aria-invalid={invalid("secretAccessKey")}
-											aria-describedby={describedBy("secretAccessKey", "backups-secretAccessKey-help")}
-										/>
-										<FieldDescription id="backups-secretAccessKey-help">
-											{t("storageSettings.secretHelp")}
-										</FieldDescription>
-										{error("secretAccessKey")}
-										{stored ? (
-											<div>
-												<Button
-													type="button"
-													variant="outline"
-													size="sm"
-													onClick={() => {
-														setReplacing(false);
-														setSecretAccessKey("");
-													}}
-												>
-													{t("storageSettings.keep")}
-												</Button>
-											</div>
-										) : null}
-									</Field>
-								)}
-							</div>
-						</FieldGroup>
-					</CardContent>
-				</Card>
+									) : null}
+								</Field>
+							)}
+						</div>
+					</FieldGroup>
+				</SettingsCard>
 			) : null}
-
-			{errors.form ? <FieldError>{t(errors.form)}</FieldError> : null}
-			<div>
-				<Button type="submit" disabled={busy}>
-					{t("backupSettings.save")}
-				</Button>
-			</div>
 		</form>
 	);
 }
@@ -381,10 +415,7 @@ const REASONS: Record<BackupLine["reason"], MessageKey> = {
 function BackupLog({ backups }: { backups: readonly BackupLine[] }) {
 	const t = useT();
 	return (
-		<div className="grid gap-4">
-			<h2 id="backup-log-heading" className="text-lg font-semibold tracking-tight">
-				{t("backupSettings.log.heading")}
-			</h2>
+		<SettingsCard title={t("backupSettings.log.heading")}>
 			{backups.length === 0 ? (
 				<Empty className="border">
 					<EmptyHeader>
@@ -436,23 +467,24 @@ function BackupLog({ backups }: { backups: readonly BackupLine[] }) {
 					</table>
 				</section>
 			)}
-		</div>
+		</SettingsCard>
 	);
 }
 
 function BackupStatus({ backup }: { backup: BackupLine }) {
 	const t = useT();
-	if (backup.removedAt) return <Badge variant="outline">{t("backupSettings.log.statuses.removed")}</Badge>;
+	if (backup.removedAt) return <StateBadge>{t("backupSettings.log.statuses.removed")}</StateBadge>;
 	if (backup.status === "failed") {
 		return (
 			<>
-				<Badge variant="destructive">{t("backupSettings.log.statuses.failed")}</Badge>
+				<StateBadge tone="danger">{t("backupSettings.log.statuses.failed")}</StateBadge>
 				{backup.problem ? <p className="text-muted-foreground mt-1 text-xs break-words">{backup.problem}</p> : null}
 			</>
 		);
 	}
-	if (backup.status === "running") return <Badge variant="secondary">{t("backupSettings.log.statuses.running")}</Badge>;
-	return <Badge variant="outline">{t("backupSettings.log.statuses.done")}</Badge>;
+	if (backup.status === "running")
+		return <StateBadge tone="info">{t("backupSettings.log.statuses.running")}</StateBadge>;
+	return <StateBadge tone="success">{t("backupSettings.log.statuses.done")}</StateBadge>;
 }
 
 function megabytes(bytes: number): string {

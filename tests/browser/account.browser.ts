@@ -33,7 +33,7 @@ for (const theme of THEMES) {
 			await install.signInWithOldIdentityCheck(page, superadmin, 20);
 			await page.goto(install.adminUrl("/settings/security"));
 			await page.waitForLoadState("networkidle");
-			await page.getByRole("checkbox", { name: /leaked passwords/ }).uncheck();
+			await page.getByRole("switch", { name: /leaked passwords/ }).uncheck();
 
 			await expectOverlayUsable(
 				page,

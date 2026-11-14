@@ -4,7 +4,6 @@
  * a stored password, a test email's result, the form's sections and the notice of a failing server.
  */
 import { Button } from "@webcraft/ui/components/button.tsx";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
 import { Field, FieldDescription, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { CircleAlertIcon, CircleCheckIcon, LockIcon } from "lucide-react";
 import { type ReactNode, type RefObject, useId } from "react";
@@ -12,6 +11,7 @@ import { type ReactNode, type RefObject, useId } from "react";
 import { formatUtc } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { PasswordInput } from "../PasswordInput.tsx";
+import { SettingsCard } from "../settings/layout.tsx";
 
 export type Security = "starttls" | "tls" | "none";
 
@@ -173,15 +173,9 @@ export function Section({
 	const id = useId();
 	if (layout === "cards") {
 		return (
-			<Card>
-				<CardHeader>
-					<CardTitle>
-						<h2 id={id}>{heading}</h2>
-					</CardTitle>
-					{intro ? <CardDescription>{intro}</CardDescription> : null}
-				</CardHeader>
-				<CardContent>{children}</CardContent>
-			</Card>
+			<SettingsCard title={heading} description={intro}>
+				{children}
+			</SettingsCard>
 		);
 	}
 	return (

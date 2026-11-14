@@ -590,7 +590,8 @@
 			"off": "Il controllo degli aggiornamenti è spento (WEBCRAFT_UPDATE_FEED=off).",
 			"problem": "L'ultimo controllo non ha potuto leggere il feed delle versioni.",
 			"notes": "Note di rilascio"
-		}
+		},
+		"installCard": "Installazione"
 	},
 	"securitySettings": {
 		"pageTitle": "Sicurezza",
@@ -598,15 +599,16 @@
 		"intro": "Come l'Install protegge gli account delle persone.",
 		"leakedPasswordCheck": "Controlla le nuove password negli elenchi di password trapelate",
 		"leakedPasswordCheckHelp": "Dal server escono solo i primi 5 caratteri dell'hash SHA-1 della password, quindi la password non viene mai inviata. Se il servizio non è raggiungibile, la password viene accettata. Disattiva il controllo per un'Install sempre offline.",
-		"save": "Salva",
-		"saved": "Salvato.",
 		"requireTwoFactor": "Rendi obbligatoria l'autenticazione a due fattori per tutti",
 		"requireTwoFactorHelp": "Chi non ce l'ha, Staff compreso, deve configurarla subito dopo l'accesso e non può fare altro finché non l'ha fatto. I token API continuano a funzionare.",
 		"requireTwoFactorOwnFirst": "Aggiungi prima l'autenticazione a due fattori al tuo account (Il tuo account).",
 		"auditRetention": "Conserva le voci dell'Audit log per",
 		"auditRetentionHelp": "Le voci più vecchie vengono rimosse ogni giorno, per sempre. Per modificarlo devi confermare chi sei.",
 		"auditRetentionDays": "{days, plural, one {# giorno} other {# giorni}}",
-		"auditRetentionYears": "{years, plural, one {# anno} other {# anni}}"
+		"auditRetentionYears": "{years, plural, one {# anno} other {# anni}}",
+		"signInCard": "Accesso",
+		"signInCardIntro": "Come le persone dimostrano chi sono.",
+		"auditCard": "Audit log"
 	},
 	"storageSettings": {
 		"pageTitle": "Archiviazione",
@@ -4343,7 +4345,8 @@
 			"heading": "Ripristino",
 			"body": "Un Backup si ripristina sul server, in un database vuoto, con la Master key che l'Install aveva allora. Ferma prima web e worker, poi esegui:",
 			"site": "Il ripristino riporta l'intera Install. Per spostare o copiare un solo Sito, usa invece l'esportazione del Sito."
-		}
+		},
+		"scheduleCard": "Pianificazione"
 	},
 	"templates": {
 		"pageTitle": "Template",
@@ -6076,7 +6079,10 @@
 		"checkpointDaysHelp": "I checkpoint sono la bozza salvata mentre la si modifica; quelli più vecchi si rimuovono ogni notte.",
 		"outOfRange": "Usa un numero intero da {min} a {max}.",
 		"save": "Salva",
-		"saved": "Salvato."
+		"saved": "Salvato.",
+		"invalid": "Alcuni valori sono fuori intervallo.",
+		"revisionsCard": "Revisioni",
+		"checkpointsCard": "Checkpoint"
 	},
 	"filters": {
 		"pageTitle": "Filtri",

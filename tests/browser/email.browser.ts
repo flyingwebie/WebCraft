@@ -79,14 +79,20 @@ for (const theme of THEMES) {
 			await page.goto(browserInstall.adminUrl("/settings/email"));
 			await page.waitForLoadState("networkidle");
 
+			// One foot bar saves the screen's cards in order, and stops at the first that is refused.
+			const host = await page.locator("#smtp-host").inputValue();
+			const save = page.getByRole("region", { name: "Saving this screen" }).getByRole("button", { name: "Save" });
 			await page.locator("#smtp-host").fill("");
 			await page.locator("#branding-accentColour").fill("orange");
-			await page.getByRole("button", { name: "Save branding" }).click();
-			await page.locator("#branding-accentColour-error").waitFor();
-			await page.getByRole("button", { name: "Save", exact: true }).click();
+			await save.click();
 			await page.locator("#smtp-host-error").waitFor();
 			expect(await page.evaluate(() => document.activeElement?.id)).toBe("smtp-host");
 			await expectAccessibleScreen(page, `Email (SMTP), refused (${theme})`);
+
+			await page.locator("#smtp-host").fill(host);
+			await page.getByRole("region", { name: "Saving this screen" }).getByRole("button", { name: "Try again" }).click();
+			await page.locator("#branding-accentColour-error").waitFor();
+			expect(await page.evaluate(() => document.activeElement?.id)).toBe("branding-accentColour");
 		});
 
 		test("letting Sites use mail servers inside the network, from the keyboard", async () => {
@@ -95,7 +101,7 @@ for (const theme of THEMES) {
 			await page.goto(browserInstall.adminUrl("/settings/email"));
 			await page.waitForLoadState("networkidle");
 			const api = (await browserInstall.install.signIn(superadmin)).api;
-			const allow = page.getByRole("checkbox", {
+			const allow = page.getByRole("switch", {
 				name: "Let Sites use mail servers inside this Install's own network",
 			});
 			// The other theme's run may have left it on.
@@ -104,9 +110,11 @@ for (const theme of THEMES) {
 
 			await allow.focus();
 			await page.keyboard.press("Space");
-			await page.keyboard.press("Tab");
+			const bar = page.getByRole("region", { name: "Saving this screen" });
+			await bar.getByText("Unsaved changes").waitFor();
+			await bar.getByRole("button", { name: "Save" }).focus();
 			await page.keyboard.press("Enter");
-			await page.getByText("The setting is saved.").waitFor();
+			await bar.getByText("Saved", { exact: true }).waitFor();
 
 			expect((await api.install.smtp.get()).sitePrivateServers).toBe(!before);
 			await expectAccessibleScreen(page, `Email (SMTP), Sites' own mail servers changed (${theme})`);

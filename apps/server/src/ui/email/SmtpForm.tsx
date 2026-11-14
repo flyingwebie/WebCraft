@@ -10,6 +10,7 @@ import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { useSensitiveAction } from "../identity-check.tsx";
+import { useOptionalSettingsPart } from "../settings/form.tsx";
 import { EMAIL, PasswordField, SECURITY_OPTIONS, Section, type Security, TestResult } from "./smtp-parts.tsx";
 
 /** The Install SMTP as the API shows it. */
@@ -35,8 +36,11 @@ export function SmtpForm({
 	/** `cards` on the settings page; `plain` sections inside the setup wizard. */
 	layout: "cards" | "plain";
 	onSaved(view: SmtpView): void | Promise<void>;
-	/** The buttons under the form; one of them submits it. */
-	actions(state: { busy: boolean }): ReactNode;
+	/**
+	 * The buttons under the form; one of them submits it. Inside a `SettingsForm` there are none: the
+	 * screen's foot bar saves it.
+	 */
+	actions?(state: { busy: boolean }): ReactNode;
 }) {
 	const t = useT();
 	const runSensitive = useSensitiveAction();
@@ -96,10 +100,53 @@ export function SmtpForm({
 
 	const typedPassword = replacing && password !== "" ? password : undefined;
 
+	const initial = {
+		host: settings?.host ?? "",
+		port: String(settings?.port ?? 587),
+		security: settings?.security ?? "starttls",
+		username: settings?.username ?? "",
+		fromAddress: settings?.fromAddress ?? "",
+		replyTo: settings?.replyTo ?? "",
+	};
+	const changed =
+		host !== initial.host ||
+		port !== initial.port ||
+		security !== initial.security ||
+		username !== initial.username ||
+		fromAddress !== initial.fromAddress ||
+		replyTo !== initial.replyTo ||
+		typedPassword !== undefined;
+	// On a settings screen the foot bar saves the form; elsewhere (the setup wizard) its own buttons do.
+	const part = useOptionalSettingsPart({
+		changed,
+		save: () => store(),
+		discard: () => {
+			setHost(initial.host);
+			setPort(initial.port);
+			setSecurity(initial.security);
+			setUsername(initial.username);
+			setPassword("");
+			setReplacing(!storedPassword);
+			setFromAddress(initial.fromAddress);
+			setReplyTo(initial.replyTo);
+			setErrors({});
+		},
+	});
+	const edited = () => part?.edited();
+
 	const save = async (event: FormEvent) => {
 		event.preventDefault();
+		if (part) {
+			part.formProps.onSubmit(event);
+			return;
+		}
+		await store();
+	};
+
+	/** Saves the form; answers whether it was saved. */
+	const store = async (): Promise<boolean> => {
 		const values = formSettings();
-		if (!values) return;
+		if (!values) return false;
 		setBusy(true);
 		try {
 			const api = await getApi();
@@ -114,8 +161,10 @@ export function SmtpForm({
 			setPassword("");
 			setReplacing(!(saved.settings?.password.set ?? false));
 			await onSaved(saved);
+			return true;
 		} catch (failure) {
 			setErrors({ form: errorMessage(failure) });
+			return false;
 		} finally {
 			setBusy(false);
 		}
@@ -153,7 +202,10 @@ export function SmtpForm({
 							<Input
 								id="smtp-host"
 								value={host}
-								onChange={(event) => setHost(event.target.value)}
+								onChange={(event) => {
+									setHost(event.target.value);
+									edited();
+								}}
 								autoComplete="off"
 								spellCheck={false}
 								required
@@ -171,7 +223,10 @@ export function SmtpForm({
 								min={1}
 								max={65_535}
 								value={port}
-								onChange={(event) => setPort(event.target.value)}
+								onChange={(event) => {
+									setPort(event.target.value);
+									edited();
+								}}
 								required
 								aria-invalid={invalid("port")}
 								aria-describedby={describedBy("port")}
@@ -189,6 +244,7 @@ export function SmtpForm({
 									// Moving between the usual ports follows the encryption; a custom port stays.
 									if (SECURITY_OPTIONS.some((option) => String(option.port) === port)) setPort(String(next.port));
 									setSecurity(next.value);
+									edited();
 								}}
 							>
 								{SECURITY_OPTIONS.map((option) => (
@@ -205,7 +261,10 @@ export function SmtpForm({
 							<Input
 								id="smtp-username"
 								value={username}
-								onChange={(event) => setUsername(event.target.value)}
+								onChange={(event) => {
+									setUsername(event.target.value);
+									edited();
+								}}
 								autoComplete="off"
 								spellCheck={false}
 								aria-describedby="smtp-username-help"
@@ -217,7 +276,10 @@ export function SmtpForm({
 							stored={storedPassword}
 							replacing={replacing}
 							password={password}
-							setPassword={setPassword}
+							setPassword={(value) => {
+								setPassword(value);
+								edited();
+							}}
 							disabled={username.trim() === ""}
 							replaceButton={replaceButton}
 							onReplace={() => {
@@ -243,7 +305,10 @@ export function SmtpForm({
 								id="smtp-fromAddress"
 								type="email"
 								value={fromAddress}
-								onChange={(event) => setFromAddress(event.target.value)}
+								onChange={(event) => {
+									setFromAddress(event.target.value);
+									edited();
+								}}
 								autoComplete="off"
 								required
 								aria-invalid={invalid("fromAddress")}
@@ -260,7 +325,10 @@ export function SmtpForm({
 								id="smtp-replyTo"
 								type="email"
 								value={replyTo}
-								onChange={(event) => setReplyTo(event.target.value)}
+								onChange={(event) => {
+									setReplyTo(event.target.value);
+									edited();
+								}}
 								autoComplete="off"
 								aria-invalid={invalid("replyTo")}
 								aria-describedby={describedBy("replyTo")}
@@ -299,7 +367,9 @@ export function SmtpForm({
 			</Section>
 
 			{errors.form ? <FieldError>{t(errors.form)}</FieldError> : null}
-			<div className="flex flex-wrap items-center justify-end gap-3">{actions({ busy })}</div>
+			{actions && !part ? (
+				<div className="flex flex-wrap items-center justify-end gap-3">{actions({ busy })}</div>
+			) : null}
 		</form>
 	);
 }
