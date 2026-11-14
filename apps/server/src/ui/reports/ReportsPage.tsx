@@ -190,7 +190,10 @@ export function ReportsPage({
 			toast.error(t(errorMessage(error)));
 		}
 	};
+	// A switch shows its new state at once, until the page has loaded what was saved.
+	const [switched, setSwitched] = useState<Record<string, boolean>>({});
 	const setActive = async (report: ReportView, active: boolean) => {
+		setSwitched((current) => ({ ...current, [report.id]: active }));
 		try {
 			const api = await getApi();
 			await runSensitive(() => api.reports.update({ ...place, reportId: report.id, active }));
@@ -198,6 +201,8 @@ export function ReportsPage({
 			await reload();
 		} catch (error) {
 			toast.error(t(errorMessage(error)));
+		} finally {
+			setSwitched(({ [report.id]: _done, ...rest }) => rest);
 		}
 	};
 
@@ -292,7 +297,7 @@ export function ReportsPage({
 										</TableCell>
 										<TableCell className={cellClass}>
 											<Switch
-												checked={report.active}
+												checked={switched[report.id] ?? report.active}
 												disabled={!canManage}
 												onCheckedChange={(active) => void setActive(report, active)}
 												aria-label={t("reports.activeLabel", { name: report.name })}
