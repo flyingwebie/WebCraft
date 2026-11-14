@@ -53,7 +53,6 @@ export function DocumentNav({
 					<button
 						type="button"
 						onClick={renderedBy.onOpen}
-						aria-label={fill(shown.renderedByLabel, { template: renderedBy.template })}
 						className={`${PILL} text-chrome-muted font-normal`}
 						data-wc-bar="rendered-by"
 					>
@@ -100,7 +99,6 @@ function EntryPicker({
 				aria-haspopup="menu"
 				aria-expanded={open}
 				aria-controls={open ? id : undefined}
-				aria-label={label}
 				disabled={entries.length === 0}
 				onClick={() => setOpen((was) => !was)}
 				onKeyDown={(event) => {
