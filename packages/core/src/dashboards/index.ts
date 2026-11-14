@@ -100,6 +100,8 @@ export type DashboardTemplateView = {
 	name: string;
 	madeFrom: string;
 	widgets: number;
+	/** Where its Widgets sit on the grid, each with its kind: for a picture of the layout. */
+	layout: { kind: string; x: number; y: number; w: number; h: number }[];
 	createdAt: Date;
 };
 
@@ -706,6 +708,7 @@ export function createDashboards(deps: {
 		name: row.name,
 		madeFrom: row.madeFrom,
 		widgets: storedWidgets(row.widgets).length,
+		layout: storedWidgets(row.widgets).map(({ kind, x, y, w, h }) => ({ kind, x, y, w, h })),
 		createdAt: row.createdAt,
 	});
 

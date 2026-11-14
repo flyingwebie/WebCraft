@@ -59,7 +59,35 @@ describe("Dashboard templates", () => {
 			name: "Client standard",
 			madeFrom: "Standard",
 			widgets: 3,
+			// Where each Widget sits, for a picture of the layout in New Dashboard.
+			layout: [
+				{
+					kind: "site-analytics:totals",
+					x: expect.any(Number),
+					y: expect.any(Number),
+					w: expect.any(Number),
+					h: expect.any(Number),
+				},
+				{
+					kind: "site-analytics:goal",
+					x: expect.any(Number),
+					y: expect.any(Number),
+					w: expect.any(Number),
+					h: expect.any(Number),
+				},
+				{
+					kind: "site-analytics:funnel",
+					x: expect.any(Number),
+					y: expect.any(Number),
+					w: expect.any(Number),
+					h: expect.any(Number),
+				},
+			],
 		});
+		const { dashboard: saved } = await staff.api.dashboards.get({ siteId: bakery.siteId, dashboardId: dashboard.id });
+		expect((await staff.api.dashboardTemplates.list()).templates[0]?.layout).toEqual(
+			saved.widgets.map(({ kind, x, y, w, h }) => ({ kind, x, y, w, h })),
+		);
 		expect((await staff.api.dashboardTemplates.list()).templates.map((each) => each.name)).toEqual(["Client standard"]);
 		// Staff of the other Workspace only never see the bakery's templates.
 		expect((await onlyOther.api.dashboardTemplates.list()).templates).toEqual([]);
