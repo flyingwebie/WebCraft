@@ -32,7 +32,7 @@ async function servicesPage(theme: Theme): Promise<Page> {
 	await install.signIn(page, superadmin);
 	await page.goto(install.adminUrl("/services"));
 	await page.waitForLoadState("networkidle");
-	await page.getByRole("cell", { name: "Monthly content" }).waitFor();
+	await page.getByRole("cell", { name: "Monthly content", exact: true }).waitFor();
 	return page;
 }
 
@@ -75,7 +75,7 @@ describe("changing the list", () => {
 		await sheet.getByLabel("What it is").fill("A day of photos at your place.");
 		await sheet.getByRole("button", { name: "Add service" }).click();
 		await sheet.waitFor({ state: "hidden" });
-		await page.getByRole("cell", { name: "Photography" }).waitFor();
+		await page.getByRole("cell", { name: "Photography", exact: true }).waitFor();
 		expect(await savedNames()).toEqual(["Search engine optimisation", "Monthly content", "Photography"]);
 	});
 
@@ -102,7 +102,7 @@ describe("changing the list", () => {
 		await expectNoAxeViolations(page, "Services list › remove (dark)", ["region"]);
 		await dialog.getByRole("button", { name: "Remove" }).click();
 		await dialog.waitFor({ state: "hidden" });
-		await page.getByRole("cell", { name: "Photography" }).waitFor({ state: "detached" });
+		await page.getByRole("cell", { name: "Photography", exact: true }).waitFor({ state: "detached" });
 		expect(await savedNames()).toEqual(["Monthly content", "Search engine optimisation"]);
 	});
 });

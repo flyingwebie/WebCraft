@@ -153,6 +153,14 @@ async function overflowing(page: Page, scope: string) {
 		(selector) =>
 			[...document.querySelectorAll<HTMLElement>(selector)]
 				.filter((e) => e.getBoundingClientRect().right > innerWidth + 1 && e.getBoundingClientRect().width > 0)
+				// A wide table scrolls sideways inside its own box, which fits: that is not the page overflowing.
+				.filter((e) => {
+					for (let box = e.parentElement; box; box = box.parentElement) {
+						const overflow = getComputedStyle(box).overflowX;
+						if (overflow === "auto" || overflow === "scroll") return box.getBoundingClientRect().right > innerWidth + 1;
+					}
+					return true;
+				})
 				.map((e) => ({
 					tag: e.tagName,
 					slot: e.dataset.slot,

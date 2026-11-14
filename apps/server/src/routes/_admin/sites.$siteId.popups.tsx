@@ -5,7 +5,7 @@ import { Input } from "@webcraft/ui/components/input.tsx";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
 import { cn } from "@webcraft/ui/lib/utils.ts";
 import { PlusIcon } from "lucide-react";
-import { type FormEvent, type RefObject, useId, useRef, useState } from "react";
+import { type FormEvent, type RefObject, useEffect, useId, useRef, useState } from "react";
 import { z } from "zod";
 
 import { cellClass, headClass, headRowClass, TableFrame } from "../../ui/analytics/parts.tsx";
@@ -59,6 +59,9 @@ function PopupsPage() {
 	// What opened the open Popup's sheet, for focus to go back to when it closes.
 	const opener = useRef<HTMLElement | null>(null);
 	const [creating, setCreating] = useState(false);
+	// A Popup's sheet opens only in the browser: the page card it covers is there once the page is.
+	const [mounted, setMounted] = useState(false);
+	useEffect(() => setMounted(true), []);
 	if (place.level !== "site") return null;
 	const structure = place.permissions.includes("structure.edit");
 	const option = (value: string) => t(`popups.options.${value as "modal"}`);
@@ -158,7 +161,7 @@ function PopupsPage() {
 					}}
 				/>
 			) : null}
-			{data.value ? (
+			{mounted && data.value ? (
 				<PopupSheet
 					key={`${data.value.popup.id}-${data.value.content.language}`}
 					view={data.value}
