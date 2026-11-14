@@ -177,6 +177,9 @@ describe("Post Types", () => {
 	isolation.refuses("postTypes.data", async (api, target) =>
 		api.postTypes.data({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
 	);
+	isolation.refuses("postTypes.delete", async (api, target) =>
+		api.postTypes.delete({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+	);
 });
 
 describe("Entries", () => {

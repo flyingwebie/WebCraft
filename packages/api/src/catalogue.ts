@@ -159,6 +159,7 @@ export const PROCEDURES = {
 	"postTypes.update": write(
 		"Changes a Post Type's name, URL pattern, Fields, Site search or SEO settings; applies at once.",
 	),
+	"postTypes.delete": write("Deletes a Post Type with its Entries and Templates, after a confirmation."),
 	"postTypes.data": read(
 		"The Data tab of a Post Type's Entry template: an Entry's Draft values as bindings read them.",
 	),

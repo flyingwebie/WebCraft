@@ -48,6 +48,7 @@ import type {
 	Pasted,
 	PostType,
 	PostTypeChange,
+	PostTypeDeletion,
 	PublishAllDone,
 	PublishAllPreview,
 	Published,
@@ -261,6 +262,11 @@ export type InstallServices = InstallPorts & {
 		get(scope: SiteScope, postTypeId: string): Promise<PostType>;
 		create(scope: SiteScope, input: NewPostType): Promise<PostType>;
 		update(scope: SiteScope, postTypeId: string, change: PostTypeChange): Promise<PostType>;
+		/**
+		 * Deletes a Post Type with its Entries and Templates, in two steps (a confirmation); refuses the
+		 * Page Post Type, and one that other Structure names (`PostTypeInUseError`).
+		 */
+		delete(scope: SiteScope, postTypeId: string, confirmation?: string): Promise<PostTypeDeletion>;
 		/** The Data tab of its Entry template: an Entry's Draft as the template reads it, with the bindings. */
 		data(scope: SiteScope, postTypeId: string, options?: { language?: string; entryId?: string }): Promise<DataSample>;
 	};
