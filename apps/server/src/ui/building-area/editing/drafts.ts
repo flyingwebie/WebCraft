@@ -79,7 +79,7 @@ async function caughtUp(client: DraftClient, from: Json, to: Json): Promise<void
 const FINAL_CLOSES = new Set([4401, 4403]);
 
 /** Connects a Draft's client to its socket, again after a break; answers how to stop. */
-function connect(client: DraftClient, url: URL, token: string): () => void {
+export function connect(client: DraftClient, url: URL, token: string): () => void {
 	let stopped = false;
 	let attempt = 0;
 	let retry: number | undefined;

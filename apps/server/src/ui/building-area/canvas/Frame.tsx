@@ -2,6 +2,7 @@ import { type RefObject, useCallback, useEffect, useRef, useState } from "react"
 import { AGENT_HOST_PROPERTY, type AgentHost, BUILDING_STAND_IN_PREFIX } from "../agent/contract.ts";
 import { type EditAnswer, type EditRequests, fill, type PageState, type Words } from "../api.ts";
 import type { PageEditing } from "../editing/editing.ts";
+import { swapPage } from "../editing/rerender.ts";
 import type { RegionCycle } from "../keyboard.ts";
 import { installDragCatcher } from "./catcher.ts";
 import { Gutter } from "./Gutter.tsx";
@@ -19,7 +20,7 @@ import {
 	paneOf,
 	widestFor,
 } from "./gutters.ts";
-import { createOverlay, nameOf, type Overlay } from "./overlay.ts";
+import { chipName, createOverlay, nameOf, type Overlay } from "./overlay.ts";
 import { regionSaving, type SavingStatus } from "./regions.ts";
 import { SizeReadout, useReadoutShown } from "./SizeReadout.tsx";
 
@@ -35,6 +36,13 @@ export type FrameHandle = {
 	navigate(address: string): void;
 	/** Saves whatever was typed and not saved yet. */
 	flush(): Promise<void>;
+	/**
+	 * Draws the page again in place from the Drafts as they are now (BA-08, `editing/rerender.ts`):
+	 * scroll and selection kept, none of the page's scripts run again. A stand-in loads again instead.
+	 */
+	rerender(): Promise<void>;
+	/** Outlines the element a Structure reference names (`data-wc-code`), or nothing; brought into view. */
+	select(ref: string | null): void;
 };
 
 /** The page's theme as the rail's Dark preview sets it: dark or light values, or the page's own choice (null). */
@@ -65,7 +73,9 @@ export function Frame({
 	onPage,
 	onSaving,
 	onSelect,
+	onReady,
 	editing,
+	sheet,
 }: {
 	/** What the frame shows: a page's path on the Site with its query, or a stand-in's address. */
 	address: string;
@@ -91,11 +101,18 @@ export function Frame({
 	onSaving(status: SavingStatus): void;
 	/** The selection changed: the element selected in the page and its name, or nothing. */
 	onSelect?(selected: { element: Element; name: string } | null): void;
+	/** The page's elements are there: parsed, or drawn again in place (BA-08's Structure reads their tags). */
+	onReady?(document: Document): void;
 	/**
 	 * Content typed in place, around the saving (BA-07, `editing/editing.ts`): the text toolbar, the
 	 * Undo history's steps and keys, the page's shared Drafts and Presence. It sees the page's events first.
 	 */
 	editing?: PageEditing;
+	/**
+	 * Drawn as client editing's sheet (SPEC 13.1, BA-14) instead: no gutters and no size readout, the
+	 * corners 10, and the width the bar's Desktop, Tablet or Phone gives (null: the pane's), centred.
+	 */
+	sheet?: { width: number | null };
 }) {
 	const canvas = useRef<HTMLDivElement>(null);
 	const frame = useRef<HTMLIFrameElement>(null);
@@ -113,6 +130,7 @@ export function Frame({
 		onPage,
 		onSaving,
 		onSelect,
+		onReady,
 		address,
 		following,
 		onFollow,
@@ -127,6 +145,7 @@ export function Frame({
 		onPage,
 		onSaving,
 		onSelect,
+		onReady,
 		address,
 		following,
 		onFollow,
@@ -145,7 +164,7 @@ export function Frame({
 		layout: FrameLayout;
 	} | null>(null);
 	const pane: Pane = paneOf(area ?? { width: 0, height: 0 });
-	const layout = frameLayout(size, pane);
+	const layout = frameLayout(sheet ? { width: sheet.width, height: null } : size, pane);
 
 	// The readout: under the pointer or focus, or always while the frame isn't the pane's full width.
 	const [pointerIn, setPointerIn] = useState({ gutter: false, readout: false });
@@ -177,6 +196,16 @@ export function Frame({
 		[followEase],
 	);
 
+	// Client editing's sheet takes its width from the bar, and eases to it as a control's change does.
+	const sheetWidth = sheet ? sheet.width : undefined;
+	const sheetWas = useRef(sheetWidth);
+	useEffect(() => {
+		if (sheetWas.current === sheetWidth) return;
+		sheetWas.current = sheetWidth;
+		setEasing(true);
+		followEase();
+	}, [sheetWidth, followEase]);
+
 	useEffect(() => {
 		const element = canvas.current;
 		if (!element) return;
@@ -201,14 +230,18 @@ export function Frame({
 		const drawn: Overlay = createOverlay({ canvas: area, frame: element, words: latest.current.words });
 		/** Tells the shell what is selected (the docks' panels follow it). */
 		const tellSelected = (chosen: Element | null) =>
-			latest.current.onSelect?.(chosen ? { element: chosen, name: nameOf(chosen, latest.current.words) } : null);
+			latest.current.onSelect?.(chosen ? { element: chosen, name: chipName(chosen, latest.current.words) } : null);
+		/** What is selected now, by its Structure reference: a drawing in place selects it again, whenever it lands. */
+		let chosenRef: string | null = null;
 		const overlay: Overlay = {
 			...drawn,
 			select(chosen) {
+				chosenRef = chosen?.getAttribute("data-wc-code") ?? null;
 				drawn.select(chosen);
 				tellSelected(chosen);
 			},
 			attach(document) {
+				chosenRef = null;
 				drawn.attach(document);
 				tellSelected(null);
 			},
@@ -228,6 +261,36 @@ export function Frame({
 				element.contentWindow?.location.replace(address);
 			},
 			flush: () => saving.flush(),
+			async rerender() {
+				const page = element.contentDocument;
+				const view = element.contentWindow;
+				if (!page || !view) return;
+				await saving.flush();
+				if (view.location.pathname.startsWith(`${BUILDING_STAND_IN_PREFIX}/`)) {
+					view.location.replace(`${view.location.pathname}${view.location.search}`);
+					return;
+				}
+				const swapped = await swapPage(element);
+				if (!swapped) return;
+				saving.track(swapped);
+				latest.current.editing?.ready(swapped);
+				latest.current.onReady?.(swapped);
+				drawn.hover(null);
+				// What is selected by the time the page is drawn, not what was when it was asked for.
+				drawn.select(chosenRef ? swapped.querySelector(`[data-wc-code="${CSS.escape(chosenRef)}"]`) : null);
+			},
+			select(ref) {
+				chosenRef = ref;
+				const page = element.contentDocument;
+				// An element by its reference, or a source's first element (a Placement's root, by the Placement).
+				const found =
+					ref && page
+						? (page.querySelector(`[data-wc-code="${CSS.escape(ref)}"]`) ??
+							(ref.includes("#") ? null : page.querySelector(`[data-wc-code^="${CSS.escape(`${ref}#`)}"]`)))
+						: null;
+				drawn.select(found);
+				found?.scrollIntoView({ block: "nearest", inline: "nearest" });
+			},
 		};
 		const catcher = installDragCatcher({
 			document: doc,
@@ -246,9 +309,11 @@ export function Frame({
 			const view = element.contentWindow as (Window & typeof globalThis) | null;
 			return view && target instanceof view.Element ? target : null;
 		};
+		// A region, else (for Staff, whose page tags every element of a Template or Component) the
+		// element a Template or Component drew, else what is under the pointer.
 		const selectable = (target: EventTarget | null): Element | null => {
 			const found = pageElement(target);
-			return found ? (saving.regionOf(found) ?? found) : null;
+			return found ? (saving.regionOf(found) ?? found.closest("[data-wc-code]") ?? found) : null;
 		};
 		const regionOf = (target: EventTarget | null) => {
 			const found = pageElement(target);
@@ -282,6 +347,7 @@ export function Frame({
 				overlay.attach(document);
 				saving.track(document);
 				latest.current.editing?.ready(document);
+				latest.current.onReady?.(document);
 			},
 			event(kind, event) {
 				// Content typed in place sees the page's events first: Undo and Redo, the toolbar's Alt+F10.
@@ -430,7 +496,7 @@ export function Frame({
 
 	return (
 		<div ref={canvas} className="absolute inset-0 flex justify-center overflow-hidden" data-wc-canvas="">
-			{readoutShown && area ? (
+			{readoutShown && area && !sheet ? (
 				<SizeReadout
 					size={size}
 					layout={layout}
@@ -451,11 +517,15 @@ export function Frame({
 				}}
 			>
 				{/* The gutters before the frame in the Tab order: the page comes last. */}
-				{gutter("start")}
-				{gutter("end")}
-				{gutter("below")}
+				{sheet ? null : (
+					<>
+						{gutter("start")}
+						{gutter("end")}
+						{gutter("below")}
+					</>
+				)}
 				<div
-					className={`absolute start-3 end-3 top-0 bottom-3 overflow-hidden rounded-b-md bg-white ${drag ? "[&>iframe]:pointer-events-none" : ""}`}
+					className={`absolute start-3 end-3 top-0 bottom-3 overflow-hidden bg-white ${sheet ? "rounded-[10px]" : "rounded-b-md"} ${drag ? "[&>iframe]:pointer-events-none" : ""}`}
 					data-wc-frame-box=""
 				>
 					<iframe
@@ -480,7 +550,7 @@ export function Frame({
 					{/* Focus in the page: a ring drawn over the frame's edge, since the page draws its own focus inside. */}
 					{focused ? (
 						<div
-							className="pointer-events-none absolute inset-0 rounded-b-md shadow-[inset_0_0_0_2px_#818cf8]"
+							className={`pointer-events-none absolute inset-0 shadow-[inset_0_0_0_2px_#818cf8] ${sheet ? "rounded-[10px]" : "rounded-b-md"}`}
 							data-wc-frame-focus=""
 						/>
 					) : null}

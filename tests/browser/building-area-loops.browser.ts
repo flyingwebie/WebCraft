@@ -153,6 +153,10 @@ describe("the Loops place, for Staff", () => {
 
 	test("opens from the rail in three columns: the Saved Loops and the settings, the definition, the result", async () => {
 		expect(await postsOnPage(page)).toEqual(["Bagels", "Brioche", "Focaccia"]);
+		// The page is announced once Edit mode has described it: the place's own announcement comes after.
+		await page.waitForFunction(() =>
+			document.querySelector("[data-wc-messages]")?.textContent?.includes("Opened Menu"),
+		);
 		await page.locator('[data-wc-place="loops"]').click();
 		await placeFrame(page).waitFor();
 		await page.locator("[data-wc-loop-form]").waitFor();
@@ -186,6 +190,8 @@ describe("the Loops place, for Staff", () => {
 		expect(await page.locator("[data-wc-loop-limit]").inputValue()).toBe("3");
 		expect(await page.locator("[data-wc-loop-offset]").inputValue()).toBe("0");
 
+		// The result reads its items once the place is open: wait for it rather than read it at once.
+		await page.waitForFunction(() => Boolean(document.querySelector("[data-wc-loop-count]")?.textContent));
 		await expect(count(page).textContent()).resolves.toBe("3 of 5 items · just now");
 		expect(await page.locator("[data-wc-loop-used-on]").textContent()).toBe("Used on 2 pages");
 		// The first item starts open, its values by key.
@@ -381,15 +387,17 @@ describe("the Loops place, for Staff", () => {
 });
 
 describe("the Loops place, for a Member", () => {
-	test("says Loops are Staff's", async () => {
+	test("isn't theirs: no rail button, and its address opens the page (client editing, BA-14)", async () => {
 		const page = await install.newPage("light");
 		await page.setViewportSize({ width: 1440, height: 900 });
 		await enterBuildingArea(install, page, { as: editor, siteId, slug, open: "/page/menu" });
-		await page.locator('[data-wc-place="loops"]').click();
-		await page.locator("[data-wc-loops-staff-only]").waitFor();
-		expect(await page.locator("[data-wc-loops-staff-only]").textContent()).toBe(
-			"Loops are Structure: only Staff change them.",
-		);
+		await page.locator("[data-wc-client-rail]").waitFor();
+		expect(await page.locator('[data-wc-place="loops"]').count()).toBe(0);
+		await go(page, `/page/menu?wc-place=loops/${hoursId}`);
+		await page.locator("iframe[data-wc-frame]").waitFor();
+		await page.locator("[data-wc-client-rail]").waitFor();
+		expect(await page.locator("[data-wc-place-frame]").count()).toBe(0);
+		expect(await page.locator("[data-wc-loops-staff-only]").count()).toBe(0);
 		await page.context().close();
 	});
 });

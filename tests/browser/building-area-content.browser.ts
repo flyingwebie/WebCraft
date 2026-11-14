@@ -138,6 +138,8 @@ describe("the Content place, for Staff", () => {
 	});
 
 	test("opens over the canvas, keeps the rail and the bar, and each way back returns to the page as it was", async () => {
+		// The page is announced once Edit mode has described it: the place's own announcement comes after.
+		await page.waitForFunction(() => document.querySelector("[data-wc-messages]")?.textContent?.includes("Opened"));
 		// Something selected on the page first.
 		await frame.locator("main").scrollIntoViewIfNeeded();
 		const box = await frame.locator("header p").boundingBox();
