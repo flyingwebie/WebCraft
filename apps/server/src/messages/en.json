@@ -1306,12 +1306,11 @@
 		"changedVia": "{person} via {client}",
 		"button": "Publish all",
 		"changesCounted": "{count, plural, one {change} other {changes}}",
-		"title": "Publish all changes",
+		"title": "Publish all",
 		"close": "Close",
 		"loading": "Looking for the Site's Drafts…",
 		"none": "Everything is published: this Site has no Drafts.",
-		"intro": "{count, plural, one {# item differs} other {# items differ}} between the Staging address and what visitors see. Choose what goes live.",
-		"selected": "{selected} of {total} selected",
+		"intro": "{count, plural, one {# Draft} other {# Drafts}} on this Site. Visitors see them once you publish.",
 		"content": "Content",
 		"structure": "Structure",
 		"staffOnly": "Staff only",
@@ -1321,9 +1320,8 @@
 		"viewLabel": "View {name} on the Staging address",
 		"untitled": "Untitled",
 		"changes": "Changed: {list}",
-		"cacheNote": "Publishing clears this Site's page cache.",
 		"cancel": "Cancel",
-		"publish": "Publish {count, plural, one {# item} other {# items}}",
+		"publish": "Publish {count}",
 		"published": "Published {count, plural, one {# item} other {# items}}.",
 		"refused": "Nothing was published: {name} can't be published yet. {reason}",
 		"kinds": {
@@ -1359,7 +1357,21 @@
 			"notifications": "Notifications",
 			"autoReply": "Auto-reply"
 		},
-		"inReview": "{count, plural, one {# Draft is} other {# Drafts are}} waiting for review. Publishing one ends its Review and tells its Author."
+		"inReview": "{count, plural, one {# Draft is} other {# Drafts are}} waiting for review. Publishing one ends its Review and tells its Author.",
+		"selectAll": "Select all",
+		"groups": {
+			"formEmails": "Emails of Forms",
+			"templatesAndComponents": "Templates and Components",
+			"globals": "Globals",
+			"consentBanner": "Consent banner",
+			"forms": "Forms"
+		},
+		"checksOpen": "{count, plural, one {# Check is} other {# Checks are}} open on these",
+		"seeChecks": "See them",
+		"checksNeverStop": "Checks never stop publishing.",
+		"later": "Publish later",
+		"laterHelp": "Choose a day and a time instead of now.",
+		"changesMore": "Changed: {list} and {count} more"
 	},
 	"staging": {
 		"button": "Staging",

@@ -1306,12 +1306,11 @@
 		"changedVia": "{person} tramite {client}",
 		"button": "Pubblica tutto",
 		"changesCounted": "{count, plural, one {modifica} other {modifiche}}",
-		"title": "Pubblica tutte le modifiche",
+		"title": "Pubblica tutto",
 		"close": "Chiudi",
 		"loading": "Ricerca delle bozze del sito…",
 		"none": "È tutto pubblicato: questo sito non ha bozze.",
-		"intro": "{count, plural, one {# elemento è diverso} other {# elementi sono diversi}} tra l'indirizzo di staging e ciò che vedono i visitatori. Scegli cosa va online.",
-		"selected": "{selected} di {total} selezionati",
+		"intro": "{count, plural, one {# bozza} other {# bozze}} su questo sito. I visitatori le vedono quando pubblichi.",
 		"content": "Contenuti",
 		"structure": "Struttura",
 		"staffOnly": "Solo Staff",
@@ -1321,9 +1320,8 @@
 		"viewLabel": "Vedi {name} sull'indirizzo di staging",
 		"untitled": "Senza titolo",
 		"changes": "Modificato: {list}",
-		"cacheNote": "La pubblicazione svuota la cache delle pagine di questo sito.",
 		"cancel": "Annulla",
-		"publish": "Pubblica {count, plural, one {# elemento} other {# elementi}}",
+		"publish": "Pubblica {count}",
 		"published": "{count, plural, one {Pubblicato # elemento} other {Pubblicati # elementi}}.",
 		"refused": "Non è stato pubblicato nulla: {name} non può ancora essere pubblicato. {reason}",
 		"kinds": {
@@ -1359,7 +1357,21 @@
 			"notifications": "Notifiche",
 			"autoReply": "Risposta automatica"
 		},
-		"inReview": "{count, plural, one {# bozza attende} other {# bozze attendono}} una revisione. Pubblicarla chiude la revisione e lo dice a chi l'ha inviata."
+		"inReview": "{count, plural, one {# bozza attende} other {# bozze attendono}} una revisione. Pubblicarla chiude la revisione e lo dice a chi l'ha inviata.",
+		"selectAll": "Seleziona tutto",
+		"groups": {
+			"formEmails": "Email dei moduli",
+			"templatesAndComponents": "Template e componenti",
+			"globals": "Globali",
+			"consentBanner": "Banner del consenso",
+			"forms": "Moduli"
+		},
+		"checksOpen": "{count, plural, one {# controllo è aperto} other {# controlli sono aperti}} su questi elementi",
+		"seeChecks": "Vedili",
+		"checksNeverStop": "I controlli non bloccano mai la pubblicazione.",
+		"later": "Pubblica più tardi",
+		"laterHelp": "Scegli un giorno e un'ora invece di adesso.",
+		"changesMore": "Modificato: {list} e altri {count}"
 	},
 	"staging": {
 		"button": "Staging",
