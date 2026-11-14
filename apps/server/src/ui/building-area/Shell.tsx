@@ -43,13 +43,9 @@ export function Shell({ config }: { config: ShellConfig }) {
 
 	return (
 		<div className="grid h-dvh w-full grid-cols-[48px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_48px] overflow-hidden bg-[#121214] font-sans text-[12px] text-zinc-200">
-			{/* The page itself is the main content: following the link puts focus in the frame. */}
+			{/* The page itself is the main content: following the link puts focus in the frame (see <main>). */}
 			<a
 				href="#wc-canvas"
-				onClick={(event) => {
-					event.preventDefault();
-					focusFrame();
-				}}
 				className="sr-only rounded-md bg-white px-3 py-2 text-[13px] font-medium text-[#121214] focus:not-sr-only focus:fixed focus:start-14 focus:top-2 focus:z-50 focus:ring-2 focus:ring-[#818cf8] focus:ring-offset-2 focus:ring-offset-[#121214]"
 			>
 				{words.skipToContent}
@@ -80,6 +76,13 @@ export function Shell({ config }: { config: ShellConfig }) {
 			</nav>
 			<main
 				id="wc-canvas"
+				tabIndex={-1}
+				onFocus={(event) => {
+					// Reached by the skip link: focus goes on into the page, and the address keeps no fragment.
+					if (event.target !== event.currentTarget) return;
+					focusFrame();
+					if (location.hash) history.replaceState(history.state, "", `${location.pathname}${location.search}`);
+				}}
 				aria-label={words.canvas}
 				data-building-region="canvas"
 				className="relative col-start-2 row-start-1 min-h-0"
