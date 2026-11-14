@@ -92,6 +92,11 @@ beforeAll(async () => {
 		dashboardId: workspaceDashboardId,
 		kind: "site-analytics:totals",
 	});
+	await staffBrowser.api.dashboards.widgets.add({
+		workspaceId,
+		dashboardId: workspaceDashboardId,
+		kind: "site-analytics:by-site",
+	});
 });
 
 afterAll(async () => {
@@ -394,6 +399,10 @@ for (const theme of THEMES) {
 			await page.getByRole("heading", { name: "All Sites", level: 1 }).waitFor();
 			await page.getByText("Adds up the 1 Site of Acme Ltd.").waitFor();
 			await page.getByText("Counting…").first().waitFor({ state: "detached" });
+			// By Site: each Site by name, its visitors, their change and its Form Submissions.
+			const bySite = page.getByRole("table", { name: "By Site" });
+			await bySite.getByRole("columnheader", { name: "Change" }).waitFor();
+			await bySite.getByRole("cell", { name: "Acme Bakery" }).waitFor();
 			await expectAccessibleScreen(page, `Workspace Dashboard (${theme})`);
 		});
 

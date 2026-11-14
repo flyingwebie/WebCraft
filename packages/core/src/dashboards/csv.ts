@@ -142,7 +142,9 @@ function widgetLines(answer: WidgetAnswerView, language: string): (string | numb
 				lines.push(
 					data.columns.map((column) => {
 						const cell = row.cells[column.key];
-						if (typeof cell === "object" && cell !== null) return percent(cell.count, cell.of);
+						if (typeof cell === "object" && cell !== null) {
+							return column.kind === "change" ? change(cell.count, cell.of) : percent(cell.count, cell.of);
+						}
 						if (cell === undefined) return "";
 						if (typeof cell === "number") return cell;
 						if (column.kind === "source") return cell === "" ? words.direct : cell;
@@ -209,4 +211,11 @@ export function csvFilename(name: string, day: Date): string {
 			.replace(/^-+|-+$/g, "")
 			.slice(0, 60) || "dashboard";
 	return `${base}-${dayOf(day)}.csv`;
+}
+
+/** A change from `before` to `now`, signed, as a share of `before` ("+12.4%"); empty with nothing before. */
+function change(now: number, before: number): string {
+	if (before <= 0) return "";
+	const share = ((now - before) / before) * 100;
+	return `${share > 0 ? "+" : ""}${share.toFixed(1)}%`;
 }

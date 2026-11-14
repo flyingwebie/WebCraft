@@ -76,6 +76,20 @@ export function Swatch({ color, dash }: { color: string; dash?: string }) {
 	);
 }
 
+/** How a count changed on the period before, in a table's cell: the arrow and the signed share ("–" with nothing before). */
+export function ChangeCell({ now, before }: { now: number; before: number }) {
+	const numbers = useNumbers();
+	const change = changeOf(now, before);
+	if (change === null) return <span className="text-muted-foreground">–</span>;
+	const Icon = change < 0 ? TrendingDownIcon : TrendingUpIcon;
+	return (
+		<span className="inline-flex items-center gap-1.5">
+			<Icon aria-hidden="true" className={cn("size-3.5", change < 0 ? "text-series-critical" : "text-series-good")} />
+			<span className="font-medium tabular-nums">{numbers.change(change)}</span>
+		</span>
+	);
+}
+
 /** How a count changed on the period before: the arrow, the signed share, and what it is compared with. */
 function Change({ now, before, versus }: { now: number; before: number; versus: string }) {
 	const numbers = useNumbers();
@@ -546,7 +560,7 @@ export function useCellText() {
 }
 
 /** A bar's fill in its track, rounded at the data end. */
-function Bar({
+export function Bar({
 	share,
 	className,
 	fill = "rounded-s-[2px] rounded-e-[4px]",

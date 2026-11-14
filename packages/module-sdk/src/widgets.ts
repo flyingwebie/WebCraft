@@ -67,14 +67,16 @@ export type WidgetRequest = {
 	limit: number;
 };
 
-/** A table's cell: text, a count, or a rate as two counts. */
+/** A table's cell: text, a count, or two counts (a rate; a change, now and before). */
 export type WidgetCell = string | number | { count: number; of: number };
 
 /**
  * How the admin shows a table's column: text as it is, a page's path, a source (empty: direct), a
  * country's code (by its name in the person's language; empty: unknown), a device, a count or a rate.
+ * SDK 1.16 adds `site` (the cell is the Site's id: shown by its name) and `change` (the cell is a
+ * count now and `of` the same count for the period before: shown as the signed change).
  */
-export type WidgetColumnKind = "text" | "path" | "source" | "country" | "device" | "count" | "rate";
+export type WidgetColumnKind = "text" | "path" | "source" | "country" | "device" | "count" | "rate" | "site" | "change";
 
 /**
  * A Widget's data, in its kind's shape. `countedFrom`: the counts start there, older raw events being
@@ -115,6 +117,11 @@ export type ModuleWidget = {
 	/** The filters it takes (none unless listed). `goal` needs the definition's `widgetGoals`. */
 	filters?: readonly WidgetFilterName[];
 	settings?: readonly WidgetSetting[];
+	/**
+	 * Offered on Workspace Dashboards only (SDK 1.16): a kind that lists each Site (one row a Site,
+	 * keyed and named by a `site` column), which a Site's own Dashboard has no use for.
+	 */
+	workspaceOnly?: boolean;
 	query(request: WidgetRequest, context: ModuleContext): Promise<WidgetData>;
 };
 

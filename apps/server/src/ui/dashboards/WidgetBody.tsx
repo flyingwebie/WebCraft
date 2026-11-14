@@ -2,8 +2,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import type { ReactNode } from "react";
 
 import { useT } from "../i18n.tsx";
-import { FunnelSteps, LineChart, RankedRows, StatTiles, useCellText, useNumbers } from "./charts.tsx";
-import { percent, type WidgetData } from "./model.ts";
+import { Bar, ChangeCell, FunnelSteps, LineChart, RankedRows, StatTiles, useCellText, useNumbers } from "./charts.tsx";
+import { changeOf, percent, type WidgetData } from "./model.ts";
 
 /**
  * A Widget's data, drawn by its shape with WebCraft's own pieces (ADR 0024: no Module code runs in
@@ -46,7 +46,13 @@ export function WidgetBody({
 				/>
 			);
 		case "table":
-			return asTable ? <RowsTable data={data} title={title} /> : <RankedRows data={data} title={title} />;
+			return asTable ? (
+				<RowsTable data={data} title={title} />
+			) : data.columns.some((column) => column.kind === "site") ? (
+				<SitesTable data={data} title={title} />
+			) : (
+				<RankedRows data={data} title={title} />
+			);
 		case "funnel":
 			return asTable ? <FunnelTable data={data} title={title} /> : <FunnelSteps data={data} title={title} />;
 	}
@@ -137,6 +143,7 @@ function ScrollTable({ caption, children }: { caption: string; children: ReactNo
 
 function RowsTable({ data, title }: { data: Extract<WidgetData, { shape: "table" }>; title: string }) {
 	const number = useNumber();
+	const numbers = useNumbers();
 	const cellText = useCellText();
 	return (
 		<ScrollTable caption={title}>
@@ -146,7 +153,9 @@ function RowsTable({ data, title }: { data: Extract<WidgetData, { shape: "table"
 						<TableHead
 							key={column.key}
 							scope="col"
-							className={column.kind === "count" || column.kind === "rate" ? "text-end" : undefined}
+							className={
+								column.kind === "count" || column.kind === "rate" || column.kind === "change" ? "text-end" : undefined
+							}
 						>
 							{column.label}
 						</TableHead>
@@ -159,9 +168,14 @@ function RowsTable({ data, title }: { data: Extract<WidgetData, { shape: "table"
 						{data.columns.map((column) => {
 							const cell = row.cells[column.key];
 							if (typeof cell === "object" && cell !== null) {
+								const change = column.kind === "change" ? changeOf(cell.count, cell.of) : null;
 								return (
 									<TableCell key={column.key} className="text-end tabular-nums">
-										{percent(cell.count, cell.of) ?? "–"}
+										{column.kind === "change"
+											? change === null
+												? "–"
+												: numbers.change(change)
+											: (percent(cell.count, cell.of) ?? "–")}
 									</TableCell>
 								);
 							}
@@ -222,5 +236,75 @@ function FunnelTable({ data, title }: { data: Extract<WidgetData, { shape: "funn
 				})}
 			</TableBody>
 		</ScrollTable>
+	);
+}
+
+/**
+ * By Site (a Workspace's Dashboard): a table of the Sites, each by name, with its counts, how the
+ * first changed on the period before (arrow and signed share), and a bar beside each later count for
+ * its share of the most (Form Submissions), as frame "Workspace Dashboard" draws it.
+ */
+function SitesTable({ data, title }: { data: Extract<WidgetData, { shape: "table" }>; title: string }) {
+	const numbers = useNumbers();
+	const counts = data.columns.filter((column) => column.kind === "count");
+	const barred = new Set(counts.slice(1).map((column) => column.key));
+	const most = (key: string) =>
+		Math.max(1, ...data.rows.map((row) => (typeof row.cells[key] === "number" ? (row.cells[key] as number) : 0)));
+	return (
+		<div className="overflow-hidden rounded-lg border">
+			<Table>
+				<caption className="sr-only">{title}</caption>
+				<TableHeader className="bg-muted/50 [&_th]:text-muted-foreground [&_th]:font-normal">
+					<TableRow className="hover:bg-transparent">
+						{data.columns.map((column) => (
+							<TableHead key={column.key} scope="col" className="first:ps-4 last:pe-4">
+								{column.label}
+							</TableHead>
+						))}
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{data.rows.map((row) => (
+						<TableRow key={row.key}>
+							{data.columns.map((column) => {
+								const cell = row.cells[column.key];
+								const place = "py-3 first:ps-4 last:pe-4";
+								if (column.kind === "site") {
+									return (
+										<TableCell key={column.key} className={`${place} font-medium`}>
+											{String(cell ?? "")}
+										</TableCell>
+									);
+								}
+								if (column.kind === "change" && typeof cell === "object" && cell !== null) {
+									return (
+										<TableCell key={column.key} className={place}>
+											<ChangeCell now={cell.count} before={cell.of} />
+										</TableCell>
+									);
+								}
+								const count = typeof cell === "number" ? cell : 0;
+								return (
+									<TableCell key={column.key} className={`${place} tabular-nums`}>
+										{barred.has(column.key) ? (
+											<span className="flex items-center gap-2">
+												<span className="font-medium">{numbers.whole(count)}</span>
+												<Bar
+													share={count / most(column.key)}
+													className="h-1.5 w-12 rounded-[3px]"
+													fill="rounded-[3px]"
+												/>
+											</span>
+										) : (
+											<span className="text-muted-foreground">{numbers.whole(count)}</span>
+										)}
+									</TableCell>
+								);
+							})}
+						</TableRow>
+					))}
+				</TableBody>
+			</Table>
+		</div>
 	);
 }

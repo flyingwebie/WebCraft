@@ -271,6 +271,8 @@ type KindInfo = {
 	shape: WidgetViewShape;
 	filters: readonly string[];
 	settings: readonly WidgetSetting[];
+	/** Offered on Workspace Dashboards only. */
+	workspaceOnly: boolean;
 };
 
 const NOTE: KindInfo = {
@@ -286,6 +288,7 @@ const NOTE: KindInfo = {
 	shape: "note",
 	filters: [],
 	settings: [],
+	workspaceOnly: false,
 };
 
 /** The size a new Widget of a shape takes. */
@@ -583,7 +586,7 @@ export function createDashboards(deps: {
 			if (!answered.data) return { ...base, data: null, problem: answered.problem };
 			return {
 				...base,
-				data: dataView(answered.data, info, language),
+				data: namedSites(dataView(answered.data, info, language), await opened.sites()),
 				problem: null,
 				countedFrom: answered.data.countedFrom ?? null,
 			};
@@ -623,7 +626,7 @@ export function createDashboards(deps: {
 		return {
 			...base,
 			sites: counted,
-			data: dataView(sum, info, language),
+			data: namedSites(dataView(sum, info, language), sites),
 			problem: null,
 			countedFrom: sum.countedFrom ?? null,
 		};
@@ -731,6 +734,7 @@ export function createDashboards(deps: {
 				return found;
 			};
 			for (const info of kinds(language).values()) {
+				if (info.workspaceOnly && opened.level === "site") continue;
 				const available = info.moduleId === null || (await runsHere(info.moduleId));
 				catalog.push({
 					kind: info.kind,
@@ -868,6 +872,9 @@ export function createDashboards(deps: {
 		async addWidget(access, place, dashboardId, input, language) {
 			const opened = await open(access, place, true);
 			const info = requireKind(kinds(language), input.kind);
+			if (info.workspaceOnly && opened.level === "site") {
+				throw new DashboardInvalidError("kind", "This Widget lists each Site: it goes on a Workspace's Dashboard.");
+			}
 			const id = crypto.randomUUID();
 			const row = await change(opened, dashboardId, (_row, widgets) => {
 				if (widgets.length >= MAX_WIDGETS) {
@@ -1055,6 +1062,27 @@ function kindKey(kind: WidgetKind): string {
 	return `${kind.moduleId}:${kind.widget.kind}`;
 }
 
+/**
+ * A table's `site` columns name each Site: the Modules answer a Site's id, which only the Sites the
+ * Dashboard counts are named by (any other id shows as it is).
+ */
+function namedSites(data: WidgetDataView, sites: readonly { id: string; name: string }[]): WidgetDataView {
+	if (data.shape !== "table" || !data.columns.some((column) => column.kind === "site")) return data;
+	const names = new Map(sites.map((site) => [site.id, site.name]));
+	const keys = data.columns.filter((column) => column.kind === "site").map((column) => column.key);
+	return {
+		...data,
+		rows: data.rows.map((row) => {
+			const cells = { ...row.cells };
+			for (const key of keys) {
+				const id = cells[key];
+				if (typeof id === "string") cells[key] = names.get(id) ?? id;
+			}
+			return { ...row, cells };
+		}),
+	};
+}
+
 function infoOf(kind: WidgetKind): KindInfo {
 	return {
 		kind: kindKey(kind),
@@ -1066,6 +1094,7 @@ function infoOf(kind: WidgetKind): KindInfo {
 		shape: kind.widget.shape,
 		filters: kind.widget.filters ?? [],
 		settings: kind.widget.settings ?? [],
+		workspaceOnly: kind.widget.workspaceOnly === true,
 	};
 }
 
