@@ -193,7 +193,13 @@ function OpenFunnel({
 	const [announcement, announce] = useAnnouncement();
 	const [counts, setCounts] = useState<{ label: string; count: number }[] | "loading" | "failed">("loading");
 	const [counted, setCounted] = useState(0);
-	useEffect(() => setSteps(funnel.steps), [funnel.steps]);
+	// Saves go one after another, in the order the changes were made; the steps follow what the
+	// server answers only once none is on its way, so a quick second move is never undone on screen.
+	const queue = useRef<Promise<unknown>>(Promise.resolve());
+	const pending = useRef(0);
+	useEffect(() => {
+		if (pending.current === 0) setSteps(funnel.steps);
+	}, [funnel.steps]);
 
 	// How far visitors got in the last 30 days, counted again after each change.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: `counted` changes after each saved change.
@@ -211,22 +217,31 @@ function OpenFunnel({
 		};
 	}, [siteId, funnel.name, counted]);
 
-	const save = async (next: StepView[], before: StepView[]) => {
-		try {
-			await analyticsApi(await getApi()).funnels.update({
-				siteId,
-				funnelId: funnel.id,
-				name: funnel.name,
-				steps: next.map(stepInput),
-			});
-			setCounted((count) => count + 1);
-			await router.invalidate();
-			return true;
-		} catch (failure) {
-			setSteps(before);
-			toast.error(t(analyticsProblem(failure)));
-			return false;
-		}
+	const save = (next: StepView[], before: StepView[]): Promise<boolean> => {
+		pending.current += 1;
+		const run = queue.current.then(async () => {
+			try {
+				await analyticsApi(await getApi()).funnels.update({
+					siteId,
+					funnelId: funnel.id,
+					name: funnel.name,
+					steps: next.map(stepInput),
+				});
+				return true;
+			} catch (failure) {
+				setSteps(before);
+				toast.error(t(analyticsProblem(failure)));
+				return false;
+			} finally {
+				pending.current -= 1;
+				if (pending.current === 0) {
+					setCounted((count) => count + 1);
+					await router.invalidate();
+				}
+			}
+		});
+		queue.current = run;
+		return run;
 	};
 	const move = (from: number, to: number, focus?: "up" | "down") => {
 		if (to < 0 || to >= steps.length || from === to) return;
