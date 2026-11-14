@@ -22,6 +22,8 @@ async function visit(page: Page, layout: string) {
 	}
 }
 const layouts = ["modal", "slide-in", "bar", "full-screen"] as const;
+/** Each Popup's id, by its layout (also its name). */
+const popupIds = new Map<string, string>();
 beforeAll(async () => {
 	install = await startBrowserInstall();
 	const local = install.install;
@@ -67,6 +69,7 @@ beforeAll(async () => {
 	let commands = "";
 	for (const layout of layouts) {
 		const { popup } = await api.popups.create({ siteId, name: layout, key: layout });
+		popupIds.set(layout, popup.id);
 		await api.components.saveMarkup({
 			siteId,
 			componentId: popup.componentId,
@@ -203,6 +206,19 @@ for (const theme of THEMES)
 			);
 			await page.close();
 		});
+for (const theme of THEMES)
+	test(`a Popup's sheet opens when the page is loaded at its address (${theme})`, async () => {
+		const page = await install.newPage(theme);
+		await install.signIn(page, staff);
+		await page.goto(install.adminUrl(`/sites/${siteId}/popups?popup=${popupIds.get("slide-in")}`));
+		const sheet = page.getByRole("dialog", { name: "slide-in", exact: true });
+		await sheet.getByLabel("Trigger", { exact: true }).waitFor();
+		await expectNoAxeViolations(page, `Popup sheet opened by its address ${theme}`, ["region"]);
+		await page.keyboard.press("Escape");
+		await sheet.waitFor({ state: "hidden" });
+		await page.waitForURL((url) => !url.searchParams.has("popup"));
+		await page.close();
+	});
 test("click Popup remains useful without JavaScript", async () => {
 	const page = await install.newPage("light", { javaScript: false });
 	await page.goto(install.liveUrl(slug, "/offers/modal"));

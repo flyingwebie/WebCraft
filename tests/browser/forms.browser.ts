@@ -20,6 +20,8 @@ let install: BrowserInstall;
 let staff: TestAccount;
 let owner: TestAccount;
 let siteId: string;
+/** A second Site of the same Workspace, with no Form. */
+let siteWithoutFormsId: string;
 let formId: string;
 /** A Submission in the inbox, opened by the screens' checks. */
 let submissionId: string;
@@ -45,6 +47,7 @@ beforeAll(async () => {
 	await api.modules.approve({ moduleId: "forms", version: forms.manifest.version });
 	const workspaceId = (await local.createWorkspace("Acme Ltd")).id;
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
+	siteWithoutFormsId = (await local.createSite(workspaceId, { name: "Acme Careers", slug: "careers" })).id;
 	// Visitors see the Site on its domain; its Staging address is for the people reviewing it.
 	await install.goLive(siteId);
 	staff = (await local.createStaff({ workspaces: [workspaceId], name: "Ciara Byrne" })).account;
@@ -204,6 +207,19 @@ for (const theme of THEMES) {
 			await page.getByRole("heading", { name: "Notifications" }).waitFor();
 
 			await expectAccessibleScreen(page, `Site › Form, Emails (${theme})`);
+		});
+
+		test("on a Site with no Form, the Forms row opens the page that says so", async () => {
+			const page = await install.newPage(theme);
+			await install.signIn(page, owner);
+			await page.goto(install.adminUrl(`/sites/${siteWithoutFormsId}`));
+			const row = page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: /^Forms$/ });
+			await row.click();
+			await page.waitForURL((url) => url.pathname === `/sites/${siteWithoutFormsId}/forms`);
+			await page.getByText("Your agency has not built a Form for this Site yet").waitFor();
+			expect(await row.getAttribute("aria-current")).toBe("page");
+
+			await expectAccessibleScreen(page, `Site › Forms, none yet, as an Owner sees it (${theme})`);
 		});
 
 		test("Site › Email (SMTP), as Staff see it, with the Site's own server chosen", async () => {

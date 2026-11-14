@@ -8,6 +8,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
 	return (
 		<Sonner
 			theme={theme as ToasterProps["theme"]}
+			// WebCraft: toasts appear at the top centre, and wait while the pointer is on them.
+			position="top-center"
 			className="toaster group"
 			icons={{
 				success: <CircleCheckIcon className="size-4" />,
