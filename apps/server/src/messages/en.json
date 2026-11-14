@@ -8501,7 +8501,8 @@
 			"styles": "Styles",
 			"loops": "Loops",
 			"components": "Components",
-			"more": "More places"
+			"more": "More places",
+			"forms": "Forms"
 		},
 		"unavailable": "not available yet",
 		"darkPreview": "Dark preview",
@@ -8532,7 +8533,6 @@
 			"failed": "Could not save"
 		},
 		"publish": "Publish",
-		"publishLater": "Publish comes with a later part of the building area",
 		"size": {
 			"readout": "Frame size",
 			"presets": "Device width",
@@ -9191,10 +9191,7 @@
 			"postTypesNone": "None chosen yet",
 			"postTypesMenu": "Post Types the Loop lists",
 			"status": "Status",
-			"publish": "Publish Loop",
-			"publishing": "Publishing…",
-			"published": "The Loop is published: pages show it now",
-			"publishHelp": "Pages show the Loop as it was last published. Publish shows them this Draft.",
+			"publishHelp": "Pages show the Loop as it was last published. Publish in the bar shows them this Draft.",
 			"definition": "Definition",
 			"showAs": "Show the definition as",
 			"form": "Form",
@@ -9464,6 +9461,292 @@
 			"changedHere": "Changed, not published",
 			"refused": "That change wasn't saved: {reason}"
 		},
+		"publishing": {
+			"cell": "Publish",
+			"changes": {
+				"one": "{count} change",
+				"other": "{count} changes"
+			},
+			"nothing": "Nothing to publish",
+			"publishing": "Publishing…",
+			"published": "Published",
+			"tryAgain": "Try again",
+			"sendForReview": "Send for review",
+			"title": "Publish {title}",
+			"titleNoPage": "Publish these changes",
+			"intro": "Visitors see these changes once you publish.",
+			"close": "Close",
+			"empty": "There are no changes here.",
+			"loading": "Reading the changes…",
+			"readFailed": "Couldn't read the changes: {reason}",
+			"rows": "Changes",
+			"change": "{name}: {what}",
+			"what": {
+				"words": "words changed",
+				"replaced": "replaced",
+				"items": "items changed",
+				"layout": "sections changed",
+				"changed": "changed",
+				"new": "new, never published"
+			},
+			"builtIn": {
+				"title": "Title",
+				"slug": "Address",
+				"parent": "Parent page",
+				"seo": "Search and sharing",
+				"layout": "Sections",
+				"hiddenLanguages": "Languages"
+			},
+			"kinds": {
+				"siteTemplate": "Site template",
+				"entryTemplate": "Entry template · {postType}",
+				"archiveTemplate": "Archive template · {postType}",
+				"searchTemplate": "Search results template",
+				"template": "Template",
+				"component": "Component · {name}",
+				"loop": "Loop · {name}",
+				"siteScript": "Site script",
+				"pageScript": "Page script · {name}",
+				"designSystem": "Design system",
+				"globals": "Globals",
+				"globalsForMembers": "Site details",
+				"entry": "{name}",
+				"other": "{name}"
+			},
+			"byYou": "you · {when}",
+			"byName": "{name} · {when}",
+			"byNobody": "{when}",
+			"justNow": "just now",
+			"staffPublish": "Staff publish this",
+			"revert": "Revert",
+			"revertName": "Revert {name}",
+			"reverted": "Reverted {name}.",
+			"revertFailed": "Couldn't revert {name}: {reason}",
+			"translations": {
+				"review": "{language} is translated again by AI and waits for your review.",
+				"automatic": "{language} is translated by AI and goes live with this."
+			},
+			"later": "Publish later",
+			"laterHint": "Choose a day and a time instead of now",
+			"day": "Day",
+			"time": "Time",
+			"schedule": "Schedule",
+			"scheduled": "Scheduled to publish on {when}.",
+			"laterPast": "Choose a time in the future.",
+			"others": {
+				"one": "{count} other Draft on this Site",
+				"other": "{count} other Drafts on this Site"
+			},
+			"publishAll": "Publish all",
+			"publishAllName": "Publish all in the admin (opens in a new tab)",
+			"discard": "Discard all changes",
+			"discardConfirm": "Discard every change on this page? This can't be undone.",
+			"discardStructure": "Templates, Components and the Design system keep their Drafts.",
+			"discardYes": "Discard",
+			"discardNo": "Keep them",
+			"discarded": "Changes discarded.",
+			"publish": "Publish",
+			"publishedSaid": "Published. Visitors see the changes now.",
+			"failed": "Couldn't publish: {reason}",
+			"viewLive": "View live page",
+			"dismiss": "Dismiss",
+			"reasons": {
+				"network": "the server couldn't be reached.",
+				"forbidden": "you may not publish some of these.",
+				"changed": "something changed meanwhile. Look at the list again.",
+				"refused": "{name} can't be published yet.",
+				"scheduledAlready": "one of these is scheduled already.",
+				"nothing": "there is nothing to publish.",
+				"generic": "the server answered {code}.",
+				"scheduleInvalid": "choose a time in the future, within ten years."
+			},
+			"review": {
+				"title": "Send for review",
+				"note": "Add a note for your Editor (optional)",
+				"send": "Send for review",
+				"sent": "Sent for review. An Editor or Owner checks it.",
+				"waiting": "In review since {when}.",
+				"withdraw": "Withdraw from review",
+				"withdrawn": "Withdrawn from review.",
+				"failed": "Couldn't send it: {reason}",
+				"sentBack": "Sent back by {name}: {comment}"
+			}
+		},
+		"forms": {
+			"sidebar": "The Site's Forms",
+			"status": {
+				"draft": "Draft",
+				"published": "Published",
+				"changed": "Unpublished changes"
+			},
+			"placed": {
+				"none": "Not placed yet",
+				"one": "Placed in {count} place",
+				"other": "Placed in {count} places"
+			},
+			"staffOnly": "Forms are Structure: only Staff build them.",
+			"loading": "Reading the Forms…",
+			"loadFailed": "Couldn't read the Forms: {reason}",
+			"formFailed": "Couldn't read this Form: {reason}",
+			"empty": {
+				"title": "No Forms yet",
+				"text": "Make the Site's first Form, blank or from a starter."
+			},
+			"tabsLabel": "Parts of {name}",
+			"tabs": {
+				"build": "Build",
+				"afterSending": "After sending",
+				"emails": "Emails",
+				"translations": "Translations",
+				"settings": "Settings"
+			},
+			"laterText": "This tab comes with a later part of the building area. Until then, the Form's page in the admin has it.",
+			"openInAdmin": "Open the Form in the admin (new tab)",
+			"newForm": {
+				"title": "New Form",
+				"name": "Name",
+				"namePlaceholder": "Booking request",
+				"nameRequired": "Give the Form a name.",
+				"key": "Key",
+				"keyPending": "Made from the name",
+				"keyWhy": "Made from the name. Template markup places the Form by its key.",
+				"startFrom": "Start from",
+				"cancel": "Cancel",
+				"create": "Create Form",
+				"creating": "Creating…",
+				"creatingNamed": "Creating {name}…",
+				"made": "{name} made"
+			},
+			"starters": {
+				"blank": "Blank",
+				"contact": "Contact",
+				"booking": "Booking request",
+				"newsletter": "Newsletter sign-up",
+				"job": "Job application"
+			},
+			"starterFields": {
+				"name": "Name",
+				"email": "Email",
+				"message": "Message",
+				"phone": "Phone",
+				"date": "Date",
+				"people": "Number of people",
+				"anythingElse": "Anything else we should know?",
+				"newsletterConsent": "I'd like to get the newsletter",
+				"role": "The position you are applying for",
+				"cv": "CV",
+				"coverLetter": "Cover letter"
+			},
+			"reasons": {
+				"keyTaken": "another Form has that key",
+				"invalid": "something in it isn't right",
+				"forbidden": "only Staff may do that",
+				"network": "the Site didn't answer",
+				"generic": "it was refused ({code})"
+			},
+			"kinds": {
+				"text": "Text",
+				"email": "Email",
+				"phone": "Phone",
+				"url": "Web address",
+				"textarea": "Long text",
+				"number": "Number",
+				"date": "Date",
+				"select": "Dropdown",
+				"radio": "One choice",
+				"checkboxes": "Several choices",
+				"consent": "Consent",
+				"file": "File",
+				"hidden": "Hidden",
+				"section": "Section",
+				"step": "Step"
+			},
+			"kindField": "{kind} field",
+			"add": "Add",
+			"addField": "Add a field",
+			"addAfterHeading": "Add a field after {label}",
+			"addAfter": "Add a field after {label}",
+			"layout": "Layout",
+			"full": "The Form holds as many items as it may (100).",
+			"panel": "Field settings",
+			"option": "Option",
+			"stepTitle": "Step {number}",
+			"steps": "Steps",
+			"stepTab": "{number} {title}",
+			"step": "Step",
+			"addStep": "Add a step",
+			"stepAdded": "Step {number} added",
+			"stepMoved": "Step {from} moved to place {to}",
+			"added": "{kind} added",
+			"removed": "{label} removed",
+			"undo": "Undo",
+			"duplicated": "{label} duplicated",
+			"movedTo": "{label} moved",
+			"widthSet": "{label}: {width}",
+			"goesHere": "{label} goes here",
+			"duplicate": "Duplicate",
+			"remove": "Remove",
+			"keyLocked": "Submissions keep this field's answers under its key, so it no longer changes once published.",
+			"width": {
+				"label": "Width",
+				"whole": "Whole",
+				"half": "Half",
+				"third": "Third"
+			},
+			"source": {
+				"page": "the page's address",
+				"query": "?{name} in the page's address",
+				"fixed": "fixed text"
+			},
+			"rule": {
+				"shownWhen": "Shown when {rule}",
+				"andMore": "{rule} and {count} more",
+				"orMore": "{rule} or {count} more",
+				"ops": {
+					"is": "{field} is {value}",
+					"isNot": "{field} is not {value}",
+					"isEmpty": "{field} is empty",
+					"isNotEmpty": "{field} is filled in",
+					"greaterThan": "{field} is more than {value}",
+					"lessThan": "{field} is less than {value}"
+				}
+			},
+			"sheet": {
+				"label": "{name} as visitors will see it",
+				"list": "Fields of {name}",
+				"option": "{label}, {kind}",
+				"required": "required",
+				"empty": "No fields here yet. Drag a kind onto the Form, or choose one on the right."
+			},
+			"keys": {
+				"picked": "{label} picked up. The arrow keys move it, Space drops it, Escape puts it back.",
+				"moved": "{label}: place {position}",
+				"dropped": "{label} dropped",
+				"putBack": "{label} put back",
+				"cleared": "Nothing chosen"
+			},
+			"history": {
+				"added": "Add {kind}",
+				"removed": "Remove {label}",
+				"duplicated": "Duplicate {label}",
+				"moved": "Move {label}",
+				"changed": "Change {label}",
+				"width": "Width of {label}",
+				"stepMoved": "Move a step"
+			},
+			"tryIt": {
+				"label": "Try it",
+				"help": "Fill the Form in here to try rules and steps. Nothing is sent.",
+				"on": "Trying the Form: nothing is sent",
+				"off": "Building the Form",
+				"notSent": "Nothing was sent: this was a try.",
+				"again": "Try again"
+			},
+			"published": "{name} published",
+			"publishFailed": "Couldn't publish {name}: {reason}",
+			"saveFailed": "Couldn't save {name}: {reason}",
+			"problemsFound": "{name} can't be saved yet: {count} problems, shown at their fields."
+		},
 		"structure": {
 			"tree": "Elements of the page",
 			"siteTemplate": "Site template",
@@ -9527,7 +9810,7 @@
 				"inside": "Inside the {name} Component",
 				"placementOf": "A Placement of {name}",
 				"notOpen": "This element's Template or Component isn't open here: select it again once the page has loaded.",
-				"badValue": "This isn't a value: {value}. Write one as {{ path }}."
+				"badValue": "This isn't a value: {value}. Write a value's name between double braces."
 			}
 		}
 	},

@@ -8501,7 +8501,8 @@
 			"styles": "Stili",
 			"loops": "Loop",
 			"components": "Componenti",
-			"more": "Altri spazi"
+			"more": "Altri spazi",
+			"forms": "Form"
 		},
 		"unavailable": "non ancora disponibile",
 		"darkPreview": "Anteprima scura",
@@ -8532,7 +8533,6 @@
 			"failed": "Impossibile salvare"
 		},
 		"publish": "Pubblica",
-		"publishLater": "Pubblica arriva con una parte successiva dell'area di costruzione",
 		"size": {
 			"readout": "Dimensioni della cornice",
 			"presets": "Larghezza del dispositivo",
@@ -9191,10 +9191,7 @@
 			"postTypesNone": "Nessuno scelto",
 			"postTypesMenu": "Post Type elencati dal Loop",
 			"status": "Stato",
-			"publish": "Pubblica il Loop",
-			"publishing": "Pubblicazione…",
-			"published": "Il Loop è pubblicato: ora le pagine lo mostrano",
-			"publishHelp": "Le pagine mostrano il Loop com'era all'ultima pubblicazione. Pubblica mostra loro questa Bozza.",
+			"publishHelp": "Le pagine mostrano il Loop com'era all'ultima pubblicazione. Pubblica nella barra mostra loro questa Bozza.",
 			"definition": "Definizione",
 			"showAs": "Mostra la definizione come",
 			"form": "Modulo",
@@ -9464,6 +9461,292 @@
 			"changedHere": "Modificato, non pubblicato",
 			"refused": "Questa modifica non è stata salvata: {reason}"
 		},
+		"publishing": {
+			"cell": "Pubblica",
+			"changes": {
+				"one": "{count} modifica",
+				"other": "{count} modifiche"
+			},
+			"nothing": "Niente da pubblicare",
+			"publishing": "Pubblicazione…",
+			"published": "Pubblicato",
+			"tryAgain": "Riprova",
+			"sendForReview": "Invia in revisione",
+			"title": "Pubblica {title}",
+			"titleNoPage": "Pubblica queste modifiche",
+			"intro": "I visitatori vedono queste modifiche quando pubblichi.",
+			"close": "Chiudi",
+			"empty": "Non ci sono modifiche qui.",
+			"loading": "Lettura delle modifiche…",
+			"readFailed": "Impossibile leggere le modifiche: {reason}",
+			"rows": "Modifiche",
+			"change": "{name}: {what}",
+			"what": {
+				"words": "testo modificato",
+				"replaced": "sostituita",
+				"items": "elementi modificati",
+				"layout": "sezioni modificate",
+				"changed": "modificato",
+				"new": "nuovo, mai pubblicato"
+			},
+			"builtIn": {
+				"title": "Titolo",
+				"slug": "Indirizzo",
+				"parent": "Pagina superiore",
+				"seo": "Ricerca e condivisione",
+				"layout": "Sezioni",
+				"hiddenLanguages": "Lingue"
+			},
+			"kinds": {
+				"siteTemplate": "Template del sito",
+				"entryTemplate": "Template della voce · {postType}",
+				"archiveTemplate": "Template dell'archivio · {postType}",
+				"searchTemplate": "Template dei risultati di ricerca",
+				"template": "Template",
+				"component": "Componente · {name}",
+				"loop": "Loop · {name}",
+				"siteScript": "Script del sito",
+				"pageScript": "Script della pagina · {name}",
+				"designSystem": "Design system",
+				"globals": "Globali",
+				"globalsForMembers": "Dati del sito",
+				"entry": "{name}",
+				"other": "{name}"
+			},
+			"byYou": "tu · {when}",
+			"byName": "{name} · {when}",
+			"byNobody": "{when}",
+			"justNow": "proprio ora",
+			"staffPublish": "Lo pubblica lo Staff",
+			"revert": "Ripristina",
+			"revertName": "Ripristina {name}",
+			"reverted": "{name} ripristinato.",
+			"revertFailed": "Impossibile ripristinare {name}: {reason}",
+			"translations": {
+				"review": "{language} viene tradotto di nuovo dall'IA e attende la tua revisione.",
+				"automatic": "{language} viene tradotto dall'IA e va online con questa pubblicazione."
+			},
+			"later": "Pubblica più tardi",
+			"laterHint": "Scegli un giorno e un'ora invece di adesso",
+			"day": "Giorno",
+			"time": "Ora",
+			"schedule": "Programma",
+			"scheduled": "Pubblicazione programmata per {when}.",
+			"laterPast": "Scegli un momento nel futuro.",
+			"others": {
+				"one": "{count} altra Bozza su questo sito",
+				"other": "{count} altre Bozze su questo sito"
+			},
+			"publishAll": "Pubblica tutto",
+			"publishAllName": "Pubblica tutto nell'amministrazione (si apre in una nuova scheda)",
+			"discard": "Scarta tutte le modifiche",
+			"discardConfirm": "Scartare tutte le modifiche di questa pagina? Non si può annullare.",
+			"discardStructure": "Template, componenti e design system mantengono le loro Bozze.",
+			"discardYes": "Scarta",
+			"discardNo": "Tienile",
+			"discarded": "Modifiche scartate.",
+			"publish": "Pubblica",
+			"publishedSaid": "Pubblicato. I visitatori ora vedono le modifiche.",
+			"failed": "Impossibile pubblicare: {reason}",
+			"viewLive": "Vedi la pagina online",
+			"dismiss": "Chiudi",
+			"reasons": {
+				"network": "il server non è raggiungibile.",
+				"forbidden": "non puoi pubblicare alcune di queste.",
+				"changed": "nel frattempo qualcosa è cambiato. Guarda di nuovo l'elenco.",
+				"refused": "{name} non si può ancora pubblicare.",
+				"scheduledAlready": "una di queste è già programmata.",
+				"nothing": "non c'è niente da pubblicare.",
+				"generic": "il server ha risposto {code}.",
+				"scheduleInvalid": "scegli un momento nel futuro, entro dieci anni."
+			},
+			"review": {
+				"title": "Invia in revisione",
+				"note": "Aggiungi una nota per il tuo Editor (facoltativa)",
+				"send": "Invia in revisione",
+				"sent": "Inviato in revisione. Un Editor o un Owner lo controlla.",
+				"waiting": "In revisione da {when}.",
+				"withdraw": "Ritira dalla revisione",
+				"withdrawn": "Ritirato dalla revisione.",
+				"failed": "Impossibile inviarlo: {reason}",
+				"sentBack": "Rimandato indietro da {name}: {comment}"
+			}
+		},
+		"forms": {
+			"sidebar": "I Form del Sito",
+			"status": {
+				"draft": "Bozza",
+				"published": "Pubblicato",
+				"changed": "Modifiche non pubblicate"
+			},
+			"placed": {
+				"none": "Non ancora inserito",
+				"one": "Inserito in {count} punto",
+				"other": "Inserito in {count} punti"
+			},
+			"staffOnly": "I Form sono Struttura: li costruisce solo lo Staff.",
+			"loading": "Lettura dei Form…",
+			"loadFailed": "Impossibile leggere i Form: {reason}",
+			"formFailed": "Impossibile leggere questo Form: {reason}",
+			"empty": {
+				"title": "Ancora nessun Form",
+				"text": "Crea il primo Form del Sito, vuoto o da un modello."
+			},
+			"tabsLabel": "Parti di {name}",
+			"tabs": {
+				"build": "Costruzione",
+				"afterSending": "Dopo l'invio",
+				"emails": "Email",
+				"translations": "Traduzioni",
+				"settings": "Impostazioni"
+			},
+			"laterText": "Questa scheda arriva con una fase successiva dell'area di costruzione. Fino ad allora la trovi nella pagina del Form nell'admin.",
+			"openInAdmin": "Apri il Form nell'admin (nuova scheda)",
+			"newForm": {
+				"title": "Nuovo Form",
+				"name": "Nome",
+				"namePlaceholder": "Richiesta di prenotazione",
+				"nameRequired": "Dai un nome al Form.",
+				"key": "Chiave",
+				"keyPending": "Creata dal nome",
+				"keyWhy": "Creata dal nome. Il markup dei Template inserisce il Form tramite la sua chiave.",
+				"startFrom": "Parti da",
+				"cancel": "Annulla",
+				"create": "Crea Form",
+				"creating": "Creazione…",
+				"creatingNamed": "Creazione di {name}…",
+				"made": "{name} creato"
+			},
+			"starters": {
+				"blank": "Vuoto",
+				"contact": "Contatti",
+				"booking": "Richiesta di prenotazione",
+				"newsletter": "Iscrizione alla newsletter",
+				"job": "Candidatura"
+			},
+			"starterFields": {
+				"name": "Nome",
+				"email": "Email",
+				"message": "Messaggio",
+				"phone": "Telefono",
+				"date": "Data",
+				"people": "Numero di persone",
+				"anythingElse": "C'è altro che dovremmo sapere?",
+				"newsletterConsent": "Voglio ricevere la newsletter",
+				"role": "La posizione per cui ti candidi",
+				"cv": "CV",
+				"coverLetter": "Lettera di presentazione"
+			},
+			"reasons": {
+				"keyTaken": "un altro Form ha già questa chiave",
+				"invalid": "qualcosa non va",
+				"forbidden": "può farlo solo lo Staff",
+				"network": "il Sito non ha risposto",
+				"generic": "è stato rifiutato ({code})"
+			},
+			"kinds": {
+				"text": "Testo",
+				"email": "Email",
+				"phone": "Telefono",
+				"url": "Indirizzo web",
+				"textarea": "Testo lungo",
+				"number": "Numero",
+				"date": "Data",
+				"select": "Menu a tendina",
+				"radio": "Una scelta",
+				"checkboxes": "Più scelte",
+				"consent": "Consenso",
+				"file": "File",
+				"hidden": "Nascosto",
+				"section": "Sezione",
+				"step": "Passo"
+			},
+			"kindField": "Campo {kind}",
+			"add": "Aggiungi",
+			"addField": "Aggiungi un campo",
+			"addAfterHeading": "Aggiungi un campo dopo {label}",
+			"addAfter": "Aggiungi un campo dopo {label}",
+			"layout": "Struttura",
+			"full": "Il Form contiene già tutti gli elementi possibili (100).",
+			"panel": "Impostazioni del campo",
+			"option": "Opzione",
+			"stepTitle": "Passo {number}",
+			"steps": "Passi",
+			"stepTab": "{number} {title}",
+			"step": "Passo",
+			"addStep": "Aggiungi un passo",
+			"stepAdded": "Passo {number} aggiunto",
+			"stepMoved": "Passo {from} spostato al posto {to}",
+			"added": "{kind} aggiunto",
+			"removed": "{label} rimosso",
+			"undo": "Annulla",
+			"duplicated": "{label} duplicato",
+			"movedTo": "{label} spostato",
+			"widthSet": "{label}: {width}",
+			"goesHere": "{label} va qui",
+			"duplicate": "Duplica",
+			"remove": "Rimuovi",
+			"keyLocked": "Gli Invii conservano le risposte di questo campo sotto la sua chiave: una volta pubblicato non cambia più.",
+			"width": {
+				"label": "Larghezza",
+				"whole": "Intera",
+				"half": "Metà",
+				"third": "Un terzo"
+			},
+			"source": {
+				"page": "l'indirizzo della pagina",
+				"query": "?{name} nell'indirizzo della pagina",
+				"fixed": "testo fisso"
+			},
+			"rule": {
+				"shownWhen": "Mostrato quando {rule}",
+				"andMore": "{rule} e altre {count}",
+				"orMore": "{rule} o altre {count}",
+				"ops": {
+					"is": "{field} è {value}",
+					"isNot": "{field} non è {value}",
+					"isEmpty": "{field} è vuoto",
+					"isNotEmpty": "{field} è compilato",
+					"greaterThan": "{field} è maggiore di {value}",
+					"lessThan": "{field} è minore di {value}"
+				}
+			},
+			"sheet": {
+				"label": "{name} come lo vedranno i visitatori",
+				"list": "Campi di {name}",
+				"option": "{label}, {kind}",
+				"required": "obbligatorio",
+				"empty": "Ancora nessun campo qui. Trascina un tipo sul Form, o sceglilo a destra."
+			},
+			"keys": {
+				"picked": "{label} preso. Le frecce lo spostano, Spazio lo lascia, Esc lo rimette a posto.",
+				"moved": "{label}: posto {position}",
+				"dropped": "{label} lasciato",
+				"putBack": "{label} rimesso a posto",
+				"cleared": "Nessuna scelta"
+			},
+			"history": {
+				"added": "Aggiungi {kind}",
+				"removed": "Rimuovi {label}",
+				"duplicated": "Duplica {label}",
+				"moved": "Sposta {label}",
+				"changed": "Modifica {label}",
+				"width": "Larghezza di {label}",
+				"stepMoved": "Sposta un passo"
+			},
+			"tryIt": {
+				"label": "Prova",
+				"help": "Compila qui il Form per provare regole e passi. Non viene inviato nulla.",
+				"on": "Prova del Form: non viene inviato nulla",
+				"off": "Costruzione del Form",
+				"notSent": "Non è stato inviato nulla: era una prova.",
+				"again": "Riprova"
+			},
+			"published": "{name} pubblicato",
+			"publishFailed": "Impossibile pubblicare {name}: {reason}",
+			"saveFailed": "Impossibile salvare {name}: {reason}",
+			"problemsFound": "Impossibile salvare {name} per ora: {count} problemi, indicati nei rispettivi campi."
+		},
 		"structure": {
 			"tree": "Elementi della pagina",
 			"siteTemplate": "Site template",
@@ -9527,7 +9810,7 @@
 				"inside": "Dentro il Component {name}",
 				"placementOf": "Una Placement di {name}",
 				"notOpen": "Il Template o il Component di questo elemento non è aperto qui: selezionalo di nuovo quando la pagina è caricata.",
-				"badValue": "Questo non è un valore: {value}. Scrivilo come {{ path }}."
+				"badValue": "Questo non è un valore: {value}. Scrivi il nome di un valore tra doppie graffe."
 			}
 		}
 	},

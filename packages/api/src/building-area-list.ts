@@ -118,6 +118,17 @@ export const BUILDING_AREA_PROCEDURES = [
 	// The Loops place's result (BA-25): what a Loop's Draft lists and the pages showing it, read as the
 	// Data tab reads (`structure.edit`, Staff only; a Member's call is FORBIDDEN). It reads, never writes.
 	"loops.result",
+	// The Forms place's Build tab (BA-26): the Site's Forms with where each is placed, one Form's Draft
+	// and published version, New Form (from a blank or a starter's fields), its Draft saved as fields
+	// change, and its fields published with Publish. All are Staff's (`structure.edit`, as in the
+	// admin; a Member's call is FORBIDDEN), except that the list and one Form also open for the clients
+	// who change a Form's emails (`formEmails.edit`). Its emails (who receives Submissions: a Sensitive
+	// action) and deleting a Form stay the admin's.
+	"forms.list",
+	"forms.get",
+	"forms.create",
+	"forms.saveDraft",
+	"forms.publish",
 	// Page layouts, as Members arrange them.
 	"pageLayouts.settings",
 	// The Components place's "Allowed for Members" switch: which Components Members may add to a Page
@@ -140,6 +151,10 @@ export const BUILDING_AREA_PROCEDURES = [
 	"publishing.schedule",
 	"publishing.reschedule",
 	"publishing.cancelScheduled",
+	// Publish later in the bar's Publish (BA-12): the items Publish shows, scheduled together in Publish
+	// all's two calls (the first schedules nothing). Each item still needs its own publish Permission, so
+	// an Author's call is FORBIDDEN, and Structure needs `structure.edit`.
+	"publishing.scheduleAll",
 	// The person's own editor preferences (panel layout and the rest), read and saved from the shell.
 	// They take the Site whose building area asks, and open it with `entry.edit`, so they are pinned
 	// like every line here; saving is refused while impersonating, as in the admin.

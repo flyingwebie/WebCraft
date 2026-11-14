@@ -53,7 +53,7 @@ export type ShellConfig = {
 /**
  * The Permissions the shell draws by, beyond Go to's (`builder.commandMenu`): uploading and changing
  * one's own Media files, and everyone's with the folders; changing the Site's Structure (Staff: Layers
- * and the Inspector, BA-08). Every procedure still checks `can()`.
+ * and the Inspector, BA-08; the Forms place). Every procedure still checks `can()`.
  */
 export const SHELL_PERMISSIONS = [
 	"media.upload",
@@ -65,11 +65,13 @@ export type ShellPermission = (typeof SHELL_PERMISSIONS)[number];
 
 /**
  * The parts of the admin's messages the shell reuses: the Media parts' (`ui/media/*`, through
- * `use-intl`), and a query Loop's words (operators, date windows, built-in dates, statuses) for the
- * Loops place, which builds queries as the admin's Loop screen does (`ui/content/loop-query.ts`).
+ * `use-intl`), a Form field's settings (`ui/forms/FieldPanel.tsx`, `forms`, through `use-intl`), and a
+ * query Loop's words (operators, date windows, built-in dates, statuses) for the Loops place, which
+ * builds queries as the admin's Loop screen does (`ui/content/loop-query.ts`).
  */
 export type AdminMessages = {
 	media: (typeof en)["media"];
+	forms: (typeof en)["forms"];
 	errors: (typeof en)["errors"];
 	popups: { title: string };
 	content: { media: (typeof en)["content"]["media"]; builtIn: (typeof en)["content"]["builtIn"] };

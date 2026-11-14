@@ -30,7 +30,8 @@ export function ChoiceMenu({
 	groups: readonly ChoiceGroup[];
 	/** The button that opened it: focus goes back to it, and a press on it isn't "outside". */
 	button: RefObject<HTMLElement | null>;
-	side: "top" | "bottom";
+	/** Above or below its button, or beside it (the rail's "more"). */
+	side: "top" | "bottom" | "end";
 	align?: "start" | "end";
 	onChoose(choice: Choice): void;
 	onClose(focusButton: boolean): void;
@@ -81,7 +82,10 @@ export function ChoiceMenu({
 		event.stopPropagation();
 	};
 
-	const place = `${side === "top" ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+4px)]"} ${align === "start" ? "start-0" : "end-0"}`;
+	const place =
+		side === "end"
+			? "start-[calc(100%+8px)] top-0"
+			: `${side === "top" ? "bottom-[calc(100%+6px)]" : "top-[calc(100%+4px)]"} ${align === "start" ? "start-0" : "end-0"}`;
 	return (
 		<div
 			ref={menu}

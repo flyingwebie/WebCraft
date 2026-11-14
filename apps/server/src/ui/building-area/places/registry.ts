@@ -4,14 +4,15 @@ import type { ShellConfig, Words } from "../api.ts";
 import type { BuildingDocument, Documents } from "../documents.ts";
 import { ComponentsPlace } from "./components/ComponentsPlace.tsx";
 import { ContentPlace } from "./content/ContentPlace.tsx";
-import { type PlaceKey, placeKeyOf } from "./keys.ts";
+import { FormsPlace } from "./forms/FormsPlace.tsx";
+import { MORE_PLACE_KEYS, type PlaceKey, placeKeyOf } from "./keys.ts";
 import { LoopsPlace } from "./loops/LoopsPlace.tsx";
 import { MediaPlace } from "./media/MediaPlace.tsx";
 import { leftAt } from "./memory.ts";
 import { StylesPlace } from "./styles/StylesPlace.tsx";
 import { TemplatesPlace } from "./templates/TemplatesPlace.tsx";
 
-export { PLACE_KEYS } from "./keys.ts";
+export { MORE_PLACE_KEYS, PLACE_KEYS } from "./keys.ts";
 export { type PlaceKey, placeKeyOf };
 
 /**
@@ -38,6 +39,19 @@ export type PlaceProps = {
 	announce(text: string, urgent?: boolean): void;
 	/** What the place is saving, for the Draft state beside Publish. */
 	onSaving(status: "saving" | "saved" | "failed"): void;
+	/**
+	 * What the place has of its own for the bottom bar (the Forms place's Form, BA-26): its Draft's
+	 * changes for the Draft state, and Publish; null gives them back to the page.
+	 */
+	onBar?(bar: PlaceBar | null): void;
+};
+
+/** A place's own Draft state and Publish (`PlaceProps.onBar`). */
+export type PlaceBar = {
+	/** How many changes its Draft holds. */
+	changes: number;
+	/** Publishes them; answers whether they were published. */
+	publish(): Promise<boolean>;
 };
 
 /** One place: how the rail opens it, and what draws it. */
@@ -56,11 +70,17 @@ const PLACES: Partial<Record<PlaceKey, PlaceEntry>> = {
 	styles: { key: "styles", first: "styles/classes", component: StylesPlace },
 	components: { key: "components", first: "components", component: ComponentsPlace },
 	loops: { key: "loops", first: "loops", component: LoopsPlace },
+	forms: { key: "forms", first: "forms", component: FormsPlace },
 };
 
 /** The place registered for a rail button, if it exists yet. */
 export function placeEntry(key: PlaceKey): PlaceEntry | null {
 	return PLACES[key] ?? null;
+}
+
+/** The places behind the rail's "more" that exist so far (Forms). */
+export function morePlaces(): PlaceEntry[] {
+	return MORE_PLACE_KEYS.flatMap((key) => placeEntry(key) ?? []);
 }
 
 /** Where the rail opens a place: where it was left in this tab, else its first address. */
