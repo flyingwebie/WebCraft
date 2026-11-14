@@ -24,7 +24,8 @@ import { NarrowNotice } from "./NarrowNotice.tsx";
 import { useOpenDocument } from "./open-document.ts";
 import { Inspector } from "./panels/Inspector.tsx";
 import { Layers } from "./panels/Layers.tsx";
-import { MediaShellHost } from "./places/media/Picker.tsx";
+import { MediaShellHost } from "./places/media/host.tsx";
+import { PlaceLoader } from "./places/PlaceLoader.tsx";
 import {
 	PLACE_EVENT,
 	PLACE_KEYS,
@@ -509,8 +510,10 @@ export function Shell({ config }: { config: ShellConfig }) {
 						{/* The Breakpoints switched on in Styles (BA-24), drawn where the frame's edges would be. */}
 						<BreakpointLines />
 					</div>
+					{/* Each place's code is fetched the first time it opens (BA-30): its frame shows at once meanwhile. */}
 					{place && opened.address.place ? (
-						<place.component
+						<PlaceLoader
+							entry={place}
 							config={config}
 							words={words}
 							place={opened.address.place}

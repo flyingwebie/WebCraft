@@ -6,6 +6,8 @@
 // live, and Code mode mounting its Layers, Insert, Inspector, CSS panel, Command menu and Undo, on the
 // dev server alone. So: the editor loads all its parts there, from scripts holding no such name.
 // Looks and the keyboard are checked on the production web process (edit-mode, code-mode, code-layers).
+// The building area's shell is bundled with its code split (BA-30): its places come as files of their
+// own through `import()`, which must reach the browser as written there too.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Page } from "playwright";
 
@@ -66,6 +68,7 @@ beforeAll(async () => {
 	});
 	entryId = entry.id;
 	await api.entries.publish({ siteId, entryId });
+	await api.forms.create({ siteId, name: "Contact" });
 
 	admin = install.webBrowser();
 	await admin.api.session.signIn(staff);
@@ -170,6 +173,55 @@ describe("the on-site editor under the dev server", () => {
 		await page.getByRole("button", { name: "Open in builder" }).and(page.locator(":enabled")).waitFor();
 
 		expect(await serverOnlyNames(page, scripts, ["bar", "code", "panels", "drafts"])).toEqual({});
+		expect(pageErrors(page)).toEqual([]);
+		await page.close();
+	});
+});
+
+describe("the building area under the dev server", () => {
+	test("the shell loads, and each place's file comes when the place opens, holding no name only the dev server gives", async () => {
+		const page = await install.newPage("light");
+		page.setDefaultTimeout(30_000);
+		await page.setViewportSize({ width: 1440, height: 900 });
+		const scripts = new Set<string>();
+		page.on("request", (request) => {
+			const url = new URL(request.url());
+			if (/^\/_webcraft\/edit\/assets\/shell-[^/]+\.js$/.test(url.pathname)) scripts.add(url.href);
+		});
+		const { url } = await admin.api.editMode.open({ siteId, building: true, open: `/page${path}` });
+		await page.goto(url);
+		await page.locator("iframe[data-wc-frame]").waitFor();
+		await page.locator('[data-wc-place="content"]').waitFor();
+		// The first file and Staff's shell with what it shares; no place yet.
+		const first = [...scripts].map((each) => new URL(each).pathname.split("/").pop() ?? "");
+		expect(first).toContainEqual(expect.stringMatching(/^shell-Shell-[0-9a-f]{16}\.js$/));
+		expect(first.filter((name) => /Place-/.test(name))).toEqual([]);
+
+		for (const [place, ready] of [
+			["content", "[data-wc-content-lists]"],
+			["forms", "[data-wc-forms-notice], [data-wcb-styled]"],
+		] as const) {
+			if (place === "forms") {
+				await page.locator('[data-wc-place="more"]').click();
+				await page.locator('[data-wc-choice="forms"]').click();
+			} else {
+				await page.locator(`[data-wc-place="${place}"]`).click();
+			}
+			await page.locator(ready).first().waitFor();
+			await page.locator("[data-wc-place-back]").click();
+			await page.locator("[data-wc-place-frame]").waitFor({ state: "detached" });
+		}
+		const files = [...scripts].map((each) => new URL(each).pathname.split("/").pop() ?? "");
+		expect(files).toContainEqual(expect.stringMatching(/^shell-ContentPlace-[0-9a-f]{16}\.js$/));
+		expect(files).toContainEqual(expect.stringMatching(/^shell-FormsPlace-[0-9a-f]{16}\.js$/));
+		const found: Record<string, string[]> = {};
+		for (const each of scripts) {
+			const response = await page.request.get(each);
+			expect(response.status()).toBe(200);
+			const names = (await response.text()).match(/__vite_ssr_\w+/g);
+			if (names) found[new URL(each).pathname] = [...new Set(names)];
+		}
+		expect(found).toEqual({});
 		expect(pageErrors(page)).toEqual([]);
 		await page.close();
 	});
