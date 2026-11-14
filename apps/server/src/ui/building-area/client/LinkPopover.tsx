@@ -168,6 +168,7 @@ export function LinkPopover({
 	const listId = useId();
 	const newTabId = useId();
 	const button = useMemo(() => looksLikeButton(element), [element]);
+	const wordsField = useRef<HTMLInputElement>(null);
 
 	useEffect(
 		() => () => {
@@ -249,6 +250,8 @@ export function LinkPopover({
 		const empty = draftOf(null);
 		latest.current = empty;
 		setDraft(empty);
+		// Remove link goes with the link: focus stays in the popover, on its words.
+		wordsField.current?.focus();
 	};
 
 	const shown = useMemo(() => {
@@ -304,6 +307,7 @@ export function LinkPopover({
 		>
 			<PopoverField label={button ? said.wordsButton : said.words} htmlFor={wordsId}>
 				<input
+					ref={wordsField}
 					id={wordsId}
 					type="text"
 					maxLength={300}

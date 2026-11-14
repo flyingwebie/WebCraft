@@ -350,7 +350,7 @@ export function clientEditing(options: {
 			if (!box) continue;
 			const isEditing = region === editingRegion || region === popped;
 			const isDrop = region === drop && !isEditing;
-			const isHover = (region === pointed || isDrop) && !isEditing && region !== focused;
+			const isHover = isDrop || (region === pointed && !isEditing && region !== focused);
 			const kind = isEditing ? "editing" : isHover ? "hover" : "focus";
 			outline(kind, box, kind);
 			if (region === popped || (isEditing && toolbar)) continue;

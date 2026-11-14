@@ -18,7 +18,7 @@ import { photo, upload } from "../harness/images.ts";
 import type { TestAccount, TestBrowser } from "../harness/index.ts";
 import { enterBuildingArea, settled } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
-import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
+import { type BrowserInstall, forgetPageErrors, pageErrors, startBrowserInstall } from "./harness.ts";
 
 let install: BrowserInstall;
 let api: TestBrowser["api"];
@@ -153,6 +153,8 @@ async function draftFields(): Promise<Record<string, unknown>> {
  */
 async function untilPhotoChanged(page: Page, frame: Frame, before: string | null): Promise<string> {
 	for (let attempt = 0; attempt < 80; attempt++) {
+		// The web process queued the job on the real clock; the test Install's clock stands still.
+		await install.install.clock.set(new Date(Date.now() + 1000));
 		await install.install.drainJobs();
 		const now = await frame.locator(photoRegion).getAttribute("data-wc-media");
 		if (now && now !== before) return now;
@@ -468,7 +470,8 @@ describe("photo and link popovers, for an Editor", () => {
 			"A link goes to a web address (http or https)",
 		);
 		expect(await popover.locator("[data-wc-link-address]").getAttribute("aria-invalid")).toBe("true");
-		// And the server refuses it whatever the shell sends.
+		// And the server refuses it whatever the shell sends (the browser logs the refusal it was sent to get).
+		const logged = pageErrors(page).length;
 		const refused = await page.evaluate(
 			async ({ item }) => {
 				const config = JSON.parse(document.getElementById("webcraft-building-area-config")?.textContent ?? "{}") as {
@@ -484,6 +487,7 @@ describe("photo and link popovers, for an Editor", () => {
 			{ item: `entry:${entryId}` },
 		);
 		expect(refused).toBe(400);
+		forgetPageErrors(page, logged, (error) => error.includes("400 (Bad Request)"));
 		expect((await draftFields()).cta).toMatchObject({ url: "mailto:orders@acme.test" });
 		expect(await link.getAttribute("href")).toBe("mailto:orders@acme.test");
 	});
@@ -495,6 +499,8 @@ describe("photo and link popovers, for an Editor", () => {
 		expect(await remove.textContent()).toBe("Click again to remove");
 		await remove.click();
 		await said(page, "Link removed");
+		// The button went with the link: focus stays in the popover, on its words.
+		expect(await page.evaluate(() => document.activeElement?.hasAttribute("data-wc-link-words"))).toBe(true);
 		expect(await eventually(draftFields, (fields) => fields.cta === null)).toMatchObject({ cta: null });
 		const link = frame.locator(linkRegion);
 		await frame.locator(`${linkRegion}[href=""]`).waitFor();
