@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { type SharedDraft, useSharedDraft } from "../co-editing/shared-draft.ts";
+import { formatTarget } from "../code-format/targets.ts";
 import { errorMessage } from "../errors.ts";
 import { AdminIntl, adminMessages, useT } from "../i18n.tsx";
 import { type BindKind, BindPropDialog, type Bound } from "./BindPropDialog.tsx";
@@ -110,6 +111,10 @@ export type CodeModeCommands = {
 	leaveTo(url: string): Promise<void>;
 	/** The editing bar's own actions: Publish opens its confirmation. */
 	bar(action: "publish" | "safeMode" | "preview" | "leave"): void;
+	/** Formats Code mode's own HTML or JS panel, when it can be edited now (SPEC 5.1). */
+	format(language: "html" | "js"): Promise<void>;
+	/** Whether Code mode's own HTML or JS panel can be edited now. */
+	formattable(language: "html" | "js"): boolean;
 };
 type PanelCommands = {
 	save(): Promise<boolean>;
@@ -1547,6 +1552,16 @@ function SourcePanels({
 		openSiteCss: () => {
 			commands?.showPanels();
 			setSiteCssRequest((count) => count + 1);
+		},
+		format: {
+			languages: (["html", "css", "js"] as const).filter((language) =>
+				language === "css" ? !!formatTarget("css") : !!commands?.formattable(language),
+			),
+			run: async (language) => {
+				commands?.showPanels();
+				if (language === "css") await formatTarget("css")?.();
+				else await commands?.format(language);
+			},
 		},
 		layer: (change) =>
 			change === "parent"

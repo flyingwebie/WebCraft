@@ -19,6 +19,7 @@ import { PlusIcon, SearchIcon, Trash2Icon } from "lucide-react";
 import { type FormEvent, useId, useRef, useState } from "react";
 
 import { getApi } from "../api.ts";
+import { FormatButton, FormatNoteLine, useCodeFormat } from "../code-format/FormatControl.tsx";
 import { useT } from "../i18n.tsx";
 import { DeclarationsEditor } from "./DeclarationsEditor.tsx";
 import type { Editing } from "./DesignSystemScreen.tsx";
@@ -173,6 +174,8 @@ function ClassPanel({ editing, found, onDeleted }: { editing: Editing; found: Ed
 	const nameValid = CLASS_NAME.test(name) && !isReservedName(name);
 	const { tokens } = editing.draft;
 	const current = editing.draft.classes.find((each) => each.id === found.id) ?? found;
+	const ownCss = useRef<HTMLTextAreaElement>(null);
+	const formatting = useCodeFormat("css", ownCss, current.css);
 
 	const sample = `<div class="${html(current.name)}"><h2>${html(t("designSystem.classes.sampleHeading"))}</h2><p>${html(t("designSystem.classes.sampleText"))} <a href="#">${html(t("designSystem.classes.sampleLink"))}</a></p></div>`;
 
@@ -234,15 +237,24 @@ function ClassPanel({ editing, found, onDeleted }: { editing: Editing; found: Ed
 				/>
 			))}
 			<Field>
-				<FieldLabel htmlFor={`${id}-css`}>{t("designSystem.classes.ownCss")}</FieldLabel>
+				<div className="flex items-center justify-between gap-2">
+					<FieldLabel htmlFor={`${id}-css`}>{t("designSystem.classes.ownCss")}</FieldLabel>
+					<FormatButton format={formatting} withWord />
+				</div>
 				<Textarea
+					ref={ownCss}
 					id={`${id}-css`}
 					value={found.css}
 					onChange={(event) => editing.changeClass(found.id, { css: event.target.value })}
+					onKeyDown={(event) => {
+						formatting.onKeyDown(event);
+					}}
 					className="min-h-28 font-mono text-xs"
 					spellCheck={false}
+					aria-invalid={formatting.problemLine ? true : undefined}
 					aria-describedby={`${id}-css-help`}
 				/>
+				<FormatNoteLine format={formatting} />
 				<FieldDescription id={`${id}-css-help`}>{t("designSystem.classes.ownCssHelp")}</FieldDescription>
 			</Field>
 			<StylePreview

@@ -1,5 +1,6 @@
 import type { Permission } from "@webcraft/core";
 
+import type { CodeLanguage } from "../code-format/format.ts";
 import type { useT } from "../i18n.tsx";
 import type { EditorHistory } from "./editor-history.ts";
 import type { LayerAction } from "./LayersPanel.tsx";
@@ -113,6 +114,11 @@ export type EditorCommandTarget = {
 	makeComponent?(): void;
 	/** New Component (#134): asks for a name and opens the new, empty Component's markup. */
 	newComponent?(): void;
+	/**
+	 * Format (SPEC 5.1): the languages of the code boxes the canvas shows now that can be edited, and
+	 * how to format one. "Format all three" shows where all three are there.
+	 */
+	format?: { languages: readonly CodeLanguage[]; run(language: CodeLanguage): Promise<void> };
 	/** Commands other tickets add. */
 	extra?: readonly Command[];
 };
@@ -230,6 +236,30 @@ export function editorCommands(target: EditorCommandTarget, t: T): Command[] {
 			() => target.preview?.(),
 			{ canvases: ["code"], permission: "site.view" },
 		);
+	const format = target.format;
+	if (format && format.languages.length > 0) {
+		const group = t("builder.commandMenu.groups.format");
+		const keywords = t("builder.commandMenu.keywords.format");
+		const label = { html: "formatHtml", css: "formatCss", js: "formatJs" } as const;
+		for (const language of format.languages)
+			add(
+				`format-${language}`,
+				words(`builder.commandMenu.actions.${label[language]}`),
+				`${keywords} ${language}`,
+				() => format.run(language),
+				{ group },
+			);
+		if (format.languages.length === 3)
+			add(
+				"format-all",
+				words("builder.commandMenu.actions.formatAll"),
+				`${keywords} html css js`,
+				async () => {
+					for (const language of format.languages) await format.run(language);
+				},
+				{ group },
+			);
+	}
 	if (target.newComponent)
 		add(
 			"newComponent",
