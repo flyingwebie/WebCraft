@@ -96,6 +96,11 @@ export function TemplatesPlace(props: PlaceProps) {
 				onSaving("saved");
 				await reload();
 				announce(fill(shown.reverted, { name }));
+				// Revert goes with the changes it took back: focus stays on the card, on Edit.
+				const key = `${card.kind}${card.postType ? `:${card.postType.id}` : ""}`;
+				document
+					.querySelector<HTMLElement>(`[data-wc-template-card="${key}"] [data-wc-template-edit]`)
+					?.focus({ preventScroll: true });
 			} catch (error) {
 				onSaving("failed");
 				announce(fill(shown.revertFailed, { name, reason: codeOf(error) }), true);

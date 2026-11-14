@@ -17,7 +17,7 @@ import type { Page } from "playwright";
 import type { TestAccount, TestBrowser } from "../harness/index.ts";
 import { announced, enterBuildingArea, frameOf, shellFocusVisible } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
-import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
+import { type BrowserInstall, forgetPageErrors, pageErrors, startBrowserInstall, THEMES } from "./harness.ts";
 
 let install: BrowserInstall;
 let staff: TestAccount;
@@ -227,6 +227,8 @@ describe("Templates and Components, for Staff", () => {
 		expect(markup.markup?.draft).toBe(markup.markup?.published);
 		expect(markup.markup?.draft).toContain("Results");
 		expect(await announced(page)).toBe("The Search results template is back to its published version");
+		// Revert is gone with the changes: focus stays on the card, on Edit.
+		expect(await page.evaluate(() => document.activeElement?.hasAttribute("data-wc-template-edit"))).toBe(true);
 	});
 
 	test("Edit opens a Template as the document", async () => {
@@ -238,6 +240,7 @@ describe("Templates and Components, for Staff", () => {
 	});
 
 	test("making an Archive template from + opens it on its archive page", async () => {
+		const reported = pageErrors(page).length;
 		await go(page, placed("templates"));
 		await page.locator(`[data-wc-template-column="${blogId}"] [data-wc-template-add]`).click();
 		await page.locator('[data-wc-template-make="archive"]').click();
@@ -252,6 +255,9 @@ describe("Templates and Components, for Staff", () => {
 			return shown?.pathname === "/blog";
 		});
 		expect(new URL(frame.url()).pathname).toBe("/blog");
+		// The frame shows published Structure for now: a never-published Archive template's page answers
+		// 404 there, which the browser reports. Drafts of Structure on the canvas come with BA-08.
+		forgetPageErrors(page, reported, (error) => error.includes("404 (Not Found)"));
 		// Back in the place, Blog posts has both, and no "+".
 		await go(page, placed("templates"));
 		await page.locator(`[data-wc-template-card="archive:${blogId}"]`).waitFor();
@@ -267,7 +273,7 @@ describe("Templates and Components, for Staff", () => {
 		const names = () =>
 			page
 				.locator("[data-wc-component-card]")
-				.evaluateAll((all) => all.map((card) => card.querySelector("span:nth-child(2)")?.textContent));
+				.evaluateAll((all) => all.map((card) => card.querySelector("[data-wc-component-name]")?.textContent));
 		expect(await names()).toEqual(["CustomerQuote", "HeroSplit", "OpeningHours"]);
 		const hero = page.locator(`[data-wc-component-card="${heroId}"]`);
 		expect(await hero.textContent()).toBe("HeroSpliton 2 pages");

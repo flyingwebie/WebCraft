@@ -342,7 +342,9 @@ function ComponentCard({
 				<span className="bg-chrome-hover h-11 w-full rounded" />
 				<span className={`${bar} h-2 w-[70px]`} />
 			</span>
-			<span className="text-chrome-strong text-[13px] font-semibold">{component.name}</span>
+			<span className="text-chrome-strong text-[13px] font-semibold" data-wc-component-name="">
+				{component.name}
+			</span>
 			<span className="flex flex-wrap items-center gap-1.5">
 				<span className="text-chrome-muted text-[11px]">{counted(shown.onPages, component.usage.pages, language)}</span>
 				{component.status === "draft" && !component.module ? <Badge kind="draft">{shown.draftBadge}</Badge> : null}
