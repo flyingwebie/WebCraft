@@ -303,7 +303,7 @@ describe("client editing, for an Editor", () => {
 		expect(Math.abs(dotBox.y + dotBox.height / 2 - (now.y - 6))).toBeLessThanOrEqual(1);
 		expect(await page.locator('[data-wc-bar="undo"]').getAttribute("aria-label")).toBe("Undo Edit Subtitle");
 		// Publish says how many changes it would make live.
-		expect(await page.locator("[data-wc-publish]").textContent()).toBe("Publish11 change to publish");
+		await page.locator("[data-wc-publish]", { hasText: "Publish1, 1 change" }).waitFor();
 	});
 
 	test("keys: Escape finishes, Tab and Shift+Tab move between marked areas, Enter edits, typing waits for it", async () => {

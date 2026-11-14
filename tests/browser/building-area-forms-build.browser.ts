@@ -461,7 +461,7 @@ describe("the Forms place, for Staff", () => {
 		const { form } = await superadmin.api.forms.get({ siteId, formId: cakeId });
 		expect(form.published?.fields).toEqual(form.draft.fields);
 		expect(form.emails.published).toBeNull();
-		await page.locator('[data-wc-publish="done"]').waitFor();
+		await page.locator('[data-wc-publish="published"]').waitFor();
 		// Label, progress and result share one cell: the button never changes width.
 		expect((await publish.boundingBox())?.width).toBe(width);
 		expect(await state.textContent()).toContain("Saved");

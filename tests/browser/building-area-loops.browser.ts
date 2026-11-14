@@ -213,11 +213,17 @@ describe("the Loops place, for Staff", () => {
 		// Pages show the Loop as published: still three.
 		expect(await postsOnPage(page)).toEqual(["Bagels", "Brioche", "Focaccia"]);
 
-		await page.locator("[data-wc-loop-publish]").click();
+		// The bar's Publish covers the Loop open in the place (BA-12).
+		await page.locator("[data-wc-publish]").click();
+		await page.locator('[data-wc-publish-draft="loop"]').waitFor();
+		expect(await page.locator('[data-wc-publish-draft="loop"]').textContent()).toContain(
+			"Loop · latest-posts: changed",
+		);
+		await page.locator("[data-wc-publish-now='publish']").click();
 		await page.waitForFunction(
 			() => document.querySelector("[data-wc-loop-status]")?.getAttribute("data-wc-loop-status") === "published",
 		);
-		expect(await announced(page)).toBe("The Loop is published: pages show it now");
+		expect(await announced(page)).toBe("Published. Visitors see the changes now.");
 		expect((await loopOf(latestId)).published?.query.limit).toBe(2);
 		await page.waitForFunction(() => {
 			const frame = document.querySelector<HTMLIFrameElement>("iframe[data-wc-frame]");

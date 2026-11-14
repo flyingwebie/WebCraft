@@ -18,6 +18,7 @@ import { NarrowNotice } from "../NarrowNotice.tsx";
 import { useOpenDocument } from "../open-document.ts";
 import { MediaShellHost } from "../places/media/Picker.tsx";
 import { PLACE_EVENT, placeEntry, placeKeyOf, reopenPlace } from "../places/registry.ts";
+import { Publish } from "../publish/Publish.tsx";
 import { ClientBar, type ClientPanel, clientDraftStateOf } from "./ClientBar.tsx";
 import { CLIENT_PLACES, type ClientPlace, ClientRail } from "./ClientRail.tsx";
 import { HelpCard } from "./HelpCard.tsx";
@@ -26,7 +27,7 @@ import { PageSwitcher } from "./PageSwitcher.tsx";
 import { SidePanel } from "./SidePanel.tsx";
 
 /** What the `state` edit request says beyond what Staff's shell reads: whether it may publish, and a Page layout. */
-type ClientPageState = PageState & { page: PageState["page"] & { layout: boolean }; canPublish: boolean };
+type ClientPageState = PageState & { page: PageState["page"] & { layout: boolean } };
 
 /** What the bar shows of the page in the frame. */
 type ShownPage = {
@@ -34,7 +35,6 @@ type ShownPage = {
 	changes: number;
 	inReview: boolean;
 	languages: PageLanguage[];
-	canPublish: boolean;
 	/** Whether it is a Page, arranged with a Page layout (Sections, where the Site allows Members). */
 	layout: boolean;
 };
@@ -174,7 +174,6 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 					changes: data.changes.length,
 					inReview: data.reviews.some((review) => review.status === "inReview"),
 					languages: data.languages,
-					canPublish: data.canPublish !== false,
 					layout: data.page.layout === true,
 				});
 			});
@@ -219,6 +218,10 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 		[refreshState],
 	);
 	useEffect(() => () => window.clearTimeout(savedTimer.current), []);
+
+	// What Publish covers is read again whenever the page's state or a save changes (BA-12).
+	// biome-ignore lint/correctness/useExhaustiveDependencies: a new token each time either changes.
+	const publishChanged = useMemo(() => ({}), [shown, saving]);
 
 	// Whether the Site lets its Members arrange Pages: the Sections button (SPEC 13.4).
 	useEffect(() => {
@@ -383,8 +386,18 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 				panel={panelShown}
 				panelId={panelId}
 				onPanel={(next) => setPanel((was) => (was === next ? null : next))}
-				toPublish={shown?.changes ?? 0}
-				canPublish={shown?.canPublish ?? true}
+				publish={
+					<Publish
+						config={config}
+						request={request}
+						path={shown ? (shown.address.split("?")[0] ?? "/") : null}
+						document={opened.address.document}
+						changed={publishChanged}
+						size="client"
+						announce={announce}
+						onPublished={refreshState}
+					/>
+				}
 				onUndo={() => void undoHistory.undo()}
 				onRedo={() => void undoHistory.redo()}
 				place={place !== null}

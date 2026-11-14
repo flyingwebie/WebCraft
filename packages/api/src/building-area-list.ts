@@ -151,6 +151,10 @@ export const BUILDING_AREA_PROCEDURES = [
 	"publishing.schedule",
 	"publishing.reschedule",
 	"publishing.cancelScheduled",
+	// Publish later in the bar's Publish (BA-12): the items Publish shows, scheduled together in Publish
+	// all's two calls (the first schedules nothing). Each item still needs its own publish Permission, so
+	// an Author's call is FORBIDDEN, and Structure needs `structure.edit`.
+	"publishing.scheduleAll",
 	// The person's own editor preferences (panel layout and the rest), read and saved from the shell.
 	// They take the Site whose building area asks, and open it with `entry.edit`, so they are pinned
 	// like every line here; saving is refused while impersonating, as in the admin.

@@ -8,13 +8,11 @@ import {
 	PencilIcon,
 	Redo2Icon,
 	Rows3Icon,
-	SendIcon,
 	SlidersHorizontalIcon,
 	SmartphoneIcon,
 	TabletIcon,
 	TriangleAlertIcon,
 	Undo2Icon,
-	UploadIcon,
 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 
@@ -235,8 +233,7 @@ export function ClientBar({
 	panel,
 	panelId,
 	onPanel,
-	toPublish,
-	canPublish,
+	publish,
 	onUndo,
 	onRedo,
 	place,
@@ -258,10 +255,8 @@ export function ClientBar({
 	panel: ClientPanel | null;
 	panelId: string;
 	onPanel(panel: ClientPanel): void;
-	/** How many changes Publish would make live. */
-	toPublish: number;
-	/** Whether the person may publish (Owners, Editors); an Author sends for review instead. */
-	canPublish: boolean;
+	/** Publish (`publish/Publish.tsx`, BA-12) in the client's size: 132 × 40, an Author's "Send for review" 164. */
+	publish: ReactNode;
 	onUndo(): void;
 	onRedo(): void;
 	/** Whether a place is open over the canvas: the page's own controls wait until it is left. */
@@ -273,7 +268,6 @@ export function ClientBar({
 	const redoLabel = history.redo ? fill(words.redoStep, { step: history.redo }) : words.redo;
 	const look = STATE_LOOK[draft.kind];
 	const StateIcon = look.icon;
-	const publishWord = canPublish ? words.publish : said.sendForReview;
 	return (
 		<section
 			aria-label={words.bar}
@@ -375,31 +369,8 @@ export function ClientBar({
 						{said.pageDetails}
 					</BarButton>
 				)}
-				{/* One cell that never changes width (SPEC 10): it publishes from a later part of the building area. */}
-				<span className="group relative inline-flex shrink-0">
-					<button
-						type="button"
-						disabled
-						className={`flex h-10 shrink-0 items-center justify-center gap-2 rounded-[10px] text-[14px] font-semibold disabled:cursor-default ${
-							canPublish ? "w-[132px]" : "w-[164px]"
-						} ${toPublish > 0 ? "bg-primary text-primary-foreground disabled:opacity-60" : "bg-chrome-raised text-chrome-faint"}`}
-						data-wc-publish=""
-					>
-						{canPublish ? (
-							<UploadIcon aria-hidden="true" className="size-4" />
-						) : (
-							<SendIcon aria-hidden="true" className="size-4" />
-						)}
-						<span>{publishWord}</span>
-						{toPublish > 0 && canPublish ? (
-							<span className="grid h-5 min-w-5 place-items-center rounded-[10px] bg-black/25 px-1.5 text-[12px] font-bold">
-								<span aria-hidden="true">{toPublish}</span>
-								<span className="sr-only">{plural(said.toPublish, toPublish, language)}</span>
-							</span>
-						) : null}
-					</button>
-					<Tip label={words.publishLater} side="top" align="end" />
-				</span>
+				{/* Publish (BA-12): one cell that never changes width, its sheet above it. */}
+				{publish}
 			</div>
 		</section>
 	);

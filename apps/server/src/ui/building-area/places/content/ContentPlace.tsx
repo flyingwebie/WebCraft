@@ -3,6 +3,7 @@ import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useSta
 
 import { fill } from "../../api.ts";
 import type { PostTypeRow } from "../../management.ts";
+import { useOnPublished, usePublishSources } from "../../publish/sources.ts";
 import { rememberPlace, rememberScroll, scrollOf } from "../memory.ts";
 import { Place } from "../Place.tsx";
 import type { PlaceProps } from "../registry.ts";
@@ -56,6 +57,9 @@ export function ContentPlace(props: PlaceProps) {
 	const restored = useRef<string | null>(null);
 
 	useEffect(() => rememberPlace(place, view), [place, view]);
+	// The bar's Publish covers the Globals while their form is open (BA-12); statuses are read again once published.
+	usePublishSources(part.kind === "globals" ? [{ kind: "globals" }] : []);
+	useOnPublished(() => void reload());
 
 	// The list's scroll: where it was left, once there is something to scroll; remembered as it moves.
 	const scrollKey = `${place}?${view ?? ""}`;
