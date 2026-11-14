@@ -2822,6 +2822,28 @@
 			"moved": "Row {from} moved to place {to} of {count}.",
 			"removed": "Row {row} removed.",
 			"added": "Row {row} added."
+		},
+		"when": {
+			"now": "Just now",
+			"minutes": "{count, plural, one {# minute ago} other {# minutes ago}}",
+			"hours": "{count, plural, one {# hour ago} other {# hours ago}}",
+			"yesterday": "Yesterday",
+			"day": "{day} {month}",
+			"dayYear": "{day} {month} {year}",
+			"months": {
+				"jan": "Jan",
+				"feb": "Feb",
+				"mar": "Mar",
+				"apr": "Apr",
+				"may": "May",
+				"jun": "Jun",
+				"jul": "Jul",
+				"aug": "Aug",
+				"sep": "Sep",
+				"oct": "Oct",
+				"nov": "Nov",
+				"dec": "Dec"
+			}
 		}
 	},
 	"body": {
@@ -3006,16 +3028,32 @@
 			"languagesOf": "Languages of {title}",
 			"empty": "No {name} yet.",
 			"noMatch": "No Entries match.",
-			"toFix": "{count, plural, one {# to fix} other {# to fix}}"
+			"toFix": "{count, plural, one {# to fix} other {# to fix}}",
+			"inReview": "In review {count}",
+			"actions": "Actions",
+			"edit": "Edit",
+			"emptyCreate": "No {name} yet. Write a title in the row above to make the first one.",
+			"shown": "{shown} of {total}",
+			"showMore": "Show more",
+			"hidden": "(hidden)",
+			"hiddenIn": "{language}: hidden",
+			"language": "Language",
+			"languageAll": "Language: All",
+			"languageOne": "Language: {language}",
+			"loading": "Loading the list…"
 		},
 		"create": {
-			"open": "New in {name}",
 			"title": "New in {name}",
 			"intro": "Give it a title; you write the rest in the editor, saved as a Draft as you go.",
 			"titleRequired": "Give it a title.",
 			"submit": "Create",
 			"cancel": "Cancel",
-			"close": "Close"
+			"close": "Close",
+			"newPage": "New page",
+			"newEntry": "New Entry",
+			"rowPage": "Title of a new page…",
+			"rowEntry": "Title of a new Entry…",
+			"rowHelp": "Enter makes a Draft and opens it"
 		},
 		"editor": {
 			"back": "Back to {name}",

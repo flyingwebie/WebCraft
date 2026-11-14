@@ -226,15 +226,28 @@ for (const theme of THEMES) {
 		test("Pages as a tree, and the New dialog from the keyboard", async () => {
 			const page = await install.newPage(theme);
 			await open(page, staff, `/sites/${siteId}/entries/${pagesId}`);
-			await page.getByText("/about-us/our-team").waitFor();
+			const table = page.getByRole("table", { name: "Pages" });
+			await table.getByRole("link", { name: "Our team" }).waitFor();
+			// Each Page sits right under its parent Page.
+			const titles = await table.getByRole("link").allTextContents();
+			expect(titles.indexOf("Our team")).toBe(titles.indexOf("About us") + 1);
 			await expectAccessibleScreen(page, `Pages (${theme})`);
 
-			await expectOverlayUsable(
-				page,
-				page.getByRole("button", { name: "New in Pages" }),
-				"dialog",
-				`New Page (${theme})`,
-			);
+			await expectOverlayUsable(page, page.getByRole("button", { name: "New page" }), "dialog", `New Page (${theme})`);
+		});
+
+		test("the create row makes a Draft from its title and opens it", async () => {
+			const page = await install.newPage(theme);
+			await open(page, owner, `/sites/${siteId}/entries/${blogId}`);
+			await page.getByLabel("Title of a new Entry…").fill(`Opening hours (${theme})`);
+			await page.keyboard.press("Enter");
+
+			await page.waitForURL((url) => /\/entries\/[^/]+\/[^/]+$/.test(url.pathname));
+			await page.getByRole("heading", { level: 1, name: `Opening hours (${theme})` }).waitFor();
+			const admin = await install.install.superadmin();
+			const { entries } = await admin.api.entries.list({ siteId, postTypeId: blogId });
+			const made = entries.find((entry) => entry.draft.title === `Opening hours (${theme})`);
+			expect(made?.status).toBe("draft");
 		});
 
 		test("the Entry editor with every Field type, problems showing next to their values", async () => {

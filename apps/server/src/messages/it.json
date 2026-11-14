@@ -2822,6 +2822,28 @@
 			"moved": "Riga {from} spostata al posto {to} di {count}.",
 			"removed": "Riga {row} rimossa.",
 			"added": "Riga {row} aggiunta."
+		},
+		"when": {
+			"now": "Adesso",
+			"minutes": "{count, plural, one {# minuto fa} other {# minuti fa}}",
+			"hours": "{count, plural, one {# ora fa} other {# ore fa}}",
+			"yesterday": "Ieri",
+			"day": "{day} {month}",
+			"dayYear": "{day} {month} {year}",
+			"months": {
+				"jan": "gen",
+				"feb": "feb",
+				"mar": "mar",
+				"apr": "apr",
+				"may": "mag",
+				"jun": "giu",
+				"jul": "lug",
+				"aug": "ago",
+				"sep": "set",
+				"oct": "ott",
+				"nov": "nov",
+				"dec": "dic"
+			}
 		}
 	},
 	"body": {
@@ -3006,16 +3028,32 @@
 			"languagesOf": "Lingue di {title}",
 			"empty": "Ancora nessun elemento in {name}.",
 			"noMatch": "Nessun contenuto corrisponde.",
-			"toFix": "{count, plural, one {# da correggere} other {# da correggere}}"
+			"toFix": "{count, plural, one {# da correggere} other {# da correggere}}",
+			"inReview": "In revisione {count}",
+			"actions": "Azioni",
+			"edit": "Modifica",
+			"emptyCreate": "Ancora nessun elemento in {name}. Scrivi un titolo nella riga qui sopra per creare il primo.",
+			"shown": "{shown} di {total}",
+			"showMore": "Mostra altri",
+			"hidden": "(nascosto)",
+			"hiddenIn": "{language}: nascosto",
+			"language": "Lingua",
+			"languageAll": "Lingua: tutte",
+			"languageOne": "Lingua: {language}",
+			"loading": "Caricamento dell'elenco…"
 		},
 		"create": {
-			"open": "Nuovo in {name}",
 			"title": "Nuovo in {name}",
 			"intro": "Dagli un titolo; il resto lo scrivi nell'editor, salvato come bozza mentre scrivi.",
 			"titleRequired": "Dagli un titolo.",
 			"submit": "Crea",
 			"cancel": "Annulla",
-			"close": "Chiudi"
+			"close": "Chiudi",
+			"newPage": "Nuova pagina",
+			"newEntry": "Nuovo contenuto",
+			"rowPage": "Titolo di una nuova pagina…",
+			"rowEntry": "Titolo di un nuovo contenuto…",
+			"rowHelp": "Invio crea una bozza e la apre"
 		},
 		"editor": {
 			"back": "Torna a {name}",
