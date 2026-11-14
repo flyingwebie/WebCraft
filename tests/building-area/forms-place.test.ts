@@ -78,8 +78,11 @@ describe("Staff build a Form from the Site's address", () => {
 			form: { fields: [field("name", "text", "Name"), field("name", "email", "Email")] },
 		});
 		await expect(refused).rejects.toMatchObject({ code: "FORM_INVALID" });
-		const problems = await refused.catch((error: { data?: { problems?: { at: string }[] } }) => error.data?.problems);
-		expect(problems?.some((problem) => problem.at.startsWith("fields[1]"))).toBe(true);
+		const problems: { at: string }[] = await refused.then(
+			() => [],
+			(error: { data?: { problems?: { at: string }[] } }) => error.data?.problems ?? [],
+		);
+		expect(problems.some((problem) => problem.at.startsWith("fields[1]"))).toBe(true);
 		expect((await staffArea.api.forms.get({ siteId, formId: form.id })).form.draft.fields).toHaveLength(1);
 	});
 });

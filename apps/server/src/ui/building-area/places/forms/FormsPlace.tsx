@@ -19,7 +19,7 @@ import { buttonLook } from "../content/ui.tsx";
 import { rememberPlace } from "../memory.ts";
 import { Place } from "../Place.tsx";
 import type { PlaceProps } from "../registry.ts";
-import { Build } from "./build/Build.tsx";
+import { Build } from "./build-tab/Build.tsx";
 import { type FormListing, useFormsList, useOpenedForm } from "./data.ts";
 import { useFormEditor } from "./editor.ts";
 import { NewFormDialog } from "./NewFormDialog.tsx";

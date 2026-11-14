@@ -20,8 +20,8 @@ import {
 	stepOf,
 	stepRange,
 	stepsOf,
-} from "../../apps/server/src/ui/building-area/places/forms/build/layout.ts";
-import { forShadowRoot } from "../../apps/server/src/ui/building-area/places/forms/build/site-styles.ts";
+} from "../../apps/server/src/ui/building-area/places/forms/build-tab/layout.ts";
+import { forShadowRoot } from "../../apps/server/src/ui/building-area/places/forms/build-tab/site-styles.ts";
 import { STARTERS, starterFields } from "../../apps/server/src/ui/building-area/places/forms/starters.ts";
 import {
 	formsAt,
@@ -69,7 +69,13 @@ describe("addresses", () => {
 });
 
 describe("a Form's items", () => {
-	const plain = [field("name"), field("email", "email"), field("cake", "section"), field("kind", "select"), field("date", "date")];
+	const plain = [
+		field("name"),
+		field("email", "email"),
+		field("cake", "section"),
+		field("kind", "select"),
+		field("date", "date"),
+	];
 	const stepped = [
 		field("details", "step"),
 		field("name"),
@@ -95,8 +101,18 @@ describe("a Form's items", () => {
 	});
 
 	test("adding, moving to a gap and moving one place, across a section's and a step's title", () => {
-		expect(keys(insertAt(plain, 2, field("phone", "phone")))).toEqual(["name", "email", "phone", "cake", "kind", "date"]);
-		expect(moveTo(plain, 0, 3)).toEqual({ items: [plain[1], plain[2], plain[0], plain[3], plain[4]] as FormField[], index: 2 });
+		expect(keys(insertAt(plain, 2, field("phone", "phone")))).toEqual([
+			"name",
+			"email",
+			"phone",
+			"cake",
+			"kind",
+			"date",
+		]);
+		expect(moveTo(plain, 0, 3)).toEqual({
+			items: [plain[1], plain[2], plain[0], plain[3], plain[4]] as FormField[],
+			index: 2,
+		});
 		expect(moveTo(plain, 4, 0).index).toBe(0);
 		// A move to its own place changes nothing.
 		expect(keys(moveTo(plain, 1, 2).items)).toEqual(keys(plain));
