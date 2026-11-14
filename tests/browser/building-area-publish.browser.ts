@@ -241,7 +241,10 @@ describe("Staff publish what the page shows", () => {
 		// The toast: Published, with the live page.
 		const toast = page.locator("[data-wc-publish-toast]");
 		await toast.waitFor();
-		expect(await page.locator("[data-wc-publish-live]").getAttribute("href")).toBe(`${live}${PATH}`);
+		// On the Site's live domain, as the Install writes a development domain's address.
+		const href = (await page.locator("[data-wc-publish-live]").getAttribute("href")) ?? "";
+		expect(new URL(href).hostname).toBe(new URL(live).hostname);
+		expect(new URL(href).pathname).toBe(PATH);
 		expect(await page.locator("[data-wc-publish-live]").textContent()).toBe("View live page");
 		await cellIs(page, "ready");
 		expect(Date.now() - publishedAt).toBeGreaterThanOrEqual(1500);
@@ -256,7 +259,7 @@ describe("Staff publish what the page shows", () => {
 		await page.unroute("**/_webcraft/build/api/rpc/publishing/publishAll");
 
 		// Visitors see the Entry's change and the Template's.
-		const response = await install.install.request(new Request(`${live}${PATH}`));
+		const response = await install.install.request(new Request(href));
 		const html = await response.text();
 		expect(html).toContain("Still warm");
 		expect(html).toContain('data-part="new"');
