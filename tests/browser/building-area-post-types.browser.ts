@@ -147,12 +147,10 @@ describe("Post Types and Fields, for Staff", () => {
 			"team",
 		]);
 		await page.locator('[data-wc-post-type="post"] td:nth-child(4)', { hasText: "Made" }).waitFor();
-		expect(await page.locator('[data-wc-post-type="post"]').innerText()).toMatch(
-			/Blog posts\s+post\s+\/blog\/\{slug\}\s+Made\s+Not made yet\s+3/,
-		);
-		expect(await page.locator('[data-wc-post-type="team"]').innerText()).toMatch(
-			/Team\s+team\s+\/team\/\{slug\}\s+Not made yet\s+Not made yet\s+2/,
-		);
+		const cells = async (key: string) =>
+			(await page.locator(`[data-wc-post-type="${key}"] td`).allTextContents()).slice(0, 6);
+		expect(await cells("post")).toEqual(["Blog posts", "post", "/blog/{slug}", "Made", "Not made yet", "3"]);
+		expect(await cells("team")).toEqual(["Team", "team", "/team/{slug}", "Not made yet", "Not made yet", "2"]);
 		expect(await page.locator('[data-wc-post-type="page"] [data-wc-post-type-delete]').count()).toBe(0);
 		expect(await page.locator('[data-wc-post-type="page"]').textContent()).toContain("every Site has Pages");
 		expect(await page.locator("[data-wc-post-types-count]").textContent()).toBe("3 Post Types");
@@ -210,9 +208,9 @@ describe("Post Types and Fields, for Staff", () => {
 		await page.locator('[data-wc-field-choose="author"]').click();
 		await page.locator('[data-wc-field-details="author"]').waitFor();
 		expect(new URL(page.url()).searchParams.get("wc-view")).toBe("field=author");
-		const details = await page.locator('[data-wc-field-details="author"]').innerText();
+		const details = (await page.locator('[data-wc-field-details="author"]').textContent()) ?? "";
 		expect(details).toContain("Relationship Field");
-		expect(details).toMatch(/Key\s+author/);
+		expect(details).toContain("Keyauthor");
 		expect(await page.locator('[data-wc-field-points-at] input[type="checkbox"]:checked').count()).toBe(1);
 
 		// A new Field at the end: Number.
