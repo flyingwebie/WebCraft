@@ -5,6 +5,7 @@
 // element opens its Component with the breadcrumb and where it is used, a changed script runs only
 // on Run with its errors in the console, and other editors' saved changes arrive live.
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import { format } from "@webcraft/server/code-format";
 import type { Cookie, Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
@@ -310,9 +311,15 @@ describe("CSS and Format", () => {
 		const html = page.getByRole("textbox", { name: /^HTML of / });
 		const region = page.getByRole("region", { name: "HTML" });
 
+		const before = await html.inputValue();
 		await region.getByRole("button", { name: "Format" }).click();
+		await region.getByText(/^Formatted · /).waitFor();
 		const formatted = await html.inputValue();
-		expect(formatted).toMatch(/^<article data-wc-id="[^"]+">\n {2}<Hero /);
+		const expected = await format(before, "html");
+		expect(expected.ok && expected.text).toBe(formatted);
+		expect(formatted).toMatch(
+			/^<article data-wc-id="[^"]+">\n {2}<Hero heading="\{\{ title \}\}" data-wc-id="[^"]+" \/>/,
+		);
 		expect(formatted).toMatch(/<\/p>\n<\/article>$/);
 
 		await region.getByRole("button", { name: "Save", exact: true }).click();
