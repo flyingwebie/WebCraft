@@ -8,7 +8,6 @@ import type { PageLanguage } from "./bottom-bar/LanguageMenu.tsx";
 import { Frame, type FrameHandle, type PageTheme } from "./canvas/Frame.tsx";
 import { NoDocument } from "./canvas/NoDocument.tsx";
 import type { SavingStatus } from "./canvas/regions.ts";
-import { MemberDetails } from "./client/PageDetails.tsx";
 import { DocumentSwitcher } from "./DocumentSwitcher.tsx";
 import { DockArea, useDocks } from "./docks/Docks.tsx";
 import { PanelsMenu } from "./docks/PanelsMenu.tsx";
@@ -273,38 +272,31 @@ export function Shell({ config }: { config: ShellConfig }) {
 		}),
 		[selection, kind],
 	);
-	// The Entry panel (Staff) or Page details (a Member, until client editing's side panel holds it, BA-14):
-	// the page's Entry filled in without leaving it; a page never published follows its new slug.
-	const staff = config.permissions.includes("structure.edit");
+	// The Entry panel (BA-13): the page's Entry filled in without leaving it; a page never published
+	// follows its new slug. (A Member gets Page details in client editing's side panel instead.)
 	const entryView = useEntryPanelView();
-	const [memberHeading, setMemberHeading] = useState<{ title: string; sub: string } | null>(null);
-	const entryOptions = {
-		token: config.token,
-		siteId: config.site.id,
-		words,
-		request,
-		page: pageState,
-		onSaving,
-		onMoved: (path: string) => opened.documents.replace({ kind: "page", page: path }),
-		announce,
-	};
 	const docks = useDocks({
 		config,
 		context,
 		announce,
 		bodies: {
-			entry: staff ? (
+			entry: (
 				<EntryPanel
-					{...entryOptions}
+					token={config.token}
+					siteId={config.site.id}
+					words={words}
+					request={request}
+					page={pageState}
+					onSaving={onSaving}
+					onMoved={(path) => opened.documents.replace({ kind: "page", page: path })}
+					announce={announce}
 					view={entryView}
 					admin={config.admin}
 					onLanguage={(path) => frame.current?.navigate(path)}
 				/>
-			) : (
-				<MemberDetails {...entryOptions} admin={config.admin} onHeading={setMemberHeading} />
 			),
 		},
-		panelActions: staff ? { entry: <EntryPanelActions words={words} view={entryView} /> } : {},
+		panelActions: { entry: <EntryPanelActions words={words} view={entryView} /> },
 		headings: {
 			layers: (
 				<DocumentSwitcher
@@ -315,16 +307,6 @@ export function Shell({ config }: { config: ShellConfig }) {
 					onOpen={opened.open}
 				/>
 			),
-			...(!staff && memberHeading
-				? {
-						entry: (
-							<span className="flex min-w-0 items-baseline gap-1.5 text-[12px]">
-								<span className="text-chrome-strong shrink-0 font-semibold">{memberHeading.title}</span>
-								<span className="text-chrome-muted truncate">{memberHeading.sub}</span>
-							</span>
-						),
-					}
-				: {}),
 		},
 	});
 

@@ -9,7 +9,7 @@
 // - Search and sharing counts against 60 and 160 and previews the search result;
 // - a Member gets Page details on a Page (title, address, Search and sharing, the picture, Hide from
 //   search engines) and Post details on a post (its Fields, then Search and sharing as a screen of its
-//   own, its Back returning focus);
+//   own, its Back returning focus), in client editing's side panel;
 // - the panels pass the accessibility checks, light and dark.
 // The building area's own test of the old Page details drawer (`edit-mode-in-place.browser.ts` ›
 // Page details; `tests/edit-mode/page-details.test.ts`).
@@ -347,6 +347,13 @@ describe("the Entry panel, for Staff", () => {
 	}
 });
 
+/** Opens a Member's Page details (or Post details) from client editing's bar, and waits for the Entry. */
+async function openDetails(page: Page): Promise<void> {
+	if ((await page.locator('[data-wc-side-panel="pageDetails"]').count()) === 0)
+		await page.locator('[data-wc-bar="page-details"]').click();
+	await page.locator('[data-wc-details="post"], [data-wc-details="page"]').first().waitFor();
+}
+
 describe("Page details and Post details, for a Member", () => {
 	let page: Page;
 
@@ -358,9 +365,9 @@ describe("Page details and Post details, for a Member", () => {
 	});
 
 	test("a Page gets Page details: its title, address, Search and sharing and the switch for search engines", async () => {
-		await openEntryPanel(page);
+		await openDetails(page);
 		const details = page.locator('[data-wc-details="page"]');
-		expect(await page.locator('[data-wc-panel="entry"] h2').textContent()).toContain("Page details");
+		expect(await page.locator("[data-wc-side-panel] h2").textContent()).toContain("Page details");
 		expect(await details.getByLabel("Title · English").inputValue()).toBe("About us");
 		expect(await details.locator("[data-wc-details-prefix]").textContent()).toMatch(/\/$/);
 
@@ -388,8 +395,8 @@ describe("Page details and Post details, for a Member", () => {
 
 	test("a post gets Post details: its Fields, then Search and sharing as a screen of its own", async () => {
 		await go(page, "/page/blog/rye-loaf");
-		await openEntryPanel(page);
-		expect(await page.locator('[data-wc-panel="entry"] h2').textContent()).toContain("Post details");
+		await openDetails(page);
+		expect(await page.locator("[data-wc-side-panel] h2").textContent()).toContain("Post details");
 		const details = page.locator('[data-wc-details="post"]');
 		await details.getByLabel("Category").selectOption("baking");
 		await details.locator("[data-wc-details-search]").click();
@@ -418,19 +425,19 @@ describe("Page details and Post details, for a Member", () => {
 		test(`Post details and Page details pass the accessibility checks, the page in ${theme}`, async () => {
 			await page.emulateMedia({ colorScheme: theme });
 			await go(page, "/page/blog/rye-loaf");
-			await openEntryPanel(page);
+			await openDetails(page);
 			await settled(page);
 			await page.mouse.move(0, 0);
-			await expectAccessibleScreen(page, `building area, Post details (${theme})`, CHECKED);
+			await expectAccessibleScreen(page, `building area, Post details (${theme})`);
 			await page.locator("[data-wc-details-search]").click();
 			await page.locator('[data-wc-details="search"]').waitFor();
-			await expectNoAxeViolations(page, `building area, Post details › Search and sharing (${theme})`, [], CHECKED);
+			await expectNoAxeViolations(page, `building area, Post details › Search and sharing (${theme})`, []);
 
 			// This Site's About page has no heading of its own (its Page layout is empty): the page's, not the panel's.
 			await go(page, "/page/about-us");
-			await openEntryPanel(page);
+			await openDetails(page);
 			await settled(page);
-			await expectNoAxeViolations(page, `building area, Page details (${theme})`, ["page-has-heading-one"], CHECKED);
+			await expectNoAxeViolations(page, `building area, Page details (${theme})`, ["page-has-heading-one"]);
 		});
 	}
 });
