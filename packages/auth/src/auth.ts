@@ -397,6 +397,7 @@ export function createAuth(options: AuthOptions): Auth {
 	 */
 	const sessionStarted = async (personId: string, token: string, clientAddress: string | null) => {
 		await database.db.update(sessions).set({ ipAddress: clientAddress }).where(eq(sessions.token, token));
+		await database.db.update(people).set({ lastSignedInAt: clock.now() }).where(eq(people.id, personId));
 		await lockout.signedIn(personId, await options.networkOf(clientAddress));
 	};
 	const startSession = async (personId: string, { headers, clientAddress }: AuthRequest) => {

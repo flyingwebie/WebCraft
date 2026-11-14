@@ -1166,8 +1166,10 @@
 			"role": "Role",
 			"sites": "Sites",
 			"actions": "Actions",
+			"lastSeen": "Last seen",
 			"twoFactor": "2FA"
 		},
+		"neverSignedIn": "Never",
 		"allSites": "All Sites",
 		"noSites": "No Sites",
 		"someSites": "{names}",
