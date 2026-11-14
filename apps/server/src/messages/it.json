@@ -4229,7 +4229,9 @@
 			"noGlobal": "Nessuno",
 			"save": "Salva",
 			"saved": "Impostazioni SEO salvate.",
-			"notSaved": "Le impostazioni SEO non sono state salvate:"
+			"notSaved": "Le impostazioni SEO non sono state salvate:",
+			"titlesCard": "Titoli e immagini",
+			"titlesCardIntro": "Come finiscono i titoli delle pagine, e l'immagine delle pagine che non ne hanno una."
 		},
 		"crawlers": {
 			"heading": "Crawler",
@@ -8010,7 +8012,10 @@
 			"enforcement": "Procedura di attuazione e contatti dell’organismo",
 			"enforcementUrl": "Link alla procedura di attuazione (HTTPS)"
 		},
-		"languages": "Il modulo fornisce testi in inglese e italiano. Per le altre lingue del sito, traduci i campi della pagina con gli strumenti di traduzione prima di pubblicare."
+		"languages": "Il modulo fornisce testi in inglese e italiano. Per le altre lingue del sito, traduci i campi della pagina con gli strumenti di traduzione prima di pubblicare.",
+		"aboutTitle": "Informazioni su questa dichiarazione",
+		"pageTitle": "La Pagina della dichiarazione",
+		"formTitle": "Dati per la dichiarazione"
 	},
 	"popups": {
 		"title": "Popup",

@@ -4229,7 +4229,9 @@
 			"noGlobal": "None",
 			"save": "Save",
 			"saved": "SEO settings saved.",
-			"notSaved": "The SEO settings weren't saved:"
+			"notSaved": "The SEO settings weren't saved:",
+			"titlesCard": "Titles and images",
+			"titlesCardIntro": "How page titles end, and the image of pages without their own."
 		},
 		"crawlers": {
 			"heading": "Crawlers",
@@ -8010,7 +8012,10 @@
 			"enforcement": "Enforcement procedure and body’s contact details",
 			"enforcementUrl": "Enforcement procedure link (HTTPS)"
 		},
-		"languages": "The form supplies English and Italian wording. For other Site languages, translate the Page’s fields using the ordinary translation tools before publishing."
+		"languages": "The form supplies English and Italian wording. For other Site languages, translate the Page’s fields using the ordinary translation tools before publishing.",
+		"aboutTitle": "About this statement",
+		"pageTitle": "The statement Page",
+		"formTitle": "Facts for the statement"
 	},
 	"popups": {
 		"title": "Popups",
