@@ -128,7 +128,11 @@ describe("the Filter builder from the keyboard", () => {
 		await page.getByRole("status").filter({ hasText: "Moved Search the shop: 2 of 9." }).waitFor({ state: "attached" });
 
 		// The preview shows the new order before anything is saved.
-		await page.getByRole("button", { name: "Save draft" }).focus();
+		// The foot bar saves the Draft, as on every settings screen.
+		await page
+			.getByRole("region", { name: "Saving this screen" })
+			.getByRole("button", { name: "Save", exact: true })
+			.focus();
 		await page.keyboard.press("Enter");
 		await page.getByText("The Filter's Draft is saved.").waitFor();
 		const { filter } = await shop.staff.api.filters.get({ siteId: shop.siteId, filterId: shop.filterId });
@@ -156,7 +160,11 @@ describe("the Filter builder from the keyboard", () => {
 		// The move actually reordered the options, not just announced it.
 		expect(await rows.first().locator('input[value="price-desc"]').count()).toBe(1);
 
-		await page.getByRole("button", { name: "Save draft" }).focus();
+		// The foot bar saves the Draft, as on every settings screen.
+		await page
+			.getByRole("region", { name: "Saving this screen" })
+			.getByRole("button", { name: "Save", exact: true })
+			.focus();
 		await page.keyboard.press("Enter");
 		await page.getByText("The Filter's Draft is saved.").waitFor();
 		const { filter } = await shop.staff.api.filters.get({ siteId: shop.siteId, filterId: shop.filterId });

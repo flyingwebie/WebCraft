@@ -6250,8 +6250,6 @@
 		"pageTitle": "Filters",
 		"heading": "Filters",
 		"intro": "The controls visitors use to narrow, search and sort the items of one query Loop. Staff build each Filter here and place it in a Template or Component beside its Loop.",
-		"listTitle": "The Site's Filters",
-		"listIntro": "Each Filter narrows one query Loop. Open one to change its controls, layout and words, with a live preview.",
 		"none": "No Filters yet.",
 		"name": "Name",
 		"markup": "Template markup",
@@ -6267,13 +6265,10 @@
 		"noLoops": "Every query Loop has a Filter already",
 		"cancel": "Cancel",
 		"create": "Create Filter",
-		"back": "Back to Filters",
 		"structure": "Structure",
-		"unsaved": "Unsaved changes",
 		"narrows": "Narrows the query Loop",
 		"placedOn": "placed on {places}",
 		"notPlaced": "not placed yet",
-		"saveDraft": "Save draft",
 		"savedDraft": "The Filter's Draft is saved.",
 		"publish": "Publish Filter",
 		"published": "The Filter {name} is published.",
@@ -6411,7 +6406,10 @@
 			"filterLabel": "Name for screen readers",
 			"filterLabelHelp": "The form's name, also the drawer's title and button.",
 			"applyLabel": "Apply button",
-			"applyLabelHelp": "Shown in On submit mode and without JavaScript."
+			"applyLabelHelp": "Shown in On submit mode and without JavaScript.",
+			"about": "This Filter",
+			"words": "The Filter's words",
+			"wordsIntro": "Content: translate them in the Translations tab."
 		},
 		"layout": {
 			"preset": "Layout preset",
@@ -6436,7 +6434,9 @@
 			"notPlaced": "Not placed yet. Place it in a Template or Component beside its Loop with",
 			"toTemplates": "Go to Templates",
 			"openInBuilder": "Open {place} in the visual builder",
-			"apart": "Controls can also be placed one by one anywhere on the page, such as the search box in the header: each control's settings show its markup."
+			"apart": "Controls can also be placed one by one anywhere on the page, such as the search box in the header: each control's settings show its markup.",
+			"title": "Layout",
+			"intro": "How the Filter's controls sit beside its Loop, and on phones."
 		},
 		"translations": {
 			"none": "The Site has one language: add another in Site › Languages to translate the Filter's words.",
@@ -6459,7 +6459,8 @@
 				"applyLabel": "Apply button",
 				"sortOption": "sort",
 				"filterLabel": "Name for screen readers"
-			}
+			},
+			"title": "Translations"
 		},
 		"preview": {
 			"heading": "Live preview",

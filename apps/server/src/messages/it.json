@@ -6250,8 +6250,6 @@
 		"pageTitle": "Filtri",
 		"heading": "Filtri",
 		"intro": "I controlli che i visitatori usano per restringere, cercare e ordinare gli elementi di un Loop con query. Lo Staff crea qui ogni Filtro e lo inserisce in un Template o in un Componente accanto al suo Loop.",
-		"listTitle": "I Filtri del Sito",
-		"listIntro": "Ogni Filtro restringe un Loop con query. Aprine uno per cambiarne controlli, layout e parole, con l'anteprima dal vivo.",
 		"none": "Ancora nessun Filtro.",
 		"name": "Nome",
 		"markup": "Template markup",
@@ -6267,13 +6265,10 @@
 		"noLoops": "Ogni Loop con query ha già un Filtro",
 		"cancel": "Annulla",
 		"create": "Crea Filtro",
-		"back": "Torna ai Filtri",
 		"structure": "Struttura",
-		"unsaved": "Modifiche non salvate",
 		"narrows": "Restringe il Loop con query",
 		"placedOn": "inserito in {places}",
 		"notPlaced": "non ancora inserito",
-		"saveDraft": "Salva bozza",
 		"savedDraft": "La bozza del Filtro è salvata.",
 		"publish": "Pubblica Filtro",
 		"published": "Il Filtro {name} è pubblicato.",
@@ -6411,7 +6406,10 @@
 			"filterLabel": "Nome per i lettori di schermo",
 			"filterLabelHelp": "Il nome del modulo, anche il titolo e il pulsante del pannello.",
 			"applyLabel": "Pulsante Applica",
-			"applyLabelHelp": "Mostrato nella modalità All'invio e senza JavaScript."
+			"applyLabelHelp": "Mostrato nella modalità All'invio e senza JavaScript.",
+			"about": "Questo filtro",
+			"words": "Le parole del filtro",
+			"wordsIntro": "Contenuto: traducile nella scheda Traduzioni."
 		},
 		"layout": {
 			"preset": "Layout predefinito",
@@ -6436,7 +6434,9 @@
 			"notPlaced": "Non ancora inserito. Inseriscilo in un Template o Componente accanto al suo Loop con",
 			"toTemplates": "Vai ai Template",
 			"openInBuilder": "Apri {place} nel visual builder",
-			"apart": "I controlli si possono anche inserire uno per uno in qualsiasi punto della pagina, come la casella di ricerca nell'intestazione: le impostazioni di ogni controllo ne mostrano il markup."
+			"apart": "I controlli si possono anche inserire uno per uno in qualsiasi punto della pagina, come la casella di ricerca nell'intestazione: le impostazioni di ogni controllo ne mostrano il markup.",
+			"title": "Layout",
+			"intro": "Come i controlli del filtro stanno accanto al suo loop, e sui telefoni."
 		},
 		"translations": {
 			"none": "Il Sito ha una sola lingua: aggiungine un'altra in Sito › Lingue per tradurre le parole del Filtro.",
@@ -6459,7 +6459,8 @@
 				"applyLabel": "Pulsante Applica",
 				"sortOption": "ordinamento",
 				"filterLabel": "Nome per i lettori di schermo"
-			}
+			},
+			"title": "Traduzioni"
 		},
 		"preview": {
 			"heading": "Anteprima dal vivo",

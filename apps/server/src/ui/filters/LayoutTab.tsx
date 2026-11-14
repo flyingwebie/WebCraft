@@ -5,6 +5,7 @@ import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native
 import { MoveIcon, PencilRulerIcon } from "lucide-react";
 
 import { useT } from "../i18n.tsx";
+import { SettingsCard } from "../settings/layout.tsx";
 import type { FilterPlacement, FilterVersion } from "./model.ts";
 
 /**
@@ -34,60 +35,56 @@ export function LayoutTab({
 }) {
 	const t = useT();
 	return (
-		<div className="grid max-w-2xl gap-8">
-			<fieldset className="grid gap-3">
-				<legend className="text-muted-foreground mb-2 text-xs font-medium uppercase">
-					{t("filters.layout.preset")}
-				</legend>
-				{FILTER_LAYOUTS.map((layout) => (
-					<label
-						key={layout}
-						className="has-[:checked]:border-primary has-[:checked]:ring-primary/30 has-[:focus-visible]:ring-ring/50 flex cursor-pointer items-start gap-4 rounded-lg border p-4 has-[:checked]:ring-2 has-[:focus-visible]:ring-3"
-					>
-						<input
-							type="radio"
-							name="filter-layout"
-							value={layout}
-							checked={version.layout === layout}
-							onChange={() => onChange({ ...version, layout })}
-							aria-describedby={`filter-layout-${layout}-help`}
-							className="accent-primary mt-1 size-4 shrink-0"
-						/>
-						<Schematic layout={layout} />
-						<span className="grid gap-1">
-							<span className="font-medium">{t(`filters.layout.presets.${layout}`)}</span>
-							<span id={`filter-layout-${layout}-help`} className="text-muted-foreground text-sm">
-								{t(`filters.layout.presetHelp.${layout}`)}
+		<div className="grid max-w-2xl gap-6">
+			<SettingsCard title={t("filters.layout.title")} description={t("filters.layout.intro")}>
+				<fieldset className="grid gap-3">
+					<legend className="mb-2 text-sm font-medium">{t("filters.layout.preset")}</legend>
+					{FILTER_LAYOUTS.map((layout) => (
+						<label
+							key={layout}
+							className="has-[:checked]:border-primary has-[:checked]:ring-primary/30 has-[:focus-visible]:ring-ring/50 flex cursor-pointer items-start gap-4 rounded-lg border p-4 has-[:checked]:ring-2 has-[:focus-visible]:ring-3"
+						>
+							<input
+								type="radio"
+								name="filter-layout"
+								value={layout}
+								checked={version.layout === layout}
+								onChange={() => onChange({ ...version, layout })}
+								aria-describedby={`filter-layout-${layout}-help`}
+								className="accent-primary mt-1 size-4 shrink-0"
+							/>
+							<Schematic layout={layout} />
+							<span className="grid gap-1">
+								<span className="font-medium">{t(`filters.layout.presets.${layout}`)}</span>
+								<span id={`filter-layout-${layout}-help`} className="text-muted-foreground text-sm">
+									{t(`filters.layout.presetHelp.${layout}`)}
+								</span>
 							</span>
-						</span>
-					</label>
-				))}
-			</fieldset>
+						</label>
+					))}
+				</fieldset>
 
-			<Field>
-				<FieldLabel htmlFor="filter-phone">
-					{phoneWidth ? t("filters.layout.phoneUnder", { width: phoneWidth }) : t("filters.layout.phone")}
-				</FieldLabel>
-				<NativeSelect
-					id="filter-phone"
-					value={version.layout === "drawer" ? "drawer" : version.phone}
-					disabled={version.layout === "drawer"}
-					aria-describedby="filter-phone-help"
-					onChange={(event) => onChange({ ...version, phone: event.target.value as FilterVersion["phone"] })}
-				>
-					<NativeSelectOption value="drawer">{t("filters.layout.phoneDrawer")}</NativeSelectOption>
-					<NativeSelectOption value="same">{t("filters.layout.phoneSame")}</NativeSelectOption>
-				</NativeSelect>
-				<FieldDescription id="filter-phone-help">
-					{version.layout === "drawer" ? t("filters.layout.phoneAlways") : t("filters.layout.phoneHelp")}
-				</FieldDescription>
-			</Field>
+				<Field>
+					<FieldLabel htmlFor="filter-phone">
+						{phoneWidth ? t("filters.layout.phoneUnder", { width: phoneWidth }) : t("filters.layout.phone")}
+					</FieldLabel>
+					<NativeSelect
+						id="filter-phone"
+						value={version.layout === "drawer" ? "drawer" : version.phone}
+						disabled={version.layout === "drawer"}
+						aria-describedby="filter-phone-help"
+						onChange={(event) => onChange({ ...version, phone: event.target.value as FilterVersion["phone"] })}
+					>
+						<NativeSelectOption value="drawer">{t("filters.layout.phoneDrawer")}</NativeSelectOption>
+						<NativeSelectOption value="same">{t("filters.layout.phoneSame")}</NativeSelectOption>
+					</NativeSelect>
+					<FieldDescription id="filter-phone-help">
+						{version.layout === "drawer" ? t("filters.layout.phoneAlways") : t("filters.layout.phoneHelp")}
+					</FieldDescription>
+				</Field>
+			</SettingsCard>
 
-			<section aria-labelledby="filter-placed-heading" className="grid gap-3">
-				<h2 id="filter-placed-heading" className="text-muted-foreground text-xs font-medium uppercase">
-					{t("filters.layout.placed")}
-				</h2>
-				<p className="text-muted-foreground text-sm">{t("filters.layout.placedHelp")}</p>
+			<SettingsCard title={t("filters.layout.placed")} description={t("filters.layout.placedHelp")}>
 				{placements.length === 0 ? (
 					<p className="rounded-md border border-dashed p-4 text-sm">
 						{t("filters.layout.notPlaced")} <code className="font-mono text-xs">{markup}</code>{" "}
@@ -116,7 +113,7 @@ export function LayoutTab({
 						))}
 					</ul>
 				)}
-			</section>
+			</SettingsCard>
 
 			<p className="flex gap-2 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-100">
 				<MoveIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />

@@ -4,6 +4,7 @@ import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native
 import { useState } from "react";
 
 import { useT } from "../i18n.tsx";
+import { SettingsCard } from "../settings/layout.tsx";
 import { controlName } from "./ControlsTab.tsx";
 import { type FilterVersion, translatableTexts, withText } from "./model.ts";
 
@@ -29,7 +30,11 @@ export function TranslationsTab({
 		return <p className="text-muted-foreground max-w-2xl text-sm">{t("filters.translations.none")}</p>;
 	const texts = translatableTexts(version);
 	return (
-		<div className="grid max-w-3xl gap-6">
+		<SettingsCard
+			className="max-w-3xl"
+			title={t("filters.translations.title")}
+			description={t("filters.translations.intro", { language })}
+		>
 			<Field className="max-w-xs">
 				<FieldLabel htmlFor="filter-translation-language">{t("filters.translations.language")}</FieldLabel>
 				<NativeSelect
@@ -44,7 +49,6 @@ export function TranslationsTab({
 					))}
 				</NativeSelect>
 			</Field>
-			<p className="text-muted-foreground text-sm">{t("filters.translations.intro", { language })}</p>
 			{texts.length === 0 ? (
 				<p className="text-muted-foreground text-sm">{t("filters.translations.nothing")}</p>
 			) : (
@@ -80,6 +84,6 @@ export function TranslationsTab({
 					})}
 				</ul>
 			)}
-		</div>
+		</SettingsCard>
 	);
 }
