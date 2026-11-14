@@ -264,7 +264,7 @@ export function AddressField({ look, words, details }: { look: Look; words: Word
 				className={
 					look === "dock"
 						? "flex min-w-0 items-center font-mono text-[12px]"
-						: `bg-chrome-raised focus-within:border-chrome-focus focus-within:ring-chrome-focus flex h-10 min-w-0 items-center rounded-lg border border-[#3f3f46] px-3 font-mono text-[14px] focus-within:ring-1 ${CHROME_EASE}`
+						: `bg-chrome-raised focus-within:border-chrome-focus flex h-10 min-w-0 items-center rounded-lg border border-[#3f3f46] px-3 font-mono text-[14px] ${CHROME_EASE}`
 				}
 			>
 				<span className="text-chrome-muted shrink-0" data-wc-details-prefix="">
@@ -288,7 +288,7 @@ export function AddressField({ look, words, details }: { look: Look; words: Word
 							focus.onBlur();
 							details.flush("slug");
 						}}
-						className="text-chrome-strong min-w-0 grow bg-transparent font-medium outline-none"
+						className="text-chrome-strong focus-visible:outline-chrome-focus min-w-0 grow rounded-[3px] bg-transparent font-medium outline-none focus-visible:outline-1 focus-visible:outline-offset-[3px] focus-visible:outline-solid"
 					/>
 				)}
 			</span>

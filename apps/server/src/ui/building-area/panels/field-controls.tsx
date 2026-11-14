@@ -27,7 +27,7 @@ export type Look = "dock" | "client";
 /** A box's look: a bare value inside a field card, or a 40 high box of the side panel. */
 export function boxClass(look: Look, extra = ""): string {
 	return look === "dock"
-		? `text-chrome-strong placeholder:text-chrome-faint w-full min-w-0 rounded-[3px] bg-transparent text-[12px] font-medium outline-none ${extra}`
+		? `text-chrome-strong placeholder:text-chrome-faint w-full min-w-0 rounded-[3px] bg-transparent text-[12px] font-medium focus-visible:outline-chrome-focus outline-none focus-visible:outline-1 focus-visible:outline-offset-[3px] focus-visible:outline-solid ${extra}`
 		: `bg-chrome-raised text-chrome-strong placeholder:text-chrome-faint w-full min-w-0 rounded-lg border border-[#3f3f46] px-3 text-[14px] outline-none focus:border-chrome-focus focus:ring-1 focus:ring-chrome-focus ${CHROME_EASE} ${extra}`;
 }
 
@@ -65,7 +65,7 @@ export function Labelled({
 		<div
 			className={
 				look === "dock"
-					? "bg-chrome-raised focus-within:ring-chrome-focus/70 flex min-w-0 flex-col gap-1 rounded-md px-2 py-1.5 focus-within:ring-1"
+					? "bg-chrome-raised flex min-w-0 flex-col gap-1 rounded-md px-2 py-1.5"
 					: "flex min-w-0 flex-col gap-1.5"
 			}
 			{...data}
