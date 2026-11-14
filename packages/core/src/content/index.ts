@@ -20,7 +20,6 @@ export {
 export {
 	type Component,
 	type ComponentDeletion,
-	type PlacedComponentDeletion,
 	type ComponentDraftChange,
 	type ComponentMarkup,
 	type ComponentSources,
@@ -37,6 +36,7 @@ export {
 	type ModuleComponent,
 	type NewComponent,
 	NO_MODULE_COMPONENTS,
+	type PlacedComponentDeletion,
 	readComponentMarkup,
 	renameComponent,
 	type SavedComponentMarkup,

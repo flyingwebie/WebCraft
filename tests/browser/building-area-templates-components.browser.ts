@@ -224,8 +224,8 @@ describe("Templates and Components, for Staff", () => {
 		await card.locator("[data-wc-template-revert]").waitFor({ state: "detached" });
 		expect(await card.textContent()).toContain("Search results templatePublished");
 		const markup = await superadmin.api.templates.getSearchTemplateMarkup({ siteId });
-		expect(markup.markup?.draft).toBe(markup.markup?.published);
-		expect(markup.markup?.draft).toContain("Results");
+		expect(markup.markup?.draft).toBe(markup.markup?.published ?? "");
+		expect(markup.markup?.draft ?? "").toContain("Results");
 		expect(await announced(page)).toBe("The Search results template is back to its published version");
 		// Revert is gone with the changes: focus stays on the card, on Edit.
 		expect(await page.evaluate(() => document.activeElement?.hasAttribute("data-wc-template-edit"))).toBe(true);

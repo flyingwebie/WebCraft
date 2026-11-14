@@ -73,7 +73,7 @@ describe("the Components place's view", () => {
 			`?wc-place=components&wc-view=${encodeURIComponent("filter=unused&q=hero")}`,
 		);
 		expect(address.place).toBe("components");
-		expect(readComponentsView(address.view)).toEqual({ filter: "unused", q: "hero", component: null });
+		expect(readComponentsView(address.view ?? null)).toEqual({ filter: "unused", q: "hero", component: null });
 		expect(printAddress(address)).toContain("wc-place=components");
 		expect(isPlace("templates")).toBe(true);
 	});
