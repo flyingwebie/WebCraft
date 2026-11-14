@@ -812,7 +812,8 @@ function TreeRow({
 			{hidden ? <EyeOffIcon aria-hidden="true" className="text-chrome-faint size-3.5 shrink-0" /> : null}
 			{pages !== null && pages > 1 ? (
 				<span className="shrink-0 rounded-[4px] bg-[#7c2d12] px-1.5 text-[11px] leading-[18px] font-medium text-[#fdba74]">
-					{fill(said.pagesOther, { count: String(pages) })}
+					{/* A space before it, so the row's text reads as its name does ("HeroSplit 3 pages"). */}
+					{` ${fill(said.pagesOther, { count: String(pages) })}`}
 				</span>
 			) : null}
 			{actions}

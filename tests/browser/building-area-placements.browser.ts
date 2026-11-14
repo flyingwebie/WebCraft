@@ -19,7 +19,7 @@ import type { Frame, Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
 import { announced, enterBuildingArea, frameOf, settled } from "./building-area.ts";
-import { expectAccessibleScreen } from "./checks.ts";
+import { expectAccessibleScreen, expectKeyboardUsable, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
 
 let install: BrowserInstall;
@@ -347,7 +347,10 @@ describe("a Page's Placements, for Staff", () => {
 		expect(await frame.locator("header.site-header").getAttribute("inert")).toBe("");
 		expect(await frame.locator("section.hero").getAttribute("inert")).toBe("");
 		expect(await frame.locator("section.quote").getAttribute("inert")).toBeNull();
-		await expectAccessibleScreen(page, "Component edited in place, light");
+		// While it is edited in place the rest of the page is inert, its h1 among it: the page has no
+		// level-one heading to offer then, by design (it is locked, as a modal's background is).
+		await expectNoAxeViolations(page, "Component edited in place, light", ["page-has-heading-one"]);
+		await expectKeyboardUsable(page, "Component edited in place, light");
 
 		// Its elements change as a Template's do, saved to the Component's Draft.
 		await clickIn(page, frame, "p.quote__text");
@@ -410,7 +413,12 @@ describe("a Page's Placements, for Staff", () => {
 describe("Placements, Loops and Conditions of a Template, for Staff", () => {
 	test("a Placement in a Template: its Props change its Template's Draft, one Undo step", async () => {
 		const { page } = await shared();
-		await openPage(page, "/blog/our-sourdough-starter-explained", /^HeroSplit/);
+		await openPage(page, "/blog/our-sourdough-starter-explained", /^article/);
+		// The Entry template's article opens in the tree on its HeroSplit.
+		await tree(page)
+			.getByRole("treeitem", { name: /^article/ })
+			.click();
+		await page.keyboard.press("ArrowRight");
 		await tree(page)
 			.getByRole("treeitem", { name: /^HeroSplit/ })
 			.click();

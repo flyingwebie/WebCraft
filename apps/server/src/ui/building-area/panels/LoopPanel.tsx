@@ -7,7 +7,6 @@ import { fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
 import type { Structure, StructureSource } from "../editing/selection.ts";
 import { managementApi } from "../management.ts";
-import { resultRows } from "../places/loops/view.ts";
 import { CommitInput, FieldCard, Note, Switch, type ValueChoice } from "./inputs.tsx";
 
 /**
@@ -63,7 +62,10 @@ async function readFacts(token: string, siteId: string, name: string): Promise<L
 				limit: query.limit,
 			},
 			postTypeNames,
-			sample: (result?.items[0] as Record<string, unknown> | undefined) ?? null,
+			sample: ((result?.items[0] as { values?: Record<string, unknown> } | undefined)?.values ?? null) as Record<
+				string,
+				unknown
+			> | null,
 			loaded: true,
 		};
 	} catch {
@@ -106,13 +108,25 @@ export function loopAround(tree: ElementTree, path: NodePath): { node: LoopNode;
 	return null;
 }
 
-/** The values a Loop's item offers in `{{` (`post.title`, `post.author.name`), from its first item. */
+/**
+ * The values a Loop's item offers in `{{` (`post.title`, `post.author.name`), from its first item: a
+ * Group, a choice or an Entry a Relationship points at opens into its parts; a list is left out (it is
+ * read with a Loop of its own).
+ */
 export function itemValues(facts: LoopFacts, alias: string): ValueChoice[] {
 	if (!facts.sample) return [{ path: `${alias}.title` }];
 	const { id: _, ...values } = facts.sample;
-	return resultRows(values as Parameters<typeof resultRows>[0], alias)
-		.filter((row) => !row.binding.startsWith("{{@"))
-		.map((row) => ({ path: `${alias}.${row.path}` }));
+	const found: ValueChoice[] = [];
+	const visit = (value: unknown, path: string) => {
+		if (Array.isArray(value)) return;
+		if (value !== null && typeof value === "object") {
+			for (const [key, inner] of Object.entries(value)) visit(inner, `${path}.${key}`);
+			return;
+		}
+		found.push({ path });
+	};
+	for (const [key, value] of Object.entries(values)) visit(value, `${alias}.${key}`);
+	return found;
 }
 
 /** What a Loop lists, in words: "Entries of Blog posts, newest first, 3 at most." */
