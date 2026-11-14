@@ -3079,7 +3079,9 @@
 			"toFix": "{count, plural, one {# cosa impedisce} other {# cose impediscono}} di pubblicare:",
 			"liveAt": "I visitatori lo trovano a",
 			"detailsHeading": "Dettagli",
-			"linkedFrom": "Collegato da"
+			"linkedFrom": "Collegato da",
+			"basicsHeading": "Titolo e indirizzo",
+			"fieldsHeading": "Campi"
 		},
 		"delete": {
 			"open": "Elimina",
@@ -3257,7 +3259,8 @@
 		"empty": "Questo sito non ha ancora valori globali.",
 		"defineFields": "Definisci i campi globali",
 		"publishHelp": "Pubblicare mette subito online questi valori su ogni pagina.",
-		"published": "I valori globali sono online."
+		"published": "I valori globali sono online.",
+		"valuesHeading": "Valori"
 	},
 	"loops": {
 		"pageTitle": "Loop",

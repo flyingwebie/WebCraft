@@ -36,8 +36,10 @@ import type { HistoryPage } from "../history/model.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import type { MediaItem } from "../media/preview.ts";
 import { EntrySchedule } from "../publishing/EntrySchedule.tsx";
-import { ReviewStatus, SubmitForReview } from "../review/Review.tsx";
+import { ReviewBadge, ReviewStatus, SubmitForReview } from "../review/Review.tsx";
 import { EntrySeoCard, type SeoValues } from "../seo/EntrySeoCard.tsx";
+import { SettingsCard } from "../settings/layout.tsx";
+import { PageHeader } from "../shell/page.tsx";
 import { OutdatedTranslations } from "../translations/OutdatedTranslations.tsx";
 import { DraftStatusCard, LanguageTabs, SaveErrorBanner, StatusBadge, useDraftPublish } from "./DraftParts.tsx";
 import { FieldValueList, type ValueContext } from "./FieldValues.tsx";
@@ -204,28 +206,39 @@ export function EntryEditor({
 	const untitled = t("content.relationship.untitled");
 
 	return (
-		<div className="grid gap-8 @4xl/page:grid-cols-[minmax(0,1fr)_20rem]">
+		<div className="grid gap-8 @4xl/page:grid-cols-[minmax(0,45rem)_20rem]">
 			<div className="grid min-w-0 content-start gap-6">
 				<div className="flex items-start gap-3">
 					<Button
 						variant="ghost"
 						size="icon-sm"
-						className="mt-1"
+						className="mt-1 shrink-0"
 						aria-label={t("entries.editor.back", { name: postType.name })}
+						nativeButton={false}
 						render={<Link to="/sites/$siteId/entries/$postTypeId" params={{ siteId, postTypeId: postType.id }} />}
 					>
 						<ArrowLeftIcon className="rtl:rotate-180" aria-hidden="true" />
 					</Button>
-					<div className="grid min-w-0 gap-1">
-						<div className="flex flex-wrap items-center gap-3">
-							<h1 className="text-2xl font-semibold tracking-tight break-words">{values.title.trim() || untitled}</h1>
-							<StatusBadge status={entry.status} />
-						</div>
-						<p className="text-muted-foreground flex flex-wrap items-center gap-x-2 text-sm">
-							<span>{postType.name}</span>
-							<span aria-hidden="true">·</span>
-							<SharedDraftStatus status={shared.status} editable={shared.editable} publishedBy={coEdited.publishedBy} />
-						</p>
+					<div className="min-w-0 flex-1 [&>div]:mb-0">
+						<PageHeader
+							heading={values.title.trim() || untitled}
+							badge={
+								<span className="flex flex-wrap items-center gap-1">
+									<StatusBadge status={entry.status} />
+									{entry.review ? <ReviewBadge status={entry.review.status} /> : null}
+								</span>
+							}
+						>
+							<span className="flex flex-wrap items-center gap-x-2 text-sm">
+								<span>{postType.name}</span>
+								<span aria-hidden="true">·</span>
+								<SharedDraftStatus
+									status={shared.status}
+									editable={shared.editable}
+									publishedBy={coEdited.publishedBy}
+								/>
+							</span>
+						</PageHeader>
 					</div>
 				</div>
 
@@ -254,99 +267,105 @@ export function EntryEditor({
 				/>
 
 				<fieldset disabled={locked} className="grid min-w-0 gap-6" {...tracking}>
-					<PresenceOutline place="title" participants={shared.participants}>
-						<BuiltInValue
-							id="entry-title"
-							label={t("content.builtIn.title")}
-							required
-							problems={titleProblems}
-							subject="title"
-						>
-							{(described) => (
-								<Input
-									id="entry-title"
-									value={values.title}
-									maxLength={ENTRY_TITLE_MAX_LENGTH}
-									lang={entry.language}
-									autoComplete="off"
-									className="h-11 text-lg"
-									aria-describedby={described}
-									aria-invalid={titleProblems.length > 0 ? true : undefined}
-									onChange={(event) => change({ title: event.target.value })}
-								/>
-							)}
-						</BuiltInValue>
-					</PresenceOutline>
-					<PresenceOutline place="slug" participants={shared.participants}>
-						<BuiltInValue
-							id="entry-slug"
-							label={t("content.builtIn.slug")}
-							required
-							help={t("entries.editor.slugHelp")}
-							problems={slugProblems}
-							extra={slugTaken ? t("errors.ENTRY_SLUG_TAKEN") : null}
-							subject="slug"
-						>
-							{(described) => (
-								<InputGroup>
-									<InputGroupAddon className="font-mono" aria-hidden="true">
-										{slugPrefix}
-									</InputGroupAddon>
-									<InputGroupInput
-										id="entry-slug"
-										value={values.slug}
-										lang={entry.language}
-										autoComplete="off"
-										spellCheck={false}
-										className="font-mono"
-										aria-describedby={described}
-										aria-invalid={slugProblems.length > 0 || slugTaken ? true : undefined}
-										onChange={(event) => change({ slug: event.target.value })}
-									/>
-								</InputGroup>
-							)}
-						</BuiltInValue>
-					</PresenceOutline>
-					{isPage && pages ? (
-						<PresenceOutline place="parent" participants={shared.participants}>
+					<SettingsCard title={t("entries.editor.basicsHeading")}>
+						<PresenceOutline place="title" participants={shared.participants}>
 							<BuiltInValue
-								id="entry-parentId"
-								label={t("content.builtIn.parent")}
-								help={t("entries.editor.parentHelp")}
-								problems={parentProblems}
-								subject="parentId"
+								id="entry-title"
+								label={t("content.builtIn.title")}
+								required
+								problems={titleProblems}
+								subject="title"
 							>
 								{(described) => (
-									<NativeSelect
-										id="entry-parentId"
-										value={values.parentId ?? ""}
+									<Input
+										id="entry-title"
+										value={values.title}
+										maxLength={ENTRY_TITLE_MAX_LENGTH}
+										lang={entry.language}
+										autoComplete="off"
+										className="h-11 text-lg"
 										aria-describedby={described}
-										aria-invalid={parentProblems.length > 0 ? true : undefined}
-										onChange={(event) => change({ parentId: event.target.value || null })}
-										className="w-full"
-									>
-										<NativeSelectOption value="">{t("entries.editor.topLevel")}</NativeSelectOption>
-										{parentOptions(pages, entry.id).map((page) => (
-											<NativeSelectOption key={page.id} value={page.id}>
-												{`${"— ".repeat(page.depth)}${page.title || untitled}`}
-											</NativeSelectOption>
-										))}
-									</NativeSelect>
+										aria-invalid={titleProblems.length > 0 ? true : undefined}
+										onChange={(event) => change({ title: event.target.value })}
+									/>
 								)}
 							</BuiltInValue>
 						</PresenceOutline>
-					) : null}
-					<FieldValueList
-						fields={postType.fields}
-						values={values.fields}
-						onChange={(key, value) => change({ fields: { [key]: value } })}
-						context={context}
-						wrap={(field, control) => (
-							<PresenceOutline place={field.key} participants={shared.participants}>
-								{control}
+						<PresenceOutline place="slug" participants={shared.participants}>
+							<BuiltInValue
+								id="entry-slug"
+								label={t("content.builtIn.slug")}
+								required
+								help={t("entries.editor.slugHelp")}
+								problems={slugProblems}
+								extra={slugTaken ? t("errors.ENTRY_SLUG_TAKEN") : null}
+								subject="slug"
+							>
+								{(described) => (
+									<InputGroup>
+										<InputGroupAddon className="font-mono" aria-hidden="true">
+											{slugPrefix}
+										</InputGroupAddon>
+										<InputGroupInput
+											id="entry-slug"
+											value={values.slug}
+											lang={entry.language}
+											autoComplete="off"
+											spellCheck={false}
+											className="font-mono"
+											aria-describedby={described}
+											aria-invalid={slugProblems.length > 0 || slugTaken ? true : undefined}
+											onChange={(event) => change({ slug: event.target.value })}
+										/>
+									</InputGroup>
+								)}
+							</BuiltInValue>
+						</PresenceOutline>
+						{isPage && pages ? (
+							<PresenceOutline place="parent" participants={shared.participants}>
+								<BuiltInValue
+									id="entry-parentId"
+									label={t("content.builtIn.parent")}
+									help={t("entries.editor.parentHelp")}
+									problems={parentProblems}
+									subject="parentId"
+								>
+									{(described) => (
+										<NativeSelect
+											id="entry-parentId"
+											value={values.parentId ?? ""}
+											aria-describedby={described}
+											aria-invalid={parentProblems.length > 0 ? true : undefined}
+											onChange={(event) => change({ parentId: event.target.value || null })}
+											className="w-full"
+										>
+											<NativeSelectOption value="">{t("entries.editor.topLevel")}</NativeSelectOption>
+											{parentOptions(pages, entry.id).map((page) => (
+												<NativeSelectOption key={page.id} value={page.id}>
+													{`${"— ".repeat(page.depth)}${page.title || untitled}`}
+												</NativeSelectOption>
+											))}
+										</NativeSelect>
+									)}
+								</BuiltInValue>
 							</PresenceOutline>
-						)}
-					/>
+						) : null}
+					</SettingsCard>
+					{postType.fields.length > 0 ? (
+						<SettingsCard title={t("entries.editor.fieldsHeading")}>
+							<FieldValueList
+								fields={postType.fields}
+								values={values.fields}
+								onChange={(key, value) => change({ fields: { [key]: value } })}
+								context={context}
+								wrap={(field, control) => (
+									<PresenceOutline place={field.key} participants={shared.participants}>
+										{control}
+									</PresenceOutline>
+								)}
+							/>
+						</SettingsCard>
+					) : null}
 				</fieldset>
 			</div>
 

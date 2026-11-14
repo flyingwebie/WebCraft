@@ -3079,7 +3079,9 @@
 			"toFix": "{count, plural, one {# thing keeps} other {# things keep}} this from being published:",
 			"liveAt": "Visitors find it at",
 			"detailsHeading": "Details",
-			"linkedFrom": "Linked from"
+			"linkedFrom": "Linked from",
+			"basicsHeading": "Title and address",
+			"fieldsHeading": "Fields"
 		},
 		"delete": {
 			"open": "Delete",
@@ -3257,7 +3259,8 @@
 		"empty": "This Site has no Globals yet.",
 		"defineFields": "Define the Globals' Fields",
 		"publishHelp": "Publishing puts these values live on every page at once.",
-		"published": "The Globals are live."
+		"published": "The Globals are live.",
+		"valuesHeading": "Values"
 	},
 	"loops": {
 		"pageTitle": "Loops",
