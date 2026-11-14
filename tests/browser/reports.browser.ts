@@ -29,7 +29,7 @@ beforeAll(async () => {
 	// The web process counts by the real clock: the visits come now too.
 	await local.clock.set(new Date());
 	const admin = await local.superadmin();
-	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
+	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.2.0" });
 	const workspaceId = (await local.createWorkspace("Acme Ltd")).id;
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
 	await install.goLive(siteId);

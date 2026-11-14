@@ -65,16 +65,19 @@ export function analyticsApi(api: ApiClient): ModuleApi<typeof siteAnalytics> {
 
 type Answer<Call> = Call extends (...args: never[]) => Promise<infer Result> ? Result : never;
 export type GoalView = Answer<ModuleApi<typeof siteAnalytics>["goals"]["list"]>["goals"][number];
+type GoalUsage = Answer<ModuleApi<typeof siteAnalytics>["goals"]["usage"]>["goals"][number];
 type Definition = GoalView["definition"];
 
 /**
- * What Site › Goals shows: the Site's Goals, its Forms (a Goal can count one's Submissions), and how
- * many times each Goal was reached in the last 30 days, by name (null when it could not be counted).
+ * What Site › Goals shows: the Site's Goals, its Forms (a Goal can count one's Submissions), how
+ * many times each Goal was reached in the last 30 days, by name (null when it could not be counted),
+ * and where each is used, by id (null when that could not be read).
  */
 export type GoalsData = {
 	goals: GoalView[];
 	forms: { id: string; name: string }[];
 	reached: Record<string, number> | null;
+	usage: Record<string, GoalUsage> | null;
 };
 
 export async function goalsData(siteId: string): Promise<GoalsData> {
@@ -89,7 +92,14 @@ export async function goalsData(siteId: string): Promise<GoalsData> {
 					(counted) => Object.fromEntries(counted.goals.map((goal) => [goal.name, goal.conversions])),
 					() => null,
 				);
-	return { goals, forms: forms.map(({ id, name }) => ({ id, name })), reached };
+	const usage =
+		goals.length === 0
+			? {}
+			: await analytics.goals.usage({ siteId }).then(
+					(found) => Object.fromEntries(found.goals.map((goal) => [goal.goalId, goal])),
+					() => null,
+				);
+	return { goals, forms: forms.map(({ id, name }) => ({ id, name })), reached, usage };
 }
 
 /** A refusal of Site analytics', in the admin's words. */
@@ -156,8 +166,9 @@ export function GoalsScreen({ place, data }: ModulePageProps) {
 	const [deleting, setDeleting] = useState<{ goal: GoalView; from: RefObject<HTMLElement | null> } | null>(null);
 	if (!shown)
 		return <PageHeader heading={t("analyticsGoals.goalsHeading")}>{t("analyticsGoals.goalsIntro")}</PageHeader>;
-	const reached = shown.reached;
+	const { reached, usage } = shown;
 	const most = Math.max(1, ...Object.values(reached ?? {}));
+	const columns = 3 + (reached ? 1 : 0) + (usage ? 1 : 0);
 	return (
 		<>
 			<PageHeader
@@ -177,6 +188,7 @@ export function GoalsScreen({ place, data }: ModulePageProps) {
 						<col className="w-[30%]" />
 						<col />
 						{reached ? <col className="w-40" /> : null}
+						{usage ? <col className="w-48" /> : null}
 						<col className="w-14" />
 					</colgroup>
 					<TableHeader>
@@ -192,6 +204,11 @@ export function GoalsScreen({ place, data }: ModulePageProps) {
 									{t("analyticsGoals.reached")}
 								</TableHead>
 							) : null}
+							{usage ? (
+								<TableHead scope="col" className={headClass}>
+									{t("analyticsGoals.whereUsed")}
+								</TableHead>
+							) : null}
 							<TableHead scope="col" className={headClass}>
 								<span className="sr-only">{t("analyticsGoals.actions")}</span>
 							</TableHead>
@@ -200,10 +217,7 @@ export function GoalsScreen({ place, data }: ModulePageProps) {
 					<TableBody>
 						{shown.goals.length === 0 ? (
 							<TableRow className="hover:bg-transparent">
-								<TableCell
-									colSpan={reached ? 4 : 3}
-									className="text-muted-foreground px-4 py-8 text-center whitespace-normal"
-								>
+								<TableCell colSpan={columns} className="text-muted-foreground px-4 py-8 text-center whitespace-normal">
 									{t("analyticsGoals.noGoals")}
 								</TableCell>
 							</TableRow>
@@ -237,6 +251,7 @@ export function GoalsScreen({ place, data }: ModulePageProps) {
 												</span>
 											</TableCell>
 										) : null}
+										{usage ? <UsageCell usage={usage[goal.id]} /> : null}
 										<TableCell className={cn(cellClass, "text-end")}>
 											<RowMenu
 												label={t("analyticsGoals.actionsOf", { name: goal.name })}
@@ -649,5 +664,30 @@ export function DeleteDialog({
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>
+	);
+}
+
+/**
+ * Where a Goal is used, in a few words ("2 Widgets, 1 Funnel", "Not used yet"), and every place by
+ * name in its title: the Dashboards and templates holding its Widgets, and its Funnels.
+ */
+function UsageCell({ usage }: { usage: GoalUsage | undefined }) {
+	const t = useT();
+	const widgets = usage?.widgets ?? [];
+	const templates = usage?.templates ?? [];
+	const funnels = usage?.funnels ?? [];
+	const words = [
+		widgets.length > 0 ? t("analyticsGoals.usedWidgets", { count: widgets.length }) : null,
+		templates.length > 0 ? t("analyticsGoals.usedTemplates", { count: templates.length }) : null,
+		funnels.length > 0 ? t("analyticsGoals.usedFunnels", { count: funnels.length }) : null,
+	].filter((each): each is string => each !== null);
+	const places = [
+		...new Set([...widgets, ...templates].map((use) => use.on.name)),
+		...funnels.map((funnel) => funnel.name),
+	];
+	return (
+		<TableCell className={cn(cellClass, "text-muted-foreground truncate")} title={places.join(", ") || undefined}>
+			{words.length > 0 ? words.join(", ") : t("analyticsGoals.notUsed")}
+		</TableCell>
 	);
 }

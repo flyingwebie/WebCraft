@@ -171,6 +171,8 @@ export { type ModuleMigration, moduleSchema, moduleSchemaName, siteColumns, work
 export { SDK_VERSION } from "./version.ts";
 export {
 	type ModuleWidget,
+	type ModuleWidgets,
+	type PlacedWidget,
 	WIDGET_FILTERS,
 	WIDGET_SHAPES,
 	type WidgetCell,

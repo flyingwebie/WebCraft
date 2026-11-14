@@ -5971,6 +5971,11 @@
 			"FUNNELS_TOO_MANY": "A Site has at most 50 Funnels.",
 			"FUNNEL_NOT_FOUND": "That Funnel is no longer here."
 		},
+		"whereUsed": "Where it is used",
+		"usedWidgets": "{count, plural, one {# Widget} other {# Widgets}}",
+		"usedTemplates": "{count, plural, one {# Dashboard template} other {# Dashboard templates}}",
+		"usedFunnels": "{count, plural, one {# Funnel} other {# Funnels}}",
+		"notUsed": "Not used yet",
 		"reached": "Reached (30d)",
 		"newFunnel": "New Funnel",
 		"stepCount": "{count, plural, one {# step} other {# steps}}",

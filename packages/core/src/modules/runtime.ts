@@ -1,4 +1,5 @@
 import type { Database } from "@webcraft/db";
+import { dashboards, dashboardTemplates, workspaceDashboards } from "@webcraft/db/schema";
 import {
 	type FormSender,
 	isModuleError,
@@ -11,16 +12,18 @@ import {
 	type ModuleHttpOptions,
 	type ModulePlace,
 	ModuleRefusedError,
+	type PlacedWidget,
 	type ProcedureContext,
 	type SiteRouteContext,
 	type SiteVisitor,
 	type SubmissionDelivery,
 } from "@webcraft/module-sdk";
-
+import { asc, eq } from "drizzle-orm";
 import { isAdminLanguage } from "../admin-languages.ts";
 import type { AuditVia } from "../audit.ts";
 import type { Clock } from "../clock.ts";
 import { askConfirmation, ConfirmationInvalidError, useConfirmation } from "../confirmations.ts";
+import { storedWidgets } from "../dashboards/model.ts";
 import type { Email, Recipient } from "../email/index.ts";
 import type { FormUploads } from "../forms/uploads.ts";
 import { type GuardedFetch, GuardedFetchError } from "../guarded-fetch.ts";
@@ -62,6 +65,50 @@ export type RuntimeDeps = {
 	 */
 	uploads?: Pick<FormUploads, "remove" | "url" | "attach" | "removeSite">;
 };
+
+/**
+ * A Module's Widgets on a Site's Dashboards, its Workspace's Dashboards and its Workspace's Dashboard
+ * templates, each with where it is: the Module's own kinds only, read in the Module's scope.
+ */
+async function placedWidgets(scope: SiteScope, moduleId: string): Promise<PlacedWidget[]> {
+	const prefix = `${moduleId}:`;
+	const workspaceId = scope.site.workspaceId;
+	const columns = { id: dashboards.id, name: dashboards.name, widgets: dashboards.widgets };
+	const [onSite, onWorkspace, templates] = await Promise.all([
+		scope.db.select(columns).from(dashboards).where(scope.where(dashboards)).orderBy(asc(dashboards.name)),
+		scope.db
+			.select({ id: workspaceDashboards.id, name: workspaceDashboards.name, widgets: workspaceDashboards.widgets })
+			.from(workspaceDashboards)
+			.where(eq(workspaceDashboards.workspaceId, workspaceId))
+			.orderBy(asc(workspaceDashboards.name)),
+		scope.db
+			.select({ id: dashboardTemplates.id, name: dashboardTemplates.name, widgets: dashboardTemplates.widgets })
+			.from(dashboardTemplates)
+			.where(eq(dashboardTemplates.workspaceId, workspaceId))
+			.orderBy(asc(dashboardTemplates.name)),
+	]);
+	const placed = (
+		kind: PlacedWidget["on"]["kind"],
+		rows: readonly { id: string; name: string; widgets: unknown }[],
+	): PlacedWidget[] =>
+		rows.flatMap((row) =>
+			storedWidgets(row.widgets)
+				.filter((widget) => widget.kind.startsWith(prefix))
+				.map((widget) => ({
+					id: widget.id,
+					kind: widget.kind.slice(prefix.length),
+					title: widget.title,
+					filters: widget.filters,
+					settings: widget.settings,
+					on: { kind, id: row.id, name: row.name },
+				})),
+		);
+	return [
+		...placed("dashboard", onSite),
+		...placed("workspaceDashboard", onWorkspace),
+		...placed("template", templates),
+	];
+}
 
 /** A Module acting by itself (a job, an event, a Site route) at a place: as `can()` and the Audit log see it. */
 export function moduleAccess(module: RunnableModule, place: QueuedPlace): Access {
@@ -284,6 +331,14 @@ export function moduleContext(
 				const site = keepingSite();
 				if (!deps.uploads || typeof uploadId !== "string") return "";
 				return deps.uploads.url(site, uploadId);
+			},
+		},
+		widgets: {
+			async placed() {
+				if (module.widgets.length === 0 || scope.level !== "site") {
+					return refuse("widgets", `The Module ${module.id} adds no Widgets here.`);
+				}
+				return placedWidgets(scope, module.id);
 			},
 		},
 		async transaction(work) {

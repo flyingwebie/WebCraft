@@ -5971,6 +5971,11 @@
 			"FUNNELS_TOO_MANY": "Un sito ha al massimo 50 funnel.",
 			"FUNNEL_NOT_FOUND": "Quel funnel non è più qui."
 		},
+		"whereUsed": "Dove è usato",
+		"usedWidgets": "{count, plural, one {# widget} other {# widget}}",
+		"usedTemplates": "{count, plural, one {# modello di dashboard} other {# modelli di dashboard}}",
+		"usedFunnels": "{count, plural, one {# Funnel} other {# Funnel}}",
+		"notUsed": "Non ancora usato",
 		"reached": "Raggiunti (30 g)",
 		"newFunnel": "Nuovo funnel",
 		"stepCount": "{count, plural, one {# passo} other {# passi}}",

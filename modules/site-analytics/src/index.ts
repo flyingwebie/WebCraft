@@ -62,6 +62,7 @@ import {
 import { rollUp, startOf } from "./rollups.ts";
 import { COLLECTION_SCRIPT } from "./script.ts";
 import { events, funnels, goals, rollupState, rollups, settings } from "./tables.ts";
+import { goalUsage } from "./usage.ts";
 import { siteAnalyticsWidgets } from "./widgets.ts";
 
 export { COLLECTION_PATH, COLLECTION_SCRIPT } from "./script.ts";
@@ -104,8 +105,8 @@ export const siteAnalytics = defineModule({
 			en: "Counts each Site's visits with WebCraft's own cookieless tracking, kept in this Install's database: anonymous totals before visitors accept Analytics, visitors and visits once they do.",
 			it: "Conta le visite di ogni Sito con il tracciamento di WebCraft, senza cookie, nel database di questa installazione: totali anonimi finché i visitatori non accettano le Statistiche, visitatori e visite quando lo fanno.",
 		},
-		version: "1.1.0",
-		sdk: "^1.9.0",
+		version: "1.2.0",
+		sdk: "^1.16.0",
 		level: "site",
 		// Sites ship no JavaScript by default: Staff switch it on where it is wanted.
 		onByDefault: false,
@@ -263,6 +264,19 @@ export const siteAnalytics = defineModule({
 				input: z.object({}),
 				async run(_input, context) {
 					return { goals: await listGoals(context) };
+				},
+			}),
+			/**
+			 * Where each Goal is used: the Widgets naming it on the Site's and its Workspace's Dashboards,
+			 * in its Workspace's Dashboard templates, and the Funnels with it as a step. Structure, Staff only.
+			 */
+			usage: procedure({
+				permission: "structure.edit",
+				toolset: "analytics",
+				kind: "read",
+				input: z.object({}),
+				async run(_input, context) {
+					return { goals: await goalUsage(context) };
 				},
 			}),
 			/** Adds a Goal: its name (unique on the Site, whatever its case) and what it counts. Structure, Staff only. */

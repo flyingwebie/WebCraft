@@ -33,7 +33,7 @@ beforeAll(async () => {
 	// The web process counts by the real clock: the visits come now too.
 	await local.clock.set(new Date());
 	const admin = await local.superadmin();
-	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
+	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.2.0" });
 	workspaceId = (await local.createWorkspace("Acme Ltd")).id;
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
 	await install.goLive(siteId);
@@ -389,6 +389,9 @@ for (const theme of THEMES) {
 			// What each counts, and how often it was reached in the Dashboard's default range.
 			await page.getByRole("cell", { name: "A page is visited · /menu", exact: true }).waitFor();
 			await page.getByRole("columnheader", { name: "Reached (30d)" }).waitFor();
+			// Where each is used: "Signed up" is a step of the Sign-up Funnel.
+			await page.getByRole("columnheader", { name: "Where it is used" }).waitFor();
+			await page.getByRole("row", { name: /Signed up/ }).getByText(/1 Funnel/).waitFor();
 			await expectAccessibleScreen(page, `Goals (${theme})`);
 			await expectOverlayUsable(
 				page,

@@ -115,3 +115,30 @@ export type ModuleWidget = {
 export function widget(definition: ModuleWidget): ModuleWidget {
 	return definition;
 }
+
+/**
+ * One of a Module's Widgets where Staff placed it (SDK 1.16): on a Dashboard of the Site, on one of
+ * its Workspace's Dashboards (which add every Site up), or in one of its Workspace's Dashboard
+ * templates. Widgets name what Staff made (a Goal, a Funnel) by its name, so this is how a Module
+ * says where one of its things is used.
+ */
+export type PlacedWidget = {
+	id: string;
+	/** Its kind, as the Module declares it (`goal`, without the Module's id). */
+	kind: string;
+	/** The title Staff gave it; null for its kind's own. */
+	title: string | null;
+	filters: WidgetFilters;
+	settings: WidgetSettings;
+	/** Where it is, by name. */
+	on: { kind: "dashboard" | "workspaceDashboard" | "template"; id: string; name: string };
+};
+
+/** The Module's own Widgets, for a Module that adds Widget kinds, at a Site (SDK 1.16). */
+export type ModuleWidgets = {
+	/**
+	 * Every Widget of the Module's kinds placed where the Site's people see it or build from: the
+	 * Site's Dashboards, its Workspace's Dashboards and its Workspace's Dashboard templates.
+	 */
+	placed(): Promise<PlacedWidget[]>;
+};

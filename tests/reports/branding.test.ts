@@ -17,7 +17,7 @@ let png: string;
 beforeAll(async () => {
 	install = await createTestInstall({ now: new Date("2026-03-04T09:00:00Z") });
 	superadmin = await install.superadmin();
-	await superadmin.api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
+	await superadmin.api.modules.approve({ moduleId: "site-analytics", version: "1.2.0" });
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	png = Buffer.from(await photo({ width: 40, height: 20, format: "png" })).toString("base64");
