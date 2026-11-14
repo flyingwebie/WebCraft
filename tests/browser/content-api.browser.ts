@@ -156,16 +156,17 @@ for (const theme of THEMES) {
 			const price = page.getByRole("checkbox", { name: /^Price/ });
 			await price.focus();
 			await page.keyboard.press("Space");
-			await page.getByRole("button", { name: "Save what it shows" }).focus();
+			const bar = page.getByRole("region", { name: "Saving this screen" });
+			await bar.getByRole("button", { name: "Save" }).focus();
 			await page.keyboard.press("Enter");
-			await page.getByText("What the Content API shows was saved.").waitFor();
+			await bar.getByText("Saved", { exact: true }).waitFor();
 
 			const { hidden } = await (await install.install.superadmin()).api.contentApi.get({ siteId });
 			expect(Object.values(hidden.fields).flat()).toContain("price");
 			await page.getByRole("checkbox", { name: /^Price/ }).focus();
 			await page.keyboard.press("Space");
-			await page.getByRole("button", { name: "Save what it shows" }).click();
-			await page.getByText("What the Content API shows was saved.").first().waitFor();
+			await bar.getByRole("button", { name: "Save" }).click();
+			await bar.getByText("Saved", { exact: true }).waitFor();
 		});
 	});
 }

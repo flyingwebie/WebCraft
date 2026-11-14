@@ -2394,7 +2394,9 @@
 			"reportOnly": "I browser segnalano nella console quello che la modalità rigorosa bloccherebbe, senza bloccarlo. Serve per provarla."
 		},
 		"modeSaved": "La policy è stata salvata.",
-		"appliesAtOnce": "Le modifiche valgono subito e non fanno parte di Pubblica tutto."
+		"appliesAtOnce": "Le modifiche valgono subito e non fanno parte di Pubblica tutto.",
+		"removeHostTitle": "Smettere di consentire {host}?",
+		"removeHostBody": "La policy del Site non permette più alle pagine di caricare nulla da lì."
 	},
 	"domains": {
 		"pageTitle": "Domini e staging",

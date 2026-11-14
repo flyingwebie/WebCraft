@@ -2394,7 +2394,9 @@
 			"reportOnly": "Browsers report what the Strict policy would block, in their console, without blocking it. Use it to try Strict out."
 		},
 		"modeSaved": "The policy was saved.",
-		"appliesAtOnce": "Changes apply at once and aren't part of Publish all."
+		"appliesAtOnce": "Changes apply at once and aren't part of Publish all.",
+		"removeHostTitle": "Stop allowing {host}?",
+		"removeHostBody": "The Site's policy no longer lets pages load anything from it."
 	},
 	"domains": {
 		"pageTitle": "Domains & Staging",

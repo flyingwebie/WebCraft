@@ -1,16 +1,7 @@
 import { useRouter } from "@tanstack/react-router";
 import type { ApiClient } from "@webcraft/api";
 import type { FieldDefinition } from "@webcraft/core";
-import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import {
-	Card,
-	CardAction,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@webcraft/ui/components/card.tsx";
 import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
 import {
 	Dialog,
@@ -24,7 +15,6 @@ import {
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@webcraft/ui/components/empty.tsx";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
 import { Textarea } from "@webcraft/ui/components/textarea.tsx";
 import { CopyIcon, PlusIcon } from "lucide-react";
 import { type FormEvent, type RefObject, useId, useRef, useState } from "react";
@@ -36,6 +26,16 @@ import { formatUtc } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { useSensitiveAction } from "../identity-check.tsx";
 import { PageHeader } from "../PageHeader.tsx";
+import { SettingsForm, useSettingsSection } from "../settings/form.tsx";
+import {
+	SettingsCard,
+	SettingsListRow,
+	SettingsRow,
+	SettingsRows,
+	StateBadge,
+	Switch,
+} from "../settings/layout.tsx";
+import { PageSheet } from "../shell/page.tsx";
 
 type View = Awaited<ReturnType<ApiClient["contentApi"]["get"]>>;
 type KeyView = View["keys"][number];
@@ -58,11 +58,13 @@ export function ContentApiPage({ siteId, data }: { siteId: string; data: Content
 	return (
 		<>
 			<PageHeader heading={t("contentApi.heading")}>{t("contentApi.intro")}</PageHeader>
-			<div className="grid max-w-5xl grid-cols-1 gap-6">
-				<SwitchCard siteId={siteId} view={data.view} />
-				<KeysCard siteId={siteId} keys={data.view.keys} />
-				<ShownCard siteId={siteId} data={data} />
-			</div>
+			<SettingsForm>
+				<div className="grid grid-cols-1 gap-6">
+					<SwitchCard siteId={siteId} view={data.view} />
+					<KeysCard siteId={siteId} keys={data.view.keys} />
+					<ShownCard siteId={siteId} data={data} />
+				</div>
+			</SettingsForm>
 		</>
 	);
 }
@@ -70,55 +72,37 @@ export function ContentApiPage({ siteId, data }: { siteId: string; data: Content
 function SwitchCard({ siteId, view }: { siteId: string; view: View }) {
 	const t = useT();
 	const id = useId();
-	const router = useRouter();
 	const runSensitive = useSensitiveAction();
-	const [busy, setBusy] = useState(false);
-	const toggle = async (enabled: boolean) => {
-		setBusy(true);
-		try {
-			// Switching it on is a Sensitive action: "Confirm it's you" when the last check is old.
-			await runSensitive(async () => (await getApi()).contentApi.update({ siteId, enabled }));
-			toast.success(t(enabled ? "contentApi.switchedOn" : "contentApi.switchedOff"));
-			await router.invalidate();
-		} catch (failure) {
-			toast.error(t(errorMessage(failure)));
-		} finally {
-			setBusy(false);
-		}
-	};
+	const section = useSettingsSection({
+		saved: { enabled: view.enabled },
+		// Switching it on is a Sensitive action: "Confirm it's you" when the last check is old.
+		save: async ({ enabled }) => runSensitive(async () => (await getApi()).contentApi.update({ siteId, enabled })),
+	});
 	const addresses: { label: MessageKey; url: string }[] = [];
 	if (view.addresses.main) addresses.push({ label: "contentApi.mainAddress", url: view.addresses.main });
 	if (view.addresses.staging) addresses.push({ label: "contentApi.stagingAddress", url: view.addresses.staging });
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("contentApi.switchTitle")}</h2>
-				</CardTitle>
-				<CardDescription id={`${id}-about`}>{t("contentApi.switchIntro")}</CardDescription>
-			</CardHeader>
-			<CardContent className="grid gap-4">
-				<label className="flex items-center gap-2 text-sm font-medium" htmlFor={`${id}-on`}>
-					<Checkbox
+		<SettingsCard title={t("contentApi.switchTitle")} description={t("contentApi.switchIntro")}>
+			<SettingsRows>
+				<SettingsRow label={t("contentApi.on")} htmlFor={`${id}-on`}>
+					<Switch
 						id={`${id}-on`}
-						checked={view.enabled}
-						disabled={busy}
-						aria-describedby={`${id}-about`}
-						onCheckedChange={(checked) => toggle(checked === true)}
+						checked={section.values.enabled}
+						onCheckedChange={(enabled) => section.set({ enabled })}
 					/>
-					{t("contentApi.on")}
-				</label>
-				<dl className="grid gap-2 text-sm">
-					{addresses.map((address) => (
-						<div key={address.label} className="grid gap-0.5 sm:grid-cols-[12rem_1fr]">
-							<dt className="text-muted-foreground">{t(address.label)}</dt>
-							<dd className="font-mono break-all">{address.url}</dd>
-						</div>
-					))}
-				</dl>
-				<p className="text-muted-foreground text-sm">{t("contentApi.howTo", { header: "Authorization: Bearer" })}</p>
-			</CardContent>
-		</Card>
+				</SettingsRow>
+			</SettingsRows>
+			{section.error ? <FieldError>{t(section.error)}</FieldError> : null}
+			<dl className="grid gap-2 text-sm">
+				{addresses.map((address) => (
+					<div key={address.label} className="grid gap-0.5 @2xl/page:grid-cols-[12rem_1fr]">
+						<dt className="text-muted-foreground">{t(address.label)}</dt>
+						<dd className="font-mono break-all">{address.url}</dd>
+					</div>
+				))}
+			</dl>
+			<p className="text-muted-foreground text-sm">{t("contentApi.howTo", { header: "Authorization: Bearer" })}</p>
+		</SettingsCard>
 	);
 }
 
@@ -128,54 +112,35 @@ function KeysCard({ siteId, keys }: { siteId: string; keys: KeyView[] }) {
 	const [creating, setCreating] = useState(false);
 	const [shown, setShown] = useState<{ name: string; secret: string } | null>(null);
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("contentApi.keysTitle")}</h2>
-				</CardTitle>
-				<CardDescription>{t("contentApi.keysIntro")}</CardDescription>
-				<CardAction>
-					<Button ref={createButton} onClick={() => setCreating(true)}>
-						<PlusIcon aria-hidden="true" />
-						{t("contentApi.createKey")}
-					</Button>
-				</CardAction>
-			</CardHeader>
-			<CardContent>
-				{keys.length === 0 ? (
-					<Empty className="border">
-						<EmptyHeader>
-							<EmptyTitle>{t("contentApi.noKeysTitle")}</EmptyTitle>
-							<EmptyDescription>{t("contentApi.noKeysBody")}</EmptyDescription>
-						</EmptyHeader>
-					</Empty>
-				) : (
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead>{t("contentApi.name")}</TableHead>
-								<TableHead>{t("contentApi.origins")}</TableHead>
-								<TableHead>{t("contentApi.requests")}</TableHead>
-								<TableHead>{t("contentApi.lastUsed")}</TableHead>
-								<TableHead>{t("contentApi.status")}</TableHead>
-								<TableHead>
-									<span className="sr-only">{t("contentApi.actions")}</span>
-								</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{keys.map((key) => (
-								<KeyRow key={key.id} siteId={siteId} contentKey={key} />
-							))}
-						</TableBody>
-					</Table>
-				)}
-			</CardContent>
+		<SettingsCard
+			title={t("contentApi.keysTitle")}
+			description={t("contentApi.keysIntro")}
+			action={
+				<Button ref={createButton} variant="outline" onClick={() => setCreating(true)}>
+					<PlusIcon aria-hidden="true" />
+					{t("contentApi.createKey")}
+				</Button>
+			}
+		>
+			{keys.length === 0 ? (
+				<Empty className="border">
+					<EmptyHeader>
+						<EmptyTitle>{t("contentApi.noKeysTitle")}</EmptyTitle>
+						<EmptyDescription>{t("contentApi.noKeysBody")}</EmptyDescription>
+					</EmptyHeader>
+				</Empty>
+			) : (
+				<SettingsRows>
+					{keys.map((key) => (
+						<KeyRow key={key.id} siteId={siteId} contentKey={key} />
+					))}
+				</SettingsRows>
+			)}
 			{creating ? (
 				<KeyDialog siteId={siteId} onClose={() => setCreating(false)} onCreated={setShown} finalFocus={createButton} />
 			) : null}
 			{shown ? <KeyShownDialog {...shown} onClose={() => setShown(null)} /> : null}
-		</Card>
+		</SettingsCard>
 	);
 }
 
@@ -187,43 +152,34 @@ function KeyRow({ siteId, contentKey }: { siteId: string; contentKey: KeyView })
 	const [revoking, setRevoking] = useState(false);
 	const active = contentKey.status === "active";
 	return (
-		<TableRow>
-			<TableCell>
-				<span className="flex flex-col">
-					<span className="font-medium">{contentKey.name}</span>
-					<span className="text-muted-foreground font-mono text-xs">
-						{t("contentApi.hint", { hint: contentKey.hint })}
-					</span>
-				</span>
-			</TableCell>
-			<TableCell>
-				{contentKey.origins.length === 0 ? (
-					<span className="text-muted-foreground">{t("contentApi.serversOnly")}</span>
-				) : (
-					<ul className="font-mono text-xs">
-						{contentKey.origins.map((origin) => (
-							<li key={origin}>{origin}</li>
-						))}
-					</ul>
-				)}
-			</TableCell>
-			<TableCell>
-				<span className="flex flex-col text-sm">
-					<span>{t("contentApi.today", { count: contentKey.usage.today })}</span>
-					<span className="text-muted-foreground text-xs">
-						{t("contentApi.lastDays", { week: contentKey.usage.last7Days, month: contentKey.usage.last30Days })}
-					</span>
-				</span>
-			</TableCell>
-			<TableCell>{contentKey.lastUsedAt ? formatUtc(contentKey.lastUsedAt) : t("contentApi.neverUsed")}</TableCell>
-			<TableCell>
-				<Badge variant={active ? "secondary" : "outline"}>
+		<SettingsListRow
+			badge={
+				<StateBadge tone={active ? "success" : "neutral"}>
 					{active ? t("contentApi.active") : t("contentApi.revoked")}
-				</Badge>
-			</TableCell>
-			<TableCell className="text-end">
-				{active ? (
-					<span className="inline-flex gap-2">
+				</StateBadge>
+			}
+			detail={
+				<div className="space-y-0.5">
+					<p className="font-mono">{t("contentApi.hint", { hint: contentKey.hint })}</p>
+					<p>
+						{t("contentApi.origins")}:{" "}
+						{contentKey.origins.length === 0 ? (
+							t("contentApi.serversOnly")
+						) : (
+							<span className="font-mono">{contentKey.origins.join(", ")}</span>
+						)}
+					</p>
+					<p>
+						{t("contentApi.today", { count: contentKey.usage.today })} ·{" "}
+						{t("contentApi.lastDays", { week: contentKey.usage.last7Days, month: contentKey.usage.last30Days })} ·{" "}
+						{t("contentApi.lastUsed")}:{" "}
+						{contentKey.lastUsedAt ? formatUtc(contentKey.lastUsedAt) : t("contentApi.neverUsed")}
+					</p>
+				</div>
+			}
+			actions={
+				active ? (
+					<>
 						<Button
 							ref={editButton}
 							variant="outline"
@@ -242,27 +198,29 @@ function KeyRow({ siteId, contentKey }: { siteId: string; contentKey: KeyView })
 						>
 							{t("contentApi.revoke")}
 						</Button>
-					</span>
-				) : null}
-				{editing ? (
-					<KeyDialog
-						siteId={siteId}
-						existing={contentKey}
-						onClose={() => setEditing(false)}
-						onCreated={() => {}}
-						finalFocus={editButton}
-					/>
-				) : null}
-				{revoking ? (
-					<RevokeKeyDialog
-						siteId={siteId}
-						contentKey={contentKey}
-						onClose={() => setRevoking(false)}
-						finalFocus={revokeButton}
-					/>
-				) : null}
-			</TableCell>
-		</TableRow>
+					</>
+				) : null
+			}
+		>
+			<span>{contentKey.name}</span>
+			{editing ? (
+				<KeyDialog
+					siteId={siteId}
+					existing={contentKey}
+					onClose={() => setEditing(false)}
+					onCreated={() => {}}
+					finalFocus={editButton}
+				/>
+			) : null}
+			{revoking ? (
+				<RevokeKeyDialog
+					siteId={siteId}
+					contentKey={contentKey}
+					onClose={() => setRevoking(false)}
+					finalFocus={revokeButton}
+				/>
+			) : null}
+		</SettingsListRow>
 	);
 }
 
@@ -342,76 +300,78 @@ function KeyDialog({
 	const about = (field: "name" | "origins") => problems.filter((problem) => problem.field === field);
 	const invalid = (field: "name" | "origins") => (about(field).length > 0 ? true : undefined);
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent closeLabel={t("contentApi.close")} finalFocus={finalFocus} className="sm:max-w-xl">
-				<form onSubmit={submit} noValidate>
-					<DialogHeader>
-						<DialogTitle>
-							{existing ? t("contentApi.editTitle", { name: existing.name }) : t("contentApi.createTitle")}
-						</DialogTitle>
-						<DialogDescription>{t("contentApi.createIntro")}</DialogDescription>
-					</DialogHeader>
-					<FieldGroup className="my-6 gap-6">
-						<Field data-invalid={invalid("name")}>
-							<FieldLabel htmlFor={`${id}-name`}>{t("contentApi.name")}</FieldLabel>
-							<Input
-								id={`${id}-name`}
-								value={name}
-								maxLength={100}
-								required
-								autoComplete="off"
-								onChange={(event) => setName(event.target.value)}
-								aria-invalid={invalid("name")}
-								aria-describedby={`${id}-name-help${invalid("name") ? ` ${id}-name-error` : ""}`}
-							/>
-							<FieldDescription id={`${id}-name-help`}>{t("contentApi.nameHelp")}</FieldDescription>
-							{invalid("name") ? (
-								<FieldError id={`${id}-name-error`}>
-									{about("name")
-										.map((problem) => problem.message)
-										.join(" ")}
-								</FieldError>
-							) : null}
-						</Field>
-						<Field data-invalid={invalid("origins")}>
-							<FieldLabel htmlFor={`${id}-origins`}>{t("contentApi.origins")}</FieldLabel>
-							<Textarea
-								id={`${id}-origins`}
-								value={origins}
-								rows={4}
-								spellCheck={false}
-								className="font-mono"
-								placeholder="https://shop.example.com"
-								onChange={(event) => setOrigins(event.target.value)}
-								aria-invalid={invalid("origins")}
-								aria-describedby={`${id}-origins-help${invalid("origins") ? ` ${id}-origins-error` : ""}`}
-							/>
-							<FieldDescription id={`${id}-origins-help`}>{t("contentApi.originsHelp")}</FieldDescription>
-							{invalid("origins") ? (
-								<FieldError id={`${id}-origins-error`}>
-									{about("origins").map((problem) => (
-										<span key={problem.message} className="block">
-											{problem.message}
-										</span>
-									))}
-								</FieldError>
-							) : null}
-						</Field>
-						{problems
-							.filter((problem) => problem.field === null)
-							.map((problem) => (
-								<FieldError key={problem.message}>{problem.message}</FieldError>
-							))}
-					</FieldGroup>
-					<DialogFooter>
-						<DialogClose render={<Button variant="outline" type="button" />}>{t("contentApi.cancel")}</DialogClose>
-						<Button type="submit" disabled={busy}>
-							{existing ? t("contentApi.save") : t("contentApi.createSubmit")}
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+		<PageSheet
+			open
+			onOpenChange={(open) => !open && onClose()}
+			title={existing ? t("contentApi.editTitle", { name: existing.name }) : t("contentApi.createTitle")}
+			description={t("contentApi.createIntro")}
+			finalFocus={finalFocus}
+			footer={
+				<>
+					<Button type="button" variant="outline" onClick={onClose}>
+						{t("contentApi.cancel")}
+					</Button>
+					<Button type="submit" form={`${id}-form`} disabled={busy}>
+						{existing ? t("contentApi.save") : t("contentApi.createSubmit")}
+					</Button>
+				</>
+			}
+		>
+			<form id={`${id}-form`} onSubmit={submit} noValidate>
+				<FieldGroup className="gap-6">
+					<Field data-invalid={invalid("name")}>
+						<FieldLabel htmlFor={`${id}-name`}>{t("contentApi.name")}</FieldLabel>
+						<Input
+							id={`${id}-name`}
+							value={name}
+							maxLength={100}
+							required
+							autoComplete="off"
+							onChange={(event) => setName(event.target.value)}
+							aria-invalid={invalid("name")}
+							aria-describedby={`${id}-name-help${invalid("name") ? ` ${id}-name-error` : ""}`}
+						/>
+						<FieldDescription id={`${id}-name-help`}>{t("contentApi.nameHelp")}</FieldDescription>
+						{invalid("name") ? (
+							<FieldError id={`${id}-name-error`}>
+								{about("name")
+									.map((problem) => problem.message)
+									.join(" ")}
+							</FieldError>
+						) : null}
+					</Field>
+					<Field data-invalid={invalid("origins")}>
+						<FieldLabel htmlFor={`${id}-origins`}>{t("contentApi.origins")}</FieldLabel>
+						<Textarea
+							id={`${id}-origins`}
+							value={origins}
+							rows={4}
+							spellCheck={false}
+							className="font-mono"
+							placeholder="https://shop.example.com"
+							onChange={(event) => setOrigins(event.target.value)}
+							aria-invalid={invalid("origins")}
+							aria-describedby={`${id}-origins-help${invalid("origins") ? ` ${id}-origins-error` : ""}`}
+						/>
+						<FieldDescription id={`${id}-origins-help`}>{t("contentApi.originsHelp")}</FieldDescription>
+						{invalid("origins") ? (
+							<FieldError id={`${id}-origins-error`}>
+								{about("origins").map((problem) => (
+									<span key={problem.message} className="block">
+										{problem.message}
+									</span>
+								))}
+							</FieldError>
+						) : null}
+					</Field>
+					{problems
+						.filter((problem) => problem.field === null)
+						.map((problem) => (
+							<FieldError key={problem.message}>{problem.message}</FieldError>
+						))}
+				</FieldGroup>
+			</form>
+		</PageSheet>
 	);
 }
 
@@ -524,43 +484,26 @@ function fieldRows(
 function ShownCard({ siteId, data }: { siteId: string; data: ContentApiData }) {
 	const t = useT();
 	const id = useId();
-	const router = useRouter();
-	const [hiddenTypes, setHiddenTypes] = useState(() => new Set(data.view.hidden.postTypes));
-	const [hiddenFields, setHiddenFields] = useState(
-		() => new Map(Object.entries(data.view.hidden.fields).map(([postTypeId, paths]) => [postTypeId, new Set(paths)])),
-	);
-	const [hiddenGlobals, setHiddenGlobals] = useState(() => new Set(data.view.hidden.globals));
-	const [busy, setBusy] = useState(false);
-	const toggled = (set: ReadonlySet<string>, value: string, shown: boolean) => {
-		const next = new Set(set);
-		if (shown) next.delete(value);
-		else next.add(value);
-		return next;
-	};
-	const save = async (event: FormEvent) => {
-		event.preventDefault();
-		setBusy(true);
-		try {
-			const api = await getApi();
-			await api.contentApi.update({
-				siteId,
-				hidden: {
-					postTypes: [...hiddenTypes],
-					fields: Object.fromEntries([...hiddenFields].map(([postTypeId, paths]) => [postTypeId, [...paths]])),
-					globals: [...hiddenGlobals],
-				},
-			});
-			toast.success(t("contentApi.shownSaved"));
-			await router.invalidate();
-		} catch (failure) {
-			toast.error(t(errorMessage(failure)));
-		} finally {
-			setBusy(false);
-		}
-	};
+	const section = useSettingsSection({
+		saved: {
+			postTypes: [...data.view.hidden.postTypes].sort(),
+			fields: Object.fromEntries(
+				Object.entries(data.view.hidden.fields)
+					.filter(([, paths]) => paths.length > 0)
+					.sort(([a], [b]) => a.localeCompare(b))
+					.map(([postTypeId, paths]) => [postTypeId, [...paths].sort()]),
+			) as Record<string, string[]>,
+			globals: [...data.view.hidden.globals].sort(),
+		},
+		save: async (hidden) => (await getApi()).contentApi.update({ siteId, hidden }),
+	});
+	const hidden = section.values;
+	/** The list with `value` hidden (`shown` false) or shown, sorted so a change back is no change. */
+	const toggled = (list: readonly string[], value: string, shown: boolean) =>
+		shown ? list.filter((item) => item !== value) : [...new Set([...list, value])].sort();
 	const fieldList = (
 		rows: { path: string; label: string; depth: number }[],
-		hidden: ReadonlySet<string>,
+		hiddenPaths: readonly string[],
 		change: (path: string, shown: boolean) => void,
 		disabled: boolean,
 		prefix: string,
@@ -571,7 +514,7 @@ function ShownCard({ siteId, data }: { siteId: string; data: ContentApiData }) {
 					<label className="flex items-center gap-2 text-sm" htmlFor={`${prefix}-${row.path}`}>
 						<Checkbox
 							id={`${prefix}-${row.path}`}
-							checked={!hidden.has(row.path) && !disabled}
+							checked={!hiddenPaths.includes(row.path) && !disabled}
 							disabled={disabled}
 							onCheckedChange={(checked) => change(row.path, checked === true)}
 						/>
@@ -583,72 +526,65 @@ function ShownCard({ siteId, data }: { siteId: string; data: ContentApiData }) {
 		</ul>
 	);
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("contentApi.shownTitleCard")}</h2>
-				</CardTitle>
-				<CardDescription>{t("contentApi.shownIntroCard")}</CardDescription>
-			</CardHeader>
-			<CardContent>
-				<form onSubmit={save} className="grid gap-6">
-					{data.postTypes.map((postType) => {
-						const typeShown = !hiddenTypes.has(postType.id);
-						const rows = fieldRows(postType.fields);
-						return (
-							<fieldset key={postType.id} className="grid gap-3 rounded-lg border p-4">
-								<legend className="px-1 text-sm font-medium">{postType.name}</legend>
-								<label className="flex items-center gap-2 text-sm font-medium" htmlFor={`${id}-type-${postType.id}`}>
-									<Checkbox
-										id={`${id}-type-${postType.id}`}
-										checked={typeShown}
-										onCheckedChange={(checked) =>
-											setHiddenTypes((current) => toggled(current, postType.id, checked === true))
-										}
-									/>
-									{t("contentApi.showPostType", { name: postType.name })}
-								</label>
-								{rows.length === 0 ? (
-									<p className="text-muted-foreground text-sm">{t("contentApi.noFields")}</p>
-								) : (
-									fieldList(
-										rows,
-										hiddenFields.get(postType.id) ?? new Set(),
-										(path, shown) =>
-											setHiddenFields((current) => {
-												const next = new Map(current);
-												next.set(postType.id, toggled(current.get(postType.id) ?? new Set(), path, shown));
-												return next;
-											}),
-										!typeShown,
-										`${id}-field-${postType.id}`,
-									)
-								)}
-							</fieldset>
-						);
-					})}
-					<fieldset className="grid gap-3 rounded-lg border p-4">
-						<legend className="px-1 text-sm font-medium">{t("contentApi.globals")}</legend>
-						{data.globals.length === 0 ? (
-							<p className="text-muted-foreground text-sm">{t("contentApi.noFields")}</p>
-						) : (
-							fieldList(
-								fieldRows(data.globals),
-								hiddenGlobals,
-								(path, shown) => setHiddenGlobals((current) => toggled(current, path, shown)),
-								false,
-								`${id}-global`,
-							)
-						)}
-					</fieldset>
-					<p className="text-muted-foreground text-sm">{t("contentApi.searchNote")}</p>
-					<div>
-						<Button type="submit" disabled={busy}>
-							{t("contentApi.saveShown")}
-						</Button>
-					</div>
-				</form>
-			</CardContent>
-		</Card>
+		<SettingsCard title={t("contentApi.shownTitleCard")} description={t("contentApi.shownIntroCard")}>
+			<form {...section.formProps} className="grid gap-6">
+				{data.postTypes.map((postType) => {
+					const typeShown = !hidden.postTypes.includes(postType.id);
+					const rows = fieldRows(postType.fields);
+					return (
+						<fieldset key={postType.id} className="grid gap-3 rounded-lg border p-4">
+							<legend className="px-1 text-sm font-medium">{postType.name}</legend>
+							<label className="flex items-center gap-2 text-sm font-medium" htmlFor={`${id}-type-${postType.id}`}>
+								<Checkbox
+									id={`${id}-type-${postType.id}`}
+									checked={typeShown}
+									onCheckedChange={(checked) =>
+										section.set({ postTypes: toggled(hidden.postTypes, postType.id, checked === true) })
+									}
+								/>
+								{t("contentApi.showPostType", { name: postType.name })}
+							</label>
+							{rows.length === 0 ? (
+								<p className="text-muted-foreground text-sm">{t("contentApi.noFields")}</p>
+							) : (
+								fieldList(
+									rows,
+									hidden.fields[postType.id] ?? [],
+									(path, shown) => {
+										const next = toggled(hidden.fields[postType.id] ?? [], path, shown);
+										const { [postType.id]: _, ...others } = hidden.fields;
+										section.set({
+											fields: Object.fromEntries(
+												Object.entries(next.length > 0 ? { ...others, [postType.id]: next } : others).sort(([a], [b]) =>
+													a.localeCompare(b),
+												),
+											),
+										});
+									},
+									!typeShown,
+									`${id}-field-${postType.id}`,
+								)
+							)}
+						</fieldset>
+					);
+				})}
+				<fieldset className="grid gap-3 rounded-lg border p-4">
+					<legend className="px-1 text-sm font-medium">{t("contentApi.globals")}</legend>
+					{data.globals.length === 0 ? (
+						<p className="text-muted-foreground text-sm">{t("contentApi.noFields")}</p>
+					) : (
+						fieldList(
+							fieldRows(data.globals),
+							hidden.globals,
+							(path, shown) => section.set({ globals: toggled(hidden.globals, path, shown) }),
+							false,
+							`${id}-global`,
+						)
+					)}
+				</fieldset>
+				<p className="text-muted-foreground text-sm">{t("contentApi.searchNote")}</p>
+				{section.error ? <FieldError>{t(section.error)}</FieldError> : null}
+			</form>
+		</SettingsCard>
 	);
 }

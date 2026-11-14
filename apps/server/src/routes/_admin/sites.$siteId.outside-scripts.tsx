@@ -1,15 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import type { CspMode, CspSettings, OutsideScript, OutsideScriptPlacement, SnippetProblem } from "@webcraft/core";
-import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import {
-	Card,
-	CardAction,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@webcraft/ui/components/card.tsx";
 import {
 	Dialog,
 	DialogClose,
@@ -29,6 +20,7 @@ import {
 	Field,
 	FieldContent,
 	FieldDescription,
+	FieldError,
 	FieldGroup,
 	FieldLabel,
 	FieldLegend,
@@ -37,7 +29,6 @@ import {
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { RadioGroup, RadioGroupItem } from "@webcraft/ui/components/radio-group.tsx";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
 import { Textarea } from "@webcraft/ui/components/textarea.tsx";
 import { EllipsisIcon, PencilIcon, PlusIcon, TrashIcon } from "lucide-react";
 import { type FormEvent, type RefObject, useId, useRef, useState } from "react";
@@ -48,6 +39,10 @@ import { FormatButton, FormatNoteLine, useCodeFormat } from "../../ui/code-forma
 import { errorCode, errorMessage } from "../../ui/errors.ts";
 import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
+import { ConfirmDialog } from "../../ui/settings/confirm.tsx";
+import { SettingsForm, useSettingsSection } from "../../ui/settings/form.tsx";
+import { SettingsCard, SettingsListRow, SettingsRows, StateBadge } from "../../ui/settings/layout.tsx";
+import { PageSheet } from "../../ui/shell/page.tsx";
 
 export const Route = createFileRoute("/_admin/sites/$siteId/outside-scripts")({
 	staticData: { crumb: "outsideScripts.pageTitle", width: "form" },
@@ -85,12 +80,14 @@ function OutsideScriptsPage() {
 	return (
 		<>
 			<PageHeader heading={t("outsideScripts.heading")}>{t("outsideScripts.intro")}</PageHeader>
-			<div className="grid max-w-4xl gap-8">
-				<OutsideScriptList siteId={siteId} scripts={data.outsideScripts} />
-				<AllowedHosts siteId={siteId} policy={data.policy} />
-				<PolicyMode siteId={siteId} mode={data.policy.mode} />
-				<p className="text-muted-foreground text-sm">{t("outsideScripts.appliesAtOnce")}</p>
-			</div>
+			<SettingsForm>
+				<div className="grid gap-6">
+					<OutsideScriptList siteId={siteId} scripts={data.outsideScripts} />
+					<AllowedHosts siteId={siteId} policy={data.policy} />
+					<PolicyMode siteId={siteId} mode={data.policy.mode} />
+					<p className="text-muted-foreground text-sm">{t("outsideScripts.appliesAtOnce")}</p>
+				</div>
+			</SettingsForm>
 		</>
 	);
 }
@@ -98,62 +95,40 @@ function OutsideScriptsPage() {
 /** The Site's policy mode: Strict (the default), Relaxed or Report only. */
 function PolicyMode({ siteId, mode }: { siteId: string; mode: CspMode }) {
 	const t = useT();
-	const router = useRouter();
 	const id = useId();
-	const [chosen, setChosen] = useState<CspMode>(mode);
-	const [busy, setBusy] = useState(false);
-	const save = async (event: FormEvent) => {
-		event.preventDefault();
-		setBusy(true);
-		try {
-			const api = await getApi();
-			await api.csp.setMode({ siteId, mode: chosen });
-			toast.success(t("outsideScripts.modeSaved"));
-			await router.invalidate();
-		} catch (failure) {
-			toast.error(t(errorMessage(failure)));
-		} finally {
-			setBusy(false);
-		}
-	};
+	const section = useSettingsSection({
+		saved: { chosen: mode },
+		save: async ({ chosen }) => (await getApi()).csp.setMode({ siteId, mode: chosen }),
+	});
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("outsideScripts.policyTitle")}</h2>
-				</CardTitle>
-				<CardDescription>{t("outsideScripts.policyIntro")}</CardDescription>
-			</CardHeader>
-			<CardContent>
-				<form onSubmit={save} className="grid gap-6">
-					<FieldSet>
-						<FieldLegend variant="label">{t("outsideScripts.mode")}</FieldLegend>
-						<RadioGroup value={chosen} onValueChange={(value) => setChosen(value as CspMode)}>
-							{MODES.map((candidate) => (
-								<Field key={candidate} orientation="horizontal">
-									<RadioGroupItem
-										value={candidate}
-										id={`${id}-${candidate}`}
-										aria-describedby={`${id}-${candidate}-help`}
-									/>
-									<FieldContent>
-										<FieldLabel htmlFor={`${id}-${candidate}`}>{t(`outsideScripts.modes.${candidate}`)}</FieldLabel>
-										<FieldDescription id={`${id}-${candidate}-help`}>
-											{t(`outsideScripts.modeHelp.${candidate}`)}
-										</FieldDescription>
-									</FieldContent>
-								</Field>
-							))}
-						</RadioGroup>
-					</FieldSet>
-					<div>
-						<Button type="submit" variant="outline" disabled={busy || chosen === mode}>
-							{t("outsideScripts.save")}
-						</Button>
-					</div>
-				</form>
-			</CardContent>
-		</Card>
+		<SettingsCard title={t("outsideScripts.policyTitle")} description={t("outsideScripts.policyIntro")}>
+			<form {...section.formProps} className="grid gap-6">
+				<FieldSet>
+					<FieldLegend variant="label">{t("outsideScripts.mode")}</FieldLegend>
+					<RadioGroup
+						value={section.values.chosen}
+						onValueChange={(value) => section.set({ chosen: value as CspMode })}
+					>
+						{MODES.map((candidate) => (
+							<Field key={candidate} orientation="horizontal">
+								<RadioGroupItem
+									value={candidate}
+									id={`${id}-${candidate}`}
+									aria-describedby={`${id}-${candidate}-help`}
+								/>
+								<FieldContent>
+									<FieldLabel htmlFor={`${id}-${candidate}`}>{t(`outsideScripts.modes.${candidate}`)}</FieldLabel>
+									<FieldDescription id={`${id}-${candidate}-help`}>
+										{t(`outsideScripts.modeHelp.${candidate}`)}
+									</FieldDescription>
+								</FieldContent>
+							</Field>
+						))}
+					</RadioGroup>
+				</FieldSet>
+				{section.error ? <FieldError>{t(section.error)}</FieldError> : null}
+			</form>
+		</SettingsCard>
 	);
 }
 
@@ -163,67 +138,60 @@ function OutsideScriptList({ siteId, scripts }: { siteId: string; scripts: reado
 	const addButton = useRef<HTMLButtonElement>(null);
 	const [adding, setAdding] = useState(false);
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("outsideScripts.listTitle")}</h2>
-				</CardTitle>
-				<CardDescription>{t("outsideScripts.listIntro")}</CardDescription>
-				<CardAction>
-					<Button ref={addButton} size="sm" onClick={() => setAdding(true)}>
-						<PlusIcon aria-hidden="true" />
-						{t("outsideScripts.add")}
-					</Button>
-				</CardAction>
-			</CardHeader>
-			<CardContent>
-				{scripts.length === 0 ? (
-					<p className="text-muted-foreground text-sm">{t("outsideScripts.none")}</p>
-				) : (
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead>{t("outsideScripts.name")}</TableHead>
-								<TableHead>{t("outsideScripts.placement")}</TableHead>
-								<TableHead>{t("outsideScripts.category")}</TableHead>
-								<TableHead>{t("outsideScripts.hosts")}</TableHead>
-								<TableHead>
-									<span className="sr-only">{t("outsideScripts.actions")}</span>
-								</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{scripts.map((script) => (
-								<TableRow key={script.id}>
-									<TableCell>
-										<div className="font-medium">{script.name}</div>
-										<div className="text-muted-foreground text-xs">{t(`outsideScripts.kinds.${script.kind}`)}</div>
-									</TableCell>
-									<TableCell>{t(`outsideScripts.placements.${script.placement}`)}</TableCell>
-									<TableCell>{t(`outsideScripts.categories.${script.consentCategory}`)}</TableCell>
-									<TableCell>
-										<ul className="grid gap-1 text-sm">
+		<SettingsCard
+			title={t("outsideScripts.listTitle")}
+			description={t("outsideScripts.listIntro")}
+			action={
+				<Button ref={addButton} variant="outline" onClick={() => setAdding(true)}>
+					<PlusIcon aria-hidden="true" />
+					{t("outsideScripts.add")}
+				</Button>
+			}
+		>
+			{scripts.length === 0 ? (
+				<p className="text-muted-foreground text-sm">{t("outsideScripts.none")}</p>
+			) : (
+				<SettingsRows>
+					{scripts.map((script) => (
+						<SettingsListRow
+							key={script.id}
+							badge={
+								script.blockedHosts.length > 0 ? (
+									<StateBadge tone="danger">{t("outsideScripts.blocked")}</StateBadge>
+								) : null
+							}
+							detail={
+								<div className="space-y-0.5">
+									<p>
+										{[
+											t(`outsideScripts.kinds.${script.kind}`),
+											`${t("outsideScripts.placement")}: ${t(`outsideScripts.placements.${script.placement}`)}`,
+											`${t("outsideScripts.category")}: ${t(`outsideScripts.categories.${script.consentCategory}`)}`,
+										].join(" · ")}
+									</p>
+									{script.hosts.length > 0 ? (
+										<ul className="flex flex-wrap gap-x-3 gap-y-1">
 											{script.hosts.map((host) => (
-												<li key={host} className="flex flex-wrap items-center gap-2">
-													<span className="font-mono text-xs">{host}</span>
+												<li key={host} className="flex items-center gap-1.5">
+													<span className="font-mono">{host}</span>
 													{script.blockedHosts.includes(host) ? (
-														<Badge variant="destructive">{t("outsideScripts.blocked")}</Badge>
+														<span className="text-destructive">({t("outsideScripts.blocked")})</span>
 													) : null}
 												</li>
 											))}
 										</ul>
-									</TableCell>
-									<TableCell className="text-end">
-										<OutsideScriptActions siteId={siteId} script={script} />
-									</TableCell>
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
-				)}
-			</CardContent>
+									) : null}
+								</div>
+							}
+							actions={<OutsideScriptActions siteId={siteId} script={script} />}
+						>
+							<span>{script.name}</span>
+						</SettingsListRow>
+					))}
+				</SettingsRows>
+			)}
 			{adding ? <OutsideScriptDialog siteId={siteId} onClose={() => setAdding(false)} finalFocus={addButton} /> : null}
-		</Card>
+		</SettingsCard>
 	);
 }
 
@@ -323,137 +291,140 @@ function OutsideScriptDialog({
 		}
 	};
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent closeLabel={t("outsideScripts.close")} finalFocus={finalFocus} className="sm:max-w-2xl">
-				<form onSubmit={save} noValidate>
-					<DialogHeader>
-						<DialogTitle>
-							{script ? t("outsideScripts.editTitle", { name: script.name }) : t("outsideScripts.addTitle")}
-						</DialogTitle>
-						<DialogDescription>{t("outsideScripts.dialogIntro")}</DialogDescription>
-					</DialogHeader>
-					<FieldGroup className="my-6 gap-5">
+		<PageSheet
+			open
+			onOpenChange={(open) => !open && onClose()}
+			title={script ? t("outsideScripts.editTitle", { name: script.name }) : t("outsideScripts.addTitle")}
+			description={t("outsideScripts.dialogIntro")}
+			finalFocus={finalFocus}
+			className="data-[side=right]:sm:max-w-2xl"
+			footer={
+				<>
+					<Button type="button" variant="outline" onClick={onClose}>
+						{t("outsideScripts.cancel")}
+					</Button>
+					<Button type="submit" form={`${id}-form`} disabled={busy || !name.trim()}>
+						{t("outsideScripts.save")}
+					</Button>
+				</>
+			}
+		>
+			<form id={`${id}-form`} onSubmit={save} noValidate>
+				<FieldGroup className="gap-5">
+					<Field>
+						<FieldLabel htmlFor={`${id}-name`}>{t("outsideScripts.name")}</FieldLabel>
+						<Input
+							id={`${id}-name`}
+							value={name}
+							required
+							maxLength={100}
+							onChange={(event) => setName(event.target.value)}
+						/>
+					</Field>
+					<FieldSet>
+						<FieldLegend variant="label">{t("outsideScripts.kind")}</FieldLegend>
+						<RadioGroup value={kind} onValueChange={(value) => setKind(value as "url" | "snippet")}>
+							<Field orientation="horizontal">
+								<RadioGroupItem value="url" id={`${id}-url`} />
+								<FieldLabel htmlFor={`${id}-url`}>{t("outsideScripts.kinds.url")}</FieldLabel>
+							</Field>
+							<Field orientation="horizontal">
+								<RadioGroupItem value="snippet" id={`${id}-snippet`} />
+								<FieldLabel htmlFor={`${id}-snippet`}>{t("outsideScripts.kinds.snippet")}</FieldLabel>
+							</Field>
+						</RadioGroup>
+					</FieldSet>
+					{kind === "url" ? (
 						<Field>
-							<FieldLabel htmlFor={`${id}-name`}>{t("outsideScripts.name")}</FieldLabel>
+							<FieldLabel htmlFor={`${id}-address`}>{t("outsideScripts.address")}</FieldLabel>
 							<Input
-								id={`${id}-name`}
-								value={name}
+								id={`${id}-address`}
+								type="url"
+								value={url}
 								required
-								maxLength={100}
-								onChange={(event) => setName(event.target.value)}
+								maxLength={2000}
+								spellCheck={false}
+								className="font-mono"
+								onChange={(event) => setUrl(event.target.value)}
+								aria-describedby={`${id}-address-help`}
 							/>
+							<FieldDescription id={`${id}-address-help`}>{t("outsideScripts.addressHelp")}</FieldDescription>
 						</Field>
-						<FieldSet>
-							<FieldLegend variant="label">{t("outsideScripts.kind")}</FieldLegend>
-							<RadioGroup value={kind} onValueChange={(value) => setKind(value as "url" | "snippet")}>
-								<Field orientation="horizontal">
-									<RadioGroupItem value="url" id={`${id}-url`} />
-									<FieldLabel htmlFor={`${id}-url`}>{t("outsideScripts.kinds.url")}</FieldLabel>
-								</Field>
-								<Field orientation="horizontal">
-									<RadioGroupItem value="snippet" id={`${id}-snippet`} />
-									<FieldLabel htmlFor={`${id}-snippet`}>{t("outsideScripts.kinds.snippet")}</FieldLabel>
-								</Field>
-							</RadioGroup>
-						</FieldSet>
-						{kind === "url" ? (
-							<Field>
-								<FieldLabel htmlFor={`${id}-address`}>{t("outsideScripts.address")}</FieldLabel>
-								<Input
-									id={`${id}-address`}
-									type="url"
-									value={url}
-									required
-									maxLength={2000}
-									spellCheck={false}
-									className="font-mono"
-									onChange={(event) => setUrl(event.target.value)}
-									aria-describedby={`${id}-address-help`}
-								/>
-								<FieldDescription id={`${id}-address-help`}>{t("outsideScripts.addressHelp")}</FieldDescription>
-							</Field>
-						) : (
-							<Field>
-								<div className="flex items-center justify-between gap-2">
-									<FieldLabel htmlFor={`${id}-code`}>{t("outsideScripts.snippet")}</FieldLabel>
-									<FormatButton format={formatting} withWord />
-								</div>
-								<Textarea
-									ref={snippetArea}
-									id={`${id}-code`}
-									value={snippet}
-									required
-									rows={8}
-									spellCheck={false}
-									className="max-h-72 font-mono text-xs"
-									onChange={(event) => setSnippet(event.target.value)}
-									onKeyDown={(event) => {
-										formatting.onKeyDown(event);
-									}}
-									aria-describedby={`${id}-code-help`}
-									aria-invalid={problems.length > 0 ? true : undefined}
-								/>
-								<FormatNoteLine format={formatting} />
-								<FieldDescription id={`${id}-code-help`}>{t("outsideScripts.snippetHelp")}</FieldDescription>
-							</Field>
-						)}
-						<div className="grid gap-5 sm:grid-cols-2">
-							<Field>
-								<FieldLabel htmlFor={`${id}-placement`}>{t("outsideScripts.placement")}</FieldLabel>
-								<NativeSelect
-									id={`${id}-placement`}
-									value={placement}
-									onChange={(event) => setPlacement(event.target.value as OutsideScriptPlacement)}
-								>
-									{PLACEMENTS.map((candidate) => (
-										<NativeSelectOption key={candidate} value={candidate}>
-											{t(`outsideScripts.placements.${candidate}`)}
-										</NativeSelectOption>
+					) : (
+						<Field>
+							<div className="flex items-center justify-between gap-2">
+								<FieldLabel htmlFor={`${id}-code`}>{t("outsideScripts.snippet")}</FieldLabel>
+								<FormatButton format={formatting} withWord />
+							</div>
+							<Textarea
+								ref={snippetArea}
+								id={`${id}-code`}
+								value={snippet}
+								required
+								rows={8}
+								spellCheck={false}
+								className="max-h-72 font-mono text-xs"
+								onChange={(event) => setSnippet(event.target.value)}
+								onKeyDown={(event) => {
+									formatting.onKeyDown(event);
+								}}
+								aria-describedby={`${id}-code-help`}
+								aria-invalid={problems.length > 0 ? true : undefined}
+							/>
+							<FormatNoteLine format={formatting} />
+							<FieldDescription id={`${id}-code-help`}>{t("outsideScripts.snippetHelp")}</FieldDescription>
+						</Field>
+					)}
+					<div className="grid gap-5 sm:grid-cols-2">
+						<Field>
+							<FieldLabel htmlFor={`${id}-placement`}>{t("outsideScripts.placement")}</FieldLabel>
+							<NativeSelect
+								id={`${id}-placement`}
+								value={placement}
+								onChange={(event) => setPlacement(event.target.value as OutsideScriptPlacement)}
+							>
+								{PLACEMENTS.map((candidate) => (
+									<NativeSelectOption key={candidate} value={candidate}>
+										{t(`outsideScripts.placements.${candidate}`)}
+									</NativeSelectOption>
+								))}
+							</NativeSelect>
+						</Field>
+						<Field>
+							<FieldLabel htmlFor={`${id}-category`}>{t("outsideScripts.category")}</FieldLabel>
+							<NativeSelect
+								id={`${id}-category`}
+								value={category}
+								onChange={(event) => setCategory(event.target.value as Category)}
+								aria-describedby={`${id}-category-help`}
+							>
+								{CATEGORIES.map((candidate) => (
+									<NativeSelectOption key={candidate} value={candidate}>
+										{t(`outsideScripts.categories.${candidate}`)}
+									</NativeSelectOption>
+								))}
+							</NativeSelect>
+							<FieldDescription id={`${id}-category-help`}>{t("outsideScripts.categoryHelp")}</FieldDescription>
+						</Field>
+					</div>
+					<div role="alert" className="grid gap-1 empty:hidden">
+						{problems.length > 0 ? (
+							<>
+								<p className="text-destructive text-sm font-medium">{t("outsideScripts.problems")}</p>
+								<ul className="text-destructive list-disc ps-5 text-sm">
+									{problems.map((problem) => (
+										<li key={`${problem.line}-${problem.message}`}>
+											{problem.line > 0 ? `${t("outsideScripts.line", { line: problem.line })} ` : ""}
+											{problem.message}
+										</li>
 									))}
-								</NativeSelect>
-							</Field>
-							<Field>
-								<FieldLabel htmlFor={`${id}-category`}>{t("outsideScripts.category")}</FieldLabel>
-								<NativeSelect
-									id={`${id}-category`}
-									value={category}
-									onChange={(event) => setCategory(event.target.value as Category)}
-									aria-describedby={`${id}-category-help`}
-								>
-									{CATEGORIES.map((candidate) => (
-										<NativeSelectOption key={candidate} value={candidate}>
-											{t(`outsideScripts.categories.${candidate}`)}
-										</NativeSelectOption>
-									))}
-								</NativeSelect>
-								<FieldDescription id={`${id}-category-help`}>{t("outsideScripts.categoryHelp")}</FieldDescription>
-							</Field>
-						</div>
-						<div role="alert" className="grid gap-1 empty:hidden">
-							{problems.length > 0 ? (
-								<>
-									<p className="text-destructive text-sm font-medium">{t("outsideScripts.problems")}</p>
-									<ul className="text-destructive list-disc ps-5 text-sm">
-										{problems.map((problem) => (
-											<li key={`${problem.line}-${problem.message}`}>
-												{problem.line > 0 ? `${t("outsideScripts.line", { line: problem.line })} ` : ""}
-												{problem.message}
-											</li>
-										))}
-									</ul>
-								</>
-							) : null}
-						</div>
-					</FieldGroup>
-					<DialogFooter>
-						<DialogClose render={<Button variant="outline" type="button" />}>{t("outsideScripts.cancel")}</DialogClose>
-						<Button type="submit" disabled={busy || !name.trim()}>
-							{t("outsideScripts.save")}
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+								</ul>
+							</>
+						) : null}
+					</div>
+				</FieldGroup>
+			</form>
+		</PageSheet>
 	);
 }
 
@@ -532,6 +503,7 @@ function AllowedHosts({ siteId, policy }: { siteId: string; policy: CspSettings 
 			setBusy(false);
 		}
 	};
+	const [removing, setRemoving] = useState<string | null>(null);
 	const remove = async (removed: string) => {
 		try {
 			const api = await getApi();
@@ -544,80 +516,73 @@ function AllowedHosts({ siteId, policy }: { siteId: string; policy: CspSettings 
 	};
 	const empty = policy.hosts.length === 0 && policy.moduleHosts.length === 0;
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("outsideScripts.hostsTitle")}</h2>
-				</CardTitle>
-				<CardDescription>{t("outsideScripts.hostsIntro")}</CardDescription>
-			</CardHeader>
-			<CardContent className="grid gap-6">
-				{empty ? (
-					<p className="text-muted-foreground text-sm">{t("outsideScripts.noHosts")}</p>
-				) : (
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead>{t("outsideScripts.host")}</TableHead>
-								<TableHead>{t("outsideScripts.why")}</TableHead>
-								<TableHead>
-									<span className="sr-only">{t("outsideScripts.actions")}</span>
-								</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{policy.hosts.map((allowed) => (
-								<TableRow key={allowed.host}>
-									<TableCell className="font-mono text-sm">{allowed.host}</TableCell>
-									<TableCell className="text-sm">
-										{allowed.usedBy.length > 0
-											? t("outsideScripts.neededBy", { names: allowed.usedBy.map((script) => script.name).join(", ") })
-											: t(allowed.source === "hand" ? "outsideScripts.byHand" : "outsideScripts.byScript")}
-									</TableCell>
-									<TableCell className="text-end">
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											aria-label={t("outsideScripts.removeHost", { host: allowed.host })}
-											onClick={() => remove(allowed.host)}
-										>
-											<TrashIcon aria-hidden="true" />
-										</Button>
-									</TableCell>
-								</TableRow>
-							))}
-							{policy.moduleHosts.map((allowed) => (
-								<TableRow key={`${allowed.moduleId} ${allowed.host}`}>
-									<TableCell className="font-mono text-sm">{allowed.host}</TableCell>
-									<TableCell className="text-sm">{t("outsideScripts.byModule", { name: allowed.module })}</TableCell>
-									<TableCell />
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
-				)}
-				<form onSubmit={add} noValidate className="grid gap-3">
-					<Field>
-						<FieldLabel htmlFor={`${id}-host`}>{t("outsideScripts.addHost")}</FieldLabel>
-						<div className="flex flex-wrap gap-2">
-							<Input
-								id={`${id}-host`}
-								value={host}
-								maxLength={253}
-								autoComplete="off"
-								spellCheck={false}
-								className="max-w-sm font-mono"
-								onChange={(event) => setHost(event.target.value)}
-								aria-describedby={`${id}-host-help`}
-							/>
-							<Button type="submit" variant="outline" disabled={busy || !host.trim()}>
-								{t("outsideScripts.allow")}
-							</Button>
-						</div>
-						<FieldDescription id={`${id}-host-help`}>{t("outsideScripts.hostHelp")}</FieldDescription>
-					</Field>
-				</form>
-			</CardContent>
-		</Card>
+		<SettingsCard title={t("outsideScripts.hostsTitle")} description={t("outsideScripts.hostsIntro")}>
+			{empty ? (
+				<p className="text-muted-foreground text-sm">{t("outsideScripts.noHosts")}</p>
+			) : (
+				<SettingsRows>
+					{policy.hosts.map((allowed) => (
+						<SettingsListRow
+							key={allowed.host}
+							detail={
+								allowed.usedBy.length > 0
+									? t("outsideScripts.neededBy", { names: allowed.usedBy.map((script) => script.name).join(", ") })
+									: t(allowed.source === "hand" ? "outsideScripts.byHand" : "outsideScripts.byScript")
+							}
+							actions={
+								<Button
+									variant="ghost"
+									size="icon-sm"
+									aria-label={t("outsideScripts.removeHost", { host: allowed.host })}
+									onClick={() => setRemoving(allowed.host)}
+								>
+									<TrashIcon aria-hidden="true" />
+								</Button>
+							}
+						>
+							<span className="font-mono">{allowed.host}</span>
+						</SettingsListRow>
+					))}
+					{policy.moduleHosts.map((allowed) => (
+						<SettingsListRow
+							key={`${allowed.moduleId} ${allowed.host}`}
+							detail={t("outsideScripts.byModule", { name: allowed.module })}
+						>
+							<span className="font-mono">{allowed.host}</span>
+						</SettingsListRow>
+					))}
+				</SettingsRows>
+			)}
+			<ConfirmDialog
+				open={removing !== null}
+				onOpenChange={(open) => !open && setRemoving(null)}
+				title={t("outsideScripts.removeHostTitle", { host: removing ?? "" })}
+				confirm={t("outsideScripts.remove")}
+				onConfirm={() => (removing ? remove(removing) : undefined)}
+			>
+				{t("outsideScripts.removeHostBody")}
+			</ConfirmDialog>
+			<form onSubmit={add} noValidate className="grid gap-3">
+				<Field>
+					<FieldLabel htmlFor={`${id}-host`}>{t("outsideScripts.addHost")}</FieldLabel>
+					<div className="flex flex-wrap gap-2">
+						<Input
+							id={`${id}-host`}
+							value={host}
+							maxLength={253}
+							autoComplete="off"
+							spellCheck={false}
+							className="max-w-sm font-mono"
+							onChange={(event) => setHost(event.target.value)}
+							aria-describedby={`${id}-host-help`}
+						/>
+						<Button type="submit" variant="outline" disabled={busy || !host.trim()}>
+							{t("outsideScripts.allow")}
+						</Button>
+					</div>
+					<FieldDescription id={`${id}-host-help`}>{t("outsideScripts.hostHelp")}</FieldDescription>
+				</Field>
+			</form>
+		</SettingsCard>
 	);
 }
