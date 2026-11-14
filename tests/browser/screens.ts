@@ -99,6 +99,7 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 	{ name: "Workspace › Members (Owner)", path: ({ workspaceId }) => `/workspaces/${workspaceId}/members`, as: "owner" },
 	{ name: "Workspace › Dashboards", path: ({ workspaceId }) => `/workspaces/${workspaceId}/dashboards`, as: "staff" },
 	{ name: "Site › Overview", path: ({ siteId }) => `/sites/${siteId}`, as: "staff" },
+	{ name: "Site › Overview (Owner)", path: ({ siteId }) => `/sites/${siteId}`, as: "owner" },
 	// The list's address opens the first Dashboard with New Dashboard over it for Staff (checked in
 	// dashboards.browser.ts); here the Dashboard itself.
 	{
@@ -115,6 +116,7 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 		path: ({ siteId, mediaId }) => `/sites/${siteId}/media?file=${mediaId}`,
 		as: "owner",
 	},
+	{ name: "Site › Media, the grid", path: ({ siteId }) => `/sites/${siteId}/media?view=grid`, as: "staff" },
 	{ name: "Site › Media, no match", path: ({ siteId }) => `/sites/${siteId}/media?q=nothing-matches`, as: "staff" },
 	{ name: "Site › Media, the Trash", path: ({ siteId }) => `/sites/${siteId}/media?trash=true`, as: "staff" },
 	{
