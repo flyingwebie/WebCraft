@@ -656,7 +656,7 @@ export async function upgradePropValueContracts(scope: SiteScope): Promise<void>
 }
 
 /** Attribute and checkpoint migrated tree and Body values in the same way. */
-async function saveMigratedVersions(
+export async function saveMigratedVersions(
 	scope: SiteScope,
 	table: typeof templates | typeof components | typeof entries,
 	kind: "template" | "component" | "entry",

@@ -78,6 +78,9 @@ export const BUILDING_AREA_PROCEDURES = [
 	"components.getScript",
 	"components.saveScriptDraft",
 	"components.rename",
+	// Deleting takes its two calls (the first only says what would go); the Components place asks for
+	// a placed Component's Placements to go with it (`placements: "remove"`), Draft and published, as
+	// its dialog says. A Popup or the accessibility statement showing it still refuses it.
 	"components.delete",
 	// The Builder's services the canvas and the panels use (not the Undo history's hand-over).
 	"builder.open",
@@ -98,6 +101,10 @@ export const BUILDING_AREA_PROCEDURES = [
 	"loops.publish",
 	// Page layouts, as Members arrange them.
 	"pageLayouts.settings",
+	// The Components place's "Allowed for Members" switch: which Components Members may add to a Page
+	// (Staff only, `structure.edit` checked again in core whatever opened the Site, so a Member's call
+	// is FORBIDDEN). It replaces the whole list, as the admin's Page layout settings do.
+	"pageLayouts.configure",
 	"pageLayouts.get",
 	"pageLayouts.save",
 	// Publish in the bottom bar.

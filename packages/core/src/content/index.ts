@@ -20,6 +20,7 @@ export {
 export {
 	type Component,
 	type ComponentDeletion,
+	type PlacedComponentDeletion,
 	type ComponentDraftChange,
 	type ComponentMarkup,
 	type ComponentSources,
