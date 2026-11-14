@@ -47,6 +47,7 @@ import { Route as BuilderSiteIdSplatRouteImport } from './routes/builder.$siteId
 import { Route as AdminSitesSiteIdIndexRouteImport } from './routes/_admin/sites.$siteId.index'
 import { Route as AdminSitesSiteIdAccessibilityStatementRouteImport } from './routes/_admin/sites.$siteId.accessibility-statement'
 import { Route as AdminSitesSiteIdAiTranslationRouteImport } from './routes/_admin/sites.$siteId.ai-translation'
+import { Route as AdminSitesSiteIdBuildRouteImport } from './routes/_admin/sites.$siteId.build'
 import { Route as AdminSitesSiteIdChecksRouteImport } from './routes/_admin/sites.$siteId.checks'
 import { Route as AdminSitesSiteIdComponentsRouteImport } from './routes/_admin/sites.$siteId.components'
 import { Route as AdminSitesSiteIdConsentBannerRouteImport } from './routes/_admin/sites.$siteId.consent-banner'
@@ -299,6 +300,11 @@ const AdminSitesSiteIdAiTranslationRoute =
     path: '/ai-translation',
     getParentRoute: () => AdminSitesSiteIdRoute,
   } as any)
+const AdminSitesSiteIdBuildRoute = AdminSitesSiteIdBuildRouteImport.update({
+  id: '/build',
+  path: '/build',
+  getParentRoute: () => AdminSitesSiteIdRoute,
+} as any)
 const AdminSitesSiteIdChecksRoute = AdminSitesSiteIdChecksRouteImport.update({
   id: '/checks',
   path: '/checks',
@@ -679,6 +685,7 @@ export interface FileRoutesByFullPath {
   '/workspaces/': typeof AdminWorkspacesIndexRoute
   '/sites/$siteId/accessibility-statement': typeof AdminSitesSiteIdAccessibilityStatementRoute
   '/sites/$siteId/ai-translation': typeof AdminSitesSiteIdAiTranslationRoute
+  '/sites/$siteId/build': typeof AdminSitesSiteIdBuildRoute
   '/sites/$siteId/checks': typeof AdminSitesSiteIdChecksRoute
   '/sites/$siteId/components': typeof AdminSitesSiteIdComponentsRoute
   '/sites/$siteId/consent-banner': typeof AdminSitesSiteIdConsentBannerRoute
@@ -774,6 +781,7 @@ export interface FileRoutesByTo {
   '/workspaces': typeof AdminWorkspacesIndexRoute
   '/sites/$siteId/accessibility-statement': typeof AdminSitesSiteIdAccessibilityStatementRoute
   '/sites/$siteId/ai-translation': typeof AdminSitesSiteIdAiTranslationRoute
+  '/sites/$siteId/build': typeof AdminSitesSiteIdBuildRoute
   '/sites/$siteId/checks': typeof AdminSitesSiteIdChecksRoute
   '/sites/$siteId/components': typeof AdminSitesSiteIdComponentsRoute
   '/sites/$siteId/consent-banner': typeof AdminSitesSiteIdConsentBannerRoute
@@ -869,6 +877,7 @@ export interface FileRoutesById {
   '/_admin/workspaces/': typeof AdminWorkspacesIndexRoute
   '/_admin/sites/$siteId/accessibility-statement': typeof AdminSitesSiteIdAccessibilityStatementRoute
   '/_admin/sites/$siteId/ai-translation': typeof AdminSitesSiteIdAiTranslationRoute
+  '/_admin/sites/$siteId/build': typeof AdminSitesSiteIdBuildRoute
   '/_admin/sites/$siteId/checks': typeof AdminSitesSiteIdChecksRoute
   '/_admin/sites/$siteId/components': typeof AdminSitesSiteIdComponentsRoute
   '/_admin/sites/$siteId/consent-banner': typeof AdminSitesSiteIdConsentBannerRoute
@@ -969,6 +978,7 @@ export interface FileRouteTypes {
     | '/workspaces/'
     | '/sites/$siteId/accessibility-statement'
     | '/sites/$siteId/ai-translation'
+    | '/sites/$siteId/build'
     | '/sites/$siteId/checks'
     | '/sites/$siteId/components'
     | '/sites/$siteId/consent-banner'
@@ -1064,6 +1074,7 @@ export interface FileRouteTypes {
     | '/workspaces'
     | '/sites/$siteId/accessibility-statement'
     | '/sites/$siteId/ai-translation'
+    | '/sites/$siteId/build'
     | '/sites/$siteId/checks'
     | '/sites/$siteId/components'
     | '/sites/$siteId/consent-banner'
@@ -1158,6 +1169,7 @@ export interface FileRouteTypes {
     | '/_admin/workspaces/'
     | '/_admin/sites/$siteId/accessibility-statement'
     | '/_admin/sites/$siteId/ai-translation'
+    | '/_admin/sites/$siteId/build'
     | '/_admin/sites/$siteId/checks'
     | '/_admin/sites/$siteId/components'
     | '/_admin/sites/$siteId/consent-banner'
@@ -1499,6 +1511,13 @@ declare module '@tanstack/react-router' {
       path: '/ai-translation'
       fullPath: '/sites/$siteId/ai-translation'
       preLoaderRoute: typeof AdminSitesSiteIdAiTranslationRouteImport
+      parentRoute: typeof AdminSitesSiteIdRoute
+    }
+    '/_admin/sites/$siteId/build': {
+      id: '/_admin/sites/$siteId/build'
+      path: '/build'
+      fullPath: '/sites/$siteId/build'
+      preLoaderRoute: typeof AdminSitesSiteIdBuildRouteImport
       parentRoute: typeof AdminSitesSiteIdRoute
     }
     '/_admin/sites/$siteId/checks': {
@@ -2028,6 +2047,7 @@ const AdminSitesSiteIdEntriesPostTypeIdRouteWithChildren =
 interface AdminSitesSiteIdRouteChildren {
   AdminSitesSiteIdAccessibilityStatementRoute: typeof AdminSitesSiteIdAccessibilityStatementRoute
   AdminSitesSiteIdAiTranslationRoute: typeof AdminSitesSiteIdAiTranslationRoute
+  AdminSitesSiteIdBuildRoute: typeof AdminSitesSiteIdBuildRoute
   AdminSitesSiteIdChecksRoute: typeof AdminSitesSiteIdChecksRoute
   AdminSitesSiteIdComponentsRoute: typeof AdminSitesSiteIdComponentsRoute
   AdminSitesSiteIdConsentBannerRoute: typeof AdminSitesSiteIdConsentBannerRoute
@@ -2069,6 +2089,7 @@ const AdminSitesSiteIdRouteChildren: AdminSitesSiteIdRouteChildren = {
   AdminSitesSiteIdAccessibilityStatementRoute:
     AdminSitesSiteIdAccessibilityStatementRoute,
   AdminSitesSiteIdAiTranslationRoute: AdminSitesSiteIdAiTranslationRoute,
+  AdminSitesSiteIdBuildRoute: AdminSitesSiteIdBuildRoute,
   AdminSitesSiteIdChecksRoute: AdminSitesSiteIdChecksRoute,
   AdminSitesSiteIdComponentsRoute: AdminSitesSiteIdComponentsRoute,
   AdminSitesSiteIdConsentBannerRoute: AdminSitesSiteIdConsentBannerRoute,

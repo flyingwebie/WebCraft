@@ -1,4 +1,4 @@
-import { useMatches } from "@tanstack/react-router";
+import { useMatches, useNavigate, useRouterState } from "@tanstack/react-router";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import {
 	DropdownMenu,
@@ -6,13 +6,14 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@webcraft/ui/components/dropdown-menu.tsx";
-import { ChevronDownIcon, EllipsisIcon, EyeIcon, ShieldIcon, SquarePenIcon } from "lucide-react";
+import { ChevronDownIcon, EllipsisIcon, EyeIcon, HammerIcon, ShieldIcon, SquarePenIcon } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
+import type { AdminPlace } from "./levels.ts";
 import { useOpenStaging } from "./StagingButton.tsx";
 
 /** What the admin knows of the Entry on screen, enough to write its address on the Site. */
@@ -93,13 +94,34 @@ function useOpenEditMode(siteId: string): { opening: boolean; open(path: string,
 }
 
 /**
+ * The building area (ADR 0037) while it is being built: offered to those who may change the Site's
+ * Structure, it opens the same page and comes back to the screen the person was on.
+ */
+function useOpenBuildingArea(siteId: string): { mayBuild: boolean; open(path: string): void } {
+	const navigate = useNavigate();
+	const here = useRouterState({ select: (state) => state.location.href });
+	const mayBuild = useMatches({
+		select: (matches) =>
+			matches.some((match) => {
+				const place = (match.context as { place?: AdminPlace } | undefined)?.place;
+				return place?.level === "site" && place.site.id === siteId && place.permissions.includes("structure.edit");
+			}),
+	});
+	const open = (path: string) =>
+		void navigate({ to: "/sites/$siteId/build", params: { siteId }, search: { open: `/page${path}`, returnTo: here } });
+	return { mayBuild, open };
+}
+
+/**
  * "Edit on site": opens the page the person is on (a Page or an Entry), or the Site's home page
- * from any other screen, in Edit mode. Its menu opens Safe mode instead.
+ * from any other screen, in Edit mode. Its menu opens Safe mode instead, and (for now, Staff only)
+ * the building area.
  */
 export function EditOnSiteButton({ siteId, className }: { siteId: string; className?: string }) {
 	const t = useT();
 	const path = useEditPath();
 	const { opening, open } = useOpenEditMode(siteId);
+	const building = useOpenBuildingArea(siteId);
 	return (
 		<div className={`flex ${className ?? ""}`}>
 			<Button
@@ -134,6 +156,15 @@ export function EditOnSiteButton({ siteId, className }: { siteId: string; classN
 							<span className="text-muted-foreground text-xs">{t("site.editInSafeModeHelp")}</span>
 						</span>
 					</DropdownMenuItem>
+					{building.mayBuild ? (
+						<DropdownMenuItem onClick={() => building.open(path)}>
+							<HammerIcon aria-hidden="true" />
+							<span className="grid">
+								<span>{t("buildingArea.open")}</span>
+								<span className="text-muted-foreground text-xs">{t("buildingArea.openHelp")}</span>
+							</span>
+						</DropdownMenuItem>
+					) : null}
 				</DropdownMenuContent>
 			</DropdownMenu>
 		</div>

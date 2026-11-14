@@ -19,6 +19,7 @@ import type { Access, DataLayer, Site, SiteScope } from "../tenancy/data-layer.t
 import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
 import { hashToken, newToken } from "../tokens.ts";
 import { type BodyEditing, type BodyRegion, bodyEditing, pasteIntoBody } from "./body.ts";
+import { isAdminReturnPath, isBuildingDocument } from "./building.ts";
 import { EditModeUnavailableError, EditPathInvalidError, LoopItemRestoreRefusedError } from "./errors.ts";
 import {
 	addLoopItem,
@@ -66,6 +67,14 @@ import {
 } from "./regions.ts";
 
 export type { BodyEditing, BodyRegion } from "./body.ts";
+export {
+	BUILDING_AREA_PAGE_PATH,
+	BUILDING_AREA_PATH,
+	buildingAreaPageAddress,
+	isAdminReturnPath,
+	isBuildingDocument,
+	pageOfBuildingAddress,
+} from "./building.ts";
 export {
 	EditFieldInvalidError,
 	EditModeUnavailableError,
@@ -128,12 +137,24 @@ export type EditMode = {
 	 * Makes an "Edit on site" link for the person, from their admin session (open the Site with
 	 * `entry.edit`): it opens `path` on the Site's own address, works once, within 60 seconds, and
 	 * only on that Site. With `safeMode`, the link opens Safe mode (ADR 0022): pages run none of the
-	 * Site's own scripts. Refuses a path that isn't one on the Site (`EditPathInvalidError`), and a Site
-	 * with no address yet (`EditModeUnavailableError`).
+	 * Site's own scripts. With `building`, it opens the building area (ADR 0037) instead, at `open` (a
+	 * document, as `isBuildingDocument` takes it; the page at `path` unless given), its logo tile going
+	 * back to `returnTo` on the admin. Refuses a path that isn't one on the Site, a document or an admin
+	 * path that isn't one (`EditPathInvalidError`), and a Site with no address yet
+	 * (`EditModeUnavailableError`).
 	 */
 	openLink(
 		scope: SiteScope,
-		input: { adminSessionId: string; path: string; safeMode?: boolean; code?: boolean; selection?: string },
+		input: {
+			adminSessionId: string;
+			path: string;
+			safeMode?: boolean;
+			code?: boolean;
+			selection?: string;
+			building?: boolean;
+			open?: string;
+			returnTo?: string;
+		},
 	): Promise<EditLink>;
 	/**
 	 * Follows a link on the Site it was made for: uses it up and starts an Edit mode session, for at
@@ -302,6 +323,8 @@ export function createEditMode(options: {
 	return {
 		async openLink(scope, input) {
 			if (!isEditPath(input.path)) throw new EditPathInvalidError();
+			if (input.open !== undefined && !isBuildingDocument(input.open)) throw new EditPathInvalidError();
+			if (input.returnTo !== undefined && !isAdminReturnPath(input.returnTo)) throw new EditPathInvalidError();
 			// The Site's Primary domain once verified (the edit cookie then lives there), else its Staging address.
 			const { primary } = await verifiedDomains(scope.db, scope.site);
 			const address = primary ? domainOrigin(config, primary) : stagingUrl(config, scope.site.slug);
@@ -323,7 +346,13 @@ export function createEditMode(options: {
 			url.searchParams.set("token", token);
 			// Safe mode only takes scripts away, so the link may say it openly.
 			if (input.safeMode) url.searchParams.set("safe", "1");
-			if (input.code) {
+			if (input.building) {
+				// The building area (ADR 0037): what it opens and where its logo tile goes back to. Both are
+				// checked again as the link is followed, so a changed link can't lead anywhere else.
+				url.searchParams.set("build", "1");
+				url.searchParams.set("open", input.open ?? `/page${input.path}`);
+				if (input.returnTo) url.searchParams.set("return", input.returnTo);
+			} else if (input.code) {
 				url.searchParams.set("code", "1");
 				if (input.selection) url.searchParams.set("selection", input.selection);
 			}
