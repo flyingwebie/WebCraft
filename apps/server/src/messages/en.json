@@ -699,7 +699,10 @@
 			"signOutLabel": "Sign out {device}, last used {lastUsed}",
 			"signedOut": "Signed out.",
 			"signOutOthers": "Sign out of every other session",
-			"signedOutOthers": "{count, plural, one {# other session was signed out.} other {# other sessions were signed out.}}"
+			"signedOutOthers": "{count, plural, one {# other session was signed out.} other {# other sessions were signed out.}}",
+			"signOutTitle": "Sign out {device}?",
+			"signOutOthersTitle": "Sign out {count, plural, one {the other browser} other {the # other browsers}}?",
+			"signOutBody": "Whoever uses it has to sign in again. API tokens and AI clients keep working."
 		},
 		"twoFactor": {
 			"heading": "Two-factor authentication",
@@ -771,7 +774,8 @@
 			"revokeLabel": "Revoke {name}",
 			"revokeTitle": "Revoke {name}?",
 			"revokeText": "Scripts and AI clients using it are refused from their next request. This can't be undone.",
-			"revokedToast": "{name} was revoked."
+			"revokedToast": "{name} was revoked.",
+			"listTitle": "Your tokens"
 		},
 		"aiClients": {
 			"pageTitle": "AI clients",
@@ -809,7 +813,8 @@
 			"revokeText": "It is refused from its next request, and has to ask you again to come back. This can't be undone.",
 			"revokedToast": "{name} was revoked.",
 			"cancel": "Cancel",
-			"close": "Close"
+			"close": "Close",
+			"listTitle": "Approved AI clients"
 		}
 	},
 	"identityCheck": {

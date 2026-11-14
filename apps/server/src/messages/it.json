@@ -699,7 +699,10 @@
 			"signOutLabel": "Disconnetti {device}, usato l'ultima volta {lastUsed}",
 			"signedOut": "Disconnesso.",
 			"signOutOthers": "Disconnetti tutte le altre sessioni",
-			"signedOutOthers": "{count, plural, one {# altra sessione è stata disconnessa.} other {# altre sessioni sono state disconnesse.}}"
+			"signedOutOthers": "{count, plural, one {# altra sessione è stata disconnessa.} other {# altre sessioni sono state disconnesse.}}",
+			"signOutTitle": "Disconnettere {device}?",
+			"signOutOthersTitle": "Disconnettere {count, plural, one {l'altro browser} other {gli altri # browser}}?",
+			"signOutBody": "Chi lo usa deve accedere di nuovo. I token API e i client AI continuano a funzionare."
 		},
 		"twoFactor": {
 			"heading": "Autenticazione a due fattori",
@@ -771,7 +774,8 @@
 			"revokeLabel": "Revoca {name}",
 			"revokeTitle": "Revocare {name}?",
 			"revokeText": "Script e client AI che lo usano vengono rifiutati dalla richiesta successiva. Non si può annullare.",
-			"revokedToast": "{name} è stato revocato."
+			"revokedToast": "{name} è stato revocato.",
+			"listTitle": "I tuoi token"
 		},
 		"aiClients": {
 			"pageTitle": "Client AI",
@@ -809,7 +813,8 @@
 			"revokeText": "Viene rifiutato dalla prossima richiesta e dovrà chiederti di nuovo l'approvazione per tornare. Non si può annullare.",
 			"revokedToast": "{name} è stato revocato.",
 			"cancel": "Annulla",
-			"close": "Chiudi"
+			"close": "Chiudi",
+			"listTitle": "Client AI approvati"
 		}
 	},
 	"identityCheck": {
