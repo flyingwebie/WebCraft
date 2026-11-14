@@ -77,7 +77,7 @@ for (const theme of THEMES) {
 			await page.locator("#sign-in-email").fill(person.account.email);
 			await page.locator("#sign-in-password").fill(person.account.password);
 			await page.locator("form button[type=submit]").click();
-			await page.getByRole("heading", { level: 1, name: "Two-step verification" }).waitFor();
+			await page.getByRole("heading", { level: 1, name: "Enter the code" }).waitFor();
 			expect(await page.evaluate(() => document.activeElement?.tagName)).toBe("H1");
 			await expectAccessibleScreen(page, `second sign-in step (${theme})`);
 

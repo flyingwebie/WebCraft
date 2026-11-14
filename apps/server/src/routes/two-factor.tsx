@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { getApi } from "../ui/api.ts";
+import { AuthHeading, AuthLead, AuthPage } from "../ui/auth/AuthPage.tsx";
 import { errorMessage } from "../ui/errors.ts";
 import { pageTitle, useT } from "../ui/i18n.tsx";
 import { localPath } from "../ui/local-path.ts";
@@ -62,29 +63,25 @@ function TwoFactorRequiredPage() {
 	};
 
 	return (
-		<main id="main" tabIndex={-1} className="bg-muted flex min-h-svh items-center justify-center p-4 outline-none">
-			<div className="bg-card text-card-foreground grid w-full max-w-2xl gap-6 rounded-xl border p-8 shadow-sm">
-				<div className="grid gap-2">
-					<h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold tracking-tight outline-none">
-						{t("twoFactor.enforce.heading")}
-					</h1>
-					<p className="text-muted-foreground">
-						{requiredBy.install
-							? t("twoFactor.enforce.byInstall")
-							: t("twoFactor.enforce.byWorkspaces", { workspaces, count: requiredBy.workspaces.length })}
-					</p>
-					<p className="text-muted-foreground">{t("twoFactor.enforce.intro")}</p>
-				</div>
-				<TwoFactorSetupChoices account={shell.person?.email ?? ""} onAdded={done} />
-				<div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-					<p className="text-muted-foreground text-sm">
-						{t("twoFactor.enforce.signedInAs", { email: shell.person?.email ?? "" })}
-					</p>
-					<Button variant="outline" onClick={signOut} disabled={busy}>
-						{t("twoFactor.enforce.signOut")}
-					</Button>
-				</div>
+		<AuthPage width="wide">
+			<div className="grid gap-2">
+				<AuthHeading ref={heading}>{t("twoFactor.enforce.heading")}</AuthHeading>
+				<AuthLead>
+					{requiredBy.install
+						? t("twoFactor.enforce.byInstall")
+						: t("twoFactor.enforce.byWorkspaces", { workspaces, count: requiredBy.workspaces.length })}
+				</AuthLead>
+				<AuthLead>{t("twoFactor.enforce.intro")}</AuthLead>
 			</div>
-		</main>
+			<TwoFactorSetupChoices account={shell.person?.email ?? ""} onAdded={done} />
+			<div className="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
+				<p className="text-muted-foreground text-sm">
+					{t("twoFactor.enforce.signedInAs", { email: shell.person?.email ?? "" })}
+				</p>
+				<Button variant="outline" onClick={signOut} disabled={busy}>
+					{t("twoFactor.enforce.signOut")}
+				</Button>
+			</div>
+		</AuthPage>
 	);
 }

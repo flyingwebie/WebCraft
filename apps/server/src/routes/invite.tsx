@@ -1,11 +1,12 @@
 import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tanstack/react-router";
-import { Button, buttonVariants } from "@webcraft/ui/components/button.tsx";
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
+import { Button } from "@webcraft/ui/components/button.tsx";
+import { Field, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { type FormEvent, useEffect, useState } from "react";
 import { z } from "zod";
 
 import { getApi } from "../ui/api.ts";
+import { AuthHeading, AuthLead, AuthPage, BrandMark, PasswordRules } from "../ui/auth/AuthPage.tsx";
 import { errorCode, errorMessage } from "../ui/errors.ts";
 import { type MessageKey, pageTitle, useT } from "../ui/i18n.tsx";
 import { PasswordInput } from "../ui/PasswordInput.tsx";
@@ -49,47 +50,71 @@ function InvitePage() {
 		if (linked) void navigate({ to: "/invite", search: {}, replace: true });
 	}, [linked, navigate]);
 
+	if (!invite || !token) {
+		return (
+			<AuthPage>
+				<div className="grid gap-3">
+					<AuthHeading>{t("invite.invalid.heading")}</AuthHeading>
+					<AuthLead>{t("invite.invalid.body")}</AuthLead>
+					<Button variant="outline" className="mt-1 w-full" render={<Link to="/sign-in" />}>
+						{t("invite.invalid.signIn")}
+					</Button>
+				</div>
+			</AuthPage>
+		);
+	}
+
 	return (
-		<main id="main" tabIndex={-1} className="bg-muted flex min-h-svh items-center justify-center p-4 outline-none">
-			<div className="bg-card text-card-foreground w-full max-w-md rounded-xl border p-8 shadow-sm">
-				{invite && token ? (
-					invite.hasAccount ? (
-						<JoinForm invite={invite} token={token} />
-					) : (
-						<AcceptForm invite={invite} token={token} />
-					)
-				) : (
-					<div className="grid gap-4">
-						<h1 className="text-2xl font-semibold tracking-tight">{t("invite.invalid.heading")}</h1>
-						<p className="text-muted-foreground">{t("invite.invalid.body")}</p>
-						<Link to="/sign-in" className={buttonVariants({ variant: "outline", className: "justify-self-start" })}>
-							{t("invite.invalid.signIn")}
-						</Link>
-					</div>
-				)}
-			</div>
-		</main>
+		<AuthPage width="invite" below={<ReachedSites invite={invite} />}>
+			{invite.workspace ? <BrandMark name={invite.workspace.name} size="small" /> : null}
+			<InviteHeading invite={invite} />
+			{invite.hasAccount ? <JoinForm invite={invite} token={token} /> : <AcceptForm invite={invite} token={token} />}
+		</AuthPage>
 	);
 }
 
 type Invite = NonNullable<ReturnType<typeof Route.useLoaderData>["invite"]>;
 
-/** The Workspace role a Member invite grants, for its heading. */
+/** The Workspace role a Member invite grants. */
 function workspaceRole(role: string) {
 	return (["owner", "editor", "author"] as const).find((key) => key === role);
 }
 
-/** The heading of an invite: joining the Install as Staff, or a Workspace with a role. */
+/** Who invited the person, where to and as what, in one line; then what that role does. */
 function InviteHeading({ invite }: { invite: Invite }) {
 	const t = useT();
 	const install = invite.installName ?? t("app.name");
 	const role = workspaceRole(invite.role);
+	const heading =
+		invite.workspace && role
+			? invite.invitedBy
+				? t("invite.memberHeading", {
+						inviter: invite.invitedBy,
+						workspace: invite.workspace.name,
+						role: t(`roles.${role}`),
+					})
+				: t("invite.memberHeadingNoInviter", { workspace: invite.workspace.name, role: t(`roles.${role}`) })
+			: invite.invitedBy
+				? t("invite.heading", { inviter: invite.invitedBy, install })
+				: t("invite.headingNoInviter", { install });
 	return (
-		<h1 className="mb-2 text-2xl font-semibold tracking-tight">
-			{invite.workspace && role
-				? t("invite.memberHeading", { workspace: invite.workspace.name, role: t(`roles.${role}`) })
-				: t("invite.heading", { install })}
-		</h1>
+		<div className="grid gap-1.5">
+			<AuthHeading>{heading}</AuthHeading>
+			<AuthLead>{role ? t(`invite.roleHelp.${role}`) : t("invite.roleHelp.staff")}</AuthLead>
+		</div>
+	);
+}
+
+/** Under the card: the Sites a Member invite reaches. A Staff invite reaches Workspaces, not Sites. */
+function ReachedSites({ invite }: { invite: Invite }) {
+	const t = useT();
+	if (!invite.sites || !invite.workspace) return null;
+	return (
+		<p>
+			{invite.sites === "all"
+				? t("invite.sitesAll", { workspace: invite.workspace.name })
+				: t("invite.sites", { sites: invite.sites.join(", "), count: invite.sites.length })}
+		</p>
 	);
 }
 
@@ -102,7 +127,7 @@ function AcceptForm({ invite, token }: { invite: Invite; token: string }) {
 	const [password, setPassword] = useState("");
 	const [errors, setErrors] = useState<{ name?: MessageKey; password?: MessageKey; form?: MessageKey }>({});
 	const [busy, setBusy] = useState(false);
-	const install = invite.installName ?? t("app.name");
+	const joining = invite.workspace?.name ?? invite.installName ?? t("app.name");
 
 	const submit = async (event: FormEvent) => {
 		event.preventDefault();
@@ -126,59 +151,42 @@ function AcceptForm({ invite, token }: { invite: Invite; token: string }) {
 	};
 
 	return (
-		<>
-			<InviteHeading invite={invite} />
-			<p className="text-muted-foreground mb-6">
-				{invite.workspace
-					? invite.invitedBy
-						? t("invite.memberIntro", {
-								inviter: invite.invitedBy,
-								email: invite.email,
-								workspace: invite.workspace.name,
-								install,
-							})
-						: t("invite.memberIntroNoInviter", { email: invite.email, workspace: invite.workspace.name, install })
-					: invite.invitedBy
-						? t("invite.intro", { inviter: invite.invitedBy, email: invite.email })
-						: t("invite.introNoInviter", { email: invite.email })}
-			</p>
-			<form onSubmit={submit} noValidate>
-				{/* Lets password managers save the new password under the right address. */}
-				<input type="hidden" name="username" autoComplete="username" value={invite.email} />
-				<FieldGroup className="gap-5">
-					<Field data-invalid={errors.name ? true : undefined}>
-						<FieldLabel htmlFor="invite-name">{t("invite.name")}</FieldLabel>
-						<Input
-							id="invite-name"
-							value={name}
-							maxLength={200}
-							autoComplete="name"
-							onChange={(event) => setName(event.target.value)}
-							aria-invalid={errors.name ? true : undefined}
-							aria-describedby={errors.name ? "invite-name-error" : undefined}
-						/>
-						{errors.name ? <FieldError id="invite-name-error">{t(errors.name)}</FieldError> : null}
-					</Field>
-					<Field data-invalid={errors.password ? true : undefined}>
-						<FieldLabel htmlFor="invite-password">{t("invite.password")}</FieldLabel>
-						<PasswordInput
-							id="invite-password"
-							value={password}
-							autoComplete="new-password"
-							onChange={(event) => setPassword(event.target.value)}
-							aria-invalid={errors.password ? true : undefined}
-							aria-describedby={errors.password ? "invite-password-help invite-password-error" : "invite-password-help"}
-						/>
-						<FieldDescription id="invite-password-help">{t("invite.passwordHelp")}</FieldDescription>
-						{errors.password ? <FieldError id="invite-password-error">{t(errors.password)}</FieldError> : null}
-					</Field>
-					{errors.form ? <FieldError>{t(errors.form)}</FieldError> : null}
-					<Button type="submit" disabled={busy} className="w-full">
-						{t("invite.submit")}
-					</Button>
-				</FieldGroup>
-			</form>
-		</>
+		<form onSubmit={submit} noValidate>
+			{/* Lets password managers save the new password under the right address. */}
+			<input type="hidden" name="username" autoComplete="username" value={invite.email} />
+			<FieldGroup className="gap-4">
+				<Field className="gap-2" data-invalid={errors.name ? true : undefined}>
+					<FieldLabel htmlFor="invite-name">{t("invite.name")}</FieldLabel>
+					<Input
+						id="invite-name"
+						value={name}
+						maxLength={200}
+						autoComplete="name"
+						onChange={(event) => setName(event.target.value)}
+						aria-invalid={errors.name ? true : undefined}
+						aria-describedby={errors.name ? "invite-name-error" : undefined}
+					/>
+					{errors.name ? <FieldError id="invite-name-error">{t(errors.name)}</FieldError> : null}
+				</Field>
+				<Field className="gap-2" data-invalid={errors.password ? true : undefined}>
+					<FieldLabel htmlFor="invite-password">{t("invite.password")}</FieldLabel>
+					<PasswordInput
+						id="invite-password"
+						value={password}
+						autoComplete="new-password"
+						onChange={(event) => setPassword(event.target.value)}
+						aria-invalid={errors.password ? true : undefined}
+						aria-describedby={errors.password ? "invite-password-rules invite-password-error" : "invite-password-rules"}
+					/>
+					{errors.password ? <FieldError id="invite-password-error">{t(errors.password)}</FieldError> : null}
+				</Field>
+				<PasswordRules id="invite-password-rules" password={password} />
+				{errors.form ? <FieldError>{t(errors.form)}</FieldError> : null}
+				<Button type="submit" disabled={busy} className="w-full">
+					{t("invite.submit", { name: joining })}
+				</Button>
+			</FieldGroup>
+		</form>
 	);
 }
 
@@ -193,7 +201,6 @@ function JoinForm({ invite, token }: { invite: Invite; token: string }) {
 	const [password, setPassword] = useState("");
 	const [error, setError] = useState<MessageKey | null>(null);
 	const [busy, setBusy] = useState(false);
-	const install = invite.installName ?? t("app.name");
 	const workspace = invite.workspace?.name ?? "";
 	const signedInAsInvited = shell.person?.email === invite.email;
 
@@ -216,44 +223,36 @@ function JoinForm({ invite, token }: { invite: Invite; token: string }) {
 	};
 
 	return (
-		<>
-			<InviteHeading invite={invite} />
-			<p className="text-muted-foreground mb-6">
-				{invite.invitedBy
-					? t("invite.join.intro", { inviter: invite.invitedBy, email: invite.email, workspace, install })
-					: t("invite.join.introNoInviter", { email: invite.email, workspace, install })}
-			</p>
-			<form onSubmit={submit} noValidate>
-				<FieldGroup className="gap-5">
-					{signedInAsInvited ? (
-						<p>{t("invite.join.signedInAs", { email: invite.email })}</p>
-					) : (
-						<>
-							{shell.person ? (
-								<p className="text-muted-foreground text-sm">
-									{t("invite.join.otherAccount", { current: shell.person.email, email: invite.email })}
-								</p>
-							) : null}
-							<input type="hidden" name="username" autoComplete="username" value={invite.email} />
-							<Field data-invalid={error ? true : undefined}>
-								<FieldLabel htmlFor="invite-join-password">{t("invite.join.password")}</FieldLabel>
-								<PasswordInput
-									id="invite-join-password"
-									value={password}
-									autoComplete="current-password"
-									onChange={(event) => setPassword(event.target.value)}
-									aria-invalid={error ? true : undefined}
-									aria-describedby={error ? "invite-join-error" : undefined}
-								/>
-							</Field>
-						</>
-					)}
-					{error ? <FieldError id="invite-join-error">{t(error)}</FieldError> : null}
-					<Button type="submit" disabled={busy} className="w-full">
-						{signedInAsInvited ? t("invite.join.submit", { workspace }) : t("invite.join.signIn")}
-					</Button>
-				</FieldGroup>
-			</form>
-		</>
+		<form onSubmit={submit} noValidate>
+			<FieldGroup className="gap-4">
+				{signedInAsInvited ? (
+					<AuthLead className="text-foreground">{t("invite.join.signedInAs", { email: invite.email })}</AuthLead>
+				) : (
+					<>
+						<AuthLead>
+							{shell.person
+								? t("invite.join.otherAccount", { current: shell.person.email, email: invite.email })
+								: t("invite.join.haveAccount", { email: invite.email })}
+						</AuthLead>
+						<input type="hidden" name="username" autoComplete="username" value={invite.email} />
+						<Field className="gap-2" data-invalid={error ? true : undefined}>
+							<FieldLabel htmlFor="invite-join-password">{t("invite.join.password")}</FieldLabel>
+							<PasswordInput
+								id="invite-join-password"
+								value={password}
+								autoComplete="current-password"
+								onChange={(event) => setPassword(event.target.value)}
+								aria-invalid={error ? true : undefined}
+								aria-describedby={error ? "invite-join-error" : undefined}
+							/>
+						</Field>
+					</>
+				)}
+				{error ? <FieldError id="invite-join-error">{t(error)}</FieldError> : null}
+				<Button type="submit" disabled={busy} className="w-full">
+					{signedInAsInvited ? t("invite.join.submit", { workspace }) : t("invite.join.signIn")}
+				</Button>
+			</FieldGroup>
+		</form>
 	);
 }

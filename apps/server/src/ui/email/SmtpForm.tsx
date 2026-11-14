@@ -193,10 +193,10 @@ export function SmtpForm({
 		errors[field] ? <FieldError id={`smtp-${field}-error`}>{t(errors[field])}</FieldError> : null;
 
 	return (
-		<form onSubmit={save} className="flex flex-col gap-6" noValidate>
+		<form onSubmit={save} className="@container flex flex-col gap-6" noValidate>
 			<Section layout={layout} heading={t("emailSettings.server.heading")}>
 				<FieldGroup className="gap-5">
-					<div className="grid gap-5 md:grid-cols-[1fr_8rem_12rem]">
+					<div className="grid gap-5 @xl:grid-cols-[1fr_8rem_12rem]">
 						<Field data-invalid={invalid("host")}>
 							<FieldLabel htmlFor="smtp-host">{t("emailSettings.server.host")}</FieldLabel>
 							<Input
@@ -255,7 +255,7 @@ export function SmtpForm({
 							</NativeSelect>
 						</Field>
 					</div>
-					<div className="grid gap-5 md:grid-cols-2">
+					<div className="grid gap-5 @lg:grid-cols-2">
 						<Field>
 							<FieldLabel htmlFor="smtp-username">{t("emailSettings.server.username")}</FieldLabel>
 							<Input
@@ -298,7 +298,7 @@ export function SmtpForm({
 
 			<Section layout={layout} heading={t("emailSettings.sender.heading")}>
 				<FieldGroup className="gap-5">
-					<div className="grid gap-5 md:grid-cols-2">
+					<div className="grid gap-5 @lg:grid-cols-2">
 						<Field data-invalid={invalid("fromAddress")}>
 							<FieldLabel htmlFor="smtp-fromAddress">{t("emailSettings.sender.fromAddress")}</FieldLabel>
 							<Input
@@ -343,7 +343,7 @@ export function SmtpForm({
 				<div className="flex flex-col gap-4">
 					<Field data-invalid={invalid("testTo")}>
 						<FieldLabel htmlFor="smtp-testTo">{t("emailSettings.test.to")}</FieldLabel>
-						<div className="flex flex-col gap-3 sm:flex-row">
+						<div className="flex flex-col gap-3 @md:flex-row">
 							<Input
 								id="smtp-testTo"
 								type="email"

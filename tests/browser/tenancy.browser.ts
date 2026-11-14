@@ -196,7 +196,16 @@ describe("accepting a Member invite", () => {
 		const page = await install.newPage("light");
 
 		await page.goto(install.adminUrl(`/invite${link.search}`));
-		await page.getByRole("heading", { level: 1, name: "Join Acme Ltd as Author" }).waitFor();
+		await page
+			.getByRole("heading", { level: 1, name: "Sam Superadmin invited you to Acme Ltd as an Author" })
+			.waitFor();
+		// Under the card, the Sites the Membership reaches.
+		await page.getByText("You will reach this Site: Acme Bakery.").waitFor();
+		await page.locator("#invite-password").fill("too short");
+		await expect(page.locator("#invite-password-rules").textContent()).resolves.toContain("not met yet");
+		await page.locator("#invite-password").fill("a long enough password");
+		await expect(page.locator("#invite-password-rules").textContent()).resolves.not.toContain("not met yet");
+		await expectAccessibleScreen(page, "Accept a Member invite, the password rule met");
 		await page.locator("#invite-name").fill("Niamh Walsh");
 		await page.locator("#invite-password").fill("a long enough password");
 		await page.locator("form button[type=submit]").click();
