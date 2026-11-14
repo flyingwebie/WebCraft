@@ -16,8 +16,8 @@ import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@we
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { Label } from "@webcraft/ui/components/label.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
-import { PlusIcon, TrashIcon } from "lucide-react";
-import { type ReactNode, useId } from "react";
+import { LockIcon, PlusIcon, TrashIcon } from "lucide-react";
+import { Fragment, type ReactNode, useId } from "react";
 
 import { type MessageKey, useT } from "../i18n.tsx";
 import { type FormField, type FormProblem, numberOrNull, optionalText } from "./model.ts";
@@ -28,6 +28,11 @@ import { type FormField, type FormProblem, numberOrNull, optionalText } from "./
  * fields before it). A section or step has its title (the label), key, help and condition only.
  * Texts are written in the Site's Default language here; the Translations tab gives their values in
  * the other languages.
+ *
+ * The admin's Build tab draws it as it is (`layout="admin"`). The building area's Forms place draws it
+ * in the order its frames give (`layout="place"`: the texts, Required and its message, the field's
+ * width, its type's own rules, when it shows, then its key), with the width control it hands in, and
+ * the key locked once visitors' Submissions are kept under it (`keyLocked`, the words saying why).
  */
 export function FieldPanel({
 	field,
@@ -35,6 +40,9 @@ export function FieldPanel({
 	problems,
 	index,
 	before,
+	layout = "admin",
+	width,
+	keyLocked,
 }: {
 	field: FormField;
 	onChange: (field: FormField) => void;
@@ -42,6 +50,12 @@ export function FieldPanel({
 	index: number;
 	/** The items before it, whose values its condition may read. */
 	before: readonly FormField[];
+	/** Which order the settings come in: the admin's, or the building area's Forms place's. */
+	layout?: "admin" | "place";
+	/** The field's width control, drawn after its message (the place's layout only). */
+	width?: ReactNode;
+	/** Why the key can't change any more, or nothing while it can. */
+	keyLocked?: string | null;
 }) {
 	const t = useT();
 	const id = useId();
@@ -104,137 +118,159 @@ export function FieldPanel({
 		</div>
 	);
 
-	return (
-		<FieldGroup>
-			{text("label", "forms.field.label", "forms.field.labelHelp")}
-			{check("hideLabel", "forms.field.hideLabel", "forms.field.hideLabelHelp")}
-			<Setting id={`${id}-key`} label={t("forms.field.key")} help={t("forms.field.keyHelp")} problem={problemAt("key")}>
-				{(props) => (
-					<Input
-						{...props}
-						className="font-mono"
-						value={field.key}
-						onChange={(event) => set("key", event.target.value)}
-					/>
-				)}
-			</Setting>
-			{canBeRequired(field.type) ? check("required", "forms.field.required") : null}
-			{text("help", "forms.field.help")}
-			{uses("placeholder")
-				? text("placeholder", field.type === "select" ? "forms.field.choosePrompt" : "forms.field.placeholder")
-				: null}
-			{field.type !== "hidden" && !isLayoutItem(field)
+	const key = keyLocked ? (
+		<Setting id={`${id}-key`} label={t("forms.field.key")} help={keyLocked} problem={problemAt("key")}>
+			{(props) => (
+				<div className="flex items-center gap-2">
+					<Input {...props} className="font-mono" value={field.key} readOnly />
+					<LockIcon aria-hidden="true" className="text-muted-foreground size-3.5 shrink-0" />
+				</div>
+			)}
+		</Setting>
+	) : (
+		<Setting id={`${id}-key`} label={t("forms.field.key")} help={t("forms.field.keyHelp")} problem={problemAt("key")}>
+			{(props) => (
+				<Input
+					{...props}
+					className="font-mono"
+					value={field.key}
+					onChange={(event) => set("key", event.target.value)}
+				/>
+			)}
+		</Setting>
+	);
+	const parts = {
+		label: text("label", "forms.field.label", "forms.field.labelHelp"),
+		hideLabel: check("hideLabel", "forms.field.hideLabel", "forms.field.hideLabelHelp"),
+		key,
+		required: canBeRequired(field.type) ? check("required", "forms.field.required") : null,
+		help: text("help", "forms.field.help"),
+		placeholder: uses("placeholder")
+			? text("placeholder", field.type === "select" ? "forms.field.choosePrompt" : "forms.field.placeholder")
+			: null,
+		message:
+			field.type !== "hidden" && !isLayoutItem(field)
 				? text("message", "forms.field.message", "forms.field.messageHelp")
-				: null}
-			{uses("minLength") ? number("minLength", "forms.field.minLength") : null}
-			{uses("maxLength") ? number("maxLength", "forms.field.maxLength") : null}
-			{uses("pattern") ? (
-				<Setting
-					id={`${id}-pattern`}
-					label={t("forms.field.pattern")}
-					help={t("forms.field.patternHelp")}
-					problem={problemAt("pattern")}
-				>
-					{(props) => (
-						<Input
-							{...props}
-							className="font-mono"
-							value={field.pattern ?? ""}
-							onChange={(event) => set("pattern", event.target.value === "" ? null : event.target.value)}
-						/>
-					)}
-				</Setting>
-			) : null}
-			{uses("autocomplete") ? (
-				<Setting
-					id={`${id}-autocomplete`}
-					label={t("forms.field.autocomplete")}
-					help={t("forms.field.autocompleteHelp")}
-					problem={problemAt("autocomplete")}
-				>
-					{(props) => (
-						<NativeSelect
-							{...props}
-							value={field.autocomplete ?? ""}
-							onChange={(event) => set("autocomplete", event.target.value === "" ? null : event.target.value)}
-						>
-							<NativeSelectOption value="">{t("forms.field.autocompleteNone")}</NativeSelectOption>
-							{FORM_AUTOCOMPLETE.map((purpose) => (
-								<NativeSelectOption key={purpose} value={purpose}>
-									{purpose}
-								</NativeSelectOption>
-							))}
-						</NativeSelect>
-					)}
-				</Setting>
-			) : null}
-			{uses("min") ? number("min", "forms.field.min") : null}
-			{uses("max") ? number("max", "forms.field.max") : null}
-			{uses("integer") ? check("integer", "forms.field.integer") : null}
-			{uses("minDate")
-				? (["minDate", "maxDate"] as const).map((setting) => (
-						<Setting
-							key={setting}
-							id={`${id}-${setting}`}
-							label={t(setting === "minDate" ? "forms.field.minDate" : "forms.field.maxDate")}
-							problem={problemAt(setting)}
-						>
-							{(props) => (
-								<Input
-									{...props}
-									type="date"
-									value={field[setting] ?? ""}
-									onChange={(event) => set(setting, event.target.value === "" ? null : event.target.value)}
-								/>
-							)}
-						</Setting>
-					))
-				: null}
-			{uses("options") ? (
-				<Options field={field} onChange={onChange} problem={problemAt("options")} idPrefix={id} />
-			) : null}
-			{uses("minChoices") ? number("minChoices", "forms.field.minChoices") : null}
-			{uses("maxChoices") ? number("maxChoices", "forms.field.maxChoices") : null}
-			{uses("source") ? <Source field={field} onChange={onChange} problem={problemAt("source")} idPrefix={id} /> : null}
-			{uses("accept") ? <Accept field={field} onChange={onChange} problem={problemAt("accept")} idPrefix={id} /> : null}
-			{uses("maxFileBytes") ? (
-				<Setting
-					id={`${id}-maxFileBytes`}
-					label={t("forms.field.maxFileMb")}
-					help={t("forms.field.maxFileMbHelp", { max: FORM_LIMITS.fileBytes / (1024 * 1024) })}
-					problem={problemAt("maxFileBytes")}
-				>
-					{(props) => (
-						<Input
-							{...props}
-							type="number"
-							inputMode="decimal"
-							min={0.1}
-							step={0.1}
-							value={field.maxFileBytes === null ? "" : Math.round((field.maxFileBytes / (1024 * 1024)) * 10) / 10}
-							onChange={(event) => {
-								const megabytes = numberOrNull(event.target.value);
-								set("maxFileBytes", megabytes === null ? null : Math.round(megabytes * 1024 * 1024));
-							}}
-						/>
-					)}
-				</Setting>
-			) : null}
-			{uses("maxFiles") ? (
-				<Setting id={`${id}-maxFiles`} label={t("forms.field.maxFiles")} problem={problemAt("maxFiles")}>
-					{(props) => (
-						<Input
-							{...props}
-							type="number"
-							inputMode="numeric"
-							min={1}
-							max={FORM_LIMITS.files}
-							value={field.maxFiles ?? ""}
-							onChange={(event) => set("maxFiles", numberOrNull(event.target.value))}
-						/>
-					)}
-				</Setting>
-			) : null}
+				: null,
+		width: layout === "place" ? (width ?? null) : null,
+		rules: (
+			<>
+				{uses("minLength") ? number("minLength", "forms.field.minLength") : null}
+				{uses("maxLength") ? number("maxLength", "forms.field.maxLength") : null}
+				{uses("pattern") ? (
+					<Setting
+						id={`${id}-pattern`}
+						label={t("forms.field.pattern")}
+						help={t("forms.field.patternHelp")}
+						problem={problemAt("pattern")}
+					>
+						{(props) => (
+							<Input
+								{...props}
+								className="font-mono"
+								value={field.pattern ?? ""}
+								onChange={(event) => set("pattern", event.target.value === "" ? null : event.target.value)}
+							/>
+						)}
+					</Setting>
+				) : null}
+				{uses("autocomplete") ? (
+					<Setting
+						id={`${id}-autocomplete`}
+						label={t("forms.field.autocomplete")}
+						help={t("forms.field.autocompleteHelp")}
+						problem={problemAt("autocomplete")}
+					>
+						{(props) => (
+							<NativeSelect
+								{...props}
+								value={field.autocomplete ?? ""}
+								onChange={(event) => set("autocomplete", event.target.value === "" ? null : event.target.value)}
+							>
+								<NativeSelectOption value="">{t("forms.field.autocompleteNone")}</NativeSelectOption>
+								{FORM_AUTOCOMPLETE.map((purpose) => (
+									<NativeSelectOption key={purpose} value={purpose}>
+										{purpose}
+									</NativeSelectOption>
+								))}
+							</NativeSelect>
+						)}
+					</Setting>
+				) : null}
+				{uses("min") ? number("min", "forms.field.min") : null}
+				{uses("max") ? number("max", "forms.field.max") : null}
+				{uses("integer") ? check("integer", "forms.field.integer") : null}
+				{uses("minDate")
+					? (["minDate", "maxDate"] as const).map((setting) => (
+							<Setting
+								key={setting}
+								id={`${id}-${setting}`}
+								label={t(setting === "minDate" ? "forms.field.minDate" : "forms.field.maxDate")}
+								problem={problemAt(setting)}
+							>
+								{(props) => (
+									<Input
+										{...props}
+										type="date"
+										value={field[setting] ?? ""}
+										onChange={(event) => set(setting, event.target.value === "" ? null : event.target.value)}
+									/>
+								)}
+							</Setting>
+						))
+					: null}
+				{uses("options") ? (
+					<Options field={field} onChange={onChange} problem={problemAt("options")} idPrefix={id} />
+				) : null}
+				{uses("minChoices") ? number("minChoices", "forms.field.minChoices") : null}
+				{uses("maxChoices") ? number("maxChoices", "forms.field.maxChoices") : null}
+				{uses("source") ? (
+					<Source field={field} onChange={onChange} problem={problemAt("source")} idPrefix={id} />
+				) : null}
+				{uses("accept") ? (
+					<Accept field={field} onChange={onChange} problem={problemAt("accept")} idPrefix={id} />
+				) : null}
+				{uses("maxFileBytes") ? (
+					<Setting
+						id={`${id}-maxFileBytes`}
+						label={t("forms.field.maxFileMb")}
+						help={t("forms.field.maxFileMbHelp", { max: FORM_LIMITS.fileBytes / (1024 * 1024) })}
+						problem={problemAt("maxFileBytes")}
+					>
+						{(props) => (
+							<Input
+								{...props}
+								type="number"
+								inputMode="decimal"
+								min={0.1}
+								step={0.1}
+								value={field.maxFileBytes === null ? "" : Math.round((field.maxFileBytes / (1024 * 1024)) * 10) / 10}
+								onChange={(event) => {
+									const megabytes = numberOrNull(event.target.value);
+									set("maxFileBytes", megabytes === null ? null : Math.round(megabytes * 1024 * 1024));
+								}}
+							/>
+						)}
+					</Setting>
+				) : null}
+				{uses("maxFiles") ? (
+					<Setting id={`${id}-maxFiles`} label={t("forms.field.maxFiles")} problem={problemAt("maxFiles")}>
+						{(props) => (
+							<Input
+								{...props}
+								type="number"
+								inputMode="numeric"
+								min={1}
+								max={FORM_LIMITS.files}
+								value={field.maxFiles ?? ""}
+								onChange={(event) => set("maxFiles", numberOrNull(event.target.value))}
+							/>
+						)}
+					</Setting>
+				) : null}
+			</>
+		),
+		condition: (
 			<Condition
 				field={field}
 				before={before}
@@ -242,6 +278,18 @@ export function FieldPanel({
 				problems={problems.filter((problem) => problem.at.startsWith(`fields[${index}].condition`))}
 				idPrefix={id}
 			/>
+		),
+	} satisfies Record<string, ReactNode>;
+	const order: readonly (keyof typeof parts)[] =
+		layout === "place"
+			? ["label", "hideLabel", "help", "placeholder", "required", "message", "width", "rules", "condition", "key"]
+			: ["label", "hideLabel", "key", "required", "help", "placeholder", "message", "rules", "condition"];
+
+	return (
+		<FieldGroup>
+			{order.map((part) => (
+				<Fragment key={part}>{parts[part]}</Fragment>
+			))}
 		</FieldGroup>
 	);
 }
