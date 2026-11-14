@@ -37,7 +37,7 @@ function summary(words: Words, field: Field, value: Json | undefined): string {
 }
 
 const FIELD =
-	"bg-chrome-raised text-chrome-strong placeholder:text-chrome-faint border-chrome-hover h-8 w-full rounded-md border px-2.5 text-[12px] outline-none focus-visible:ring-2 focus-visible:ring-chrome-focus";
+	"bg-chrome-raised text-chrome-strong placeholder:text-chrome-muted border-chrome-hover h-8 w-full rounded-md border px-2.5 text-[12px] outline-none focus-visible:ring-2 focus-visible:ring-chrome-focus";
 
 /**
  * The Globals as a form in the Content place (SPEC 8 and 13.6): each Field with its label and help,
@@ -211,7 +211,7 @@ function Control({
 			<div className="flex flex-col gap-1.5" data-wc-global={field.key}>
 				<span className="text-chrome-text text-[12px] font-medium">{field.label}</span>
 				<p className="text-chrome-muted m-0 truncate text-[12px]">{summary(words, field, value)}</p>
-				<p className="text-chrome-faint m-0 text-[11px]">
+				<p className="text-chrome-muted m-0 text-[11px]">
 					{shown.notHere} ·{" "}
 					<a
 						href={admin}

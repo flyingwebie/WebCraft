@@ -65,15 +65,18 @@ export function MemberList({
 			<div className="flex min-h-[34px] flex-wrap items-center gap-2.5">
 				<h2 className="text-chrome-strong m-0 text-[18px] font-semibold">{postType.name}</h2>
 				<div className="ms-auto flex items-center gap-2.5">
-					<label className="bg-chrome-raised focus-within:ring-chrome-focus flex h-[34px] w-[280px] items-center gap-2 rounded-md px-2.5 focus-within:ring-2">
-						<SearchIcon aria-hidden="true" className="text-chrome-muted size-3.5 shrink-0" />
+					<label className="relative flex h-[34px] w-[280px] items-center">
+						<SearchIcon
+							aria-hidden="true"
+							className="text-chrome-muted pointer-events-none absolute start-2.5 size-3.5"
+						/>
 						<span className="sr-only">{fill(shown.searchIn, { name: postType.name })}</span>
 						<input
 							type="search"
 							value={view.q}
 							placeholder={shown.search}
 							onChange={(event) => onView({ ...view, q: event.target.value }, "replace")}
-							className="text-chrome-strong placeholder:text-chrome-faint min-w-0 grow bg-transparent text-[13px] outline-none"
+							className="bg-chrome-raised text-chrome-strong placeholder:text-chrome-muted focus-visible:ring-chrome-focus h-full w-full min-w-0 rounded-md ps-8 pe-2.5 text-[13px] outline-none focus-visible:ring-2"
 							data-wc-content-search=""
 						/>
 					</label>
@@ -107,7 +110,7 @@ export function MemberList({
 							data-wc-tab={each ?? "all"}
 						>
 							{tabWord(each)}
-							<span className="text-chrome-faint text-[11px]">
+							<span className="text-chrome-muted text-[11px]">
 								{entries.filter((entry) => inTab(entry, each)).length}
 							</span>
 						</button>

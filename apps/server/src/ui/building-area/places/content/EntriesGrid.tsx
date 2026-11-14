@@ -94,15 +94,18 @@ export function EntriesGrid({
 					{several ? summary : summary.split(" · ")[0]}
 				</p>
 				<div className="ms-auto flex flex-wrap items-center gap-2">
-					<label className="bg-chrome-raised focus-within:ring-chrome-focus flex h-[30px] w-[200px] items-center gap-2 rounded-md px-2 focus-within:ring-2">
-						<SearchIcon aria-hidden="true" className="text-chrome-muted size-3.5 shrink-0" />
+					<label className="relative flex h-[30px] w-[200px] items-center">
+						<SearchIcon
+							aria-hidden="true"
+							className="text-chrome-muted pointer-events-none absolute start-2 size-3.5"
+						/>
 						<span className="sr-only">{fill(shown.searchIn, { name: postType.name })}</span>
 						<input
 							type="search"
 							value={view.q}
 							placeholder={shown.search}
 							onChange={(event) => onView({ ...view, q: event.target.value }, "replace")}
-							className="text-chrome-strong placeholder:text-chrome-faint min-w-0 grow bg-transparent text-[12px] font-medium outline-none"
+							className="bg-chrome-raised text-chrome-strong placeholder:text-chrome-muted focus-visible:ring-chrome-focus h-full w-full min-w-0 rounded-md ps-7 pe-2 text-[12px] font-medium outline-none focus-visible:ring-2"
 							data-wc-content-search=""
 						/>
 					</label>
@@ -337,7 +340,9 @@ function EntryRow({
 								<li
 									key={each.code}
 									className={`inline-flex h-[18px] items-center rounded px-[5px] text-[10px] font-semibold ${
-										hidden ? "text-chrome-faint opacity-35" : "bg-chrome-hover text-chrome-text"
+										hidden
+											? "border-chrome-hover text-chrome-muted border border-dashed"
+											: "bg-chrome-hover text-chrome-text"
 									}`}
 								>
 									<span aria-hidden="true">{each.code.toUpperCase()}</span>
@@ -426,7 +431,7 @@ function CreateRow({
 		<tr className="border-chrome-line h-[50px] border-b" data-wc-create-row="">
 			<td className="px-2.5">
 				<span className="flex items-center gap-1.5">
-					<ChevronDownIcon aria-hidden="true" className="text-chrome-faint size-3 shrink-0" />
+					<ChevronDownIcon aria-hidden="true" className="text-chrome-muted size-3 shrink-0" />
 					<input
 						type="text"
 						value={title}
@@ -441,15 +446,15 @@ function CreateRow({
 						placeholder={postType.pages ? shown.newPage : shown.newEntry}
 						aria-label={postType.pages ? shown.newPageTitle : shown.newEntryTitle}
 						aria-describedby={help}
-						className="text-chrome-strong placeholder:text-chrome-faint focus-visible:ring-chrome-focus min-w-0 grow rounded-sm bg-transparent py-1 text-[12px] font-medium outline-none focus-visible:ring-2"
+						className="text-chrome-strong placeholder:text-chrome-muted focus-visible:ring-chrome-focus min-w-0 grow rounded-sm bg-transparent py-1 text-[12px] font-medium outline-none focus-visible:ring-2"
 						data-wc-create-title=""
 					/>
 				</span>
 			</td>
-			<td className="text-chrome-faint truncate px-2.5 font-mono" aria-hidden="true">
+			<td className="text-chrome-muted truncate px-2.5 font-mono" aria-hidden="true">
 				{address || (postType.pages ? "/new-page" : "")}
 			</td>
-			<td className="px-2.5 opacity-60" aria-hidden="true">
+			<td className="px-2.5" aria-hidden="true">
 				<Badge kind="draft">{shown.status.draft}</Badge>
 			</td>
 			<td colSpan={columns - 4} />
