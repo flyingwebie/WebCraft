@@ -75,10 +75,26 @@ export type GrantActor = {
 export type ClientActor = TokenActor | GrantActor;
 
 /**
- * Who `can()` is asked about: a person, a Module, an API token or an OAuth grant, each limited by
- * what stands behind it.
+ * An Edit mode session calling the Management API on its Site's own address, for the building area
+ * (ADR 0037): its person, never with more access than they have now (`person` is read fresh for every
+ * request), pinned to the one Site the session was opened on, as an API token limited to that Site
+ * is. It sees that Site's Workspace and nothing more of it, and nothing of any other Workspace or the
+ * Install. It is the person themself acting, not an API client (`isApiClient`): what they change in
+ * one step in the admin they change in one step here.
  */
-export type Actor = PersonActor | ModuleActor | ClientActor;
+export type EditSessionActor = {
+	kind: "editSession";
+	sessionId: string;
+	person: PersonActor;
+	workspaceId: string;
+	siteId: string;
+};
+
+/**
+ * Who `can()` is asked about: a person, a Module, an API token or an OAuth grant, or an Edit mode
+ * session on its Site's address, each limited by what stands behind it.
+ */
+export type Actor = PersonActor | ModuleActor | ClientActor | EditSessionActor;
 
 /**
  * A Permission a Module adds (ADR 0028): named under the Module's id (`sample.notes.edit`), checked
@@ -90,13 +106,17 @@ export type AddedPermission = {
 	readonly roles: readonly string[];
 };
 
-/** The person behind an actor (an API token's or grant's is the person who made it), or null for a Module. */
+/**
+ * The person behind an actor (an API token's or grant's is the person who made it, an Edit mode
+ * session's the person in it), or null for a Module.
+ */
 export function personIdOf(actor: Actor): string | null {
 	switch (actor.kind) {
 		case "person":
 			return actor.personId;
 		case "token":
 		case "grant":
+		case "editSession":
 			return actor.person.personId;
 		case "module":
 			return null;
@@ -143,7 +163,19 @@ export function can(actor: Actor, permission: Permission | AddedPermission, reso
 		case "token":
 		case "grant":
 			return clientReaches(actor, resource, key) && can(actor.person, permission, resource);
+		case "editSession":
+			return sessionReaches(actor, resource, key) && can(actor.person, permission, resource);
 	}
+}
+
+/**
+ * Whether `resource` is within an Edit mode session's pin: its Site, and of its Workspace only seeing
+ * it. Never the Install, another Workspace or another Site.
+ */
+function sessionReaches(actor: EditSessionActor, resource: Resource, key: string): boolean {
+	if (resource.level === "install" || resource.workspaceId !== actor.workspaceId) return false;
+	if (resource.level === "site") return resource.siteId === actor.siteId;
+	return key === "workspace.view";
 }
 
 /**
@@ -193,6 +225,8 @@ export type MemberAccess = { role: string; sites: Reach };
  * never held this way.
  */
 export function holdsAccess(actor: Actor, workspaceId: string, access: MemberAccess): boolean {
+	// An Edit mode session grants nobody anything: Members' access is changed in the admin.
+	if (actor.kind === "editSession") return false;
 	if (actor.kind === "token" || actor.kind === "grant") {
 		// A token or grant holds what its person holds, within its Workspace and Sites.
 		if (actor.workspaceId !== workspaceId) return false;
@@ -223,7 +257,7 @@ export function holdsAccess(actor: Actor, workspaceId: string, access: MemberAcc
  */
 export function workspacesReached(actor: Actor): Reach {
 	if (actor.kind === "module") return [actor.place.workspaceId];
-	if (actor.kind === "token" || actor.kind === "grant") return [actor.workspaceId];
+	if (actor.kind === "token" || actor.kind === "grant" || actor.kind === "editSession") return [actor.workspaceId];
 	const { installRole, memberships } = actor;
 	const reach = installRole ? roleDefinition(installRole.role)?.reach : undefined;
 	if (reach === "install") return "all";
