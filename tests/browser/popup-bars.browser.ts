@@ -174,7 +174,8 @@ for (const theme of THEMES)
 			const page = await install.newPage(theme);
 			if (phone) await page.setViewportSize({ width: 390, height: 844 });
 			await install.signIn(page, staff);
-			await page.goto(install.adminUrl(`/sites/${fixture.siteId}/popups`));
+			// The Popup opens in its sheet over the Popups list.
+			await page.goto(install.adminUrl(`/sites/${fixture.siteId}/popups?popup=${fixture.popupId}`));
 			const position = page.getByRole("combobox", { name: "Bar position", exact: true });
 			await position.waitFor({ timeout: 5000 });
 			await position.focus();
@@ -183,7 +184,8 @@ for (const theme of THEMES)
 			await page.getByRole("combobox", { name: "Page flow", exact: true }).focus();
 			await page.keyboard.press("o");
 			expect(await page.getByRole("combobox", { name: "Page flow", exact: true }).inputValue()).toBe("overlay");
-			await expectNoAxeViolations(page, `Bar controls ${theme} ${phone}`);
+			// The sheet is a dialog outside the page's landmarks, as dialogs are.
+			await expectNoAxeViolations(page, `Bar controls ${theme} ${phone}`, ["region"]);
 			await page.getByRole("button", { name: "Save Draft", exact: true }).last().click();
 			await page.getByRole("status").filter({ hasText: "Draft saved" }).waitFor();
 			const saved = await fixture.api.popups.get({ siteId: fixture.siteId, popupId: fixture.popupId });
