@@ -11,7 +11,7 @@ import { getApi } from "../api.ts";
 import { useAuditWords } from "../audit/AuditLog.tsx";
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
-import { type ReviewView, reviewItemLink, reviewItemName } from "../review/Review.tsx";
+import { type ReviewView, reviewItemName } from "../review/Review.tsx";
 import { SettingsCard, StateBadge, type StateTone } from "../settings/layout.tsx";
 import { initials } from "../shell/context.ts";
 import { languageName } from "./DraftParts.tsx";
@@ -121,7 +121,11 @@ function Reviews({ siteId, reviews }: { siteId: string; reviews: readonly Review
 						return (
 							<Line key={review.id} who={review.submittedBy?.name ?? null} at={review.submittedAt}>
 								<Link
-									{...reviewItemLink(siteId, review)}
+									// Opens the Review's sheet over the Overview (`?review=<id>`, which the shell reads).
+									to="/sites/$siteId"
+									params={{ siteId }}
+									search={{ review: review.id }}
+									resetScroll={false}
 									className="focus-visible:ring-ring/50 rounded-sm outline-none hover:underline focus-visible:ring-3"
 								>
 									{t("site.overview.requested", { name, title: reviewItemName(t, review) })}

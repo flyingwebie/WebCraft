@@ -14,6 +14,14 @@ import { type AdminPlace, levelCrumbs, type NavTarget } from "./levels.ts";
 import { RowLink, useNavigation, useRowLabel } from "./navigation.tsx";
 import type { PageWidth } from "./page.tsx";
 
+/**
+ * One of the crumbs a page's loader may answer as `crumbs` (several, in order) when it names more than
+ * itself: a page that isn't nested under the page before it (a Dashboard's Reports, under the
+ * Dashboard). Each is a name people gave (`label`) or a message (`message`), and leads to `pathname`
+ * (the page's own address unless given).
+ */
+export type LoaderCrumb = { label?: string; message?: MessageKey; pathname?: string };
+
 declare module "@tanstack/react-router" {
 	interface StaticDataRouteOption {
 		/** The page's name in the breadcrumbs, after the level it belongs to (or `crumb` from its loader). */
@@ -37,9 +45,16 @@ export function Breadcrumbs({ place, installName }: { place: AdminPlace; install
 	const label = useRowLabel();
 	const { position } = useNavigation();
 	// A page names itself with `staticData.crumb`, or, when its name is data (a Post Type's, an
-	// Entry's title), with `crumb` in what its loader answers.
+	// Entry's title), with `crumb` in what its loader answers; with `crumbs`, it names several.
 	const pages = useMatches().flatMap((match) => {
-		const named = (match.loaderData as { crumb?: unknown } | undefined)?.crumb;
+		const loaded = match.loaderData as { crumb?: unknown; crumbs?: unknown } | undefined;
+		if (Array.isArray(loaded?.crumbs)) {
+			return (loaded.crumbs as LoaderCrumb[]).flatMap((crumb, index) => {
+				const name = crumb.message ? t(crumb.message) : crumb.label;
+				return name ? [{ key: `${match.id}-${index}`, label: name, pathname: crumb.pathname ?? match.pathname }] : [];
+			});
+		}
+		const named = loaded?.crumb;
 		if (typeof named === "string") return [{ key: match.id, label: named, pathname: match.pathname }];
 		const message = match.staticData.crumb;
 		return message ? [{ key: match.id, label: t(message), pathname: match.pathname }] : [];

@@ -119,6 +119,10 @@ for (const theme of THEMES) {
 			const page = await open(reportsPath());
 			await page.getByRole("heading", { name: "Reports", level: 1 }).waitFor();
 			await page.getByText("Scheduled summaries of Overview, sent by email.").waitFor();
+			// The breadcrumbs: "… › Overview › Reports", the Dashboard leading back to it.
+			const crumbs = page.getByRole("navigation", { name: "Breadcrumb" });
+			await crumbs.getByRole("link", { name: "Overview", exact: true }).waitFor();
+			expect(await crumbs.locator("[aria-current=page]").textContent()).toBe("Reports");
 			await page.getByRole("cell", { name: "Weekly", exact: true }).waitFor();
 			// How many it goes to (an Owner adds one in the light run).
 			await page.getByRole("cell", { name: /^\d+ recipients?$/ }).waitFor();

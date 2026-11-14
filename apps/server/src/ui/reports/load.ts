@@ -1,5 +1,6 @@
 import type { ApiClient } from "@webcraft/api";
 
+import type { LoaderCrumb } from "../shell/Breadcrumbs.tsx";
 import type { ReportPlace } from "./model.ts";
 import type { ReportsData } from "./ReportsPage.tsx";
 
@@ -12,7 +13,7 @@ export async function loadReports(
 	place: ReportPlace,
 	dashboardId: string,
 	options: { review?: string },
-): Promise<ReportsData & { crumb: string }> {
+): Promise<ReportsData & { crumb: string; crumbs: LoaderCrumb[] }> {
 	const { dashboard } = await api.dashboards.get({ ...place, dashboardId });
 	const { reports } = await api.reports.list({ ...place, dashboardId });
 	const histories = await Promise.all(
@@ -31,5 +32,16 @@ export async function loadReports(
 		sent,
 		review,
 		crumb: dashboard.name,
+		// "… › Site analytics › Reports": the Reports page isn't nested under its Dashboard's.
+		crumbs: [
+			{
+				label: dashboard.name,
+				pathname:
+					"siteId" in place
+						? `/sites/${place.siteId}/dashboards/${dashboard.id}`
+						: `/workspaces/${place.workspaceId}/dashboards/${dashboard.id}`,
+			},
+			{ message: "reports.heading" },
+		],
 	};
 }

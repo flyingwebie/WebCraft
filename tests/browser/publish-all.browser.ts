@@ -94,6 +94,13 @@ for (const theme of THEMES) {
 	});
 }
 
+test("the Site overview's address with publishAll=1 opens Publish all at once, as any screen's does", async () => {
+	const page = await install.newPage("light");
+	await install.signIn(page, staff);
+	await page.goto(install.adminUrl(`/sites/${siteId}?publishAll=1`));
+	await page.getByRole("dialog").getByRole("checkbox", { name: "Select all" }).waitFor();
+});
+
 describe("publishing from the list", () => {
 	test("an item unticked with the keyboard stays a Draft; the rest go live", async () => {
 		const page = await overview("light", staff);
