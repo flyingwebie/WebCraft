@@ -38,7 +38,7 @@ beforeAll(async () => {
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
 	staff = (await local.createStaff({ workspaces: [workspaceId], name: "Davide Del Gatto" })).account;
 
-	for (const name of ["site-header", "page", "quote", "quote__text", "post__title"]) {
+	for (const name of ["site-header", "page", "hero", "quote", "quote__text", "post__title"]) {
 		await api.designSystem.createClass({ siteId, name, styles: "" });
 	}
 	await api.globals.setFields({ siteId, fields: [{ key: "tagline", label: "Tagline", type: "text" }] });
