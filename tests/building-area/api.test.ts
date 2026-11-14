@@ -6,7 +6,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { ORPCError } from "@orpc/client";
 import { BUILDING_AREA_PROCEDURES, type BuildingAreaProcedure } from "@webcraft/api";
-import { can, type EditSessionActor, type PersonActor } from "@webcraft/core";
+import { can, EDITOR_LAYOUT_VERSION, type EditSessionActor, type PersonActor } from "@webcraft/core";
 
 import { type BuildingAreaBrowser, openBuildingArea } from "../harness/building-area.ts";
 import { type BuildingAreaApi, buildingAreaApi, refusalOf } from "../harness/building-area-api.ts";
@@ -136,6 +136,18 @@ describe("a listed procedure", () => {
 		const { entries } = await (await install.superadmin()).api.audit.list({ limit: 200 });
 		const published = entries.filter((entry) => entry.siteId === site.siteId && entry.action === "template.publish");
 		expect(published.at(0)).toMatchObject({ personId: staffId, via: { kind: "editMode" } });
+	});
+
+	test("reads and saves the person's own editor preferences", async () => {
+		const saved = await area.api.me.saveEditorPreferences({
+			siteId: site.siteId,
+			preferences: { version: EDITOR_LAYOUT_VERSION, formatOnLeave: true },
+		});
+
+		expect(saved.preferences.formatOnLeave).toBe(true);
+		expect((await area.api.me.editorPreferences({ siteId: site.siteId })).preferences.formatOnLeave).toBe(true);
+		// The same preferences as in the admin: they are the person's, on every Site.
+		expect((await staff.api.me.editorPreferences({ siteId: site.siteId })).preferences.formatOnLeave).toBe(true);
 	});
 
 	test("an item of another Site, named on this Site, is not found there", async () => {
@@ -388,6 +400,11 @@ describe("Permissions, as in the admin", () => {
 			title: "Rye",
 		});
 		expect(entry.draft.title).toBe("Rye");
+		const { preferences } = await area.api.me.saveEditorPreferences({
+			siteId: site.siteId,
+			preferences: { version: EDITOR_LAYOUT_VERSION, hintSeen: true },
+		});
+		expect(preferences.hintSeen).toBe(true);
 
 		for (const call of [
 			() => area.api.templates.getSiteTemplateMarkup({ siteId: site.siteId }),

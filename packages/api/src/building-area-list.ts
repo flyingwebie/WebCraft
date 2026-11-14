@@ -8,7 +8,8 @@ import type { ProcedurePath } from "./catalogue.ts";
  * that Site for the person with its usual Permission (`can()`, unchanged). The Site's own scripts and
  * Libraries run beside the shell with the same session, so each line here widens what they can do as
  * the person editing: add a procedure only with a reason and a test in `tests/building-area/` (a
- * Sensitive action, a Workspace, Install or account procedure is never served, listed or not).
+ * Sensitive action, or a Workspace, Install or account procedure that doesn't take the Site, is never
+ * served, listed or not).
  * Adding a path that isn't a procedure fails the typecheck.
  */
 export const BUILDING_AREA_PROCEDURES = [
@@ -105,6 +106,11 @@ export const BUILDING_AREA_PROCEDURES = [
 	"publishing.schedule",
 	"publishing.reschedule",
 	"publishing.cancelScheduled",
+	// The person's own editor preferences (panel layout and the rest), read and saved from the shell.
+	// They take the Site whose building area asks, and open it with `entry.edit`, so they are pinned
+	// like every line here; saving is refused while impersonating, as in the admin.
+	"me.editorPreferences",
+	"me.saveEditorPreferences",
 ] as const satisfies readonly ProcedurePath[];
 
 /** A procedure the building area may call on the Site's address. */
