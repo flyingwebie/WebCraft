@@ -374,7 +374,16 @@ function DrawerToggles({ docks }: { docks: Docks }) {
 						className={`group bg-chrome-raised text-chrome-text hover:bg-chrome-hover absolute top-2 z-30 grid size-7 place-items-center rounded-md shadow-[0_6px_16px_rgba(0,0,0,0.5)] ${
 							side === "left" ? "start-2" : "end-2"
 						} ${CHROME_EASE} ${FOCUS_RING}`}
-						style={{ gridArea: "canvas" }}
+						// Beside its drawer while it is open, so it never covers the drawer's own header.
+						style={{
+							gridArea: "canvas",
+							...(docks.drawer === side
+								? {
+										[side === "left" ? "insetInlineStart" : "insetInlineEnd"]:
+											dockLength(docks.layout, side, docks.window) + 8,
+									}
+								: {}),
+						}}
 						data-wc-drawer-toggle={side}
 					>
 						{side === "left" ? (

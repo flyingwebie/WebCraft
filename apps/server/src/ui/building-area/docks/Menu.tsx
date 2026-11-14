@@ -73,11 +73,10 @@ export function ChromeMenu({
 		return () => window.removeEventListener("resize", place);
 	}, [open, anchor, placement, width]);
 
-	// Focus goes to the first item once the menu is placed (a hidden element can't take it).
-	const placed = position !== null;
+	// Focus goes to the first item as the menu opens. (It is placed before it is painted, so it is never hidden.)
 	useEffect(() => {
-		if (open && placed) menu.current?.querySelector<HTMLElement>('[role^="menuitem"]')?.focus();
-	}, [open, placed]);
+		if (open) menu.current?.querySelector<HTMLElement>('[role^="menuitem"]')?.focus();
+	}, [open]);
 
 	useEffect(() => {
 		if (!open) return;
@@ -132,7 +131,7 @@ export function ChromeMenu({
 			aria-label={label}
 			tabIndex={-1}
 			onKeyDown={onKey}
-			style={{ width, left: position?.left ?? 0, top: position?.top ?? 0, visibility: position ? "visible" : "hidden" }}
+			style={{ width, left: position?.left ?? 0, top: position?.top ?? 0 }}
 			className="border-chrome-hover bg-chrome-menu fixed z-50 flex flex-col gap-0.5 rounded-lg border p-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.55)]"
 			data-wc-menu=""
 		>
