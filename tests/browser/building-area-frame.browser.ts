@@ -230,7 +230,8 @@ for (const engine of ENGINES) {
 			await clickIn(page, frame, "article > p:first-of-type");
 			expect(await outlineDrift(page, frame, "article > p:first-of-type", "selected")).toBeLessThanOrEqual(1);
 			const chip = page.locator("[data-wc-chip]");
-			expect(await chip.textContent()).toMatch(/^Subtitle · \d+ × \d+$/);
+			// Staff's page tags every element: the chip names its tag first (BA-08).
+			expect(await chip.textContent()).toMatch(/^p · Subtitle · \d+ × \d+$/);
 			const chipBox = await chip.boundingBox();
 			const outlineBox = await page.locator('[data-wc-outline="selected"]').boundingBox();
 			// The chip sits on the outline's top left corner.
@@ -262,7 +263,7 @@ for (const engine of ENGINES) {
 				const box = element.getBoundingClientRect();
 				return `${Math.round(box.width)} × ${Math.round(box.height)}`;
 			});
-			expect(await chip.textContent()).toBe(`Subtitle · ${own}`);
+			expect(await chip.textContent()).toBe(`p · Subtitle · ${own}`);
 		});
 
 		test("a drag from a shell button across the frame's edge finds the element under the drop, at 100 % and zoomed", async () => {
@@ -315,7 +316,7 @@ for (const engine of ENGINES) {
 			await clickIn(page, frame, 'a[href="/blog/rye"]');
 			await settled(page);
 			expect(new URL(frame.url()).pathname).toBe(path);
-			expect(await page.locator("[data-wc-chip]").textContent()).toMatch(/^Link · /);
+			expect(await page.locator("[data-wc-chip]").textContent()).toMatch(/^a · Link · /);
 		});
 
 		test("F6 and Shift+F6 move focus rail → the open docks → page → bar and back, focus visible on each", async () => {

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useEditorFit } from "../builder/editor-fit.ts";
+import { BUILDING_STAND_IN_PREFIX } from "./agent/contract.ts";
 import { type EditAnswer, editRequests, fill, type PageState, type ShellConfig } from "./api.ts";
 import { BottomBar } from "./bottom-bar/BottomBar.tsx";
 import { DocumentNav } from "./bottom-bar/DocumentNav.tsx";
@@ -7,6 +8,7 @@ import { draftStateOf } from "./bottom-bar/DraftState.tsx";
 import type { PageLanguage } from "./bottom-bar/LanguageMenu.tsx";
 import { Frame, type FrameHandle, type PageTheme } from "./canvas/Frame.tsx";
 import { NoDocument } from "./canvas/NoDocument.tsx";
+import { tagName } from "./canvas/overlay.ts";
 import type { SavingStatus } from "./canvas/regions.ts";
 import { DocumentSwitcher } from "./DocumentSwitcher.tsx";
 import { DockArea, useDocks } from "./docks/Docks.tsx";
@@ -15,12 +17,16 @@ import type { PanelContext } from "./docks/panels.ts";
 import { reverseElsewhere } from "./editing/drafts.ts";
 import { pageEditing } from "./editing/editing.ts";
 import { shellHistory } from "./editing/history.ts";
+import { refOf, structure } from "./editing/selection.ts";
 import { TextToolbar } from "./editing/TextToolbar.tsx";
 import { type RegionCycle, regionCycle } from "./keyboard.ts";
 import { NarrowNotice } from "./NarrowNotice.tsx";
 import { useOpenDocument } from "./open-document.ts";
 import { EntryPanel, EntryPanelActions, useEntryPanelView } from "./panels/EntryFields.tsx";
-import { MediaShellHost } from "./places/media/Picker.tsx";
+import { Inspector } from "./panels/Inspector.tsx";
+import { Layers } from "./panels/Layers.tsx";
+import { MediaShellHost } from "./places/media/host.tsx";
+import { PlaceLoader } from "./places/PlaceLoader.tsx";
 import {
 	PLACE_EVENT,
 	PLACE_KEYS,
@@ -131,6 +137,30 @@ export function Shell({ config }: { config: ShellConfig }) {
 	);
 	useEffect(() => () => editing.destroy(), [editing]);
 
+	// The page's Structure, for Staff (BA-08): its Templates and Components, what is selected among their
+	// elements, and the changes Layers and the Inspector make, each one Undo step, the page drawn again in place.
+	const staff = config.permissions.includes("structure.edit");
+	const selectedRef = useRef<(ref: string | null) => void>(() => {});
+	const pageStructure = useMemo(
+		() =>
+			structure({
+				token: config.token,
+				siteId: config.site.id,
+				words,
+				request,
+				history: undoHistory,
+				announce: (text, urgent) => announceRef.current(text, urgent),
+				rerender: () => frame.current?.rerender() ?? Promise.resolve(),
+				onSelect: (ref) => selectedRef.current(ref),
+				failed: () => setSaving("failed"),
+			}),
+		[config.token, config.site.id, words, request, undoHistory],
+	);
+	useEffect(() => () => pageStructure.destroy(), [pageStructure]);
+	const structureNow = useSyncExternalStore(pageStructure.subscribe, pageStructure.snapshot);
+	/** What the canvas selected last: its name as its chip says it, and its reference when it has one. */
+	const [canvasSelection, setCanvasSelection] = useState<{ ref: string | null; name: string } | null>(null);
+
 	/** Reads what Edit mode says of the page in the frame, for the Draft state and the languages. */
 	const takeState = useCallback(
 		(address: string, answer: Promise<EditAnswer<PageState>>) => {
@@ -156,13 +186,15 @@ export function Shell({ config }: { config: ShellConfig }) {
 	const onPage = useCallback(
 		(address: string, answer: Promise<EditAnswer<PageState>>) => {
 			shownAddress.current = address;
+			if (staff)
+				pageStructure.page(address.startsWith(`${BUILDING_STAND_IN_PREFIX}/`) ? null : (address.split("?")[0] ?? "/"));
 			setSaving("idle");
 			setShown(null);
 			setPageState(null);
 			takeState(address, answer);
 			framed(address, answer);
 		},
-		[takeState, framed],
+		[takeState, framed, staff, pageStructure],
 	);
 
 	// The place open over the canvas (BA-20): it takes the canvas's and the docks' room; the canvas stays
@@ -261,16 +293,48 @@ export function Shell({ config }: { config: ShellConfig }) {
 		};
 	}, [undoHistory]);
 
+	// What the selection in the Structure (the tree, Undo, the address) and on the canvas tells the rest:
+	// the canvas outlines it, and the address keeps it (`wc-select`, in place).
+	const documentsRef = useRef(opened.documents);
+	documentsRef.current = opened.documents;
+	selectedRef.current = (ref) => {
+		frame.current?.select(ref);
+		documentsRef.current.select(ref);
+	};
+	// The address's selection is selected once the page shows what it names: as the shell starts (a
+	// reload) and when the address changes it (Back, Forward), not again after the person selects.
+	const wanted = opened.address.select;
+	const siteOpen = structureNow.sources.has("site");
+	const appliedSelection = useRef<string | null>(null);
+	useEffect(() => {
+		const key = `${shown?.address ?? ""}|${wanted ?? ""}`;
+		if (!staff || !siteOpen || appliedSelection.current === key) return;
+		appliedSelection.current = key;
+		if (wanted && pageStructure.snapshot().selection?.ref !== wanted) pageStructure.select(wanted);
+	}, [staff, siteOpen, wanted, shown?.address, pageStructure]);
+
 	// The open document is a page for now (documents come with a later part of the building area).
 	// What the panels' rules read: the selection and the open document's kind (a Template of any kind is a Template).
 	const kind = opened.address.document?.kind ?? null;
+	const chosen = structureNow.selection;
+	const chosenNode = chosen?.node;
+	const panelSelection = useMemo<PanelContext["selection"]>(() => {
+		if (!staff || !chosen) return selection;
+		const name =
+			canvasSelection?.ref === chosen.ref
+				? canvasSelection.name
+				: chosenNode?.type === "element"
+					? `${chosenNode.tag} · ${chosenNode.label ?? tagName(chosenNode.tag, words)}`
+					: (selection?.name ?? "");
+		return { kind: chosen.kind, name };
+	}, [staff, chosen, chosenNode, canvasSelection, selection, words]);
 	const context = useMemo<PanelContext>(
 		() => ({
-			selection,
+			selection: panelSelection,
 			document: kind === null ? null : kind === "page" || kind === "component" || kind === "form" ? kind : "template",
 			componentInPlace: false,
 		}),
-		[selection, kind],
+		[panelSelection, kind],
 	);
 	// The Entry panel (BA-13): the page's Entry filled in without leaving it; a page never published
 	// follows its new slug. (A Member gets Page details in client editing's side panel instead.)
@@ -279,6 +343,18 @@ export function Shell({ config }: { config: ShellConfig }) {
 		config,
 		context,
 		announce,
+		panelActions: { entry: <EntryPanelActions words={words} view={entryView} /> },
+		headings: {
+			layers: (
+				<DocumentSwitcher
+					words={words}
+					title={opened.title}
+					current={opened.address.document}
+					data={opened.switchable}
+					onOpen={opened.open}
+				/>
+			),
+		},
 		bodies: {
 			entry: (
 				<EntryPanel
@@ -295,18 +371,18 @@ export function Shell({ config }: { config: ShellConfig }) {
 					onLanguage={(path) => frame.current?.navigate(path)}
 				/>
 			),
-		},
-		panelActions: { entry: <EntryPanelActions words={words} view={entryView} /> },
-		headings: {
-			layers: (
-				<DocumentSwitcher
-					words={words}
-					title={opened.title}
-					current={opened.address.document}
-					data={opened.switchable}
-					onOpen={opened.open}
-				/>
-			),
+			...(staff
+				? {
+						layers: <Layers structure={pageStructure} words={words} />,
+						inspector: (
+							<Inspector
+								structure={pageStructure}
+								words={words}
+								onOpenComponent={(componentId) => opened.open({ kind: "component", componentId })}
+							/>
+						),
+					}
+				: {}),
 		},
 	});
 
@@ -442,15 +518,28 @@ export function Shell({ config }: { config: ShellConfig }) {
 								handle={frame}
 								onPage={onPage}
 								onSaving={onSaving}
-								onSelect={(selected) => setSelection(selected ? { kind: "element", name: selected.name } : null)}
+								onSelect={(selected) => {
+									setSelection(selected ? { kind: "element", name: selected.name } : null);
+									const ref = selected ? refOf(selected.element) : null;
+									setCanvasSelection(selected ? { ref, name: selected.name } : null);
+									if (!staff) return;
+									// The canvas selected it: the Structure, the tree and the address follow.
+									pageStructure.select(ref, "canvas");
+									documentsRef.current.select(ref);
+								}}
+								onReady={(document) => {
+									if (staff) pageStructure.found(document);
+								}}
 								editing={editing}
 							/>
 						) : null}
 						{/* The Breakpoints switched on in Styles (BA-24), drawn where the frame's edges would be. */}
 						<BreakpointLines />
 					</div>
+					{/* Each place's code is fetched the first time it opens (BA-30): its frame shows at once meanwhile. */}
 					{place && opened.address.place ? (
-						<place.component
+						<PlaceLoader
+							entry={place}
 							config={config}
 							words={words}
 							place={opened.address.place}

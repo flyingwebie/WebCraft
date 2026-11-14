@@ -257,12 +257,14 @@ async function pageAnswer(
 					headers: { location: buildingAreaPageAddress(`${url.pathname}${url.search}`), ...EDIT_MODE_PAGE_HEADERS },
 				});
 			}
+			// Staff see the Drafts of the Structure in the frame, every element tagged (ADR 0037 › 1.3);
+			// Members see Content editing's page. Code mode's cookie means nothing here.
 			return editModePage(
 				services,
 				host,
 				edit.session,
 				url.pathname,
-				null,
+				await services.codeMode.openIfAllowed(edit.session),
 				safeModeOf(request),
 				number,
 				url.searchParams,

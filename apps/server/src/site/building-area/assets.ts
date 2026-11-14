@@ -14,8 +14,20 @@ export type BuildingAreaAsset = {
 };
 
 export type BuildingAreaAssets = {
-	/** The shell (React), an ES module. */
+	/** The shell (React), an ES module: what its document loads. */
 	shell: BuildingAreaAsset;
+	/**
+	 * The rest of the shell's code, ES modules the shell fetches when it needs them (BA-30): each place's
+	 * own file, named after it (`shell-ContentPlace-<hash>.js`), the Media picker's, and the parts they
+	 * share (`shell-main-<hash>.js`).
+	 */
+	shellChunks: readonly BuildingAreaAsset[];
+	/**
+	 * What the shell's document preloads (`<link rel="modulepreload">`) for its person, so the shell they
+	 * get comes with the first file rather than after it: Staff's shell (`Shell.tsx`) or a Member's
+	 * (`ClientShell.tsx`), each with the shared files it imports at once.
+	 */
+	shellPreload: { staff: readonly string[]; member: readonly string[] };
 	/** The shell's stylesheet: the admin's theme compiled for the shell's own classes, with Inter. */
 	shellStyles: BuildingAreaAsset;
 	/** The page agent, a classic script: the first script of every page shown in the frame. */
@@ -63,22 +75,25 @@ async function makeAssets(): Promise<BuildingAreaAssets> {
 	);
 	// Format's engine (Prettier) is the editing bar's file of its own, loaded the first time Format is used.
 	const { format } = await editBarAssets();
-	const [shellCode, agentCode, styles] = await Promise.all([
-		bundle("@webcraft/server/building-area/shell", "esm", [formatEngine(format.path)]),
+	const [{ shell, shellChunks, shellPreload }, agentCode, styles] = await Promise.all([
+		shellModules(formatEngine(format.path)),
 		bundle("@webcraft/server/building-area/agent", "iife"),
 		shellStylesheet(theme, fonts),
 	]);
-	const shell = await asset("shell", "js", shellCode, "text/javascript; charset=utf-8");
 	const agent = await asset("agent", "js", agentCode, "text/javascript; charset=utf-8");
 	const shellStyles = await asset("shell", "css", styles, "text/css; charset=utf-8");
 	const agentStyles = await asset("agent", "css", AGENT_STYLES, "text/css; charset=utf-8");
 	return {
 		shell,
+		shellChunks,
+		shellPreload,
 		shellStyles,
 		agent,
 		agentStyles,
 		fonts,
-		byName: new Map([shell, shellStyles, agent, agentStyles, ...fonts].map((file) => [file.name, file])),
+		byName: new Map(
+			[shell, ...shellChunks, shellStyles, agent, agentStyles, ...fonts].map((file) => [file.name, file]),
+		),
 	};
 }
 
@@ -97,11 +112,10 @@ const INTER_FILES = [
 ] as const;
 
 /**
- * One of the building area's sources bundled by Bun, through the server package's own name so it is
- * found from the built bundle too: the shell as an ES module, the agent as a classic script (it must
- * run before any Site script, so it imports nothing at run time).
+ * The page agent bundled by Bun, through the server package's own name so it is found from the built
+ * bundle too: a classic script (it must run before any Site script, so it imports nothing at run time).
  */
-async function bundle(entryName: string, format: "esm" | "iife", plugins: Bun.BunPlugin[] = []): Promise<string> {
+async function bundle(entryName: string, format: "iife"): Promise<string> {
 	const entry = Bun.resolveSync(entryName, dirname(fileURLToPath(import.meta.url)));
 	const built = await Bun.build({
 		entrypoints: [entry],
@@ -109,11 +123,119 @@ async function bundle(entryName: string, format: "esm" | "iife", plugins: Bun.Bu
 		format,
 		minify: true,
 		define: { "process.env.NODE_ENV": JSON.stringify("production") },
-		plugins,
 	});
 	const [output] = built.outputs;
 	if (!built.success || !output) throw new Error(`${entryName} couldn't be built: ${built.logs.join("; ")}`);
 	return output.text();
+}
+
+/**
+ * The shell, bundled by Bun with its code split (BA-30): the file its document loads holds what every
+ * visit needs (React, the rail, the bar, the canvas, the docks), and each `import()` in it (a place, the
+ * Media picker) becomes a file of its own, fetched the first time it is needed, with the parts those
+ * share in further files. The files import one another by name, relative to where they are served
+ * (`/_webcraft/edit/assets/`), and are named by the hash of their content (`contentNames`).
+ */
+async function shellModules(
+	...plugins: Bun.BunPlugin[]
+): Promise<Pick<BuildingAreaAssets, "shell" | "shellChunks" | "shellPreload">> {
+	const entry = Bun.resolveSync("@webcraft/server/building-area/shell", dirname(fileURLToPath(import.meta.url)));
+	const built = await Bun.build({
+		entrypoints: [entry],
+		target: "browser",
+		format: "esm",
+		minify: true,
+		splitting: true,
+		naming: { entry: "shell-[hash].[ext]", chunk: "shell-[name]-[hash].[ext]" },
+		define: { "process.env.NODE_ENV": JSON.stringify("production") },
+		plugins,
+	});
+	if (!built.success) throw new Error(`The shell couldn't be built: ${built.logs.join("; ")}`);
+	const outputs = await Promise.all(
+		built.outputs.map(async (output) => ({
+			entry: output.kind === "entry-point",
+			name: output.path.split("/").pop() ?? "",
+			body: await output.text(),
+		})),
+	);
+	const files = contentNames(outputs).map(({ entry, name, body }) => ({
+		entry,
+		file: { name, path: `${EDIT_ASSETS_PATH}${name}`, body, contentType: "text/javascript; charset=utf-8" },
+	}));
+	const shell = files.find((each) => each.entry)?.file;
+	if (!shell) throw new Error("The shell couldn't be built: it has no entry file.");
+	const shellChunks = files.filter((each) => !each.entry).map((each) => each.file);
+	return {
+		shell,
+		shellChunks,
+		shellPreload: { staff: preloadOf("Shell", shellChunks), member: preloadOf("ClientShell", shellChunks) },
+	};
+}
+
+/**
+ * The paths of a module's file of the split shell (`shell-<module>-<hash>.js`) and of every file it
+ * imports at once, the shell's first file left out (the document loads it anyway).
+ */
+function preloadOf(module: string, chunks: readonly BuildingAreaAsset[]): string[] {
+	const byName = new Map(chunks.map((chunk) => [chunk.name, chunk]));
+	const first = chunks.find((chunk) => new RegExp(`^shell-${module}-[0-9a-f]{16}\\.js$`).test(chunk.name));
+	if (!first) throw new Error(`The shell couldn't be built: it has no file for ${module}.`);
+	const paths: string[] = [];
+	const waiting = [first];
+	const seen = new Set<string>();
+	for (let chunk = waiting.pop(); chunk; chunk = waiting.pop()) {
+		if (seen.has(chunk.name)) continue;
+		seen.add(chunk.name);
+		paths.push(chunk.path);
+		for (const [, name] of String(chunk.body).matchAll(/\b(?:from|import)\s*"\.\/([^"]+\.js)"/g)) {
+			const next = name ? byName.get(name) : undefined;
+			if (next) waiting.push(next);
+		}
+	}
+	return paths;
+}
+
+/** A file of the split shell: Bun's name (`shell-<stem>-<id>.js`) and its code. */
+type ShellOutput = { entry: boolean; name: string; body: string };
+
+/**
+ * The split shell's files renamed by their content. Bun names each file with an id that also hangs on
+ * where the sources are on disk, so two web processes with the same code in different folders would
+ * name the same files differently, and a browser sent between them would ask one for the other's
+ * files. Each file is named here from the code itself instead: one hash over every file with Bun's ids
+ * left out, so a change to any of them names them all anew (the files name one another, so no file can
+ * keep its name with other content), and the same code gives the same names wherever it is built.
+ * Bun's ids appear only quoted (`"<id>"`, in the map of which file needs which) and in the file names
+ * (`-<id>.js`); one left anywhere afterwards fails the build rather than serve a broken shell.
+ */
+function contentNames(outputs: readonly ShellOutput[]): ShellOutput[] {
+	const idOf = (name: string): string => {
+		const id = /-([a-z0-9]+)\.js$/.exec(name)?.[1];
+		if (!id) throw new Error(`The shell couldn't be built: ${name} isn't named as expected.`);
+		return id;
+	};
+	const ids = outputs.map(({ name }) => idOf(name));
+	const neutral = (text: string): string =>
+		ids.reduce((done, id) => done.replaceAll(`"${id}"`, '"#"').replaceAll(`-${id}.js`, "-#.js"), text);
+	const stemOf = (name: string): string => name.slice(0, name.length - idOf(name).length - "-.js".length);
+	const neutralFiles = outputs.map(({ name, body }) => `${stemOf(name)}\n${neutral(body)}`);
+	const whole = new Bun.CryptoHasher("sha256").update([...neutralFiles].sort().join("\n\0")).digest("hex");
+	const renamed = new Map(
+		outputs.map(({ name }, index) => [
+			idOf(name),
+			new Bun.CryptoHasher("sha256").update(`${whole}\0${neutralFiles[index]}`).digest("hex").slice(0, 16),
+		]),
+	);
+	if (new Set(renamed.values()).size !== renamed.size)
+		throw new Error("The shell couldn't be built: two files share a name.");
+	return outputs.map(({ entry, name, body }) => {
+		let text = body;
+		for (const [id, next] of renamed)
+			text = text.replaceAll(`"${id}"`, `"${next}"`).replaceAll(`-${id}.js`, `-${next}.js`);
+		const left = ids.find((id) => text.includes(id));
+		if (left) throw new Error(`The shell couldn't be built: ${name} still names ${left}.`);
+		return { entry, name: `${stemOf(name)}-${renamed.get(idOf(name))}.js`, body: text };
+	});
 }
 
 /**

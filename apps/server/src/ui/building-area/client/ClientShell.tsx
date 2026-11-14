@@ -16,7 +16,8 @@ import { type RegionCycle, regionCycle } from "../keyboard.ts";
 import { managementApi } from "../management.ts";
 import { NarrowNotice } from "../NarrowNotice.tsx";
 import { useOpenDocument } from "../open-document.ts";
-import { MediaShellHost } from "../places/media/Picker.tsx";
+import { MediaShellHost } from "../places/media/host.tsx";
+import { PlaceLoader } from "../places/PlaceLoader.tsx";
 import { PLACE_EVENT, placeEntry, placeKeyOf, reopenPlace } from "../places/registry.ts";
 import { Publish } from "../publish/Publish.tsx";
 import { ClientBar, type ClientPanel, clientDraftStateOf } from "./ClientBar.tsx";
@@ -491,8 +492,10 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 							</div>
 						) : null}
 					</div>
+					{/* Each place's code is fetched the first time it opens (BA-30): its frame shows at once meanwhile. */}
 					{place && opened.address.place ? (
-						<place.component
+						<PlaceLoader
+							entry={place}
 							config={config}
 							words={words}
 							place={opened.address.place}

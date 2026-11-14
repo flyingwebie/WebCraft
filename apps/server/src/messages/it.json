@@ -8459,6 +8459,8 @@
 		"openHelp": "Il nuovo editor, mentre viene costruito",
 		"opening": "Apertura dell'area di costruzione…",
 		"skipToContent": "Vai al contenuto principale",
+		"shellFailed": "Impossibile caricare l'area di costruzione. Controlla la connessione, poi ricarica la pagina.",
+		"shellReload": "Ricarica la pagina",
 		"rail": "Area di costruzione",
 		"backToAdmin": "Torna all'admin",
 		"canvas": "Pagina",
@@ -8848,7 +8850,10 @@
 			"left": "Di nuovo sulla tela",
 			"laterTitle": "Non ancora qui",
 			"laterText": "Questa parte arriva con una fase successiva dell'area di costruzione. Fino ad allora usa l'admin.",
-			"openAdmin": "Apri l'admin (nuova scheda)"
+			"openAdmin": "Apri l'admin (nuova scheda)",
+			"loading": "Caricamento di {place}…",
+			"loadFailed": "Impossibile caricare {place}. Controlla la connessione, poi riprova.",
+			"tryAgain": "Riprova"
 		},
 		"content": {
 			"sections": "Contenuti",
@@ -9168,7 +9173,8 @@
 				"files": "File",
 				"folders": "Cartelle della libreria Media"
 			},
-			"closeToast": "Chiudi il messaggio"
+			"closeToast": "Chiudi il messaggio",
+			"pickerFailed": "Impossibile caricare la scelta dei Media. Controlla la connessione, poi riprova."
 		},
 		"loops": {
 			"savedLoops": "Loop salvati",
@@ -9817,6 +9823,72 @@
 				"ask": "Chiedi alla tua agenzia",
 				"askText": "{name} si occupa di questo sito. Chiedi a loro ciò che non puoi cambiare qui.",
 				"close": "Chiudi"
+			}
+		},
+		"structure": {
+			"tree": "Elementi della pagina",
+			"siteTemplate": "Site template",
+			"searchTemplate": "Search results template",
+			"entryTemplate": "Entry template · {name}",
+			"archiveTemplate": "Archive template · {name}",
+			"pageLayout": "Page layout · {name}",
+			"pagesOne": "1 pagina",
+			"pagesOther": "{count} pagine",
+			"hiddenRow": "nascosto",
+			"loading": "Apertura degli elementi della pagina…",
+			"none": "In questa pagina non c'è niente da disporre qui.",
+			"keys": "Le frecce si spostano tra gli elementi e li aprono. Alt con le frecce sposta quello selezionato; Canc lo elimina; ⌘D o Ctrl+D lo duplica.",
+			"actions": {
+				"hide": "Nascondi nella pagina",
+				"show": "Mostra nella pagina",
+				"duplicate": "Duplica",
+				"delete": "Elimina"
+			},
+			"readOnly": "{name} viene da un Module: qui non si può modificare.",
+			"thisSource": "Questo Component",
+			"notMade": "Questo Template non è ancora stato creato: crealo nel posto Templates per modificarlo.",
+			"connecting": "Connessione alla Draft ancora in corso. Riprova tra un momento.",
+			"refused": "Impossibile modificarlo: {reason}",
+			"notSaved": "Non è stato possibile salvare la modifica. Resta in questa scheda e viene inviata quando torna la connessione.",
+			"classRefused": "Impossibile aggiungere la Class {name}: {reason}",
+			"steps": {
+				"tag": "Cambia {name} in {tag}",
+				"label": "Rinomina {name}",
+				"addClass": "Aggiungi .{className} a {name}",
+				"removeClass": "Togli .{className} da {name}",
+				"id": "Cambia l'id di {name}",
+				"attribute": "Cambia {attribute} su {name}",
+				"removeAttribute": "Togli {attribute} da {name}",
+				"duplicate": "Duplica {name}",
+				"delete": "Elimina {name}",
+				"move": "Sposta {name}",
+				"hide": "Nascondi {name}",
+				"show": "Mostra {name}"
+			},
+			"inspector": {
+				"tag": "Tag",
+				"label": "Etichetta del livello",
+				"labelPlaceholder": "Dagli un nome in Layers",
+				"classes": "Classes",
+				"classesHint": "Il CSS modifica quella scelta",
+				"chooseClass": "Scegli .{name} per il CSS",
+				"removeClass": "Togli .{name}",
+				"addClass": "Class",
+				"addClassLabel": "Aggiungi una Class",
+				"classPlaceholder": "Nome della Class, poi Invio",
+				"content": "Contenuto",
+				"noContent": "Vuoto",
+				"id": "id",
+				"attributes": "Attributi",
+				"addAttribute": "Aggiungi attributo",
+				"attributeName": "Nome dell'attributo",
+				"attributeValue": "Valore di {name}",
+				"newAttributeValue": "Valore",
+				"removeAttribute": "Togli {name}",
+				"inside": "Dentro il Component {name}",
+				"placementOf": "Una Placement di {name}",
+				"notOpen": "Il Template o il Component di questo elemento non è aperto qui: selezionalo di nuovo quando la pagina è caricata.",
+				"badValue": "Questo non è un valore: {value}. Scrivi il nome di un valore tra doppie graffe."
 			}
 		},
 		"details": {

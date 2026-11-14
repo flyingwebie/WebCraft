@@ -59,9 +59,9 @@ export type ShellConfig = {
 
 /**
  * The Permissions the shell draws by, beyond Go to's (`builder.commandMenu`): uploading and changing
- * one's own Media files, and everyone's with the folders; changing Structure, which draws the whole
- * shell (Staff) rather than client editing (a Member, BA-14), and opens the Forms place. Every
- * procedure still checks `can()`.
+ * one's own Media files, and everyone's with the folders; changing the Site's Structure, which draws
+ * the whole shell (Staff: Layers and the Inspector, BA-08) rather than client editing (a Member, BA-14),
+ * and opens the Forms place. Every procedure still checks `can()`.
  */
 export const SHELL_PERMISSIONS = [
 	"media.upload",

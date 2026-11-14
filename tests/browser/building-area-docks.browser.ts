@@ -482,8 +482,12 @@ describe("the building area's docks and panels", () => {
 	test("with every dock open and a panel's menu ready, the chrome passes the accessibility checks in light and dark", async () => {
 		const { page, frame } = await shared();
 		await selectTitle(page, frame);
+		await page.mouse.move(24, 460);
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
+			// The size readout the last keyboard walk showed (focus on a gutter) leaves 1.5 s later: until
+			// then the next pass would count its controls as stops.
+			await page.waitForTimeout(1800);
 			await settled(page);
 			await expectAccessibleScreen(page, `building area docks (${theme})`);
 		}

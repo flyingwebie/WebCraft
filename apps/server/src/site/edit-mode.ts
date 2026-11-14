@@ -935,7 +935,9 @@ export function safeModeOf(request: Request): boolean {
  * `code` (the Site opened with `structure.edit`), the page is rendered for Code mode, which loads its
  * own script after the editing bar's. With `safe`, it runs none of the Site's own scripts (Safe mode).
  * With `building`, it is rendered for the building area's frame (ADR 0037): the page agent comes first
- * instead of the editing bar, and Code mode's script never loads.
+ * instead of the editing bar, and Code mode's script never loads; with `code` as well (Staff, whatever
+ * Code mode's cookie says), it shows the Drafts of the Structure with both kinds of tags, every
+ * element's source and the editable regions (`PageEditing.regions`).
  */
 export async function pageEditing(
 	session: EditSession,
@@ -947,7 +949,8 @@ export async function pageEditing(
 	if (building) {
 		const files = await buildingAreaAssets();
 		return {
-			scope: session.scope,
+			scope: code ?? session.scope,
+			...(code ? { code: true, regions: true } : {}),
 			safe,
 			head: {
 				meta: [["webcraft-edit-token", session.headerToken], ...safeMeta],
