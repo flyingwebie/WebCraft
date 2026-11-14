@@ -159,24 +159,26 @@ function PreferencesCard({ person }: { person: SignedInPerson }) {
 							))}
 						</NativeSelect>
 					</SettingsRow>
-					<FieldSet className="py-4 last:pb-0">
-						<FieldLegend variant="label">{t("account.preferences.theme")}</FieldLegend>
-						<div className="flex flex-wrap gap-x-5 gap-y-2">
-							{THEMES.map((option) => (
-								<label key={option.value} className="flex items-center gap-2 text-sm">
-									<input
-										type="radio"
-										name="admin-theme"
-										value={option.value}
-										checked={theme === option.value}
-										onChange={() => section.set({ theme: option.value })}
-										className="accent-primary size-4"
-									/>
-									{t(option.label)}
-								</label>
-							))}
-						</div>
-					</FieldSet>
+					<div className="pt-4">
+						<FieldSet>
+							<FieldLegend variant="label">{t("account.preferences.theme")}</FieldLegend>
+							<div className="flex flex-wrap gap-x-5 gap-y-2">
+								{THEMES.map((option) => (
+									<label key={option.value} className="flex items-center gap-2 text-sm">
+										<input
+											type="radio"
+											name="admin-theme"
+											value={option.value}
+											checked={theme === option.value}
+											onChange={() => section.set({ theme: option.value })}
+											className="accent-primary size-4"
+										/>
+										{t(option.label)}
+									</label>
+								))}
+							</div>
+						</FieldSet>
+					</div>
 				</SettingsRows>
 				{section.error ? <FieldError className="mt-3">{t(section.error)}</FieldError> : null}
 			</form>
