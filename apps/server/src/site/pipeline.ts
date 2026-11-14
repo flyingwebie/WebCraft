@@ -37,6 +37,7 @@ import { FILTER_FRAGMENTS_PATH } from "@webcraft/renderer";
 import { clientAddress, recordVisitorAddress, sameClient } from "../client-address.ts";
 import { matchesETag, mediaFileResponse } from "../media-response.ts";
 import { type Handler, json, notFound, payloadTooLarge, plainText, readOnly, withinBodyCeiling } from "../responses.ts";
+import { buildingAreaApiEndpoint } from "./building-area/api.ts";
 import { buildingAreaEndpoint } from "./building-area/route.ts";
 import { consentRecordPost, isConsentPath } from "./consent.ts";
 import { contentApiAnswer, isContentApiPath } from "./content-api.ts";
@@ -158,7 +159,9 @@ async function siteAnswer(
 	}
 	const editing = await editModeEndpoint(services, request, host);
 	if (editing) return editing;
-	// The building area (ADR 0037): its shell, beside Edit mode's own paths.
+	// The building area (ADR 0037): the Management API it calls, then its shell, beside Edit mode's own paths.
+	const buildingApi = await buildingAreaApiEndpoint(services, request, host);
+	if (buildingApi) return buildingApi;
 	const building = await buildingAreaEndpoint(services, request, host);
 	if (building) return building;
 	if (url.pathname === MODULE_ROUTES || url.pathname.startsWith(`${MODULE_ROUTES}/`)) {
