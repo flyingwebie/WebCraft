@@ -10,53 +10,30 @@ import { CHROME_EASE, FOCUS_RING } from "../../controls.tsx";
 import { managementApi } from "../../management.ts";
 import { type ListedMediaItem, useMediaData } from "./data.ts";
 import { ChosenMark, fileSize, Thumb, UploadButton, UploadProgress, useUpload } from "./parts.tsx";
-import { PICK_MEDIA_EVENT, type PickMediaDetail } from "./pick.ts";
+import type { PickMediaDetail } from "./pick.ts";
 import { MediaSidebar } from "./Sidebar.tsx";
 import { ShellMedia } from "./shell.tsx";
-import { Toasts } from "./toasts.tsx";
 import { defaultView, type MediaPart } from "./view.ts";
 
 /**
- * What the shell keeps mounted for Media, whatever is open (BA-22): the Media picker, opened by
- * `pickMedia()` from anywhere in the shell (`pick.ts`), and the toasts the Media parts send (top
- * centre, SPEC 10).
+ * The Media picker as the shell opens it (`host.tsx`, the first time `pickMedia()` asks: this file is
+ * fetched then, BA-30): the dialog, with the shared Media parts' words and host around it.
  */
-export function MediaShellHost({ config }: { config: ShellConfig }) {
-	const [request, setRequest] = useState<PickMediaDetail | null>(null);
-	const opener = useRef<HTMLElement | null>(null);
-	const asked = useRef<PickMediaDetail | null>(null);
-
-	useEffect(() => {
-		const onPick = (event: Event) => {
-			const detail = (event as CustomEvent<PickMediaDetail>).detail;
-			if (!detail || typeof detail.answer !== "function") return;
-			detail.taken = true;
-			// A second request while one is open answers the first: nothing was chosen for it.
-			asked.current?.answer(null);
-			asked.current = detail;
-			opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-			setRequest(detail);
-		};
-		document.addEventListener(PICK_MEDIA_EVENT, onPick);
-		return () => document.removeEventListener(PICK_MEDIA_EVENT, onPick);
-	}, []);
-
-	const answer = (item: MediaItem | null) => {
-		const detail = asked.current;
-		asked.current = null;
-		setRequest(null);
-		detail?.answer(item);
-	};
-
+export function PickerDialog({
+	config,
+	request,
+	finalFocus,
+	onAnswer,
+}: {
+	config: ShellConfig;
+	request: PickMediaDetail;
+	finalFocus: RefObject<HTMLElement | null>;
+	onAnswer(item: MediaItem | null): void;
+}) {
 	return (
-		<>
-			{request ? (
-				<ShellMedia config={config}>
-					<MediaPicker config={config} words={config.words} request={request} finalFocus={opener} onAnswer={answer} />
-				</ShellMedia>
-			) : null}
-			<Toasts closeLabel={config.words.media.closeToast} />
-		</>
+		<ShellMedia config={config}>
+			<MediaPicker config={config} words={config.words} request={request} finalFocus={finalFocus} onAnswer={onAnswer} />
+		</ShellMedia>
 	);
 }
 

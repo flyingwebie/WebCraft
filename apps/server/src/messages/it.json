@@ -8848,7 +8848,10 @@
 			"left": "Di nuovo sulla tela",
 			"laterTitle": "Non ancora qui",
 			"laterText": "Questa parte arriva con una fase successiva dell'area di costruzione. Fino ad allora usa l'admin.",
-			"openAdmin": "Apri l'admin (nuova scheda)"
+			"openAdmin": "Apri l'admin (nuova scheda)",
+			"loading": "Caricamento di {place}…",
+			"loadFailed": "Impossibile caricare {place}. Controlla la connessione, poi riprova.",
+			"tryAgain": "Riprova"
 		},
 		"content": {
 			"sections": "Contenuti",
@@ -9168,7 +9171,8 @@
 				"files": "File",
 				"folders": "Cartelle della libreria Media"
 			},
-			"closeToast": "Chiudi il messaggio"
+			"closeToast": "Chiudi il messaggio",
+			"pickerFailed": "Impossibile caricare la scelta dei Media. Controlla la connessione, poi riprova."
 		},
 		"loops": {
 			"savedLoops": "Loop salvati",

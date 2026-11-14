@@ -2,15 +2,8 @@ import type { ComponentType } from "react";
 
 import type { ShellConfig, Words } from "../api.ts";
 import type { BuildingDocument, Documents } from "../documents.ts";
-import { ComponentsPlace } from "./components/ComponentsPlace.tsx";
-import { ContentPlace } from "./content/ContentPlace.tsx";
-import { FormsPlace } from "./forms/FormsPlace.tsx";
 import { MORE_PLACE_KEYS, type PlaceKey, placeKeyOf } from "./keys.ts";
-import { LoopsPlace } from "./loops/LoopsPlace.tsx";
-import { MediaPlace } from "./media/MediaPlace.tsx";
 import { leftAt } from "./memory.ts";
-import { StylesPlace } from "./styles/StylesPlace.tsx";
-import { TemplatesPlace } from "./templates/TemplatesPlace.tsx";
 
 export { MORE_PLACE_KEYS, PLACE_KEYS } from "./keys.ts";
 export { type PlaceKey, placeKeyOf };
@@ -54,23 +47,65 @@ export type PlaceBar = {
 	publish(): Promise<boolean>;
 };
 
-/** One place: how the rail opens it, and what draws it. */
+/** What draws a place. */
+export type PlaceComponent = ComponentType<PlaceProps>;
+
+/** One place: how the rail opens it, and how its code is loaded. */
 export type PlaceEntry = {
 	key: PlaceKey;
 	/** Its address when the rail opens it for the first time in this tab. */
 	first: string;
-	component: ComponentType<PlaceProps>;
+	/**
+	 * Loads what draws it (BA-30): each place's code is a file of its own, fetched the first time the
+	 * place is opened (`PlaceLoader.tsx`), so the shell's first load carries none of it. A place module
+	 * exports its component by name; nothing else in the shell imports a place's code.
+	 */
+	load(): Promise<PlaceComponent>;
+	/** Whether a Member's back button names the page ("Back to {page}"), as the place draws it (Content). */
+	namesPage?: boolean;
 };
 
-/** The places that exist so far: the rail offers these, and says "not available yet" of the rest. */
+/**
+ * The places that exist so far: the rail offers these, and says "not available yet" of the rest. Each
+ * `import()` names its place's module literally, so the bundler makes it a file of its own.
+ */
 const PLACES: Partial<Record<PlaceKey, PlaceEntry>> = {
-	content: { key: "content", first: "content/pages", component: ContentPlace },
-	media: { key: "media", first: "media", component: MediaPlace },
-	templates: { key: "templates", first: "templates", component: TemplatesPlace },
-	styles: { key: "styles", first: "styles/classes", component: StylesPlace },
-	components: { key: "components", first: "components", component: ComponentsPlace },
-	loops: { key: "loops", first: "loops", component: LoopsPlace },
-	forms: { key: "forms", first: "forms", component: FormsPlace },
+	content: {
+		key: "content",
+		first: "content/pages",
+		namesPage: true,
+		load: () => import("./content/ContentPlace.tsx").then((module) => module.ContentPlace),
+	},
+	media: {
+		key: "media",
+		first: "media",
+		load: () => import("./media/MediaPlace.tsx").then((module) => module.MediaPlace),
+	},
+	templates: {
+		key: "templates",
+		first: "templates",
+		load: () => import("./templates/TemplatesPlace.tsx").then((module) => module.TemplatesPlace),
+	},
+	styles: {
+		key: "styles",
+		first: "styles/classes",
+		load: () => import("./styles/StylesPlace.tsx").then((module) => module.StylesPlace),
+	},
+	components: {
+		key: "components",
+		first: "components",
+		load: () => import("./components/ComponentsPlace.tsx").then((module) => module.ComponentsPlace),
+	},
+	loops: {
+		key: "loops",
+		first: "loops",
+		load: () => import("./loops/LoopsPlace.tsx").then((module) => module.LoopsPlace),
+	},
+	forms: {
+		key: "forms",
+		first: "forms",
+		load: () => import("./forms/FormsPlace.tsx").then((module) => module.FormsPlace),
+	},
 };
 
 /** The place registered for a rail button, if it exists yet. */
