@@ -22,6 +22,7 @@ import { useOpenDocument } from "./open-document.ts";
 import { MediaShellHost } from "./places/media/Picker.tsx";
 import { PLACE_EVENT, PLACE_KEYS, type PlaceKey, placeEntry, placeKeyOf, reopenPlace } from "./places/registry.ts";
 import { BreakpointLines } from "./places/styles/BreakpointLines.tsx";
+import { Publish } from "./publish/Publish.tsx";
 import { Rail } from "./rail/Rail.tsx";
 
 /**
@@ -218,6 +219,10 @@ export function Shell({ config }: { config: ShellConfig }) {
 		[refreshState],
 	);
 
+	// What Publish covers is read again whenever the page's state or a save changes (BA-12).
+	// biome-ignore lint/correctness/useExhaustiveDependencies: a new token each time either changes.
+	const publishChanged = useMemo(() => ({}), [shown, saving]);
+
 	useEffect(() => {
 		const keys = regionCycle({ document, focusFrame });
 		cycle.current = keys;
@@ -323,6 +328,17 @@ export function Shell({ config }: { config: ShellConfig }) {
 				onUndo={() => void undoHistory.undo()}
 				onRedo={() => void undoHistory.redo()}
 				draft={draftStateOf(saving, shown)}
+				publish={
+					<Publish
+						config={config}
+						request={request}
+						path={shown ? (shown.address.split("?")[0] ?? "/") : null}
+						document={opened.address.document}
+						changed={publishChanged}
+						announce={announce}
+						onPublished={refreshState}
+					/>
+				}
 			/>
 			{/*
 			  The working area: the docks around the canvas (left and right full height, the bottom one under
