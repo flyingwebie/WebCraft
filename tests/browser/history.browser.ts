@@ -131,9 +131,8 @@ for (const theme of THEMES) {
 			const page = await open(theme, staff, entryHistory());
 			await page.getByRole("link", { name: /Français/ }).focus();
 			await page.keyboard.press("Enter");
-			await page.locator("a[aria-current=page]", { hasText: "Français" }).waitFor();
-			await page.waitForLoadState("networkidle");
-			expect(await page.locator("[data-side=removed]").count()).toBe(1);
+			// French has one change of its own; the Fields every language shares show with it.
+			await page.locator("a[aria-current=page]", { hasText: "Français" }).filter({ hasText: "1 change" }).waitFor();
 			await expectAccessibleScreen(page, `History, in French (${theme})`);
 		});
 

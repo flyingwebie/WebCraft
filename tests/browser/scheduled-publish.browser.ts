@@ -157,11 +157,11 @@ for (const theme of THEMES) {
 			const later = panel.getByRole("switch", { name: "Publish later" });
 			await later.focus();
 			await page.keyboard.press("Space");
-			await panel.getByLabel("Date").waitFor();
+			await panel.getByLabel("Date", { exact: true }).waitFor();
 			await panel.getByRole("button", { name: /^Schedule \d+ items?$/ }).waitFor();
 			await expectNoAxeViolations(page, `Publish all, Publish later on (${theme}, open)`, ["region"]);
 			await page.keyboard.press("Space");
-			await panel.getByLabel("Date").waitFor({ state: "hidden" });
+			await panel.getByLabel("Date", { exact: true }).waitFor({ state: "hidden" });
 		});
 	});
 }

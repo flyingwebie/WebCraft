@@ -103,7 +103,8 @@ describe("publishing from the list", () => {
 
 		await dialog.getByRole("checkbox", { name: "Spring menu" }).focus();
 		await page.keyboard.press("Space");
-		await dialog.getByRole("checkbox", { name: "Select all", checked: false }).waitFor();
+		await dialog.getByRole("button", { name: "Publish 2", exact: true }).waitFor();
+		expect(await dialog.getByRole("checkbox", { name: "Select all" }).getAttribute("aria-checked")).toBe("mixed");
 		await dialog.getByRole("button", { name: "Publish 2", exact: true }).focus();
 		await page.keyboard.press("Enter");
 
