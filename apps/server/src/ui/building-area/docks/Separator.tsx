@@ -28,6 +28,7 @@ export function Separator({
 	label,
 	value,
 	onMove,
+	onStart,
 	onEnd,
 	onDoubleClick,
 	className = "",
@@ -42,6 +43,8 @@ export function Separator({
 	/** The separator moved `delta` pixels from where the move started (right or down positive, as drawn). */
 	onMove(delta: number, from: "pointer" | "key"): void;
 	/** A pointer move ended. */
+	/** A pointer press started a move: what it moves from is read now. */
+	onStart?(): void;
 	onEnd?(): void;
 	onDoubleClick?(): void;
 	className?: string;
@@ -58,6 +61,7 @@ export function Separator({
 		event.preventDefault();
 		event.currentTarget.setPointerCapture(event.pointerId);
 		start.current = { x: event.clientX, y: event.clientY, id: event.pointerId };
+		onStart?.();
 		framesIgnorePointer(true);
 		setDragging(true);
 	};
@@ -88,6 +92,7 @@ export function Separator({
 			onPointerMove={onPointerMove}
 			onPointerUp={finish}
 			onPointerCancel={finish}
+			onLostPointerCapture={finish}
 			onDoubleClick={onDoubleClick}
 			onKeyDown={(event) => {
 				// As drawn, like a pointer: left and up negative, whatever the writing direction.

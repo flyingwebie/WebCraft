@@ -500,6 +500,9 @@ function Dock({
 				change(next);
 				if (from === "key") base.current = null;
 			}}
+			onStart={() => {
+				base.current = { layout, length, lengths: [] };
+			}}
 			onEnd={() => {
 				base.current = null;
 			}}
@@ -646,6 +649,9 @@ function Dock({
 										const grow = !across && rtl() ? -delta : delta;
 										change(resizePanels(base.current.layout, side, base.current.lengths, placement.id, grow));
 										if (from === "key") base.current = null;
+									}}
+									onStart={() => {
+										base.current = { layout, length, lengths: measure() };
 									}}
 									onEnd={() => {
 										base.current = null;

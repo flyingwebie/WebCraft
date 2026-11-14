@@ -334,6 +334,7 @@ describe("the building area's docks and panels", () => {
 		expect(layers.height).toBeGreaterThan(100);
 
 		await between.dblclick();
+		await settled(page);
 		expect((await boxOf(page, '[data-wc-panel="layers"]')).height).toBe(28);
 		expect(await page.locator('[data-wc-panel-body="layers"]').count()).toBe(0);
 		expect(await page.locator('[data-wc-panel="layers"]').getAttribute("data-collapsed")).toBe("");
@@ -341,6 +342,7 @@ describe("the building area's docks and panels", () => {
 		await saved(page, async () => {
 			await between.dblclick();
 		});
+		await settled(page);
 		expect((await boxOf(page, '[data-wc-panel="layers"]')).height).toBe(layers.height);
 
 		// A collapsed panel opens again from its Expand button.
