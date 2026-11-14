@@ -114,7 +114,7 @@ export function MediaSidebar({
 							data={{ "data-wc-media-row": folder.id }}
 						/>
 						{manage ? (
-							<span className="bg-chrome absolute end-9 top-[3px] hidden rounded-[5px] group-focus-within/folder:inline-flex group-hover/folder:inline-flex has-[[aria-expanded=true]]:inline-flex">
+							<span className="bg-chrome absolute end-9 top-[3px] inline-flex rounded-[5px] opacity-0 group-focus-within/folder:opacity-100 group-hover/folder:opacity-100 has-[[aria-expanded=true]]:opacity-100">
 								<ActionMenu
 									icon={EllipsisIcon}
 									label={fill(shown.folderActions, { name: folder.name })}

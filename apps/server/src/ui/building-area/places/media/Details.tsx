@@ -355,11 +355,6 @@ function FileDetails({
 											key={each.code}
 											type="button"
 											aria-pressed={each.code === code}
-											aria-label={
-												missing(each.code)
-													? fill(shown.languageNoAlt, { language: each.name })
-													: fill(shown.languageAlt, { language: each.name })
-											}
 											onClick={() => onLanguage(each.code === fallback ? null : each.code)}
 											className={`inline-flex h-6 items-center gap-1 rounded-md px-2.5 text-[11px] font-semibold uppercase ${
 												each.code === code
@@ -369,6 +364,9 @@ function FileDetails({
 											data-wc-media-language={each.code}
 										>
 											{each.code}
+											<span className="sr-only">
+												{` · ${fill(missing(each.code) ? shown.languageNoAlt : shown.languageAlt, { language: each.name })}`}
+											</span>
 											{missing(each.code) ? (
 												<span aria-hidden="true" className="bg-chrome-warn size-[5px] rounded-full" />
 											) : null}

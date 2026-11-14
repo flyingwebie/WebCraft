@@ -138,7 +138,7 @@ export function FileList({
 						</td>
 						<td className={`${CELL} border-chrome-line border-b`}>
 							{item.kind !== "image" ? (
-								<span className="text-chrome-faint">—</span>
+								<span className="text-chrome-muted">—</span>
 							) : item.alt ? (
 								<span className="block truncate" lang={item.language}>
 									{item.alt}
@@ -299,9 +299,9 @@ export function FileGrid({
 									aria-label={fill(shown.select, { name: item.fileName })}
 									checked={on}
 									onChange={(event) => onSelect(item.id, event.target.checked)}
-									className="sr-only"
+									className="absolute inset-0 m-0 cursor-pointer appearance-none rounded-full opacity-0"
 								/>
-								{on ? <CheckIcon aria-hidden="true" className="size-3 text-white" /> : null}
+								{on ? <CheckIcon aria-hidden="true" className="pointer-events-none size-3 text-white" /> : null}
 							</label>
 						)}
 					</li>

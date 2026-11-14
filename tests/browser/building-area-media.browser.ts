@@ -103,9 +103,10 @@ async function fileOf(id: string, language?: string) {
 	return (await admin.api.media.get({ siteId, mediaId: id, ...(language ? { language } : {}) })).media;
 }
 
-/** Waits for the bottom bar's Draft state to say the last change is saved. */
-async function saved(page: Page): Promise<void> {
-	await page.waitForFunction(() => !document.body.textContent?.includes("Saving…"));
+/** Waits until the admin reads what the place saved (a change saves as it is made). */
+async function until(page: Page, read: () => Promise<unknown>, expected: unknown): Promise<void> {
+	for (let tries = 0; tries < 100 && !Bun.deepEquals(await read(), expected); tries++) await page.waitForTimeout(100);
+	expect(await read()).toEqual(expected);
 }
 
 describe("the Media place, for Staff", () => {
@@ -162,6 +163,7 @@ describe("the Media place, for Staff", () => {
 		// A folder, a search and the grid are in the address; Back returns to each.
 		await row(page, breadsId).click();
 		await page.waitForURL((url) => url.searchParams.get("wc-place") === `media/${breadsId}`);
+		await page.waitForFunction(() => document.querySelectorAll("[data-wc-media-open]").length === 1);
 		expect(await names(page)).toEqual(["sourdough-loaf.png"]);
 		await page.locator('[data-wc-media-layout="grid"]').click();
 		await page.waitForURL((url) => url.searchParams.get("wc-view") === "view=grid");
@@ -170,7 +172,7 @@ describe("the Media place, for Staff", () => {
 		await page.locator("[data-wc-media-list]").waitFor();
 		await page.goBack();
 		await page.waitForURL((url) => url.searchParams.get("wc-place") === "media");
-		expect((await names(page)).length).toBe(5);
+		await page.waitForFunction(() => document.querySelectorAll("[data-wc-media-open]").length === 5);
 		await page.locator("[data-wc-media-search]").fill("team");
 		await page.waitForURL((url) => url.searchParams.get("wc-view") === "q=team");
 		await page.waitForFunction(() => document.querySelectorAll("[data-wc-media-open]").length === 1);
@@ -189,13 +191,11 @@ describe("the Media place, for Staff", () => {
 		await go(page, `/page/menu?wc-place=media%2F${breadsId}`);
 		await page.locator("[data-wc-media-list]").waitFor();
 
-		await page
-			.locator("[data-wc-media-upload] input[type=file]")
-			.setInputFiles({
-				name: "rye-loaf.jpg",
-				mimeType: "image/jpeg",
-				buffer: Buffer.from(await photo({ width: 300, height: 200 })),
-			});
+		await page.locator("[data-wc-media-upload] input[type=file]").setInputFiles({
+			name: "rye-loaf.jpg",
+			mimeType: "image/jpeg",
+			buffer: Buffer.from(await photo({ width: 300, height: 200 })),
+		});
 
 		await page.locator("[data-wc-toast=success]").filter({ hasText: "rye-loaf.jpg uploaded." }).waitFor();
 		await page.waitForFunction(() => document.querySelectorAll("[data-wc-media-open]").length === 2);
@@ -210,7 +210,7 @@ describe("the Media place, for Staff", () => {
 		await page.locator("[data-wc-media-list]").waitFor();
 
 		await page.locator("[data-wc-new-folder-button]").click();
-		await page.getByLabel("Name").fill("Pastries");
+		await page.getByRole("dialog").getByLabel("Name").fill("Pastries");
 		await page.getByRole("button", { name: "Create folder" }).click();
 		await page.locator("[data-wc-media-row]", { hasText: "Pastries" }).waitFor();
 		const pastries = (await admin.api.media.folders.list({ siteId })).folders.find((each) => each.name === "Pastries");
@@ -228,7 +228,7 @@ describe("the Media place, for Staff", () => {
 		await row(page, pastriesId).hover();
 		await page.locator(`[data-wc-folder-actions="${pastriesId}"]`).click();
 		await page.getByRole("menuitem", { name: "Rename" }).click();
-		await page.getByLabel("Name").fill("Viennoiserie");
+		await page.getByRole("dialog").getByLabel("Name").fill("Viennoiserie");
 		await page.getByRole("button", { name: "Rename" }).click();
 		await page.locator("[data-wc-media-row]", { hasText: "Viennoiserie" }).waitFor();
 
@@ -278,24 +278,20 @@ describe("the Media place, for Staff", () => {
 		// Focus starts on the file in the column beside the details.
 		expect(await page.evaluate(() => document.activeElement?.getAttribute("data-wc-media-narrow"))).toBe(loafId);
 		// Both languages have no alt text yet: each tab says so.
-		expect(await page.locator('[data-wc-media-language="it"]').getAttribute("aria-label")).toMatch(
-			/^Alt text in .+, none yet$/,
+		expect(await page.locator('[data-wc-media-language="it"]').textContent()).toMatch(
+			/^it · Alt text in .+, none yet$/,
 		);
 
 		await page.locator("[data-wc-media-alt-text]").fill("A sourdough loaf on a board");
 		await page.locator("[data-wc-media-alt-text]").press("Tab");
-		await saved(page);
-		expect((await fileOf(loafId)).alt).toBe("A sourdough loaf on a board");
+		await until(page, async () => (await fileOf(loafId)).alt, "A sourdough loaf on a board");
 
 		await page.locator('[data-wc-media-language="it"]').click();
 		await page.waitForURL((url) => url.searchParams.get("wc-view") === `file=${loafId}&language=it`);
-		expect(await page.locator("[data-wc-media-alt-text]").inputValue()).toBe("");
+		// A language with no text of its own shows the Default language's, as the library falls back.
 		await page.locator("[data-wc-media-alt-text]").fill("Una pagnotta a lievito madre");
 		await page.locator("[data-wc-media-alt-text]").blur();
-		await saved(page);
-		for (let tries = 0; tries < 50 && (await fileOf(loafId, "it")).alt === null; tries++)
-			await page.waitForTimeout(100);
-		expect((await fileOf(loafId, "it")).alt).toBe("Una pagnotta a lievito madre");
+		await until(page, async () => (await fileOf(loafId, "it")).alt, "Una pagnotta a lievito madre");
 		expect((await fileOf(loafId)).alt).toBe("A sourdough loaf on a board");
 
 		const across = page.getByRole("slider", { name: "Across" });

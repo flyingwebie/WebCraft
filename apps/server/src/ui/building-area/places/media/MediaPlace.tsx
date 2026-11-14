@@ -286,7 +286,7 @@ function MediaPlaceBody({ config, words, place, view: viewText, documents, leave
 					</p>
 				) : null}
 				{canUpload ? (
-					<p className="text-chrome-faint m-0 p-3 text-center text-[11px]">
+					<p className="text-chrome-muted m-0 p-3 text-center text-[11px]">
 						{t("media.dropHint")} · {t("media.formats", { size: formatBytes(data.overview.maxFileBytes) })}
 					</p>
 				) : null}

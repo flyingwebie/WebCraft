@@ -98,12 +98,12 @@ export function Toasts({ closeLabel }: { closeLabel: string }) {
 			onPointerLeave={() => hold(false)}
 			data-wc-toasts=""
 		>
-			<ul role="status" aria-live="polite" className="m-0 flex list-none flex-col items-center gap-2 p-0">
-				{list(politely)}
-			</ul>
-			<ul role="alert" aria-live="assertive" className="m-0 flex list-none flex-col items-center gap-2 p-0">
-				{list(atOnce)}
-			</ul>
+			<div role="status" aria-live="polite">
+				<ul className="m-0 flex list-none flex-col items-center gap-2 p-0">{list(politely)}</ul>
+			</div>
+			<div role="alert" aria-live="assertive">
+				<ul className="m-0 flex list-none flex-col items-center gap-2 p-0">{list(atOnce)}</ul>
+			</div>
 		</div>
 	);
 }
