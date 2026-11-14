@@ -245,9 +245,7 @@
 	},
 	"setup": {
 		"pageTitle": "Configurazione",
-		"title": "Configura WebCraft",
 		"stepsLabel": "Passaggi della configurazione",
-		"stepCount": "Passaggio {current} di {total}",
 		"stepDone": "Completato",
 		"stepCurrent": "Passaggio attuale",
 		"lockNote": "Questa configurazione guidata si chiude per sempre quando è finita.",
@@ -256,8 +254,6 @@
 		"steps": {
 			"token": {
 				"title": "Token di configurazione",
-				"hint": "Dal log del processo web",
-				"doneHint": "Verificato dal log del server",
 				"heading": "Inserisci il token di configurazione",
 				"intro": "All'avvio di WebCraft, il processo web ha scritto nel suo log un token di configurazione monouso. Copialo da lì per dimostrare che gestisci questo server.",
 				"label": "Token di configurazione",
@@ -265,8 +261,7 @@
 				"required": "Inserisci il token di configurazione."
 			},
 			"account": {
-				"title": "Account del Superadmin",
-				"hint": "Chi gestisce questa Install",
+				"title": "Il tuo account",
 				"heading": "Crea l'account del Superadmin",
 				"intro": "Questa persona amministra tutta l'Install: ogni Workspace, tutto lo Staff e le impostazioni dell'Install.",
 				"name": "Nome e cognome",
@@ -280,8 +275,7 @@
 				"nameRequired": "Inserisci un nome."
 			},
 			"twoFactor": {
-				"title": "Autenticazione a due fattori",
-				"hint": "Passkey o app di autenticazione",
+				"title": "Due fattori",
 				"heading": "Proteggi il tuo account con l'autenticazione a due fattori",
 				"intro": "Una password da sola può essere indovinata o rubata. Con una passkey o un'app di autenticazione, per accedere serve anche qualcosa che hai solo tu.",
 				"recommend": "Il Superadmin può raggiungere tutto in questa Install, quindi la consigliamo vivamente.",
@@ -290,8 +284,7 @@
 				"skip": "Salta per ora"
 			},
 			"email": {
-				"title": "Email dell'Install (SMTP)",
-				"hint": "Invia inviti ed email di sicurezza",
+				"title": "Email",
 				"heading": "Configura l'email dell'Install",
 				"intro": "WebCraft invia inviti, reimpostazioni della password e avvisi di sicurezza tramite un server SMTP, come quello del tuo provider email o di un servizio di invio.",
 				"later": "Per ora puoi saltare questo passo: finché non c'è un SMTP, queste email vengono scritte nel log web. Puoi configurarlo più tardi in Impostazioni dell'Install › Email (SMTP).",
@@ -301,7 +294,6 @@
 			},
 			"modules": {
 				"title": "Moduli",
-				"hint": "Funzioni incluse da approvare",
 				"heading": "Approva i Moduli",
 				"intro": "I Moduli sono funzioni incluse in WebCraft, come i Form o le statistiche dei Site. Ciascuno funziona solo dopo che hai approvato ciò che chiede. Sono selezionati: deseleziona quelli che non vuoi ancora.",
 				"later": "Potrai approvare o ritirare i Moduli più tardi in Impostazioni dell'Install › Moduli.",
@@ -314,7 +306,6 @@
 			},
 			"firstClient": {
 				"title": "Il tuo primo cliente",
-				"hint": "Un Workspace, e il suo primo Site, da cui partire",
 				"heading": "Aggiungi il tuo primo cliente",
 				"intro": "Un Workspace raccoglie un'organizzazione cliente: i suoi Site, le sue persone e i suoi Media. Crea ora il primo, e il suo primo Site, e l'admin si aprirà lì, pronto per iniziare a costruire.",
 				"later": "Per ora puoi saltare questo passo e creare i Workspace più tardi nella pagina Workspace.",
@@ -336,7 +327,6 @@
 	"signIn": {
 		"pageTitle": "Accedi",
 		"heading": "Accedi",
-		"headingNamed": "Accedi a {name}",
 		"email": "Email",
 		"password": "Password",
 		"submit": "Accedi",
@@ -345,28 +335,35 @@
 		"withPasskey": "Accedi con una passkey",
 		"passkeyCancelled": "Nessuna passkey è stata usata. Riprova quando vuoi.",
 		"secondStep": {
-			"heading": "Verifica in due passaggi",
-			"authenticatorBody": "Inserisci il codice che la tua app di autenticazione mostra per questo account.",
+			"heading": "Inserisci il codice",
+			"authenticatorBody": "Inserisci il codice di 6 cifre della tua app di autenticazione.",
 			"backupCodeBody": "Inserisci uno dei codici di backup che hai salvato. Ognuno funziona una volta.",
 			"passkeyBody": "Usa la tua passkey per completare l'accesso.",
 			"code": "Codice dell'app",
-			"codeHelp": "Le 6 cifre che l'app mostra ora.",
 			"backupCode": "Codice di backup",
 			"backupCodeHelp": "Ad esempio abcde-23456.",
 			"submit": "Verifica",
 			"usePasskey": "Usa una passkey",
 			"useBackupCode": "Usa invece un codice di backup",
 			"useAuthenticator": "Usa invece l'app di autenticazione",
-			"startOver": "Accedi di nuovo"
+			"startOver": "Accedi di nuovo",
+			"backupCodeHeading": "Inserisci un codice di backup",
+			"passkeyHeading": "Usa la tua passkey"
+		},
+		"invited": "Hai ricevuto un invito? Usa il link nella tua email.",
+		"tooMany": {
+			"heading": "Troppi tentativi",
+			"newPassword": "Oppure scegli una nuova password.",
+			"tryAgain": "Torna all'accesso"
 		}
 	},
 	"forgotPassword": {
-		"pageTitle": "Reimposta la password",
-		"heading": "Reimposta la password",
-		"body": "Inserisci l'indirizzo email con cui accedi. Ti invieremo un link per scegliere una nuova password.",
+		"pageTitle": "Password dimenticata",
+		"heading": "Password dimenticata",
+		"body": "Ti invieremo via email un link per sceglierne una nuova.",
 		"email": "Email",
 		"emailRequired": "Inserisci il tuo indirizzo email.",
-		"submit": "Inviami un link",
+		"submit": "Invia il link",
 		"backToSignIn": "Torna all'accesso",
 		"sent": {
 			"heading": "Controlla la posta",
@@ -380,7 +377,6 @@
 		"heading": "Scegli una nuova password",
 		"body": "Verrai disconnesso ovunque, poi accederai con la nuova password.",
 		"password": "Nuova password",
-		"passwordHelp": "Almeno 12 caratteri.",
 		"submit": "Cambia password",
 		"done": {
 			"heading": "La password è stata cambiata",
@@ -388,9 +384,9 @@
 			"signIn": "Accedi"
 		},
 		"invalid": {
-			"heading": "Questo link di reimpostazione non funziona",
+			"heading": "Questo link non è più valido",
 			"body": "È già stato usato, è stato sostituito da un link più recente oppure ha più di 30 minuti.",
-			"again": "Chiedi un nuovo link"
+			"again": "Chiedine uno nuovo"
 		}
 	},
 	"shell": {
@@ -1563,31 +1559,35 @@
 	},
 	"invite": {
 		"pageTitle": "Accetta l'invito",
-		"heading": "Unisciti a {install} come Staff",
-		"intro": "{inviter} ha invitato {email}. Scegli il tuo nome e una password per creare il tuo account.",
-		"introNoInviter": "Sei stato invitato come {email}. Scegli il tuo nome e una password per creare il tuo account.",
-		"name": "Nome e cognome",
+		"heading": "{inviter} ti ha invitato su {install} come Staff",
+		"name": "Il tuo nome",
 		"nameRequired": "Inserisci un nome.",
 		"password": "Password",
-		"passwordHelp": "Almeno 12 caratteri.",
-		"submit": "Crea account",
+		"submit": "Entra in {name}",
 		"invalid": {
-			"heading": "Questo link di invito non funziona",
+			"heading": "Questo link non è più valido",
 			"body": "È già stato usato, è stato ritirato o ha più di 7 giorni. Chiedi un nuovo invito a chi ti ha invitato.",
 			"signIn": "Vai all'accesso"
 		},
-		"memberHeading": "Entra in {workspace} come {role}",
-		"memberIntro": "{inviter} ha invitato {email} in {workspace} su {install}. Scegli il tuo nome e una password per creare il tuo account.",
-		"memberIntroNoInviter": "Sei stato invitato in {workspace} su {install} come {email}. Scegli il tuo nome e una password per creare il tuo account.",
+		"memberHeading": "{inviter} ti ha invitato in {workspace} come {role}",
 		"join": {
-			"intro": "{inviter} ha invitato {email} in {workspace} su {install}. Hai già un account: accedi per entrare.",
-			"introNoInviter": "Sei stato invitato in {workspace} su {install} come {email}. Hai già un account: accedi per entrare.",
 			"signedInAs": "Hai effettuato l'accesso come {email}.",
 			"otherAccount": "Hai effettuato l'accesso come {current}. Accedendo qui sotto passi a {email}.",
 			"password": "Password",
 			"signIn": "Accedi ed entra",
-			"submit": "Entra in {workspace}"
-		}
+			"submit": "Entra in {workspace}",
+			"haveAccount": "Hai già un account come {email}. Accedi per entrare."
+		},
+		"headingNoInviter": "Sei stato invitato su {install} come Staff",
+		"memberHeadingNoInviter": "Sei stato invitato in {workspace} come {role}",
+		"roleHelp": {
+			"owner": "Gli Owner gestiscono i Membri, modificano e pubblicano i Contenuti.",
+			"editor": "Gli Editor modificano i Contenuti e li pubblicano.",
+			"author": "Gli Author modificano i Contenuti e salvano Bozze; li pubblica un Editor o un Owner.",
+			"staff": "Lo Staff costruisce e cura i Site dei Workspace a cui è assegnato."
+		},
+		"sites": "Raggiungerai {count, plural, one {questo Site} other {questi Site}}: {sites}.",
+		"sitesAll": "Raggiungerai tutti i Site di {workspace}."
 	},
 	"modules": {
 		"pageTitle": "Moduli",
@@ -8332,6 +8332,14 @@
 			"pageTitle": "Apri l'area di costruzione dall'admin",
 			"text": "Questo browser non sta modificando questo sito, oppure la sessione di modifica è terminata. Riapri l'area di costruzione dall'admin.",
 			"link": "Vai all'admin"
+		}
+	},
+	"auth": {
+		"madeWith": "Realizzato con WebCraft",
+		"passwordRules": {
+			"length": "Almeno 12 caratteri",
+			"met": "fatto",
+			"notMet": "non ancora"
 		}
 	}
 }

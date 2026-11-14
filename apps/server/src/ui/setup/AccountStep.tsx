@@ -56,12 +56,12 @@ export function AccountStep({ token, language, setLanguage, onBack }: StepPanelP
 		[help, errors[field] ? `account-${field}-error` : undefined].filter(Boolean).join(" ") || undefined;
 
 	return (
-		<form onSubmit={submit} className="flex flex-1 flex-col gap-8" noValidate>
+		<form onSubmit={submit} className="flex flex-1 flex-col gap-5" noValidate>
 			<StepHeader heading={t("setup.steps.account.heading")}>
 				<p>{t("setup.steps.account.intro")}</p>
 			</StepHeader>
-			<FieldGroup className="gap-5">
-				<div className="grid gap-5 md:grid-cols-2">
+			<FieldGroup className="gap-4">
+				<div className="grid gap-4">
 					<Field data-invalid={errors.name ? true : undefined}>
 						<FieldLabel htmlFor="account-name">{t("setup.steps.account.name")}</FieldLabel>
 						<Input

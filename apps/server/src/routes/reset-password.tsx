@@ -1,10 +1,11 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
-import { Button, buttonVariants } from "@webcraft/ui/components/button.tsx";
-import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
+import { Button } from "@webcraft/ui/components/button.tsx";
+import { Field, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
 import { getApi } from "../ui/api.ts";
+import { AuthHeading, AuthLead, AuthPage, PasswordRules } from "../ui/auth/AuthPage.tsx";
 import { errorCode, errorMessage } from "../ui/errors.ts";
 import { type MessageKey, pageTitle, useT } from "../ui/i18n.tsx";
 import { PasswordInput } from "../ui/PasswordInput.tsx";
@@ -81,61 +82,52 @@ function ResetPasswordPage() {
 	};
 
 	return (
-		<main id="main" tabIndex={-1} className="bg-muted flex min-h-svh items-center justify-center p-4 outline-none">
-			<div className="bg-card text-card-foreground w-full max-w-sm rounded-xl border p-8 shadow-sm">
-				{state === "form" ? (
-					<div className="grid gap-6">
-						<div className="grid gap-2">
-							<h1 className="text-2xl font-semibold tracking-tight">{t("resetPassword.heading")}</h1>
-							<p className="text-muted-foreground text-sm">{t("resetPassword.body")}</p>
-						</div>
-						<form onSubmit={submit} noValidate>
-							<FieldGroup className="gap-5">
-								<Field data-invalid={error ? true : undefined}>
-									<FieldLabel htmlFor="reset-password-new">{t("resetPassword.password")}</FieldLabel>
-									<PasswordInput
-										id="reset-password-new"
-										value={password}
-										onChange={(event) => setPassword(event.target.value)}
-										autoComplete="new-password"
-										required
-										aria-invalid={error ? true : undefined}
-										aria-describedby={error ? "reset-password-help reset-password-error" : "reset-password-help"}
-									/>
-									<FieldDescription id="reset-password-help">{t("resetPassword.passwordHelp")}</FieldDescription>
-									{error ? <FieldError id="reset-password-error">{t(error)}</FieldError> : null}
-								</Field>
-								<Button type="submit" disabled={busy} className="w-full">
-									{t("resetPassword.submit")}
-								</Button>
-							</FieldGroup>
-						</form>
-					</div>
-				) : state === "done" ? (
+		<AuthPage>
+			{state === "form" ? (
+				<>
 					<div className="grid gap-4">
-						<h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold tracking-tight outline-none">
-							{t("resetPassword.done.heading")}
-						</h1>
-						<p className="text-muted-foreground">{t("resetPassword.done.body")}</p>
-						<Link to="/sign-in" className={buttonVariants({ className: "justify-self-start" })}>
-							{t("resetPassword.done.signIn")}
-						</Link>
+						<AuthHeading>{t("resetPassword.heading")}</AuthHeading>
+						<AuthLead>{t("resetPassword.body")}</AuthLead>
 					</div>
-				) : (
-					<div className="grid gap-4">
-						<h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold tracking-tight outline-none">
-							{t("resetPassword.invalid.heading")}
-						</h1>
-						<p className="text-muted-foreground">{t("resetPassword.invalid.body")}</p>
-						<Link
-							to="/forgot-password"
-							className={buttonVariants({ variant: "outline", className: "justify-self-start" })}
-						>
-							{t("resetPassword.invalid.again")}
-						</Link>
-					</div>
-				)}
-			</div>
-		</main>
+					<form onSubmit={submit} noValidate>
+						<FieldGroup className="gap-4">
+							<Field className="gap-2" data-invalid={error ? true : undefined}>
+								<FieldLabel htmlFor="reset-password-new">{t("resetPassword.password")}</FieldLabel>
+								<PasswordInput
+									id="reset-password-new"
+									value={password}
+									onChange={(event) => setPassword(event.target.value)}
+									autoComplete="new-password"
+									required
+									aria-invalid={error ? true : undefined}
+									aria-describedby={error ? "reset-password-rules reset-password-error" : "reset-password-rules"}
+								/>
+								{error ? <FieldError id="reset-password-error">{t(error)}</FieldError> : null}
+							</Field>
+							<PasswordRules id="reset-password-rules" password={password} />
+							<Button type="submit" disabled={busy} className="w-full">
+								{t("resetPassword.submit")}
+							</Button>
+						</FieldGroup>
+					</form>
+				</>
+			) : state === "done" ? (
+				<div className="grid gap-3">
+					<AuthHeading ref={heading}>{t("resetPassword.done.heading")}</AuthHeading>
+					<AuthLead>{t("resetPassword.done.body")}</AuthLead>
+					<Button className="mt-1 w-full" render={<Link to="/sign-in" />}>
+						{t("resetPassword.done.signIn")}
+					</Button>
+				</div>
+			) : (
+				<div className="grid gap-3">
+					<AuthHeading ref={heading}>{t("resetPassword.invalid.heading")}</AuthHeading>
+					<AuthLead>{t("resetPassword.invalid.body")}</AuthLead>
+					<Button variant="outline" className="mt-1 w-full" render={<Link to="/forgot-password" />}>
+						{t("resetPassword.invalid.again")}
+					</Button>
+				</div>
+			)}
+		</AuthPage>
 	);
 }
