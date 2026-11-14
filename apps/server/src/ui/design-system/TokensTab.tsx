@@ -23,10 +23,9 @@ import {
 } from "lucide-react";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
-import { getApi } from "../api.ts";
 import { Segmented } from "../filters/Segmented.tsx";
 import { useT } from "../i18n.tsx";
-import type { Editing } from "./DesignSystemScreen.tsx";
+import type { Editing } from "./editing.ts";
 import {
 	BASE_STEP,
 	type ColourMode,
@@ -166,7 +165,7 @@ function Uses({ count }: { count: number | undefined }) {
 /** Removes a token through an immediate save, so a token in use is refused at once, with where. */
 async function removeToken(editing: Editing, tokens: Tokens) {
 	await editing.now(async () => {
-		const api = await getApi();
+		const api = await editing.api();
 		const { designSystem } = await api.designSystem.saveDraft({ siteId: editing.siteId, tokens });
 		editing.replaceDraft(designSystem.draft);
 	});
