@@ -244,7 +244,7 @@ export const siteAnalytics = defineModule({
 					};
 				},
 			}),
-			/** How far back the raw events reach, and how far rollups are built. */
+			/** How far back the raw events reach, how far rollups are built, and whether anything was ever counted. */
 			coverage: procedure({
 				permission: "analytics.view",
 				toolset: "analytics",

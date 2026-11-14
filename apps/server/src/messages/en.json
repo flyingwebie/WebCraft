@@ -5837,6 +5837,8 @@
 		"lineBefore": "{line}, before",
 		"before": "Before",
 		"readoutHelp": "The arrow keys move along the days; the readout lists every line at that day.",
+		"nothingCountedYet": "Nothing counted yet",
+		"countingStarts": "Starts after the Consent banner is accepted.",
 		"nothingInRange": "Nothing in this range",
 		"needsModule": "Needs its Module",
 		"ownDays": "its own days: {days}",

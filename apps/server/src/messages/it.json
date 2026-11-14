@@ -5837,6 +5837,8 @@
 		"lineBefore": "{line}, prima",
 		"before": "Prima",
 		"readoutHelp": "Le frecce si spostano tra i giorni; il riquadro elenca ogni linea in quel giorno.",
+		"nothingCountedYet": "Ancora nessun dato",
+		"countingStarts": "Il conteggio parte quando il Banner del consenso viene accettato.",
 		"nothingInRange": "Niente in questo periodo",
 		"needsModule": "Serve il suo modulo",
 		"ownDays": "giorni propri: {days}",

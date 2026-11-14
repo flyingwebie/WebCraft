@@ -139,6 +139,18 @@ for (const theme of THEMES) {
 			return page;
 		};
 
+		test("a Site that has counted nothing yet says so in its Widgets", async () => {
+			const local = install.install;
+			const quiet = (await local.createSite(workspaceId, { name: `Quiet ${theme}`, slug: `quiet-${theme}` })).id;
+			await install.goLive(quiet);
+			await (await local.superadmin()).api.modules.setOnSite({ siteId: quiet, moduleId: "site-analytics", on: true });
+			const builtIn = (await staffBrowser.api.dashboards.list({ siteId: quiet })).dashboards.find((each) => each.builtIn);
+			const page = await open(`/sites/${quiet}/dashboards/${builtIn?.id}`);
+			await page.getByText("Nothing counted yet").first().waitFor();
+			await page.getByText("Starts after the Consent banner is accepted.").first().waitFor();
+			await expectAccessibleScreen(page, `Dashboard of a Site that counted nothing yet (${theme})`);
+		});
+
 		test("a Dashboard with every shape of Widget", async () => {
 			const page = await openOverview();
 			await page.getByText("Spring sale started on Monday.").waitFor();
