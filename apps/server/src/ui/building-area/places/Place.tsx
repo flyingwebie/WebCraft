@@ -32,6 +32,7 @@ export function Place({
 	sidebar,
 	sidebarLabel,
 	actions,
+	aside,
 	children,
 	place,
 }: {
@@ -47,6 +48,11 @@ export function Place({
 	sidebarLabel?: string;
 	/** The header's own controls, at its end (a place with no sidebar). */
 	actions?: ReactNode;
+	/**
+	 * A details panel at the place's end, the full height beside the header and the pane (a place with
+	 * no sidebar: the Components place's, `places-content/05`).
+	 */
+	aside?: ReactNode;
 	children: ReactNode;
 	/** The place's address, for tests and styles (`content/pages`). */
 	place: string;
@@ -124,10 +130,13 @@ export function Place({
 					</div>
 				</>
 			) : (
-				<div className="flex min-h-0 min-w-0 grow flex-col" data-wc-place-pane="">
-					{header}
-					{children}
-				</div>
+				<>
+					<div className="flex min-h-0 min-w-0 grow flex-col" data-wc-place-pane="">
+						{header}
+						{children}
+					</div>
+					{aside}
+				</>
 			)}
 		</section>
 	);

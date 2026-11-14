@@ -2,9 +2,11 @@ import type { ComponentType } from "react";
 
 import type { ShellConfig, Words } from "../api.ts";
 import type { BuildingDocument, Documents } from "../documents.ts";
+import { ComponentsPlace } from "./components/ComponentsPlace.tsx";
 import { ContentPlace } from "./content/ContentPlace.tsx";
 import { type PlaceKey, placeKeyOf } from "./keys.ts";
 import { leftAt } from "./memory.ts";
+import { TemplatesPlace } from "./templates/TemplatesPlace.tsx";
 
 export { PLACE_KEYS } from "./keys.ts";
 export { type PlaceKey, placeKeyOf };
@@ -46,6 +48,8 @@ export type PlaceEntry = {
 /** The places that exist so far: the rail offers these, and says "not available yet" of the rest. */
 const PLACES: Partial<Record<PlaceKey, PlaceEntry>> = {
 	content: { key: "content", first: "content/pages", component: ContentPlace },
+	templates: { key: "templates", first: "templates", component: TemplatesPlace },
+	components: { key: "components", first: "components", component: ComponentsPlace },
 };
 
 /** The place registered for a rail button, if it exists yet. */
