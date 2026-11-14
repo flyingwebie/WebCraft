@@ -269,7 +269,10 @@ describe("without a mouse", () => {
 
 	test("a reviewer opens the Review from Publish all and publishes it from its sheet", async () => {
 		const page = await open("light", editor, `/sites/${siteId}`);
-		await page.getByRole("button", { name: /^Publish all/ }).first().click();
+		await page
+			.getByRole("button", { name: /^Publish all/ })
+			.first()
+			.click();
 		await page.getByRole("button", { name: "In review: open the Review of Apple pie" }).click();
 		const sheet = page.getByRole("dialog", { name: "Review: Apple pie" });
 		await sheet.getByText("The pie is back for the autumn.").waitFor();
