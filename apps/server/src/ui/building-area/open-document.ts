@@ -49,6 +49,12 @@ export type OpenDocument = {
 };
 
 /**
+ * The event a part of the shell sends on the shell's document when what the framed page shows has
+ * changed without the page changing (a Loop published from the Loops place): the frame reads it again.
+ */
+export const PAGE_CHANGED_EVENT = "webcraft:page-changed";
+
+/**
  * The open document (plan 1.4, BA-06): read from the shell's address, found where the frame can show
  * it, kept in step with the frame (a page the frame goes to by itself becomes the document), with
  * Back, Forward and reload all through the shell's own history.
@@ -71,6 +77,19 @@ export function useOpenDocument(config: ShellConfig, announce: (text: string) =>
 	latest.current = { address, shown, framedPage, announce };
 
 	useEffect(() => documents.subscribe((next) => setAddress(next)), [documents]);
+
+	// Something changed what the page shows (a place published a Loop it lists): the frame reads the
+	// same page again, as a load the shell asked for, so the document, the place and history stay.
+	useEffect(() => {
+		const onChanged = () => {
+			const frame = window.document.querySelector<HTMLIFrameElement>("iframe[data-wc-frame]");
+			if (!frame?.contentWindow || lastFramed.current === null) return;
+			asked.current = lastFramed.current;
+			frame.contentWindow.location.reload();
+		};
+		window.document.addEventListener(PAGE_CHANGED_EVENT, onChanged);
+		return () => window.document.removeEventListener(PAGE_CHANGED_EVENT, onChanged);
+	}, []);
 
 	// What the switcher lists and the names of Templates and Components: Go to's data and the Post Types.
 	useEffect(() => {

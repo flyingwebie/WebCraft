@@ -285,6 +285,9 @@ export const PROCEDURES = {
 	"loops.saveDraft": write("Saves a Loop's Draft: its source, query and Loop items' Fields."),
 	"loops.saveItems": write("Saves a Loop's items in its Draft, in one language."),
 	"loops.data": read("A Loop's Data tab: its first item as bindings read it."),
+	"loops.result": read(
+		"What a Loop's Draft lists: its items as bindings read them, how many in all, and the pages showing it.",
+	),
 	"loops.publish": write("Publishes a Loop's Draft (API clients confirm a preview first)."),
 	"scripts.get": read("The Site script or an Entry's page script."),
 	"scripts.saveDraft": write("Saves the Draft of the Site script or a page script."),

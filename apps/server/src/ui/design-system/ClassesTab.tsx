@@ -18,11 +18,10 @@ import { Textarea } from "@webcraft/ui/components/textarea.tsx";
 import { PlusIcon, SearchIcon, Trash2Icon } from "lucide-react";
 import { type FormEvent, useId, useRef, useState } from "react";
 
-import { getApi } from "../api.ts";
 import { FormatButton, FormatNoteLine, useCodeFormat } from "../code-format/FormatControl.tsx";
 import { useT } from "../i18n.tsx";
 import { DeclarationsEditor } from "./DeclarationsEditor.tsx";
-import type { Editing } from "./DesignSystemScreen.tsx";
+import type { Editing } from "./editing.ts";
 import { type EditableClass, html } from "./model.ts";
 import { StylePreview } from "./StylePreview.tsx";
 
@@ -66,7 +65,7 @@ export function ClassesTab({
 		}
 		setNewProblem(null);
 		const made = await editing.now(async () => {
-			const api = await getApi();
+			const api = await editing.api();
 			return api.designSystem.createClass({ siteId: editing.siteId, name });
 		});
 		if (!made) return;
@@ -276,7 +275,7 @@ function DeleteClass({ editing, found, onDeleted }: { editing: Editing; found: E
 		setBusy(true);
 		setOpen(false);
 		const done = await editing.now(async () => {
-			const api = await getApi();
+			const api = await editing.api();
 			return api.designSystem.deleteClass({ siteId: editing.siteId, classId: found.id });
 		});
 		setBusy(false);

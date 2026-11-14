@@ -44,6 +44,8 @@ export type EditBarAssets = {
 	drafts: EditAsset;
 	/** The block editor's body part (#79): the module the bar loads on pages showing a body (`body-editor/`). */
 	body: EditAsset;
+	/** Format's engine (Prettier, `ui/code-format/engine.ts`): loaded the first time Format is used. */
+	format: EditAsset;
 	/** Every file by its name. */
 	byName: ReadonlyMap<string, EditAsset>;
 };
@@ -135,6 +137,7 @@ async function makeAssets(): Promise<EditBarAssets> {
 		codeStyles,
 		drafts,
 		body,
+		format,
 		byName: new Map(
 			[
 				script,
@@ -206,7 +209,7 @@ async function formatModule(): Promise<string> {
  * Makes the shared panels load Format's engine from its own file when Format is first used, rather
  * than carry Prettier in their bundle (`format.ts` imports `./engine.ts` on demand).
  */
-function formatEngine(formatPath: string): Bun.BunPlugin {
+export function formatEngine(formatPath: string): Bun.BunPlugin {
 	return {
 		name: "format-engine-file",
 		setup(build) {

@@ -11524,6 +11524,59 @@
 				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
+		"/loops/result": {
+			"post": {
+				"operationId": "loops.result",
+				"summary": "What a Loop's Draft lists: its items as bindings read them, how many in all, and the pages showing it.",
+				"tags": ["loops"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"loopId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"language": {
+										"type": "string",
+										"minLength": 2,
+										"maxLength": 35
+									}
+								},
+								"required": ["siteId", "loopId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
 		"/loops/publish": {
 			"post": {
 				"operationId": "loops.publish",

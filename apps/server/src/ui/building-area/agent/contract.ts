@@ -21,7 +21,8 @@ export const BUILDING_PREFIX = "/_webcraft/build";
 
 /**
  * Text and rich text regions the page agent makes editable (image regions and bodies come with
- * later parts of the building area).
+ * later parts of the building area). `agent/regions.ts` makes them editable; the shell saves them
+ * (`canvas/regions.ts`) and edits them (`editing/`).
  */
 export const TEXT_REGION = '[data-wc-item][data-wc-field]:not([data-wc-type="media"]):not([data-wc-type="body"])';
 
@@ -35,6 +36,10 @@ export type AgentEventKind =
 	| "focusin"
 	| "focusout"
 	| "input"
+	/** Before text changes: the browser's own Undo and Redo of text (`historyUndo`) are the shell's history's. */
+	| "beforeinput"
+	/** The caret or the selected text moved (on the document): the text toolbar shows what is pressed. */
+	| "selectionchange"
 	| "scroll";
 
 /** The shell's half, which the agent calls. */

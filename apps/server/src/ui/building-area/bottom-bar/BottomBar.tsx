@@ -41,6 +41,8 @@ export function BottomBar({
 	staging,
 	draft,
 	insertRow = true,
+	onUndo = () => void editorHistory().undo(),
+	onRedo = () => void editorHistory().redo(),
 	onPublish,
 }: {
 	words: Words;
@@ -56,6 +58,9 @@ export function BottomBar({
 	draft: DraftState;
 	/** Whether the insert row has its place in the middle: none while a place is open (SPEC 8); the middle stays. */
 	insertRow?: boolean;
+	/** Undo and Redo: the shell's, which first saves what was typed (`editing/history.ts`). */
+	onUndo?(): void;
+	onRedo?(): void;
 	/** Publishes what a place hands in; answers whether it was published. None: Publish waits for BA-12. */
 	onPublish?(): Promise<boolean>;
 }) {
@@ -90,7 +95,7 @@ export function BottomBar({
 					align="start"
 					size="bar"
 					disabled={!history.undo || history.busy}
-					onClick={() => void editorHistory().undo()}
+					onClick={onUndo}
 					data={{ "data-wc-bar": "undo" }}
 				/>
 				<IconButton
@@ -100,7 +105,7 @@ export function BottomBar({
 					side="top"
 					size="bar"
 					disabled={!history.redo || history.busy}
-					onClick={() => void editorHistory().redo()}
+					onClick={onRedo}
 					data={{ "data-wc-bar": "redo" }}
 				/>
 				{nav}

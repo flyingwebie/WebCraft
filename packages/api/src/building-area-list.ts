@@ -115,6 +115,9 @@ export const BUILDING_AREA_PROCEDURES = [
 	"loops.saveItems",
 	"loops.data",
 	"loops.publish",
+	// The Loops place's result (BA-25): what a Loop's Draft lists and the pages showing it, read as the
+	// Data tab reads (`structure.edit`, Staff only; a Member's call is FORBIDDEN). It reads, never writes.
+	"loops.result",
 	// The Forms place's Build tab (BA-26): the Site's Forms with where each is placed, one Form's Draft
 	// and published version, New Form (from a blank or a starter's fields), its Draft saved as fields
 	// change, and its fields published with Publish. All are Staff's (`structure.edit`, as in the
