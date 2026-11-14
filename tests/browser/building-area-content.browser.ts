@@ -157,6 +157,9 @@ describe("the Content place, for Staff", () => {
 		expect(await page.locator("[data-building-region='rail']").isVisible()).toBe(true);
 		expect(await page.locator("[data-building-region='bar']").isVisible()).toBe(true);
 		expect(await page.locator("[data-wc-insert-row]").count()).toBe(0);
+		// The bar keeps its shape: Publish stays at its end.
+		const publish = await page.locator("[data-wc-publish]").boundingBox();
+		expect((publish?.x ?? 0) + (publish?.width ?? 0)).toBeGreaterThan(1400);
 		expect(await page.locator('[data-wc-rail="panels"]').count()).toBe(0);
 		expect(await railButton(page).getAttribute("aria-pressed")).toBe("true");
 		// Sizes of SPEC 4: the inner sidebar 256, the back button 40 × 28, rows 46 and the header 35.

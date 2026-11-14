@@ -51,7 +51,7 @@ export function BottomBar({
 	/** The page on the Site's Staging address, or null when there is none to open. */
 	staging: string | null;
 	draft: DraftState;
-	/** Whether the insert row has its place in the middle: none while a place is open (SPEC 8). */
+	/** Whether the insert row has its place in the middle: none while a place is open (SPEC 8); the middle stays. */
 	insertRow?: boolean;
 }) {
 	const history = useHistory();
@@ -91,7 +91,6 @@ export function BottomBar({
 			<div
 				className="flex h-full min-w-0 grow items-center justify-center"
 				data-wc-insert-row={insertRow ? "" : undefined}
-				hidden={!insertRow}
 			/>
 			<div className="flex h-full w-[400px] shrink items-center justify-end gap-2" data-wc-bar-cluster="end">
 				{languages.length > 1 ? <LanguageMenu languages={languages} words={words} onChoose={onLanguage} /> : null}
