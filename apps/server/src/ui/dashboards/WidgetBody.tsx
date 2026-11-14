@@ -251,13 +251,22 @@ function SitesTable({ data, title }: { data: Extract<WidgetData, { shape: "table
 	const most = (key: string) =>
 		Math.max(1, ...data.rows.map((row) => (typeof row.cells[key] === "number" ? (row.cells[key] as number) : 0)));
 	return (
+		// Fixed columns that fit the Widget: a long Site name is cut, never scrolled.
 		<div className="overflow-hidden rounded-lg border">
-			<Table>
+			<Table className="table-fixed">
 				<caption className="sr-only">{title}</caption>
+				<colgroup>
+					{data.columns.map((column) => (
+						<col
+							key={column.key}
+							className={column.kind === "site" ? undefined : barred.has(column.key) ? "w-[30%]" : "w-[20%]"}
+						/>
+					))}
+				</colgroup>
 				<TableHeader className="bg-muted/50 [&_th]:text-muted-foreground [&_th]:font-normal">
 					<TableRow className="hover:bg-transparent">
 						{data.columns.map((column) => (
-							<TableHead key={column.key} scope="col" className="first:ps-4 last:pe-4">
+							<TableHead key={column.key} scope="col" className="truncate first:ps-4 last:pe-4" title={column.label}>
 								{column.label}
 							</TableHead>
 						))}
@@ -268,10 +277,10 @@ function SitesTable({ data, title }: { data: Extract<WidgetData, { shape: "table
 						<TableRow key={row.key}>
 							{data.columns.map((column) => {
 								const cell = row.cells[column.key];
-								const place = "py-3 first:ps-4 last:pe-4";
+								const place = "overflow-hidden py-3 first:ps-4 last:pe-4";
 								if (column.kind === "site") {
 									return (
-										<TableCell key={column.key} className={`${place} font-medium`}>
+										<TableCell key={column.key} className={`${place} truncate font-medium`} title={String(cell ?? "")}>
 											{String(cell ?? "")}
 										</TableCell>
 									);
@@ -291,7 +300,7 @@ function SitesTable({ data, title }: { data: Extract<WidgetData, { shape: "table
 												<span className="font-medium">{numbers.whole(count)}</span>
 												<Bar
 													share={count / most(column.key)}
-													className="h-1.5 w-12 rounded-[3px]"
+													className="h-1.5 w-12 min-w-0 shrink rounded-[3px]"
 													fill="rounded-[3px]"
 												/>
 											</span>

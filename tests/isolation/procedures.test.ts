@@ -1888,6 +1888,9 @@ describe("Site analytics", () => {
 		async (api, { siteId }) => (await analytics(api, siteId)).goals.list({ siteId }),
 		{ as: ["staff", "owner"] },
 	);
+	isolation.refuses("m.site-analytics.goals.usage", async (api, { siteId }) =>
+		(await analytics(api, siteId)).goals.usage({ siteId }),
+	);
 	isolation.refuses("m.site-analytics.goals.create", async (api, { siteId }) =>
 		(await analytics(api, siteId)).goals.create({
 			siteId,
