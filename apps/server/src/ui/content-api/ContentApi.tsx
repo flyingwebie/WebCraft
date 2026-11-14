@@ -27,14 +27,7 @@ import { type MessageKey, useT } from "../i18n.tsx";
 import { useSensitiveAction } from "../identity-check.tsx";
 import { PageHeader } from "../PageHeader.tsx";
 import { SettingsForm, useSettingsSection } from "../settings/form.tsx";
-import {
-	SettingsCard,
-	SettingsListRow,
-	SettingsRow,
-	SettingsRows,
-	StateBadge,
-	Switch,
-} from "../settings/layout.tsx";
+import { SettingsCard, SettingsListRow, SettingsRow, SettingsRows, StateBadge, Switch } from "../settings/layout.tsx";
 import { PageSheet } from "../shell/page.tsx";
 
 type View = Awaited<ReturnType<ApiClient["contentApi"]["get"]>>;
