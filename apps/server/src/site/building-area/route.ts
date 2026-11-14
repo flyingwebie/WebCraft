@@ -31,8 +31,10 @@ function adminMessagesOf(messages: typeof en): AdminMessages {
 		media: messages.media,
 		errors: messages.errors,
 		popups: { title: messages.popups.title },
-		content: { media: messages.content.media },
+		content: { media: messages.content.media, builtIn: messages.content.builtIn },
 		editBar: { codeMode: { errors: messages.editBar.codeMode.errors } },
+		loops: { query: messages.loops.query },
+		entries: { status: messages.entries.status },
 	};
 }
 

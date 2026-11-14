@@ -864,6 +864,9 @@ describe("Loops", () => {
 	isolation.refuses("loops.data", async (api, target) =>
 		api.loops.data({ siteId: target.siteId, loopId: await loopIn(target) }),
 	);
+	isolation.refuses("loops.result", async (api, target) =>
+		api.loops.result({ siteId: target.siteId, loopId: await loopIn(target) }),
+	);
 	isolation.refuses("loops.publish", async (api, target) =>
 		api.loops.publish({ siteId: target.siteId, loopId: await loopIn(target) }),
 	);

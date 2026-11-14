@@ -21,17 +21,31 @@ import { DataTab } from "./DataTab.tsx";
 import { LanguageTabs, SaveStatusText, StatusBadge } from "./DraftParts.tsx";
 import { FieldValue, type ValueContext } from "./FieldValues.tsx";
 import { loadRelationshipTargets } from "./loaders.ts";
+import {
+	DATE_BUILT_INS,
+	type DateUnit,
+	type DateWindow,
+	type FieldOperator,
+	type Filter,
+	fieldFilter,
+	filterOfType,
+	newFilter,
+	OPERATORS,
+	type Query,
+	type QueryField,
+	queryFields,
+	SORTABLE,
+	type Sort,
+	STATUSES,
+	settingId,
+	takesValue,
+	UNITS,
+	WINDOWS,
+	withWindow,
+} from "./loop-query.ts";
 import type { FieldDefinition, Json, LoopView, PostTypeView, Problem } from "./model.ts";
 import { RelationshipPicker, type RelationshipTargets } from "./RelationshipPicker.tsx";
 import { StructureEditor } from "./StructureEditor.tsx";
-
-type Query = LoopView["draft"]["query"];
-type Filter = Query["filters"][number];
-type Sort = Query["sort"][number];
-type FieldOperator = Extract<Filter, { type: "field" }>["operator"];
-type DateWindow = Extract<Filter, { type: "date" }>["window"];
-type DateUnit = NonNullable<Extract<Filter, { type: "date" }>["unit"]>;
-type QueryStatus = Extract<Filter, { type: "status" }>["statuses"][number];
 
 /** The tabs of a Loop's screen. */
 export type LoopTab = "settings" | "items" | "data";
@@ -257,52 +271,6 @@ function LoopSettings({
 	);
 }
 
-/** The operators each Field type takes in a filter, as the content store checks them. */
-const OPERATORS: Readonly<Record<string, readonly FieldOperator[]>> = {
-	text: ["equals", "notEquals", "contains", "empty", "notEmpty"],
-	email: ["equals", "notEquals", "contains", "empty", "notEmpty"],
-	richText: ["contains", "empty", "notEmpty"],
-	select: ["equals", "notEquals", "empty", "notEmpty"],
-	number: ["equals", "notEquals", "lessThan", "atMost", "greaterThan", "atLeast", "empty", "notEmpty"],
-	date: ["equals", "notEquals", "lessThan", "atMost", "greaterThan", "atLeast", "empty", "notEmpty"],
-	boolean: ["equals", "notEquals"],
-	media: ["empty", "notEmpty"],
-	link: ["empty", "notEmpty"],
-	body: ["empty", "notEmpty"],
-};
-
-const SORTABLE = new Set(["text", "email", "number", "date", "boolean", "select"]);
-const DATE_BUILT_INS = ["publishedAt", "lastPublishedAt", "createdAt", "updatedAt"] as const;
-const WINDOWS: readonly DateWindow[] = ["past", "future", "last", "next", "between"];
-const UNITS: readonly DateUnit[] = ["days", "weeks", "months", "years"];
-const STATUSES: readonly QueryStatus[] = ["published", "changed", "draft"];
-
-/** A Field a query can read, at its path (`address.city`), with the words for it. */
-type QueryField = { path: string; label: string; field: FieldDefinition };
-
-/** The Fields of the chosen Post Types a query can read: top-level and Groups' Fields (Repeaters' too, `withRows`). */
-function queryFields(postTypes: readonly PostTypeView[], withRows = false): QueryField[] {
-	const found = new Map<string, QueryField>();
-	const visit = (fields: readonly FieldDefinition[], path: string, label: string) => {
-		for (const field of fields) {
-			const here = `${path}${field.key}`;
-			const named = label ? `${label} › ${field.label}` : field.label;
-			if (field.type === "group" || (withRows && field.type === "repeater")) {
-				visit(field.fields, `${here}.`, named);
-			} else if (field.type !== "repeater" && !found.has(here)) {
-				found.set(here, { path: here, label: named, field });
-			}
-		}
-	};
-	for (const postType of postTypes) visit(postType.fields, "", "");
-	return [...found.values()];
-}
-
-/** A control's id from where its setting is (`query.filters[1].value`), as problems name it. */
-function settingId(at: string): string {
-	return `loop-${at.replace(/[^A-Za-z0-9]+/g, "-")}`;
-}
-
 function QueryBuilder({
 	siteId,
 	loop,
@@ -351,13 +319,6 @@ function QueryBuilder({
 		} finally {
 			setBusy(false);
 		}
-	};
-
-	const newFilter = (): Filter => {
-		const [first] = fields;
-		if (!first) return { type: "status", statuses: ["published"] };
-		const operator = OPERATORS[first.field.type]?.[0] ?? "empty";
-		return { type: "field", field: first.path, operator, value: defaultValue(first.field) };
 	};
 
 	return (
@@ -460,7 +421,7 @@ function QueryBuilder({
 						type="button"
 						variant="outline"
 						size="sm"
-						onClick={() => change({ filters: [...query.filters, newFilter()] })}
+						onClick={() => change({ filters: [...query.filters, newFilter(fields)] })}
 					>
 						<PlusIcon aria-hidden="true" />
 						{t("loops.query.addFilter")}
@@ -634,21 +595,6 @@ function QueryBuilder({
 	);
 }
 
-function defaultValue(field: FieldDefinition): string | number | boolean | null {
-	switch (field.type) {
-		case "number":
-			return 0;
-		case "boolean":
-			return true;
-		case "select":
-			return field.options[0]?.value ?? null;
-		case "date":
-			return "2026-01-01";
-		default:
-			return "";
-	}
-}
-
 /** One filter of a query: what it is about, and its settings. */
 function FilterRow({
 	siteId,
@@ -673,23 +619,7 @@ function FilterRow({
 }) {
 	const t = useT();
 	const at = (setting: string) => `query.filters[${index}].${setting}`;
-	const switchType = (type: Filter["type"]) => {
-		if (type === "field") {
-			const [first] = fields;
-			onChange({
-				type: "field",
-				field: first?.path ?? "",
-				operator: first ? (OPERATORS[first.field.type]?.[0] ?? "empty") : "empty",
-				value: first ? defaultValue(first.field) : null,
-			});
-		} else if (type === "relationship") {
-			onChange({ type: "relationship", field: relationships[0]?.path ?? "", to: "current", entries: [] });
-		} else if (type === "date") {
-			onChange({ type: "date", field: "publishedAt", window: "past", amount: null, unit: null, from: null, to: null });
-		} else {
-			onChange({ type: "status", statuses: ["published"] });
-		}
-	};
+	const switchType = (type: Filter["type"]) => onChange(filterOfType(type, { fields, relationships }));
 	const chosen = filter.type === "field" ? fields.find((candidate) => candidate.path === filter.field) : undefined;
 
 	return (
@@ -735,13 +665,7 @@ function FilterRow({
 								value={filter.field}
 								onChange={(event) => {
 									const next = fields.find((candidate) => candidate.path === event.target.value);
-									if (!next) return;
-									onChange({
-										...filter,
-										field: next.path,
-										operator: OPERATORS[next.field.type]?.[0] ?? "empty",
-										value: defaultValue(next.field),
-									});
+									if (next) onChange(fieldFilter(next));
 								}}
 							>
 								{fields
@@ -774,7 +698,7 @@ function FilterRow({
 							</NativeSelect>
 						)}
 					</Setting>
-					{chosen && filter.operator !== "empty" && filter.operator !== "notEmpty" ? (
+					{chosen && takesValue(filter.operator) ? (
 						<Setting id={settingId(at("value"))} label={t("loops.query.value")} problems={problemsAt(at("value"))}>
 							{(id, described) => (
 								<ValueInput
@@ -870,17 +794,7 @@ function FilterRow({
 								id={id}
 								aria-describedby={described}
 								value={filter.window}
-								onChange={(event) => {
-									const window = event.target.value as DateWindow;
-									onChange({
-										...filter,
-										window,
-										amount: window === "last" || window === "next" ? (filter.amount ?? 12) : null,
-										unit: window === "last" || window === "next" ? (filter.unit ?? "months") : null,
-										from: window === "between" ? (filter.from ?? "2026-01-01") : null,
-										to: window === "between" ? filter.to : null,
-									});
-								}}
+								onChange={(event) => onChange(withWindow(filter, event.target.value as DateWindow))}
 							>
 								{WINDOWS.map((window) => (
 									<NativeSelectOption key={window} value={window}>
