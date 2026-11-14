@@ -228,12 +228,30 @@ describe("Format in Code mode", () => {
 });
 
 describe("Format in the Design system", () => {
+	/**
+	 * The Custom CSS tab, from an empty custom CSS: each pass starts from the same Draft, whatever the
+	 * pass before left in it (its last edit may still be saving when its page closes).
+	 */
 	async function customCss(theme: Theme): Promise<{ page: Page; css: Locator }> {
+		const { api } = await install.install.superadmin();
+		await api.designSystem.saveDraft({ siteId, customCss: "" });
 		const page = await testPage(theme);
 		await install.signIn(page, staff);
 		await page.goto(install.adminUrl(`/sites/${siteId}/design-system?tab=css`));
 		const css = page.getByLabel("The Site's custom CSS");
 		await css.waitFor();
+		// Type only once the page is live: the box is in the server's HTML first, and taking it over
+		// sets its value again, which moves the caret to the end, so text typed over a selection
+		// before then lands after it instead.
+		await css.evaluate(
+			(area) =>
+				new Promise<void>((resolve) => {
+					const live = () => Object.keys(area).some((key) => key.startsWith("__reactProps"));
+					const check = () => (live() ? resolve() : requestAnimationFrame(check));
+					check();
+				}),
+		);
+		expect(await css.inputValue()).toBe("");
 		return { page, css };
 	}
 

@@ -1,4 +1,4 @@
-import { Link, useRouter, useRouterState } from "@tanstack/react-router";
+import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import type { ApiClient } from "@webcraft/api";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
@@ -78,11 +78,25 @@ export function PublishAllButton({
 	open?: boolean;
 }) {
 	const t = useT();
+	const navigate = useNavigate();
 	const [open, setOpen] = useState(openAtStart);
 	const trigger = useRef<HTMLButtonElement>(null);
 	useEffect(() => {
 		if (openAtStart) setOpen(true);
 	}, [openAtStart]);
+	const close = () => {
+		setOpen(false);
+		// Opened by its address: closing takes `publishAll` out of it, so a link to that address (the
+		// Overview's own "Publish all") opens the list again.
+		if (openAtStart) {
+			void navigate({
+				to: ".",
+				search: ((before: Record<string, unknown>) => ({ ...before, publishAll: undefined })) as never,
+				replace: true,
+				resetScroll: false,
+			});
+		}
+	};
 	return (
 		<>
 			<Button ref={trigger} size="sm" onClick={() => setOpen(true)} aria-haspopup="dialog">
@@ -94,7 +108,7 @@ export function PublishAllButton({
 				{/* Its name says what the number counts: "Publish all 3 changes". */}
 				<span className="sr-only"> {t("publishAll.changesCounted", { count })}</span>
 			</Button>
-			{open ? <PublishAllDialog siteId={siteId} onClose={() => setOpen(false)} finalFocus={trigger} /> : null}
+			{open ? <PublishAllDialog siteId={siteId} onClose={close} finalFocus={trigger} /> : null}
 		</>
 	);
 }
