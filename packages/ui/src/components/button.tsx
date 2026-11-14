@@ -1,7 +1,9 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
+import { mergeProps } from "@base-ui/react/merge-props";
+import { useRender } from "@base-ui/react/use-render";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
-import { isValidElement } from "react";
+import { isValidElement, type ReactElement } from "react";
 
 // WebCraft: transitions leave out opacity. A Button that stops being disabled (its own `disabled`, or
 // a disabled fieldset around it) shows full contrast at once instead of fading from the dimmed look.
@@ -50,9 +52,11 @@ const buttonVariants = cva(
 );
 
 /**
- * WebCraft: a Button drawn as something else (`render={<Link … />}`, an anchor) is not a native
- * `<button>`, and Base UI logs an error unless it is told so. The Button works it out from `render`:
- * only an element that is not a `<button>` switches it off; `nativeButton` still overrides.
+ * WebCraft: a Button drawn as a link (`render={<Link … />}`, an anchor) stays a link: it is drawn with
+ * the button's look and nothing else, so assistive technology hears a link and Enter follows it, as
+ * on any link. Base UI's Button would make it a `role="button"` that Space activates. A Button drawn
+ * as another element that is not a `<button>` is a button without the native element (Base UI logs
+ * an error unless it is told so); `nativeButton` still overrides.
  */
 function Button({
 	className,
@@ -62,15 +66,35 @@ function Button({
 	nativeButton,
 	...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+	const classes = cn(buttonVariants({ variant, size, className: className as string | undefined }));
+	if (nativeButton === undefined && isLink(render)) {
+		const { disabled: _disabled, focusableWhenDisabled: _focusable, ...linkProps } = props;
+		return <LinkButton render={render} className={classes} {...(linkProps as useRender.ComponentProps<"a">)} />;
+	}
 	return (
 		<ButtonPrimitive
 			data-slot="button"
-			className={cn(buttonVariants({ variant, size, className }))}
+			className={classes}
 			render={render}
 			nativeButton={nativeButton ?? !(isValidElement(render) && render.type !== "button")}
 			{...props}
 		/>
 	);
+}
+
+/** An element that goes somewhere: an anchor, or a router link (it has `to` or `href`). */
+function isLink(render: unknown): render is ReactElement<{ to?: unknown; href?: unknown }> {
+	if (!isValidElement<{ to?: unknown; href?: unknown }>(render)) return false;
+	return render.type === "a" || render.props.to !== undefined || render.props.href !== undefined;
+}
+
+function LinkButton({ render, ref, ...props }: useRender.ComponentProps<"a">) {
+	return useRender({
+		defaultTagName: "a",
+		render,
+		ref,
+		props: mergeProps<"a">({ "data-slot": "button" } as useRender.ComponentProps<"a">, props),
+	});
 }
 
 export { Button, buttonVariants };
