@@ -49,7 +49,7 @@ beforeAll(async () => {
 		["Focaccia", "Olive oil and salt"],
 		["Rye", "Dark and dense"],
 		["Spelt", "An old grain"],
-	]) {
+	] as const) {
 		const { entry } = await api.entries.create({ siteId, postTypeId: blog.id, title, fields: { summary } });
 		await api.entries.publish({ siteId, entryId: entry.id });
 	}
@@ -94,7 +94,7 @@ beforeAll(async () => {
 	for (const [title, pageSlug] of [
 		["Menu", "menu"],
 		["About", "about"],
-	]) {
+	] as const) {
 		const { entry } = await api.entries.create({ siteId, postTypeId: pagesType?.id ?? "", title, slug: pageSlug });
 		await api.entries.publish({ siteId, entryId: entry.id });
 	}
