@@ -7,7 +7,8 @@
  *   query), `/site-template`, `/search-template`, `/entry-template/<Post Type>?entry=<Entry>`,
  *   `/archive-template/<Post Type>`, `/component/<id>`, `/form/<id>` (`@webcraft/core`'s grammar,
  *   which the server reads too).
- * - The shell's own parameters follow: `wc-place` (`content/pages`, `media/<folder>`, …) and
+ * - The shell's own parameters follow: `wc-place` (`content/pages`, `media/<folder>`, …), `wc-view`
+ *   (how the open place shows its list: its search, filters and sorting, as the place reads it) and
  *   `wc-select` (what is selected). They carry a prefix so they never clash with a page's own query.
  * - Opening a document or a place adds a history entry; selecting replaces the current one.
  */
@@ -29,18 +30,36 @@ export const PLACE_PARAMETER = "wc-place";
 /** The shell's parameter for what is selected. */
 export const SELECT_PARAMETER = "wc-select";
 
-/** Everything a shell address says: the document (null when it names none), the place, the selection. */
-export type ShellAddress = { document: BuildingDocument | null; place: string | null; select: string | null };
+/**
+ * The shell's parameter for the open place's view: its search, filters and sorting, a query string
+ * the place reads and prints (`places/content/view.ts`). It goes with the place: no place, no view.
+ */
+export const VIEW_PARAMETER = "wc-view";
+
+/** The longest view the address keeps: anything longer is not the shell's. */
+const VIEW_MAX_LENGTH = 500;
+
+/**
+ * Everything a shell address says: the document (null when it names none), the place, the place's
+ * view (null for its default view), the selection.
+ */
+export type ShellAddress = {
+	document: BuildingDocument | null;
+	place: string | null;
+	view?: string | null;
+	select: string | null;
+};
 
 const ID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
 /**
- * The places (plan 1.4): Content (Pages, a Post Type's Entries, Post Types), Templates, Media (a
- * folder), Styles (its four tabs), Loops (one Loop), Components, Forms (a Form and its tab).
+ * The places (plan 1.4): Content (Pages, a Post Type's Entries, Post Types, the Globals or one Group
+ * of them), Templates, Media (a folder), Styles (its four tabs), Loops (one Loop), Components, Forms
+ * (a Form and its tab).
  */
 const PLACE = new RegExp(
 	[
-		`content/(?:pages|post-types|${ID})`,
+		`content/(?:pages|post-types|${ID}|globals(?:/[a-z][A-Za-z0-9_]{0,63})?)`,
 		"templates",
 		"components",
 		`media(?:/${ID})?`,
@@ -61,20 +80,26 @@ export function isPlace(place: string): boolean {
 export function readAddress(pathname: string, search: string): ShellAddress {
 	const params = new URLSearchParams(search);
 	const place = params.get(PLACE_PARAMETER);
+	const view = params.get(VIEW_PARAMETER);
 	const select = params.get(SELECT_PARAMETER);
 	let documentSearch = search;
-	if (place !== null || select !== null) {
+	if (place !== null || view !== null || select !== null) {
 		params.delete(PLACE_PARAMETER);
+		params.delete(VIEW_PARAMETER);
 		params.delete(SELECT_PARAMETER);
 		documentSearch = params.size ? `?${params.toString()}` : "";
 	}
+	const placed = place !== null && isPlace(place) ? place : null;
 	const root = BUILDING_AREA_PATH.slice(0, -1);
 	const document = pathname.startsWith(`${root}/`)
 		? parseBuildingDocument(`${pathname.slice(root.length)}${documentSearch}`)
 		: null;
+	// The view only when there is one: an address with none reads as it did before views.
+	const viewed = placed !== null && view !== null && isView(view) ? view : null;
 	return {
 		document,
-		place: place !== null && isPlace(place) ? place : null,
+		place: placed,
+		...(viewed ? { view: viewed } : {}),
 		select: select !== null && isCodeSelection(select) ? select : null,
 	};
 }
@@ -84,9 +109,15 @@ export function printAddress(address: ShellAddress): string {
 	const document = address.document ? printBuildingDocument(address.document) : "/page/";
 	const extra = new URLSearchParams();
 	if (address.place) extra.set(PLACE_PARAMETER, address.place);
+	if (address.place && address.view) extra.set(VIEW_PARAMETER, address.view);
 	if (address.select) extra.set(SELECT_PARAMETER, address.select);
 	const joined = extra.size ? `${document.includes("?") ? "&" : "?"}${extra.toString()}` : "";
 	return `${BUILDING_AREA_PATH.slice(0, -1)}${document}${joined}`;
+}
+
+/** Whether `view` can be a place's view: a short query string of printable characters. */
+function isView(view: string): boolean {
+	return view.length > 0 && view.length <= VIEW_MAX_LENGTH && /^[\x20-\x7e]+$/.test(view);
 }
 
 /** Whether two documents are the same one (an Entry template previewing another Entry is the same document). */
@@ -123,8 +154,16 @@ export type Documents = {
 	open(document: BuildingDocument, from?: CameFrom | null): void;
 	/** Shows another version of the open document in place (an Entry template's Entry, a page's real address). */
 	replace(document: BuildingDocument): void;
-	/** Opens a place over the document (null: closes it), as the next history entry. */
-	openPlace(place: string | null): void;
+	/**
+	 * Opens a place over the document (null: closes it), as the next history entry, showing `view`
+	 * (its default view when none).
+	 */
+	openPlace(place: string | null, view?: string | null): void;
+	/**
+	 * Changes the open place's view (its search, filters, sorting): a history entry, so Back shows the
+	 * view before, or in place (`replace`, as typing in a search does).
+	 */
+	setView(view: string | null, how?: "push" | "replace"): void;
 	/** Says what is selected (null: nothing), in place: a selection is never a history entry. */
 	select(ref: string | null): void;
 	/** Goes back to where the open document was opened from: Back, when that is the entry before. */
@@ -157,22 +196,39 @@ export function shellDocuments(win: Window = window): Documents {
 		current: read,
 		cameFrom: () => stateOf()?.from ?? null,
 		open(document, from = null) {
-			write({ document, place: null, select: null }, "push", from, from !== null);
+			write({ document, place: null, view: null, select: null }, "push", from, from !== null);
 		},
 		replace(document) {
 			const now = read();
 			const keep = sameDocument(now.document, document);
 			write(
-				{ document, place: keep ? now.place : null, select: keep ? now.select : null },
+				{
+					document,
+					place: keep ? now.place : null,
+					view: keep ? (now.view ?? null) : null,
+					select: keep ? now.select : null,
+				},
 				"replace",
 				keep ? (stateOf()?.from ?? null) : null,
 				keep ? (stateOf()?.previous ?? false) : false,
 			);
 		},
-		openPlace(place) {
+		openPlace(place, view = null) {
 			const now = read();
-			if (now.place === place) return;
-			write({ ...now, place }, "push", stateOf()?.from ?? null, false);
+			const shown = place === null ? null : view;
+			if (now.place === place && (now.view ?? null) === shown) return;
+			write({ ...now, place, view: shown }, "push", stateOf()?.from ?? null, false);
+		},
+		setView(view, how = "push") {
+			const now = read();
+			if (now.place === null || (now.view ?? null) === view) return;
+			if (how === "push") write({ ...now, view }, "push", stateOf()?.from ?? null, false);
+			else {
+				// In place: not a history entry, but the place draws its view from the address.
+				const state = stateOf() ?? { webcraftBuilding: true, from: null, previous: false };
+				win.history.replaceState(state, "", printAddress({ ...now, view }));
+				tell("replace");
+			}
 		},
 		select(ref) {
 			const now = read();
@@ -186,7 +242,13 @@ export function shellDocuments(win: Window = window): Documents {
 			if (!state?.from) return;
 			// The page it was opened from is the entry before: Back, which keeps Forward to the document.
 			if (state.previous) win.history.back();
-			else write({ document: { kind: "page", page: state.from.page }, place: null, select: null }, "push", null, false);
+			else
+				write(
+					{ document: { kind: "page", page: state.from.page }, place: null, view: null, select: null },
+					"push",
+					null,
+					false,
+				);
 		},
 		subscribe(listener) {
 			listeners.add(listener);

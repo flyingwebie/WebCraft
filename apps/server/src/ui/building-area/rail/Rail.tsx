@@ -17,8 +17,9 @@ import {
 
 import { fill, type ShellConfig } from "../api.ts";
 import { FOCUS_RING, type Icon, IconButton, IconLink, Tip } from "../controls.tsx";
+import { type PlaceKey, placeEntry } from "../places/registry.ts";
 
-/** The rail's places (SPEC 2), each unavailable until its ticket brings it. */
+/** The rail's places (SPEC 2), each unavailable until it is in the places' registry (`places/registry.ts`). */
 const PLACES = [
 	{ key: "content", icon: FileTextIcon },
 	{ key: "templates", icon: LayoutTemplateIcon },
@@ -26,7 +27,7 @@ const PLACES = [
 	{ key: "styles", icon: PaletteIcon },
 	{ key: "loops", icon: RepeatIcon },
 	{ key: "components", icon: ComponentIcon },
-] as const satisfies readonly { key: string; icon: Icon }[];
+] as const satisfies readonly { key: PlaceKey; icon: Icon }[];
 
 /** A person's initials for the avatar: the first letters of their first and last names. */
 export function initialsOf(name: string): string {
@@ -43,6 +44,8 @@ export function initialsOf(name: string): string {
  */
 export function Rail({
 	config,
+	place,
+	onPlace,
 	darkPreview,
 	onDarkPreview,
 	hidden,
@@ -51,6 +54,10 @@ export function Rail({
 	exiting,
 }: {
 	config: ShellConfig;
+	/** The place open over the canvas (its button is drawn as the open place; pressing it again leaves). */
+	place?: PlaceKey | null;
+	/** A place's button was pressed: opens it, or leaves it when it is the open one. */
+	onPlace?(key: PlaceKey): void;
 	/** Whether the page in the frame shows its dark values. */
 	darkPreview: boolean;
 	onDarkPreview(on: boolean): void;
@@ -79,17 +86,23 @@ export function Rail({
 				</a>
 			</div>
 			<ul className="flex flex-col items-center gap-2 pt-1" data-wc-places="">
-				{PLACES.map((place) => (
-					<li key={place.key} className="flex">
-						<IconButton
-							icon={place.icon}
-							label={words.places[place.key]}
-							unavailable={words.unavailable}
-							side="end"
-							data={{ "data-wc-place": place.key }}
-						/>
-					</li>
-				))}
+				{PLACES.map((each) => {
+					const available = placeEntry(each.key) !== null;
+					return (
+						<li key={each.key} className="flex">
+							<IconButton
+								icon={each.icon}
+								label={words.places[each.key]}
+								unavailable={available ? undefined : words.unavailable}
+								pressed={available ? place === each.key : undefined}
+								on={place === each.key}
+								onClick={() => onPlace?.(each.key)}
+								side="end"
+								data={{ "data-wc-place": each.key }}
+							/>
+						</li>
+					);
+				})}
 				<li className="flex">
 					<IconButton
 						icon={EllipsisIcon}
@@ -113,21 +126,26 @@ export function Rail({
 					onClick={() => onDarkPreview(!darkPreview)}
 					data={{ "data-wc-rail": "dark-preview" }}
 				/>
-				<IconButton
-					icon={PanelsTopLeftIcon}
-					label={words.panels}
-					side="end"
-					unavailable={words.unavailable}
-					data={{ "data-wc-rail": "panels" }}
-				/>
-				<IconButton
-					icon={hidden ? EyeOffIcon : EyeIcon}
-					label={hidden ? words.showInterface : words.hideInterface}
-					side="end"
-					on={hidden}
-					onClick={() => onHidden(!hidden)}
-					data={{ "data-wc-rail": "hide-interface" }}
-				/>
+				{/* The Panels menu and Hide interface are the canvas's: a place has neither (`places-content/01`). */}
+				{place ? null : (
+					<>
+						<IconButton
+							icon={PanelsTopLeftIcon}
+							label={words.panels}
+							side="end"
+							unavailable={words.unavailable}
+							data={{ "data-wc-rail": "panels" }}
+						/>
+						<IconButton
+							icon={hidden ? EyeOffIcon : EyeIcon}
+							label={hidden ? words.showInterface : words.hideInterface}
+							side="end"
+							on={hidden}
+							onClick={() => onHidden(!hidden)}
+							data={{ "data-wc-rail": "hide-interface" }}
+						/>
+					</>
+				)}
 				<IconLink
 					icon={SettingsIcon}
 					label={words.settings}
