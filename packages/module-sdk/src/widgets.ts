@@ -76,9 +76,16 @@ export type WidgetCell = string | number | { count: number; of: number };
  */
 export type WidgetColumnKind = "text" | "path" | "source" | "country" | "device" | "count" | "rate";
 
-/** A Widget's data, in its kind's shape. `countedFrom`: the counts start there, older raw events being gone. */
+/**
+ * A Widget's data, in its kind's shape. `countedFrom`: the counts start there, older raw events being
+ * gone. A number may carry its `points` (SDK 1.16): its count in each hour or day of the range
+ * (`request.interval`), oldest first, which the admin draws as a small trend beside it.
+ */
 export type WidgetData = (
-	| { shape: "number"; values: readonly { key: string; label: Label; count: number; of?: number }[] }
+	| {
+			shape: "number";
+			values: readonly { key: string; label: Label; count: number; of?: number; points?: readonly number[] }[];
+	  }
 	| {
 			shape: "series";
 			lines: readonly { key: string; label: Label }[];

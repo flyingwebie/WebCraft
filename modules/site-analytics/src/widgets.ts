@@ -133,12 +133,15 @@ export const siteAnalyticsWidgets: readonly ModuleWidget[] = [
 		async query(request, context) {
 			const filters = filtersOf(request);
 			const found = await totals(context, request.range, filters);
+			// Each measure hour by hour or day by day, for the small trend beside it.
+			const points = await series(context, request.range, request.interval, filters);
 			return {
 				shape: "number",
 				values: chosenMeasures(request, MEASURES).map((measure) => ({
 					key: measure,
 					label: MEASURE_LABELS[measure],
 					count: found[measure],
+					points: points.map((point) => point[measure]),
 				})),
 				countedFrom: await countedFrom(context, request, filters !== undefined),
 			};

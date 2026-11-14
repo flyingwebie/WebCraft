@@ -110,8 +110,11 @@ export function StatTiles({ data, before, versus }: { data: Numbers; before: Num
 					<div key={value.key} className="min-w-0">
 						<dt className="text-muted-foreground truncate text-[0.8125rem]">{value.label}</dt>
 						<dd className="mt-1.5">
-							<span className="block text-[1.75rem] leading-[2.125rem] font-semibold tracking-[-0.025rem] tabular-nums">
-								{rate ? (percent(value.count, value.of ?? 0) ?? "–") : numbers.whole(value.count)}
+							<span className="flex items-end gap-2.5">
+								<span className="block text-[1.75rem] leading-[2.125rem] font-semibold tracking-[-0.025rem] tabular-nums">
+									{rate ? (percent(value.count, value.of ?? 0) ?? "–") : numbers.whole(value.count)}
+								</span>
+								{value.points && value.points.length > 1 ? <Spark points={value.points} /> : null}
 							</span>
 							{rate ? (
 								<span className="text-muted-foreground block text-xs">
@@ -130,6 +133,55 @@ export function StatTiles({ data, before, versus }: { data: Numbers; before: Num
 				);
 			})}
 		</dl>
+	);
+}
+
+/**
+ * A number's small trend: its counts hour by hour or day by day over the range, the earlier part grey
+ * and the latest part in the first series colour. Only a picture: the number beside it is the figure,
+ * and "Show as a table" gives the counts.
+ */
+function Spark({ points }: { points: readonly number[] }) {
+	const width = 96;
+	const height = 28;
+	const max = Math.max(...points);
+	const min = Math.min(...points);
+	const x = (index: number) => (index / (points.length - 1)) * (width - 6) + 3;
+	const y = (value: number) => 3 + (height - 6) - ((value - min) / (max - min || 1)) * (height - 6);
+	const cut = Math.floor(points.length * 0.6);
+	const path = (from: number, to: number) =>
+		points
+			.slice(from, to + 1)
+			.map((value, index) => `${index === 0 ? "M" : "L"} ${x(from + index).toFixed(1)} ${y(value).toFixed(1)}`)
+			.join(" ");
+	return (
+		// 96 by 28 where there is room; narrower in a narrow tile, never wider than its tile.
+		<svg
+			viewBox={`0 0 ${width} ${height}`}
+			preserveAspectRatio="none"
+			aria-hidden="true"
+			className="ms-auto mb-1 h-7 w-full max-w-24 min-w-0"
+			data-spark=""
+		>
+			<path
+				d={path(0, cut)}
+				fill="none"
+				stroke="var(--series-before)"
+				strokeWidth="2"
+				strokeLinejoin="round"
+				strokeLinecap="round"
+				vectorEffect="non-scaling-stroke"
+			/>
+			<path
+				d={path(cut, points.length - 1)}
+				fill="none"
+				stroke="var(--series-1)"
+				strokeWidth="2"
+				strokeLinejoin="round"
+				strokeLinecap="round"
+				vectorEffect="non-scaling-stroke"
+			/>
+		</svg>
 	);
 }
 

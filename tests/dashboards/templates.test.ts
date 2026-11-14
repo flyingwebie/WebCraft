@@ -180,6 +180,12 @@ describe("a Workspace Dashboard", () => {
 		const data = async (browser: TestBrowser, widgetId: string) =>
 			(await browser.api.dashboards.widgets.data({ ...place, dashboardId: dashboard.id, widgetId })).widget;
 
+		// The Sites' points add up day by day, as their counts do.
+		const added = (await data(staff, totals)).data;
+		if (added?.shape !== "number") throw new Error("Totals are numbers.");
+		for (const value of added.values) {
+			expect((value.points ?? []).reduce((sum, each) => sum + each, 0)).toBe(value.count);
+		}
 		expect(await data(staff, totals)).toMatchObject({
 			sites: { counted: 2, of: 3 },
 			data: {

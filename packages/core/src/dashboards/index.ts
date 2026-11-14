@@ -1102,6 +1102,7 @@ function dataView(data: WidgetData, info: KindInfo, language: string): WidgetDat
 					label: words(value.label),
 					count: value.count,
 					of: value.of ?? null,
+					points: value.points ? [...value.points] : null,
 				})),
 			};
 		case "series":

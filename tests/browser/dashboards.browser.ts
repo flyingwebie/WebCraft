@@ -154,6 +154,8 @@ for (const theme of THEMES) {
 		test("a Dashboard with every shape of Widget", async () => {
 			const page = await openOverview();
 			await page.getByText("Spring sale started on Monday.").waitFor();
+			// Each total has its small trend beside it, day by day over the range.
+			await page.locator("[data-spark]").first().waitFor();
 			await page.getByRole("slider", { name: /Over time/ }).waitFor();
 			await page.getByRole("list", { name: "Sign-up" }).getByText("Signed up").waitFor();
 			await page.getByRole("list", { name: "Devices" }).getByText("Computer").waitFor();
