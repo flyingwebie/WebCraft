@@ -621,7 +621,6 @@ function FileGrid({
 						<Link
 							{...fileLink(siteId, item.id)}
 							aria-current={current ? "true" : undefined}
-							aria-label={item.fileName}
 							title={item.fileName}
 							className={`bg-muted focus-visible:ring-ring/50 relative flex items-center justify-center overflow-hidden rounded-lg outline-none focus-visible:ring-3 ${
 								current ? "ring-primary ring-2" : "hover:ring-border hover:ring-2"
@@ -629,7 +628,10 @@ function FileGrid({
 							style={{ aspectRatio: ratio }}
 						>
 							{image ? (
-								<img src={image} alt="" loading="lazy" className="size-full object-cover" />
+								<>
+									<img src={image} alt="" loading="lazy" className="size-full object-cover" />
+									<span className="sr-only">{item.fileName}</span>
+								</>
 							) : (
 								<span className="text-muted-foreground grid justify-items-center gap-2 p-3 text-center text-xs">
 									<Icon className="size-8" aria-hidden="true" />

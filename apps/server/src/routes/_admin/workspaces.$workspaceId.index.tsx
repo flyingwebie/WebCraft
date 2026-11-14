@@ -38,8 +38,10 @@ export const Route = createFileRoute("/_admin/workspaces/$workspaceId/")({
 		const sites = context.place.level === "workspace" ? context.place.sites : [];
 		const [storage, activity, cards] = await Promise.all([
 			api.workspaces.storage({ workspaceId: params.workspaceId }),
-			// Only Staff and Owners read the Audit log; for everyone else the card is not there.
-			api.audit.list({ workspaceId: params.workspaceId, limit: ACTIVITY }).catch(() => null),
+			// Only those who read the Audit log (Staff, Owners) get "Recent activity"; it is never asked for the others.
+			context.place.level === "workspace" && context.place.permissions.includes("audit.view")
+				? api.audit.list({ workspaceId: params.workspaceId, limit: ACTIVITY }).catch(() => null)
+				: null,
 			Promise.all(sites.map((site) => siteCardOf(api, site.id))),
 		]);
 		return {
@@ -155,7 +157,7 @@ function SiteCard({ site, card }: { site: { id: string; name: string; slug: stri
 		card && card.changes > 0 ? t("sites.card.changes", { count: card.changes }) : null,
 	].filter(Boolean);
 	return (
-		<article className="bg-card text-card-foreground ring-foreground/10 focus-within:ring-ring/50 relative h-full overflow-hidden rounded-xl shadow-xs ring-1 focus-within:ring-3">
+		<article className="bg-card text-card-foreground ring-foreground/10 relative h-full overflow-hidden rounded-xl shadow-xs ring-1">
 			<SitePicture />
 			<div className="grid gap-1.5 p-4">
 				<div className="flex items-center justify-between gap-2">
@@ -163,7 +165,7 @@ function SiteCard({ site, card }: { site: { id: string; name: string; slug: stri
 						<Link
 							to="/sites/$siteId"
 							params={{ siteId: site.id }}
-							className="outline-none after:absolute after:inset-0 hover:underline"
+							className="focus-visible:ring-ring/50 rounded-sm outline-none after:absolute after:inset-0 hover:underline focus-visible:underline focus-visible:ring-3"
 						>
 							{site.name}
 						</Link>

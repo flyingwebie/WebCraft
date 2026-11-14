@@ -16,11 +16,20 @@ export const Route = createFileRoute("/_admin/sites/$siteId/")({
 	loader: async ({ params, context }) => {
 		const api = await getApi();
 		const workspaceId = context.place.level === "site" ? context.place.workspace.id : undefined;
+		// Only those who read the Workspace's Audit log (Staff, Owners) get "Recent activity"; it is
+		// never asked for the others, so they meet no refusal.
+		const readsAudit = async () =>
+			workspaceId !== undefined &&
+			(await api.workspaces.get({ workspaceId }).then(
+				({ permissions }) => permissions.includes("audit.view"),
+				() => false,
+			));
 		const [{ reviews }, domains, activity] = await Promise.all([
 			api.reviews.list({ siteId: params.siteId }),
 			api.domains.list({ siteId: params.siteId }),
-			// Only Staff and Owners read the Audit log; for everyone else the card is not there.
-			api.audit.list({ workspaceId, siteId: params.siteId, limit: ACTIVITY }).catch(() => null),
+			readsAudit().then((reads) =>
+				reads ? api.audit.list({ workspaceId, siteId: params.siteId, limit: ACTIVITY }).catch(() => null) : null,
+			),
 		]);
 		return { reviews, domains, activity };
 	},

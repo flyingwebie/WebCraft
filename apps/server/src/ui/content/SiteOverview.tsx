@@ -2,7 +2,7 @@ import { Link, useRouteContext } from "@tanstack/react-router";
 import type { ApiClient } from "@webcraft/api";
 import { Avatar, AvatarFallback } from "@webcraft/ui/components/avatar.tsx";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
-import { Button } from "@webcraft/ui/components/button.tsx";
+import { Button, buttonVariants } from "@webcraft/ui/components/button.tsx";
 import { ExternalLinkIcon, FilePlusIcon, SquarePenIcon, UploadIcon } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
@@ -61,14 +61,15 @@ export function SiteOverview({
 						description={drafts > 0 ? t("site.overview.draftsReady", { count: drafts }) : t("site.overview.draftsNone")}
 						action={
 							drafts > 0 ? (
-								<Button size="sm" nativeButton={false} render={<Link to="." search={{ publishAll: "1" }} />}>
+								// A link to the shell's Publish all, not a second button with the top bar's name.
+								<Link to="." search={{ publishAll: "1" }} className={buttonVariants({ size: "sm" })}>
 									<UploadIcon aria-hidden="true" />
 									{t("publishAll.button")}
 									<Badge variant="secondary" className="ms-1 tabular-nums">
 										{drafts}
 									</Badge>
 									<span className="sr-only"> {t("publishAll.changesCounted", { count: drafts })}</span>
-								</Button>
+								</Link>
 							) : null
 						}
 					/>

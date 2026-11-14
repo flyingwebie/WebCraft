@@ -270,7 +270,7 @@ describe("navigation", () => {
 		});
 		await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Media" }).click();
 		await page.getByRole("progressbar", { name: "Loading the page" }).waitFor();
-		await page.getByRole("heading", { level: 1, name: "Media" }).waitFor();
+		await page.getByRole("heading", { level: 1, name: "All files" }).waitFor();
 		await page.getByRole("progressbar", { name: "Loading the page" }).waitFor({ state: "hidden" });
 	});
 

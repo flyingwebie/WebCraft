@@ -13,6 +13,7 @@ let superadmin: TestAccount;
 let workspaceId: string;
 let siteId: string;
 let imageId: string;
+let trashedId: string;
 
 beforeAll(async () => {
 	install = await startBrowserInstall();
@@ -27,6 +28,7 @@ beforeAll(async () => {
 	});
 	imageId = media.id;
 	const { media: document } = await admin.api.media.upload({ siteId, file: upload(pdf("Old"), "old.pdf") });
+	trashedId = document.id;
 	const asked = await admin.api.media.delete({ siteId, mediaId: document.id });
 	if (!asked.trashed)
 		await admin.api.media.delete({ siteId, mediaId: document.id, confirmation: asked.confirmation.id });
@@ -124,13 +126,30 @@ for (const theme of THEMES) {
 			await install.signIn(page, superadmin);
 			await page.goto(install.adminUrl(`/sites/${siteId}/media?file=${imageId}`));
 			await page.waitForLoadState("networkidle");
+			await expectNoAxeViolations(page, `Media, a file's details (${theme})`, ["region"]);
 
-			await expectOverlayUsable(
-				page,
-				page.getByRole("button", { name: "Delete", exact: true }),
-				"dialog",
-				`Delete a file (${theme})`,
-			);
+			// The Delete dialog opens over the details sheet; Escape closes it alone, focus back on Delete.
+			const trigger = page.getByRole("button", { name: "Delete", exact: true });
+			await trigger.focus();
+			await page.keyboard.press("Enter");
+			const dialog = page.getByRole("dialog", { name: "Delete harbour.jpg?" });
+			await dialog.waitFor();
+			await expectNoAxeViolations(page, `Delete a file (${theme})`, ["region"]);
+			await page.keyboard.press("Escape");
+			await dialog.waitFor({ state: "detached" });
+			expect(await trigger.evaluate((button) => button === document.activeElement)).toBe(true);
+			await page.getByRole("dialog", { name: "harbour.jpg" }).waitFor();
+		});
+
+		test("a file in the Trash opens with Restore and Delete for good", async () => {
+			const page = await install.newPage(theme);
+			await install.signIn(page, superadmin);
+			await page.goto(install.adminUrl(`/sites/${siteId}/media?trash=true&file=${trashedId}`));
+			await page.waitForLoadState("networkidle");
+			const sheet = page.getByRole("dialog", { name: "old.pdf" });
+			await sheet.getByRole("button", { name: "Restore" }).waitFor();
+			await sheet.getByRole("button", { name: "Delete for good" }).waitFor();
+			await expectNoAxeViolations(page, `Media, a file in the Trash (${theme})`, ["region"]);
 		});
 
 		test("Empty Trash opens and closes from the keyboard", async () => {

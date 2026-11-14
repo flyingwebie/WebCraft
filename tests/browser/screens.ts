@@ -111,19 +111,10 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 	{ name: "Site › Media", path: ({ siteId }) => `/sites/${siteId}/media`, as: "staff" },
 	{ name: "Site › Imports, none yet (Staff)", path: ({ siteId }) => `/sites/${siteId}/imports`, as: "staff" },
 	{ name: "Site › Imports, none yet (Owner)", path: ({ siteId }) => `/sites/${siteId}/imports`, as: "owner" },
-	{
-		name: "Site › Media, a file's details",
-		path: ({ siteId, mediaId }) => `/sites/${siteId}/media?file=${mediaId}`,
-		as: "owner",
-	},
+	// A file's details open in a sheet over the page (a dialog): media.browser.ts checks them.
 	{ name: "Site › Media, the grid", path: ({ siteId }) => `/sites/${siteId}/media?view=grid`, as: "staff" },
 	{ name: "Site › Media, no match", path: ({ siteId }) => `/sites/${siteId}/media?q=nothing-matches`, as: "staff" },
 	{ name: "Site › Media, the Trash", path: ({ siteId }) => `/sites/${siteId}/media?trash=true`, as: "staff" },
-	{
-		name: "Site › Media, a file in the Trash",
-		path: ({ siteId, trashedMediaId }) => `/sites/${siteId}/media?trash=true&file=${trashedMediaId}`,
-		as: "staff",
-	},
 	{ name: "Install settings › Storage", path: "/settings/storage", as: "superadmin" },
 	{ name: "Install settings › Backups, with a failed one", path: "/settings/backups", as: "superadmin" },
 	{ name: "Install settings › Email (SMTP), not set", path: "/settings/email", as: "superadmin" },
