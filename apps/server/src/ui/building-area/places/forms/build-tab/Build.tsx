@@ -54,6 +54,15 @@ type DragState = {
 	step: number | null;
 };
 
+/** The step whose tab is under the point, if any. */
+function stepAt(x: number, y: number): number | null {
+	for (const tab of document.querySelectorAll<HTMLElement>("[data-wc-step-tab]")) {
+		const rect = tab.getBoundingClientRect();
+		if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return Number(tab.dataset.wcStepTab);
+	}
+	return null;
+}
+
 /** An item's name: its label, else its key. */
 function nameOf(field: FormField | undefined): string {
 	return field ? field.label.text || field.key : "";
@@ -280,15 +289,6 @@ export function Build({
 		return found;
 	}, []);
 
-	/** The step whose tab is under the point, if any. */
-	const stepAt = (x: number, y: number): number | null => {
-		for (const tab of document.querySelectorAll<HTMLElement>("[data-wc-step-tab]")) {
-			const rect = tab.getBoundingClientRect();
-			if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return Number(tab.dataset.wcStepTab);
-		}
-		return null;
-	};
-
 	const startDrag = useCallback(
 		(event: PointerEvent<HTMLElement>, what: Dragging) => {
 			if (event.button !== 0) return;
@@ -328,7 +328,7 @@ export function Build({
 				window.removeEventListener("pointermove", move);
 				window.removeEventListener("pointerup", up);
 				window.removeEventListener("pointercancel", cancel);
-				window.removeEventListener("keydown", escape, true);
+				window.removeEventListener("keydown", onEscape, true);
 				setDrag(null);
 				setLifted(null);
 				if (!active) return;
@@ -361,7 +361,7 @@ export function Build({
 			};
 			const up = () => finish(true);
 			const cancel = () => finish(false);
-			const escape = (pressed: globalThis.KeyboardEvent) => {
+			const onEscape = (pressed: globalThis.KeyboardEvent) => {
 				if (pressed.key !== "Escape" || !active) return;
 				pressed.preventDefault();
 				pressed.stopPropagation();
@@ -370,7 +370,7 @@ export function Build({
 			window.addEventListener("pointermove", move);
 			window.addEventListener("pointerup", up);
 			window.addEventListener("pointercancel", cancel);
-			window.addEventListener("keydown", escape, true);
+			window.addEventListener("keydown", onEscape, true);
 		},
 		[boxes, direction, editor, shown, add, announce, choose, onView],
 	);
@@ -669,7 +669,7 @@ export function Build({
 					<div
 						aria-hidden="true"
 						className="bg-chrome-raised text-chrome-strong ring-selection pointer-events-none fixed z-50 flex h-8 items-center gap-1.5 rounded-[7px] px-2.5 text-[12px] font-medium shadow-[0_8px_24px_rgba(0,0,0,0.5)] ring-2"
-						style={{ left: drag.x + 10, top: drag.y - 16 }}
+						style={{ left: drag.x + 12, top: drag.y - 44 }}
 						data-wc-drag-ghost=""
 					>
 						{DraggedIcon ? <DraggedIcon aria-hidden="true" className="size-3.5" /> : null}

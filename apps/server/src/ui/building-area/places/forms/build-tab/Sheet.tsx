@@ -110,10 +110,9 @@ export function Sheet({
 	return (
 		<div
 			ref={host}
-			id={panel?.id}
-			role={panel ? "tabpanel" : "region"}
-			aria-label={panel ? undefined : label}
-			aria-labelledby={panel?.tab}
+			{...(panel
+				? { id: panel.id, role: "tabpanel", "aria-labelledby": panel.tab }
+				: { role: "region", "aria-label": label })}
 			data-wc-theme="light"
 			data-wcb-sheet=""
 			data-wcb-styled={stylesheet === null ? undefined : ""}
