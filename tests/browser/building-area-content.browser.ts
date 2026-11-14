@@ -101,7 +101,8 @@ async function go(page: Page, address: string): Promise<void> {
 
 const placeFrame = (page: Page) => page.locator("[data-wc-place-frame]");
 const railButton = (page: Page) => page.locator('[data-wc-place="content"]');
-const canvas = (page: Page) => page.locator("#wc-canvas");
+/** The page in its frame, which stays underneath a place, hidden. */
+const canvas = (page: Page) => page.locator("iframe[data-wc-frame]");
 
 /** Opens the Content place from the rail, and waits for its list. */
 async function openContent(page: Page): Promise<void> {
@@ -150,7 +151,9 @@ describe("the Content place, for Staff", () => {
 		expect(await announced(page)).toBe("Content opened");
 		// The place takes the canvas's room; the rail and the bar stay, with no insert row and no Panels.
 		expect(await canvas(page).isVisible()).toBe(false);
-		expect(await canvas(page).getAttribute("inert")).not.toBeNull();
+		expect(await page.locator("[data-wc-canvas]").getAttribute("inert")).not.toBeNull();
+		// Inside the shell's main part, which the skip link and F6 reach.
+		expect(await page.locator("main [data-wc-place-frame]").count()).toBe(1);
 		expect(await page.locator("[data-building-region='rail']").isVisible()).toBe(true);
 		expect(await page.locator("[data-building-region='bar']").isVisible()).toBe(true);
 		expect(await page.locator("[data-wc-insert-row]").count()).toBe(0);

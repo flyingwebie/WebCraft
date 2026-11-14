@@ -211,6 +211,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 		<div
 			className="bg-chrome text-chrome-text grid h-dvh w-full grid-cols-[48px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_48px] overflow-hidden font-sans text-[12px]"
 			data-interface={hidden ? "hidden" : "shown"}
+			data-place={placeKey ?? undefined}
 		>
 			{/* The page itself is the main content: following the link puts focus in the frame (see <main>). */}
 			<a
@@ -257,45 +258,47 @@ export function Shell({ config }: { config: ShellConfig }) {
 					focusFrame();
 					if (location.hash) history.replaceState(history.state, "", `${location.pathname}${location.search}`);
 				}}
-				aria-label={words.canvas}
-				data-building-region={place ? undefined : "canvas"}
-				inert={place ? true : undefined}
-				className={`relative col-start-2 row-start-1 min-h-0 min-w-0 ${place ? "invisible" : ""}`}
+				aria-label={place && placeKey ? words.places[placeKey] : words.canvas}
+				data-building-region="canvas"
+				className="relative col-start-2 row-start-1 min-h-0 min-w-0"
 			>
-				{opened.shown?.status === "missing" || opened.shown?.status === "later" ? (
-					<NoDocument words={words} why={opened.shown.status} />
-				) : null}
-				{opened.shown?.status === "shown" ? (
-					<Frame
-						address={opened.shown.frame}
-						following={hidden}
-						onFollow={opened.follow}
+				{/* While a place is open the canvas stays as it was (its page, selection and panels), hidden and inert. */}
+				<div className={`contents ${place ? "invisible" : ""}`} inert={place ? true : undefined} data-wc-canvas="">
+					{opened.shown?.status === "missing" || opened.shown?.status === "later" ? (
+						<NoDocument words={words} why={opened.shown.status} />
+					) : null}
+					{opened.shown?.status === "shown" ? (
+						<Frame
+							address={opened.shown.frame}
+							following={hidden}
+							onFollow={opened.follow}
+							words={words}
+							request={request}
+							cycle={() => cycle.current}
+							announce={announce}
+							breakpoints={config.breakpoints}
+							theme={theme}
+							handle={frame}
+							onPage={onPage}
+							onSaving={onSaving}
+						/>
+					) : null}
+				</div>
+				{place && opened.address.place ? (
+					<place.component
+						config={config}
 						words={words}
-						request={request}
-						cycle={() => cycle.current}
+						place={opened.address.place}
+						view={opened.address.view ?? null}
+						documents={opened.documents}
+						documentName={opened.title.name}
+						leave={leavePlace}
+						open={opened.open}
 						announce={announce}
-						breakpoints={config.breakpoints}
-						theme={theme}
-						handle={frame}
-						onPage={onPage}
-						onSaving={onSaving}
+						onSaving={(status) => setSaving(status === "saving" ? "saving" : status === "failed" ? "failed" : "idle")}
 					/>
 				) : null}
 			</main>
-			{place && opened.address.place ? (
-				<place.component
-					config={config}
-					words={words}
-					place={opened.address.place}
-					view={opened.address.view ?? null}
-					documents={opened.documents}
-					documentName={opened.title.name}
-					leave={leavePlace}
-					open={opened.open}
-					announce={announce}
-					onSaving={(status) => setSaving(status === "saving" ? "saving" : status === "failed" ? "failed" : "idle")}
-				/>
-			) : null}
 			<div className="sr-only" data-wc-messages="">
 				<p role="status" aria-live="polite" aria-atomic="true">
 					{message.urgent ? "" : message.text}

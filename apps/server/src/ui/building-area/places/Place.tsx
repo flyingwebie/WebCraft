@@ -21,8 +21,8 @@ function keptBy(target: EventTarget | null): boolean {
  * for a Member, "Back to {page}" in words) and the place's title (16 px); with an inner sidebar (256
  * wide) the header heads the sidebar, as the frames draw it, and the pane beside it is the place's own.
  *
- * Escape with no field focused leaves the place, as the back button does. The place is the canvas's
- * stop in the F6 cycle while it is open (`data-building-region="canvas"`).
+ * Escape with no field focused leaves the place, as the back button does. It is drawn inside the
+ * shell's `<main>` over the canvas, so the skip link and F6's canvas stop land in it while it is open.
  */
 export function Place({
 	words,
@@ -108,9 +108,8 @@ export function Place({
 	return (
 		<section
 			aria-label={title}
-			data-building-region="canvas"
 			data-wc-place-frame={place}
-			className="bg-chrome text-chrome-text relative z-10 col-start-2 row-start-1 flex min-h-0 min-w-0"
+			className="bg-chrome text-chrome-text absolute inset-0 z-10 flex min-h-0 min-w-0"
 		>
 			{sidebar ? (
 				<>
