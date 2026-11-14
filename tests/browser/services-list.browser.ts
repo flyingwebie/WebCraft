@@ -84,7 +84,8 @@ describe("changing the list", () => {
 		await page.getByRole("button", { name: "Actions for Search engine optimisation" }).click();
 		await page.getByRole("menuitem", { name: "Move down" }).click();
 		await page.getByRole("status").filter({ hasText: "Search engine optimisation moved to position 2." }).waitFor();
-		await expect.poll(savedNames).toEqual(["Monthly content", "Search engine optimisation", "Photography"]);
+		// The move is said once it is saved.
+		expect(await savedNames()).toEqual(["Monthly content", "Search engine optimisation", "Photography"]);
 		expect(await page.getByRole("row").nth(1).textContent()).toContain("Monthly content");
 		expect(await page.getByRole("row").nth(2).textContent()).toContain("Search engine optimisation");
 	});

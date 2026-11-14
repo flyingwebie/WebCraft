@@ -190,11 +190,9 @@ for (const theme of THEMES)
 			await page.keyboard.press("Escape");
 			await sheet.waitFor({ state: "hidden" });
 			await page.waitForURL((url) => !url.searchParams.has("popup"));
-			await expect
-				.poll(() =>
-					page.getByRole("link", { name: "modal", exact: true }).evaluate((e) => e === document.activeElement),
-				)
-				.toBe(true);
+			await page.waitForFunction(
+				() => document.activeElement?.tagName === "A" && document.activeElement.textContent === "modal",
+			);
 			await page.close();
 		});
 test("click Popup remains useful without JavaScript", async () => {
