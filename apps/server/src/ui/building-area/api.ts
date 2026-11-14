@@ -1,6 +1,7 @@
 import type { Permission } from "@webcraft/core";
 
 import type en from "../../messages/en.json";
+import type { Layout } from "./docks/layout.ts";
 
 /** The building area's words, in the person's Admin language (`buildingArea` in the message files). */
 export type Words = (typeof en)["buildingArea"];
@@ -45,6 +46,8 @@ export type ShellConfig = {
 	permissions: ShellPermission[];
 	/** The admin's own words for the admin parts the shell reuses (the Media library's), in `language`. */
 	adminMessages: AdminMessages;
+	/** Where the person keeps their panels (their editor preferences); null for the defaults. */
+	layout: Layout | null;
 };
 
 /**

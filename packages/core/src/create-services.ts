@@ -26,6 +26,7 @@ import {
 	createReviews,
 	deleteComponent,
 	deleteEntry,
+	deletePostType,
 	entryBodyComponents,
 	getArchiveTemplate,
 	getArchiveTemplateMarkup,
@@ -505,6 +506,7 @@ export async function createInstallServices(
 			get: getPostType,
 			create: createPostType,
 			update: updatePostType,
+			delete: deletePostType,
 			data: entryTemplateData,
 		},
 		entries: {

@@ -123,6 +123,7 @@ export function DocumentSwitcher({
 	const button = useRef<HTMLButtonElement>(null);
 	const id = useId();
 	const label = fill(words.documents.switch, { document: titleText(words, title) });
+	const [before = "", after = ""] = words.documents.switch.split("{document}");
 	const list = open && data ? switchable(words, data, current) : null;
 	return (
 		<div className="relative flex min-w-0 grow">
@@ -132,7 +133,6 @@ export function DocumentSwitcher({
 				aria-haspopup="menu"
 				aria-expanded={open}
 				aria-controls={open ? id : undefined}
-				aria-label={label}
 				disabled={!data}
 				onClick={() => setOpen((was) => !was)}
 				onKeyDown={(event) => {
@@ -144,8 +144,16 @@ export function DocumentSwitcher({
 				className={`hover:bg-chrome-hover flex h-6 min-w-0 grow items-center gap-1.5 rounded-[5px] px-1 text-start text-[12px] ${CHROME_EASE} ${FOCUS_RING}`}
 				data-wc-document-title=""
 			>
+				{/* Its name is its visible words with the action around them, so what is read contains what is seen. */}
+				<span className="sr-only">{before}</span>
 				<span className="text-chrome-strong truncate font-semibold">{title.name}</span>
-				{title.kind ? <span className="text-chrome-muted shrink-0">{title.kind}</span> : null}
+				{title.kind ? (
+					<>
+						{title.name ? <span className="sr-only"> · </span> : null}
+						<span className="text-chrome-muted shrink-0">{title.kind}</span>
+					</>
+				) : null}
+				{after ? <span className="sr-only">{after}</span> : null}
 				<ChevronsUpDownIcon aria-hidden="true" className="text-chrome-muted ms-auto size-3.5 shrink-0" />
 			</button>
 			{list ? (

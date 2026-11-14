@@ -136,6 +136,8 @@ import {
 	PopupInvalidError,
 	PopupNotFoundError,
 	PopupPublishRequiredError,
+	PostTypeBuiltInError,
+	PostTypeInUseError,
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
 	PostTypeTakenError,
@@ -460,6 +462,17 @@ export function toApiError(error: unknown): unknown {
 			status: 400,
 			message: error.message,
 			data: { problems: error.problems },
+			cause: error,
+		});
+	}
+	if (error instanceof PostTypeBuiltInError) {
+		return new ORPCError("POST_TYPE_BUILT_IN", { status: 409, message: error.message, cause: error });
+	}
+	if (error instanceof PostTypeInUseError) {
+		return new ORPCError("POST_TYPE_IN_USE", {
+			status: 409,
+			message: error.message,
+			data: { usedIn: error.usedIn },
 			cause: error,
 		});
 	}

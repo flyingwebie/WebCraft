@@ -77,6 +77,7 @@ export async function buildingAreaEndpoint(
 	const siteLanguages = await services.languages.get(edit.session.scope);
 	const { site } = edit.session.scope;
 	const resource = { level: "site", workspaceId: site.workspaceId, siteId: site.id } as const;
+	const preferences = await services.people.editorPreferences(edit.session.personId);
 	const config: ShellConfig = {
 		token: edit.session.headerToken,
 		page: document?.kind === "page" ? document.page : null,
@@ -99,6 +100,7 @@ export async function buildingAreaEndpoint(
 		},
 		permissions: SHELL_PERMISSIONS.filter((permission) => can(edit.session.scope.access.actor, permission, resource)),
 		adminMessages: ADMIN_MESSAGES[language],
+		layout: preferences.layout,
 	};
 	const files = await buildingAreaAssets();
 	const html = [

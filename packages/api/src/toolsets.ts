@@ -38,6 +38,7 @@ export const TOOL_PLACES = {
 	"postTypes.get": place(["content", "structure"], "site.view"),
 	"postTypes.create": place(["structure"], "structure.edit"),
 	"postTypes.update": place(["structure"], "structure.edit"),
+	"postTypes.delete": place(["structure"], "structure.edit"),
 	"postTypes.data": place(["structure"], "structure.edit"),
 	"entries.list": place(["content"], "site.view"),
 	"entries.get": place(["content"], "site.view"),
