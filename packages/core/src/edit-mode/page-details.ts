@@ -166,7 +166,9 @@ export async function savePageDetails(
 		(change.slug !== undefined && at === "slug") ||
 		(change.seo !== undefined && at.startsWith("seo.")) ||
 		(summaryPath !== null && at === `fields.${summaryPath}`) ||
-		fieldKeys.some((key) => at === `fields.${key}` || at.startsWith(`fields.${key}.`) || at.startsWith(`fields.${key}[`));
+		fieldKeys.some(
+			(key) => at === `fields.${key}` || at.startsWith(`fields.${key}.`) || at.startsWith(`fields.${key}[`),
+		);
 	return {
 		details: await pageDetails(scope, media, change.item, saved.language),
 		problems: saved.problems.filter((problem) => touched(problem.at)),
