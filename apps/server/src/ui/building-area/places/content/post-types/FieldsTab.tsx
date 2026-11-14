@@ -219,7 +219,7 @@ export function FieldsTab({
 						onSelect(null);
 					}}
 					aria-expanded={adding?.parent === null}
-					className={`text-chrome-faint hover:bg-chrome-raised hover:text-chrome-text flex h-9 items-center gap-2 rounded-md px-2 text-start text-[12px] ${CHROME_EASE} ${FOCUS_RING}`}
+					className={`text-chrome-muted hover:bg-chrome-raised hover:text-chrome-text flex h-9 items-center gap-2 rounded-md px-2 text-start text-[12px] ${CHROME_EASE} ${FOCUS_RING}`}
 					data-wc-field-new=""
 				>
 					<PlusIcon aria-hidden="true" className="size-3.5" />
@@ -376,7 +376,7 @@ function FieldListRow({
 					<span className={`truncate text-[12px] font-medium ${flagged ? "text-chrome-danger" : "text-chrome-text"}`}>
 						{label}
 					</span>
-					<span className="text-chrome-faint shrink-0 font-mono text-[11px]">{row.field.key}</span>
+					<span className="text-chrome-muted shrink-0 font-mono text-[11px]">{row.field.key}</span>
 					{row.field.required ? (
 						<>
 							<AsteriskIcon aria-hidden="true" className="text-chrome-danger size-2.5 shrink-0" />

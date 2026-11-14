@@ -13,7 +13,7 @@ import { CHROME_EASE, FOCUS_RING } from "../../../controls.tsx";
 
 /** A text box on a card: no box of its own, the card is the box. */
 export const BARE_INPUT =
-	"text-chrome-strong placeholder:text-chrome-faint w-full min-w-0 rounded-sm bg-transparent text-[12px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-chrome-focus";
+	"text-chrome-strong placeholder:text-chrome-muted w-full min-w-0 rounded-sm bg-transparent text-[12px] font-medium outline-none focus-visible:ring-2 focus-visible:ring-chrome-focus";
 
 /** How long after the last key a setting is saved (as the Globals form saves values). */
 export const SAVE_AFTER_MS = 800;
