@@ -11,7 +11,13 @@ import type { PlaceComponent, PlaceEntry, PlaceProps } from "./registry.ts";
  * line saying it is loading; a fetch that fails says so in words, with Try again. Once loaded, a place
  * draws straight away whenever it is opened again in this tab.
  */
-export function PlaceLoader({ entry, ...props }: PlaceProps & { entry: PlaceEntry }) {
+export function PlaceLoader(props: PlaceProps & { entry: PlaceEntry }) {
+	// One loader per place: another place opening starts afresh, never drawing the last one's code with
+	// the new one's address (as a place's own component changing did before).
+	return <LoadedPlace key={props.entry.key} {...props} />;
+}
+
+function LoadedPlace({ entry, ...props }: PlaceProps & { entry: PlaceEntry }) {
 	const { key } = entry;
 	const [state, setState] = useState<LoadState>(() => stateOf(key));
 
