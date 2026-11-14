@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, foreignKey, index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, foreignKey, index, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 import { people } from "./people.ts";
 import { sites, workspaces } from "./tenancy.ts";
@@ -23,11 +23,17 @@ export const dashboards = pgTable(
 		sharedWithEveryone: boolean("shared_with_everyone").notNull().default(false),
 		/** Its Widgets, in the order they were added (`StoredWidget[]`). */
 		widgets: jsonb("widgets").notNull().default(sql`'[]'::jsonb`),
+		/**
+		 * Whether it is the Site's built-in "Site analytics" Dashboard, which every Site has from the start:
+		 * arranged and renamed like any other, never deleted, listed first. One per Site.
+		 */
+		builtIn: boolean("built_in").notNull().default(false),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 		updatedBy: uuid("updated_by").references(() => people.id, { onDelete: "set null" }),
 	},
 	(table) => [
+		uniqueIndex("dashboards_built_in_site_idx").on(table.siteId).where(sql`${table.builtIn}`),
 		foreignKey({
 			name: "dashboards_site_fkey",
 			columns: [table.workspaceId, table.siteId],
