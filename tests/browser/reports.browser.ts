@@ -288,12 +288,14 @@ describe("from the keyboard", () => {
 
 	test("Staff revoke a Share link with a second press", async () => {
 		const api = (await install.install.superadmin()).api;
-		await api.shareLinks.create({ siteId, dashboardId, name: "For the old agency", language: "en" });
 		const page = await install.newPage("light");
 		await install.signIn(page, staff);
 		await page.goto(install.adminUrl(`/sites/${siteId}/dashboards/${dashboardId}`));
 		await page.getByRole("button", { name: "Share" }).click();
 		const sheet = page.getByRole("dialog", { name: "Share links" });
+		await sheet.getByLabel("Name").fill("For the old agency");
+		await sheet.getByRole("button", { name: "Create" }).click();
+		await sheet.getByLabel("Its address").waitFor();
 		const revoke = sheet.getByRole("button", { name: "Revoke For the old agency" });
 		await revoke.focus();
 		await page.keyboard.press("Enter");
