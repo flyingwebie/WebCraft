@@ -152,7 +152,7 @@ export function FieldsTab({
 	const move = (row: FieldRow, to: number) => {
 		if (to < 0 || to >= row.siblings || to === row.index) return;
 		refocus.current = row.path;
-		commit(moveTo(fields, row.path, to));
+		commit(moveTo(latest.current, row.path, to));
 		announce(
 			fill(shown.moved, {
 				label: row.field.label || row.field.key,
