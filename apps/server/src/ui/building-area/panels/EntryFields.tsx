@@ -13,7 +13,6 @@ import { fill, type Words } from "../api.ts";
 import { AddressField, DetailsStatus, SearchAndSharing, TitleField } from "../client/PageDetails.tsx";
 import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
 import { PanelButton } from "../docks/PanelFrame.tsx";
-import { Badge } from "../places/content/ui.tsx";
 import {
 	type EntryDetails,
 	type EntryDetailsOptions,
@@ -263,6 +262,22 @@ function Section({
 				{open ? children : null}
 			</div>
 		</section>
+	);
+}
+
+/** A status badge on the chrome (18 high, `builder/08`): Published in green, a Draft in amber, In review in blue. */
+function Badge({ kind, children }: { kind: "draft" | "live" | "info"; children: ReactNode }) {
+	const look = {
+		draft: "bg-[#422006] text-chrome-warn",
+		live: "bg-[#0f2e1c] text-chrome-ok",
+		info: "bg-[#172554] text-[#bfdbfe]",
+	}[kind];
+	return (
+		<span
+			className={`inline-flex h-[18px] shrink-0 items-center rounded-[5px] px-1.5 text-[11px] font-medium whitespace-nowrap ${look}`}
+		>
+			{children}
+		</span>
 	);
 }
 
