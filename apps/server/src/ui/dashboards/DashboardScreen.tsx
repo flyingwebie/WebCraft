@@ -74,7 +74,7 @@ import { type Edge, titleOf, WidgetCard } from "./WidgetCard.tsx";
 import { fieldsOf, needsChoice, type WidgetFields, WidgetSettingsPanel } from "./WidgetDialogs.tsx";
 
 /** One step of arranging, which Undo takes back and Redo does again. `merge`: later changes of the same kind join it. */
-type Step = { undo: () => Promise<void>; redo: () => Promise<void>; merge?: string };
+type Step = { undo: () => Promise<void>; redo: () => Promise<void>; merge?: string; undone?: boolean };
 
 /** Where Widgets are, by the key each keeps for the session (a Widget put back by Undo gets a new id). */
 type Snapshot = Map<string, Rect>;
@@ -237,23 +237,27 @@ export function DashboardScreen({
 	const record = (step: Step) => {
 		const top = undoStack.current.at(-1);
 		if (step.merge && top?.merge === step.merge) {
-			undoStack.current = [...undoStack.current.slice(0, -1), { ...top, redo: step.redo }];
+			top.redo = step.redo;
 		} else {
 			undoStack.current = [...undoStack.current, step];
 		}
 		redoStack.current = [];
 		bump();
 	};
+	// A step is undone once, whether from the bar, the keys or a toast (which still works after Done).
 	const undo = (step = undoStack.current.at(-1)) => {
-		if (!step || !undoStack.current.includes(step)) return;
+		if (!step || step.undone) return;
+		step.undone = true;
+		step.merge = undefined;
 		undoStack.current = undoStack.current.filter((each) => each !== step);
-		redoStack.current = [...redoStack.current, { ...step, merge: undefined }];
+		redoStack.current = [...redoStack.current, step];
 		bump();
 		void run(step.undo);
 	};
 	const redo = () => {
 		const step = redoStack.current.at(-1);
 		if (!step) return;
+		step.undone = false;
 		redoStack.current = redoStack.current.slice(0, -1);
 		undoStack.current = [...undoStack.current, step];
 		bump();
