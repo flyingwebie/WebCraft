@@ -61,6 +61,11 @@ export type HistoryPage = {
 	retention: Omit<HistorySettings, "revisionsOn">;
 	/** Whether the person may restore into the item's Draft: whoever may change it. */
 	canRestore: boolean;
+	/**
+	 * Whether the item is published now: false before its first publish and after an Entry is
+	 * unpublished, which keeps its Revisions. The newest Revision of a live item is what visitors see.
+	 */
+	live: boolean;
 };
 
 /**
@@ -111,6 +116,7 @@ export function createHistory(deps: { database: Database; componentSources: Comp
 				revisions: await revisionsState(scope, state),
 				retention,
 				canRestore: can(scope.access.actor, historyEditPermission(item), resource),
+				live: state.published !== null,
 			};
 		},
 		compare: (scope, item, ref, language) =>
