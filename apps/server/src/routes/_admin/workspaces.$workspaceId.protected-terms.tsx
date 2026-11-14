@@ -5,7 +5,7 @@ import { pageTitle } from "../../ui/i18n.tsx";
 import { ProtectedTermsPage } from "../../ui/translations/ProtectedTermsPage.tsx";
 
 export const Route = createFileRoute("/_admin/workspaces/$workspaceId/protected-terms")({
-	staticData: { crumb: "protectedTerms.pageTitle" },
+	staticData: { crumb: "protectedTerms.pageTitle", width: "form" },
 	loader: async ({ params, context }) => {
 		const api = await getApi();
 		const { workspaceId } = params;

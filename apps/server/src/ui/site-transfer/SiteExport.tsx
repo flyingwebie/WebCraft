@@ -99,7 +99,7 @@ export function SiteExportPage({ siteId, initial }: { siteId: string; initial: S
 		<>
 			<PageHeader heading={t("siteExport.heading")}>{t("siteExport.intro")}</PageHeader>
 			<div className="grid max-w-5xl grid-cols-1 gap-8">
-				<div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+				<div className="grid grid-cols-1 gap-8 @2xl/page:grid-cols-2">
 					<Card>
 						<CardHeader>
 							<CardTitle>

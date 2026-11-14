@@ -131,7 +131,7 @@ export function FieldBuilder({
 	};
 
 	return (
-		<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
+		<div className="grid gap-6 @4xl/page:grid-cols-[minmax(0,1fr)_22rem]">
 			<section aria-labelledby="field-list-heading" className="grid min-w-0 content-start gap-3">
 				<h2 id="field-list-heading" className="text-lg font-semibold tracking-tight">
 					{t("postTypes.fields.heading")}
@@ -191,7 +191,7 @@ export function FieldBuilder({
 					}}
 				/>
 			) : (
-				<p className="text-muted-foreground hidden rounded-lg border border-dashed p-6 text-center text-sm xl:block">
+				<p className="text-muted-foreground hidden rounded-lg border border-dashed p-6 text-center text-sm @4xl/page:block">
 					{t("postTypes.fields.selectHint")}
 				</p>
 			)}

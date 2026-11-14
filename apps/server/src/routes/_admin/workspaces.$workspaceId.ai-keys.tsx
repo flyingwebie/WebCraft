@@ -6,7 +6,7 @@ import { pageTitle, useT } from "../../ui/i18n.tsx";
 import { Forbidden } from "../../ui/PageHeader.tsx";
 
 export const Route = createFileRoute("/_admin/workspaces/$workspaceId/ai-keys")({
-	staticData: { crumb: "aiKeys.pageTitle" },
+	staticData: { crumb: "aiKeys.pageTitle", width: "form" },
 	loader: async ({ params, context }) => {
 		if (!context.place.permissions.includes("aiKey.manage")) return null;
 		const api = await getApi();

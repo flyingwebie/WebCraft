@@ -1,6 +1,7 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
+import { isValidElement } from "react";
 
 // WebCraft: transitions leave out opacity. A Button that stops being disabled (its own `disabled`, or
 // a disabled fieldset around it) shows full contrast at once instead of fading from the dimmed look.
@@ -21,6 +22,8 @@ const buttonVariants = cva(
 				// hover darkens, so the label keeps at least the contrast it has at rest.
 				destructive:
 					"bg-destructive focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:text-destructive dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40 text-white hover:bg-[color-mix(in_oklch,var(--destructive),black_12%)]",
+				// WebCraft: `text-primary` is the primary colour's text step (`--primary-text` in globals.css),
+				// which keeps 4.5:1 on the page in dark as well; the fill's orange does not.
 				link: "text-primary underline-offset-4 hover:underline",
 			},
 			size: {
@@ -43,13 +46,28 @@ const buttonVariants = cva(
 	},
 );
 
+/**
+ * WebCraft: a Button drawn as something else (`render={<Link … />}`, an anchor) is not a native
+ * `<button>`, and Base UI logs an error unless it is told so. The Button works it out from `render`:
+ * only an element that is not a `<button>` switches it off; `nativeButton` still overrides.
+ */
 function Button({
 	className,
 	variant = "default",
 	size = "default",
+	render,
+	nativeButton,
 	...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
-	return <ButtonPrimitive data-slot="button" className={cn(buttonVariants({ variant, size, className }))} {...props} />;
+	return (
+		<ButtonPrimitive
+			data-slot="button"
+			className={cn(buttonVariants({ variant, size, className }))}
+			render={render}
+			nativeButton={nativeButton ?? !(isValidElement(render) && render.type !== "button")}
+			{...props}
+		/>
+	);
 }
 
 export { Button, buttonVariants };

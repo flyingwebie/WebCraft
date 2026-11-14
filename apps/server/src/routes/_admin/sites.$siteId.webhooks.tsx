@@ -12,7 +12,7 @@ const search = z.object({
 });
 
 export const Route = createFileRoute("/_admin/sites/$siteId/webhooks")({
-	staticData: { crumb: "webhooks.pageTitle" },
+	staticData: { crumb: "webhooks.pageTitle", width: "form" },
 	validateSearch: search,
 	loaderDeps: ({ search: { webhook, before } }) => ({ webhook, before }),
 	loader: async ({ params, deps, context }) => {

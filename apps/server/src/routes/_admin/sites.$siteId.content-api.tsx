@@ -5,7 +5,7 @@ import { ContentApiPage } from "../../ui/content-api/ContentApi.tsx";
 import { pageTitle } from "../../ui/i18n.tsx";
 
 export const Route = createFileRoute("/_admin/sites/$siteId/content-api")({
-	staticData: { crumb: "shell.nav.contentApi" },
+	staticData: { crumb: "shell.nav.contentApi", width: "form" },
 	loader: async ({ params, context }) => {
 		if (!context.place.permissions.includes("structure.edit")) return null;
 		const api = await getApi();

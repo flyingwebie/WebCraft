@@ -178,7 +178,7 @@ function StartForm({
 
 	const counts = archive.counts;
 	return (
-		<div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_22rem]">
+		<div className="grid grid-cols-1 gap-8 @2xl/page:grid-cols-[1fr_22rem]">
 			<Card>
 				<CardHeader>
 					<CardTitle>
@@ -554,7 +554,7 @@ function Report({
 	];
 
 	return (
-		<div className="grid grid-cols-1 gap-8 xl:grid-cols-[1fr_20rem]">
+		<div className="grid grid-cols-1 gap-8 @4xl/page:grid-cols-[1fr_20rem]">
 			<div className="grid content-start gap-8">
 				<div className="grid grid-cols-2 gap-4 md:grid-cols-3">
 					<Stat
