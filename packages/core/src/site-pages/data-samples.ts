@@ -1,7 +1,16 @@
 import { entries, globals, loops } from "@webcraft/db/schema";
-import { bodyExcerpt, bodyImage, bodyReadingTime, bodyToc, DEFAULT_ITEM_NAME, storedBlocks } from "@webcraft/renderer";
+import {
+	bodyExcerpt,
+	bodyImage,
+	bodyReadingTime,
+	bodyToc,
+	DEFAULT_ITEM_NAME,
+	loopNamesIn,
+	storedBlocks,
+} from "@webcraft/renderer";
 import { and, desc, eq } from "drizzle-orm";
 
+import { publishedPagesShowing } from "../content/components.ts";
 import { entryValues } from "../content/entries.ts";
 import { publishedAddresses } from "../content/entry-paths.ts";
 import { LoopNotFoundError } from "../content/errors.ts";
@@ -82,6 +91,49 @@ export async function loopData(scope: SiteScope, loopId: string, language?: stri
 		...fieldBindings(uniqueFields(listed), `${DEFAULT_ITEM_NAME}.`, postTypes, true),
 	];
 	return { item: first ? await entrySample(scope, first.entry, postTypes, languages) : null, bindings };
+}
+
+/**
+ * What a Loop's Draft lists (the Loops place's result, BA-25): its items as bindings read them, from
+ * the Drafts as the Data tab reads them (a query Loop's Draft query over the Drafts of the Site's
+ * Entries, its offset and limit applied; a Loop of its own items, every one), how many there are in
+ * all (a query's matches, across pages), and on how many published pages visitors see the Loop
+ * (through the published Templates and Components that name it, counted as a Component's pages are).
+ */
+export type LoopResult = {
+	items: NonNullable<DataSample["item"]>[];
+	/** Every item the Draft finds: a query's matching Entries before its offset and limit. */
+	total: number;
+	/** The published pages that show the Loop. */
+	pages: number;
+};
+
+export async function loopResult(scope: SiteScope, loopId: string, language?: string): Promise<LoopResult> {
+	const row = isUuid(loopId) ? await scope.first(loops, eq(loops.id, loopId)) : undefined;
+	if (!row) throw new LoopNotFoundError();
+	const languages = await languagesOf(scope, language);
+	const version = storedLoopVersion(row.draft);
+	const pages = (await publishedPagesShowing(scope))((tree) => loopNamesIn(tree).includes(row.name));
+	if (version.source === "items") {
+		const items = loopItems(version, languages).map(({ id: _, ...values }) => ({
+			label: String(Object.values(values).find((value) => typeof value === "string") ?? ""),
+			values: sampleOf(version.fields, values, new Map(), false),
+		}));
+		return { items, total: items.length, pages };
+	}
+	const postTypes = await listPostTypes(scope);
+	const place = { current: null, languages, page: null, path: "/", version: "draft" } as const;
+	const { query } = version;
+	const rows = await queryRows(scope, query, place, postTypes, query.offset, query.limit);
+	// Past the last match there is no row to carry the count: ask for the first one.
+	const total =
+		rows[0]?.total ?? (query.offset > 0 ? ((await queryRows(scope, query, place, postTypes, 0, 1))[0]?.total ?? 0) : 0);
+	const items: LoopResult["items"] = [];
+	for (const found of rows) {
+		const item = await entrySample(scope, found.entry, postTypes, languages);
+		if (item) items.push(item);
+	}
+	return { items, total, pages };
 }
 
 /**

@@ -115,6 +115,9 @@ export const BUILDING_AREA_PROCEDURES = [
 	"loops.saveItems",
 	"loops.data",
 	"loops.publish",
+	// The Loops place's result (BA-25): what a Loop's Draft lists and the pages showing it, read as the
+	// Data tab reads (`structure.edit`, Staff only; a Member's call is FORBIDDEN). It reads, never writes.
+	"loops.result",
 	// Page layouts, as Members arrange them.
 	"pageLayouts.settings",
 	// The Components place's "Allowed for Members" switch: which Components Members may add to a Page

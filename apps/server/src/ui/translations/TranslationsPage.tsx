@@ -1,8 +1,6 @@
 import { Link, useRouter } from "@tanstack/react-router";
 import type { LanguageTranslations, QueueLine, TranslationMode, TranslationsOverview } from "@webcraft/core";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import { Field, FieldLabel, FieldLegend, FieldSet } from "@webcraft/ui/components/field.tsx";
-import { RadioGroup, RadioGroupItem } from "@webcraft/ui/components/radio-group.tsx";
 import {
 	CheckCheckIcon,
 	CheckIcon,
@@ -31,8 +29,6 @@ export const MODE_WORDS: Record<TranslationMode, { label: MessageKey; help: Mess
 	manual: { label: "translations.modes.manual", help: "translations.modes.manualHelp" },
 };
 
-const MODES: readonly TranslationMode[] = ["automatic", "review", "manual"];
-
 /** Why work waits, in words. */
 export const WAITING_WORDS: Record<string, MessageKey> = {
 	noKey: "translations.waiting.noKey",
@@ -43,56 +39,6 @@ export const WAITING_WORDS: Record<string, MessageKey> = {
 	access: "translations.waiting.access",
 	error: "translations.waiting.error",
 };
-
-/** A language's Translation mode: radio buttons for people who may change it, its name for everyone else. */
-export function ModeChoice({
-	siteId,
-	language,
-	canManage,
-	label,
-}: {
-	siteId: string;
-	language: Pick<LanguageTranslations, "code" | "name" | "mode">;
-	canManage: boolean;
-	label: string;
-}) {
-	const t = useT();
-	const router = useRouter();
-	const id = useId();
-	const [mode, setMode] = useState(language.mode);
-	if (!canManage) return <p className="text-sm font-medium">{t(MODE_WORDS[language.mode].label)}</p>;
-	const choose = async (next: TranslationMode) => {
-		const before = mode;
-		setMode(next);
-		try {
-			await (await getApi()).translations.setMode({ siteId, language: language.code, mode: next });
-			toast.success(t("translations.modeSaved", { language: language.name, mode: t(MODE_WORDS[next].label) }));
-			await router.invalidate();
-		} catch (failure) {
-			setMode(before);
-			toast.error(t(errorMessage(failure)));
-		}
-	};
-	return (
-		<FieldSet>
-			<FieldLegend variant="label" className="sr-only">
-				{label}
-			</FieldLegend>
-			<RadioGroup
-				value={mode}
-				onValueChange={(value) => void choose(value as TranslationMode)}
-				className="flex flex-wrap gap-x-5 gap-y-2"
-			>
-				{MODES.map((option) => (
-					<Field key={option} orientation="horizontal" className="w-auto">
-						<RadioGroupItem value={option} id={`${id}-${option}`} />
-						<FieldLabel htmlFor={`${id}-${option}`}>{t(MODE_WORDS[option].label)}</FieldLabel>
-					</Field>
-				))}
-			</RadioGroup>
-		</FieldSet>
-	);
-}
 
 /** A share as a bar people can read: `<progress>` with its label. */
 export function Share({
