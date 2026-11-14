@@ -71,8 +71,8 @@ const dock = z.strictObject({
 });
 
 /**
- * Where the building area's panels are, as its docks draw them: each dock's size and its panels in order,
- * collapsed or switched off. A panel is in one dock at most.
+ * Where the building area's panels are, as its docks draw them: each dock's size and its panels in
+ * order, collapsed or switched off. A panel is in one dock at most.
  */
 export const editorLayoutSchema = z
 	.strictObject({ docks: z.strictObject({ left: dock, right: dock, bottom: dock }) })
