@@ -59,3 +59,9 @@ export function reopenPlace(key: PlaceKey): { place: string; view: string | null
 	if (!entry) return null;
 	return leftAt(key) ?? { place: entry.first, view: null };
 }
+
+/**
+ * The event the Command menu (BA-10) sends on the shell's document to open a place or leave the open
+ * one: `new CustomEvent("webcraft:place", { detail: { place: "content" } })`, `{ place: null }` to leave.
+ */
+export const PLACE_EVENT = "webcraft:place";

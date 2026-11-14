@@ -13,7 +13,7 @@ import type { SavingStatus } from "./canvas/regions.ts";
 import { type RegionCycle, regionCycle } from "./keyboard.ts";
 import { NarrowNotice } from "./NarrowNotice.tsx";
 import { useOpenDocument } from "./open-document.ts";
-import { type PlaceKey, placeEntry, placeKeyOf, reopenPlace } from "./places/registry.ts";
+import { PLACE_EVENT, PLACE_KEYS, type PlaceKey, placeEntry, placeKeyOf, reopenPlace } from "./places/registry.ts";
 import { Rail } from "./rail/Rail.tsx";
 
 /**
@@ -119,6 +119,19 @@ export function Shell({ config }: { config: ShellConfig }) {
 		[placeKey, opened.documents],
 	);
 	const leavePlace = useCallback(() => opened.documents.openPlace(null), [opened.documents]);
+	// The Command menu's way in and out of places (it comes with BA-10): `webcraft:place` on the shell's
+	// document, its detail the place to open (`{ place: "content" }`) or none to leave (`{ place: null }`).
+	useEffect(() => {
+		const onPlaceEvent = (event: Event) => {
+			const wanted = (event as CustomEvent<{ place?: unknown } | null>).detail?.place;
+			if (wanted === null) leavePlace();
+			// Opening the place that is open already leaves it open (the rail's button is the toggle).
+			else if (typeof wanted === "string" && wanted !== placeKey && PLACE_KEYS.includes(wanted as PlaceKey))
+				openPlace(wanted as PlaceKey);
+		};
+		document.addEventListener(PLACE_EVENT, onPlaceEvent);
+		return () => document.removeEventListener(PLACE_EVENT, onPlaceEvent);
+	}, [leavePlace, openPlace, placeKey]);
 	// Said as a place opens and as it is left; leaving puts focus back where it was before the place opened.
 	const lastPlace = useRef<PlaceKey | null>(null);
 	useEffect(() => {

@@ -94,10 +94,12 @@ export function readAddress(pathname: string, search: string): ShellAddress {
 	const document = pathname.startsWith(`${root}/`)
 		? parseBuildingDocument(`${pathname.slice(root.length)}${documentSearch}`)
 		: null;
+	// The view only when there is one: an address with none reads as it did before views.
+	const viewed = placed !== null && view !== null && isView(view) ? view : null;
 	return {
 		document,
 		place: placed,
-		view: placed !== null && view !== null && isView(view) ? view : null,
+		...(viewed ? { view: viewed } : {}),
 		select: select !== null && isCodeSelection(select) ? select : null,
 	};
 }
@@ -222,9 +224,10 @@ export function shellDocuments(win: Window = window): Documents {
 			if (now.place === null || (now.view ?? null) === view) return;
 			if (how === "push") write({ ...now, view }, "push", stateOf()?.from ?? null, false);
 			else {
-				// In place, and nothing to tell: the place shows the view already.
+				// In place: not a history entry, but the place draws its view from the address.
 				const state = stateOf() ?? { webcraftBuilding: true, from: null, previous: false };
 				win.history.replaceState(state, "", printAddress({ ...now, view }));
+				tell("replace");
 			}
 		},
 		select(ref) {

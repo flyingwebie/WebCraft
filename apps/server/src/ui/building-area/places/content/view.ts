@@ -51,8 +51,8 @@ export function readView(view: string | null, pages: boolean): ContentView {
 export function printView(view: ContentView, pages: boolean): string | null {
 	const base = defaultView(pages);
 	const params = new URLSearchParams();
-	const q = view.q.trim();
-	if (q) params.set("q", q.slice(0, SEARCH_MAX));
+	// Kept as typed (a space before the next word included); a search of only spaces is none.
+	if (view.q.trim()) params.set("q", view.q.slice(0, SEARCH_MAX));
 	if (view.status) params.set("status", view.status);
 	if (view.language) params.set("language", view.language);
 	if (view.sort !== base.sort) params.set("sort", view.sort);
