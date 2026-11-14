@@ -175,7 +175,14 @@ function fieldValue(field: FieldDefinition, value: Json, sources: ValueSources |
 			const link = value as LinkValue;
 			return {
 				text: link.text || link.url,
-				part: (name) => (name === "url" ? link.url : name === "text" ? link.text : undefined),
+				part: (name) =>
+					name === "url"
+						? link.url
+						: name === "text"
+							? link.text
+							: name === "newTab"
+								? link.newTab === true
+								: undefined,
 			};
 		}
 		case "relationship": {

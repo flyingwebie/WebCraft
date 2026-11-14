@@ -2,9 +2,10 @@ import type { FieldDefinition } from "./field-types.ts";
 
 /**
  * The kinds of value Edit mode changes in place: plain text and rich text, typed over (rich text with
- * its floating toolbar), and images (`media`), changed in the image popover.
+ * its floating toolbar), images (`media`), changed in the image popover, and links (`link`), changed in
+ * the link popover: a link Field shown by an `<a>` whose address and words are its own.
  */
-export type EditableType = "text" | "richText" | "media";
+export type EditableType = "text" | "richText" | "media" | "link";
 
 /** A Field whose value can be typed over in place, and how. */
 export type EditableField = { field: FieldDefinition; type: EditableType; label: string };
@@ -40,6 +41,24 @@ export function editableField(fields: readonly FieldDefinition[], path: string):
  * as `editableField`'s does.
  */
 export function imageField(fields: readonly FieldDefinition[], path: string): EditableField | undefined {
+	return fieldOfType(fields, path, "media");
+}
+
+/**
+ * The link Field a binding's path names among `fields`, when an `<a>` shows it whole (its address in
+ * `href`, its words as the link's text) and Edit mode changes it in place, in the link popover: at the
+ * top or inside Groups (`hero.cta`). `label` names it for people, as `editableField`'s does.
+ */
+export function linkField(fields: readonly FieldDefinition[], path: string): EditableField | undefined {
+	return fieldOfType(fields, path, "link");
+}
+
+/** The Field of `type` a path names, at the top or inside Groups, with its label for people. */
+function fieldOfType(
+	fields: readonly FieldDefinition[],
+	path: string,
+	type: "media" | "link",
+): EditableField | undefined {
 	const names = path.split(".");
 	let within: readonly FieldDefinition[] = fields;
 	const labels: string[] = [];
@@ -48,7 +67,7 @@ export function imageField(fields: readonly FieldDefinition[], path: string): Ed
 		if (!field) return undefined;
 		labels.push(field.label);
 		if (index === names.length - 1) {
-			return field.type === "media" ? { field, type: "media", label: labels.join(" › ") } : undefined;
+			return field.type === type ? { field, type, label: labels.join(" › ") } : undefined;
 		}
 		if (field.type !== "group") return undefined;
 		within = field.fields;
