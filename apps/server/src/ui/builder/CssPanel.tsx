@@ -24,6 +24,7 @@ import {
 	XIcon,
 } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { FormatButton, FormatNoteLine, useCodeFormat } from "../code-format/FormatControl.tsx";
 import { CSS_PROPERTIES, declarationOf, withDeclarationOf } from "../design-system/declarations.ts";
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
@@ -791,7 +792,9 @@ export function CssPanel({
 	);
 	const columns = COLUMNS.exec(declarationOf(text, "grid-template-columns") ?? "")?.[1] ?? "";
 	const showLayout = tab !== SITE && shownView !== "own";
+	const formatting = useCodeFormat("css", area, text, editable && saved !== null);
 	const problemLines = new Set(problems.flatMap((problem) => (problem.line ? [problem.line] : [])));
+	if (formatting.problemLine) problemLines.add(formatting.problemLine);
 	const panelId = `${id}-panel`;
 	const listboxId = `${id}-suggest`;
 
@@ -907,6 +910,11 @@ export function CssPanel({
 					>
 						<PlusIcon aria-hidden="true" />
 					</Button>
+				) : null}
+				{editable ? (
+					<div className="ms-auto">
+						<FormatButton format={formatting} />
+					</div>
 				) : null}
 			</div>
 			{moduleNotice ? (
@@ -1153,7 +1161,9 @@ export function CssPanel({
 							change(event.target.value);
 							suggestAt(event.target.value, event.target.selectionStart);
 						}}
-						onKeyDown={editorKeys}
+						onKeyDown={(event) => {
+							if (!formatting.onKeyDown(event)) editorKeys(event);
+						}}
 						onBlur={() => setSuggest(null)}
 					/>
 					{suggest ? (
@@ -1181,6 +1191,7 @@ export function CssPanel({
 						</div>
 					) : null}
 				</div>
+				<FormatNoteLine format={formatting} />
 				{problems.length > 0 ? (
 					<ul
 						id={`${id}-problems`}

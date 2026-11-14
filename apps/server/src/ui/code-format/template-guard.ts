@@ -74,18 +74,22 @@ function isComponentTag(name: string): boolean {
 }
 
 class Problem extends Error {
-	constructor(
-		readonly at: number,
-		readonly reason: string,
-	) {
+	readonly at: number;
+	readonly reason: string;
+	constructor(at: number, reason: string) {
 		super(reason);
+		this.at = at;
+		this.reason = reason;
 	}
 }
 
 /** Reads Template markup into the shape Format needs: elements, values, commands, Components. */
 class Reader {
 	private pos = 0;
-	constructor(private readonly text: string) {}
+	private readonly text: string;
+	constructor(text: string) {
+		this.text = text;
+	}
 
 	read(): Node[] {
 		const { nodes, end } = this.content();
@@ -284,12 +288,13 @@ class Reader {
 			// Text up to its end tag, as HTML reads it.
 			const close = source.toLowerCase().indexOf(`</${name}`, this.pos);
 			if (close < 0) throw new Problem(at, `<${name}> has no end tag`);
-			const text = source.slice(this.pos, close);
+			const textAt = this.pos;
+			const text = source.slice(textAt, close);
 			this.pos = close;
 			const match = /^<\/[^\s>]*\s*>/.exec(source.slice(this.pos, this.pos + 200));
 			if (!match) throw new Problem(close, "an end tag isn't written as </name>");
 			this.pos += match[0].length;
-			return { kind: "element", name, open, children: [{ kind: "text", raw: text }], close: match[0], at };
+			return { kind: "element", name, open, children: [{ kind: "text", raw: text, at: textAt }], close: match[0], at };
 		}
 		const { nodes, end } = this.content();
 		if (end.kind === "endTag" && end.name.toLowerCase() === name)
@@ -518,7 +523,7 @@ export function guardTemplateMarkup(markup: string): GuardedMarkup {
 }
 
 /** The white-space-only text at the end of a branch, if any. */
-function trailingSpace(children: readonly Node[]): Node[] {
+function trailingSpace(children: readonly Node[]): { kind: "text"; raw: string; at: number }[] {
 	const last = children.at(-1);
 	return last?.kind === "text" && last.raw.trim() === "" ? [last] : [];
 }

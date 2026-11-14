@@ -5,6 +5,7 @@
  * `new Function`, so it works under the Site's strict policy (ADR 0023).
  */
 import { propsBlockAt } from "@webcraft/renderer/builder";
+import type { Plugin } from "prettier";
 import * as acorn from "prettier/plugins/acorn";
 import * as estree from "prettier/plugins/estree";
 import * as html from "prettier/plugins/html";
@@ -27,7 +28,7 @@ export const HOUSE_STYLE = {
 	endOfLine: "lf",
 } as const;
 
-const PARSERS: Record<CodeLanguage, { parser: string; plugins: prettier.Plugin[] }> = {
+const PARSERS: Record<CodeLanguage, { parser: string; plugins: Plugin[] }> = {
 	html: { parser: "html", plugins: [html] },
 	css: { parser: "css", plugins: [postcss] },
 	js: { parser: "acorn", plugins: [acorn, estree] },
@@ -35,11 +36,12 @@ const PARSERS: Record<CodeLanguage, { parser: string; plugins: prettier.Plugin[]
 
 /** A problem found while formatting part of the text: its line in that part, and why. */
 class Unformattable extends Error {
-	constructor(
-		readonly line: number,
-		readonly reason: string,
-	) {
+	readonly line: number;
+	readonly reason: string;
+	constructor(line: number, reason: string) {
 		super(reason);
+		this.line = line;
+		this.reason = reason;
 	}
 }
 

@@ -1901,7 +1901,6 @@
 			"savedName": "Saved to Draft · {name}",
 			"notSaved": "Not saved: {reason}",
 			"format": "Format",
-			"formatHint": "Puts each block element on its own line",
 			"valid": "{panel} valid",
 			"problemsOne": "{panel}: 1 problem",
 			"problemsOther": "{panel}: {count} problems",
@@ -2018,7 +2017,13 @@
 			"tooNarrow": "Code mode needs a window at least 1024px wide",
 			"tooNarrowText": "Make the window wider to carry on: nothing is closed or lost.",
 			"createProp": "Create the Prop “{name}” ({type})",
-			"propCreated": "Prop {name} ({type}) added to the Props block"
+			"propCreated": "Prop {name} ({type}) added to the Props block",
+			"formatTitle": "Format {keys}",
+			"formattedOne": "Formatted · 1 line changed",
+			"formattedOther": "Formatted · {count} lines changed",
+			"tidy": "Already tidy",
+			"cantFormat": "Can't format: {reason} on line {line}",
+			"formatUnavailable": "Format isn't available right now. Try again in a moment."
 		},
 		"alsoEditing": "Also editing this page",
 		"inReview": "In review",
@@ -4888,7 +4893,8 @@
 				"components": "Components",
 				"layers": "Layers on this page",
 				"page": "Page",
-				"placements": "Placements on this page"
+				"placements": "Placements on this page",
+				"format": "Format"
 			},
 			"actions": {
 				"save": "Save Draft",
@@ -4917,7 +4923,11 @@
 				"makeComponent": "Make Component",
 				"newComponent": "New Component",
 				"sendToReview": "Send to Review",
-				"edit": "Edit"
+				"edit": "Edit",
+				"formatHtml": "Format HTML",
+				"formatCss": "Format CSS",
+				"formatJs": "Format JS",
+				"formatAll": "Format all three"
 			},
 			"wrap": {
 				"div": "div",
@@ -4953,7 +4963,8 @@
 				"edit": "edit change back",
 				"props": "props settings fields content",
 				"moveUp": "move up earlier before",
-				"moveDown": "move down later after"
+				"moveDown": "move down later after",
+				"format": "format tidy prettier indent clean beautify"
 			},
 			"nothingToUndo": "Nothing to undo.",
 			"nothingToRedo": "Nothing to redo.",
@@ -5125,6 +5136,14 @@
 			"help": "Let each Placement of the Component give its own value.",
 			"done": "Bound to {binding}."
 		}
+	},
+	"codeFormat": {
+		"format": "Format",
+		"formatted": "Formatted",
+		"changed": "Formatted · {count, plural, one {# line changed} other {# lines changed}}",
+		"tidy": "Already tidy",
+		"problem": "Can't format: {reason} on line {line}",
+		"unavailable": "Format isn't available right now. Try again in a moment."
 	},
 	"siteEmail": {
 		"pageTitle": "Email (SMTP)",

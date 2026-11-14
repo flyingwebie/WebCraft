@@ -44,6 +44,7 @@ import { type FormEvent, type RefObject, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../../ui/api.ts";
+import { FormatButton, FormatNoteLine, useCodeFormat } from "../../ui/code-format/FormatControl.tsx";
 import { errorCode, errorMessage } from "../../ui/errors.ts";
 import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
@@ -287,6 +288,8 @@ function OutsideScriptDialog({
 	const [kind, setKind] = useState<"url" | "snippet">(script?.kind ?? "url");
 	const [url, setUrl] = useState(script?.url ?? "");
 	const [snippet, setSnippet] = useState(script?.snippet ?? "");
+	const snippetArea = useRef<HTMLTextAreaElement>(null);
+	const formatting = useCodeFormat("html", snippetArea, snippet, kind === "snippet");
 	const [placement, setPlacement] = useState<OutsideScriptPlacement>(script?.placement ?? "bodyEnd");
 	const [category, setCategory] = useState<Category>(script?.consentCategory ?? "marketing");
 	const [problems, setProblems] = useState<SnippetProblem[]>([]);
@@ -371,8 +374,12 @@ function OutsideScriptDialog({
 							</Field>
 						) : (
 							<Field>
-								<FieldLabel htmlFor={`${id}-code`}>{t("outsideScripts.snippet")}</FieldLabel>
+								<div className="flex items-center justify-between gap-2">
+									<FieldLabel htmlFor={`${id}-code`}>{t("outsideScripts.snippet")}</FieldLabel>
+									<FormatButton format={formatting} withWord />
+								</div>
 								<Textarea
+									ref={snippetArea}
 									id={`${id}-code`}
 									value={snippet}
 									required
@@ -380,9 +387,13 @@ function OutsideScriptDialog({
 									spellCheck={false}
 									className="max-h-72 font-mono text-xs"
 									onChange={(event) => setSnippet(event.target.value)}
+									onKeyDown={(event) => {
+										formatting.onKeyDown(event);
+									}}
 									aria-describedby={`${id}-code-help`}
 									aria-invalid={problems.length > 0 ? true : undefined}
 								/>
+								<FormatNoteLine format={formatting} />
 								<FieldDescription id={`${id}-code-help`}>{t("outsideScripts.snippetHelp")}</FieldDescription>
 							</Field>
 						)}

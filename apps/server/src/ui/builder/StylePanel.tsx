@@ -7,6 +7,7 @@ import { ArrowDownIcon, ArrowUpIcon, PencilIcon, XIcon } from "lucide-react";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import { useEditorApi } from "../builder/editor-api.tsx";
+import { FormatButton, FormatNoteLine, useCodeFormat } from "../code-format/FormatControl.tsx";
 import { cssOf, type Declaration, declarationsOf, PROPERTIES } from "../design-system/declarations.ts";
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
@@ -54,6 +55,8 @@ export function StylePanel({
 	const [applyingOneOff, setApplyingOneOff] = useState(false);
 	const oneOffSaving = useRef(false);
 	const oneOffEdit = useRef(0);
+	const oneOffArea = useRef<HTMLTextAreaElement>(null);
+	const formatting = useCodeFormat("css", oneOffArea, oneOffText);
 	const appliedOneOffEdit = useRef(0);
 	const current = useRef({ catalogue, classIds, onClasses, refreshCatalogue });
 	current.current = { catalogue, classIds, onClasses, refreshCatalogue };
@@ -278,19 +281,27 @@ export function StylePanel({
 					{t("builder.style.oneOff")}
 				</h3>
 				<Field data-invalid={oneOffProblem ? true : undefined}>
-					<FieldLabel htmlFor={`${id}-one-off-text`}>{t("builder.style.oneOffLabel")}</FieldLabel>
+					<div className="flex items-center justify-between gap-2">
+						<FieldLabel htmlFor={`${id}-one-off-text`}>{t("builder.style.oneOffLabel")}</FieldLabel>
+						<FormatButton format={formatting} />
+					</div>
 					<Textarea
+						ref={oneOffArea}
 						id={`${id}-one-off-text`}
 						value={oneOffText}
 						onChange={(event) => {
 							oneOffEdit.current++;
 							setOneOffText(event.target.value);
 						}}
+						onKeyDown={(event) => {
+							formatting.onKeyDown(event);
+						}}
 						className="min-h-20 font-mono text-xs"
 						spellCheck={false}
 						aria-invalid={oneOffProblem ? true : undefined}
 						aria-describedby={`${id}-one-off-help`}
 					/>
+					<FormatNoteLine format={formatting} />
 					<FieldDescription id={`${id}-one-off-help`}>{t("builder.style.oneOffHelp")}</FieldDescription>
 					{oneOffProblem ? <FieldError>{oneOffProblem}</FieldError> : null}
 				</Field>

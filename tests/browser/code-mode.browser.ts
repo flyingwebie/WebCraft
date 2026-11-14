@@ -305,7 +305,7 @@ describe("CSS and Format", () => {
 		);
 	});
 
-	test("Format puts block elements on lines of their own, and saving keeps it exactly", async () => {
+	test("Format tidies the markup with Prettier, Components kept whole, and saving keeps it exactly", async () => {
 		const page = await codeModePage("light");
 		const html = page.getByRole("textbox", { name: /^HTML of / });
 		const region = page.getByRole("region", { name: "HTML" });

@@ -31,6 +31,7 @@ import { useAfterRender } from "../after-render.ts";
 import { getApi } from "../api.ts";
 import { Checks } from "../Checks.tsx";
 import { type SharedDraft, useSharedDraft } from "../co-editing/shared-draft.ts";
+import { formatTarget } from "../code-format/targets.ts";
 import { StatusBadge } from "../content/DraftParts.tsx";
 import { errorCode, errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
@@ -1357,6 +1358,10 @@ export function Builder({
 		publish: () => setConfirmPublish(true),
 		switchCanvas: () => setViewRequest((count) => count + 1),
 		openSiteCss: () => setSiteCssRequest((count) => count + 1),
+		format: {
+			languages: (["html", "css", "js"] as const).filter((language) => formatTarget(language)),
+			run: async (language) => formatTarget(language)?.(),
+		},
 		layer: (action) =>
 			action === "parent" ? selectParent() : action === "rename" ? setRenameRequest((count) => count + 1) : act(action),
 		wrap,
