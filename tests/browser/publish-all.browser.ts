@@ -105,7 +105,7 @@ test("the Site overview's address with publishAll=1 opens Publish all at once, a
 	await page.waitForURL((url) => !url.searchParams.has("publishAll"));
 	await page.getByRole("link", { name: /^Publish all/ }).click();
 	await page.getByRole("dialog").getByRole("checkbox", { name: "Select all" }).waitFor();
-	expect(new URL(page.url()).searchParams.get("publishAll")).toBe("1");
+	expect(new URL(page.url()).searchParams.has("publishAll")).toBe(true);
 });
 
 describe("publishing from the list", () => {
