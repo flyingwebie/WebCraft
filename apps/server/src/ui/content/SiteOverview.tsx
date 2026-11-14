@@ -119,18 +119,12 @@ function Reviews({ siteId, reviews }: { siteId: string; reviews: readonly Review
 								: review.submittedBy.name;
 						return (
 							<Line key={review.id} who={review.submittedBy?.name ?? null} at={review.submittedAt}>
-								{t.rich("site.overview.requested", {
-									name,
-									title: reviewItemName(t, review),
-									item: (chunks) => (
-										<Link
-											{...reviewItemLink(siteId, review)}
-											className="focus-visible:ring-ring/50 rounded-sm font-medium outline-none hover:underline focus-visible:ring-3"
-										>
-											{chunks}
-										</Link>
-									),
-								})}
+								<Link
+									{...reviewItemLink(siteId, review)}
+									className="focus-visible:ring-ring/50 rounded-sm outline-none hover:underline focus-visible:ring-3"
+								>
+									{t("site.overview.requested", { name, title: reviewItemName(t, review) })}
+								</Link>
 								{review.changedSinceSubmitted ? (
 									<span className="text-muted-foreground"> · {t("review.changedSince")}</span>
 								) : null}

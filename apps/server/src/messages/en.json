@@ -1279,7 +1279,7 @@
 		"editInSafeMode": "Edit in Safe mode",
 		"editInSafeModeHelp": "With none of the Site's own scripts running",
 		"overview": {
-			"requested": "{name} requested review on “<item>{title}</item>”",
+			"requested": "{name} requested review on “{title}”",
 			"draftsHeading": "Drafts and changes",
 			"draftsReady": "{count, plural, one {# change ready to publish.} other {# changes ready to publish.}}",
 			"draftsNone": "Everything is published.",

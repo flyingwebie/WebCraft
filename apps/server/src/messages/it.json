@@ -1279,7 +1279,7 @@
 		"editInSafeMode": "Modifica in modalità sicura",
 		"editInSafeModeHelp": "Senza eseguire nessuno script del sito",
 		"overview": {
-			"requested": "{name} ha chiesto la revisione di “<item>{title}</item>”",
+			"requested": "{name} ha chiesto la revisione di “{title}”",
 			"draftsHeading": "Bozze e modifiche",
 			"draftsReady": "{count, plural, one {# modifica pronta da pubblicare.} other {# modifiche pronte da pubblicare.}}",
 			"draftsNone": "È tutto pubblicato.",
