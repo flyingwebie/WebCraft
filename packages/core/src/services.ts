@@ -46,6 +46,7 @@ import type {
 	NewLoop,
 	NewPostType,
 	Pasted,
+	PlacedComponentDeletion,
 	PostType,
 	PostTypeChange,
 	PostTypeDeletion,
@@ -438,8 +439,16 @@ export type InstallServices = InstallPorts & {
 		): Promise<SavedComponentMarkup>;
 		/** Renames it: Template markup writes the new name everywhere at once. */
 		rename(scope: SiteScope, componentId: string, name: string): Promise<Component>;
-		/** Deletes it in two steps (a confirmation id, then the delete); refused while anything places it. */
-		delete(scope: SiteScope, componentId: string, confirmation?: string): Promise<ComponentDeletion>;
+		/**
+		 * Deletes it in two steps (a confirmation id, then the delete); refused while anything places it,
+		 * unless `placements` is `remove`: its Placements then go with it.
+		 */
+		delete(
+			scope: SiteScope,
+			componentId: string,
+			confirmation?: string,
+			placements?: PlacedComponentDeletion,
+		): Promise<ComponentDeletion>;
 	};
 	/**
 	 * Filters: the controls visitors use to narrow, search and sort one query Loop, with a Draft and a

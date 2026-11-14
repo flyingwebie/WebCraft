@@ -8432,6 +8432,10 @@
 									"confirmation": {
 										"type": "string",
 										"maxLength": 100
+									},
+									"placements": {
+										"enum": ["refuse", "remove"],
+										"type": "string"
 									}
 								},
 								"required": ["siteId", "componentId"]

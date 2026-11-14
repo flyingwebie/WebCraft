@@ -52,6 +52,7 @@ import { isUuid } from "../ids.ts";
 import { personIdOf } from "../permissions/can.ts";
 import type { SiteScope, VisitorScope } from "../tenancy/data-layer.ts";
 import { publishedArchives } from "./archives.ts";
+import { componentBlockers, removeComponentPlacements } from "./component-removal.ts";
 import { componentScriptStates, retireComponentScript } from "./component-scripts.ts";
 import { type ComponentVersion, EMPTY_TREE, storedComponentVersion } from "./component-versions.ts";
 import {
@@ -67,6 +68,7 @@ import {
 import { type FieldDefinition, type FieldInput, parseFields, storedFields } from "./fields.ts";
 import { draftVersion, type SaveBase, sameJson } from "./json.ts";
 import { loopCatalogue } from "./loops.ts";
+import { clearPageCache } from "./page-cache.ts";
 import { isPagePostType } from "./pages.ts";
 import { listPostTypes, type PostType } from "./post-types.ts";
 import { declarationProblems, parseDeclaredTree, printPropDeclarations, readPropDeclarations } from "./prop-markup.ts";
@@ -178,8 +180,20 @@ export type SavedComponentMarkup = {
 	propImpact: PropImpact;
 };
 
-/** What deleting a Component did: asked for a confirmation, or deleted it. */
-export type ComponentDeletion = { deleted: false; confirmation: Confirmation } | { deleted: true };
+/**
+ * What deleting a Component did: asked for a confirmation, or deleted it. Asked with its Placements
+ * to be removed, the first answer also says where it is placed and on how many published pages it
+ * shows (what goes with it).
+ */
+export type ComponentDeletion =
+	| { deleted: false; confirmation: Confirmation; usage?: ComponentUsage }
+	| { deleted: true };
+
+/**
+ * What deleting a Component that is placed does: `refuse` (the default) refuses while anything places
+ * it; `remove` removes its Placements with it (`component-removal.ts`).
+ */
+export type PlacedComponentDeletion = "refuse" | "remove";
 
 /** A Component's name: a PascalCase tag (a capital first, then letters and digits, at least one lower-case). */
 const COMPONENT_NAME = /^[A-Z][A-Za-z0-9]{0,63}$/;
@@ -502,24 +516,47 @@ export async function renameComponent(
 
 /**
  * Deletes a Component (open the Site with `structure.edit`), in two steps: without a confirmation
- * it deletes nothing and answers a confirmation id; with that id it deletes it. Refused while any
- * Template or Component places it, in its Draft or published version (`ComponentInUseError` lists
- * them): every Placement would show nothing.
+ * it deletes nothing and answers a confirmation id; with that id it deletes it. By default refused
+ * while any Template, Component or Page places it, in its Draft or published version
+ * (`ComponentInUseError` lists them): every Placement would show nothing. With `placements:
+ * "remove"`, its Placements go with it instead (Draft and published, so the pages change at once and
+ * the page cache is cleared); the first answer then names where it is placed and on how many pages it
+ * shows, and the confirmation holds only while that is still so. A Popup showing it, or the
+ * accessibility statement's link, still refuses it.
  */
 export async function deleteComponent(
 	scope: SiteScope,
 	componentId: string,
 	confirmation: string | undefined,
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
+	placements: PlacedComponentDeletion = "refuse",
 ): Promise<ComponentDeletion> {
 	return scope.transaction(async (tx) => {
 		await lockComponents(tx);
 		const row = await lockComponent(tx, componentId, sources);
-		const { usedIn } = (await usages(tx))(row.id);
-		if (usedIn.length > 0) throw new ComponentInUseError(usedIn);
-		const request = { action: "component.delete", target: row.id, preview: { name: row.name } };
-		if (confirmation === undefined) return { deleted: false, confirmation: await askConfirmation(tx, request) };
+		const usage = (await usages(tx))(row.id);
+		const blockers = placements === "remove" ? await componentBlockers(tx, row.id, usage.usedIn) : usage.usedIn;
+		if (blockers.length > 0) throw new ComponentInUseError(blockers);
+		const preview =
+			placements === "remove"
+				? {
+						name: row.name,
+						pages: usage.pages,
+						usedIn: usage.usedIn.map((use) => `${use.kind}:${use.id}:${use.versions.join("+")}`).sort(),
+					}
+				: { name: row.name };
+		const request = { action: "component.delete", target: row.id, preview };
+		if (confirmation === undefined)
+			return {
+				deleted: false,
+				confirmation: await askConfirmation(tx, request),
+				...(placements === "remove" ? { usage } : {}),
+			};
 		await useConfirmation(tx, confirmation, request);
+		if (usage.usedIn.length > 0) {
+			await removeComponentPlacements(tx, row.id);
+			await clearPageCache(tx);
+		}
 		// Its Component script goes with it; pages loaded before still find its published file for 30 days.
 		await retireComponentScript(tx, row.id);
 		await tx.delete(components, eq(components.id, row.id));
@@ -528,7 +565,11 @@ export async function deleteComponent(
 			await tx.update(pageLayoutSettings, {
 				allowedComponents: settings.allowedComponents.filter((id) => id !== row.id),
 			});
-		await tx.audit("component.delete", { componentId: row.id, name: row.name });
+		await tx.audit("component.delete", {
+			componentId: row.id,
+			name: row.name,
+			...(usage.usedIn.length > 0 ? { placementsRemoved: usage.usedIn.length } : {}),
+		});
 		return { deleted: true };
 	});
 }
