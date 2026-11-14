@@ -18,7 +18,7 @@ beforeAll(async () => {
 	install = await createTestInstall();
 	const admin = await install.superadmin();
 	await admin.api.modules.approve({ moduleId: "popups", version: "1.0.0" });
-	await admin.api.modules.approve({ moduleId: "forms", version: "1.2.0" });
+	await admin.api.modules.approve({ moduleId: "forms", version: "1.3.0" });
 });
 beforeEach(async () => {
 	const ws = await install.createWorkspace();

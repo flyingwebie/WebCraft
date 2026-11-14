@@ -116,9 +116,11 @@ beforeAll(async () => {
 	// The Site's languages: French, and Arabic, written right to left.
 	await admin.api.languages.add({ siteId: site.id, code: "fr" });
 	await admin.api.languages.add({ siteId: site.id, code: "ar" });
+	const analytics = (await admin.api.dashboards.list({ siteId: site.id })).dashboards.find((each) => each.builtIn);
 	fixture = {
 		workspaceId: workspace.id,
 		siteId: site.id,
+		analyticsDashboardId: analytics?.id ?? "",
 		inviteToken,
 		joinToken,
 		mediaId: media.id,

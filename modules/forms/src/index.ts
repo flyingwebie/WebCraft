@@ -224,8 +224,8 @@ export const forms = defineModule({
 			en: "Keeps what visitors send through each Site's Forms, with a Spam folder kept 30 days, sends their Notifications, Auto-replies and Webhooks, and lets people search, export and delete them. Switched off, a Site's Forms show nothing.",
 			it: "Conserva ciò che i visitatori inviano con i Form di ogni Sito, con una cartella Spam tenuta 30 giorni, invia notifiche, risposte automatiche e Webhook, e permette di cercarli, esportarli ed eliminarli. Se è spento, i Form di un Sito non si vedono.",
 		},
-		version: "1.2.0",
-		sdk: "^1.11.0",
+		version: "1.3.0",
+		sdk: "^1.14.0",
 		level: "site",
 		onByDefault: true,
 		adminLanguages: ["en", "it"],
@@ -268,6 +268,15 @@ export const forms = defineModule({
 			if (submission.spam !== null) await trimSpam(context);
 			// Module form actions (run inline once a Submission is kept) come in here later.
 			return { id: row.id };
+		},
+		// The new ones: in the inbox, opened by nobody yet (read is for everyone: one inbox per Site).
+		async unread(context) {
+			const rows = await context.data.aggregate(submissions, {
+				where: and(eq(submissions.folder, "inbox"), isNull(submissions.readAt)),
+				groupBy: { formId: submissions.formId },
+				values: { unread: count() },
+			});
+			return Object.fromEntries(rows.map((row) => [row.formId, row.unread]));
 		},
 	}),
 
