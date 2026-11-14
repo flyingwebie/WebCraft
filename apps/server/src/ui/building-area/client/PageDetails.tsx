@@ -193,7 +193,7 @@ export function DetailsStatus({ words, details, look }: { words: Words; details:
 export function SectionLabel({ look, children }: { look: Look; children: string }) {
 	return (
 		<h3
-			className={`text-chrome-faint m-0 font-semibold tracking-[0.05em] uppercase ${look === "dock" ? "text-[11px]" : "text-[11px]"}`}
+			className={`text-chrome-muted m-0 font-semibold tracking-[0.05em] uppercase ${look === "dock" ? "text-[11px]" : "text-[11px]"}`}
 		>
 			{children}
 		</h3>

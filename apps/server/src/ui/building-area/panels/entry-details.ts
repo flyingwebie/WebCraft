@@ -222,8 +222,18 @@ export function useEntryDetails({
 	const [files, setFiles] = useState<Record<string, ShownFile>>({});
 	const [problems, setProblems] = useState<ReadonlyMap<string, string>>(new Map());
 
+	// Saves go to the Entry the panels show, in its language: while the frame loads its next page (a slug
+	// that moved it), what is typed still reaches the Entry it was typed for.
 	const latest = useRef({ item, language, details, onSaving, onMoved, announce, words });
-	latest.current = { item, language, details, onSaving, onMoved, announce, words };
+	latest.current = {
+		item: details?.item ?? item,
+		language: details?.language ?? language,
+		details,
+		onSaving,
+		onMoved,
+		announce,
+		words,
+	};
 
 	// Which Fields show on the page as regions: read from the frame's page now and each time it loads.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: read again with each state of the page (it may have changed).
@@ -244,10 +254,8 @@ export function useEntryDetails({
 	const reading = useRef(0);
 	// biome-ignore lint/correctness/useExhaustiveDependencies: the Post Type is kept across readings of one Entry on purpose.
 	useEffect(() => {
-		if (!page) {
-			setStatus("loading");
-			return;
-		}
+		// Between two pages the Entry shown stays (and saves go to it) until the next is read.
+		if (!page) return;
 		if (!entryId || !item) {
 			setStatus("none");
 			setDetails(null);

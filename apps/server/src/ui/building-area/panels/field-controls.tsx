@@ -82,7 +82,7 @@ export function Labelled({
 					{label}
 				</Label>
 				{count ? (
-					<span className={`text-chrome-faint shrink-0 ${look === "dock" ? "text-[11px]" : "text-[12px]"}`}>
+					<span className={`text-chrome-muted shrink-0 ${look === "dock" ? "text-[11px]" : "text-[12px]"}`}>
 						{count}
 					</span>
 				) : null}
@@ -735,19 +735,24 @@ function FileBox({
 			)}
 			<span className="flex min-w-0 grow flex-col gap-0.5">
 				<span
-					className={`truncate font-medium ${value ? "text-chrome-strong" : "text-chrome-faint"} ${
+					className={`truncate font-medium ${value ? "text-chrome-strong" : "text-chrome-muted"} ${
 						look === "dock" ? "text-[12px]" : "text-[13px]"
 					}`}
 				>
 					{value ? (file?.name ?? "…") : said.noFile}
 				</span>
 				{value ? (
-					<span className={`text-chrome-faint truncate ${look === "dock" ? "text-[11px]" : "text-[12px]"}`}>
+					<span className={`text-chrome-muted truncate ${look === "dock" ? "text-[11px]" : "text-[12px]"}`}>
 						{file?.alt ? fill(said.alt, { alt: file.alt }) : said.noAlt}
 					</span>
 				) : null}
 			</span>
-			<button type="button" onClick={onChoose} aria-label={fill(said.chooseFile, { field: label })} className={button}>
+			<button
+				type="button"
+				onClick={onChoose}
+				aria-label={fill(value ? said.changeFile : said.chooseFile, { field: label })}
+				className={button}
+			>
 				{value ? said.change : said.choose}
 			</button>
 			{value ? (

@@ -9688,6 +9688,7 @@
 			"noAlt": "No alt text",
 			"choose": "Choose",
 			"chooseFile": "Choose a file for {field}",
+			"changeFile": "Change the file of {field}",
 			"removeFile": "Remove the file from {field}",
 			"linkUrl": "Address",
 			"linkText": "Words",

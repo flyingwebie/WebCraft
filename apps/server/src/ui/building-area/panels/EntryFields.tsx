@@ -250,7 +250,7 @@ function Section({
 					aria-expanded={open}
 					aria-controls={id}
 					onClick={onToggle}
-					className={`text-chrome-faint hover:text-chrome-text flex h-5 w-full items-center gap-1 rounded-sm text-start text-[11px] font-semibold tracking-[0.05em] uppercase ${CHROME_EASE} ${FOCUS_RING}`}
+					className={`text-chrome-muted hover:text-chrome-text flex h-5 w-full items-center gap-1 rounded-sm text-start text-[11px] font-semibold tracking-[0.05em] uppercase ${CHROME_EASE} ${FOCUS_RING}`}
 				>
 					<span className="grow">{label}</span>
 					<ChevronDownIcon
@@ -327,10 +327,6 @@ function LanguagesCard({
 							<button
 								type="button"
 								aria-current={language.current ? "page" : undefined}
-								aria-label={fill(said.languageChip, {
-									language: language.name,
-									state: said.translation[state],
-								})}
 								onClick={() => {
 									if (!language.current) choose(language.path);
 								}}
@@ -342,6 +338,9 @@ function LanguagesCard({
 							>
 								<Glyph aria-hidden="true" className="size-[11px]" />
 								<span aria-hidden="true">{language.code.toUpperCase()}</span>
+								<span className="sr-only">
+									{fill(said.languageChip, { language: language.name, state: said.translation[state] })}
+								</span>
 							</button>
 						</li>
 					);

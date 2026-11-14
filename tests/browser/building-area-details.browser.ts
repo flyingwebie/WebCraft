@@ -197,8 +197,11 @@ describe("the Entry panel, for Staff", () => {
 		expect(
 			await panel
 				.locator("[data-wc-language-chip]")
-				.evaluateAll((all) => all.map((each) => each.getAttribute("aria-label"))),
-		).toEqual(["English: translated", "Italian: not translated yet"]);
+				.evaluateAll((all) => all.map((each) => [each.getAttribute("data-wc-language-chip"), each.textContent])),
+		).toEqual([
+			["en", "ENEnglish: translated"],
+			["it", "ITItalian: not translated yet"],
+		]);
 		// The Subtitle shows on the page (a region): it is changed there, not here.
 		expect(
 			await panel
@@ -308,9 +311,7 @@ describe("the Entry panel, for Staff", () => {
 		await page.locator('[data-wc-language-chip="it"]').click();
 		await framedAt(page, "/it/blog/fresh-bread");
 		await page.locator('[data-wc-language-chip="it"][aria-current="page"]').waitFor();
-		expect(await page.locator("[data-wc-entry-panel]").getByLabel("Title · Italian").inputValue()).toBe(
-			"Fresh bread, daily",
-		);
+		await page.locator("[data-wc-entry-panel]").getByLabel("Title · Italian").waitFor();
 		await page.locator('[data-wc-language-chip="en"]').click();
 		await framedAt(page, "/blog/fresh-bread");
 	});

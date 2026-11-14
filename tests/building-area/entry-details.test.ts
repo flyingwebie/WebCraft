@@ -148,7 +148,9 @@ describe("the Fields that don't show on the page", () => {
 		const response = await area.edit("details/save", { item: `entry:${entryId}`, fields: { kicker: "" } });
 
 		expect(response.status).toBe(200);
-		expect((await json(response)).problems).toEqual([expect.objectContaining({ at: "fields.kicker", rule: "required" })]);
+		expect((await json(response)).problems).toEqual([
+			expect.objectContaining({ at: "fields.kicker", rule: "required" }),
+		]);
 		await area.edit("details/save", { item: `entry:${entryId}`, fields: { kicker: "Recipes" } });
 	});
 
