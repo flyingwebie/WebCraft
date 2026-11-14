@@ -16,8 +16,8 @@ import {
 	BUILDING_PREFIX,
 	BUILDING_STAND_IN_PREFIX,
 	type PageAgent,
-	TEXT_REGION,
 } from "./contract.ts";
+import { pageRegions } from "./regions.ts";
 
 ((win: Window & typeof globalThis) => {
 	const doc = win.document;
@@ -54,32 +54,20 @@ import {
 	const querySelectorAll = Element.prototype.querySelectorAll;
 	const preventDefault = Event.prototype.preventDefault;
 	const stopImmediatePropagation = Event.prototype.stopImmediatePropagation;
+	const execCommand = Document.prototype.execCommand;
 	const Observer = win.MutationObserver;
 
-	/** How text regions are made editable: `plaintext-only` for plain text where the browser has it. */
-	const plainTextOnly = (() => {
-		try {
-			const probe = doc.createElement("div");
-			probe.contentEditable = "plaintext-only";
-			return probe.contentEditable === "plaintext-only";
-		} catch {
-			return false;
-		}
-	})();
-
-	const isRichText = (region: Element) => getAttribute.call(region, "data-wc-type") === "richText";
-
-	const adopt = (nodes: readonly Node[]) => {
-		for (const node of nodes) {
-			if (!(node instanceof win.Element)) continue;
-			const found = [...(matches.call(node, TEXT_REGION) ? [node] : []), ...querySelectorAll.call(node, TEXT_REGION)];
-			for (const region of found) {
-				if (getAttribute.call(region, "contenteditable") !== null) continue;
-				setAttribute.call(region, "contenteditable", isRichText(region) || !plainTextOnly ? "true" : "plaintext-only");
-				setAttribute.call(region, "spellcheck", "true");
-			}
-		}
-	};
+	// The page's text regions: made editable, and the rules typing in them follows (`regions.ts`).
+	const regions = pageRegions(win, {
+		setAttribute,
+		getAttribute,
+		matches,
+		closest,
+		querySelectorAll,
+		preventDefault,
+		execCommand,
+	});
+	const { adopt, isRichText } = regions;
 
 	const agent: PageAgent = { adopt, isRichText };
 	host.attach(agent, doc, address);
@@ -88,7 +76,7 @@ import {
 		function (this: unknown, event: Event) {
 			// A link never leaves the page by itself (the shell opens pages, so Back and the address follow
 			// them): while editing it is selected, and while editing is off the shell opens where it goes.
-			// Plain text is one line.
+			// Typing in a region follows its rules first (plain text is one line).
 			if (kind === "click" && event.target instanceof win.Element) {
 				const link = closest.call(event.target, "a[href], area[href]");
 				if (link) {
@@ -100,15 +88,7 @@ import {
 					}
 				}
 			}
-			if (
-				kind === "keydown" &&
-				(event as KeyboardEvent).key === "Enter" &&
-				event.target instanceof win.Element &&
-				matches.call(event.target, TEXT_REGION) &&
-				!isRichText(event.target)
-			) {
-				preventDefault.call(event);
-			}
+			if (kind === "keydown") regions.rules("keydown", event);
 			if (host.event(kind, event)) {
 				preventDefault.call(event);
 				stopImmediatePropagation.call(event);
@@ -122,11 +102,16 @@ import {
 		"focusin",
 		"focusout",
 		"input",
+		"beforeinput",
 		"scroll",
 	] as const) {
 		listen.call(win, kind, forward(kind), { capture: true, passive: kind === "pointermove" || kind === "scroll" });
 	}
 	listen.call(doc.documentElement, "pointerleave", forward("pointerleave"), { capture: false });
+	// What is pasted into plain text is text only (the page sees nothing of it but the text).
+	listen.call(win, "paste", (event: Event) => regions.rules("paste", event), { capture: true });
+	// Where the caret is, for the text toolbar's pressed tools: the document says, not the window.
+	listen.call(doc, "selectionchange", forward("selectionchange"));
 	listen.call(win, "focus", () => host.focus(true));
 	listen.call(win, "blur", () => host.focus(false));
 	// The page's errors, for the JS pane: from the start, before any Site script runs.

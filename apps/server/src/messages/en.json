@@ -8730,6 +8730,54 @@
 				"required": "Required",
 				"saveFailed": "Couldn't save {field}: {reason}"
 			}
+		},
+		"editing": {
+			"toolbar": "Text formatting: {name}",
+			"bold": "Bold",
+			"italic": "Italic",
+			"link": "Link",
+			"bulletList": "Bulleted list",
+			"numberedList": "Numbered list",
+			"undo": "Undo",
+			"done": "Done",
+			"linkAddress": "Link address",
+			"linkPlaceholder": "Paste an address",
+			"linkApply": "Apply the link",
+			"linkRemove": "Remove the link",
+			"toolbarHint": "Alt+F10 reaches the text toolbar",
+			"problems": {
+				"required": "This can't be empty.",
+				"minLength": "This is too short.",
+				"maxLength": "This is too long.",
+				"pattern": "This isn't in the form it needs.",
+				"other": "This can't be published as it is.",
+				"url": "This isn't an address a page can link to.",
+				"media": "This file isn't in the Media library.",
+				"email": "This isn't an email address.",
+				"min": "This is too small.",
+				"max": "This is too large.",
+				"integer": "This must be a whole number.",
+				"options": "This isn't one of the choices."
+			},
+			"history": {
+				"text": "Edit {name}",
+				"undid": "Undid {label}",
+				"redid": "Redid {label}",
+				"skipped": "Skipped {label}.",
+				"keptUndo": "{label} wasn't undone and stays in the history.",
+				"keptRedo": "{label} wasn't redone and stays in the history.",
+				"HISTORY_OBSOLETE": "This step overlaps a newer change or its target no longer exists.",
+				"HISTORY_UNAVAILABLE": "The Draft can't be changed right now. Try again in a moment.",
+				"HISTORY_PARTIAL": "Part of this step could not be restored. Review the Draft before continuing.",
+				"refused": "The server refused this step.",
+				"on": "{message} on {title}"
+			},
+			"someone": "Someone",
+			"via": "{name} via {client}",
+			"viaTranslation": "{name} via AI translation",
+			"joined": "{name} is editing this page too",
+			"changedHere": "Changed, not published",
+			"refused": "That change wasn't saved: {reason}"
 		}
 	},
 	"auth": {
