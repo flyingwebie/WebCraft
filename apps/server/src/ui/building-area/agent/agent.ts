@@ -13,6 +13,8 @@ import {
 	type AgentEventKind,
 	type AgentHost,
 	BUILDING_PAGE_PREFIX,
+	BUILDING_PREFIX,
+	BUILDING_STAND_IN_PREFIX,
 	type PageAgent,
 	TEXT_REGION,
 } from "./contract.ts";
@@ -21,9 +23,14 @@ import {
 	const doc = win.document;
 	const address = `${win.location.pathname}${win.location.search}`;
 
-	// Opened at the top level (a bookmark, a link from elsewhere): the shell shows it in its frame.
+	// Opened at the top level (a bookmark, a link from elsewhere): the shell shows it in its frame. A
+	// stand-in goes to the shell at the Template or Component it draws.
 	if (win.top === win) {
-		win.location.replace(`${BUILDING_PAGE_PREFIX}${address}`);
+		win.location.replace(
+			address.startsWith(`${BUILDING_STAND_IN_PREFIX}/`)
+				? `${BUILDING_PREFIX}${address.slice(BUILDING_STAND_IN_PREFIX.length)}`
+				: `${BUILDING_PAGE_PREFIX}${address}`,
+		);
 		return;
 	}
 
@@ -79,13 +86,19 @@ import {
 
 	const forward = (kind: AgentEventKind) =>
 		function (this: unknown, event: Event) {
-			// Editing: a link never leaves the page (the shell opens pages), and plain text is one line.
-			if (
-				kind === "click" &&
-				event.target instanceof win.Element &&
-				closest.call(event.target, "a[href], area[href]")
-			) {
-				preventDefault.call(event);
+			// A link never leaves the page by itself (the shell opens pages, so Back and the address follow
+			// them): while editing it is selected, and while editing is off the shell opens where it goes.
+			// Plain text is one line.
+			if (kind === "click" && event.target instanceof win.Element) {
+				const link = closest.call(event.target, "a[href], area[href]");
+				if (link) {
+					preventDefault.call(event);
+					const href = (link as HTMLAnchorElement).href;
+					if (host.following() && typeof href === "string" && host.follow(href)) {
+						stopImmediatePropagation.call(event);
+						return;
+					}
+				}
 			}
 			if (
 				kind === "keydown" &&

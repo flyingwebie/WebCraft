@@ -3,29 +3,28 @@ import type { ApiClient } from "@webcraft/api";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
 import {
+	Dialog,
+	DialogClose,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@webcraft/ui/components/dialog.tsx";
+import {
 	Field,
 	FieldContent,
 	FieldDescription,
 	FieldError,
-	FieldGroup,
 	FieldLabel,
 	FieldLegend,
 	FieldSet,
 } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { RadioGroup, RadioGroupItem } from "@webcraft/ui/components/radio-group.tsx";
-import {
-	Sheet,
-	SheetClose,
-	SheetContent,
-	SheetDescription,
-	SheetFooter,
-	SheetHeader,
-	SheetTitle,
-	SheetTrigger,
-} from "@webcraft/ui/components/sheet.tsx";
-import { InfoIcon, SendIcon, UserPlusIcon } from "lucide-react";
-import { type FormEvent, type ReactNode, type RefObject, useId, useState } from "react";
+import { cn } from "@webcraft/ui/lib/utils.ts";
+import { UserPlusIcon } from "lucide-react";
+import { type FormEvent, type ReactNode, type RefObject, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../api.ts";
@@ -70,7 +69,11 @@ function freshAccess(offer: readonly AccessOffer[]): Access {
 	return within({ role, mode: "all", chosen: [] }, offer);
 }
 
-/** "Invite Member": an email address, a role, and the Sites the Membership reaches. */
+/**
+ * "Invite a Member" (frame "Invite a Member"): an email address, the role as three cards, the Sites
+ * the Membership reaches (all of them, also those added later, or the ones ticked), and the line
+ * about the link, which works for 7 days.
+ */
 export function InviteMemberSheet({
 	workspaceId,
 	offer,
@@ -82,6 +85,7 @@ export function InviteMemberSheet({
 }) {
 	const t = useT();
 	const router = useRouter();
+	const trigger = useRef<HTMLButtonElement>(null);
 	const [open, setOpen] = useState(false);
 	const [email, setEmail] = useState("");
 	const [access, setAccess] = useState<Access>(() => freshAccess(offer));
@@ -117,43 +121,44 @@ export function InviteMemberSheet({
 	};
 
 	return (
-		<MemberSheet
-			open={open}
-			onOpenChange={(next) => {
-				setOpen(next);
-				if (!next) reset();
-			}}
-			trigger={
-				<SheetTrigger render={<Button />}>
-					<UserPlusIcon aria-hidden="true" />
-					{t("members.invite")}
-				</SheetTrigger>
-			}
-			title={t("members.sheet.inviteTitle")}
-			description={t("members.sheet.inviteDescription")}
-			onSubmit={submit}
-			submit={
-				<Button type="submit" disabled={busy}>
-					<SendIcon aria-hidden="true" />
-					{t("members.sheet.send")}
-				</Button>
-			}
-		>
-			<Field data-invalid={errors.form ? true : undefined}>
-				<FieldLabel htmlFor="member-invite-email">{t("members.sheet.email")}</FieldLabel>
-				<Input
-					id="member-invite-email"
-					type="email"
-					value={email}
-					autoComplete="off"
-					onChange={(event) => setEmail(event.target.value)}
-					aria-invalid={errors.form ? true : undefined}
-					aria-describedby={errors.form ? "member-invite-error" : undefined}
-				/>
-			</Field>
-			<MemberAccessFields offer={offer} sites={sites} value={access} onChange={setAccess} error={errors.sites} />
-			{errors.form ? <FieldError id="member-invite-error">{t(errors.form)}</FieldError> : null}
-		</MemberSheet>
+		<>
+			<Button ref={trigger} onClick={() => setOpen(true)} aria-haspopup="dialog">
+				<UserPlusIcon aria-hidden="true" />
+				{t("members.invite")}
+			</Button>
+			<MemberDialog
+				open={open}
+				onOpenChange={(next) => {
+					setOpen(next);
+					if (!next) reset();
+				}}
+				finalFocus={trigger}
+				title={t("members.sheet.inviteTitle")}
+				onSubmit={submit}
+				foot={<p className="text-muted-foreground text-sm">{t("members.sheet.linkNote")}</p>}
+				submit={
+					<Button type="submit" disabled={busy}>
+						{t("members.sheet.send")}
+					</Button>
+				}
+			>
+				<Field data-invalid={errors.form ? true : undefined}>
+					<FieldLabel htmlFor="member-invite-email">{t("members.sheet.email")}</FieldLabel>
+					<Input
+						id="member-invite-email"
+						type="email"
+						value={email}
+						autoComplete="off"
+						placeholder={t("members.sheet.emailPlaceholder")}
+						onChange={(event) => setEmail(event.target.value)}
+						aria-invalid={errors.form ? true : undefined}
+						aria-describedby={errors.form ? "member-invite-error" : undefined}
+					/>
+				</Field>
+				<MemberAccessFields offer={offer} sites={sites} value={access} onChange={setAccess} error={errors.sites} />
+				{errors.form ? <FieldError id="member-invite-error">{t(errors.form)}</FieldError> : null}
+			</MemberDialog>
+		</>
 	);
 }
 
@@ -213,7 +218,7 @@ export function ChangeAccessSheet({
 	};
 
 	return (
-		<MemberSheet
+		<MemberDialog
 			open={open}
 			onOpenChange={(next) => {
 				onOpenChange(next);
@@ -232,56 +237,64 @@ export function ChangeAccessSheet({
 		>
 			<MemberAccessFields offer={offer} sites={sites} value={access} onChange={setAccess} error={errors.sites} />
 			{errors.form ? <FieldError>{t(errors.form)}</FieldError> : null}
-		</MemberSheet>
+		</MemberDialog>
 	);
 }
 
-/** A side panel holding one form, with Cancel and the form's own submit button at the bottom. */
-function MemberSheet({
+/** A dialog holding one form: its fields, then a line at the foot, Cancel and the form's own submit. */
+function MemberDialog({
 	open,
 	onOpenChange,
-	trigger,
 	finalFocus,
 	title,
 	description,
 	onSubmit,
+	foot,
 	submit,
 	children,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	trigger?: ReactNode;
 	finalFocus?: RefObject<HTMLElement | null>;
 	title: string;
-	description: string;
+	description?: string;
 	onSubmit: (event: FormEvent) => void;
+	/** A line under the fields, before the buttons. */
+	foot?: ReactNode;
 	submit: ReactNode;
 	children: ReactNode;
 }) {
 	const t = useT();
 	return (
-		<Sheet open={open} onOpenChange={onOpenChange}>
-			{trigger}
-			<SheetContent closeLabel={t("members.sheet.close")} className="w-full sm:max-w-md" finalFocus={finalFocus}>
-				<form onSubmit={onSubmit} noValidate className="flex min-h-0 flex-1 flex-col">
-					<SheetHeader className="pe-12">
-						<SheetTitle>{title}</SheetTitle>
-						<SheetDescription>{description}</SheetDescription>
-					</SheetHeader>
-					<FieldGroup className="flex-1 gap-6 overflow-y-auto p-4">{children}</FieldGroup>
-					<SheetFooter className="flex-row justify-end border-t">
-						<SheetClose render={<Button variant="outline" type="button" />}>{t("members.sheet.cancel")}</SheetClose>
-						{submit}
-					</SheetFooter>
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent
+				closeLabel={t("members.sheet.close")}
+				finalFocus={finalFocus}
+				className="gap-0 p-6 sm:max-w-[520px]"
+			>
+				<form onSubmit={onSubmit} noValidate className="grid max-h-[calc(100dvh-6rem)] min-h-0 gap-5">
+					<DialogHeader className="pe-8">
+						<DialogTitle className="text-lg font-semibold">{title}</DialogTitle>
+						{description ? <DialogDescription>{description}</DialogDescription> : null}
+					</DialogHeader>
+					<div className="-mx-1 grid min-h-0 gap-5 overflow-y-auto px-1">{children}</div>
+					<div className="grid gap-4">
+						{foot}
+						<DialogFooter>
+							<DialogClose render={<Button variant="outline" type="button" />}>{t("members.sheet.cancel")}</DialogClose>
+							{submit}
+						</DialogFooter>
+					</div>
 				</form>
-			</SheetContent>
-		</Sheet>
+			</DialogContent>
+		</Dialog>
 	);
 }
 
 /**
- * A role, and every Site of the Workspace (including later ones) or the ones ticked. Only what the
- * person may give is on offer: nobody grants more access than they hold.
+ * The role as cards, one line each, and the Sites the Membership reaches: all of them (also those
+ * added later) or the ones ticked. Only what the person may give is on offer: nobody grants more
+ * access than they hold.
  */
 function MemberAccessFields({
 	offer,
@@ -304,89 +317,92 @@ function MemberAccessFields({
 			...value,
 			chosen: checked ? [...value.chosen, siteId] : value.chosen.filter((chosen) => chosen !== siteId),
 		});
+	const all = value.mode === "all";
 	return (
 		<>
-			<FieldSet>
-				<FieldLegend variant="label">{t("members.sheet.role")}</FieldLegend>
+			<FieldSet className="gap-2">
+				<FieldLegend variant="label" className="mb-1">
+					{t("members.sheet.role")}
+				</FieldLegend>
 				<RadioGroup
 					value={value.role}
 					onValueChange={(role) => onChange(within({ ...value, role: role as WorkspaceRole }, offer))}
+					className="gap-2"
 				>
 					{offer.map(({ role }) => (
-						<Field key={role} orientation="horizontal">
-							<RadioGroupItem value={role} id={`${id}-${role}`} aria-describedby={`${id}-${role}-help`} />
-							<FieldContent>
-								<FieldLabel htmlFor={`${id}-${role}`}>{t(`roles.${role}`)}</FieldLabel>
-								<FieldDescription id={`${id}-${role}-help`}>{t(`members.sheet.roleHelp.${role}`)}</FieldDescription>
-							</FieldContent>
-						</Field>
+						<label
+							key={role}
+							htmlFor={`${id}-${role}`}
+							className={cn(
+								"has-focus-visible:ring-ring/50 flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 text-sm transition-colors duration-150 has-focus-visible:ring-3",
+								value.role === role ? "border-primary bg-accent" : "hover:bg-accent/50",
+							)}
+						>
+							<RadioGroupItem value={role} id={`${id}-${role}`} />
+							<span>
+								<span className="font-semibold">{t("members.sheet.roleName", { role: t(`roles.${role}`) })}</span>{" "}
+								{t(`members.sheet.roleLine.${role}`)}
+							</span>
+						</label>
 					))}
 				</RadioGroup>
 			</FieldSet>
-			<FieldSet data-invalid={error ? true : undefined}>
-				<FieldLegend variant="label">{t("members.sheet.access")}</FieldLegend>
-				<RadioGroup value={value.mode} onValueChange={(mode) => onChange({ ...value, mode: mode as Access["mode"] })}>
-					<Field orientation="horizontal" data-disabled={choice?.allSites ? undefined : true}>
-						<RadioGroupItem
-							value="all"
-							id={`${id}-all`}
-							disabled={!choice?.allSites}
-							aria-describedby={`${id}-all-help`}
-						/>
-						<FieldContent>
-							<FieldLabel htmlFor={`${id}-all`}>{t("members.sheet.all")}</FieldLabel>
-							<FieldDescription id={`${id}-all-help`}>{t("members.sheet.allHelp")}</FieldDescription>
-						</FieldContent>
-					</Field>
+			<FieldSet data-invalid={error ? true : undefined} className="gap-2.5">
+				<FieldLegend variant="label" className="mb-0.5">
+					{t("members.sheet.reach")}
+				</FieldLegend>
+				{choice?.allSites ? (
 					<Field orientation="horizontal">
-						<RadioGroupItem value="chosen" id={`${id}-chosen`} aria-describedby={`${id}-chosen-help`} />
-						<FieldContent>
-							<FieldLabel htmlFor={`${id}-chosen`}>{t("members.sheet.chosen")}</FieldLabel>
-							<FieldDescription id={`${id}-chosen-help`}>{t("members.sheet.chosenHelp")}</FieldDescription>
-						</FieldContent>
+						<Checkbox
+							id={`${id}-all`}
+							checked={all}
+							onCheckedChange={(checked) =>
+								onChange({
+									...value,
+									mode: checked === true ? "all" : "chosen",
+									// Unticking "All Sites" starts from every Site ticked, to untick the ones not wanted.
+									chosen: checked === true ? value.chosen : sites.map((site) => site.id),
+								})
+							}
+						/>
+						<FieldLabel htmlFor={`${id}-all`} className="font-normal">
+							{t("members.sheet.allLater")}
+						</FieldLabel>
 					</Field>
-				</RadioGroup>
-				{value.mode === "chosen" ? (
-					sites.length === 0 ? (
-						<p className="text-muted-foreground text-sm">{t("members.sheet.noSites")}</p>
-					) : (
-						<FieldSet className="gap-3 ps-7">
-							<FieldLegend variant="label" className="sr-only">
-								{t("members.sheet.chooseLegend")}
-							</FieldLegend>
-							{sites.map((site) => {
-								const offered = choice?.sites.includes(site.id) ?? false;
-								return (
-									<Field key={site.id} orientation="horizontal" data-disabled={offered ? undefined : true}>
-										<Checkbox
-											id={`${id}-${site.id}`}
-											checked={value.chosen.includes(site.id)}
-											disabled={!offered}
-											onCheckedChange={(checked) => toggle(site.id, checked === true)}
-											aria-describedby={offered ? undefined : `${id}-${site.id}-help`}
-										/>
-										<FieldContent>
-											<FieldLabel htmlFor={`${id}-${site.id}`} className="font-normal">
-												{site.name}
-											</FieldLabel>
-											{offered ? null : (
-												<FieldDescription id={`${id}-${site.id}-help`}>
-													{t("members.sheet.notReached")}
-												</FieldDescription>
-											)}
-										</FieldContent>
-									</Field>
-								);
-							})}
-						</FieldSet>
-					)
 				) : null}
+				{sites.length === 0 ? (
+					<p className="text-muted-foreground text-sm">{t("members.sheet.noSites")}</p>
+				) : (
+					sites.map((site) => {
+						const offered = choice?.sites.includes(site.id) ?? false;
+						return (
+							<Field
+								key={site.id}
+								orientation="horizontal"
+								data-disabled={offered && !all ? undefined : true}
+								className={choice?.allSites ? "ps-6" : undefined}
+							>
+								<Checkbox
+									id={`${id}-${site.id}`}
+									checked={all ? offered : value.chosen.includes(site.id)}
+									disabled={!offered || all}
+									onCheckedChange={(checked) => toggle(site.id, checked === true)}
+									aria-describedby={offered ? undefined : `${id}-${site.id}-help`}
+								/>
+								<FieldContent>
+									<FieldLabel htmlFor={`${id}-${site.id}`} className="font-normal">
+										{site.name}
+									</FieldLabel>
+									{offered ? null : (
+										<FieldDescription id={`${id}-${site.id}-help`}>{t("members.sheet.notReached")}</FieldDescription>
+									)}
+								</FieldContent>
+							</Field>
+						);
+					})
+				)}
 				{error ? <FieldError>{t(error)}</FieldError> : null}
 			</FieldSet>
-			<p className="bg-muted text-muted-foreground flex gap-2 rounded-md px-3 py-2 text-xs">
-				<InfoIcon className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-				{t("members.sheet.limitNote")}
-			</p>
 		</>
 	);
 }

@@ -289,6 +289,10 @@ describe("the panels' rules (SPEC 5)", () => {
 		}
 	});
 
+	test("with no document open (an address that opens nothing): Layers only", () => {
+		expect(shown({ ...nothing, document: null })).toEqual(["layers"]);
+	});
+
 	test("a Template has no Entry panel; a Component edited in place brings the Component panel", () => {
 		expect(shown({ ...nothing, document: "template" })).toEqual(["layers"]);
 		expect(shown({ ...nothing, document: "entry", componentInPlace: true })).toEqual(["layers", "entry", "component"]);

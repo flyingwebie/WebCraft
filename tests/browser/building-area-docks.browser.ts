@@ -195,6 +195,13 @@ describe("the building area's docks and panels", () => {
 		expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(1);
 		// The Inspector names what is selected.
 		expect(await page.locator('[data-wc-panel="inspector"] h2').textContent()).toBe("Element");
+		// Layers' header is the open document's name, which switches document (BA-06's switcher).
+		const switcher = page.locator('[data-wc-panel="layers"] [data-wc-document-title]');
+		expect(await switcher.textContent()).toContain("Fresh bread");
+		await switcher.click();
+		await page.getByRole("menu", { name: /^Switch document: / }).waitFor();
+		await page.keyboard.press("Escape");
+		await page.getByRole("menu", { name: /^Switch document: / }).waitFor({ state: "detached" });
 		await clearSelection(page, frame);
 	});
 

@@ -4,15 +4,19 @@ import { editorHistory } from "../builder/editor-history.ts";
 import { matches } from "../builder/shortcuts.ts";
 import { type EditAnswer, editRequests, fill, type PageState, type ShellConfig } from "./api.ts";
 import { BottomBar } from "./bottom-bar/BottomBar.tsx";
+import { DocumentNav } from "./bottom-bar/DocumentNav.tsx";
 import { draftStateOf } from "./bottom-bar/DraftState.tsx";
 import type { PageLanguage } from "./bottom-bar/LanguageMenu.tsx";
 import { Frame, type FrameHandle, type PageTheme } from "./canvas/Frame.tsx";
+import { NoDocument } from "./canvas/NoDocument.tsx";
 import type { SavingStatus } from "./canvas/regions.ts";
+import { DocumentSwitcher } from "./DocumentSwitcher.tsx";
 import { DockArea, useDocks } from "./docks/Docks.tsx";
 import { PanelsMenu } from "./docks/PanelsMenu.tsx";
 import type { PanelContext } from "./docks/panels.ts";
 import { type RegionCycle, regionCycle } from "./keyboard.ts";
 import { NarrowNotice } from "./NarrowNotice.tsx";
+import { useOpenDocument } from "./open-document.ts";
 import { Rail } from "./rail/Rail.tsx";
 
 /**
@@ -81,13 +85,19 @@ export function Shell({ config }: { config: ShellConfig }) {
 		});
 	}, []);
 
+	// The open document (BA-06): what the address names, and where the frame shows it.
+	const opened = useOpenDocument(config, announce);
+	const { framed } = opened;
+
 	const onPage = useCallback(
 		(address: string, answer: Promise<EditAnswer<PageState>>) => {
 			shownAddress.current = address;
 			setSaving("idle");
+			setShown(null);
 			takeState(address, answer);
+			framed(address, answer);
 		},
-		[takeState],
+		[takeState, framed],
 	);
 
 	const onSaving = useCallback(
@@ -133,8 +143,32 @@ export function Shell({ config }: { config: ShellConfig }) {
 	}, [config.site.id, announce]);
 
 	// The open document is a page for now (documents come with a later part of the building area).
-	const context = useMemo<PanelContext>(() => ({ selection, document: "page", componentInPlace: false }), [selection]);
-	const docks = useDocks({ config, context, announce });
+	// What the panels' rules read: the selection and the open document's kind (a Template of any kind is a Template).
+	const kind = opened.address.document?.kind ?? null;
+	const context = useMemo<PanelContext>(
+		() => ({
+			selection,
+			document: kind === null ? null : kind === "page" || kind === "component" || kind === "form" ? kind : "template",
+			componentInPlace: false,
+		}),
+		[selection, kind],
+	);
+	const docks = useDocks({
+		config,
+		context,
+		announce,
+		headings: {
+			layers: (
+				<DocumentSwitcher
+					words={words}
+					title={opened.title}
+					current={opened.address.document}
+					data={opened.switchable}
+					onOpen={opened.open}
+				/>
+			),
+		},
+	});
 
 	const exit = async () => {
 		setExiting(true);
@@ -181,6 +215,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 				language={config.language}
 				languages={shown?.languages ?? []}
 				onLanguage={(language) => frame.current?.navigate(language.path)}
+				nav={<DocumentNav words={words} back={opened.back} preview={opened.preview} renderedBy={opened.renderedBy} />}
 				staging={config.staging && shown ? `${config.staging}${shown.address}` : null}
 				draft={draftStateOf(saving, shown)}
 			/>
@@ -211,19 +246,26 @@ export function Shell({ config }: { config: ShellConfig }) {
 					data-building-region="canvas"
 					className="relative min-h-0 min-w-0 [grid-area:canvas]"
 				>
-					<Frame
-						page={config.page}
-						words={words}
-						request={request}
-						cycle={() => cycle.current}
-						announce={announce}
-						breakpoints={config.breakpoints}
-						theme={theme}
-						handle={frame}
-						onPage={onPage}
-						onSaving={onSaving}
-						onSelect={(selected) => setSelection(selected ? { kind: "element", name: selected.name } : null)}
-					/>
+					{opened.shown?.status === "missing" || opened.shown?.status === "later" ? (
+						<NoDocument words={words} why={opened.shown.status} />
+					) : null}
+					{opened.shown?.status === "shown" ? (
+						<Frame
+							address={opened.shown.frame}
+							following={hidden}
+							onFollow={opened.follow}
+							words={words}
+							request={request}
+							cycle={() => cycle.current}
+							announce={announce}
+							breakpoints={config.breakpoints}
+							theme={theme}
+							handle={frame}
+							onPage={onPage}
+							onSaving={onSaving}
+							onSelect={(selected) => setSelection(selected ? { kind: "element", name: selected.name } : null)}
+						/>
+					) : null}
 				</main>
 			</div>
 			<div className="sr-only" data-wc-messages="">

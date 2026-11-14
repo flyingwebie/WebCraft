@@ -408,32 +408,41 @@ export function TwoFactorSetupChoices({ account, onAdded }: { account: string; o
 		setBusy(false);
 	};
 
+	// Side by side where the card has room for both (the Your account page), stacked in the setup's
+	// narrow panel.
 	return (
-		<div className="grid gap-4 sm:grid-cols-2">
-			<div className="flex flex-col gap-3 rounded-lg border p-4">
-				<SmartphoneIcon className="text-muted-foreground size-5" aria-hidden="true" />
-				<h2 className="font-medium">{t("twoFactor.setup.authenticatorTitle")}</h2>
-				<p className="text-muted-foreground flex-1 text-sm">{t("twoFactor.setup.authenticatorBody")}</p>
-				<div>
-					<Button type="button" onClick={addApp} disabled={busy}>
-						{t("twoFactor.setup.authenticatorAction")}
-					</Button>
+		<div className="@container grid">
+			<div className="grid gap-4 @lg:grid-cols-2">
+				<div className="flex flex-col gap-3 rounded-lg border p-4">
+					<SmartphoneIcon className="text-muted-foreground size-5" aria-hidden="true" />
+					<h2 className="font-medium">{t("twoFactor.setup.authenticatorTitle")}</h2>
+					<p className="text-muted-foreground flex-1 text-sm">{t("twoFactor.setup.authenticatorBody")}</p>
+					<div>
+						<Button type="button" onClick={addApp} disabled={busy}>
+							{t("twoFactor.setup.authenticatorAction")}
+						</Button>
+					</div>
 				</div>
-			</div>
-			<div className="flex flex-col gap-3 rounded-lg border p-4">
-				<KeyRoundIcon className="text-muted-foreground size-5" aria-hidden="true" />
-				<h2 className="font-medium">{t("twoFactor.setup.passkeyTitle")}</h2>
-				<p className="text-muted-foreground flex-1 text-sm">
-					{canUsePasskeys ? t("twoFactor.setup.passkeyBody") : t("twoFactor.passkeys.unavailable")}
-				</p>
-				<div>
-					<Button type="button" variant="outline" onClick={() => setAddingPasskey(true)} disabled={!canUsePasskeys}>
-						{t("twoFactor.setup.passkeyAction")}
-					</Button>
+				<div className="flex flex-col gap-3 rounded-lg border p-4">
+					<KeyRoundIcon className="text-muted-foreground size-5" aria-hidden="true" />
+					<h2 className="font-medium">{t("twoFactor.setup.passkeyTitle")}</h2>
+					<p className="text-muted-foreground flex-1 text-sm">
+						{canUsePasskeys ? t("twoFactor.setup.passkeyBody") : t("twoFactor.passkeys.unavailable")}
+					</p>
+					<div>
+						<Button type="button" variant="outline" onClick={() => setAddingPasskey(true)} disabled={!canUsePasskeys}>
+							{t("twoFactor.setup.passkeyAction")}
+						</Button>
+					</div>
 				</div>
+				<AuthenticatorDialog pending={pending} account={account} onClose={() => setPending(null)} onAdded={onAdded} />
+				<PasskeyDialog
+					open={addingPasskey}
+					account={account}
+					onClose={() => setAddingPasskey(false)}
+					onAdded={onAdded}
+				/>
 			</div>
-			<AuthenticatorDialog pending={pending} account={account} onClose={() => setPending(null)} onAdded={onAdded} />
-			<PasskeyDialog open={addingPasskey} account={account} onClose={() => setAddingPasskey(false)} onAdded={onAdded} />
 		</div>
 	);
 }

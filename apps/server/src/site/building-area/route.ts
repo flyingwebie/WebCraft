@@ -2,8 +2,9 @@ import {
 	type AdminLanguageCode,
 	BUILDING_AREA_PAGE_PATH,
 	BUILDING_AREA_PATH,
+	BUILDING_AREA_STAND_IN_PATH,
 	type InstallServices,
-	isEditPath,
+	parseBuildingDocument,
 	type SiteHost,
 	stagingUrl,
 } from "@webcraft/core";
@@ -16,6 +17,7 @@ import { buildingAreaCookieOf } from "../cookies.ts";
 import { editSessionOf, safeModeOf } from "../edit-mode.ts";
 import { buildingAreaAssets } from "./assets.ts";
 import { shellHeaders } from "./headers.ts";
+import { standInEndpoint } from "./stand-in.ts";
 
 /** The building area's words, by Admin language (`buildingArea` in the admin's message files). */
 const WORDS: Record<AdminLanguageCode, typeof en.buildingArea> = { en: en.buildingArea, it: it.buildingArea };
@@ -42,13 +44,17 @@ export async function buildingAreaEndpoint(
 			headers: { location: `${BUILDING_AREA_PAGE_PATH}/`, "cache-control": "no-store", "x-robots-tag": "noindex" },
 		});
 	}
-	const page = pageIn(url);
-	if (page === null) return plainText(404, "Not Found", { "x-robots-tag": "noindex" });
+	if (url.pathname.startsWith(`${BUILDING_AREA_STAND_IN_PATH}/`)) return standInEndpoint(services, request, host);
+	// The document the address opens (ADR 0037 › Addresses); an address that opens none still gets the
+	// shell, which says so (404), so a mistyped or stale address is never a dead end.
+	const open = documentIn(url);
+	const document = open === null ? null : parseBuildingDocument(open);
 	const edit = await editSessionOf(services, request, host);
 	const returnTo = buildingAreaCookieOf(request);
 	const settings = await services.settings.read();
 	if (!edit.session || returnTo === null) {
-		return signedOut(request, host, services.config.adminOrigin, settings.defaultAdminLanguage, page);
+		if (!document) return plainText(404, "Not Found", { "x-robots-tag": "noindex" });
+		return signedOut(request, host, services.config.adminOrigin, settings.defaultAdminLanguage, open ?? "/page/");
 	}
 	const person = await services.people.get(edit.session.personId);
 	const language = person?.adminLanguage ?? settings.defaultAdminLanguage;
@@ -57,7 +63,7 @@ export async function buildingAreaEndpoint(
 	const preferences = await services.people.editorPreferences(edit.session.personId);
 	const config: ShellConfig = {
 		token: edit.session.headerToken,
-		page: `${page}${url.search}`,
+		page: document?.kind === "page" ? document.page : null,
 		returnTo: new URL(returnTo, services.config.adminOrigin).toString(),
 		language,
 		words: WORDS[language],
@@ -90,17 +96,30 @@ export async function buildingAreaEndpoint(
 		"</body>",
 		"</html>",
 	].join("\n");
-	return new Response(request.method === "HEAD" ? null : html, { status: 200, headers: shellHeaders(url) });
+	return new Response(request.method === "HEAD" ? null : html, {
+		status: document ? 200 : 404,
+		headers: shellHeaders(url),
+	});
 }
 
+/** The shell's own parameters, which belong to no document: the open place and the selection. */
+const SHELL_PARAMETERS = ["wc-place", "wc-select"];
+
 /**
- * The page a shell address opens: the path after `/_webcraft/build/page` (the home page when there is
- * none). Null for any other address of the building area, or a path that isn't one on the Site.
+ * The document part of a shell address (after `/_webcraft/build`, with the document's own query, the
+ * shell's parameters left out), as `parseBuildingDocument` reads it; null when the address isn't
+ * printable ASCII, as a browser sends it.
  */
-function pageIn(url: URL): string | null {
-	if (url.pathname !== BUILDING_AREA_PAGE_PATH && !url.pathname.startsWith(`${BUILDING_AREA_PAGE_PATH}/`)) return null;
-	const page = url.pathname.slice(BUILDING_AREA_PAGE_PATH.length) || "/";
-	return isEditPath(page) ? page : null;
+function documentIn(url: URL): string | null {
+	// A page's query is the page's own: kept as the browser wrote it, unless the shell added to it.
+	let search = url.search;
+	if (SHELL_PARAMETERS.some((name) => url.searchParams.has(name))) {
+		const params = new URLSearchParams(url.search);
+		for (const name of SHELL_PARAMETERS) params.delete(name);
+		search = params.size ? `?${params.toString()}` : "";
+	}
+	const open = `${url.pathname.slice(BUILDING_AREA_PATH.length - 1)}${search}`;
+	return /^[\x21-\x7e]*$/.test(open) ? open : null;
 }
 
 /**
@@ -113,12 +132,12 @@ async function signedOut(
 	host: SiteHost,
 	adminOrigin: string,
 	language: AdminLanguageCode,
-	page: string,
+	open: string,
 ): Promise<Response> {
 	const words = WORDS[language].signedOut;
 	const files = await buildingAreaAssets();
 	const admin = new URL(`/sites/${host.site.id}/build`, adminOrigin);
-	admin.searchParams.set("open", `/page${page}`);
+	admin.searchParams.set("open", open);
 	const html = [
 		"<!doctype html>",
 		`<html lang="${language}" class="dark">`,

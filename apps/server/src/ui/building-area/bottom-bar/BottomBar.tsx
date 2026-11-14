@@ -1,5 +1,5 @@
 import { ExternalLinkIcon, Redo2Icon, Undo2Icon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import { editorHistory } from "../../builder/editor-history.ts";
 import { ariaKeys, shortcutText } from "../../builder/shortcuts.ts";
@@ -25,12 +25,14 @@ function keysOf(id: string) {
 }
 
 /**
- * The bottom bar (SPEC 2 and 4): 48 high, full width. Left (400): Undo and Redo. Centre: the insert
+ * The bottom bar (SPEC 2 and 4): 48 high, full width. Left (400): Undo, Redo and the open document's
+ * own controls (Back to its page, the Entry it previews, the Template rendering it). Centre: the insert
  * row's place (it comes with BA-10). Right (400): the page's language, View on Staging, the Draft
  * state and Publish (112 × 32, never changing width; it publishes from BA-12).
  */
 export function BottomBar({
 	words,
+	nav,
 	language,
 	languages,
 	onLanguage,
@@ -38,6 +40,8 @@ export function BottomBar({
 	draft,
 }: {
 	words: Words;
+	/** The open document's part of the left cluster, after Undo and Redo (`DocumentNav`). */
+	nav?: ReactNode;
 	/** The person's Admin language, for the Draft state's plural. */
 	language: string;
 	/** The page's languages, when the Site has more than one. */
@@ -78,6 +82,7 @@ export function BottomBar({
 					onClick={() => void editorHistory().redo()}
 					data={{ "data-wc-bar": "redo" }}
 				/>
+				{nav}
 			</div>
 			{/* The insert row (BA-10) goes here, in the middle of the bar. */}
 			<div className="flex h-full min-w-0 grow items-center justify-center" data-wc-insert-row="" />

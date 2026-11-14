@@ -8,6 +8,10 @@ import { Forbidden } from "../../ui/PageHeader.tsx";
 import { loadReports } from "../../ui/reports/load.ts";
 import { ReportsPage } from "../../ui/reports/ReportsPage.tsx";
 
+/**
+ * An entry opened for review (`review`); `report` is what older links named to show one Report's
+ * history, which the page now shows with every other Report's.
+ */
 const search = z.object({
 	report: z.uuid().optional().catch(undefined),
 	review: z.uuid().optional().catch(undefined),
@@ -15,7 +19,7 @@ const search = z.object({
 
 export const Route = createFileRoute("/_admin/workspaces/$workspaceId/dashboards/$dashboardId_/reports")({
 	validateSearch: search,
-	loaderDeps: ({ search: { report, review } }) => ({ report, review }),
+	loaderDeps: ({ search: { review } }) => ({ review }),
 	loader: async ({ params, deps, context }) => {
 		if (!context.place.permissions.includes("report.view")) return null;
 		try {
@@ -38,20 +42,16 @@ export const Route = createFileRoute("/_admin/workspaces/$workspaceId/dashboards
 function WorkspaceReports() {
 	const t = useT();
 	const data = Route.useLoaderData();
-	const { workspaceId, dashboardId } = Route.useParams();
+	const { workspaceId } = Route.useParams();
 	const { place } = Route.useRouteContext();
 	if (!data) return <Forbidden heading={t("forbidden.heading")} body={t("reports.forbiddenWorkspace")} />;
 	return (
 		<ReportsPage
-			key={`${data.selected?.report.id}-${data.review?.id}`}
+			key={data.review?.id ?? "reports"}
 			place={{ workspaceId }}
 			data={data}
 			canManage={place.permissions.includes("report.manage")}
 			canEditRecipients={place.permissions.includes("reportRecipients.edit")}
-			dashboardPath={{
-				to: "/workspaces/$workspaceId/dashboards/$dashboardId",
-				params: { workspaceId, dashboardId },
-			}}
 		/>
 	);
 }

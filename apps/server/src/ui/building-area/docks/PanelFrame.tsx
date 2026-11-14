@@ -64,6 +64,7 @@ export function PanelFrame({
 	kind,
 	title,
 	sub,
+	heading,
 	collapsed,
 	labels,
 	menuEntries,
@@ -80,6 +81,8 @@ export function PanelFrame({
 	title: string;
 	/** Beside the title, muted: what the panel shows now (`h1 · Heading`). */
 	sub?: string;
+	/** In place of the title and its sub: a control of the panel's own (Layers' document switcher). */
+	heading?: ReactNode;
 	collapsed: boolean;
 	labels: { menu: string; expand: string; grip: string };
 	menuEntries: readonly MenuEntry[];
@@ -120,10 +123,18 @@ export function PanelFrame({
 					<GripVerticalIcon className="size-3.5" />
 					<Tip label={labels.grip} side="bottom" />
 				</span>
-				<h2 id={titleId} className="text-chrome-strong shrink-0 text-[12px] font-semibold">
-					{title}
-				</h2>
-				<span className="text-chrome-muted min-w-0 grow truncate text-[12px]">{sub}</span>
+				{heading ? (
+					<h2 id={titleId} className="flex min-w-0 grow">
+						{heading}
+					</h2>
+				) : (
+					<>
+						<h2 id={titleId} className="text-chrome-strong shrink-0 text-[12px] font-semibold">
+							{title}
+						</h2>
+						<span className="text-chrome-muted min-w-0 grow truncate text-[12px]">{sub}</span>
+					</>
+				)}
 				{collapsed ? null : actions}
 				{collapsed ? (
 					<PanelButton

@@ -10,6 +10,7 @@ import {
 import {
 	type CSSProperties,
 	Fragment,
+	type ReactNode,
 	type PointerEvent as ReactPointerEvent,
 	useCallback,
 	useEffect,
@@ -71,6 +72,8 @@ export type Docks = {
 	shown: Record<DockSide, ShownPanel[]>;
 	words: Words;
 	context: PanelContext;
+	/** Panels whose header shows a control of their own in place of the title (Layers' document switcher). */
+	headings: Partial<Record<PanelKey, ReactNode>>;
 	change(next: Layout | null, said?: string): void;
 	/** A panel switched off or on in the Panels menu. */
 	toggle(id: PanelKey): void;
@@ -110,10 +113,12 @@ export function panelName(words: Words, id: string): string {
 export function useDocks({
 	config,
 	context,
+	headings = {},
 	announce,
 }: {
 	config: ShellConfig;
 	context: PanelContext;
+	headings?: Partial<Record<PanelKey, ReactNode>>;
 	announce(text: string, urgent?: boolean): void;
 }): Docks {
 	const { words } = config;
@@ -286,6 +291,7 @@ export function useDocks({
 		shown,
 		words,
 		context,
+		headings,
 		change,
 		toggle,
 		reset,
@@ -620,6 +626,7 @@ function Dock({
 								kind={across ? "side" : "bottom"}
 								title={titleOf(shownPanel, docks)}
 								sub={placement.id === "inspector" ? docks.context.selection?.name : undefined}
+								heading={docks.headings[placement.id as PanelKey]}
 								collapsed={Boolean(placement.collapsed)}
 								labels={{
 									menu: fill(words.docks.panelMenu, { panel: name }),

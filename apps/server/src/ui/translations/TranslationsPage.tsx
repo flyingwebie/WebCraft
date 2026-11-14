@@ -1,38 +1,28 @@
 import { Link, useRouter } from "@tanstack/react-router";
 import type { LanguageTranslations, QueueLine, TranslationMode, TranslationsOverview } from "@webcraft/core";
-import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import {
-	Card,
-	CardAction,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@webcraft/ui/components/card.tsx";
 import { Field, FieldLabel, FieldLegend, FieldSet } from "@webcraft/ui/components/field.tsx";
-import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { RadioGroup, RadioGroupItem } from "@webcraft/ui/components/radio-group.tsx";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
 import {
 	CheckCheckIcon,
 	CheckIcon,
-	ChevronRightIcon,
 	CircleAlertIcon,
+	FileTextIcon,
 	LanguagesIcon,
+	LockIcon,
 	PencilIcon,
 	RefreshCwIcon,
 	SettingsIcon,
 	SparklesIcon,
-	UserIcon,
 } from "lucide-react";
-import { Fragment, useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
-import { PageHeader } from "../PageHeader.tsx";
+import { StateBadge } from "../settings/layout.tsx";
+import { PageHeader } from "../shell/page.tsx";
 
 /** The words for each Translation mode, and what it does. */
 export const MODE_WORDS: Record<TranslationMode, { label: MessageKey; help: MessageKey }> = {
@@ -156,26 +146,49 @@ export function Notice({ tone, children }: { tone: "warning" | "info"; children:
 	);
 }
 
+/** A Protected term, as the Translations screen needs it: its words and whether case counts. */
+export type TermToKeep = { term: string; matchCase: boolean };
+
+/** An item of the queue, in one language: its values that wait, AI's to review or Outdated. */
+type QueueItem = { key: string; line: QueueLine; lines: QueueLine[] };
+
+function itemKey(line: QueueLine): string {
+	return `${line.item.kind}:${line.item.id ?? ""}`;
+}
+
 /**
- * Site › Translations: how each of the Site's languages is kept up to date (its Translation mode and
- * progress), and the Review queue: AI translations waiting in the Draft for a person to publish, and
- * Outdated translations, whose Default-language source changed after a person wrote them.
+ * Site › Translations (frame "Translations"): one tab per language with where it stands and a bar of
+ * how much is translated; then the items that wait in that language (translated by AI and waiting
+ * for a person, or Outdated: their source changed after a person wrote them) beside the one chosen,
+ * its values side by side with the Default language's, Field by Field, with the Protected terms they
+ * keep as written; Translate again, Edit and Approve act on it.
  */
 export function TranslationsPage({
 	siteId,
 	overview,
 	lines,
+	terms,
 	permissions,
+	language: asked,
+	onLanguage,
 }: {
 	siteId: string;
 	overview: TranslationsOverview;
 	lines: QueueLine[];
+	/** The Protected terms that apply on the Site. */
+	terms: readonly TermToKeep[];
 	permissions: readonly string[];
+	/** The language whose tab is open (the address keeps it); the first one when none is asked. */
+	language?: string;
+	onLanguage(code: string): void;
 }) {
 	const t = useT();
 	const router = useRouter();
+	const id = useId();
 	const canManage = permissions.includes("translation.manage");
 	const [running, setRunning] = useState(false);
+	const languages = overview.languages;
+	const current = languages.find((each) => each.code === asked) ?? languages[0];
 
 	const translateNow = async () => {
 		setRunning(true);
@@ -196,150 +209,173 @@ export function TranslationsPage({
 				heading={t("translations.heading")}
 				action={
 					canManage ? (
-						<div className="flex flex-wrap gap-2">
+						<>
 							<Button variant="outline" render={<Link to="/sites/$siteId/ai-translation" params={{ siteId }} />}>
 								<SettingsIcon aria-hidden="true" />
 								{t("translations.settings")}
 							</Button>
-							<Button onClick={() => void translateNow()} disabled={running || !overview.key.inUse}>
+							<Button variant="outline" onClick={() => void translateNow()} disabled={running || !overview.key.inUse}>
 								<SparklesIcon aria-hidden="true" />
 								{t("translations.translateNow")}
 							</Button>
-						</div>
+						</>
 					) : null
 				}
 			>
-				{t("translations.intro", { language: overview.defaultLanguage.name })}
+				{t("translations.screen.description")}
 			</PageHeader>
 			<KeyNotice overview={overview} />
-			{overview.languages.length === 0 ? (
-				<Card>
-					<CardContent className="flex items-center gap-3 py-6">
-						<LanguagesIcon className="text-muted-foreground size-5" aria-hidden="true" />
-						<p className="text-muted-foreground text-sm">{t("translations.oneLanguage")}</p>
-					</CardContent>
-				</Card>
-			) : (
-				<div className="grid max-w-6xl gap-8">
-					<ul className="grid gap-4 md:grid-cols-2 @4xl/page:grid-cols-3">
-						{overview.languages.map((language) => (
-							<li key={language.code}>
-								<LanguageCard siteId={siteId} language={language} canManage={canManage} />
-							</li>
-						))}
-					</ul>
-					<ReviewQueue siteId={siteId} lines={lines} languages={overview.languages} permissions={permissions} />
+			{!current ? (
+				<div className="flex items-center gap-3 rounded-xl border p-6">
+					<LanguagesIcon className="text-muted-foreground size-5" aria-hidden="true" />
+					<p className="text-muted-foreground text-sm">{t("translations.oneLanguage")}</p>
 				</div>
+			) : (
+				<>
+					<LanguageTabs languages={languages} current={current.code} onSelect={onLanguage} panelId={`${id}-panel`} />
+					<div id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-tab-${current.code}`} className="grid gap-0">
+						<LanguageState language={current} />
+						<LanguageQueue
+							key={current.code}
+							siteId={siteId}
+							defaultLanguage={overview.defaultLanguage}
+							language={current}
+							lines={lines.filter((line) => line.language === current.code)}
+							terms={terms}
+							permissions={permissions}
+						/>
+					</div>
+				</>
 			)}
 		</>
 	);
 }
 
-function LanguageCard({
-	siteId,
-	language,
-	canManage,
+/** What a language's tab says beside its name: how many wait, how many are Outdated, or Up to date. */
+function tabState(t: ReturnType<typeof useT>, language: LanguageTranslations): { text: string; waiting: boolean } {
+	if (language.toReview > 0) return { text: t("translations.toReview", { count: language.toReview }), waiting: true };
+	if (language.outdated > 0) return { text: t("translations.outdated", { count: language.outdated }), waiting: true };
+	return { text: t("translations.screen.upToDate"), waiting: false };
+}
+
+/** The languages as tabs (the ARIA tabs pattern: one tab stop, the arrow keys, Home and End). */
+function LanguageTabs({
+	languages,
+	current,
+	onSelect,
+	panelId,
 }: {
-	siteId: string;
-	language: LanguageTranslations;
-	canManage: boolean;
+	languages: readonly LanguageTranslations[];
+	current: string;
+	onSelect(code: string): void;
+	panelId: string;
 }) {
 	const t = useT();
+	const prefix = panelId.replace(/-panel$/, "");
+	const move = (event: React.KeyboardEvent<HTMLButtonElement>) => {
+		const index = languages.findIndex((each) => each.code === current);
+		const rtl = getComputedStyle(event.currentTarget).direction === "rtl";
+		const step = { ArrowRight: rtl ? -1 : 1, ArrowLeft: rtl ? 1 : -1 }[event.key];
+		let next: number | undefined;
+		if (step !== undefined) next = (index + step + languages.length) % languages.length;
+		if (event.key === "Home") next = 0;
+		if (event.key === "End") next = languages.length - 1;
+		const target = next === undefined ? undefined : languages[next];
+		if (!target) return;
+		event.preventDefault();
+		onSelect(target.code);
+		event.currentTarget.parentElement?.querySelector<HTMLButtonElement>(`#${prefix}-tab-${target.code}`)?.focus();
+	};
 	return (
-		<Card className="h-full">
-			<CardHeader>
-				<CardTitle>
-					<h2 className="flex items-center gap-2">
-						<Badge variant="outline" className="font-mono uppercase">
-							{language.code}
-						</Badge>
-						<span>{language.name}</span>
-					</h2>
-				</CardTitle>
-				<CardAction>
-					<span className="text-sm font-semibold tabular-nums">
-						{t("translations.percent", { percent: language.progress })}
-					</span>
-				</CardAction>
-			</CardHeader>
-			<CardContent className="grid gap-4">
-				<Share value={language.progress} label={t("translations.progressOf", { language: language.name })} />
-				<div className="grid gap-2">
-					<p className="text-muted-foreground text-sm">{t("translations.mode")}</p>
-					<ModeChoice
-						siteId={siteId}
-						language={language}
-						canManage={canManage}
-						label={t("translations.modeOf", { language: language.name })}
-					/>
-					<p className="text-muted-foreground text-sm">{t(MODE_WORDS[language.mode].help)}</p>
-				</div>
-				<ul className="flex flex-wrap gap-2" aria-label={t("translations.countsOf", { language: language.name })}>
-					<li>
-						<Badge variant={language.toReview > 0 ? "default" : "secondary"}>
-							{t("translations.toReview", { count: language.toReview })}
-						</Badge>
-					</li>
-					<li>
-						<Badge variant={language.outdated > 0 ? "destructive" : "secondary"}>
-							{t("translations.outdated", { count: language.outdated })}
-						</Badge>
-					</li>
-					<li>
-						<Badge variant="secondary">{t("translations.missing", { count: language.missing })}</Badge>
-					</li>
-					{language.queued > 0 ? (
-						<li>
-							<Badge variant="outline">{t("translations.queuedCount", { count: language.queued })}</Badge>
-						</li>
-					) : null}
-					{language.waiting.map((waiting) => (
-						<li key={waiting.reason}>
-							<Badge variant="destructive">
-								{t(WAITING_WORDS[waiting.reason] ?? "translations.waiting.error", { count: waiting.count })}
-							</Badge>
-						</li>
-					))}
-				</ul>
-			</CardContent>
-		</Card>
+		<div role="tablist" aria-label={t("translations.screen.languages")} className="flex flex-wrap gap-2 border-b">
+			{languages.map((language) => {
+				const selected = language.code === current;
+				const state = tabState(t, language);
+				return (
+					<button
+						key={language.code}
+						id={`${prefix}-tab-${language.code}`}
+						type="button"
+						role="tab"
+						aria-selected={selected}
+						aria-controls={panelId}
+						tabIndex={selected ? 0 : -1}
+						onClick={() => onSelect(language.code)}
+						onKeyDown={move}
+						className="focus-visible:ring-ring/50 aria-selected:border-primary aria-selected:text-foreground text-muted-foreground -mb-px flex h-10 items-center gap-2 rounded-t-sm border-b-2 border-transparent px-1 text-sm font-medium transition-colors duration-150 outline-none focus-visible:ring-3"
+					>
+						<span lang={language.code}>{language.name}</span>
+						<StateBadge tone={state.waiting ? "warning" : "neutral"}>{state.text}</StateBadge>
+					</button>
+				);
+			})}
+		</div>
 	);
 }
 
-function lineKey(line: QueueLine): string {
-	return `${line.item.kind}:${line.item.id ?? ""}:${line.language}:${line.at}:${line.block ?? ""}`;
+/** How much of the language is translated, as a bar and in words, and what else stands out. */
+function LanguageState({ language }: { language: LanguageTranslations }) {
+	const t = useT();
+	const more = [
+		language.missing > 0 ? t("translations.missing", { count: language.missing }) : null,
+		language.queued > 0 ? t("translations.queuedCount", { count: language.queued }) : null,
+		...language.waiting.map((waiting) =>
+			t(WAITING_WORDS[waiting.reason] ?? "translations.waiting.error", { count: waiting.count }),
+		),
+	].filter((part): part is string => part !== null);
+	return (
+		<div className="grid gap-1 py-5">
+			<div className="flex items-center gap-3">
+				<div className="min-w-0 flex-1">
+					<Share value={language.progress} label={t("translations.progressOf", { language: language.name })} />
+				</div>
+				<p className="text-muted-foreground shrink-0 text-sm tabular-nums">
+					{t("translations.screen.translated", { percent: language.progress })}
+				</p>
+			</div>
+			{more.length > 0 ? <p className="text-muted-foreground text-xs">{more.join(" · ")}</p> : null}
+		</div>
+	);
 }
 
-/** The Review queue: AI translations waiting for a person, and Outdated translations, by language. */
-function ReviewQueue({
+/** The items that wait in one language, beside the one chosen. */
+function LanguageQueue({
 	siteId,
+	defaultLanguage,
+	language,
 	lines,
-	languages,
+	terms,
 	permissions,
 }: {
 	siteId: string;
+	defaultLanguage: TranslationsOverview["defaultLanguage"];
+	language: LanguageTranslations;
 	lines: QueueLine[];
-	languages: readonly LanguageTranslations[];
+	terms: readonly TermToKeep[];
 	permissions: readonly string[];
 }) {
 	const t = useT();
 	const router = useRouter();
-	const filterId = useId();
-	const [language, setLanguage] = useState("");
-	const [open, setOpen] = useState<string | null>(null);
 	const [busy, setBusy] = useState(false);
-	const shown = lines.filter((line) => !language || line.language === language);
-	const toReview = shown.filter((line) => line.status === "toReview");
+	const items = useMemo(() => {
+		const found = new Map<string, QueueItem>();
+		for (const line of lines) {
+			const key = itemKey(line);
+			const item = found.get(key) ?? { key, line, lines: [] };
+			item.lines.push(line);
+			found.set(key, item);
+		}
+		return [...found.values()];
+	}, [lines]);
+	const [chosen, setChosen] = useState<string | null>(null);
+	const open = items.find((item) => item.key === chosen) ?? items[0] ?? null;
+	const toReview = lines.filter((line) => line.status === "toReview").length;
 	const canPublish = permissions.includes("entry.publish");
 
 	const approveAll = async () => {
 		setBusy(true);
 		try {
-			const api = await getApi();
-			let approved = 0;
-			for (const code of new Set(toReview.map((line) => line.language))) {
-				approved += (await api.translations.approve({ siteId, language: code })).approved;
-			}
+			const { approved } = await (await getApi()).translations.approve({ siteId, language: language.code });
 			toast.success(t("translations.approved", { count: approved }));
 			await router.invalidate();
 		} catch (failure) {
@@ -349,147 +385,112 @@ function ReviewQueue({
 		}
 	};
 
+	if (items.length === 0) {
+		return (
+			<p className="text-muted-foreground rounded-xl border p-6 text-sm">
+				{t("translations.screen.nothingWaits", { language: language.name })}
+			</p>
+		);
+	}
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("translations.queue.heading")}</h2>
-				</CardTitle>
-				<CardDescription>{t("translations.queue.intro", { language: languages[0]?.name ?? "" })}</CardDescription>
-				<CardAction className="flex flex-wrap items-center gap-2">
-					<label htmlFor={filterId} className="sr-only">
-						{t("translations.queue.language")}
-					</label>
-					<NativeSelect id={filterId} value={language} onChange={(event) => setLanguage(event.target.value)}>
-						<NativeSelectOption value="">{t("translations.queue.allLanguages")}</NativeSelectOption>
-						{languages.map((option) => (
-							<NativeSelectOption key={option.code} value={option.code}>
-								{option.name}
-							</NativeSelectOption>
-						))}
-					</NativeSelect>
-					{canPublish ? (
-						<Button variant="outline" onClick={() => void approveAll()} disabled={busy || toReview.length === 0}>
+		<div className="grid @4xl/page:-ms-5 @4xl/page:min-h-96 @4xl/page:grid-cols-[19rem_minmax(0,1fr)]">
+			<nav
+				aria-label={t("translations.screen.waiting", { language: language.name })}
+				className="grid content-start gap-1 border-b pb-3 @4xl/page:border-e @4xl/page:border-b-0 @4xl/page:pe-3"
+			>
+				<ul className="grid gap-1">
+					{items.map((item) => {
+						const current = item.key === open?.key;
+						const outdated = item.lines.every((line) => line.status === "outdated");
+						const Icon = item.line.item.kind === "entry" ? FileTextIcon : LanguagesIcon;
+						return (
+							<li key={item.key}>
+								<button
+									type="button"
+									aria-current={current ? "true" : undefined}
+									onClick={() => setChosen(item.key)}
+									className="focus-visible:ring-ring/50 hover:bg-accent aria-[current=true]:bg-muted grid w-full gap-1 rounded-lg px-3 py-2.5 text-start transition-colors duration-150 outline-none focus-visible:ring-3"
+								>
+									<span className="flex items-center gap-2 text-sm font-medium">
+										<Icon aria-hidden="true" className="text-muted-foreground size-4 shrink-0" />
+										{item.line.item.title || t("translations.queue.untitled")}
+									</span>
+									<span className="text-muted-foreground ps-6 text-[13px]">
+										{outdated
+											? t("translations.screen.outdatedLine", { language: defaultLanguage.name })
+											: t("translations.screen.aiLine")}
+									</span>
+								</button>
+							</li>
+						);
+					})}
+				</ul>
+				{canPublish && toReview > 1 ? (
+					<div className="px-1 pt-2">
+						<Button variant="ghost" size="sm" onClick={() => void approveAll()} disabled={busy}>
 							<CheckCheckIcon aria-hidden="true" />
-							{t("translations.queue.approveAll", { count: toReview.length })}
+							{t("translations.queue.approveAll", { count: toReview })}
 						</Button>
-					) : null}
-				</CardAction>
-			</CardHeader>
-			<CardContent>
-				{shown.length === 0 ? (
-					<p className="text-muted-foreground text-sm">{t("translations.queue.empty")}</p>
-				) : (
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead>{t("translations.queue.item")}</TableHead>
-								<TableHead>{t("translations.queue.field")}</TableHead>
-								<TableHead>{t("translations.queue.language")}</TableHead>
-								<TableHead>{t("translations.queue.writtenBy")}</TableHead>
-								<TableHead>{t("translations.queue.status")}</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{shown.map((line) => {
-								const key = lineKey(line);
-								const expanded = open === key;
-								const panelId = `queue-${key.replace(/[^A-Za-z0-9_-]/g, "-")}`;
-								return (
-									<Fragment key={key}>
-										<TableRow>
-											<TableCell>
-												<button
-													type="button"
-													aria-expanded={expanded}
-													aria-controls={panelId}
-													onClick={() => setOpen(expanded ? null : key)}
-													className="focus-visible:ring-ring/50 flex items-center gap-2 rounded-sm text-start font-medium outline-none focus-visible:ring-3"
-												>
-													<ChevronRightIcon
-														className={`size-4 shrink-0 transition-transform rtl:rotate-180 ${expanded ? "rotate-90 rtl:rotate-90" : ""}`}
-														aria-hidden="true"
-													/>
-													<span>{line.item.title || t("translations.queue.untitled")}</span>
-												</button>
-											</TableCell>
-											<TableCell>{line.labels.join(" › ")}</TableCell>
-											<TableCell>
-												<Badge variant="outline" className="font-mono uppercase">
-													{line.language}
-												</Badge>
-											</TableCell>
-											<TableCell>
-												<span className="flex items-center gap-1.5">
-													{line.writtenBy.kind === "ai" ? (
-														<SparklesIcon className="size-4" aria-hidden="true" />
-													) : (
-														<UserIcon className="size-4" aria-hidden="true" />
-													)}
-													{line.writtenBy.kind === "ai"
-														? t("translations.queue.ai")
-														: (line.writtenBy.name ?? t("translations.queue.aPerson"))}
-												</span>
-											</TableCell>
-											<TableCell>
-												<Badge variant={line.status === "toReview" ? "default" : "destructive"}>
-													{line.status === "toReview"
-														? t("translations.queue.statusToReview")
-														: t("translations.queue.statusOutdated")}
-												</Badge>
-											</TableCell>
-										</TableRow>
-										{expanded ? (
-											<TableRow>
-												<TableCell colSpan={5} className="whitespace-normal">
-													<QueueDetails id={panelId} siteId={siteId} line={line} permissions={permissions} />
-												</TableCell>
-											</TableRow>
-										) : null}
-									</Fragment>
-								);
-							})}
-						</TableBody>
-					</Table>
-				)}
-			</CardContent>
-		</Card>
+					</div>
+				) : null}
+			</nav>
+			{open ? (
+				<ItemTranslationView
+					key={open.key}
+					siteId={siteId}
+					defaultLanguage={defaultLanguage}
+					language={language}
+					item={open}
+					terms={terms}
+					permissions={permissions}
+				/>
+			) : null}
+		</div>
 	);
 }
 
-/** One line opened: its source and its translation side by side, and what can be done with it. */
-function QueueDetails({
-	id,
+/** Which Protected terms a source holds, as the translation keeps them. */
+function termsIn(source: string, terms: readonly TermToKeep[]): string[] {
+	return terms
+		.filter((term) =>
+			term.matchCase ? source.includes(term.term) : source.toLocaleLowerCase().includes(term.term.toLocaleLowerCase()),
+		)
+		.map((term) => term.term);
+}
+
+/** The item chosen: its values side by side, Field by Field, and what can be done with it. */
+function ItemTranslationView({
 	siteId,
-	line,
+	defaultLanguage,
+	language,
+	item,
+	terms,
 	permissions,
 }: {
-	id: string;
 	siteId: string;
-	line: QueueLine;
+	defaultLanguage: TranslationsOverview["defaultLanguage"];
+	language: LanguageTranslations;
+	item: QueueItem;
+	terms: readonly TermToKeep[];
 	permissions: readonly string[];
 }) {
 	const t = useT();
 	const router = useRouter();
 	const [busy, setBusy] = useState(false);
-	const item =
-		line.item.kind === "globals"
+	const { line: first, lines } = item;
+	const ref =
+		first.item.kind === "globals"
 			? ({ kind: "globals" } as const)
-			: ({ kind: line.item.kind, id: line.item.id ?? "" } as const);
-	const act = async (action: "approve" | "confirm" | "retranslate") => {
+			: ({ kind: first.item.kind, id: first.item.id ?? "" } as const);
+	const toReview = lines.some((line) => line.status === "toReview");
+	const byAi = lines.some((line) => line.writtenBy.kind === "ai");
+	const canPublish = permissions.includes("entry.publish");
+	const canEdit = permissions.includes("entry.edit");
+
+	const run = async (work: () => Promise<void>) => {
 		setBusy(true);
 		try {
-			const api = await getApi();
-			if (action === "approve") {
-				await api.translations.approve({ siteId, language: line.language, items: [item] });
-				toast.success(t("translations.approved", { count: 1 }));
-			} else if (action === "confirm") {
-				await api.translations.confirm({ siteId, item, language: line.language, at: line.at, block: line.block });
-				toast.success(t("translations.confirmed"));
-			} else {
-				await api.translations.retranslate({ siteId, item, language: line.language, at: line.at, block: line.block });
-				toast.success(t("translations.retranslated"));
-			}
+			await work();
 			await router.invalidate();
 		} catch (failure) {
 			toast.error(t(errorMessage(failure)));
@@ -497,89 +498,141 @@ function QueueDetails({
 			setBusy(false);
 		}
 	};
-	const canPublish = permissions.includes("entry.publish");
-	const canEdit = permissions.includes("entry.edit");
+	const approve = () =>
+		run(async () => {
+			await (await getApi()).translations.approve({ siteId, language: language.code, items: [ref] });
+			toast.success(t("translations.approved", { count: 1 }));
+		});
+	const translateAgain = () =>
+		run(async () => {
+			const api = await getApi();
+			for (const line of lines)
+				await api.translations.retranslate({
+					siteId,
+					item: ref,
+					language: language.code,
+					at: line.at,
+					block: line.block,
+				});
+			toast.success(t("translations.retranslated"));
+		});
+	const confirm = (line: QueueLine) =>
+		run(async () => {
+			await (await getApi()).translations.confirm({
+				siteId,
+				item: ref,
+				language: language.code,
+				at: line.at,
+				block: line.block,
+			});
+			toast.success(t("translations.confirmed"));
+		});
+	const edit =
+		first.item.kind === "entry" && first.item.postTypeId ? (
+			<Link
+				to="/sites/$siteId/entries/$postTypeId/$entryId"
+				params={{ siteId, postTypeId: first.item.postTypeId, entryId: first.item.id ?? "" }}
+				search={{ language: language.code }}
+			/>
+		) : first.item.kind === "popupContent" ? (
+			<Link
+				to="/sites/$siteId/popups"
+				params={{ siteId }}
+				search={{ popup: first.item.id ?? "", language: language.code }}
+			/>
+		) : first.item.kind === "globals" ? (
+			<Link to="/sites/$siteId/globals" params={{ siteId }} search={{ language: language.code }} />
+		) : null;
+
 	return (
-		<div id={id} className="grid gap-4 py-2 md:grid-cols-2">
-			<section
-				aria-label={t("translations.queue.source")}
-				className="bg-muted/40 grid content-start gap-2 rounded-lg border p-4"
-			>
-				<h3 className="text-muted-foreground text-sm font-medium">{t("translations.queue.source")}</h3>
-				{line.oldSource !== null ? (
-					<>
-						<p className="text-muted-foreground text-xs">{t("translations.queue.oldSource")}</p>
-						<p className="text-sm line-through decoration-1">{line.oldSource}</p>
-						<p className="text-muted-foreground text-xs">{t("translations.queue.newSource")}</p>
-					</>
-				) : null}
-				<p className="text-sm whitespace-pre-line">{line.source}</p>
-			</section>
-			<section
-				aria-label={t("translations.queue.translation")}
-				className="border-primary/60 grid content-start gap-3 rounded-lg border p-4"
-			>
-				<h3 className="text-muted-foreground text-sm font-medium">
-					{line.writtenBy.kind === "ai"
-						? t("translations.queue.aiTranslation")
-						: t("translations.queue.personTranslation")}
-				</h3>
-				<p className="text-sm whitespace-pre-line" lang={line.language}>
-					{line.translation}
-				</p>
+		<section
+			aria-labelledby="translation-item-heading"
+			className="grid content-start gap-4 pt-4 @4xl/page:ps-8 @4xl/page:pt-2"
+		>
+			<div className="flex flex-wrap items-start justify-between gap-3">
+				<div className="grid gap-1">
+					<h2 id="translation-item-heading" className="text-base font-semibold">
+						{first.item.title || t("translations.queue.untitled")}
+					</h2>
+					<p className="text-muted-foreground text-[13px]">
+						{byAi ? t("translations.screen.byAi") : t("translations.screen.byPerson")}
+					</p>
+				</div>
 				<div className="flex flex-wrap gap-2">
-					{line.status === "toReview" && canPublish ? (
-						<Button size="sm" disabled={busy} onClick={() => void act("approve")}>
+					{canEdit ? (
+						<Button variant="outline" disabled={busy} onClick={() => void translateAgain()}>
+							<RefreshCwIcon aria-hidden="true" />
+							{t("translations.screen.translateAgain")}
+						</Button>
+					) : null}
+					{canEdit && edit ? (
+						<Button variant="outline" render={edit}>
+							<PencilIcon aria-hidden="true" />
+							{t("translations.queue.edit")}
+						</Button>
+					) : null}
+					{toReview && canPublish ? (
+						<Button disabled={busy} onClick={() => void approve()}>
 							<CheckIcon aria-hidden="true" />
 							{t("translations.queue.approve")}
 						</Button>
 					) : null}
-					{line.status === "outdated" && canEdit ? (
-						<Button size="sm" disabled={busy} onClick={() => void act("confirm")}>
-							<CheckIcon aria-hidden="true" />
-							{t("translations.queue.confirm")}
-						</Button>
-					) : null}
-					{line.item.kind === "popupContent" && canEdit ? (
-						<Button
-							size="sm"
-							variant="outline"
-							render={
-								<Link
-									to="/sites/$siteId/popups"
-									params={{ siteId }}
-									search={{ popup: line.item.id ?? "", language: line.language }}
-								/>
-							}
-						>
-							<PencilIcon aria-hidden="true" />
-							{t("translations.queue.edit")}
-						</Button>
-					) : null}
-					{line.item.kind === "entry" && line.item.postTypeId && canEdit ? (
-						<Button
-							size="sm"
-							variant="outline"
-							render={
-								<Link
-									to="/sites/$siteId/entries/$postTypeId/$entryId"
-									params={{ siteId, postTypeId: line.item.postTypeId, entryId: line.item.id ?? "" }}
-									search={{ language: line.language }}
-								/>
-							}
-						>
-							<PencilIcon aria-hidden="true" />
-							{t("translations.queue.edit")}
-						</Button>
-					) : null}
-					{canEdit ? (
-						<Button size="sm" variant="outline" disabled={busy} onClick={() => void act("retranslate")}>
-							<RefreshCwIcon aria-hidden="true" />
-							{t("translations.queue.retranslate")}
-						</Button>
-					) : null}
 				</div>
-			</section>
-		</div>
+			</div>
+			<div className="grid">
+				<div aria-hidden="true" className="hidden gap-4 pb-1 @2xl/page:grid @2xl/page:grid-cols-2">
+					<p className="text-muted-foreground text-xs font-medium">{defaultLanguage.name}</p>
+					<p className="text-muted-foreground text-xs font-medium">{language.name}</p>
+				</div>
+				{lines.map((line) => {
+					const kept = termsIn(line.source, terms);
+					return (
+						<div key={`${line.at}:${line.block ?? ""}`} className="grid gap-2 border-b py-4">
+							<h3 className="text-muted-foreground flex flex-wrap items-center gap-2 text-xs font-medium">
+								{line.labels.join(" › ")}
+								{line.status === "outdated" ? (
+									<StateBadge tone="warning">{t("translations.queue.statusOutdated")}</StateBadge>
+								) : null}
+							</h3>
+							<div className="grid items-start gap-2 @2xl/page:grid-cols-2 @2xl/page:gap-4">
+								<div className="grid gap-1 text-sm">
+									<span className="sr-only">{defaultLanguage.name}: </span>
+									{line.oldSource !== null ? (
+										<>
+											<p className="text-muted-foreground text-xs">{t("translations.queue.oldSource")}</p>
+											<p className="text-muted-foreground line-through decoration-1">{line.oldSource}</p>
+											<p className="text-muted-foreground text-xs">{t("translations.queue.newSource")}</p>
+										</>
+									) : null}
+									<p className="whitespace-pre-line" lang={defaultLanguage.code}>
+										{line.source}
+									</p>
+								</div>
+								<div className="grid gap-1 text-sm">
+									<span className="sr-only">{language.name}: </span>
+									<p className="whitespace-pre-line" lang={language.code}>
+										{line.translation}
+									</p>
+									{kept.map((term) => (
+										<p key={term} className="text-muted-foreground flex items-center gap-1.5 text-xs">
+											<LockIcon aria-hidden="true" className="size-3 shrink-0" />
+											{t("translations.screen.protected", { term })}
+										</p>
+									))}
+									{line.status === "outdated" && canEdit ? (
+										<div>
+											<Button size="sm" variant="outline" disabled={busy} onClick={() => void confirm(line)}>
+												<CheckIcon aria-hidden="true" />
+												{t("translations.queue.confirm")}
+											</Button>
+										</div>
+									) : null}
+								</div>
+							</div>
+						</div>
+					);
+				})}
+			</div>
+		</section>
 	);
 }

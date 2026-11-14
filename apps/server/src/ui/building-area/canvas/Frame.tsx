@@ -1,5 +1,5 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
-import { AGENT_HOST_PROPERTY, type AgentHost, BUILDING_PAGE_PREFIX } from "../agent/contract.ts";
+import { AGENT_HOST_PROPERTY, type AgentHost, BUILDING_STAND_IN_PREFIX } from "../agent/contract.ts";
 import { type EditAnswer, type EditRequests, fill, type PageState, type Words } from "../api.ts";
 import type { RegionCycle } from "../keyboard.ts";
 import { installDragCatcher } from "./catcher.ts";
@@ -27,7 +27,10 @@ export type DropDetail = { source: string; target: Element | null };
 
 /** What the shell can ask of the frame. */
 export type FrameHandle = {
-	/** Opens another page of the Site in the frame (its path and query). */
+	/**
+	 * Shows another page of the Site (its path and query) or a stand-in in the frame, in place of the
+	 * one it shows: the shell's own history, not the frame's, has the entry (the shell's address names it).
+	 */
 	navigate(address: string): void;
 	/** Saves whatever was typed and not saved yet. */
 	flush(): Promise<void>;
@@ -48,7 +51,9 @@ const RESIZE_EASE_MS = 200;
  * pane zooms the page out; double-clicking a gutter goes back to full width.
  */
 export function Frame({
-	page,
+	address,
+	following,
+	onFollow,
 	words,
 	request,
 	cycle,
@@ -60,8 +65,12 @@ export function Frame({
 	onSaving,
 	onSelect,
 }: {
-	/** The page the frame opens first: its path on the Site, with its query. */
-	page: string;
+	/** What the frame shows: a page's path on the Site with its query, or a stand-in's address. */
+	address: string;
+	/** Whether links in the page are followed (editing is off) rather than selected. */
+	following: boolean;
+	/** A link of the page was followed (editing is off): whether the shell opened where it goes. */
+	onFollow(href: string): boolean;
 	words: Words;
 	request: EditRequests;
 	cycle: () => RegionCycle | null;
@@ -71,7 +80,10 @@ export function Frame({
 	/** The page's theme (Dark preview), applied to every page the frame shows. */
 	theme: PageTheme;
 	handle: RefObject<FrameHandle | null>;
-	/** A page started in the frame: its address (path and query), and what Edit mode says of it. */
+	/**
+	 * A page started in the frame: its address (path and query, or the stand-in's), and what Edit mode
+	 * says of it (a stand-in has no Edit mode state: its answer is a refusal).
+	 */
 	onPage(address: string, state: Promise<EditAnswer<PageState>>): void;
 	/** Saving to the Draft started, ended, or failed. */
 	onSaving(status: SavingStatus): void;
@@ -81,10 +93,24 @@ export function Frame({
 	const canvas = useRef<HTMLDivElement>(null);
 	const frame = useRef<HTMLIFrameElement>(null);
 	const overlayOf = useRef<Overlay | null>(null);
+	/** The last address the shell asked the frame to show. */
+	const requested = useRef<string | null>(null);
 	const [focused, setFocused] = useState(false);
 	// The newest of what the agent's events need, without making the frame again.
-	const latest = useRef({ words, request, cycle, announce, theme, onPage, onSaving, onSelect });
-	latest.current = { words, request, cycle, announce, theme, onPage, onSaving, onSelect };
+	const latest = useRef({
+		words,
+		request,
+		cycle,
+		announce,
+		theme,
+		onPage,
+		onSaving,
+		onSelect,
+		address,
+		following,
+		onFollow,
+	});
+	latest.current = { words, request, cycle, announce, theme, onPage, onSaving, onSelect, address, following, onFollow };
 
 	// The frame's size: the canvas as measured, the size given, and whether the last change eases.
 	const [area, setArea] = useState<{ width: number; height: number } | null>(null);
@@ -175,7 +201,8 @@ export function Frame({
 		});
 		handle.current = {
 			navigate(address) {
-				element.contentWindow?.location.assign(address);
+				// In place: a frame's own navigation would add to the window's history, which is the shell's.
+				element.contentWindow?.location.replace(address);
 			},
 			flush: () => saving.flush(),
 		};
@@ -210,9 +237,12 @@ export function Frame({
 				overlay.attach(document);
 				const theme = latest.current.theme;
 				if (theme) document.documentElement.setAttribute("data-wc-theme", theme);
-				// The shell's address follows the page the frame shows, so a reload opens it again.
-				const shown = `${BUILDING_PAGE_PREFIX}${address}`;
-				if (`${location.pathname}${location.search}` !== shown) history.replaceState(history.state, "", shown);
+				// A stand-in is no page of the Site: Edit mode has nothing to say of it.
+				if (address.startsWith(`${BUILDING_STAND_IN_PREFIX}/`)) {
+					saving.track(document, Promise.resolve(null));
+					latest.current.onPage(address, Promise.resolve({ ok: false, status: 404, code: "STAND_IN" }));
+					return;
+				}
 				const path = address.split("?")[0] ?? "/";
 				const state = latest.current.request<PageState>("state", { path });
 				const language = state.then((answer) => {
@@ -279,11 +309,14 @@ export function Frame({
 			error() {
 				// The JS pane lists them once it exists.
 			},
+			following: () => latest.current.following,
+			follow: (href) => latest.current.onFollow(href),
 		};
 		// The shell's half goes on the frame before the frame loads anything: the agent looks for it as
 		// soon as the page starts.
 		(element as unknown as Record<string, unknown>)[AGENT_HOST_PROPERTY] = host;
-		element.src = page;
+		requested.current = latest.current.address;
+		element.src = latest.current.address;
 
 		const onFocusChange = () => queueMicrotask(checkFocus);
 		doc.addEventListener("focusin", onFocusChange);
@@ -301,7 +334,22 @@ export function Frame({
 			handle.current = null;
 			delete (element as unknown as Record<string, unknown>)[AGENT_HOST_PROPERTY];
 		};
-	}, [page, handle]);
+	}, [handle]);
+
+	// Another document shows in the frame: loaded in place, unless the frame shows it already (the page
+	// went there itself).
+	useEffect(() => {
+		const view = frame.current?.contentWindow;
+		if (!view || requested.current === address) return;
+		requested.current = address;
+		let showing: string | null = null;
+		try {
+			showing = `${view.location.pathname}${view.location.search}`;
+		} catch {
+			showing = null;
+		}
+		if (showing !== address) handle.current?.navigate(address);
+	}, [address, handle]);
 
 	const widest = widestFor(pane);
 	const highest = Math.max(FRAME_MIN, Math.floor(pane.height / layout.scale));

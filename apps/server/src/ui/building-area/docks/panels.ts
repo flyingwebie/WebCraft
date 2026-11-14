@@ -16,8 +16,8 @@ export type DocumentKind = "page" | "entry" | "template" | "component" | "form";
 export type PanelContext = {
 	/** The selection on the canvas: what it is and its name (`h1 · Heading`), or nothing. */
 	selection: { kind: SelectionKind; name: string } | null;
-	/** The open document. */
-	document: DocumentKind;
+	/** The open document; null while none is (an address that opens nothing). */
+	document: DocumentKind | null;
 	/** Whether a Component is being edited in place. */
 	componentInPlace: boolean;
 };

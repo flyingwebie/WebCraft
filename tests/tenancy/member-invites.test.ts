@@ -85,6 +85,7 @@ describe("accepting a Member invite", () => {
 			invitedBy: "Ciara Byrne",
 			expiresAt: new Date(install.clock.now().getTime() + 7 * DAY),
 			workspace: { name: "Acme Ltd" },
+			sites: ["Acme Bakery"],
 			hasAccount: false,
 		});
 
@@ -126,7 +127,11 @@ describe("accepting a Member invite", () => {
 			install.browser().api.invites.accept({ token, name: "Short", password: "elevenchars", adminLanguage: "en" }),
 		).rejects.toMatchObject({ code: "PASSWORD_REFUSED" });
 
-		expect((await install.browser().api.invites.get({ token })).email).toBe("short@acmeltd.example");
+		// An invite to every Site says so, rather than naming them.
+		expect(await install.browser().api.invites.get({ token })).toMatchObject({
+			email: "short@acmeltd.example",
+			sites: "all",
+		});
 	});
 
 	test("one person holds Memberships in several Workspaces with one account: they sign in and join", async () => {
