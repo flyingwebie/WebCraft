@@ -365,9 +365,11 @@ describe("the building area's docks and panels", () => {
 
 		// A collapsed panel opens again from its Expand button.
 		await page.locator('[data-wc-panel-expand="entry"]').click();
+		await settled(page);
 		expect((await boxOf(page, '[data-wc-panel="entry"]')).height).toBeGreaterThan(28);
 		await page.locator('[data-wc-panel-menu="entry"]').click();
 		await page.getByRole("menu", { name: "Entry: panel menu" }).getByRole("menuitem", { name: "Collapse" }).click();
+		await settled(page);
 		expect((await boxOf(page, '[data-wc-panel="entry"]')).height).toBe(28);
 
 		// The arrow keys move a separator between two panels: the one above grows by 10 a press.
