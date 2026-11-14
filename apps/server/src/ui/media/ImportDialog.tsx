@@ -14,9 +14,9 @@ import { LinkIcon, LoaderIcon } from "lucide-react";
 import { type FormEvent, type RefObject, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
+import { useMediaHost } from "./host.tsx";
 
 /**
  * Import from URL: the address of a file on the public internet, which WebCraft fetches through its
@@ -40,6 +40,7 @@ export function ImportDialog({
 	finalFocus?: RefObject<HTMLElement | null>;
 }) {
 	const t = useT();
+	const host = useMediaHost();
 	const trigger = useRef<HTMLButtonElement>(null);
 	const [openHere, setOpenHere] = useState(false);
 	const controlled = openFrom !== undefined;
@@ -58,8 +59,8 @@ export function ImportDialog({
 		setBusy(true);
 		setError(null);
 		try {
-			const api = await getApi();
-			const { media } = await api.media.importUrl({ siteId, url: url.trim(), folderId });
+			const api = await host.api();
+			const { media } = await api.importUrl({ siteId, url: url.trim(), folderId });
 			toast.success(t("media.import.imported", { name: media.fileName }));
 			setUrl("");
 			setOpen(false);
