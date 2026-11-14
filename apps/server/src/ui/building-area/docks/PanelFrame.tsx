@@ -19,10 +19,13 @@ export function PanelButton({
 	onClick,
 	menu,
 	buttonRef,
+	align = "center",
 	data,
 }: {
 	icon: Icon;
 	label: string;
+	/** Its tooltip: centred under it, or ending with it (the last button of a header). */
+	align?: "center" | "end";
 	onClick(): void;
 	/** It opens a menu: whether that menu is open, and the menu's id. */
 	menu?: { open: boolean; id: string };
@@ -44,7 +47,7 @@ export function PanelButton({
 			{...data}
 		>
 			<Glyph aria-hidden="true" className="size-3.5" />
-			<Tip label={label} side="bottom" />
+			<Tip label={label} side="bottom" align={align} />
 		</button>
 	);
 }
@@ -136,6 +139,7 @@ export function PanelFrame({
 					onClick={() => setOpen((was) => !was)}
 					menu={{ open, id: menuId }}
 					buttonRef={menuButton}
+					align="end"
 					data={{ "data-wc-panel-menu": id }}
 				/>
 				<ChromeMenu

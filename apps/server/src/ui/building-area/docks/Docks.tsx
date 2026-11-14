@@ -229,12 +229,13 @@ export function useDocks({
 			const start = { x: event.clientX, y: event.clientY };
 			const pointer = event.pointerId;
 			let lifted = false;
+			// From the press on, the page's frame lets the pointer through: a quick first move over it still reaches here.
+			framesIgnorePointer(true);
 			const move = (moved: PointerEvent) => {
 				if (moved.pointerId !== pointer) return;
 				if (!lifted) {
 					if (Math.hypot(moved.clientX - start.x, moved.clientY - start.y) < LIFT_AFTER) return;
 					lifted = true;
-					framesIgnorePointer(true);
 				}
 				setInAir({ id, x: moved.clientX, y: moved.clientY, landing: landingAt(moved.clientX, moved.clientY) });
 			};
@@ -386,6 +387,7 @@ function DrawerToggles({ docks }: { docks: Docks }) {
 								dock: words.docks.dockNames[side],
 							})}
 							side="bottom"
+							align={side === "left" ? "start" : "end"}
 						/>
 					</button>
 				) : null,
@@ -568,10 +570,10 @@ function Dock({
 				}
 			}}
 			style={placeStyle}
-			className={`bg-chrome relative flex min-h-0 min-w-0 p-2 ${across ? "flex-col" : "flex-row overflow-hidden"} ${
+			className={`bg-chrome flex min-h-0 min-w-0 p-2 ${across ? "flex-col" : "flex-row overflow-hidden"} ${
 				drawer
 					? `absolute inset-y-0 z-30 shadow-[0_12px_32px_rgba(0,0,0,0.55)] ${side === "left" ? "start-0" : "end-0"}`
-					: ""
+					: "relative"
 			} ${inAir && !empty ? (target ? "outline-chrome-focus outline-2 -outline-offset-2 outline-dashed" : "outline-1 -outline-offset-1 outline-[#52525b] outline-dashed") : ""}`}
 			data-wc-dock={side}
 			data-building-region={side}

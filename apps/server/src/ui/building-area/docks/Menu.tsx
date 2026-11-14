@@ -73,10 +73,14 @@ export function ChromeMenu({
 		return () => window.removeEventListener("resize", place);
 	}, [open, anchor, placement, width]);
 
+	// Focus goes to the first item once the menu is placed (a hidden element can't take it).
+	const placed = position !== null;
+	useEffect(() => {
+		if (open && placed) menu.current?.querySelector<HTMLElement>('[role^="menuitem"]')?.focus();
+	}, [open, placed]);
+
 	useEffect(() => {
 		if (!open) return;
-		const first = menu.current?.querySelector<HTMLElement>('[role^="menuitem"]');
-		first?.focus();
 		const outside = (event: PointerEvent) => {
 			const target = event.target as Node | null;
 			if (target && (menu.current?.contains(target) || anchor.current?.contains(target))) return;

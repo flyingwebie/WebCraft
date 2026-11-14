@@ -30,7 +30,7 @@ export function Tip({
 	label: string;
 	keys?: string;
 	side: TipSide;
-	/** Above the bar: centred on its control, or kept inside the window at the bar's two ends. */
+	/** Above or below: centred on its control, or kept inside the window at the two ends of a bar or a header. */
 	align?: TipAlign;
 }) {
 	const above = {
@@ -38,16 +38,17 @@ export function Tip({
 		center: "bottom-[calc(100%+8px)] start-1/2 -translate-x-1/2 rtl:translate-x-1/2",
 		end: "bottom-[calc(100%+8px)] end-0",
 	}[align];
+	const below = {
+		start: "top-[calc(100%+8px)] start-0",
+		center: "start-1/2 top-[calc(100%+8px)] -translate-x-1/2 rtl:translate-x-1/2",
+		end: "top-[calc(100%+8px)] end-0",
+	}[align];
 	return (
 		<span
 			aria-hidden="true"
 			data-wc-tip=""
 			className={`border-chrome-hover bg-chrome-tip text-chrome-strong pointer-events-none absolute z-40 hidden h-[26px] items-center gap-2 rounded-md border px-2 text-[11px] font-medium whitespace-nowrap shadow-[0_6px_16px_rgba(0,0,0,0.5)] group-hover:flex group-focus-visible:flex ${
-				side === "end"
-					? "start-[calc(100%+12px)] top-1/2 -translate-y-1/2"
-					: side === "bottom"
-						? "start-1/2 top-[calc(100%+8px)] -translate-x-1/2 rtl:translate-x-1/2"
-						: above
+				side === "end" ? "start-[calc(100%+12px)] top-1/2 -translate-y-1/2" : side === "bottom" ? below : above
 			}`}
 		>
 			{label}
