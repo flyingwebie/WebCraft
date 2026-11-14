@@ -1,8 +1,6 @@
 import { useRouter } from "@tanstack/react-router";
 import type { ProtectedTerm } from "@webcraft/core";
-import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import { Card, CardContent } from "@webcraft/ui/components/card.tsx";
 import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
 import {
 	DropdownMenu,
@@ -13,7 +11,6 @@ import {
 import { Field, FieldError, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
 import { EllipsisIcon, InfoIcon, PlusIcon, SearchIcon, ShieldIcon, TrashIcon, UploadIcon } from "lucide-react";
 import { type ChangeEvent, type FormEvent, useId, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -22,6 +19,8 @@ import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { PageHeader } from "../PageHeader.tsx";
+import { ConfirmDialog } from "../settings/confirm.tsx";
+import { SettingsCard, SettingsListRow, SettingsRows, StateBadge } from "../settings/layout.tsx";
 
 /** A Site the person may give terms to. */
 type SiteChoice = { id: string; name: string };
@@ -101,6 +100,7 @@ export function ProtectedTermsPage({
 		}
 		await add(list);
 	};
+	const [removing, setRemoving] = useState<ProtectedTerm | null>(null);
 	const remove = async (termId: string) => {
 		try {
 			await (await getApi()).protectedTerms.remove({ workspaceId, termId });
@@ -153,164 +153,153 @@ export function ProtectedTermsPage({
 			>
 				{t("protectedTerms.intro")}
 			</PageHeader>
-			<div className="grid max-w-6xl gap-6">
+			<div className="grid gap-6">
 				{canEdit ? (
-					<Card>
-						<CardContent>
-							<form onSubmit={submit} className="flex flex-wrap items-end gap-4" noValidate>
-								<Field className="min-w-60 grow basis-80" data-invalid={error ? true : undefined}>
-									<FieldLabel htmlFor={`${id}-term`}>{t("protectedTerms.term")}</FieldLabel>
-									<Input
-										id={`${id}-term`}
-										value={term}
-										maxLength={200}
-										placeholder={t("protectedTerms.termPlaceholder")}
-										onChange={(event) => setTerm(event.target.value)}
-										aria-invalid={error ? true : undefined}
-										aria-describedby={error ? `${id}-error` : undefined}
-									/>
-								</Field>
-								<Field className="w-auto">
-									<FieldLabel htmlFor={`${id}-scope`}>{t("protectedTerms.appliesTo")}</FieldLabel>
-									<NativeSelect id={`${id}-scope`} value={scope} onChange={(event) => setScope(event.target.value)}>
-										{scopes.map((choice) => (
-											<NativeSelectOption key={choice.id} value={choice.id}>
-												{choice.id ? t("protectedTerms.siteScope", { name: choice.name }) : choice.name}
-											</NativeSelectOption>
-										))}
-									</NativeSelect>
-								</Field>
-								<Field orientation="horizontal" className="w-auto pb-2">
-									<Checkbox
-										id={`${id}-case`}
-										checked={matchCase}
-										onCheckedChange={(checked) => setMatchCase(checked === true)}
-									/>
-									<FieldLabel htmlFor={`${id}-case`}>{t("protectedTerms.matchCase")}</FieldLabel>
-								</Field>
-								<Button type="submit" disabled={term.trim() === ""}>
-									<PlusIcon aria-hidden="true" />
-									{t("protectedTerms.add")}
-								</Button>
-								{error ? (
-									<FieldError id={`${id}-error`} className="basis-full">
-										{t(error)}
-									</FieldError>
-								) : null}
-							</form>
-						</CardContent>
-					</Card>
+					<SettingsCard title={t("protectedTerms.addTitle")} description={t("protectedTerms.addIntro")}>
+						<form onSubmit={submit} className="flex flex-wrap items-end gap-4" noValidate>
+							<Field className="min-w-60 grow basis-80" data-invalid={error ? true : undefined}>
+								<FieldLabel htmlFor={`${id}-term`}>{t("protectedTerms.term")}</FieldLabel>
+								<Input
+									id={`${id}-term`}
+									value={term}
+									maxLength={200}
+									placeholder={t("protectedTerms.termPlaceholder")}
+									onChange={(event) => setTerm(event.target.value)}
+									aria-invalid={error ? true : undefined}
+									aria-describedby={error ? `${id}-error` : undefined}
+								/>
+							</Field>
+							<Field className="w-auto">
+								<FieldLabel htmlFor={`${id}-scope`}>{t("protectedTerms.appliesTo")}</FieldLabel>
+								<NativeSelect id={`${id}-scope`} value={scope} onChange={(event) => setScope(event.target.value)}>
+									{scopes.map((choice) => (
+										<NativeSelectOption key={choice.id} value={choice.id}>
+											{choice.id ? t("protectedTerms.siteScope", { name: choice.name }) : choice.name}
+										</NativeSelectOption>
+									))}
+								</NativeSelect>
+							</Field>
+							<Field orientation="horizontal" className="w-auto pb-2">
+								<Checkbox
+									id={`${id}-case`}
+									checked={matchCase}
+									onCheckedChange={(checked) => setMatchCase(checked === true)}
+								/>
+								<FieldLabel htmlFor={`${id}-case`}>{t("protectedTerms.matchCase")}</FieldLabel>
+							</Field>
+							<Button type="submit" variant="outline" disabled={term.trim() === ""}>
+								<PlusIcon aria-hidden="true" />
+								{t("protectedTerms.add")}
+							</Button>
+							{error ? (
+								<FieldError id={`${id}-error`} className="basis-full">
+									{t(error)}
+								</FieldError>
+							) : null}
+						</form>
+					</SettingsCard>
 				) : null}
 
-				<div className="flex flex-wrap items-center gap-3">
-					<div className="relative w-full max-w-sm">
-						<SearchIcon
-							className="text-muted-foreground pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2"
-							aria-hidden="true"
-						/>
-						<Input
-							type="search"
-							value={query}
-							aria-label={t("protectedTerms.search", { count: terms.length })}
-							placeholder={t("protectedTerms.search", { count: terms.length })}
-							className="ps-9"
-							onChange={(event) => setQuery(event.target.value)}
-						/>
+				<SettingsCard title={t("protectedTerms.listTitle")}>
+					<div className="flex flex-wrap items-center gap-3">
+						<div className="relative w-full max-w-sm">
+							<SearchIcon
+								className="text-muted-foreground pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2"
+								aria-hidden="true"
+							/>
+							<Input
+								type="search"
+								value={query}
+								aria-label={t("protectedTerms.search", { count: terms.length })}
+								placeholder={t("protectedTerms.search", { count: terms.length })}
+								className="ps-9"
+								onChange={(event) => setQuery(event.target.value)}
+							/>
+						</div>
+						<fieldset className="bg-muted flex flex-wrap gap-1 rounded-lg p-1">
+							<legend className="sr-only">{t("protectedTerms.filter")}</legend>
+							{tabs.map((tab) => (
+								<Button
+									key={tab.id ?? "all"}
+									size="sm"
+									variant={filter === tab.id ? "outline" : "ghost"}
+									aria-pressed={filter === tab.id}
+									onClick={() => setFilter(tab.id)}
+								>
+									{tab.label}
+								</Button>
+							))}
+						</fieldset>
 					</div>
-					<fieldset className="bg-muted flex flex-wrap gap-1 rounded-lg p-1">
-						<legend className="sr-only">{t("protectedTerms.filter")}</legend>
-						{tabs.map((tab) => (
-							<Button
-								key={tab.id ?? "all"}
-								size="sm"
-								variant={filter === tab.id ? "outline" : "ghost"}
-								aria-pressed={filter === tab.id}
-								onClick={() => setFilter(tab.id)}
-							>
-								{tab.label}
-							</Button>
-						))}
-					</fieldset>
-				</div>
-
-				<Card>
-					<CardContent>
-						{shown.length === 0 ? (
-							<p className="text-muted-foreground text-sm">{t("protectedTerms.empty")}</p>
-						) : (
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead>{t("protectedTerms.term")}</TableHead>
-										<TableHead>{t("protectedTerms.appliesTo")}</TableHead>
-										<TableHead>{t("protectedTerms.matchCase")}</TableHead>
-										<TableHead>{t("protectedTerms.addedBy")}</TableHead>
-										{canEdit ? (
-											<TableHead>
-												<span className="sr-only">{t("protectedTerms.actions")}</span>
-											</TableHead>
-										) : null}
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{shown.map((item) => {
-										const removable = item.site ? sites.some((site) => site.id === item.site?.id) : canEditWorkspace;
-										return (
-											<TableRow key={item.id}>
-												<TableCell className="font-medium">
-													<span className="flex items-center gap-2">
-														<ShieldIcon className="text-muted-foreground size-4" aria-hidden="true" />
-														{item.term}
-													</span>
-												</TableCell>
-												<TableCell>
-													<Badge variant="outline">
-														{item.site
-															? t("protectedTerms.siteScope", { name: item.site.name })
-															: t("protectedTerms.workspace")}
-													</Badge>
-												</TableCell>
-												<TableCell>{item.matchCase ? t("protectedTerms.yes") : t("protectedTerms.no")}</TableCell>
-												<TableCell>{item.addedBy?.name ?? "—"}</TableCell>
-												{canEdit ? (
-													<TableCell className="text-end">
-														{removable ? (
-															<DropdownMenu>
-																<DropdownMenuTrigger
-																	render={
-																		<Button
-																			variant="ghost"
-																			size="icon-sm"
-																			aria-label={t("protectedTerms.menu", { term: item.term })}
-																		/>
-																	}
-																>
-																	<EllipsisIcon aria-hidden="true" />
-																</DropdownMenuTrigger>
-																<DropdownMenuContent align="end">
-																	<DropdownMenuItem onClick={() => void remove(item.id)}>
-																		<TrashIcon aria-hidden="true" />
-																		{t("protectedTerms.remove")}
-																	</DropdownMenuItem>
-																</DropdownMenuContent>
-															</DropdownMenu>
-														) : null}
-													</TableCell>
-												) : null}
-											</TableRow>
-										);
-									})}
-								</TableBody>
-							</Table>
-						)}
-					</CardContent>
-				</Card>
+					{shown.length === 0 ? (
+						<p className="text-muted-foreground text-sm">{t("protectedTerms.empty")}</p>
+					) : (
+						<SettingsRows>
+							{shown.map((item) => {
+								const removable = item.site ? sites.some((site) => site.id === item.site?.id) : canEditWorkspace;
+								return (
+									<SettingsListRow
+										key={item.id}
+										badge={
+											<StateBadge>
+												{item.site
+													? t("protectedTerms.siteScope", { name: item.site.name })
+													: t("protectedTerms.workspace")}
+											</StateBadge>
+										}
+										detail={[
+											`${t("protectedTerms.matchCase")}: ${item.matchCase ? t("protectedTerms.yes") : t("protectedTerms.no")}`,
+											`${t("protectedTerms.addedBy")}: ${item.addedBy?.name ?? "—"}`,
+										].join(" · ")}
+										actions={
+											canEdit && removable ? (
+												<DropdownMenu>
+													<DropdownMenuTrigger
+														render={
+															<Button
+																variant="ghost"
+																size="icon-sm"
+																aria-label={t("protectedTerms.menu", { term: item.term })}
+															/>
+														}
+													>
+														<EllipsisIcon aria-hidden="true" />
+													</DropdownMenuTrigger>
+													<DropdownMenuContent align="end">
+														<DropdownMenuItem variant="destructive" onClick={() => setRemoving(item)}>
+															<TrashIcon aria-hidden="true" />
+															{t("protectedTerms.remove")}
+														</DropdownMenuItem>
+													</DropdownMenuContent>
+												</DropdownMenu>
+											) : null
+										}
+									>
+										<ShieldIcon className="text-muted-foreground size-4" aria-hidden="true" />
+										<span>{item.term}</span>
+									</SettingsListRow>
+								);
+							})}
+						</SettingsRows>
+					)}
+				</SettingsCard>
 
 				<p className="flex items-start gap-3 rounded-lg border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-950/40 dark:text-sky-100">
 					<InfoIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
 					{t("protectedTerms.note")}
 				</p>
 			</div>
+			<ConfirmDialog
+				open={removing !== null}
+				onOpenChange={(open) => !open && setRemoving(null)}
+				title={t("protectedTerms.removeTitle", { term: removing?.term ?? "" })}
+				confirm={t("protectedTerms.remove")}
+				onConfirm={() => (removing ? remove(removing.id) : undefined)}
+			>
+				{removing?.site
+					? t("protectedTerms.removeSiteBody", { name: removing.site.name })
+					: t("protectedTerms.removeWorkspaceBody")}
+			</ConfirmDialog>
 		</>
 	);
 }

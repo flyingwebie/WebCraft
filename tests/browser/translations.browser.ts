@@ -108,7 +108,7 @@ for (const theme of THEMES) {
 
 		test("Workspace › Protected terms, and a term's menu", async () => {
 			const page = await open(owner, `/workspaces/${workspaceId}/protected-terms`);
-			await page.getByRole("cell", { name: "Panettone Sunday" }).first().waitFor();
+			await page.getByText("Panettone Sunday", { exact: true }).first().waitFor();
 			await expectAccessibleScreen(page, `Protected terms (${theme})`);
 			await expectOverlayUsable(
 				page,

@@ -1666,15 +1666,16 @@
 			"workspaceIntro": "Attiva o disattiva i Moduli per questo Workspace. Disattivarne uno ne conserva i dati; rimuoverne i dati li elimina.",
 			"siteEmpty": "In questa versione di WebCraft nessun Modulo si attiva sui singoli Site.",
 			"workspaceEmpty": "In questa versione di WebCraft nessun Modulo si attiva sui singoli Workspace.",
-			"on": "Attivo",
 			"siteSwitch": "{name} su questo Site",
 			"workspaceSwitch": "{name} in questo Workspace",
 			"waiting": "In attesa dell'approvazione del Superadmin",
 			"cannotSwitchOn": "Si potrà attivare quando il Superadmin lo avrà approvato.",
-			"switchedOn": "{name} è attivo.",
-			"switchedOff": "{name} è disattivato. I suoi dati restano.",
 			"removeData": "Rimuovi i dati",
-			"removeDataOf": "Rimuovi i dati di {name}"
+			"removeDataOf": "Rimuovi i dati di {name}",
+			"listTitle": "Moduli",
+			"listIntro": "Attivane o disattivane uno, poi salva.",
+			"onBadge": "Attivo",
+			"offBadge": "Disattivato"
 		},
 		"remove": {
 			"title": "Rimuovere i dati di {name}?",
@@ -5420,12 +5421,17 @@
 		"filterSite": "{name} {count}",
 		"empty": "Nessun Termine protetto qui.",
 		"addedBy": "Aggiunto da",
-		"actions": "Azioni",
 		"menu": "Azioni per {term}",
 		"remove": "Rimuovi",
 		"yes": "Sì",
 		"no": "No",
-		"note": "In questa versione un Termine protetto significa solo \"lascia com'è scritto\". Imporre una parola fissa per lingua non è ancora possibile. Editor, Owner e Staff possono modificare questo elenco."
+		"note": "In questa versione un Termine protetto significa solo \"lascia com'è scritto\". Imporre una parola fissa per lingua non è ancora possibile. Editor, Owner e Staff possono modificare questo elenco.",
+		"addTitle": "Aggiungi un termine",
+		"addIntro": "Un termine alla volta, o molti insieme con Importa CSV.",
+		"listTitle": "Termini",
+		"removeTitle": "Rimuovere “{term}”?",
+		"removeWorkspaceBody": "La traduzione AI potrà tradurlo di nuovo su ogni Site di questo Workspace.",
+		"removeSiteBody": "La traduzione AI potrà tradurlo di nuovo su {name}."
 	},
 	"aiKeys": {
 		"pageTitle": "Chiavi AI",
@@ -5474,7 +5480,9 @@
 			"removeTitle": "Rimuovere la chiave AI propria del Workspace?",
 			"removeBody": "La traduzione AI passa allora per la chiave condivisa dell'Install, se ne è assegnata una, o si ferma.",
 			"removed": "La chiave AI è stata rimossa.",
-			"cancel": "Annulla"
+			"cancel": "Annulla",
+			"modelNeeded": "Indica il modello.",
+			"keyNeeded": "Incolla la chiave, o tieni quella salvata."
 		},
 		"shared": {
 			"heading": "Chiave condivisa dell'Install",

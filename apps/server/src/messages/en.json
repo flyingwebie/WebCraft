@@ -1666,15 +1666,16 @@
 			"workspaceIntro": "Switch Modules on or off for this Workspace. Switching one off keeps its data; removing its data deletes it.",
 			"siteEmpty": "No Modules are switched on each Site in this version of WebCraft.",
 			"workspaceEmpty": "No Modules are switched on each Workspace in this version of WebCraft.",
-			"on": "On",
 			"siteSwitch": "{name} on this Site",
 			"workspaceSwitch": "{name} in this Workspace",
 			"waiting": "Waiting for the Superadmin's approval",
 			"cannotSwitchOn": "It can be switched on once the Superadmin approves it.",
-			"switchedOn": "{name} is on.",
-			"switchedOff": "{name} is off. Its data is kept.",
 			"removeData": "Remove data",
-			"removeDataOf": "Remove data of {name}"
+			"removeDataOf": "Remove data of {name}",
+			"listTitle": "Modules",
+			"listIntro": "Switch one on or off, then save.",
+			"onBadge": "On",
+			"offBadge": "Off"
 		},
 		"remove": {
 			"title": "Remove the data of {name}?",
@@ -5420,12 +5421,17 @@
 		"filterSite": "{name} {count}",
 		"empty": "No Protected terms here.",
 		"addedBy": "Added by",
-		"actions": "Actions",
 		"menu": "Actions for {term}",
 		"remove": "Remove",
 		"yes": "Yes",
 		"no": "No",
-		"note": "In this version a Protected term only means \"leave as written\". Forcing a fixed word per language is not supported yet. Editors, Owners and Staff can change this list."
+		"note": "In this version a Protected term only means \"leave as written\". Forcing a fixed word per language is not supported yet. Editors, Owners and Staff can change this list.",
+		"addTitle": "Add a term",
+		"addIntro": "One term at a time, or many at once with Import CSV.",
+		"listTitle": "Terms",
+		"removeTitle": "Remove “{term}”?",
+		"removeWorkspaceBody": "AI translation may translate it again on every Site of this Workspace.",
+		"removeSiteBody": "AI translation may translate it again on {name}."
 	},
 	"aiKeys": {
 		"pageTitle": "AI keys",
@@ -5474,7 +5480,9 @@
 			"removeTitle": "Remove the Workspace's own AI key?",
 			"removeBody": "AI translation then goes through the shared Install key, if one is assigned, or stops.",
 			"removed": "The AI key is removed.",
-			"cancel": "Cancel"
+			"cancel": "Cancel",
+			"modelNeeded": "Name the model.",
+			"keyNeeded": "Paste the key, or keep the stored one."
 		},
 		"shared": {
 			"heading": "Shared Install key",
