@@ -5,12 +5,13 @@ import { Input } from "@webcraft/ui/components/input.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { RadioGroup, RadioGroupItem } from "@webcraft/ui/components/radio-group.tsx";
 import { SendIcon } from "lucide-react";
-import { type FormEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { useSensitiveAction } from "../identity-check.tsx";
+import { useSettingsPart } from "../settings/form.tsx";
 import { EMAIL, PasswordField, SECURITY_OPTIONS, Section, type Security, TestResult } from "./smtp-parts.tsx";
 
 /** A Site's email settings as the API shows them. */
@@ -108,10 +109,56 @@ export function SiteSmtpForm({
 		};
 	};
 
-	const save = async (event: FormEvent) => {
-		event.preventDefault();
+	const initial = {
+		own: server !== null,
+		host: server?.host ?? "",
+		port: String(server?.port ?? 587),
+		security: server?.security ?? "starttls",
+		username: server?.username ?? "",
+		fromName: settings.fromName ?? "",
+		fromAddress: server?.fromAddress ?? "",
+		replyTo: settings.replyTo ?? "",
+	};
+	const changed =
+		own !== initial.own ||
+		fromName !== initial.fromName ||
+		replyTo !== initial.replyTo ||
+		(own &&
+			(host !== initial.host ||
+				port !== initial.port ||
+				security !== initial.security ||
+				username !== initial.username ||
+				fromAddress !== initial.fromAddress ||
+				typedPassword !== undefined));
+	const part = useSettingsPart({
+		changed,
+		save: () => store(),
+		discard: () => {
+			setOwn(initial.own);
+			setHost(initial.host);
+			setPort(initial.port);
+			setSecurity(initial.security);
+			setUsername(initial.username);
+			setPassword("");
+			setReplacing(!storedPassword);
+			setFromName(initial.fromName);
+			setFromAddress(initial.fromAddress);
+			setReplyTo(initial.replyTo);
+			setErrors({});
+		},
+	});
+	/** A setter that also tells the foot bar the person edited something. */
+	const edit =
+		<Value,>(set: (value: Value) => void) =>
+		(value: Value) => {
+			set(value);
+			part.edited();
+		};
+
+	/** Saves the form; answers whether it was saved. */
+	const store = async (): Promise<boolean> => {
 		const values = formSettings();
-		if (!values) return;
+		if (!values) return false;
 		setBusy(true);
 		try {
 			const api = await getApi();
@@ -126,8 +173,10 @@ export function SiteSmtpForm({
 			setPassword("");
 			setReplacing(!(saved.settings.server?.password.set ?? false));
 			await onSaved(saved);
+			return true;
 		} catch (failure) {
 			setErrors({ form: errorMessage(failure) });
+			return false;
 		} finally {
 			setBusy(false);
 		}
@@ -161,13 +210,13 @@ export function SiteSmtpForm({
 		errors[field] ? <FieldError id={`site-smtp-${field}-error`}>{t(errors[field])}</FieldError> : null;
 
 	return (
-		<form onSubmit={save} className="flex flex-col gap-6" noValidate>
+		<form {...part.formProps} className="flex flex-col gap-6">
 			<Section heading={t("siteEmail.server.heading")} intro={t("siteEmail.server.intro")}>
 				<fieldset className="grid gap-3">
 					<legend className="sr-only">{t("siteEmail.server.heading")}</legend>
 					<RadioGroup
 						value={own ? "site" : "install"}
-						onValueChange={(value) => setOwn(value === "site")}
+						onValueChange={(value) => edit(setOwn)(value === "site")}
 						className="grid gap-4 md:grid-cols-2"
 					>
 						{(["install", "site"] as const).map((mode) => (
@@ -202,7 +251,7 @@ export function SiteSmtpForm({
 								<Input
 									id="site-smtp-host"
 									value={host}
-									onChange={(event) => setHost(event.target.value)}
+									onChange={(event) => edit(setHost)(event.target.value)}
 									autoComplete="off"
 									spellCheck={false}
 									required
@@ -220,7 +269,7 @@ export function SiteSmtpForm({
 									min={1}
 									max={65_535}
 									value={port}
-									onChange={(event) => setPort(event.target.value)}
+									onChange={(event) => edit(setPort)(event.target.value)}
 									required
 									aria-invalid={invalid("port")}
 									aria-describedby={describedBy("port")}
@@ -236,7 +285,7 @@ export function SiteSmtpForm({
 										const next = SECURITY_OPTIONS.find((option) => option.value === event.target.value);
 										if (!next) return;
 										if (SECURITY_OPTIONS.some((option) => String(option.port) === port)) setPort(String(next.port));
-										setSecurity(next.value);
+										edit(setSecurity)(next.value);
 									}}
 								>
 									{SECURITY_OPTIONS.map((option) => (
@@ -253,7 +302,7 @@ export function SiteSmtpForm({
 								<Input
 									id="site-smtp-username"
 									value={username}
-									onChange={(event) => setUsername(event.target.value)}
+									onChange={(event) => edit(setUsername)(event.target.value)}
 									autoComplete="off"
 									spellCheck={false}
 									aria-describedby="site-smtp-username-help"
@@ -267,7 +316,7 @@ export function SiteSmtpForm({
 								stored={storedPassword}
 								replacing={replacing}
 								password={password}
-								setPassword={setPassword}
+								setPassword={edit(setPassword)}
 								disabled={username.trim() === ""}
 								replaceButton={replaceButton}
 								onReplace={() => {
@@ -293,7 +342,7 @@ export function SiteSmtpForm({
 							<Input
 								id="site-smtp-fromName"
 								value={fromName}
-								onChange={(event) => setFromName(event.target.value)}
+								onChange={(event) => edit(setFromName)(event.target.value)}
 								autoComplete="off"
 								placeholder={siteName}
 								aria-invalid={invalid("fromName")}
@@ -311,7 +360,7 @@ export function SiteSmtpForm({
 									id="site-smtp-fromAddress"
 									type="email"
 									value={fromAddress}
-									onChange={(event) => setFromAddress(event.target.value)}
+									onChange={(event) => edit(setFromAddress)(event.target.value)}
 									autoComplete="off"
 									required
 									aria-invalid={invalid("fromAddress")}
@@ -330,7 +379,7 @@ export function SiteSmtpForm({
 							id="site-smtp-replyTo"
 							type="email"
 							value={replyTo}
-							onChange={(event) => setReplyTo(event.target.value)}
+							onChange={(event) => edit(setReplyTo)(event.target.value)}
 							autoComplete="off"
 							aria-invalid={invalid("replyTo")}
 							aria-describedby={describedBy("replyTo", "site-smtp-replyTo-help")}
@@ -369,12 +418,7 @@ export function SiteSmtpForm({
 			</Section>
 
 			{errors.form ? <FieldError>{t(errors.form)}</FieldError> : null}
-			<div className="flex flex-wrap items-center justify-between gap-3">
-				<p className="text-muted-foreground text-sm">{t("siteEmail.applyNote")}</p>
-				<Button type="submit" disabled={busy}>
-					{t("emailSettings.save")}
-				</Button>
-			</div>
+			<p className="text-muted-foreground text-sm">{t("siteEmail.applyNote")}</p>
 		</form>
 	);
 }

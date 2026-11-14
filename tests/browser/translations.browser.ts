@@ -108,7 +108,7 @@ for (const theme of THEMES) {
 
 		test("Workspace › Protected terms, and a term's menu", async () => {
 			const page = await open(owner, `/workspaces/${workspaceId}/protected-terms`);
-			await page.getByRole("cell", { name: "Panettone Sunday" }).first().waitFor();
+			await page.getByText("Panettone Sunday", { exact: true }).first().waitFor();
 			await expectAccessibleScreen(page, `Protected terms (${theme})`);
 			await expectOverlayUsable(
 				page,
@@ -132,7 +132,7 @@ for (const theme of THEMES) {
 
 		test("Install settings › AI, and the dialog adding a shared key", async () => {
 			const page = await open(superadmin, "/settings/ai");
-			await page.getByRole("cell", { name: "Northwind shared key" }).first().waitFor();
+			await page.getByText("Northwind shared key", { exact: true }).first().waitFor();
 			await expectAccessibleScreen(page, `Install settings › AI (${theme})`);
 			await expectOverlayUsable(
 				page,

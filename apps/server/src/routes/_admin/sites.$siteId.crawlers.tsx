@@ -4,6 +4,7 @@ import { getApi } from "../../ui/api.ts";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 import { CrawlersSettings } from "../../ui/seo/CrawlersSettings.tsx";
+import { SettingsForm } from "../../ui/settings/form.tsx";
 
 export const Route = createFileRoute("/_admin/sites/$siteId/crawlers")({
 	staticData: { crumb: "shell.nav.crawlers", width: "form" },
@@ -35,13 +36,14 @@ function CrawlersPage() {
 	return (
 		<>
 			<PageHeader heading={t("seo.crawlers.heading")}>{t("seo.crawlers.intro")}</PageHeader>
-			<CrawlersSettings
-				key={JSON.stringify(loaded.settings)}
-				siteId={siteId}
-				settings={loaded.settings}
-				origin={loaded.origin}
-				canEditLines={loaded.canEditLines}
-			/>
+			<SettingsForm>
+				<CrawlersSettings
+					siteId={siteId}
+					settings={loaded.settings}
+					origin={loaded.origin}
+					canEditLines={loaded.canEditLines}
+				/>
+			</SettingsForm>
 		</>
 	);
 }

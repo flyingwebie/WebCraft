@@ -7,6 +7,7 @@ import {
 	FORM_CONDITION_OPS,
 	FORM_FIELD_KEY,
 	FORM_FIELD_TYPES,
+	FORM_FIELD_WIDTHS,
 	FORM_LIMITS,
 	FORM_OPTION_VALUE,
 	FORM_SPAM_DEFAULTS,
@@ -19,6 +20,7 @@ import {
 	type FormVersion,
 	formWords,
 	type HiddenSource,
+	isFieldWidth,
 	isLayoutItem,
 	isUploadFormat,
 	QUERY_PARAMETER,
@@ -180,7 +182,7 @@ const SETTING_KEYS = new Set([
 	"maxFileBytes",
 	"maxFiles",
 ]);
-const COMMON_KEYS = new Set(["key", "type", "label", "hideLabel", "help", "message", "required", "condition"]);
+const COMMON_KEYS = new Set(["key", "type", "label", "hideLabel", "help", "message", "required", "width", "condition"]);
 
 /** Whether a setting was left unset: absent, null, or the empty value of a list or a switch. */
 function isUnset(name: string, value: unknown): boolean {
@@ -272,6 +274,7 @@ function readField(raw: unknown, at: string, report: Report, before: readonly Fo
 				: `A ${fieldType} holds no value of its own, so it can't be required.`,
 		);
 	}
+	field.width = readWidth(raw.width, field, fail);
 
 	const uses = (name: string) => (FIELD_TYPE_SETTINGS[fieldType] as readonly string[]).includes(name);
 	if (uses("minLength") || uses("maxLength")) {
@@ -324,6 +327,25 @@ function readField(raw: unknown, at: string, report: Report, before: readonly Fo
 		field.condition = readCondition(raw.condition, `${at}.condition`, before, failAt);
 	}
 	return ok ? field : undefined;
+}
+
+/**
+ * How much of a line a field takes: `whole` unless given. A section or a step has no width (it holds
+ * the fields after it, each with its own), so one given is refused.
+ */
+function readWidth(value: unknown, field: FormField, fail: Report): FormField["width"] {
+	if (isLayoutItem(field)) {
+		if (value !== undefined && value !== null) {
+			fail("width", `A ${field.type} has no width: it holds the fields after it, each with its own.`);
+		}
+		return null;
+	}
+	if (value === undefined || value === null) return "whole";
+	if (!isFieldWidth(value)) {
+		fail("width", `A field's width is one of ${FORM_FIELD_WIDTHS.join(", ")}.`);
+		return "whole";
+	}
+	return value;
 }
 
 function readAccept(value: unknown, fail: Report): FormField["accept"] {

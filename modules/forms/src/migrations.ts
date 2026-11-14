@@ -45,4 +45,12 @@ CREATE TABLE retention (
 );
 `,
 	},
+	{
+		// The admin counts each Form's new Submissions with every page of a Site: only the unread ones
+		// of the inbox are read, however many Submissions a Site keeps.
+		name: "0003-unread",
+		sql: `
+CREATE INDEX submissions_site_form_unread_idx ON submissions (site_id, form_id) WHERE folder = 'inbox' AND read_at IS NULL;
+`,
+	},
 ];

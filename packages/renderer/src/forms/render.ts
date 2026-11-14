@@ -27,6 +27,10 @@ const logic = formLogic();
  * script can show and hide them; without it they all show, and the server ignores what they hide.
  * The rules the script checks are the Form's own, in `data-wc-rules` (JSON, never code).
  *
+ * A field narrower than the whole line carries `data-wc-width` (`half`, `third`): the default Form
+ * styles put such fields side by side, wherever they sit (in the Form, a section or a step), and the
+ * Site's own CSS may lay them out another way.
+ *
  * The page a Form is cached on holds nothing of any one visitor's: the time it was handed out (the
  * token) is filled in as the page is answered. What a visitor sent comes back only in an answer made
  * for them (`FormState`), which is never cached.
@@ -368,12 +372,12 @@ function renderField(form: FormToRender, field: FormField, state: FormStateInval
 		});
 		const legendClass = field.hideLabel ? ` class="${FORM_HOOKS.visuallyHidden}"` : "";
 		const groupDescribedBy = describedBy ? ` aria-describedby="${describedBy}"` : "";
-		return `<fieldset class="${FORM_HOOKS.field}" data-type="${field.type}"${keyAttribute(field)}${groupDescribedBy}><legend${legendClass}>${labelText}${requiredMark}</legend>${help}${errorLine}<div class="${FORM_HOOKS.options}">${options.join("")}</div></fieldset>`;
+		return `<fieldset class="${FORM_HOOKS.field}" data-type="${field.type}"${widthAttribute(field)}${keyAttribute(field)}${groupDescribedBy}><legend${legendClass}>${labelText}${requiredMark}</legend>${help}${errorLine}<div class="${FORM_HOOKS.options}">${options.join("")}</div></fieldset>`;
 	}
 
 	if (field.type === "consent") {
 		const checked = sent.includes("yes") ? " checked" : "";
-		return `<div class="${FORM_HOOKS.field}" data-type="consent"${keyAttribute(field)}>${errorLine}<div class="${FORM_HOOKS.option}"><input type="checkbox" id="${id}" name="${field.key}" value="yes"${checked}${common}><label class="${labelClass}" for="${id}">${labelText}${requiredMark}</label></div>${help}</div>`;
+		return `<div class="${FORM_HOOKS.field}" data-type="consent"${widthAttribute(field)}${keyAttribute(field)}>${errorLine}<div class="${FORM_HOOKS.option}"><input type="checkbox" id="${id}" name="${field.key}" value="yes"${checked}${common}><label class="${labelClass}" for="${id}">${labelText}${requiredMark}</label></div>${help}</div>`;
 	}
 
 	const label = `<label class="${labelClass}" for="${id}">${labelText}${requiredMark}</label>`;
@@ -392,7 +396,7 @@ function renderField(form: FormToRender, field: FormField, state: FormStateInval
 			` aria-describedby="${fileDescribedBy}"`,
 		].join("");
 		const multiple = most > 1 ? " multiple" : "";
-		return `<div class="${FORM_HOOKS.field}" data-type="file"${keyAttribute(field)}>${label}${help}<p class="${FORM_HOOKS.limits}" id="${limitsId}">${escapeText(limitsText)}</p>${errorLine}<input type="file" id="${id}" name="${field.key}" accept="${escapeAttribute(extensions.join(","))}"${multiple}${fileCommon}></div>`;
+		return `<div class="${FORM_HOOKS.field}" data-type="file"${widthAttribute(field)}${keyAttribute(field)}>${label}${help}<p class="${FORM_HOOKS.limits}" id="${limitsId}">${escapeText(limitsText)}</p>${errorLine}<input type="file" id="${id}" name="${field.key}" accept="${escapeAttribute(extensions.join(","))}"${multiple}${fileCommon}></div>`;
 	}
 	const value = sent[0] ?? "";
 	let control: string;
@@ -421,7 +425,16 @@ function renderField(form: FormToRender, field: FormField, state: FormStateInval
 		].join("");
 		control = `<input type="${inputType}" id="${id}" name="${field.key}" value="${escapeAttribute(value)}"${common}${extra}${placeholder}>`;
 	}
-	return `<div class="${FORM_HOOKS.field}" data-type="${field.type}"${keyAttribute(field)}>${label}${help}${errorLine}${control}</div>`;
+	return `<div class="${FORM_HOOKS.field}" data-type="${field.type}"${widthAttribute(field)}${keyAttribute(field)}>${label}${help}${errorLine}${control}</div>`;
+}
+
+/**
+ * The width a field narrower than the whole line carries (`half`, `third`), which the default Form
+ * styles lay out side by side from the Design system's smallest breakpoint up. A whole field carries
+ * none, so a Form without widths renders as it did before fields had one.
+ */
+function widthAttribute(field: FormField): string {
+	return field.width === "half" || field.width === "third" ? ` data-wc-width="${field.width}"` : "";
 }
 
 /** The key a field shown only under a condition carries, so the forms script can show and hide it. */

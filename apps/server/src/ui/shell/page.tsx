@@ -182,6 +182,8 @@ export function SaveBar({
 						type={form ? "submit" : "button"}
 						form={form}
 						variant={state === "failed" ? "destructive" : "default"}
+						// On the page in dark the destructive red text is 4.4:1; a lighter step keeps AA.
+						className={state === "failed" ? "dark:text-red-300" : undefined}
 						disabled={!unsaved}
 						onClick={form ? undefined : onSave}
 					>

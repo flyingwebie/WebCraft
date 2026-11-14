@@ -590,7 +590,8 @@
 			"off": "The update check is off (WEBCRAFT_UPDATE_FEED=off).",
 			"problem": "The last check couldn't read the release feed.",
 			"notes": "Release notes"
-		}
+		},
+		"installCard": "Install"
 	},
 	"securitySettings": {
 		"pageTitle": "Security",
@@ -598,15 +599,16 @@
 		"intro": "How the Install protects people's accounts.",
 		"leakedPasswordCheck": "Check new passwords against lists of leaked passwords",
 		"leakedPasswordCheckHelp": "Only the first 5 characters of a password's SHA-1 hash leave the server, so the password itself is never sent. When the lookup can't be reached, the password is accepted. Switch the check off for an Install that is always offline.",
-		"save": "Save",
-		"saved": "Saved.",
 		"requireTwoFactor": "Require two-factor authentication for everyone",
 		"requireTwoFactorHelp": "Everyone without it, Staff included, is asked to set it up right after signing in and can do nothing else until they have. API tokens keep working.",
 		"requireTwoFactorOwnFirst": "Add two-factor authentication to your own account first (Your account).",
 		"auditRetention": "Keep Audit log entries for",
 		"auditRetentionHelp": "Older entries are removed every day, for good. Changing this needs you to confirm who you are.",
 		"auditRetentionDays": "{days, plural, one {# day} other {# days}}",
-		"auditRetentionYears": "{years, plural, one {# year} other {# years}}"
+		"auditRetentionYears": "{years, plural, one {# year} other {# years}}",
+		"signInCard": "Signing in",
+		"signInCardIntro": "How people prove who they are.",
+		"auditCard": "Audit log"
 	},
 	"storageSettings": {
 		"pageTitle": "Storage",
@@ -666,9 +668,7 @@
 			"theme": "Appearance",
 			"themeSystem": "Same as this device",
 			"themeLight": "Light",
-			"themeDark": "Dark",
-			"save": "Save",
-			"saved": "Saved."
+			"themeDark": "Dark"
 		},
 		"password": {
 			"heading": "Password",
@@ -684,10 +684,7 @@
 		"sessions": {
 			"heading": "Sessions",
 			"intro": "The browsers signed in to your account. Sign out any you don't recognise.",
-			"browser": "Browser",
-			"network": "Network",
 			"lastUsed": "Last used",
-			"actions": "Actions",
 			"deviceBoth": "{browser} on {os}",
 			"deviceOs": "A browser on {os}",
 			"deviceUnknown": "Unknown browser",
@@ -697,7 +694,10 @@
 			"signOutLabel": "Sign out {device}, last used {lastUsed}",
 			"signedOut": "Signed out.",
 			"signOutOthers": "Sign out of every other session",
-			"signedOutOthers": "{count, plural, one {# other session was signed out.} other {# other sessions were signed out.}}"
+			"signedOutOthers": "{count, plural, one {# other session was signed out.} other {# other sessions were signed out.}}",
+			"signOutTitle": "Sign out {device}?",
+			"signOutOthersTitle": "Sign out {count, plural, one {the other browser} other {the # other browsers}}?",
+			"signOutBody": "Whoever uses it has to sign in again. API tokens and AI clients keep working."
 		},
 		"twoFactor": {
 			"heading": "Two-factor authentication",
@@ -708,9 +708,7 @@
 			"intro": "Choose which work and alert emails you get.",
 			"security": "Security emails, such as invites, password resets and notices about your sign-in, are always sent.",
 			"work": "Work",
-			"alerts": "Alerts",
-			"save": "Save",
-			"saved": "Saved."
+			"alerts": "Alerts"
 		},
 		"apiTokens": {
 			"pageTitle": "API tokens",
@@ -726,7 +724,6 @@
 			"name": "Name",
 			"nameHelp": "What uses it, such as Deploy script, so you know which token to revoke.",
 			"nameRequired": "Give the token a name.",
-			"reaches": "Reaches",
 			"workspace": "Workspace",
 			"sites": "Sites",
 			"allSites": "Every Site",
@@ -747,12 +744,10 @@
 			"never": "Never",
 			"lastUsed": "Last used",
 			"neverUsed": "Not yet",
-			"status": "Status",
 			"active": "Active",
 			"expired": "Expired",
 			"revoked": "Revoked",
 			"revokedAccess": "Revoked: access ended",
-			"actions": "Actions",
 			"hint": "…{hint}",
 			"createTitle": "Create an API token",
 			"createIntro": "The token acts as you: it can do what you can do now in the Workspace, and stops when your access ends.",
@@ -769,7 +764,8 @@
 			"revokeLabel": "Revoke {name}",
 			"revokeTitle": "Revoke {name}?",
 			"revokeText": "Scripts and AI clients using it are refused from their next request. This can't be undone.",
-			"revokedToast": "{name} was revoked."
+			"revokedToast": "{name} was revoked.",
+			"listTitle": "Your tokens"
 		},
 		"aiClients": {
 			"pageTitle": "AI clients",
@@ -780,13 +776,8 @@
 			"emptyTitle": "No AI clients yet",
 			"emptyBody": "When an AI client asks to work as you, you approve it on a page it sends you to. It then shows here.",
 			"howTo": "AI clients connect to {path} on this address and ask you to approve them.",
-			"client": "AI client",
-			"reaches": "Reaches",
-			"access": "Access",
 			"lastUsed": "Last used",
 			"neverUsed": "Not yet",
-			"status": "Status",
-			"actions": "Actions",
 			"allSites": "Every Site",
 			"noSites": "No Site left",
 			"readWrite": "Read and change",
@@ -807,7 +798,8 @@
 			"revokeText": "It is refused from its next request, and has to ask you again to come back. This can't be undone.",
 			"revokedToast": "{name} was revoked.",
 			"cancel": "Cancel",
-			"close": "Close"
+			"close": "Close",
+			"listTitle": "Approved AI clients"
 		}
 	},
 	"identityCheck": {
@@ -889,16 +881,11 @@
 			"portInvalid": "Enter a port from 1 to 65535.",
 			"emailInvalid": "Enter an email address such as name@example.com."
 		},
-		"save": "Save",
-		"discard": "Discard",
-		"saved": "Saved.",
 		"siteServers": {
 			"heading": "Sites' own mail servers",
 			"intro": "A Site can send its email through a server of its own, which Staff set on Site › Email.",
 			"allowPrivate": "Let Sites use mail servers inside this Install's own network",
-			"allowPrivateHelp": "For a mail relay the agency runs on its own servers. Off, a Site's server must be on the public internet: Staff choose its host and port, so its test email could otherwise reach anything on that network.",
-			"save": "Save this setting",
-			"saved": "The setting is saved."
+			"allowPrivateHelp": "For a mail relay the agency runs on its own servers. Off, a Site's server must be on the public internet: Staff choose its host and port, so its test email could otherwise reach anything on that network."
 		},
 		"branding": {
 			"heading": "Install branding",
@@ -912,7 +899,6 @@
 			"pickColour": "Pick the accent colour",
 			"footer": "Footer text",
 			"footerHelp": "Shown under every email, such as your agency's address.",
-			"save": "Save branding",
 			"logoInvalid": "Enter an address that starts with https://.",
 			"colourInvalid": "Enter a colour such as #c2410c."
 		},
@@ -1568,12 +1554,6 @@
 		"heading": "Modules",
 		"intro": "Features that plug into WebCraft through the Module SDK. A Module runs only once you approve what it asks for; Staff then switch it on or off on each Site or Workspace.",
 		"empty": "This version of WebCraft has no Modules.",
-		"columns": {
-			"module": "Module",
-			"version": "Version",
-			"status": "Status",
-			"actions": "Actions"
-		},
 		"level": {
 			"site": "Switched on each Site",
 			"workspace": "Switched on each Workspace"
@@ -1655,7 +1635,6 @@
 			"title": "Module log of {name}",
 			"description": "What the Module wrote, and what went wrong while it ran, newest first.",
 			"empty": "Nothing in the log yet.",
-			"close": "Close",
 			"levels": {
 				"info": "Info",
 				"warn": "Warning",
@@ -1670,15 +1649,16 @@
 			"workspaceIntro": "Switch Modules on or off for this Workspace. Switching one off keeps its data; removing its data deletes it.",
 			"siteEmpty": "No Modules are switched on each Site in this version of WebCraft.",
 			"workspaceEmpty": "No Modules are switched on each Workspace in this version of WebCraft.",
-			"on": "On",
 			"siteSwitch": "{name} on this Site",
 			"workspaceSwitch": "{name} in this Workspace",
 			"waiting": "Waiting for the Superadmin's approval",
 			"cannotSwitchOn": "It can be switched on once the Superadmin approves it.",
-			"switchedOn": "{name} is on.",
-			"switchedOff": "{name} is off. Its data is kept.",
 			"removeData": "Remove data",
-			"removeDataOf": "Remove data of {name}"
+			"removeDataOf": "Remove data of {name}",
+			"listTitle": "Modules",
+			"listIntro": "Switch one on or off, then save.",
+			"onBadge": "On",
+			"offBadge": "Off"
 		},
 		"remove": {
 			"title": "Remove the data of {name}?",
@@ -1700,11 +1680,11 @@
 		},
 		"keep": {
 			"label": "Keep {label} for",
-			"months": "{count, plural, one {# month} other {# months}}",
-			"save": "Save",
-			"saveOf": "Save how long {name} keeps {label}",
-			"saved": "{name} now keeps {label} for {count, plural, one {# month} other {# months}}."
-		}
+			"months": "{count, plural, one {# month} other {# months}}"
+		},
+		"listTitle": "Modules of this version",
+		"withdrawTitle": "Withdraw the approval of {name}?",
+		"withdrawBody": "{name} stops on every Site and Workspace until you approve it again. Its data is kept."
 	},
 	"editBar": {
 		"label": "Edit mode",
@@ -2139,11 +2119,9 @@
 		"intro": "The languages this Site is written in. The Default language's addresses have no prefix; every other language's start with its code.",
 		"listTitle": "Languages of this Site",
 		"listIntro": "Translatable fields hold a value in each of them and fall back to the Default language one Field at a time.",
-		"language": "Language",
 		"addresses": "Addresses",
 		"direction": "Text direction",
 		"domain": "Own domain",
-		"actions": "Actions",
 		"default": "Default language",
 		"noPrefix": "No prefix",
 		"directions": {
@@ -2175,7 +2153,6 @@
 		"redirectTitle": "Browser-language redirect",
 		"redirectLabel": "Send a first visit to the home page on to the visitor's language",
 		"redirectHelp": "Only a visitor's first request to the home page, with no language chosen yet, in a language the home page is shown in. Never for search engines or links to other pages; a language chosen with the Language switcher always wins.",
-		"redirectSaved": "Saved.",
 		"makeDefaultTitle": "Make {name} the Default language?",
 		"makeDefaultWarning": "{name} loses its prefix and {current} gets one (/{prefix}/…). Translatable fields will fall back to {name}, so values without their own {name} text show nothing there. Shared values keep their value.",
 		"checkChanges": "Check what changes",
@@ -2282,8 +2259,6 @@
 			"box": "Visitors can use the page while it shows.",
 			"dialog": "Visitors answer before they use the page."
 		},
-		"save": "Save",
-		"saved": "The Consent banner's setting is saved.",
 		"current": "{mode}, {layout}. Staff change how visitors are asked.",
 		"version": "Banner version {version}",
 		"wordsTitle": "The banner's words",
@@ -2350,11 +2325,9 @@
 			"marketing": "Marketing",
 			"media": "Media"
 		},
-		"hosts": "Hosts",
 		"blocked": "Blocked",
 		"problems": "This can't be saved:",
 		"line": "Line {line}:",
-		"actions": "Actions",
 		"actionsOf": "Actions for {name}",
 		"edit": "Edit",
 		"remove": "Remove",
@@ -2369,8 +2342,6 @@
 		"hostsTitle": "Allowed hosts",
 		"hostsIntro": "Besides the Site's own domain, scripts, styles, fonts, frames and requests may come only from these hosts, over https.",
 		"noHosts": "No outside hosts are allowed: everything comes from the Site's own domain.",
-		"host": "Host",
-		"why": "Why it is allowed",
 		"neededBy": "Needed by {names}",
 		"byHand": "Added by hand",
 		"byScript": "Added for an outside script",
@@ -2396,8 +2367,9 @@
 			"relaxed": "Also allows scripts written into pages and eval, which some tag managers need. Outside scripts still can't run in Edit mode.",
 			"reportOnly": "Browsers report what the Strict policy would block, in their console, without blocking it. Use it to try Strict out."
 		},
-		"modeSaved": "The policy was saved.",
-		"appliesAtOnce": "Changes apply at once and aren't part of Publish all."
+		"appliesAtOnce": "Changes apply at once and aren't part of Publish all.",
+		"removeHostTitle": "Stop allowing {host}?",
+		"removeHostBody": "The Site's policy no longer lets pages load anything from it."
 	},
 	"domains": {
 		"pageTitle": "Domains & Staging",
@@ -2498,9 +2470,6 @@
 		"cdnNone": "No CDN",
 		"cdnOption": "{name}: visitors named in {header}",
 		"cdnSteps": "Connect each domain with the CDN's proxy off. Once it is verified and has its certificate, turn the proxy on with full, strict TLS to the Site.",
-		"cdnSave": "Save CDN",
-		"cdnSaved": "{name} is in front of this Site.",
-		"cdnRemoved": "No CDN is in front of this Site.",
 		"cdnSecretTitle": "CDN secret",
 		"cdnSecretIntro": "{name}'s addresses carry every one of its customers' requests, so they alone don't say a request came through your own setup there. The CDN secret does: add it as a request header to everything {name} sends on to this Site.",
 		"cdnSecretSet": "This Site has a CDN secret. Requests that carry it count as their visitor's.",
@@ -2508,7 +2477,7 @@
 		"cdnSecretMake": "Make the CDN secret",
 		"cdnSecretRemake": "Make a new CDN secret",
 		"cdnSecretShown": "Add this request header at {name}, for every request it sends on to this Site. It is shown only now; a new secret stops the old one working.",
-		"appliesAtOnce": "Changes here apply at once: they aren't part of Publish all.",
+		"appliesAtOnce": "Changes here apply as soon as they are saved: they aren't part of Publish all.",
 		"stagingPassword": "Staging password",
 		"stagingPasswordHelp": "People without an account who give it see the Staging address for a week, or until it changes. People who sign in never need it.",
 		"stagingPasswordSet": "A password is set (last changed {date}).",
@@ -2518,10 +2487,6 @@
 		"stagingPasswordRules": "8 to 200 characters. Share it with the people reviewing the Site; it can't be shown again once saved.",
 		"stagingPasswordGenerate": "Generate",
 		"stagingPasswordGenerated": "A new password is in the field: show it and copy it before you save.",
-		"stagingPasswordSave": "Save password",
-		"stagingPasswordRemove": "Remove password",
-		"stagingPasswordSaved": "Staging password saved. Anyone it let in before has to give the new one.",
-		"stagingPasswordRemoved": "Staging password removed: only people who sign in see the Staging address now.",
 		"pausedTitle": "Paused domains",
 		"pausedIntro": "These came with the Site when it was imported. They serve nothing until you switch them on; switch one on once its DNS points at this Install and no other Site here has it.",
 		"pausedRole": {
@@ -2534,7 +2499,13 @@
 		"switchedOn": "{name} was added. It waits for DNS until it is verified.",
 		"discard": "Discard",
 		"discardLabel": "Discard {name}",
-		"discarded": "{name} was discarded."
+		"discarded": "{name} was discarded.",
+		"stagingPasswordRequire": "Require a password",
+		"stagingPasswordKeep": "Leave it empty to keep the current password.",
+		"stagingPasswordShort": "The password needs 8 to 200 characters.",
+		"pausedBadge": "Paused",
+		"discardTitle": "Discard {name}?",
+		"discardBody": "The paused domain is forgotten; adding it again later starts its checks from the beginning."
 	},
 	"webhooks": {
 		"pageTitle": "Webhooks",
@@ -2546,11 +2517,8 @@
 		"listIntro": "Where each Webhook is sent, what it receives and how its last delivery went.",
 		"none": "No Webhooks yet. Add one to tell another system when something is published.",
 		"noneMember": "This Site has no Webhooks.",
-		"webhook": "Webhook",
 		"receives": "Receives",
-		"status": "Status",
 		"lastDelivery": "Last delivery",
-		"actions": "Actions",
 		"actionsOf": "Actions for {name}",
 		"secretSet": "Signing secret set, ending in {lastFour}",
 		"secretSetShort": "Signing secret set",
@@ -4233,7 +4201,9 @@
 			"noGlobal": "None",
 			"save": "Save",
 			"saved": "SEO settings saved.",
-			"notSaved": "The SEO settings weren't saved:"
+			"notSaved": "The SEO settings weren't saved:",
+			"titlesCard": "Titles and images",
+			"titlesCardIntro": "How page titles end, and the image of pages without their own."
 		},
 		"crawlers": {
 			"heading": "Crawlers",
@@ -4316,8 +4286,6 @@
 		"s3": "S3-compatible bucket",
 		"s3Help": "Backups go into a backups folder of the bucket, uploaded in parts. Before saving, WebCraft writes, reads and removes a small file there. Use a bucket other than the one holding Media.",
 		"prefixHelp": "Optional. Put in front of the backups folder, so one bucket can hold several Installs.",
-		"save": "Save",
-		"saved": "Saved.",
 		"log": {
 			"heading": "Recent Backups",
 			"emptyTitle": "No Backups yet",
@@ -4343,7 +4311,8 @@
 			"heading": "Restoring",
 			"body": "A Backup is restored on the server, into an empty database, with the Master key the Install had then. Stop web and worker first, then run:",
 			"site": "Restoring brings back the whole Install. To move or copy one Site, use a Site export instead."
-		}
+		},
+		"scheduleCard": "Schedule"
 	},
 	"templates": {
 		"pageTitle": "Templates",
@@ -5381,9 +5350,6 @@
 		"modes": {
 			"heading": "Translation mode per language",
 			"intro": "{language} is the Default language. Each other language has its own mode.",
-			"language": "Language",
-			"mode": "Mode",
-			"status": "Status",
 			"upToDate": "Up to date",
 			"counts": "{toReview} to review · {outdated} outdated · {missing} missing"
 		},
@@ -5423,12 +5389,17 @@
 		"filterSite": "{name} {count}",
 		"empty": "No Protected terms here.",
 		"addedBy": "Added by",
-		"actions": "Actions",
 		"menu": "Actions for {term}",
 		"remove": "Remove",
 		"yes": "Yes",
 		"no": "No",
-		"note": "In this version a Protected term only means \"leave as written\". Forcing a fixed word per language is not supported yet. Editors, Owners and Staff can change this list."
+		"note": "In this version a Protected term only means \"leave as written\". Forcing a fixed word per language is not supported yet. Editors, Owners and Staff can change this list.",
+		"addTitle": "Add a term",
+		"addIntro": "One term at a time, or many at once with Import CSV.",
+		"listTitle": "Terms",
+		"removeTitle": "Remove “{term}”?",
+		"removeWorkspaceBody": "AI translation may translate it again on every Site of this Workspace.",
+		"removeSiteBody": "AI translation may translate it again on {name}."
 	},
 	"aiKeys": {
 		"pageTitle": "AI keys",
@@ -5472,12 +5443,13 @@
 			"never": "never",
 			"none": "No key set yet.",
 			"save": "Save key",
-			"saved": "The AI key is saved.",
 			"remove": "Remove key",
 			"removeTitle": "Remove the Workspace's own AI key?",
 			"removeBody": "AI translation then goes through the shared Install key, if one is assigned, or stops.",
 			"removed": "The AI key is removed.",
-			"cancel": "Cancel"
+			"cancel": "Cancel",
+			"modelNeeded": "Name the model.",
+			"keyNeeded": "Paste the key, or keep the stored one."
 		},
 		"shared": {
 			"heading": "Shared Install key",
@@ -5512,10 +5484,7 @@
 		"listIntro": "Stored encrypted; only the last 4 characters are ever shown.",
 		"none": "No shared keys yet.",
 		"name": "Name",
-		"providerModel": "Provider and model",
-		"key": "Key",
 		"workspaces": "Assigned to",
-		"actions": "Actions",
 		"assignedTo": "{name} ({cap} a month)",
 		"menu": "Actions for {name}",
 		"edit": "Edit",
@@ -5534,14 +5503,15 @@
 		"sharedKey": "Shared key",
 		"noKey": "None",
 		"monthlyCap": "Monthly cap ($)",
-		"saveAssignment": "Save",
-		"assigned": "{name} is saved.",
 		"assignedBadge": "Assigned",
 		"privateHeading": "Self-hosted models",
 		"private": "Let shared keys call an OpenAI-compatible endpoint inside the Install's own network",
 		"privateHelp": "For a model the agency runs on its own servers. A Workspace's own key never may: it would let anyone with that key reach inside the network.",
-		"savePrivate": "Save",
-		"privateSaved": "The setting is saved."
+		"notAssignedBadge": "Not assigned",
+		"removeTitle": "Remove {name}?",
+		"removeBody": "The key is deleted from this Install for good.",
+		"removeInUse": "It is assigned to {workspaces}: their AI calls stop using it at once.",
+		"nameAndKeyNeeded": "Give the key a name and paste the key."
 	},
 	"dashboards": {
 		"pageTitle": "Dashboards",
@@ -6075,8 +6045,9 @@
 		"checkpointDays": "Keep Checkpoints for (days)",
 		"checkpointDaysHelp": "Checkpoints are the Draft saved while it is edited; older ones are removed every night.",
 		"outOfRange": "Use a whole number from {min} to {max}.",
-		"save": "Save",
-		"saved": "Saved."
+		"invalid": "Some values are out of range.",
+		"revisionsCard": "Revisions",
+		"checkpointsCard": "Checkpoints"
 	},
 	"filters": {
 		"pageTitle": "Filters",
@@ -6486,8 +6457,6 @@
 			"client": "Client brand",
 			"madeWith": "Made with WebCraft"
 		},
-		"save": "Save",
-		"saved": "The branding was saved.",
 		"workspaceHeading": "Report branding",
 		"workspaceIntro": "How this Workspace's Reports and Share links look.",
 		"workspaceAgencyIntro": "Use the Install's agency brand, or one of this Workspace's own.",
@@ -7266,8 +7235,6 @@
 		"switchTitle": "Switch",
 		"switchIntro": "Off until you switch it on. While it is off, every request answers that it is off, and keys don't work.",
 		"on": "Content API on",
-		"switchedOn": "The Content API is on.",
-		"switchedOff": "The Content API is off.",
 		"mainAddress": "Address",
 		"stagingAddress": "On the Staging address",
 		"howTo": "Frontends send a Content key in the {header} header, never in the address. The reference is openapi.json at the same address.",
@@ -7285,15 +7252,12 @@
 		"originsProblem": "A key lists up to 20 origins.",
 		"keysProblem": "This Site has 50 working keys: revoke one first.",
 		"serversOnly": "Servers only",
-		"requests": "Requests",
 		"today": "{count} today",
 		"lastDays": "{week} in 7 days · {month} in 30 days",
 		"lastUsed": "Last used",
 		"neverUsed": "Not yet",
-		"status": "Status",
 		"active": "Active",
 		"revoked": "Revoked",
-		"actions": "Actions",
 		"hint": "…{hint}",
 		"edit": "Edit",
 		"editLabel": "Edit {name}",
@@ -7321,9 +7285,7 @@
 		"showPostType": "Show {name}",
 		"noFields": "No Fields.",
 		"globals": "Globals",
-		"searchNote": "A Post Type whose Searched fields include a hidden Field is left out of the API's search.",
-		"saveShown": "Save what it shows",
-		"shownSaved": "What the Content API shows was saved."
+		"searchNote": "A Post Type whose Searched fields include a hidden Field is left out of the API's search."
 	},
 	"healthBanner": {
 		"title": "Part of the Install is failing",
@@ -7756,13 +7718,8 @@
 		"listTitle": "Exports",
 		"listIntro": "Each download link works for 24 hours, only for people who may export this Site; the file is deleted then.",
 		"listEmpty": "No exports of this Site yet.",
-		"caption": "This Site's exports, newest first",
 		"columns": {
-			"created": "Asked for",
-			"by": "By",
-			"status": "Status",
-			"file": "File",
-			"secrets": "Secrets"
+			"by": "By"
 		},
 		"status": {
 			"waiting": "Waiting",
@@ -8005,7 +7962,10 @@
 			"enforcement": "Enforcement procedure and body’s contact details",
 			"enforcementUrl": "Enforcement procedure link (HTTPS)"
 		},
-		"languages": "The form supplies English and Italian wording. For other Site languages, translate the Page’s fields using the ordinary translation tools before publishing."
+		"languages": "The form supplies English and Italian wording. For other Site languages, translate the Page’s fields using the ordinary translation tools before publishing.",
+		"aboutTitle": "About this statement",
+		"pageTitle": "The statement Page",
+		"formTitle": "Facts for the statement"
 	},
 	"popups": {
 		"title": "Popups",
@@ -8149,6 +8109,9 @@
 			"pick": "Pick a Placement up, or put it down",
 			"putBack": "Put a picked-up Placement back"
 		}
+	},
+	"settingsLayout": {
+		"cancel": "Cancel"
 	},
 	"buildingArea": {
 		"pageTitle": "Building area",

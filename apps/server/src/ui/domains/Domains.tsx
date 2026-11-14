@@ -3,9 +3,7 @@ import type { DnsRecord, Edge, PausedDomain, SiteDomain, SiteDomainList } from "
 import { CDN_KEYS, CDNS, type CdnKey } from "@webcraft/core/cdns";
 import { wwwPartnerOf } from "@webcraft/core/domain-partner";
 import { STAGING_PASSWORD_MAX_LENGTH, STAGING_PASSWORD_MIN_LENGTH } from "@webcraft/core/staging-rules";
-import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
 import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
 import {
 	Dialog,
@@ -22,7 +20,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@webcraft/ui/components/dropdown-menu.tsx";
-import { Field, FieldDescription, FieldLabel } from "@webcraft/ui/components/field.tsx";
+import { Field, FieldDescription, FieldError, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { RadioGroup, RadioGroupItem } from "@webcraft/ui/components/radio-group.tsx";
 import {
@@ -35,17 +33,7 @@ import {
 	TableRow,
 } from "@webcraft/ui/components/table.tsx";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@webcraft/ui/components/tabs.tsx";
-import {
-	CopyIcon,
-	EllipsisIcon,
-	ExternalLinkIcon,
-	FlaskConicalIcon,
-	GlobeIcon,
-	LanguagesIcon,
-	RefreshCwIcon,
-	StarIcon,
-	TrashIcon,
-} from "lucide-react";
+import { CopyIcon, EllipsisIcon, ExternalLinkIcon, RefreshCwIcon, StarIcon, TrashIcon } from "lucide-react";
 import { type FormEvent, type RefObject, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -56,6 +44,18 @@ import { useT } from "../i18n.tsx";
 import { useSensitiveAction } from "../identity-check.tsx";
 import { PageHeader } from "../PageHeader.tsx";
 import { PasswordInput } from "../PasswordInput.tsx";
+import { ConfirmDialog } from "../settings/confirm.tsx";
+import { SettingsForm, useSettingsSection } from "../settings/form.tsx";
+import {
+	describedBy,
+	SettingsCard,
+	SettingsListRow,
+	SettingsRow,
+	SettingsRows,
+	StateBadge,
+	type StateTone,
+	Switch,
+} from "../settings/layout.tsx";
 import { useOpenStaging } from "../shell/StagingButton.tsx";
 
 /** What the screen shows: the Site's domains, the Install's edge, the Staging address and the Site's CDN. */
@@ -101,77 +101,42 @@ export function DomainsPage({
 	return (
 		<>
 			<PageHeader heading={t("domains.heading")}>{t(`domains.intro.${data.edge}`)}</PageHeader>
-			<div className="grid max-w-4xl grid-cols-1 gap-8">
-				<Card>
-					<CardHeader>
-						<CardTitle>
-							<h2>{t("domains.primaryTitle")}</h2>
-						</CardTitle>
-						<CardDescription>{t("domains.primaryIntro")}</CardDescription>
-					</CardHeader>
-					<CardContent className="grid grid-cols-1 gap-4">
+			<SettingsForm>
+				<div className="grid grid-cols-1 gap-6">
+					<SettingsCard title={t("domains.primaryTitle")} description={t("domains.primaryIntro")}>
 						{primary ? (
-							<DomainItem
-								{...context}
-								domain={primary}
-								icon={GlobeIcon}
-								action={canEdit ? <ChangePrimary siteId={siteId} primary={primary} redirects={redirects} /> : null}
-							/>
+							<SettingsRows>
+								<DomainItem
+									{...context}
+									domain={primary}
+									action={canEdit ? <ChangePrimary siteId={siteId} primary={primary} redirects={redirects} /> : null}
+								/>
+							</SettingsRows>
 						) : (
 							<p className="text-muted-foreground text-sm">{t("domains.noPrimary")}</p>
 						)}
 						{!primary && canEdit ? <AddDomain siteId={siteId} kind="primary" /> : null}
-					</CardContent>
-				</Card>
-				{primary ? (
-					<Card>
-						<CardHeader>
-							<CardTitle>
-								<h2>{t("domains.redirectsTitle")}</h2>
-							</CardTitle>
-							<CardDescription>{t("domains.redirectsIntro")}</CardDescription>
-						</CardHeader>
-						<CardContent className="grid grid-cols-1 gap-4">
+					</SettingsCard>
+					{primary ? (
+						<SettingsCard title={t("domains.redirectsTitle")} description={t("domains.redirectsIntro")}>
 							{redirects.length > 0 ? (
-								<ul className="grid grid-cols-1 gap-3">
+								<SettingsRows>
 									{redirects.map((domain) => (
-										<li key={domain.id}>
-											<DomainItem {...context} domain={domain} menu={canEdit} />
-										</li>
+										<DomainItem key={domain.id} {...context} domain={domain} menu={canEdit} />
 									))}
-								</ul>
+								</SettingsRows>
 							) : (
 								<p className="text-muted-foreground text-sm">{t("domains.noRedirects")}</p>
 							)}
 							{canEdit ? <AddDomain siteId={siteId} kind="redirect" /> : null}
-						</CardContent>
-					</Card>
-				) : null}
-				{languages.length > 0 ? (
-					<Card>
-						<CardHeader>
-							<CardTitle>
-								<h2>{t("domains.languagesTitle")}</h2>
-							</CardTitle>
-							<CardDescription>{t("domains.languagesIntro")}</CardDescription>
-						</CardHeader>
-						<CardContent className="grid grid-cols-1 gap-4">
-							<ul className="grid grid-cols-1 gap-3">
-								{languages.map((domain) => (
-									<li key={domain.id}>
-										<DomainItem
-											{...context}
-											domain={domain}
-											icon={LanguagesIcon}
-											note={t("domains.language", {
-												name: languageNames[domain.language ?? ""] ?? domain.language ?? "",
-											})}
-										/>
-									</li>
-								))}
-							</ul>
-							{canEdit ? (
-								<div>
+						</SettingsCard>
+					) : null}
+					{languages.length > 0 ? (
+						<SettingsCard
+							title={t("domains.languagesTitle")}
+							description={t("domains.languagesIntro")}
+							action={
+								canEdit ? (
 									<Button
 										variant="outline"
 										render={<Link to="/sites/$siteId/languages" params={{ siteId }} />}
@@ -179,23 +144,36 @@ export function DomainsPage({
 									>
 										{t("domains.openLanguages")}
 									</Button>
-								</div>
-							) : null}
-						</CardContent>
-					</Card>
-				) : null}
-				{canEdit && paused.length > 0 ? (
-					<PausedDomains siteId={siteId} paused={paused} languageNames={languageNames} />
-				) : null}
-				<StagingAddress
-					siteId={siteId}
-					url={data.stagingUrl}
-					password={stagingPassword}
-					canManagePassword={canManageStaging}
-				/>
-				<SiteCdn siteId={siteId} cdn={data.cdn} hasSecret={data.cdnSecret} canEdit={canEdit} />
-				<p className="text-muted-foreground text-sm">{t("domains.appliesAtOnce")}</p>
-			</div>
+								) : null
+							}
+						>
+							<SettingsRows>
+								{languages.map((domain) => (
+									<DomainItem
+										key={domain.id}
+										{...context}
+										domain={domain}
+										note={t("domains.language", {
+											name: languageNames[domain.language ?? ""] ?? domain.language ?? "",
+										})}
+									/>
+								))}
+							</SettingsRows>
+						</SettingsCard>
+					) : null}
+					{canEdit && paused.length > 0 ? (
+						<PausedDomains siteId={siteId} paused={paused} languageNames={languageNames} />
+					) : null}
+					<StagingAddress
+						siteId={siteId}
+						url={data.stagingUrl}
+						password={stagingPassword}
+						canManagePassword={canManageStaging}
+					/>
+					<SiteCdn siteId={siteId} cdn={data.cdn} hasSecret={data.cdnSecret} canEdit={canEdit} />
+					<p className="text-muted-foreground text-sm">{t("domains.appliesAtOnce")}</p>
+				</div>
+			</SettingsForm>
 		</>
 	);
 }
@@ -212,37 +190,35 @@ function DomainItem({
 	canEdit,
 	primaryName,
 	domain,
-	icon: Icon,
 	action,
 	menu,
 	note,
 }: ItemContext & {
 	domain: SiteDomain;
-	icon?: typeof GlobeIcon;
 	action?: React.ReactNode;
 	menu?: boolean;
 	note?: string;
 }) {
-	const t = useT();
 	const waiting = domain.status === "waiting";
+	const t = useT();
 	return (
-		<div className={waiting ? "rounded-lg border" : "bg-muted/40 rounded-lg border"}>
-			{/* On a phone the details take a line of their own, under the name and the actions. */}
-			<div className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3 sm:p-4">
-				{Icon ? <Icon aria-hidden="true" className="text-muted-foreground size-5 shrink-0" /> : null}
-				<span className="font-medium break-all">{domain.displayName}</span>
-				<StatusBadge status={domain.status} />
-				<span className="text-muted-foreground order-last basis-full text-sm sm:order-none sm:min-w-0 sm:flex-1 sm:basis-0">
-					{detailOf(t, domain, note)}
-				</span>
-				<div className="ms-auto flex shrink-0 items-center gap-2">
+		<div className="grid grid-cols-1 gap-3 py-4 first:pt-0 last:pb-0">
+			<div className="flex flex-col gap-3 @2xl/page:flex-row @2xl/page:items-center @2xl/page:justify-between @2xl/page:gap-6">
+				<div className="min-w-0 flex-1 space-y-1">
+					<div className="flex min-w-0 flex-wrap items-center gap-2">
+						<span className="font-mono text-sm font-medium break-all">{domain.displayName}</span>
+						<StatusBadge status={domain.status} />
+					</div>
+					<p className="text-muted-foreground text-[13px]">{detailOf(t, domain, note)}</p>
+				</div>
+				<div className="flex shrink-0 flex-wrap items-center gap-2">
 					{canEdit && waiting ? <CheckNow siteId={siteId} domain={domain} /> : null}
 					{action}
 					{menu ? <DomainMenu siteId={siteId} domain={domain} primaryName={primaryName} /> : null}
 				</div>
 			</div>
 			{waiting ? (
-				<div className="border-t p-3 sm:p-4">
+				<div className="bg-muted/30 rounded-lg border p-3 sm:p-4">
 					<DnsRecords domain={domain} edge={edge} />
 				</div>
 			) : null}
@@ -273,19 +249,15 @@ function detailOf(t: Translate, domain: SiteDomain, note?: string): string {
 	return parts.join(" · ");
 }
 
-const STATUS_STYLES: Record<SiteDomain["status"], string> = {
-	active: "bg-emerald-600/10 text-emerald-800 dark:bg-emerald-400/15 dark:text-emerald-300",
-	waiting: "bg-amber-500/15 text-amber-900 dark:bg-amber-400/15 dark:text-amber-200",
-	unreachable: "bg-destructive/10 text-destructive dark:bg-destructive/20",
+const STATUS_TONES: Record<SiteDomain["status"], StateTone> = {
+	active: "success",
+	waiting: "warning",
+	unreachable: "danger",
 };
 
 function StatusBadge({ status }: { status: SiteDomain["status"] }) {
 	const t = useT();
-	return (
-		<Badge variant="secondary" className={STATUS_STYLES[status]}>
-			{t(`domains.status.${status}`)}
-		</Badge>
-	);
+	return <StateBadge tone={STATUS_TONES[status]}>{t(`domains.status.${status}`)}</StateBadge>;
 }
 
 /** Check now: checks the domain at once and says what was found. */
@@ -787,66 +759,62 @@ function SiteCdn({
 	canEdit: boolean;
 }) {
 	const t = useT();
-	const router = useRouter();
 	const id = useId();
-	const [chosen, setChosen] = useState<string>(cdn ?? "none");
-	const [busy, setBusy] = useState(false);
-	const save = async (event: FormEvent) => {
-		event.preventDefault();
-		setBusy(true);
-		try {
-			const api = await getApi();
-			const next = CDN_KEYS.find((key) => key === chosen) ?? null;
-			await api.domains.setCdn({ siteId, cdn: next });
-			toast.success(next ? t("domains.cdnSaved", { name: CDNS[next].name }) : t("domains.cdnRemoved"));
-			await router.invalidate();
-		} catch (failure) {
-			toast.error(t(errorMessage(failure)));
-		} finally {
-			setBusy(false);
-		}
-	};
 	const label = (key: CdnKey) => t("domains.cdnOption", { name: CDNS[key].name, header: headerName(CDNS[key].header) });
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<h2 id={`${id}-title`}>{t("domains.cdnTitle")}</h2>
-				</CardTitle>
-				<CardDescription>{t("domains.cdnIntro")}</CardDescription>
-			</CardHeader>
-			<CardContent className="grid grid-cols-1 gap-4">
-				{canEdit ? (
-					<form onSubmit={save} className="grid grid-cols-1 gap-4">
-						<RadioGroup
-							value={chosen}
-							onValueChange={(value) => setChosen(String(value))}
-							aria-labelledby={`${id}-title`}
-						>
-							<Field orientation="horizontal">
-								<RadioGroupItem id={`${id}-none`} value="none" />
-								<FieldLabel htmlFor={`${id}-none`}>{t("domains.cdnNone")}</FieldLabel>
-							</Field>
-							{CDN_KEYS.map((key) => (
-								<Field key={key} orientation="horizontal">
-									<RadioGroupItem id={`${id}-${key}`} value={key} />
-									<FieldLabel htmlFor={`${id}-${key}`}>{label(key)}</FieldLabel>
-								</Field>
-							))}
-						</RadioGroup>
-						<p className="text-muted-foreground text-sm">{t("domains.cdnSteps")}</p>
-						<div>
-							<Button type="submit" variant="outline" size="sm" disabled={busy || chosen === (cdn ?? "none")}>
-								{t("domains.cdnSave")}
-							</Button>
-						</div>
-					</form>
-				) : (
-					<p className="text-sm">{cdn ? label(cdn) : t("domains.cdnNone")}</p>
-				)}
-				{cdn ? <CdnSecret key={cdn} siteId={siteId} cdn={cdn} hasSecret={hasSecret} canEdit={canEdit} /> : null}
-			</CardContent>
-		</Card>
+		<SettingsCard title={<span id={`${id}-title`}>{t("domains.cdnTitle")}</span>} description={t("domains.cdnIntro")}>
+			{canEdit ? (
+				<CdnChoice siteId={siteId} cdn={cdn} labelledBy={`${id}-title`} label={label} />
+			) : (
+				<p className="text-sm">{cdn ? label(cdn) : t("domains.cdnNone")}</p>
+			)}
+			{cdn ? <CdnSecret key={cdn} siteId={siteId} cdn={cdn} hasSecret={hasSecret} canEdit={canEdit} /> : null}
+		</SettingsCard>
+	);
+}
+
+/** Which CDN is in front of the Site, saved with the foot bar. */
+function CdnChoice({
+	siteId,
+	cdn,
+	labelledBy,
+	label,
+}: {
+	siteId: string;
+	cdn: CdnKey | null;
+	labelledBy: string;
+	label: (key: CdnKey) => string;
+}) {
+	const t = useT();
+	const id = useId();
+	const section = useSettingsSection({
+		saved: { chosen: cdn ?? "none" },
+		save: async ({ chosen }) => {
+			const api = await getApi();
+			await api.domains.setCdn({ siteId, cdn: CDN_KEYS.find((key) => key === chosen) ?? null });
+		},
+	});
+	return (
+		<div className="grid grid-cols-1 gap-4">
+			<RadioGroup
+				value={section.values.chosen}
+				onValueChange={(value) => section.set({ chosen: String(value) })}
+				aria-labelledby={labelledBy}
+			>
+				<Field orientation="horizontal">
+					<RadioGroupItem id={`${id}-none`} value="none" />
+					<FieldLabel htmlFor={`${id}-none`}>{t("domains.cdnNone")}</FieldLabel>
+				</Field>
+				{CDN_KEYS.map((key) => (
+					<Field key={key} orientation="horizontal">
+						<RadioGroupItem id={`${id}-${key}`} value={key} />
+						<FieldLabel htmlFor={`${id}-${key}`}>{label(key)}</FieldLabel>
+					</Field>
+				))}
+			</RadioGroup>
+			<p className="text-muted-foreground text-sm">{t("domains.cdnSteps")}</p>
+			{section.error ? <FieldError>{t(section.error)}</FieldError> : null}
+		</div>
 	);
 }
 
@@ -944,22 +912,14 @@ function StagingAddress({
 	const { opening, open: openPath } = useOpenStaging(siteId);
 	const open = () => openPath("/");
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("domains.stagingTitle")}</h2>
-				</CardTitle>
-				<CardDescription>{t("domains.stagingIntro")}</CardDescription>
-			</CardHeader>
-			<CardContent className="grid gap-6">
-				{url && address ? (
-					<div className="bg-muted/40 flex flex-wrap items-center gap-3 rounded-lg border p-3 sm:p-4">
-						<FlaskConicalIcon aria-hidden="true" className="text-muted-foreground size-5 shrink-0" />
-						<span className="min-w-0 flex-1 font-mono text-sm break-all">{address}</span>
+		<SettingsCard title={t("domains.stagingTitle")} description={t("domains.stagingIntro")}>
+			{url && address ? (
+				<SettingsRows>
+					<div className="flex flex-wrap items-center gap-3 pb-4">
+						<span className="text-muted-foreground min-w-0 flex-1 font-mono text-sm break-all">{address}</span>
 						<CopyButton value={url} />
 						<Button
 							variant="outline"
-							size="sm"
 							onClick={open}
 							disabled={opening}
 							aria-label={t("domains.openLabel", { address })}
@@ -968,12 +928,12 @@ function StagingAddress({
 							{t("domains.open")}
 						</Button>
 					</div>
-				) : (
-					<p className="text-muted-foreground text-sm">{t("domains.noStaging")}</p>
-				)}
-				{url ? <StagingPassword siteId={siteId} password={password} canManage={canManagePassword} /> : null}
-			</CardContent>
-		</Card>
+					<StagingPassword siteId={siteId} password={password} canManage={canManagePassword} />
+				</SettingsRows>
+			) : (
+				<p className="text-muted-foreground text-sm">{t("domains.noStaging")}</p>
+			)}
+		</SettingsCard>
 	);
 }
 
@@ -1003,85 +963,106 @@ function StagingPassword({
 }) {
 	const t = useT();
 	const id = useId();
-	const router = useRouter();
+	const status =
+		password.set && password.changedAt
+			? t("domains.stagingPasswordSet", { date: formatUtc(password.changedAt) })
+			: t("domains.stagingPasswordNone");
+	if (!canManage) {
+		return (
+			<SettingsRow
+				label={t("domains.stagingPassword")}
+				help={`${t("domains.stagingPasswordHelp")} ${status}`}
+				className="pt-4"
+			/>
+		);
+	}
+	return <StagingPasswordForm siteId={siteId} password={password} id={id} status={status} />;
+}
+
+/**
+ * Owners and Staff: "Require a password" and, while it is on, a new password (typed or generated),
+ * saved with the foot bar. Setting or removing it is a Sensitive action.
+ */
+function StagingPasswordForm({
+	siteId,
+	password,
+	id,
+	status,
+}: {
+	siteId: string;
+	password: StagingPasswordState;
+	id: string;
+	status: string;
+}) {
+	const t = useT();
 	const runSensitive = useSensitiveAction();
-	const [value, setValue] = useState("");
-	const [busy, setBusy] = useState(false);
-	const save = async (next: string | null) => {
-		setBusy(true);
-		try {
+	const section = useSettingsSection({
+		saved: { required: password.set, value: "", changedAt: password.changedAt ? String(password.changedAt) : null },
+		check: ({ required, value }) =>
+			required && (value !== "" || !password.set) && value.trim().length < STAGING_PASSWORD_MIN_LENGTH
+				? "domains.stagingPasswordShort"
+				: null,
+		save: async ({ required, value }) => {
+			const next = required ? (value === "" ? undefined : value) : null;
+			if (next === undefined) return;
 			await runSensitive(async () => (await getApi()).staging.setPassword({ siteId, password: next }));
-			toast.success(next === null ? t("domains.stagingPasswordRemoved") : t("domains.stagingPasswordSaved"));
-			setValue("");
-			await router.invalidate();
-		} catch (failure) {
-			toast.error(t(errorMessage(failure)));
-		} finally {
-			setBusy(false);
-		}
-	};
-	const submit = (event: FormEvent) => {
-		event.preventDefault();
-		void save(value);
-	};
+		},
+	});
+	const { required, value } = section.values;
 	return (
-		<section aria-labelledby={`${id}-title`} className="grid gap-3 border-t pt-4">
-			<div className="grid gap-1">
-				<h3 id={`${id}-title`} className="font-medium">
-					{t("domains.stagingPassword")}
-				</h3>
-				<p className="text-muted-foreground text-sm">{t("domains.stagingPasswordHelp")}</p>
-				<p className="text-sm">
-					{password.set && password.changedAt
-						? t("domains.stagingPasswordSet", { date: formatUtc(password.changedAt) })
-						: t("domains.stagingPasswordNone")}
-				</p>
-			</div>
-			{canManage ? (
-				<form onSubmit={submit} className="grid gap-3">
-					<Field>
-						<FieldLabel htmlFor={`${id}-password`}>
-							{password.set ? t("domains.stagingPasswordNew") : t("domains.stagingPasswordLabel")}
-						</FieldLabel>
-						<div className="flex flex-wrap gap-2">
-							<div className="min-w-0 flex-1">
-								<PasswordInput
-									id={`${id}-password`}
-									value={value}
-									onChange={(event) => setValue(event.target.value)}
-									autoComplete="new-password"
-									minLength={STAGING_PASSWORD_MIN_LENGTH}
-									maxLength={STAGING_PASSWORD_MAX_LENGTH}
-									aria-describedby={`${id}-rules`}
-								/>
-							</div>
-							<Button
-								type="button"
-								variant="outline"
-								onClick={() => {
-									setValue(generatedPassword());
-									toast.info(t("domains.stagingPasswordGenerated"));
-								}}
-							>
-								<RefreshCwIcon aria-hidden="true" />
-								{t("domains.stagingPasswordGenerate")}
-							</Button>
-						</div>
-						<FieldDescription id={`${id}-rules`}>{t("domains.stagingPasswordRules")}</FieldDescription>
-					</Field>
+		<div className="grid grid-cols-1 gap-4 pt-4">
+			<SettingsRow
+				label={t("domains.stagingPasswordRequire")}
+				help={`${t("domains.stagingPasswordHelp")} ${status}`}
+				htmlFor={`${id}-required`}
+				className="py-0"
+			>
+				<Switch
+					id={`${id}-required`}
+					checked={required}
+					onCheckedChange={(next) => section.set({ required: next, ...(next ? {} : { value: "" }) })}
+					aria-describedby={describedBy(`${id}-required`)}
+				/>
+			</SettingsRow>
+			{required ? (
+				<Field data-invalid={section.error ? true : undefined}>
+					<FieldLabel htmlFor={`${id}-password`}>
+						{password.set ? t("domains.stagingPasswordNew") : t("domains.stagingPasswordLabel")}
+					</FieldLabel>
 					<div className="flex flex-wrap gap-2">
-						<Button type="submit" size="sm" disabled={busy || value.trim().length < STAGING_PASSWORD_MIN_LENGTH}>
-							{t("domains.stagingPasswordSave")}
+						<div className="min-w-0 flex-1">
+							<PasswordInput
+								id={`${id}-password`}
+								value={value}
+								onChange={(event) => section.set({ value: event.target.value })}
+								autoComplete="new-password"
+								minLength={STAGING_PASSWORD_MIN_LENGTH}
+								maxLength={STAGING_PASSWORD_MAX_LENGTH}
+								aria-invalid={section.error ? true : undefined}
+								aria-describedby={`${id}-rules${section.error ? ` ${id}-error` : ""}`}
+							/>
+						</div>
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => {
+								section.set({ value: generatedPassword() });
+								toast.info(t("domains.stagingPasswordGenerated"));
+							}}
+						>
+							<RefreshCwIcon aria-hidden="true" />
+							{t("domains.stagingPasswordGenerate")}
 						</Button>
-						{password.set ? (
-							<Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void save(null)}>
-								{t("domains.stagingPasswordRemove")}
-							</Button>
-						) : null}
 					</div>
-				</form>
+					<FieldDescription id={`${id}-rules`}>
+						{password.set ? t("domains.stagingPasswordKeep") : null} {t("domains.stagingPasswordRules")}
+					</FieldDescription>
+					{section.error ? <FieldError id={`${id}-error`}>{t(section.error)}</FieldError> : null}
+				</Field>
+			) : section.error ? (
+				<FieldError>{t(section.error)}</FieldError>
 			) : null}
-		</section>
+		</div>
 	);
 }
 
@@ -1101,6 +1082,7 @@ function PausedDomains({
 	const t = useT();
 	const router = useRouter();
 	const [busy, setBusy] = useState<string | null>(null);
+	const [discarding, setDiscarding] = useState<PausedDomain | null>(null);
 	const act = async (domain: PausedDomain, action: "switchOn" | "discard") => {
 		setBusy(domain.id);
 		try {
@@ -1118,28 +1100,30 @@ function PausedDomains({
 		}
 	};
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("domains.pausedTitle")}</h2>
-				</CardTitle>
-				<CardDescription>{t("domains.pausedIntro")}</CardDescription>
-			</CardHeader>
-			<CardContent>
-				<ul className="grid grid-cols-1 gap-3">
-					{paused.map((domain) => (
-						<li key={domain.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
-							<div className="grid gap-1">
-								<span className="font-medium">{domain.displayName}</span>
-								<span className="text-muted-foreground text-sm">
-									{domain.role === "language"
-										? t("domains.pausedRole.language", {
-												name: languageNames[domain.language ?? ""] ?? domain.language ?? "",
-											})
-										: t(`domains.pausedRole.${domain.role}`)}
-								</span>
-							</div>
-							<div className="flex gap-2">
+		<SettingsCard title={t("domains.pausedTitle")} description={t("domains.pausedIntro")}>
+			<SettingsRows>
+				{paused.map((domain) => (
+					<SettingsListRow
+						key={domain.id}
+						badge={<StateBadge>{t("domains.pausedBadge")}</StateBadge>}
+						detail={
+							domain.role === "language"
+								? t("domains.pausedRole.language", {
+										name: languageNames[domain.language ?? ""] ?? domain.language ?? "",
+									})
+								: t(`domains.pausedRole.${domain.role}`)
+						}
+						actions={
+							<>
+								<Button
+									size="sm"
+									variant="outline"
+									disabled={busy !== null}
+									aria-label={t("domains.discardLabel", { name: domain.displayName })}
+									onClick={() => setDiscarding(domain)}
+								>
+									{t("domains.discard")}
+								</Button>
 								<Button
 									size="sm"
 									disabled={busy !== null}
@@ -1148,20 +1132,22 @@ function PausedDomains({
 								>
 									{t("domains.switchOn")}
 								</Button>
-								<Button
-									size="sm"
-									variant="outline"
-									disabled={busy !== null}
-									aria-label={t("domains.discardLabel", { name: domain.displayName })}
-									onClick={() => void act(domain, "discard")}
-								>
-									{t("domains.discard")}
-								</Button>
-							</div>
-						</li>
-					))}
-				</ul>
-			</CardContent>
-		</Card>
+							</>
+						}
+					>
+						<span className="font-mono">{domain.displayName}</span>
+					</SettingsListRow>
+				))}
+			</SettingsRows>
+			<ConfirmDialog
+				open={discarding !== null}
+				onOpenChange={(open) => !open && setDiscarding(null)}
+				title={t("domains.discardTitle", { name: discarding?.displayName ?? "" })}
+				confirm={t("domains.discard")}
+				onConfirm={() => (discarding ? act(discarding, "discard") : undefined)}
+			>
+				{t("domains.discardBody")}
+			</ConfirmDialog>
+		</SettingsCard>
 	);
 }

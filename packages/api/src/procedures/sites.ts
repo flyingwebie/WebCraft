@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { signedIn } from "../context.ts";
 import { id } from "../inputs.ts";
+import { newSubmissionsOf } from "./forms.ts";
 import { languageOf } from "./modules.ts";
 
 /** Sites: the websites of a Workspace. */
@@ -18,7 +19,9 @@ export const sites = {
 	 * do), its Staging address (null when the Install has no sites domain), the languages its Content
 	 * is written in (the Default language first), the admin pages of the Modules running on it that
 	 * the person may open, and the Permissions those Modules add that the person holds there
-	 * (`modulePermissions`, such as `forms.submissions.view`).
+	 * (`modulePermissions`, such as `forms.submissions.view`), and how many of its Form Submissions
+	 * are new (in an inbox, opened by nobody yet) across its Forms: null for people who may not read
+	 * them (see `forms.list`, which has each Form's).
 	 */
 	get: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
 		const scope = await context.services.data.site(context.access, input.siteId, "site.view");
@@ -36,6 +39,7 @@ export const sites = {
 			languages: await languagesOf(scope),
 			modulePages: await context.services.modules.pages(scope, await languageOf(context.services, context.person)),
 			modulePermissions: await context.services.modules.permissionsAt(scope),
+			newSubmissions: (await newSubmissionsOf(context, scope))?.total ?? null,
 		};
 	}),
 
