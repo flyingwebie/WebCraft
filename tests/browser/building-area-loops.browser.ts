@@ -381,15 +381,17 @@ describe("the Loops place, for Staff", () => {
 });
 
 describe("the Loops place, for a Member", () => {
-	test("says Loops are Staff's", async () => {
+	test("isn't theirs: no rail button, and its address opens the page (client editing, BA-14)", async () => {
 		const page = await install.newPage("light");
 		await page.setViewportSize({ width: 1440, height: 900 });
 		await enterBuildingArea(install, page, { as: editor, siteId, slug, open: "/page/menu" });
-		await page.locator('[data-wc-place="loops"]').click();
-		await page.locator("[data-wc-loops-staff-only]").waitFor();
-		expect(await page.locator("[data-wc-loops-staff-only]").textContent()).toBe(
-			"Loops are Structure: only Staff change them.",
-		);
+		await page.locator("[data-wc-client-rail]").waitFor();
+		expect(await page.locator('[data-wc-place="loops"]').count()).toBe(0);
+		await go(page, `/page/menu?wc-place=loops/${hoursId}`);
+		await page.locator("iframe[data-wc-frame]").waitFor();
+		await page.locator("[data-wc-client-rail]").waitFor();
+		expect(await page.locator("[data-wc-place-frame]").count()).toBe(0);
+		expect(await page.locator("[data-wc-loops-staff-only]").count()).toBe(0);
 		await page.context().close();
 	});
 });

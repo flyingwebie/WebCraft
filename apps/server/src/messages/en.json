@@ -9746,6 +9746,78 @@
 			"publishFailed": "Couldn't publish {name}: {reason}",
 			"saveFailed": "Couldn't save {name}: {reason}",
 			"problemsFound": "{name} can't be saved yet: {count} problems, shown at their fields."
+		},
+		"client": {
+			"rail": "Client editing",
+			"site": "{site}: back to the dashboard",
+			"page": "Page",
+			"help": "Help",
+			"exit": "Exit",
+			"modes": "Edit or preview",
+			"edit": "Edit",
+			"preview": "Preview",
+			"editOn": "Editing: click anything outlined to change it",
+			"previewOn": "Preview: the page as visitors will see it",
+			"widths": "Page width",
+			"sections": "Sections",
+			"pageDetails": "Page details",
+			"closePanel": "Close {panel}",
+			"panelLater": "{panel} comes with a later part of the building area. Until then, the admin has it.",
+			"draftState": {
+				"none": "No changes yet",
+				"saving": "Saving…",
+				"saved": "Saved",
+				"changes": {
+					"one": "{count} change not published",
+					"other": "{count} changes not published"
+				},
+				"review": "Sent for review",
+				"failed": "Could not save"
+			},
+			"switcher": {
+				"button": "{page}: switch to another page",
+				"label": "Pages and Entries",
+				"pages": "Pages",
+				"newPage": "New Page",
+				"newEntry": "New Entry in {name}",
+				"newPageTitle": "Title of the new Page",
+				"newEntryTitle": "Title of the new Entry in {name}",
+				"create": "Create",
+				"cancel": "Cancel",
+				"creating": "Creating…",
+				"none": "Nothing here yet."
+			},
+			"marks": {
+				"clickToEdit": "Click to edit",
+				"enterToEdit": "Press Enter to edit",
+				"header": "Header",
+				"footer": "Footer",
+				"sameEverywhere": "Same on every page",
+				"armed": "{name}. Press Enter to edit it.",
+				"finished": "Finished editing {name}"
+			},
+			"hint": {
+				"title": "You're editing a Draft of {page}",
+				"titleNoPage": "You're editing a Draft",
+				"edit": "Dashed outline: click it to change the words or the photo.",
+				"changed": "Amber dot: you changed it. Visitors don't see it yet.",
+				"locked": "No outline: the same on every page. Your agency looks after it.",
+				"note": "Nothing goes live until you press Publish.",
+				"gotIt": "Got it"
+			},
+			"helpCard": {
+				"title": "Help",
+				"marks": "What the marks mean",
+				"keys": "Keys",
+				"keyTab": "move between marked areas",
+				"keyEnter": "starts editing",
+				"keyEscape": "finishes, then closes the panel",
+				"keyUndo": "undo",
+				"keyRedo": "redo",
+				"ask": "Ask your agency",
+				"askText": "{name} looks after this site. Ask them about anything you can't change here.",
+				"close": "Close"
+			}
 		}
 	},
 	"auth": {

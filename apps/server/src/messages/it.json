@@ -9746,6 +9746,78 @@
 			"publishFailed": "Impossibile pubblicare {name}: {reason}",
 			"saveFailed": "Impossibile salvare {name}: {reason}",
 			"problemsFound": "Impossibile salvare {name} per ora: {count} problemi, indicati nei rispettivi campi."
+		},
+		"client": {
+			"rail": "Modifica del sito",
+			"site": "{site}: torna alla dashboard",
+			"page": "Pagina",
+			"help": "Aiuto",
+			"exit": "Esci",
+			"modes": "Modifica o anteprima",
+			"edit": "Modifica",
+			"preview": "Anteprima",
+			"editOn": "Modifica: fai clic su ciò che è contornato per cambiarlo",
+			"previewOn": "Anteprima: la pagina come la vedranno i visitatori",
+			"widths": "Larghezza della pagina",
+			"sections": "Sezioni",
+			"pageDetails": "Dettagli pagina",
+			"closePanel": "Chiudi {panel}",
+			"panelLater": "{panel} arriva con una parte successiva dell'area di costruzione. Fino ad allora, è nell'admin.",
+			"draftState": {
+				"none": "Nessuna modifica",
+				"saving": "Salvataggio…",
+				"saved": "Salvato",
+				"changes": {
+					"one": "{count} modifica non pubblicata",
+					"other": "{count} modifiche non pubblicate"
+				},
+				"review": "Inviata in revisione",
+				"failed": "Impossibile salvare"
+			},
+			"switcher": {
+				"button": "{page}: passa a un'altra pagina",
+				"label": "Pagine e Voci",
+				"pages": "Pagine",
+				"newPage": "Nuova Pagina",
+				"newEntry": "Nuova Voce in {name}",
+				"newPageTitle": "Titolo della nuova Pagina",
+				"newEntryTitle": "Titolo della nuova Voce in {name}",
+				"create": "Crea",
+				"cancel": "Annulla",
+				"creating": "Creazione…",
+				"none": "Ancora niente qui."
+			},
+			"marks": {
+				"clickToEdit": "Fai clic per modificare",
+				"enterToEdit": "Premi Invio per modificare",
+				"header": "Intestazione",
+				"footer": "Piè di pagina",
+				"sameEverywhere": "Uguale in ogni pagina",
+				"armed": "{name}. Premi Invio per modificarlo.",
+				"finished": "Modifica di {name} terminata"
+			},
+			"hint": {
+				"title": "Stai modificando una Bozza di {page}",
+				"titleNoPage": "Stai modificando una Bozza",
+				"edit": "Contorno tratteggiato: fai clic per cambiare il testo o la foto.",
+				"changed": "Punto ambra: l'hai cambiato. I visitatori non lo vedono ancora.",
+				"locked": "Nessun contorno: uguale in ogni pagina. Se ne occupa la tua agenzia.",
+				"note": "Nulla va online finché non premi Pubblica.",
+				"gotIt": "Ho capito"
+			},
+			"helpCard": {
+				"title": "Aiuto",
+				"marks": "Cosa significano i contorni",
+				"keys": "Tasti",
+				"keyTab": "passa da un'area contornata all'altra",
+				"keyEnter": "inizia a modificare",
+				"keyEscape": "termina, poi chiude il pannello",
+				"keyUndo": "annulla",
+				"keyRedo": "ripeti",
+				"ask": "Chiedi alla tua agenzia",
+				"askText": "{name} si occupa di questo sito. Chiedi a loro ciò che non puoi cambiare qui.",
+				"close": "Chiudi"
+			}
 		}
 	},
 	"auth": {

@@ -377,7 +377,8 @@ describe("an Author's sheet", () => {
 				timeout: 8000,
 			},
 		);
-		expect(await sizeOfCell(page)).toEqual({ width: 164, height: 32 });
+		// The client bar's cell (BA-14): 164 wide, 40 high.
+		expect(await sizeOfCell(page)).toEqual({ width: 164, height: 40 });
 		expect(await cell(page).textContent()).toBe("Send for review");
 
 		await cell(page).click();
@@ -395,7 +396,7 @@ describe("an Author's sheet", () => {
 		expect(waiting).toHaveLength(1);
 		expect(waiting[0]).toMatchObject({ status: "inReview", note: "New subtitle for spring" });
 		// The cell keeps its width, and the Draft state says In review.
-		expect(await sizeOfCell(page)).toEqual({ width: 164, height: 32 });
+		expect(await sizeOfCell(page)).toEqual({ width: 164, height: 40 });
 		await page.waitForFunction(
 			() => document.querySelector("[data-wc-draft-state]")?.getAttribute("data-wc-draft-state") === "review",
 		);

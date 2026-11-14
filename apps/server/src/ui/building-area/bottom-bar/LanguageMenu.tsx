@@ -16,10 +16,13 @@ export function LanguageMenu({
 	languages,
 	words,
 	onChoose,
+	look = "bar",
 }: {
 	languages: readonly PageLanguage[];
 	words: Words;
 	onChoose(language: PageLanguage): void;
+	/** The Staff's bar (28 high, the code), or client editing's (36 high, the language's name; BA-14). */
+	look?: "bar" | "client";
 }) {
 	const [open, setOpen] = useState(false);
 	const button = useRef<HTMLButtonElement>(null);
@@ -96,11 +99,16 @@ export function LanguageMenu({
 						setOpen(true);
 					}
 				}}
-				className={`bg-chrome-raised text-chrome-text hover:bg-chrome-hover flex h-7 items-center gap-1.5 rounded-md px-2 text-[12px] font-medium ${CHROME_EASE} ${FOCUS_RING}`}
+				className={`bg-chrome-raised text-chrome-text hover:bg-chrome-hover flex items-center font-medium ${
+					look === "client" ? "h-9 gap-[7px] rounded-lg px-3 text-[13px]" : "h-7 gap-1.5 rounded-md px-2 text-[12px]"
+				} ${CHROME_EASE} ${FOCUS_RING}`}
 				data-wc-language=""
 			>
-				<LanguagesIcon aria-hidden="true" className="text-chrome-muted size-3.5" />
-				<span>{current.code.toUpperCase()}</span>
+				<LanguagesIcon
+					aria-hidden="true"
+					className={look === "client" ? "text-chrome-text size-4" : "text-chrome-muted size-3.5"}
+				/>
+				<span>{look === "client" ? current.name : current.code.toUpperCase()}</span>
 				<ChevronUpIcon aria-hidden="true" className="text-chrome-muted size-3.5" />
 			</button>
 			{open ? (
