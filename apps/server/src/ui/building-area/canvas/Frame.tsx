@@ -2,6 +2,7 @@ import { type RefObject, useCallback, useEffect, useRef, useState } from "react"
 import { AGENT_HOST_PROPERTY, type AgentHost, BUILDING_STAND_IN_PREFIX } from "../agent/contract.ts";
 import { type EditAnswer, type EditRequests, fill, type PageState, type Words } from "../api.ts";
 import type { PageEditing } from "../editing/editing.ts";
+import { swapPage } from "../editing/rerender.ts";
 import type { RegionCycle } from "../keyboard.ts";
 import { installDragCatcher } from "./catcher.ts";
 import { Gutter } from "./Gutter.tsx";
@@ -19,7 +20,7 @@ import {
 	paneOf,
 	widestFor,
 } from "./gutters.ts";
-import { createOverlay, nameOf, type Overlay } from "./overlay.ts";
+import { chipName, createOverlay, nameOf, type Overlay } from "./overlay.ts";
 import { regionSaving, type SavingStatus } from "./regions.ts";
 import { SizeReadout, useReadoutShown } from "./SizeReadout.tsx";
 
@@ -35,6 +36,13 @@ export type FrameHandle = {
 	navigate(address: string): void;
 	/** Saves whatever was typed and not saved yet. */
 	flush(): Promise<void>;
+	/**
+	 * Draws the page again in place from the Drafts as they are now (BA-08, `editing/rerender.ts`):
+	 * scroll and selection kept, none of the page's scripts run again. A stand-in loads again instead.
+	 */
+	rerender(): Promise<void>;
+	/** Outlines the element a Structure reference names (`data-wc-code`), or nothing; brought into view. */
+	select(ref: string | null): void;
 };
 
 /** The page's theme as the rail's Dark preview sets it: dark or light values, or the page's own choice (null). */
@@ -65,6 +73,7 @@ export function Frame({
 	onPage,
 	onSaving,
 	onSelect,
+	onReady,
 	editing,
 }: {
 	/** What the frame shows: a page's path on the Site with its query, or a stand-in's address. */
@@ -91,6 +100,8 @@ export function Frame({
 	onSaving(status: SavingStatus): void;
 	/** The selection changed: the element selected in the page and its name, or nothing. */
 	onSelect?(selected: { element: Element; name: string } | null): void;
+	/** The page's elements are there: parsed, or drawn again in place (BA-08's Structure reads their tags). */
+	onReady?(document: Document): void;
 	/**
 	 * Content typed in place, around the saving (BA-07, `editing/editing.ts`): the text toolbar, the
 	 * Undo history's steps and keys, the page's shared Drafts and Presence. It sees the page's events first.
@@ -113,6 +124,7 @@ export function Frame({
 		onPage,
 		onSaving,
 		onSelect,
+		onReady,
 		address,
 		following,
 		onFollow,
@@ -127,6 +139,7 @@ export function Frame({
 		onPage,
 		onSaving,
 		onSelect,
+		onReady,
 		address,
 		following,
 		onFollow,
@@ -201,7 +214,7 @@ export function Frame({
 		const drawn: Overlay = createOverlay({ canvas: area, frame: element, words: latest.current.words });
 		/** Tells the shell what is selected (the docks' panels follow it). */
 		const tellSelected = (chosen: Element | null) =>
-			latest.current.onSelect?.(chosen ? { element: chosen, name: nameOf(chosen, latest.current.words) } : null);
+			latest.current.onSelect?.(chosen ? { element: chosen, name: chipName(chosen, latest.current.words) } : null);
 		const overlay: Overlay = {
 			...drawn,
 			select(chosen) {
@@ -228,6 +241,35 @@ export function Frame({
 				element.contentWindow?.location.replace(address);
 			},
 			flush: () => saving.flush(),
+			async rerender() {
+				const page = element.contentDocument;
+				const view = element.contentWindow;
+				if (!page || !view) return;
+				await saving.flush();
+				if (view.location.pathname.startsWith(`${BUILDING_STAND_IN_PREFIX}/`)) {
+					view.location.replace(`${view.location.pathname}${view.location.search}`);
+					return;
+				}
+				const chosen = drawn.selected()?.getAttribute("data-wc-code") ?? null;
+				const swapped = await swapPage(element);
+				if (!swapped) return;
+				saving.track(swapped);
+				latest.current.editing?.ready(swapped);
+				latest.current.onReady?.(swapped);
+				drawn.hover(null);
+				drawn.select(chosen ? swapped.querySelector(`[data-wc-code="${CSS.escape(chosen)}"]`) : null);
+			},
+			select(ref) {
+				const page = element.contentDocument;
+				// An element by its reference, or a source's first element (a Placement's root, by the Placement).
+				const found =
+					ref && page
+						? (page.querySelector(`[data-wc-code="${CSS.escape(ref)}"]`) ??
+							(ref.includes("#") ? null : page.querySelector(`[data-wc-code^="${CSS.escape(`${ref}#`)}"]`)))
+						: null;
+				drawn.select(found);
+				found?.scrollIntoView({ block: "nearest", inline: "nearest" });
+			},
 		};
 		const catcher = installDragCatcher({
 			document: doc,
@@ -246,9 +288,11 @@ export function Frame({
 			const view = element.contentWindow as (Window & typeof globalThis) | null;
 			return view && target instanceof view.Element ? target : null;
 		};
+		// A region, else (for Staff, whose page tags every element of a Template or Component) the
+		// element a Template or Component drew, else what is under the pointer.
 		const selectable = (target: EventTarget | null): Element | null => {
 			const found = pageElement(target);
-			return found ? (saving.regionOf(found) ?? found) : null;
+			return found ? (saving.regionOf(found) ?? found.closest("[data-wc-code]") ?? found) : null;
 		};
 		const regionOf = (target: EventTarget | null) => {
 			const found = pageElement(target);
@@ -282,6 +326,7 @@ export function Frame({
 				overlay.attach(document);
 				saving.track(document);
 				latest.current.editing?.ready(document);
+				latest.current.onReady?.(document);
 			},
 			event(kind, event) {
 				// Content typed in place sees the page's events first: Undo and Redo, the toolbar's Alt+F10.

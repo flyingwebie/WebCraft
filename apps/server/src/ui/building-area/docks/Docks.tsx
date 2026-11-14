@@ -74,6 +74,8 @@ export type Docks = {
 	context: PanelContext;
 	/** Panels whose header shows a control of their own in place of the title (Layers' document switcher). */
 	headings: Partial<Record<PanelKey, ReactNode>>;
+	/** What each panel shows under its header (BA-08 onwards: Layers, the Inspector); empty when none. */
+	bodies: Partial<Record<PanelKey, ReactNode>>;
 	change(next: Layout | null, said?: string): void;
 	/** A panel switched off or on in the Panels menu. */
 	toggle(id: PanelKey): void;
@@ -114,11 +116,13 @@ export function useDocks({
 	config,
 	context,
 	headings = {},
+	bodies = {},
 	announce,
 }: {
 	config: ShellConfig;
 	context: PanelContext;
 	headings?: Partial<Record<PanelKey, ReactNode>>;
+	bodies?: Partial<Record<PanelKey, ReactNode>>;
 	announce(text: string, urgent?: boolean): void;
 }): Docks {
 	const { words } = config;
@@ -292,6 +296,7 @@ export function useDocks({
 		words,
 		context,
 		headings,
+		bodies,
 		change,
 		toggle,
 		reset,
@@ -641,7 +646,9 @@ function Dock({
 									change(setCollapsed(layout, placement.id, false), fill(words.docks.expanded, { panel: name }));
 									docks.focusLater(placement.id);
 								}}
-							/>
+							>
+								{docks.bodies[placement.id as PanelKey]}
+							</PanelFrame>
 							{next ? (
 								<Separator
 									orientation={across ? "horizontal" : "vertical"}

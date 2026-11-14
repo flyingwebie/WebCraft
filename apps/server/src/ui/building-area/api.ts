@@ -52,9 +52,14 @@ export type ShellConfig = {
 
 /**
  * The Permissions the shell draws by, beyond Go to's (`builder.commandMenu`): uploading and changing
- * one's own Media files, and everyone's with the folders. Every procedure still checks `can()`.
+ * one's own Media files, and everyone's with the folders; changing the Site's Structure (Staff: Layers
+ * and the Inspector, BA-08). Every procedure still checks `can()`.
  */
-export const SHELL_PERMISSIONS = ["media.upload", "media.manage"] as const satisfies readonly Permission[];
+export const SHELL_PERMISSIONS = [
+	"media.upload",
+	"media.manage",
+	"structure.edit",
+] as const satisfies readonly Permission[];
 
 export type ShellPermission = (typeof SHELL_PERMISSIONS)[number];
 
