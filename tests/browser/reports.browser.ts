@@ -1,8 +1,9 @@
-// Reports and Share links in a real browser (#104): a Dashboard's Reports page with its history (as
-// Staff and as an Owner), the Report dialog and a Report's menu, an Owner changing recipients
-// ("Confirm it's you": a Sensitive action), a Report held for review, the Share
-// dialog with a link made from the keyboard, and the Share link's own page at phone and desktop widths
-// and its password page (also after a wrong password), in light and dark.
+// Reports and Share links in a real browser (#104, UI-16): a Dashboard's Reports page with what its
+// Reports sent (as Staff and as an Owner), the New Report sheet and a Report's menu, a Report's Active
+// switch from the keyboard, an Owner changing recipients ("Confirm it's you": a Sensitive action), a
+// Report held for review in its sheet, the Share links sheet with a link made from the keyboard (its
+// whole address once) and one revoked with a second press, and the Share link's own page at phone and
+// desktop widths and its password page (also after a wrong password), in light and dark.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { analyticsVisitor } from "../harness/analytics.ts";
@@ -114,30 +115,42 @@ for (const theme of THEMES) {
 			return page;
 		};
 
-		test("a Dashboard's Reports and a Report's history, as Staff", async () => {
+		test("a Dashboard's Reports and what they sent, as Staff", async () => {
 			const page = await open(reportsPath());
-			await page.getByRole("heading", { name: "Reports of Overview", level: 1 }).waitFor();
-			await page.getByRole("heading", { name: "History of Weekly results" }).waitFor();
-			await page.getByRole("link", { name: "Review" }).waitFor();
+			await page.getByRole("heading", { name: "Reports", level: 1 }).waitFor();
+			await page.getByText("Scheduled summaries of Overview, sent by email.").waitFor();
+			await page.getByRole("cell", { name: "Weekly", exact: true }).waitFor();
+			// How many it goes to (an Owner adds one in the light run).
+			await page.getByRole("cell", { name: /^\d+ recipients?$/ }).waitFor();
+			await page.getByRole("heading", { name: "Sent", level: 2 }).waitFor();
+			// Each send says its state in words, with what can be done with it.
+			await page.getByText("Waiting for your review", { exact: true }).waitFor();
+			await page.getByRole("link", { name: /^Review the Report for / }).waitFor();
+			await page
+				.getByRole("button", { name: /^Download PDF for / })
+				.first()
+				.waitFor();
 
 			await expectAccessibleScreen(page, `Reports (${theme})`);
 		});
 
 		test("a Dashboard's Reports, as an Owner", async () => {
 			const page = await open(reportsPath(), owner);
-			await page.getByRole("heading", { name: "Reports of Overview", level: 1 }).waitFor();
+			await page.getByRole("heading", { name: "Reports", level: 1 }).waitFor();
 			expect(await page.getByRole("button", { name: "New Report" }).count()).toBe(0);
+			// Owners see whether a Report goes out; only Staff switch it.
+			expect(await page.getByRole("switch", { name: "Send Weekly results on its schedule" }).isDisabled()).toBe(true);
 
 			await expectAccessibleScreen(page, `Reports, an Owner (${theme})`);
 		});
 
-		test("the Report dialog and a Report's menu", async () => {
+		test("the New Report sheet and a Report's menu", async () => {
 			const page = await open(reportsPath());
 			await expectOverlayUsable(
 				page,
 				page.getByRole("button", { name: "New Report" }),
 				"dialog",
-				`Report dialog (${theme})`,
+				`New Report sheet (${theme})`,
 			);
 			await expectOverlayUsable(
 				page,
@@ -171,23 +184,38 @@ for (const theme of THEMES) {
 			expect(reports.find((found) => found.id === reportId)?.recipients).toContain(`manager-${theme}@bakery.example`);
 		});
 
-		test("a Report waiting for review", async () => {
+		test("a Report waiting for review, in its sheet", async () => {
+			// The address the email about it links to still opens it.
 			const page = await open(`${reportsPath()}?report=${reportId}&review=${heldId}`);
-			const dialog = page.getByRole("dialog", { name: "Review the AI text" });
-			await dialog.waitFor();
-			expect(await dialog.getByLabel("What happened").inputValue()).toBe(
+			const sheet = page.getByRole("dialog", { name: "Review before it goes" });
+			await sheet.waitFor();
+			expect(await sheet.getByLabel("What happened").inputValue()).toBe(
 				"A steady week, with visitors finding the menu.",
 			);
+			// A line per Widget, and each suggestion with the Service it points to.
+			await sheet.getByText("Steady, with a few more visits.").first().waitFor();
+			await sheet.getByText("Write a page about the menu.").waitFor();
+			await sheet.getByText("Search engine optimisation").waitFor();
+			await sheet.getByRole("button", { name: "Approve and send" }).waitFor();
 			await page.waitForTimeout(250);
 
-			// The dialog sits at the end of the page, outside the landmarks, as dialogs do.
-			await expectNoAxeViolations(page, `Review dialog (${theme})`, ["region"]);
+			// The sheet sits at the end of the page, outside the landmarks, as dialogs do.
+			await expectNoAxeViolations(page, `Review sheet (${theme})`, ["region"]);
+			// Staff may change the text before it goes.
+			await sheet.getByRole("button", { name: "Change the text" }).click();
+			await sheet.getByLabel("Suggestion 1").waitFor();
+			await expectNoAxeViolations(page, `Review sheet, changing the text (${theme})`, ["region"]);
 		});
 
-		test("the Share dialog", async () => {
+		test("the Share links sheet", async () => {
 			const page = await open(`/sites/${siteId}/dashboards/${dashboardId}`);
 			await page.getByRole("heading", { name: "Overview", level: 1 }).waitFor();
-			await expectOverlayUsable(page, page.getByRole("button", { name: "Share" }), "dialog", `Share dialog (${theme})`);
+			await expectOverlayUsable(
+				page,
+				page.getByRole("button", { name: "Share" }),
+				"dialog",
+				`Share links sheet (${theme})`,
+			);
 		});
 
 		test("a Share link's page, at desktop and phone widths", async () => {
@@ -237,14 +265,69 @@ describe("from the keyboard", () => {
 		await page.goto(install.adminUrl(`/sites/${siteId}/dashboards/${dashboardId}`));
 		await page.getByRole("button", { name: "Share" }).focus();
 		await page.keyboard.press("Enter");
-		const dialog = page.getByRole("dialog", { name: "Share links" });
-		await dialog.getByRole("button", { name: "New Share link" }).focus();
-		await page.keyboard.press("Enter");
-		await dialog.getByLabel("Name").focus();
+		const sheet = page.getByRole("dialog", { name: "Share links" });
+		await sheet.getByLabel("Name").focus();
 		await page.keyboard.type("For the shop");
 		await page.keyboard.press("Enter");
-		const address = dialog.getByLabel("Its address");
+		const address = sheet.getByLabel("Its address");
 		await address.waitFor();
 		expect(await address.inputValue()).toMatch(/^http:\/\/share\.sites\.localhost:\d+\/[A-Za-z0-9_-]{43}$/);
+		// Focus is on the address, to copy it; it is shown this once.
+		await page.waitForFunction(() =>
+			(document.activeElement as HTMLInputElement | null)?.value?.startsWith("http://share."),
+		);
+		await sheet.getByText("Shown once. Copy it now.").waitFor();
+		// A new link works for 30 days unless Staff choose otherwise.
+		const { links } = await (await install.install.superadmin()).api.shareLinks.list({ siteId, dashboardId });
+		const made = links.find((link) => link.name === "For the shop");
+		expect(made?.expiresAt).not.toBeNull();
+		const days = (new Date(made?.expiresAt ?? 0).getTime() - Date.now()) / 86_400_000;
+		expect(days).toBeGreaterThan(29);
+		expect(days).toBeLessThan(32);
+	});
+
+	test("Staff revoke a Share link with a second press", async () => {
+		const api = (await install.install.superadmin()).api;
+		await api.shareLinks.create({ siteId, dashboardId, name: "For the old agency", language: "en" });
+		const page = await install.newPage("light");
+		await install.signIn(page, staff);
+		await page.goto(install.adminUrl(`/sites/${siteId}/dashboards/${dashboardId}`));
+		await page.getByRole("button", { name: "Share" }).click();
+		const sheet = page.getByRole("dialog", { name: "Share links" });
+		const revoke = sheet.getByRole("button", { name: "Revoke For the old agency" });
+		await revoke.focus();
+		await page.keyboard.press("Enter");
+		// The first press only asks: the same button now says what a second press does.
+		await sheet.getByRole("button", { name: "Revoke For the old agency for good: it stops working" }).waitFor();
+		const still = (await api.shareLinks.list({ siteId, dashboardId })).links.find(
+			(link) => link.name === "For the old agency",
+		);
+		expect(still?.state).toBe("active");
+		await page.keyboard.press("Enter");
+		await page.getByText("For the old agency no longer works.").waitFor();
+		const gone = (await api.shareLinks.list({ siteId, dashboardId })).links.find(
+			(link) => link.name === "For the old agency",
+		);
+		expect(gone?.state).toBe("revoked");
+	});
+
+	test("Staff switch a Report off and on again from the keyboard", async () => {
+		const page = await install.newPage("light");
+		await install.signIn(page, staff);
+		await page.goto(install.adminUrl(`/sites/${siteId}/dashboards/${dashboardId}/reports`));
+		await page.waitForLoadState("networkidle");
+		const active = page.getByRole("switch", { name: "Send Weekly results on its schedule" });
+		expect(await active.isChecked()).toBe(true);
+		await active.focus();
+		await page.keyboard.press("Space");
+		await page.getByText("Weekly results no longer goes out on its schedule.").waitFor();
+		const api = (await install.install.superadmin()).api;
+		const off = (await api.reports.list({ siteId, dashboardId })).reports.find((report) => report.id === reportId);
+		expect(off?.active).toBe(false);
+		await page.getByRole("switch", { name: "Send Weekly results on its schedule" }).focus();
+		await page.keyboard.press("Space");
+		await page.getByText("Weekly results goes out on its schedule again.").waitFor();
+		const on = (await api.reports.list({ siteId, dashboardId })).reports.find((report) => report.id === reportId);
+		expect(on?.active).toBe(true);
 	});
 });
