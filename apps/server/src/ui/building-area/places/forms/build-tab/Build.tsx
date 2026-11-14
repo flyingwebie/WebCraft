@@ -224,12 +224,14 @@ export function Build({
 				run: () => void editorHistory().undo(),
 			});
 			announce(fill(shown.removed, { label: nameOf(field) }));
-			const left = stepRange(next, stepOf(next, Math.min(index, next.length - 1))).indexes;
+			// The choice stays in the step shown: the item after, else the one before, else none.
+			const shownStep = Math.min(latest.current.step, Math.max(1, stepsOf(next).length));
+			const left = stepRange(next, shownStep).indexes;
 			const following = left.find((each) => each >= index) ?? left.at(-1) ?? null;
-			if (following === null) choose(null);
+			if (following === null) onView({ field: null, step: shownStep });
 			else choose(following, true);
 		},
-		[editor, shown, announce, choose],
+		[editor, shown, announce, choose, onView],
 	);
 
 	const duplicate = useCallback(
@@ -468,8 +470,11 @@ export function Build({
 			case "Home":
 			case "End": {
 				handled();
-				const next =
-					event.key === "Home"
+				// Focused but not chosen yet (reached by Tab): the first arrow chooses it.
+				const unchosen = latest.current.selected !== index && (event.key === "ArrowDown" || event.key === "ArrowUp");
+				const next = unchosen
+					? index
+					: event.key === "Home"
 						? order[0]
 						: event.key === "End"
 							? order.at(-1)
@@ -479,6 +484,7 @@ export function Build({
 			}
 			case " ":
 				handled();
+				if (latest.current.selected !== index) choose(index);
 				editorHistory().boundary();
 				setLifted({ index, original: [...now] });
 				announce(fill(shown.keys.picked, { label: nameOf(field) }));
@@ -490,6 +496,10 @@ export function Build({
 				return;
 			case "Enter":
 				handled();
+				if (latest.current.selected !== index) {
+					choose(index, true);
+					return;
+				}
 				document.querySelector<HTMLElement>("[data-wc-field-settings] input, [data-wc-field-settings] button")?.focus();
 				return;
 			case "Escape":
@@ -575,7 +585,7 @@ export function Build({
 						panel={steps.length > 0 ? { id: panelId, tab: `${tabId}-${step}` } : null}
 						handle={sheet}
 					>
-						{trying ? (
+						{stylesheet === null ? null : trying ? (
 							<TryForm
 								key={editor.formId}
 								words={words}
@@ -672,7 +682,7 @@ export function Build({
 	);
 }
 
-/** The line where a dragged field lands, with "{kind} goes here" on it (`forms-builder/02`). */
+/** The line where a dragged field lands, with "{kind} goes here" on it (`forms-builder/02`; above it, down a line of fields). */
 function DropLine({ drop, label }: { drop: Drop; label: string }) {
 	const { line } = drop;
 	return (
@@ -687,11 +697,15 @@ function DropLine({ drop, label }: { drop: Drop; label: string }) {
 			data-wc-drop-line=""
 		>
 			<div className="bg-selection absolute inset-0 rounded-full" />
-			{line.vertical ? null : (
-				<span className="bg-selection absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-white">
-					{label}
-				</span>
-			)}
+			<span
+				className={`bg-selection absolute rounded-full px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-white ${
+					line.vertical
+						? "bottom-full left-1/2 mb-1 -translate-x-1/2"
+						: "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+				}`}
+			>
+				{label}
+			</span>
 		</div>
 	);
 }
@@ -780,7 +794,7 @@ function StepTabs({
 				type="button"
 				onClick={onAdd}
 				aria-label={shown.addStep}
-				className={`border-chrome-hover text-chrome-faint hover:text-chrome-text inline-flex h-8 items-center gap-1 rounded-[7px] border border-dashed px-3 text-[12px] ${CHROME_EASE} ${FOCUS_RING}`}
+				className={`border-chrome-hover text-chrome-muted hover:text-chrome-text inline-flex h-8 items-center gap-1 rounded-[7px] border border-dashed px-3 text-[12px] ${CHROME_EASE} ${FOCUS_RING}`}
 				data-wc-add-step=""
 			>
 				<PlusIcon aria-hidden="true" className="size-3.5" />

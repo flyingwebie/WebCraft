@@ -116,6 +116,7 @@ export function Sheet({
 			aria-labelledby={panel?.tab}
 			data-wc-theme="light"
 			data-wcb-sheet=""
+			data-wcb-styled={stylesheet === null ? undefined : ""}
 			className="w-full"
 		>
 			{root

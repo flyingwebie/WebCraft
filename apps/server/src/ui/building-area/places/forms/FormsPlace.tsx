@@ -159,7 +159,7 @@ export function FormsPlace(props: PlaceProps) {
 					ref={newButton}
 					type="button"
 					onClick={() => setCreating(true)}
-					className={`text-chrome-faint hover:text-chrome-text hover:bg-chrome-raised flex h-[31px] w-full items-center gap-2 rounded-md px-2 text-start text-[12px] ${CHROME_EASE} ${FOCUS_RING}`}
+					className={`text-chrome-muted hover:text-chrome-text hover:bg-chrome-raised flex h-[31px] w-full items-center gap-2 rounded-md px-2 text-start text-[12px] ${CHROME_EASE} ${FOCUS_RING}`}
 					data-wc-new-form-open=""
 				>
 					<PlusIcon aria-hidden="true" className="size-3.5 shrink-0" />

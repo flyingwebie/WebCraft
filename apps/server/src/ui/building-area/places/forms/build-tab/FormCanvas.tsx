@@ -15,7 +15,8 @@ import { type FieldWidth, WIDTH_SHARES } from "./layout.ts";
  * slim dashed row seen only here.
  *
  * The items are one listbox for the keyboard (`role="option"` on a layer over each, which also takes
- * the pointer); what visitors would fill in is inert here, so nothing of it is a stop of its own.
+ * the pointer): one Tab stop, the arrows choose; focus alone chooses nothing, so the panel beside
+ * changes only when asked. What visitors would fill in is inert here, so nothing of it is a stop.
  */
 
 /** What an item is called on the canvas and to screen readers. */
@@ -87,9 +88,6 @@ export function FormCanvas({
 					tabIndex={index === focusable ? 0 : -1}
 					data-wcb-hit=""
 					onClick={() => on.select(index)}
-					onFocus={() => {
-						if (selected !== index) on.select(index);
-					}}
 					onKeyDown={(event) => on.key(event, index)}
 				/>
 				<span aria-hidden="true" data-wcb-grip="" onPointerDown={(event) => on.grip(event, index)}>
