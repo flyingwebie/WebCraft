@@ -140,7 +140,7 @@ export function EntriesList({
 				/>
 
 				<div className="overflow-hidden rounded-lg border">
-					<Table aria-label={postType.name} className="table-fixed">
+					<Table aria-label={postType.name} className="min-w-200 table-fixed">
 						<colgroup>
 							<col />
 							<col className="w-40" />

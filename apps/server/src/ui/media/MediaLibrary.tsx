@@ -519,7 +519,7 @@ function FileTable({
 	const t = useT();
 	return (
 		<div className="overflow-hidden rounded-lg border">
-			<Table aria-label={t("media.listLabel")} className="table-fixed">
+			<Table aria-label={t("media.listLabel")} className="min-w-200 table-fixed">
 				<colgroup>
 					<col />
 					<col />
