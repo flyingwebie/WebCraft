@@ -20,6 +20,34 @@ export type RegionSaving = {
 	regionOf(element: Element): HTMLElement | null;
 	/** Saves every region typed in and not saved yet, now (before the building area is left). */
 	flush(): Promise<void>;
+	/**
+	 * Whether a region holds what wasn't saved yet: typed in, its save waiting or under way. A change
+	 * that arrives from elsewhere (someone else's, an Undo) leaves such a region as the person has it.
+	 */
+	unsaved(region: Element): boolean;
+	/** The region's value now: plain text on one line, or rich text's HTML. */
+	valueOf(region: Element): string;
+	/** The region shows what its Draft holds now (put there from elsewhere): nothing to save. */
+	remember(region: Element): void;
+};
+
+/** What `save` answers for a region: the value as stored, its problems, and the change it made. */
+export type SavedAnswer = {
+	value: unknown;
+	problems: { rule?: string | null }[];
+	/** The change to the item's shared Draft, exactly (ADR 0036): the person's step in the Undo history. */
+	history?: { resource: string; before: unknown; after: unknown };
+};
+
+/**
+ * Follows one save of a region (`regionSaving`'s `watch`): asked for as the save is asked for, so the
+ * Undo history keeps steps in the order they were made, whichever save is answered first.
+ */
+export type SaveWatch = {
+	/** The save was answered: what it stored. */
+	saved(answer: SavedAnswer): void;
+	/** The save is over, answered, refused or not needed. */
+	settle(): void;
 };
 
 /** Where saving stands, for the Draft state beside Publish: a save under way, the last one done or failed. */
@@ -34,8 +62,10 @@ export function regionSaving(options: {
 	announce(text: string, urgent?: boolean): void;
 	/** Called as saves start and end. */
 	status?(status: SavingStatus): void;
+	/** Follows each save from the moment it is asked for (the Undo history, the region's problems). */
+	watch?(region: Element): SaveWatch | undefined;
 }): RegionSaving {
-	const { request, words, announce, status } = options;
+	const { request, words, announce, status, watch } = options;
 	/** Regions waiting to save (typed in, the delay not over yet). */
 	const waiting = new Set<Element>();
 	let running = 0;
@@ -54,15 +84,24 @@ export function regionSaving(options: {
 		if (timer !== undefined) clearTimeout(timer);
 		timers.delete(region);
 		waiting.delete(region);
-		// One save of a region at a time, in the order they were asked for.
-		await saving.get(region);
-		const value = textIn(region);
-		if (value === saved.get(region)) return;
+		const watching = watch?.(region);
+		try {
+			// One save of a region at a time, in the order they were asked for.
+			await saving.get(region);
+			const value = textIn(region);
+			if (value === saved.get(region)) return;
+			await saveNow(region, value, watching);
+		} finally {
+			watching?.settle();
+		}
+	};
+
+	const saveNow = async (region: Element, value: string, watching: SaveWatch | undefined) => {
 		const run = (async () => {
 			running++;
 			status?.("saving");
 			const code = await language;
-			const answer = await request<{ value: unknown }>("save", {
+			const answer = await request<SavedAnswer>("save", {
 				item: region.getAttribute("data-wc-item") ?? "",
 				field: region.getAttribute("data-wc-field") ?? "",
 				value,
@@ -80,6 +119,8 @@ export function regionSaving(options: {
 			saved.set(region, value);
 			if (running === 0) status?.("saved");
 			announce(words.saved);
+			// After "Saved": what the save found (a problem) is the last thing said.
+			watching?.saved(answer.data);
 		})();
 		saving.set(region, run);
 		await run;
@@ -104,6 +145,11 @@ export function regionSaving(options: {
 		regionOf: (element) => element.closest<HTMLElement>(TEXT_REGION),
 		async flush() {
 			await Promise.all([...waiting].map((region) => save(region)));
+		},
+		unsaved: (region) => waiting.has(region) || (saved.has(region) && textIn(region) !== saved.get(region)),
+		valueOf: textIn,
+		remember(region) {
+			saved.set(region, textIn(region));
 		},
 	};
 }

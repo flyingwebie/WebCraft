@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useEditorFit } from "../builder/editor-fit.ts";
-import { editorHistory } from "../builder/editor-history.ts";
-import { matches } from "../builder/shortcuts.ts";
 import { type EditAnswer, editRequests, fill, type PageState, type ShellConfig } from "./api.ts";
 import { BottomBar } from "./bottom-bar/BottomBar.tsx";
 import { DocumentNav } from "./bottom-bar/DocumentNav.tsx";
@@ -14,6 +12,10 @@ import { DocumentSwitcher } from "./DocumentSwitcher.tsx";
 import { DockArea, useDocks } from "./docks/Docks.tsx";
 import { PanelsMenu } from "./docks/PanelsMenu.tsx";
 import type { PanelContext } from "./docks/panels.ts";
+import { reverseElsewhere } from "./editing/drafts.ts";
+import { pageEditing } from "./editing/editing.ts";
+import { shellHistory } from "./editing/history.ts";
+import { TextToolbar } from "./editing/TextToolbar.tsx";
 import { type RegionCycle, regionCycle } from "./keyboard.ts";
 import { NarrowNotice } from "./NarrowNotice.tsx";
 import { useOpenDocument } from "./open-document.ts";
@@ -80,18 +82,59 @@ export function Shell({ config }: { config: ShellConfig }) {
 		setMessage((last) => ({ text: `${text}${last.count % 2 ? " " : ""}`, urgent, count: last.count + 1 }));
 	}, []);
 
+	const announceRef = useRef(announce);
+	announceRef.current = announce;
+
+	// The tab's one Undo history (ADR 0036, ADR 0037 › 1.5) and Content typed in place (BA-07): made once,
+	// for the shell's life. A step on a Draft no page shows now opens that Draft for the step alone.
+	const undoHistory = useMemo(
+		() =>
+			shellHistory({
+				siteId: config.site.id,
+				words,
+				announce: (text, urgent) => announceRef.current(text, urgent),
+				fallback: async (resource) => {
+					const prefix = `draft:${config.site.id}:`;
+					if (!resource.startsWith(prefix)) return undefined;
+					const item = resource.slice(prefix.length);
+					return { reverse: (from, to) => reverseElsewhere(item, config.token, from, to) };
+				},
+			}),
+		[config.site.id, config.token, words],
+	);
+	useEffect(() => () => undoHistory.destroy(), [undoHistory]);
+	const refreshRef = useRef<() => void>(() => {});
+	const editing = useMemo(
+		() =>
+			pageEditing({
+				token: config.token,
+				siteId: config.site.id,
+				words,
+				history: undoHistory,
+				announce: (text, urgent) => announceRef.current(text, urgent),
+				refresh: () => refreshRef.current(),
+				failed: () => setSaving("failed"),
+			}),
+		[config.token, config.site.id, words, undoHistory],
+	);
+	useEffect(() => () => editing.destroy(), [editing]);
+
 	/** Reads what Edit mode says of the page in the frame, for the Draft state and the languages. */
-	const takeState = useCallback((address: string, answer: Promise<EditAnswer<PageState>>) => {
-		void answer.then((state) => {
-			if (!state.ok || shownAddress.current !== address) return;
-			setShown({
-				address,
-				changes: state.data.changes.length,
-				inReview: state.data.reviews.some((review) => review.status === "inReview"),
-				languages: state.data.languages,
+	const takeState = useCallback(
+		(address: string, answer: Promise<EditAnswer<PageState>>) => {
+			void answer.then((state) => {
+				if (!state.ok || shownAddress.current !== address) return;
+				editing.pageState(state.data);
+				setShown({
+					address,
+					changes: state.data.changes.length,
+					inReview: state.data.reviews.some((review) => review.status === "inReview"),
+					languages: state.data.languages,
+				});
 			});
-		});
-	}, []);
+		},
+		[editing],
+	);
 
 	// The open document (BA-06): what the address names, and where the frame shows it.
 	const opened = useOpenDocument(config, announce);
@@ -159,16 +202,20 @@ export function Shell({ config }: { config: ShellConfig }) {
 		}
 	}, [placeKey, announce, words]);
 
+	/** Reads the page's `state` again: its Draft changed (a save, someone else's change, a step taken back). */
+	const refreshState = useCallback(() => {
+		const address = shownAddress.current;
+		if (address) takeState(address, request<PageState>("state", { path: address.split("?")[0] ?? "/" }));
+	}, [request, takeState]);
+	refreshRef.current = refreshState;
+
 	const onSaving = useCallback(
 		(status: SavingStatus) => {
 			setSaving(status === "saving" ? "saving" : status === "failed" ? "failed" : "idle");
-			const address = shownAddress.current;
 			// A save changes the page's Draft: its count of changes is read again.
-			if (status === "saved" && address) {
-				takeState(address, request<PageState>("state", { path: address.split("?")[0] ?? "/" }));
-			}
+			if (status === "saved") refreshState();
 		},
-		[request, takeState],
+		[refreshState],
 	);
 
 	useEffect(() => {
@@ -178,28 +225,17 @@ export function Shell({ config }: { config: ShellConfig }) {
 			// Under the narrow-window notice nothing else can be reached.
 			if (document.querySelector("[data-wc-narrow]")) return;
 			if (keys.key(event)) return;
-			// Undo and Redo of the shell's history, outside text fields (the page's own text keeps the browser's).
+			// Undo and Redo of the shell's history, outside the shell's own text fields (a place's form keeps
+			// the browser's). The page's text reaches the history through its agent (`editing/editing.ts`).
 			if (typingIn(event.target)) return;
-			if (matches(event, "editor.undo")) {
-				event.preventDefault();
-				void editorHistory().undo();
-			} else if (matches(event, "editor.redo")) {
-				event.preventDefault();
-				void editorHistory().redo();
-			}
+			if (undoHistory.key(event)) event.preventDefault();
 		};
 		document.addEventListener("keydown", onKey, true);
 		return () => {
 			document.removeEventListener("keydown", onKey, true);
 			cycle.current = null;
 		};
-	}, []);
-
-	useEffect(() => {
-		const history = editorHistory();
-		history.siteId = config.site.id;
-		return history.listen({ announce: (text, refused) => announce(text, refused) });
-	}, [config.site.id, announce]);
+	}, [undoHistory]);
 
 	// The open document is a page for now (documents come with a later part of the building area).
 	// What the panels' rules read: the selection and the open document's kind (a Template of any kind is a Template).
@@ -284,6 +320,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 				}
 				insertRow={!place}
 				staging={config.staging && shown ? `${config.staging}${shown.address}` : null}
+				onUndo={() => void undoHistory.undo()}
+				onRedo={() => void undoHistory.redo()}
 				draft={draftStateOf(saving, shown)}
 			/>
 			{/*
@@ -331,6 +369,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 						{opened.shown?.status === "missing" || opened.shown?.status === "later" ? (
 							<NoDocument words={words} why={opened.shown.status} />
 						) : null}
+						{/* Before the frame in the Tab order: the page stays the last stop. */}
+						{opened.shown?.status === "shown" ? <TextToolbar editing={editing} words={words} /> : null}
 						{opened.shown?.status === "shown" ? (
 							<Frame
 								address={opened.shown.frame}
@@ -346,6 +386,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 								onPage={onPage}
 								onSaving={onSaving}
 								onSelect={(selected) => setSelection(selected ? { kind: "element", name: selected.name } : null)}
+								editing={editing}
 							/>
 						) : null}
 						{/* The Breakpoints switched on in Styles (BA-24), drawn where the frame's edges would be. */}

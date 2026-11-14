@@ -9286,6 +9286,54 @@
 				"forbidden": "non puoi modificare la Struttura",
 				"generic": "qualcosa è andato storto ({code})"
 			}
+		},
+		"editing": {
+			"toolbar": "Formattazione del testo: {name}",
+			"bold": "Grassetto",
+			"italic": "Corsivo",
+			"link": "Link",
+			"bulletList": "Elenco puntato",
+			"numberedList": "Elenco numerato",
+			"undo": "Annulla",
+			"done": "Fatto",
+			"linkAddress": "Indirizzo del link",
+			"linkPlaceholder": "Incolla un indirizzo",
+			"linkApply": "Applica il link",
+			"linkRemove": "Rimuovi il link",
+			"toolbarHint": "Alt+F10 porta alla barra di formattazione",
+			"problems": {
+				"required": "Non può essere vuoto.",
+				"minLength": "È troppo corto.",
+				"maxLength": "È troppo lungo.",
+				"pattern": "Non ha la forma richiesta.",
+				"other": "Così com'è non si può pubblicare.",
+				"url": "Questo non è un indirizzo a cui una pagina può puntare.",
+				"media": "Questo file non è nella libreria Media.",
+				"email": "Questo non è un indirizzo email.",
+				"min": "Il valore è troppo piccolo.",
+				"max": "Il valore è troppo grande.",
+				"integer": "Deve essere un numero intero.",
+				"options": "Questa non è una delle scelte."
+			},
+			"history": {
+				"text": "Modifica {name}",
+				"undid": "Annullato {label}",
+				"redid": "Ripetuto {label}",
+				"skipped": "Saltato {label}.",
+				"keptUndo": "{label} non è stato annullato e resta nella cronologia.",
+				"keptRedo": "{label} non è stato ripetuto e resta nella cronologia.",
+				"HISTORY_OBSOLETE": "Questo passaggio si sovrappone a una modifica più recente o la destinazione non esiste più.",
+				"HISTORY_UNAVAILABLE": "La bozza non può essere modificata in questo momento. Riprova tra poco.",
+				"HISTORY_PARTIAL": "Non è stato possibile ripristinare parte di questo passaggio. Controlla la bozza prima di continuare.",
+				"refused": "Il server ha rifiutato questo passaggio.",
+				"on": "{message} su {title}"
+			},
+			"someone": "Qualcuno",
+			"via": "{name} tramite {client}",
+			"viaTranslation": "{name} tramite la traduzione con IA",
+			"joined": "Anche {name} sta modificando questa pagina",
+			"changedHere": "Modificato, non pubblicato",
+			"refused": "Questa modifica non è stata salvata: {reason}"
 		}
 	},
 	"auth": {

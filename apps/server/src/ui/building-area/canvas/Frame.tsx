@@ -1,6 +1,7 @@
 import { type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { AGENT_HOST_PROPERTY, type AgentHost, BUILDING_STAND_IN_PREFIX } from "../agent/contract.ts";
 import { type EditAnswer, type EditRequests, fill, type PageState, type Words } from "../api.ts";
+import type { PageEditing } from "../editing/editing.ts";
 import type { RegionCycle } from "../keyboard.ts";
 import { installDragCatcher } from "./catcher.ts";
 import { Gutter } from "./Gutter.tsx";
@@ -64,6 +65,7 @@ export function Frame({
 	onPage,
 	onSaving,
 	onSelect,
+	editing,
 }: {
 	/** What the frame shows: a page's path on the Site with its query, or a stand-in's address. */
 	address: string;
@@ -89,6 +91,11 @@ export function Frame({
 	onSaving(status: SavingStatus): void;
 	/** The selection changed: the element selected in the page and its name, or nothing. */
 	onSelect?(selected: { element: Element; name: string } | null): void;
+	/**
+	 * Content typed in place, around the saving (BA-07, `editing/editing.ts`): the text toolbar, the
+	 * Undo history's steps and keys, the page's shared Drafts and Presence. It sees the page's events first.
+	 */
+	editing?: PageEditing;
 }) {
 	const canvas = useRef<HTMLDivElement>(null);
 	const frame = useRef<HTMLIFrameElement>(null);
@@ -109,8 +116,22 @@ export function Frame({
 		address,
 		following,
 		onFollow,
+		editing,
 	});
-	latest.current = { words, request, cycle, announce, theme, onPage, onSaving, onSelect, address, following, onFollow };
+	latest.current = {
+		words,
+		request,
+		cycle,
+		announce,
+		theme,
+		onPage,
+		onSaving,
+		onSelect,
+		address,
+		following,
+		onFollow,
+		editing,
+	};
 
 	// The frame's size: the canvas as measured, the size given, and whether the last change eases.
 	const [area, setArea] = useState<{ width: number; height: number } | null>(null);
@@ -198,7 +219,9 @@ export function Frame({
 			words: latest.current.words,
 			announce: (text, urgent) => latest.current.announce(text, urgent),
 			status: (status) => latest.current.onSaving(status),
+			watch: (region) => latest.current.editing?.watch(region),
 		});
+		const disconnectEditing = latest.current.editing?.connect({ frame: element, overlay, saving });
 		handle.current = {
 			navigate(address) {
 				// In place: a frame's own navigation would add to the window's history, which is the shell's.
@@ -237,8 +260,10 @@ export function Frame({
 				overlay.attach(document);
 				const theme = latest.current.theme;
 				if (theme) document.documentElement.setAttribute("data-wc-theme", theme);
+				const standIn = address.startsWith(`${BUILDING_STAND_IN_PREFIX}/`);
+				latest.current.editing?.page(document, address, !standIn);
 				// A stand-in is no page of the Site: Edit mode has nothing to say of it.
-				if (address.startsWith(`${BUILDING_STAND_IN_PREFIX}/`)) {
+				if (standIn) {
 					saving.track(document, Promise.resolve(null));
 					latest.current.onPage(address, Promise.resolve({ ok: false, status: 404, code: "STAND_IN" }));
 					return;
@@ -256,8 +281,11 @@ export function Frame({
 			ready(document) {
 				overlay.attach(document);
 				saving.track(document);
+				latest.current.editing?.ready(document);
 			},
 			event(kind, event) {
+				// Content typed in place sees the page's events first: Undo and Redo, the toolbar's Alt+F10.
+				if (latest.current.editing?.event(kind, event)) return true;
 				switch (kind) {
 					case "pointermove":
 						overlay.hover(selectable(event.target));
@@ -329,6 +357,7 @@ export function Frame({
 			window.removeEventListener("blur", onFocusChange);
 			window.removeEventListener("focus", onFocusChange);
 			catcher.destroy();
+			disconnectEditing?.();
 			overlay.destroy();
 			overlayOf.current = null;
 			handle.current = null;

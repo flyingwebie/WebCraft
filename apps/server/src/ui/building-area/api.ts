@@ -69,12 +69,16 @@ export type AdminMessages = {
 
 /** What the `state` edit request says of a page, as far as the shell reads it. */
 export type PageState = {
-	/** The page's changes in its Draft (its Entry's values, the Globals it shows, its Loops' items). */
-	changes: unknown[];
+	/** The page: its title as its Draft has it, its path, and the Entry it shows (`entry:<id>`; none on the 404 page). */
+	page: { title: string; path: string; item: string | null };
+	/** The page's changes in its Draft (its Entry's values, the Globals it shows, its Loops' items), by item and key. */
+	changes: { item: string; key: string }[];
 	/** The Reviews of the page's items: waiting (`inReview`) or sent back. */
 	reviews: { status: "inReview" | "sentBack" }[];
 	/** The language the page is shown in. */
 	language: { code: string; name: string };
+	/** The Site's Default language: values without one of their own in the page's language show it. */
+	defaultLanguage: string;
 	/** The page in each of the Site's languages (none on a Site with one language). */
 	languages: { code: string; name: string; path: string; current: boolean }[];
 };
