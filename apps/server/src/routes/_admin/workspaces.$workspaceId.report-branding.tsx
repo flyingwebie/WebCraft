@@ -23,5 +23,5 @@ function WorkspaceReportBranding() {
 	const branding = Route.useLoaderData();
 	const { workspaceId } = Route.useParams();
 	if (!branding) return <Forbidden heading={t("forbidden.heading")} body={t("forbidden.body")} />;
-	return <WorkspaceBrandingPage key={JSON.stringify(branding)} workspaceId={workspaceId} branding={branding} />;
+	return <WorkspaceBrandingPage workspaceId={workspaceId} branding={branding} />;
 }

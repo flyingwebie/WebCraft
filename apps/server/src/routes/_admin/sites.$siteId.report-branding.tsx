@@ -23,5 +23,5 @@ function SiteReportBranding() {
 	const branding = Route.useLoaderData();
 	const { siteId } = Route.useParams();
 	if (!branding) return <Forbidden heading={t("forbidden.heading")} body={t("forbidden.body")} />;
-	return <SiteBrandingPage key={JSON.stringify(branding)} siteId={siteId} branding={branding} />;
+	return <SiteBrandingPage siteId={siteId} branding={branding} />;
 }

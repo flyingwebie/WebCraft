@@ -1570,12 +1570,6 @@
 		"heading": "Modules",
 		"intro": "Features that plug into WebCraft through the Module SDK. A Module runs only once you approve what it asks for; Staff then switch it on or off on each Site or Workspace.",
 		"empty": "This version of WebCraft has no Modules.",
-		"columns": {
-			"module": "Module",
-			"version": "Version",
-			"status": "Status",
-			"actions": "Actions"
-		},
 		"level": {
 			"site": "Switched on each Site",
 			"workspace": "Switched on each Workspace"
@@ -1702,11 +1696,11 @@
 		},
 		"keep": {
 			"label": "Keep {label} for",
-			"months": "{count, plural, one {# month} other {# months}}",
-			"save": "Save",
-			"saveOf": "Save how long {name} keeps {label}",
-			"saved": "{name} now keeps {label} for {count, plural, one {# month} other {# months}}."
-		}
+			"months": "{count, plural, one {# month} other {# months}}"
+		},
+		"listTitle": "Modules of this version",
+		"withdrawTitle": "Withdraw the approval of {name}?",
+		"withdrawBody": "{name} stops on every Site and Workspace until you approve it again. Its data is kept."
 	},
 	"editBar": {
 		"label": "Edit mode",
@@ -5515,10 +5509,7 @@
 		"listIntro": "Stored encrypted; only the last 4 characters are ever shown.",
 		"none": "No shared keys yet.",
 		"name": "Name",
-		"providerModel": "Provider and model",
-		"key": "Key",
 		"workspaces": "Assigned to",
-		"actions": "Actions",
 		"assignedTo": "{name} ({cap} a month)",
 		"menu": "Actions for {name}",
 		"edit": "Edit",
@@ -5537,14 +5528,15 @@
 		"sharedKey": "Shared key",
 		"noKey": "None",
 		"monthlyCap": "Monthly cap ($)",
-		"saveAssignment": "Save",
-		"assigned": "{name} is saved.",
 		"assignedBadge": "Assigned",
 		"privateHeading": "Self-hosted models",
 		"private": "Let shared keys call an OpenAI-compatible endpoint inside the Install's own network",
 		"privateHelp": "For a model the agency runs on its own servers. A Workspace's own key never may: it would let anyone with that key reach inside the network.",
-		"savePrivate": "Save",
-		"privateSaved": "The setting is saved."
+		"notAssignedBadge": "Not assigned",
+		"removeTitle": "Remove {name}?",
+		"removeBody": "The key is deleted from this Install for good.",
+		"removeInUse": "It is assigned to {workspaces}: their AI calls stop using it at once.",
+		"nameAndKeyNeeded": "Give the key a name and paste the key."
 	},
 	"dashboards": {
 		"pageTitle": "Dashboards",
@@ -8155,5 +8147,8 @@
 			"pick": "Pick a Placement up, or put it down",
 			"putBack": "Put a picked-up Placement back"
 		}
+	},
+	"settingsLayout": {
+		"cancel": "Cancel"
 	}
 }

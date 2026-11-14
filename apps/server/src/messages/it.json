@@ -1570,12 +1570,6 @@
 		"heading": "Moduli",
 		"intro": "Funzioni che si collegano a WebCraft tramite l'SDK dei Moduli. Un Modulo funziona solo dopo che hai approvato ciò che chiede; poi lo Staff lo attiva o lo disattiva su ogni Site o Workspace.",
 		"empty": "Questa versione di WebCraft non ha Moduli.",
-		"columns": {
-			"module": "Modulo",
-			"version": "Versione",
-			"status": "Stato",
-			"actions": "Azioni"
-		},
 		"level": {
 			"site": "Attivato su ogni Site",
 			"workspace": "Attivato su ogni Workspace"
@@ -1702,11 +1696,11 @@
 		},
 		"keep": {
 			"label": "Conserva {label} per",
-			"months": "{count, plural, one {# mese} other {# mesi}}",
-			"save": "Salva",
-			"saveOf": "Salva per quanto {name} conserva {label}",
-			"saved": "{name} ora conserva {label} per {count, plural, one {# mese} other {# mesi}}."
-		}
+			"months": "{count, plural, one {# mese} other {# mesi}}"
+		},
+		"listTitle": "Moduli di questa versione",
+		"withdrawTitle": "Ritirare l'approvazione di {name}?",
+		"withdrawBody": "{name} si ferma su ogni Site e Workspace finché non lo approvi di nuovo. I suoi dati vengono conservati."
 	},
 	"editBar": {
 		"label": "Modalità modifica",
@@ -5515,10 +5509,7 @@
 		"listIntro": "Salvate cifrate; si vedono solo gli ultimi 4 caratteri.",
 		"none": "Ancora nessuna chiave condivisa.",
 		"name": "Nome",
-		"providerModel": "Provider e modello",
-		"key": "Chiave",
 		"workspaces": "Assegnata a",
-		"actions": "Azioni",
 		"assignedTo": "{name} ({cap} al mese)",
 		"menu": "Azioni per {name}",
 		"edit": "Modifica",
@@ -5537,14 +5528,15 @@
 		"sharedKey": "Chiave condivisa",
 		"noKey": "Nessuna",
 		"monthlyCap": "Limite mensile ($)",
-		"saveAssignment": "Salva",
-		"assigned": "{name} è salvato.",
 		"assignedBadge": "Assegnata",
 		"privateHeading": "Modelli ospitati in proprio",
 		"private": "Consenti alle chiavi condivise di chiamare un endpoint compatibile con OpenAI nella rete dell'Install",
 		"privateHelp": "Per un modello che l'agenzia fa girare sui propri server. La chiave propria di un Workspace non può mai: permetterebbe a chiunque abbia quella chiave di entrare nella rete.",
-		"savePrivate": "Salva",
-		"privateSaved": "L'impostazione è salvata."
+		"notAssignedBadge": "Non assegnata",
+		"removeTitle": "Rimuovere {name}?",
+		"removeBody": "La chiave viene eliminata da questa Install per sempre.",
+		"removeInUse": "È assegnata a {workspaces}: le loro chiamate AI smettono subito di usarla.",
+		"nameAndKeyNeeded": "Dai un nome alla chiave e incolla la chiave."
 	},
 	"dashboards": {
 		"pageTitle": "Dashboard",
@@ -8155,5 +8147,8 @@
 			"pick": "Prendi un Placement, o posalo",
 			"putBack": "Rimetti a posto un Placement preso"
 		}
+	},
+	"settingsLayout": {
+		"cancel": "Annulla"
 	}
 }

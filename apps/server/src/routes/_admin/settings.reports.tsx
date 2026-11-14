@@ -22,5 +22,5 @@ function InstallReportsSettings() {
 	const t = useT();
 	const branding = Route.useLoaderData();
 	if (!branding) return <Forbidden heading={t("forbidden.heading")} body={t("forbidden.body")} />;
-	return <InstallBrandingPage key={JSON.stringify(branding)} branding={branding} />;
+	return <InstallBrandingPage branding={branding} />;
 }
