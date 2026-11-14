@@ -39,7 +39,7 @@ export const ENTRY_STATUSES = ["published", "draft", "changed", "review"] as con
 
 export type EntryStatusFilter = (typeof ENTRY_STATUSES)[number];
 
-export type EntriesSearch = { q?: string; status?: EntryStatusFilter; language?: string };
+export type EntriesSearch = { q?: string; status?: EntryStatusFilter; language?: string; create?: boolean };
 
 type ListedPostType = { id: string; name: string; builtIn: "page" | null };
 
@@ -162,7 +162,7 @@ export function EntriesList({
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{canCreate ? <CreateRow siteId={siteId} postType={postType} /> : null}
+							{canCreate ? <CreateRow siteId={siteId} postType={postType} focus={search.create === true} /> : null}
 							{rows.length === 0 ? (
 								<TableRow className="hover:bg-transparent">
 									<TableCell colSpan={6} className="text-muted-foreground px-4 py-8 text-center whitespace-normal">
@@ -319,8 +319,12 @@ function EntryRow({
 }
 
 /** The row at the top of the list: a title, then Enter makes a Draft with it and opens it. */
-function CreateRow({ siteId, postType }: { siteId: string; postType: ListedPostType }) {
+function CreateRow({ siteId, postType, focus }: { siteId: string; postType: ListedPostType; focus: boolean }) {
 	const t = useT();
+	const input = useRef<HTMLInputElement>(null);
+	useEffect(() => {
+		if (focus) input.current?.focus();
+	}, [focus]);
 	const navigate = useNavigate();
 	const [title, setTitle] = useState("");
 	const [error, setError] = useState<string | null>(null);
@@ -358,6 +362,7 @@ function CreateRow({ siteId, postType }: { siteId: string; postType: ListedPostT
 							{label}
 						</label>
 						<input
+							ref={input}
 							id="entries-create"
 							value={title}
 							onChange={(event) => setTitle(event.target.value)}

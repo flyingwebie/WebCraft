@@ -1271,15 +1271,31 @@
 	"site": {
 		"pageTitle": "Panoramica",
 		"intro": "Un Site di {workspace}.",
-		"details": "Dettagli",
-		"name": "Nome",
-		"slug": "Slug",
-		"workspace": "Workspace",
-		"created": "Creato",
 		"editOnSite": "Modifica sul sito",
 		"editOptions": "Altri modi di aprire la modalità modifica",
 		"editInSafeMode": "Modifica in modalità sicura",
-		"editInSafeModeHelp": "Senza eseguire nessuno script del sito"
+		"editInSafeModeHelp": "Senza eseguire nessuno script del sito",
+		"overview": {
+			"requested": "{name} ha chiesto la revisione di “<item>{title}</item>”",
+			"draftsHeading": "Bozze e modifiche",
+			"draftsReady": "{count, plural, one {# modifica pronta da pubblicare.} other {# modifiche pronte da pubblicare.}}",
+			"draftsNone": "È tutto pubblicato.",
+			"activityHeading": "Attività recente",
+			"activityNone": "Su questo Site non è ancora successo nulla.",
+			"activityLine": "{who}: {action}",
+			"activitySubject": "{who}: {action}, “{subject}”",
+			"quickHeading": "Azioni rapide",
+			"newIn": "Nuovo in {name}",
+			"uploadMedia": "Carica Media",
+			"editHome": "Modifica sul sito",
+			"siteHeading": "Site",
+			"domain": "Dominio",
+			"live": "Online",
+			"noDomain": "Ancora nessun dominio",
+			"languages": "Lingue",
+			"staging": "Staging",
+			"noStaging": "Nessuno"
+		}
 	},
 	"publishAll": {
 		"changedVia": "{person} tramite {client}",

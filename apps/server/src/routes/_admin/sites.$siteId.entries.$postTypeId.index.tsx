@@ -10,6 +10,8 @@ const search = z.object({
 	q: z.string().max(200).optional().catch(undefined),
 	status: z.enum(ENTRY_STATUSES).optional().catch(undefined),
 	language: z.string().min(2).max(35).optional().catch(undefined),
+	/** Puts the caret in the create row at once ("New page" on the Overview). */
+	create: z.boolean().optional().catch(undefined),
 });
 
 const parent = getRouteApi("/_admin/sites/$siteId/entries/$postTypeId");

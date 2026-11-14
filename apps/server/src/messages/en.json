@@ -1271,15 +1271,31 @@
 	"site": {
 		"pageTitle": "Overview",
 		"intro": "A Site of {workspace}.",
-		"details": "Details",
-		"name": "Name",
-		"slug": "Slug",
-		"workspace": "Workspace",
-		"created": "Created",
 		"editOnSite": "Edit on site",
 		"editOptions": "More ways to open Edit mode",
 		"editInSafeMode": "Edit in Safe mode",
-		"editInSafeModeHelp": "With none of the Site's own scripts running"
+		"editInSafeModeHelp": "With none of the Site's own scripts running",
+		"overview": {
+			"requested": "{name} requested review on “<item>{title}</item>”",
+			"draftsHeading": "Drafts and changes",
+			"draftsReady": "{count, plural, one {# change ready to publish.} other {# changes ready to publish.}}",
+			"draftsNone": "Everything is published.",
+			"activityHeading": "Recent activity",
+			"activityNone": "Nothing has happened on this Site yet.",
+			"activityLine": "{who}: {action}",
+			"activitySubject": "{who}: {action}, “{subject}”",
+			"quickHeading": "Quick actions",
+			"newIn": "New in {name}",
+			"uploadMedia": "Upload Media",
+			"editHome": "Edit on site",
+			"siteHeading": "Site",
+			"domain": "Domain",
+			"live": "Live",
+			"noDomain": "No domain yet",
+			"languages": "Languages",
+			"staging": "Staging",
+			"noStaging": "None"
+		}
 	},
 	"publishAll": {
 		"changedVia": "{person} via {client}",
