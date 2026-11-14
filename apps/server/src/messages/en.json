@@ -5416,7 +5416,6 @@
 		"progressOf": "How much of {language} is translated",
 		"mode": "Translation mode",
 		"modeOf": "Translation mode of {language}",
-		"modeSaved": "{language} is now {mode}.",
 		"toReview": "{count} to review",
 		"outdated": "{count} outdated",
 		"missing": "{count} missing",
