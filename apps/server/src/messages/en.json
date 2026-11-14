@@ -8774,7 +8774,8 @@
 					"color": "Colour",
 					"inset": "Inset"
 				},
-				"layerPart": "{part} of {name}, layer {layer}"
+				"layerPart": "{part} of {name}, layer {layer}",
+				"actions": "Actions"
 			},
 			"siteCss": {
 				"title": "Site CSS",

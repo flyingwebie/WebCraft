@@ -226,21 +226,16 @@ function TokenField({
 	);
 }
 
-/** A colour's swatch: the colour picker under it, named for screen readers. */
+/** A colour's swatch: the browser's colour picker drawn as the swatch, named for screen readers. */
 function Swatch({ colour, label, onPick }: { colour: string; label: string; onPick(hex: string): void }) {
 	return (
-		<span
-			className="border-chrome-hover focus-within:ring-chrome-focus relative inline-block size-[22px] shrink-0 rounded-md border focus-within:ring-2"
-			style={{ background: colour }}
-		>
-			<input
-				type="color"
-				aria-label={label}
-				value={HEX.test(colour) ? fullHex(colour) : "#000000"}
-				onChange={(event) => onPick(event.target.value)}
-				className="absolute inset-0 size-full cursor-pointer opacity-0"
-			/>
-		</span>
+		<input
+			type="color"
+			aria-label={label}
+			value={HEX.test(colour) ? fullHex(colour) : "#000000"}
+			onChange={(event) => onPick(event.target.value)}
+			className={`border-chrome-hover size-[22px] shrink-0 cursor-pointer appearance-none rounded-md border bg-transparent p-0 [&::-moz-color-swatch]:rounded-[5px] [&::-moz-color-swatch]:border-0 [&::-webkit-color-swatch]:rounded-[5px] [&::-webkit-color-swatch]:border-0 [&::-webkit-color-swatch-wrapper]:p-0 ${FOCUS_RING}`}
+		/>
 	);
 }
 
@@ -298,10 +293,13 @@ function AddRow({ label, onAdd, data }: { label: string; onAdd(): void; data?: R
 function TokenTable({
 	caption,
 	columns,
+	actions = "",
 	children,
 }: {
 	caption: string;
 	columns: [string, string][];
+	/** The name of the last, unlabelled column (the remove buttons), for screen readers. */
+	actions?: string;
 	children: ReactNode;
 }) {
 	return (
@@ -311,11 +309,11 @@ function TokenTable({
 				<tr className="h-[30px]">
 					{columns.map(([label, size]) => (
 						<th
-							key={label}
+							key={label || "actions"}
 							scope="col"
 							className={`text-chrome-muted px-1 text-start text-[11px] font-semibold uppercase ${size}`}
 						>
-							{label}
+							{label || <span className="sr-only">{actions}</span>}
 						</th>
 					))}
 				</tr>
@@ -367,6 +365,7 @@ function ColoursEditor({ words, editing, announce }: { words: Words; editing: Ed
 		<>
 			<TokenTable
 				caption={shown.group.colours}
+				actions={shown.actions}
 				columns={[
 					[shown.name, "w-[140px]"],
 					[shown.swatch, "w-14"],
@@ -569,6 +568,7 @@ function FontsEditor({ words, editing, announce }: { words: Words; editing: Edit
 		<>
 			<TokenTable
 				caption={shown.group.fonts}
+				actions={shown.actions}
 				columns={[
 					[shown.name, "w-[140px]"],
 					[shown.family, ""],
@@ -646,6 +646,7 @@ function DimensionsEditor({
 		<>
 			<TokenTable
 				caption={shown.group[kind]}
+				actions={shown.actions}
 				columns={[
 					[shown.name, "w-[140px]"],
 					[shown.value, ""],

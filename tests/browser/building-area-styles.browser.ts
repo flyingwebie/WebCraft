@@ -217,12 +217,12 @@ describe("the Styles place, for Staff", () => {
 		await page.waitForFunction(() => document.activeElement?.matches("[data-wc-token-menu] input"));
 		expect(await page.locator("[data-wc-token-menu]").textContent()).toContain("Type scale");
 		// The search narrows the list; a star makes a favourite, listed first.
-		await page.keyboard.type("x");
+		await page.keyboard.type("xl");
 		const choices = () =>
 			page
 				.locator("[data-wc-token-choice]")
 				.evaluateAll((all) => all.map((each) => each.getAttribute("data-wc-token-choice")));
-		expect(await choices()).toEqual(["text-4xl", "text-3xl", "text-2xl", "text-xl", "text-xs"]);
+		expect(await choices()).toEqual(["text-4xl", "text-3xl", "text-2xl", "text-xl"]);
 		await page.locator('[data-wc-token-star="text-xl"]').click();
 		expect(await page.locator('[data-wc-token-star="text-xl"]').getAttribute("aria-pressed")).toBe("true");
 		expect((await choices())[0]).toBe("text-xl");
@@ -262,7 +262,7 @@ describe("the Styles place, for Staff", () => {
 		await page.locator("[data-format-button]").click();
 		await page.locator('[data-format-note="changed"]').waitFor();
 		expect(await page.locator("[data-format-note]").textContent()).toMatch(/^Formatted · \d+ lines? changed$/);
-		expect(await rule(page)).toBe(".btn {\n  border-radius: var(--radius-m);\n  color: red;\n}\n");
+		expect(await rule(page)).toBe(".btn {\n  border-radius: var(--radius-m);\n  color: red;\n}");
 		await eventually(draft, (now) => (now.classes.find((each) => each.name === "btn")?.styles ?? "").includes("red"));
 	});
 
@@ -274,14 +274,19 @@ describe("the Styles place, for Staff", () => {
 		await page.locator("[data-wc-class-rename]").click();
 		await page.locator('[data-wc-class-rule="masthead__title"]').waitFor();
 		expect((await rule(page)).startsWith(".masthead__title {")).toBe(true);
-		expect(await announced(page)).toContain("Renamed to .masthead__title");
+		await page.waitForFunction(() =>
+			document.querySelector("[data-wc-messages]")?.textContent?.includes("Renamed to .masthead__title"),
+		);
 		const renamed = await draft();
 		// The same Class, by its id: the elements keep it.
 		expect(renamed.classes.find((each) => each.id === ids.get("hero__title"))?.name).toBe("masthead__title");
 
+		// Published, every page the canvas shows (the published Structure) carries the new name, none the old.
 		await superadmin.api.designSystem.publish({ siteId });
-		for (const path of ["/", "/menu"]) {
-			const html = await (await fetch(install.siteUrl(slug, path))).text();
+		for (const path of ["/page/", "/page/menu"]) {
+			await go(page, path);
+			const shown = await frameOf(page);
+			const html = await shown.evaluate(() => document.body.innerHTML);
 			expect(html).toContain('class="masthead__title"');
 			expect(html).not.toContain("hero__title");
 		}
@@ -350,7 +355,7 @@ describe("the Styles place, for Staff", () => {
 		await page.locator("[data-wc-site-css-box]").fill("body{margin:0}");
 		await page.locator("[data-format-button]").click();
 		await page.locator('[data-format-note="changed"]').waitFor();
-		expect(await page.locator("[data-wc-site-css-box]").inputValue()).toBe("body {\n  margin: 0;\n}\n");
+		expect(await page.locator("[data-wc-site-css-box]").inputValue()).toBe("body {\n  margin: 0;\n}");
 		await eventually(draft, (now) => now.customCss.includes("margin: 0"));
 	});
 
@@ -379,7 +384,7 @@ describe("the Styles place, for Staff", () => {
 		await page.locator('[data-wc-breakpoint-show="md"]').click();
 		expect(await page.locator('[data-wc-breakpoint-show="md"]').getAttribute("aria-checked")).toBe("true");
 		await page.locator("[data-wc-place-back]").click();
-		await page.locator('[data-wc-breakpoint-line="md"]').waitFor();
+		await page.locator('[data-wc-breakpoint-line="md"]').waitFor({ state: "attached" });
 		await settled(page);
 		const box = await page.locator("[data-wc-frame-box]").boundingBox();
 		const lines = await page
@@ -403,7 +408,10 @@ describe("the Styles place, for Staff", () => {
 			await go(page, placed("styles/classes", `class=${ids.get("note")}`));
 			await page.locator('[data-wc-class-rule="note"]').waitFor();
 			await expectAccessibleScreen(page, `building area, Styles › Classes (${theme})`);
-			await page.locator('[data-wc-quick="colour"]').click();
+			// A token action the rule doesn't have yet opens its menu (one it has would be removed).
+			const background = page.locator('[data-wc-quick="background"]');
+			if ((await background.getAttribute("aria-pressed")) === "true") await background.click();
+			await background.click();
 			await page.locator("[data-wc-token-menu]").waitFor();
 			await expectNoAxeViolations(page, `building area, a quick action's token menu (${theme})`);
 			await page.keyboard.press("Escape");

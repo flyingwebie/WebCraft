@@ -8774,7 +8774,8 @@
 					"color": "Colore",
 					"inset": "Interna"
 				},
-				"layerPart": "{part} di {name}, livello {layer}"
+				"layerPart": "{part} di {name}, livello {layer}",
+				"actions": "Azioni"
 			},
 			"siteCss": {
 				"title": "CSS del Site",

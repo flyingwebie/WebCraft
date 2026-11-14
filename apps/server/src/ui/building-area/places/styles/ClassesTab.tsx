@@ -111,8 +111,11 @@ export function ClassesTab({
 			<div className="flex w-[405px] shrink-0 flex-col gap-2.5">
 				<div className="flex gap-2">
 					<search className="contents">
-						<label className="bg-chrome-raised focus-within:ring-chrome-focus flex h-[30px] min-w-0 grow items-center gap-2 rounded-md px-2 focus-within:ring-2">
-							<SearchIcon aria-hidden="true" className="text-chrome-muted size-3.5 flex-none" />
+						<label className="relative flex h-[30px] min-w-0 grow items-center">
+							<SearchIcon
+								aria-hidden="true"
+								className="text-chrome-muted pointer-events-none absolute start-2 size-3.5"
+							/>
 							<span className="sr-only">{shown.search}</span>
 							<input
 								type="search"
@@ -121,7 +124,7 @@ export function ClassesTab({
 								onChange={(event) => setView({ ...view, query: event.target.value }, true)}
 								aria-controls={`${id}-list`}
 								autoComplete="off"
-								className="text-chrome-strong placeholder:text-chrome-muted min-w-0 grow border-0 bg-transparent text-[12px] font-medium outline-none"
+								className="bg-chrome-raised text-chrome-strong placeholder:text-chrome-muted focus-visible:ring-chrome-focus h-full w-full min-w-0 rounded-md ps-7 pe-2 text-[12px] font-medium outline-none focus-visible:ring-2"
 								data-wc-class-search=""
 							/>
 						</label>

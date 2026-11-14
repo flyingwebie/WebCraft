@@ -248,8 +248,8 @@ function BreakpointRow({
 				)}
 			</td>
 			<td className="text-chrome-muted px-1 font-mono text-[12px]">
-				<span className="inline-flex items-center gap-1">
-					{"width >="}
+				<span className="inline-flex items-center">
+					<span className="pe-1">{"width >="}</span>
 					<input
 						aria-label={fill(shown.widthOf, { name: breakpoint.name })}
 						inputMode="numeric"
@@ -261,7 +261,7 @@ function BreakpointRow({
 							if (/^\d{2,4}$/.test(typed) && value >= 100 && value <= 4000) onChange({ width: value });
 						}}
 						aria-invalid={widthValid ? undefined : true}
-						className={`h-7 w-14 px-1 text-end font-mono text-[12px] ${field}`}
+						className={`h-7 w-12 px-1 font-mono text-[12px] ${field}`}
 						data-wc-breakpoint-width=""
 					/>
 					px

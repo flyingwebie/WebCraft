@@ -379,8 +379,8 @@ function TokenMenu({
 			className="border-chrome-hover bg-chrome-menu absolute start-0 top-[calc(100%+6px)] z-50 flex w-[210px] flex-col gap-0.5 rounded-lg border p-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.55)]"
 			data-wc-token-menu=""
 		>
-			<label className="border-chrome-hover bg-chrome focus-within:border-chrome-focus focus-within:ring-chrome-focus flex h-7 items-center gap-1.5 rounded-md border px-1.5 focus-within:ring-1">
-				<SearchIcon aria-hidden="true" className="text-chrome-muted size-[13px] flex-none" />
+			<label className="relative flex h-7 items-center">
+				<SearchIcon aria-hidden="true" className="text-chrome-muted pointer-events-none absolute start-2 size-[13px]" />
 				<span className="sr-only">{shown.search}</span>
 				<input
 					ref={search}
@@ -389,7 +389,7 @@ function TokenMenu({
 					placeholder={shown.search}
 					onChange={(event) => setQuery(event.target.value)}
 					aria-controls={id}
-					className="text-chrome-strong placeholder:text-chrome-muted min-w-0 grow border-0 bg-transparent text-[12px] outline-none"
+					className="border-chrome-hover bg-chrome text-chrome-strong placeholder:text-chrome-muted focus:border-chrome-focus focus:ring-chrome-focus h-full w-full min-w-0 rounded-md border ps-7 pe-2 text-[12px] outline-none focus:ring-1"
 				/>
 			</label>
 			<p className="text-chrome-muted m-0 flex h-[22px] items-center px-1.5 text-[10px] font-semibold tracking-[0.6px] uppercase">

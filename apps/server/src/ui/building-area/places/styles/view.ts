@@ -213,7 +213,11 @@ export function rulesFrom(classes: readonly { breakpoints: Record<string, string
 	return classes.filter((each) => (each.breakpoints[breakpointId] ?? "").trim() !== "").length;
 }
 
-/** The contrast a colour reaches in the Check: AAA (7:1), AA (every pair passes), or low; null when unchecked. */
+/**
+ * The contrast a colour reaches where the Site uses it: the Check's pairs from its base styles and its
+ * focus style that have the colour on one side (the ramps' own sample pairs aside), the worst of them
+ * in light and dark: AAA (7:1), AA (every pair passes), or low; null when nothing on the Site pairs it.
+ */
 export function contrastOf(
 	colourId: string,
 	results: readonly {
@@ -221,9 +225,14 @@ export function contrastOf(
 		background: { colour: string };
 		ratio: number;
 		passes: boolean;
+		sources: readonly { kind: string }[];
 	}[],
 ): "AAA" | "AA" | "low" | null {
-	const pairs = results.filter((each) => each.foreground.colour === colourId || each.background.colour === colourId);
+	const pairs = results.filter(
+		(each) =>
+			(each.foreground.colour === colourId || each.background.colour === colourId) &&
+			each.sources.some((source) => source.kind !== "ramp"),
+	);
 	if (pairs.length === 0) return null;
 	if (pairs.some((each) => !each.passes)) return "low";
 	return pairs.every((each) => each.ratio >= 7) ? "AAA" : "AA";
