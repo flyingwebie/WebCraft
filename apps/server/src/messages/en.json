@@ -2230,12 +2230,10 @@
 		"checking": "Checking…",
 		"upToDate": "Every Library is on its newest version.",
 		"updatesFound": "{count, plural, one {# Library has a newer version.} other {# Libraries have newer versions.}}",
-		"none": "No Libraries yet. Add one below.",
-		"library": "Library",
+		"none": "No Libraries yet.",
 		"version": "Version",
 		"size": "Size",
 		"licence": "Licence",
-		"actions": "Actions",
 		"actionsOf": "Actions for {name}",
 		"byAddress": "Fixed copy",
 		"newer": "Newer: {version}",
@@ -2248,7 +2246,6 @@
 		"removeText": "Pages stop loading it at once. Scripts that use it will fail on pages until you change them.",
 		"removed": "{name} was removed.",
 		"cancel": "Cancel",
-		"close": "Close",
 		"addTitle": "Add a Library",
 		"addIntro": "It is downloaded once and checked now; pages then load the Site's own copy.",
 		"source": "Where it comes from",
@@ -2278,7 +2275,9 @@
 			"empty": "The file is empty.",
 			"unreachable": "The download didn't work. Check the address, or try again later.",
 			"limit": "This Site holds as many Libraries as it may."
-		}
+		},
+		"addButton": "Add Library",
+		"newest": "Newest version"
 	},
 	"consentBanner": {
 		"pageTitle": "Consent banner",

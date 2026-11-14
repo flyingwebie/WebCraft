@@ -109,16 +109,37 @@ async function editModePage(theme: Theme): Promise<Page> {
 
 for (const theme of THEMES) {
 	describe(`Site › Libraries, ${theme}`, () => {
-		test("the screen, and a Library's menu from the keyboard", async () => {
+		test("the screen, the add sheet, and a Library's menu from the keyboard", async () => {
 			const page = await adminPage(theme, `/sites/${siteId}/libraries`);
 			await page.getByText("Newer: 3.14.0").waitFor();
 			await expectAccessibleScreen(page, `Libraries (${theme})`);
+			await expectOverlayUsable(
+				page,
+				page.getByRole("button", { name: "Add Library" }),
+				"dialog",
+				`Libraries › add (${theme})`,
+			);
 			await expectOverlayUsable(
 				page,
 				page.getByRole("button", { name: "Actions for motion-kit" }),
 				"menu",
 				`Libraries › a Library's menu (${theme})`,
 			);
+		});
+
+		test("removing a Library asks first, naming it, with focus on Cancel", async () => {
+			const page = await adminPage(theme, `/sites/${siteId}/libraries`);
+			await page.getByRole("button", { name: "Actions for motion-kit" }).click();
+			await page.getByRole("menuitem", { name: "Remove" }).click();
+			const dialog = page.getByRole("dialog", { name: "Remove motion-kit?" });
+			await dialog.waitFor();
+			expect(
+				await dialog.getByRole("button", { name: "Cancel" }).evaluate((button) => button === document.activeElement),
+			).toBe(true);
+			await expectNoAxeViolations(page, `Libraries › remove (${theme})`, ["region"]);
+			await page.keyboard.press("Escape");
+			await dialog.waitFor({ state: "hidden" });
+			await page.getByRole("button", { name: "Actions for motion-kit" }).waitFor();
 		});
 	});
 

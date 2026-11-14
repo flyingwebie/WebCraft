@@ -2230,12 +2230,10 @@
 		"checking": "Controllo…",
 		"upToDate": "Tutte le librerie sono alla versione più recente.",
 		"updatesFound": "{count, plural, one {# libreria ha una versione più recente.} other {# librerie hanno versioni più recenti.}}",
-		"none": "Ancora nessuna libreria. Aggiungine una qui sotto.",
-		"library": "Libreria",
+		"none": "Ancora nessuna libreria.",
 		"version": "Versione",
 		"size": "Dimensione",
 		"licence": "Licenza",
-		"actions": "Azioni",
 		"actionsOf": "Azioni per {name}",
 		"byAddress": "Copia fissa",
 		"newer": "Più recente: {version}",
@@ -2248,7 +2246,6 @@
 		"removeText": "Le pagine smettono subito di caricarla. Gli script che la usano daranno errore finché non li cambi.",
 		"removed": "{name} è stata rimossa.",
 		"cancel": "Annulla",
-		"close": "Chiudi",
 		"addTitle": "Aggiungi una libreria",
 		"addIntro": "Viene scaricata e controllata una volta adesso; poi le pagine caricano la copia del sito.",
 		"source": "Da dove arriva",
@@ -2278,7 +2275,9 @@
 			"empty": "Il file è vuoto.",
 			"unreachable": "Il download non ha funzionato. Controlla l'indirizzo o riprova più tardi.",
 			"limit": "Questo sito ha già tutte le librerie che può avere."
-		}
+		},
+		"addButton": "Aggiungi libreria",
+		"newest": "Versione più recente"
 	},
 	"consentBanner": {
 		"pageTitle": "Banner del consenso",
