@@ -1722,6 +1722,8 @@ export function codeMode(
 		for (const timer of control.timers) cancel(timer);
 		control.timers = [later(() => formatPhase(control, "working"), formatting.spinnerMs)];
 		const history = panelsAdapter?.history;
+		// What was typed reaches the Draft first, as its own step, so Undo after Format brings it back.
+		if (panel === "html" && panelsAdapter) await panelsAdapter.save().catch(() => false);
 		history?.boundary();
 		let result: Awaited<ReturnType<typeof formatting.formatTextArea>> | undefined;
 		try {

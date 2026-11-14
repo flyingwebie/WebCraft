@@ -17,7 +17,7 @@ let siteId: string;
 let postTypeId: string;
 const slug = "bakery";
 const path = "/blog/fresh-bread";
-const ENTRY_TEMPLATE = '<article><p class="intro">{{ subtitle }}</p></article>';
+const ENTRY_TEMPLATE = '<article><h1>{{ title }}</h1><p class="intro">{{ subtitle }}</p></article>';
 
 const openedPages: Page[] = [];
 async function testPage(theme: Theme) {
@@ -126,14 +126,15 @@ describe("Format in Code mode", () => {
 		const page = await codeModePage("light");
 		const html = page.getByRole("textbox", { name: /^HTML of / });
 		const region = page.getByRole("region", { name: "HTML" });
-		const messy = '<article><p class="intro">{{ subtitle }}</p><p>{{ title }}</p></article>';
-		await html.fill(messy);
-		await page.waitForTimeout(400);
+		await html.fill('<article><h1>{{ title }}</h1><p class="intro">{{ subtitle }}</p><p>{{ title }}</p></article>');
+		// Once typing pauses, the panel shows the Draft as stored: every element with its id.
+		await settles(async () => (await html.inputValue()).split("data-wc-id").length - 1, 4);
+		const before = await html.inputValue();
 
 		const button = region.getByRole("button", { name: "Format", exact: true });
 		expect(await button.getAttribute("aria-keyshortcuts")).toBe("Alt+Shift+F");
 		await button.click();
-		const expected = await formatted(messy, "html");
+		const expected = await formatted(before, "html");
 		await settles(() => html.inputValue(), expected);
 		const note = region.locator("[data-format-note]");
 		await note.getByText(/^Formatted · \d+ lines changed$/).waitFor();
@@ -144,7 +145,7 @@ describe("Format in Code mode", () => {
 
 		await html.focus();
 		await page.keyboard.press("ControlOrMeta+z");
-		await settles(() => html.inputValue(), messy);
+		await settles(() => html.inputValue(), before);
 		expect(policyReports(page)).toEqual([]);
 	});
 
@@ -177,20 +178,22 @@ describe("Format in Code mode", () => {
 		const page = await codeModePage("light");
 		const html = page.getByRole("textbox", { name: /^HTML of / });
 		const region = page.getByRole("region", { name: "HTML" });
-		const broken = '<article>\n  <p class="intro">{{ subtitle }}\n</article>';
+		const broken = '<article>\n  <h1>{{ title }}</h1>\n  <p class="intro">{{ subtitle }}\n</article>';
 		await html.fill(broken);
 		await region.getByRole("button", { name: "Format", exact: true }).click();
-		await region.getByText(/^Can't format: .+ on line 3$/).waitFor();
+		await region.getByText(/^Can't format: .+ on line 4$/).waitFor();
 		expect(await html.inputValue()).toBe(broken);
 		expect(await region.locator('[data-format-button][data-format-phase="failed"]').count()).toBe(1);
-		expect(await region.locator(".gutter .has-problem").allTextContents()).toEqual(["3"]);
-		await expectNoAxeViolations(page, "Code mode › Format couldn't read the markup");
+		expect(await region.locator(".gutter .has-problem").allTextContents()).toEqual(["4"]);
+		// `region`: markup that can't be read also shows the panels' own error line (`live-panels.tsx`),
+		// outside the panels' regions, whether or not Format ran; Format's own note is inside the HTML region.
+		await expectNoAxeViolations(page, "Code mode › Format couldn't read the markup", ["region"]);
 
-		// Typing clears the mark.
 		await html.press("End");
 		await html.pressSequentially(" ");
+		// Typing clears Format's mark and note (the markup's own check still reads it as it is now).
 		await region.locator('[data-format-button][data-format-phase="rest"]').waitFor();
-		expect(await region.locator(".gutter .has-problem").count()).toBe(0);
+		expect((await region.locator("[data-format-note]").textContent())?.trim()).toBe("");
 	});
 
 	test("the Command menu formats each panel and all three", async () => {
@@ -214,7 +217,7 @@ describe("Format in Code mode", () => {
 		test(`the button and the line under the box pass the checks, ${theme}`, async () => {
 			const page = await codeModePage(theme);
 			const html = page.getByRole("textbox", { name: /^HTML of / });
-			await html.fill('<article><p class="intro">{{ subtitle }}</p><p>{{ title }}</p></article>');
+			await html.fill('<article><h1>{{ title }}</h1><p class="intro">{{ subtitle }}</p><p>{{ title }}</p></article>');
 			await page.getByRole("region", { name: "HTML" }).getByRole("button", { name: "Format", exact: true }).click();
 			await page
 				.getByRole("region", { name: "HTML" })
@@ -259,6 +262,9 @@ describe("Format in the Design system", () => {
 			await page.getByRole("button", { name: "Format", exact: true }).waitFor({ timeout: 4000 });
 			await css.press("Alt+Shift+KeyF");
 			await page.getByText("Already tidy").waitFor();
+			// The Draft saves the formatted CSS like any other edit.
+			const { api } = await install.install.superadmin();
+			await settles(async () => (await api.designSystem.get({ siteId })).designSystem.draft.customCss, expected, 10000);
 
 			const broken = ".a {\n  color: red;\n}}\n";
 			await css.fill(broken);
@@ -269,10 +275,8 @@ describe("Format in the Design system", () => {
 			await expectNoAxeViolations(page, `Design system › Custom CSS can't be formatted (${theme})`, [], {
 				exclude: ["iframe[data-design-preview]"],
 			});
-			// The note takes the caret to the line; the Draft saves the CSS as typed.
+			// The note takes the caret to the line.
 			await page.getByRole("button", { name: "Can't format: unexpected } on line 3" }).click();
 			expect(await selection(css)).toEqual({ start: broken.indexOf("}}"), end: broken.indexOf("}}") });
-			const { api } = await install.install.superadmin();
-			await settles(async () => (await api.designSystem.get({ siteId })).designSystem.draft.customCss, broken, 10000);
 		});
 });
