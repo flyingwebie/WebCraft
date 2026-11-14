@@ -109,6 +109,13 @@ async function frameBox(page: Page) {
 	return { box, canvas };
 }
 
+/** The width the frame has at full width: the canvas, less a 12 px gutter on each side. */
+async function paneWidth(page: Page): Promise<number> {
+	const canvas = await page.locator("[data-wc-canvas]").boundingBox();
+	if (!canvas) throw new Error("No canvas.");
+	return Math.round(canvas.width) - 24;
+}
+
 /** The page's own width, as its media queries see it. */
 async function pageWidth(frame: Frame): Promise<number> {
 	return frame.evaluate(() => window.innerWidth);
@@ -197,7 +204,8 @@ describe("the building area's chrome, for Staff", () => {
 	test("a side gutter narrows the frame symmetrically; at 768 the page's media query matches; the readout names the breakpoint", async () => {
 		const { page, frame } = await opened();
 		const full = await pageWidth(frame);
-		expect(full).toBe(1440 - 48 - 24);
+		// The pane: the canvas between the rail and the right dock (Layers is always there), less its gutters.
+		expect(full).toBe(await paneWidth(page));
 		expect(await frame.evaluate(() => matchMedia("(max-width: 768px)").matches)).toBe(false);
 
 		// Dragging the end gutter towards the middle takes as much off the other side.
@@ -245,17 +253,18 @@ describe("the building area's chrome, for Staff", () => {
 		await field.press("Enter");
 		await eased(page);
 		expect(await pageWidth(frame)).toBe(1920);
-		const zoom = Math.round(((1440 - 48 - 24) / 1920) * 100);
+		const pane = await paneWidth(page);
+		const zoom = Math.round((pane / 1920) * 100);
 		expect(await page.locator("[data-wc-zoom]").textContent()).toContain(`${zoom} %`);
 		expect(await page.locator("[data-wc-zoomed-out]").textContent()).toBe(`Zoomed out to ${zoom} % to fit the width`);
 		// The frame still fills the pane, the page drawn smaller in it.
 		const { box } = await frameBox(page);
-		expect(Math.round(box.width)).toBe(1440 - 48 - 24);
+		expect(Math.round(box.width)).toBe(pane);
 		expect(await page.locator("[data-wc-breakpoint]").getAttribute("data-wc-breakpoint")).toBe("2xl");
 
 		await page.locator("[data-wc-reset-zoom]").click();
 		await eased(page);
-		expect(await pageWidth(frame)).toBe(1440 - 48 - 24);
+		expect(await pageWidth(frame)).toBe(pane);
 		expect(await page.locator("[data-wc-reset-zoom]").count()).toBe(0);
 
 		// Never narrower than 320: the keyboard way of the gutter goes no further.
@@ -265,7 +274,7 @@ describe("the building area's chrome, for Staff", () => {
 		expect(await pageWidth(frame)).toBe(320);
 		await page.keyboard.press("Enter");
 		await eased(page);
-		expect(await pageWidth(frame)).toBe(1440 - 48 - 24);
+		expect(await pageWidth(frame)).toBe(pane);
 		await page.context().close();
 	});
 
@@ -375,7 +384,8 @@ describe("the building area's chrome, for Staff", () => {
 		const notice = page.getByRole("dialog", { name: "The building area needs a window at least 1024 px wide" });
 		await notice.waitFor();
 		expect(await page.locator('[data-building-region="rail"]').getAttribute("inert")).toBe("");
-		expect(await page.locator("main#wc-canvas").getAttribute("inert")).toBe("");
+		// The working area (the docks and the canvas) is inert.
+		expect(await page.locator("[data-wc-work]").getAttribute("inert")).toBe("");
 		expect(await page.evaluate(() => document.activeElement?.hasAttribute("data-wc-narrow"))).toBe(true);
 
 		await page.setViewportSize({ width: 1280, height: 800 });

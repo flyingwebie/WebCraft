@@ -61,6 +61,7 @@ export async function buildingAreaEndpoint(
 	const designSystem = (await services.designSystem.get(edit.session.scope)).draft;
 	const staging = stagingUrl(services.config, host.site.slug);
 	const siteLanguages = await services.languages.get(edit.session.scope);
+	const preferences = await services.people.editorPreferences(edit.session.personId);
 	const config: ShellConfig = {
 		token: edit.session.headerToken,
 		page: document?.kind === "page" ? document.page : null,
@@ -81,6 +82,7 @@ export async function buildingAreaEndpoint(
 			default: siteLanguages.defaultLanguage,
 			all: siteLanguages.languages.map(({ code, name }) => ({ code, name })),
 		},
+		layout: preferences.layout,
 	};
 	const files = await buildingAreaAssets();
 	const html = [
