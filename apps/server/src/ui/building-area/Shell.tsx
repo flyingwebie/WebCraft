@@ -13,6 +13,7 @@ import type { SavingStatus } from "./canvas/regions.ts";
 import { type RegionCycle, regionCycle } from "./keyboard.ts";
 import { NarrowNotice } from "./NarrowNotice.tsx";
 import { useOpenDocument } from "./open-document.ts";
+import { type PlaceKey, placeEntry, placeKeyOf, reopenPlace } from "./places/registry.ts";
 import { Rail } from "./rail/Rail.tsx";
 
 /**
@@ -20,8 +21,13 @@ import { Rail } from "./rail/Rail.tsx";
  * goes back to the admin), the canvas with the page in its frame, and the bottom bar (48 high). The
  * chrome is always dark; the page inside the frame follows the device, or Dark preview.
  */
-/** Puts focus in the page shown in the frame. */
+/** Puts focus in the page shown in the frame, or in the place open over it (BA-20). */
 function focusFrame(): void {
+	const place = document.querySelector<HTMLElement>("[data-wc-place-frame]");
+	if (place) {
+		place.querySelector<HTMLElement>("[data-wc-place-back]")?.focus();
+		return;
+	}
 	const frame = document.querySelector<HTMLIFrameElement>("iframe[data-wc-frame]");
 	if (!frame) return;
 	frame.focus();
@@ -94,6 +100,44 @@ export function Shell({ config }: { config: ShellConfig }) {
 		[takeState, framed],
 	);
 
+	// The place open over the canvas (BA-20): it takes the canvas's and the docks' room; the canvas stays
+	// as it was underneath (its page, selection and panels), hidden and inert until the place is left.
+	const placeKey = placeKeyOf(opened.address.place);
+	const place = placeKey ? placeEntry(placeKey) : null;
+	const placeOpener = useRef<Element | null>(null);
+	const openPlace = useCallback(
+		(key: PlaceKey) => {
+			if (key === placeKey) {
+				opened.documents.openPlace(null);
+				return;
+			}
+			const at = reopenPlace(key);
+			if (!at) return;
+			if (!placeKey) placeOpener.current = document.activeElement;
+			opened.documents.openPlace(at.place, at.view);
+		},
+		[placeKey, opened.documents],
+	);
+	const leavePlace = useCallback(() => opened.documents.openPlace(null), [opened.documents]);
+	// Said as a place opens and as it is left; leaving puts focus back where it was before the place opened.
+	const lastPlace = useRef<PlaceKey | null>(null);
+	useEffect(() => {
+		const was = lastPlace.current;
+		lastPlace.current = placeKey;
+		if (was === placeKey) return;
+		if (placeKey) announce(fill(words.place.opened, { place: words.places[placeKey] }));
+		else if (was) {
+			announce(words.place.left);
+			const opener = placeOpener.current;
+			placeOpener.current = null;
+			const back =
+				opener instanceof HTMLElement && opener.isConnected && !opener.closest("[data-wc-place-frame]")
+					? opener
+					: document.querySelector<HTMLElement>(`[data-wc-place="${was}"]`);
+			back?.focus();
+		}
+	}, [placeKey, announce, words]);
+
 	const onSaving = useCallback(
 		(status: SavingStatus) => {
 			setSaving(status === "saving" ? "saving" : status === "failed" ? "failed" : "idle");
@@ -164,6 +208,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 			</a>
 			<Rail
 				config={config}
+				place={placeKey}
+				onPlace={openPlace}
 				darkPreview={darkPreview}
 				onDarkPreview={(on) => {
 					setDarkPreview(on);
@@ -178,9 +224,14 @@ export function Shell({ config }: { config: ShellConfig }) {
 			<BottomBar
 				words={words}
 				language={config.language}
-				languages={shown?.languages ?? []}
+				languages={place ? [] : (shown?.languages ?? [])}
 				onLanguage={(language) => frame.current?.navigate(language.path)}
-				nav={<DocumentNav words={words} back={opened.back} preview={opened.preview} renderedBy={opened.renderedBy} />}
+				nav={
+					place ? null : (
+						<DocumentNav words={words} back={opened.back} preview={opened.preview} renderedBy={opened.renderedBy} />
+					)
+				}
+				insertRow={!place}
 				staging={config.staging && shown ? `${config.staging}${shown.address}` : null}
 				draft={draftStateOf(saving, shown)}
 			/>
@@ -194,8 +245,9 @@ export function Shell({ config }: { config: ShellConfig }) {
 					if (location.hash) history.replaceState(history.state, "", `${location.pathname}${location.search}`);
 				}}
 				aria-label={words.canvas}
-				data-building-region="canvas"
-				className="relative col-start-2 row-start-1 min-h-0 min-w-0"
+				data-building-region={place ? undefined : "canvas"}
+				inert={place ? true : undefined}
+				className={`relative col-start-2 row-start-1 min-h-0 min-w-0 ${place ? "invisible" : ""}`}
 			>
 				{opened.shown?.status === "missing" || opened.shown?.status === "later" ? (
 					<NoDocument words={words} why={opened.shown.status} />
@@ -217,6 +269,20 @@ export function Shell({ config }: { config: ShellConfig }) {
 					/>
 				) : null}
 			</main>
+			{place && opened.address.place ? (
+				<place.component
+					config={config}
+					words={words}
+					place={opened.address.place}
+					view={opened.address.view ?? null}
+					documents={opened.documents}
+					documentName={opened.title.name}
+					leave={leavePlace}
+					open={opened.open}
+					announce={announce}
+					onSaving={(status) => setSaving(status === "saving" ? "saving" : status === "failed" ? "failed" : "idle")}
+				/>
+			) : null}
 			<div className="sr-only" data-wc-messages="">
 				<p role="status" aria-live="polite" aria-atomic="true">
 					{message.urgent ? "" : message.text}

@@ -38,6 +38,7 @@ export function BottomBar({
 	onLanguage,
 	staging,
 	draft,
+	insertRow = true,
 }: {
 	words: Words;
 	/** The open document's part of the left cluster, after Undo and Redo (`DocumentNav`). */
@@ -50,6 +51,8 @@ export function BottomBar({
 	/** The page on the Site's Staging address, or null when there is none to open. */
 	staging: string | null;
 	draft: DraftState;
+	/** Whether the insert row has its place in the middle: none while a place is open (SPEC 8). */
+	insertRow?: boolean;
 }) {
 	const history = useHistory();
 	const undoLabel = history.undo ? fill(words.undoStep, { step: history.undo }) : words.undo;
@@ -85,7 +88,11 @@ export function BottomBar({
 				{nav}
 			</div>
 			{/* The insert row (BA-10) goes here, in the middle of the bar. */}
-			<div className="flex h-full min-w-0 grow items-center justify-center" data-wc-insert-row="" />
+			<div
+				className="flex h-full min-w-0 grow items-center justify-center"
+				data-wc-insert-row={insertRow ? "" : undefined}
+				hidden={!insertRow}
+			/>
 			<div className="flex h-full w-[400px] shrink items-center justify-end gap-2" data-wc-bar-cluster="end">
 				{languages.length > 1 ? <LanguageMenu languages={languages} words={words} onChoose={onLanguage} /> : null}
 				{staging ? (
