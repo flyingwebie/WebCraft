@@ -2333,6 +2333,59 @@
 				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
+		"/postTypes/delete": {
+			"post": {
+				"operationId": "postTypes.delete",
+				"summary": "Deletes a Post Type with its Entries and Templates, after a confirmation.",
+				"tags": ["postTypes"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"postTypeId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"confirmation": {
+										"type": "string",
+										"maxLength": 100
+									}
+								},
+								"required": ["siteId", "postTypeId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"],
+				"x-webcraft-confirmation": true
+			}
+		},
 		"/postTypes/data": {
 			"post": {
 				"operationId": "postTypes.data",

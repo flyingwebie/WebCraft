@@ -120,6 +120,20 @@ export const postTypes = {
 		}),
 
 	/**
+	 * Deletes a Post Type with its Entries and its Entry and Archive templates, in two steps. The first
+	 * call deletes nothing and answers how many Entries and Templates would go, and a `confirmation`
+	 * id, valid for 5 minutes; calling again with it deletes them all in one transaction. The Page Post
+	 * Type is refused (`POST_TYPE_BUILT_IN`), and so is a Post Type another Post Type's or a
+	 * Component's Relationship, or a Loop, names (`POST_TYPE_IN_USE`, with `data.usedIn`).
+	 */
+	delete: signedIn
+		.input(z.object({ siteId: id, postTypeId: id, confirmation: z.string().max(100).optional() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return context.services.postTypes.delete(site, input.postTypeId, input.confirmation);
+		}),
+
+	/**
 	 * The Data tab of a Post Type's Entry template (Staff only): one of its Entries from the Draft (the
 	 * one given, or the one saved last) as JSON shaped the way the template reads it, with the bindings
 	 * Template markup writes to read each value.

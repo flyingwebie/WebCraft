@@ -22,6 +22,12 @@ export const BUILDING_AREA_PROCEDURES = [
 	"globals.get",
 	// The Content place's Globals form (Members as Staff: `entry.edit`, as in the admin).
 	"globals.saveDraft",
+	// The Content place's Post Types and Fields (Staff only: `structure.edit`, as in the admin, so a
+	// Member's call is FORBIDDEN). Deleting takes its two calls (the first only says what would go),
+	// and is refused for the Page Post Type and while other Structure names the Post Type.
+	"postTypes.create",
+	"postTypes.update",
+	"postTypes.delete",
 	// The Media library: reads and uploads.
 	"media.list",
 	"media.overview",

@@ -82,6 +82,36 @@ export class PostTypeInvalidError extends Error {
 	}
 }
 
+/** The built-in Page Post Type every Site has can't be deleted. */
+export class PostTypeBuiltInError extends Error {
+	override name = "PostTypeBuiltInError";
+	constructor() {
+		super("Every Site has the Page Post Type: it can't be deleted.");
+	}
+}
+
+/**
+ * Where a Post Type is named by its key outside itself, which deleting it would leave pointing at
+ * nothing: a Relationship Field of another Post Type (`path`: the Field's path there, such as
+ * `team` or `credits.person`), a Relationship Prop of a Component, or the query of a Loop.
+ */
+export type PostTypeUse =
+	| { kind: "postType"; id: string; name: string; path: string }
+	| { kind: "component"; id: string; name: string; path: string }
+	| { kind: "loop"; id: string; name: string };
+
+/** The Post Type is named by other Structure (`usedIn`): change that first. */
+export class PostTypeInUseError extends Error {
+	override name = "PostTypeInUseError";
+	readonly usedIn: readonly PostTypeUse[];
+	constructor(usedIn: readonly PostTypeUse[]) {
+		super(
+			`The Post Type is named by ${usedIn.length} Relationship(s) or Loop(s) elsewhere on the Site: change those first.`,
+		);
+		this.usedIn = usedIn;
+	}
+}
+
 /** Another Post Type of the Site already has the key or the URL pattern. */
 export class PostTypeTakenError extends Error {
 	override name = "PostTypeTakenError";

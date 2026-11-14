@@ -1,5 +1,6 @@
-import { components, entries, postTypes } from "@webcraft/db/schema";
-import { and, asc, eq, isNotNull } from "drizzle-orm";
+import { components, entries, loops, postTypes, templates } from "@webcraft/db/schema";
+import { and, asc, count, eq, isNotNull } from "drizzle-orm";
+import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { isUniqueViolation } from "../db-errors.ts";
 import { isUuid } from "../ids.ts";
 import { markSearchIndexStale } from "../search/index-version.ts";
@@ -13,8 +14,17 @@ import {
 import { keptPostTypeSeo, type PostTypeSeo, type PostTypeSeoChange, parsePostTypeSeo } from "../seo/seo-rules.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { checkPatternLeavesArchives } from "./archives.ts";
+import { storedComponentVersion } from "./component-versions.ts";
 import { publishedAddresses } from "./entry-paths.ts";
-import { type ContentProblem, PostTypeInvalidError, PostTypeNotFoundError, PostTypeTakenError } from "./errors.ts";
+import {
+	type ContentProblem,
+	PostTypeBuiltInError,
+	PostTypeInUseError,
+	PostTypeInvalidError,
+	PostTypeNotFoundError,
+	PostTypeTakenError,
+	type PostTypeUse,
+} from "./errors.ts";
 import {
 	BUILT_IN_FIELDS,
 	type BuiltInField,
@@ -26,6 +36,7 @@ import {
 } from "./fields.ts";
 import { checkPatternOutsidePrefixes } from "./language-paths.ts";
 import { siteLanguages } from "./languages.ts";
+import { storedQuery } from "./loop-queries.ts";
 import { clearPageCache } from "./page-cache.ts";
 import { checkPatternLeavesPages, isPagePostType, lockSitePaths, PAGE_BUILT_IN_FIELDS } from "./pages.ts";
 import type { PathChange } from "./publishing.ts";
@@ -257,6 +268,108 @@ export async function updatePostType(scope: SiteScope, postTypeId: string, chang
 			return toPostType(row);
 		}),
 	);
+}
+
+/**
+ * What deleting a Post Type does: the first call deletes nothing and answers how many Entries and
+ * Templates (its Entry and Archive templates) would go with it, and a confirmation; the second, with
+ * that confirmation, deletes them.
+ */
+export type PostTypeDeletion =
+	| { deleted: false; entries: number; templates: number; confirmation: Confirmation }
+	| { deleted: true; entries: number; templates: number };
+
+/**
+ * Deletes a Post Type with its Entries and its Templates in one transaction (open the Site with
+ * `structure.edit`), in two steps: without `confirmation` it changes nothing and answers what would
+ * go, with a confirmation id that the second call passes back (refused as changed when the Entries or
+ * Templates differ by then). The Page Post Type every Site has is refused (`PostTypeBuiltInError`),
+ * and so is a Post Type that other Structure names by its key (`PostTypeInUseError`: a Relationship
+ * of another Post Type or of a Component, a Loop's query), since that would point at nothing. Records
+ * it in the Audit log and clears the Site's page cache; its Entries' pages are gone from then on.
+ */
+export async function deletePostType(
+	scope: SiteScope,
+	postTypeId: string,
+	confirmation?: string,
+): Promise<PostTypeDeletion> {
+	return scope.transaction(async (tx) => {
+		await lockSitePaths(tx);
+		const row = await findPostType(tx, postTypeId);
+		if (row.builtIn === "page") throw new PostTypeBuiltInError();
+		const usedIn = await usesOf(tx, row.id, row.key);
+		if (usedIn.length > 0) throw new PostTypeInUseError(usedIn);
+		const [entryCount] = await tx.db
+			.select({ count: count() })
+			.from(entries)
+			.where(and(tx.where(entries), eq(entries.postTypeId, row.id)));
+		const [templateCount] = await tx.db
+			.select({ count: count() })
+			.from(templates)
+			.where(and(tx.where(templates), eq(templates.postTypeId, row.id)));
+		const preview = { name: row.name, entries: entryCount?.count ?? 0, templates: templateCount?.count ?? 0 };
+		const request = { action: "postType.delete", target: row.id, preview };
+		if (confirmation === undefined) {
+			return {
+				deleted: false,
+				entries: preview.entries,
+				templates: preview.templates,
+				confirmation: await askConfirmation(tx, request),
+			};
+		}
+		await useConfirmation(tx, confirmation, request);
+		// Its Entries and Templates go with it (and what hangs off them: published slugs, links,
+		// search documents), as the database's keys say.
+		await tx.delete(postTypes, eq(postTypes.id, row.id));
+		await clearPageCache(tx);
+		await tx.audit("postType.delete", {
+			postTypeId: row.id,
+			key: row.key,
+			name: row.name,
+			entries: preview.entries,
+			templates: preview.templates,
+		});
+		return { deleted: true, entries: preview.entries, templates: preview.templates };
+	});
+}
+
+/**
+ * Where a Post Type's key is named outside it: other Post Types' Relationships (at any depth), the
+ * Relationship Props of the Site's Components (Draft or published), and Loops' queries (Draft or
+ * published).
+ */
+async function usesOf(scope: SiteScope, postTypeId: string, key: string): Promise<PostTypeUse[]> {
+	const used: PostTypeUse[] = [];
+	for (const other of await scope.select(postTypes, undefined, { orderBy: [asc(postTypes.name)] })) {
+		if (other.id === postTypeId) continue;
+		for (const path of relationshipsTo(storedFields(other.fields), key))
+			used.push({ kind: "postType", id: other.id, name: other.name, path });
+	}
+	for (const component of await scope.select(components, undefined, { orderBy: [asc(components.name)] })) {
+		const versions = [component.draft, ...(component.published === null ? [] : [component.published])];
+		const paths = new Set(versions.flatMap((version) => relationshipsTo(storedComponentVersion(version).props, key)));
+		for (const path of paths) used.push({ kind: "component", id: component.id, name: component.name, path });
+	}
+	for (const loop of await scope.select(loops, undefined, { orderBy: [asc(loops.name)] })) {
+		const versions = [loop.draft, ...(loop.published === null ? [] : [loop.published])];
+		const named = versions.some((version) =>
+			storedQuery((version as { query?: unknown } | null)?.query).postTypes.includes(key),
+		);
+		if (named) used.push({ kind: "loop", id: loop.id, name: loop.name });
+	}
+	return used;
+}
+
+/** The paths of the Relationship Fields among `fields` (inside Groups and Repeaters too) that may point at `key`. */
+function relationshipsTo(fields: readonly FieldDefinition[], key: string, prefix = ""): string[] {
+	const paths: string[] = [];
+	for (const field of fields) {
+		const path = `${prefix}${field.key}`;
+		if (field.type === "relationship" && field.postTypes.includes(key)) paths.push(path);
+		if (field.type === "group" || field.type === "repeater")
+			paths.push(...relationshipsTo(field.fields, key, `${path}.`));
+	}
+	return paths;
 }
 
 /**

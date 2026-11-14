@@ -210,7 +210,8 @@ describe("the Content place, for Staff", () => {
 		await page.locator("[data-wc-content-lists]").waitFor();
 
 		const rows = page.locator("[data-wc-content-row]");
-		expect(await rows.allTextContents()).toEqual(["Pages3", "Blog posts40", "Globals"]);
+		// The Post Types title is a row too: it opens the Post Types list (BA-21).
+		expect(await rows.allTextContents()).toEqual(["Pages3", "Blog posts40", "Globals", "Post Types"]);
 		expect(await page.locator('[data-wc-content-row="pages"]').getAttribute("aria-current")).toBe("page");
 		expect(await page.locator("[data-wc-place-sidebar]").textContent()).toContain("Post TypesStaff");
 		expect(await page.locator("[data-wc-entries-summary]").textContent()).toBe("3 Entries · EN, IT");
