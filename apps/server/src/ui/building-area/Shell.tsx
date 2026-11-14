@@ -4,12 +4,15 @@ import { editorHistory } from "../builder/editor-history.ts";
 import { matches } from "../builder/shortcuts.ts";
 import { type EditAnswer, editRequests, fill, type PageState, type ShellConfig } from "./api.ts";
 import { BottomBar } from "./bottom-bar/BottomBar.tsx";
+import { DocumentNav } from "./bottom-bar/DocumentNav.tsx";
 import { draftStateOf } from "./bottom-bar/DraftState.tsx";
 import type { PageLanguage } from "./bottom-bar/LanguageMenu.tsx";
 import { Frame, type FrameHandle, type PageTheme } from "./canvas/Frame.tsx";
+import { NoDocument } from "./canvas/NoDocument.tsx";
 import type { SavingStatus } from "./canvas/regions.ts";
 import { type RegionCycle, regionCycle } from "./keyboard.ts";
 import { NarrowNotice } from "./NarrowNotice.tsx";
+import { useOpenDocument } from "./open-document.ts";
 import { Rail } from "./rail/Rail.tsx";
 
 /**
@@ -76,13 +79,19 @@ export function Shell({ config }: { config: ShellConfig }) {
 		});
 	}, []);
 
+	// The open document (BA-06): what the address names, and where the frame shows it.
+	const opened = useOpenDocument(config, announce);
+	const { framed } = opened;
+
 	const onPage = useCallback(
 		(address: string, answer: Promise<EditAnswer<PageState>>) => {
 			shownAddress.current = address;
 			setSaving("idle");
+			setShown(null);
 			takeState(address, answer);
+			framed(address, answer);
 		},
-		[takeState],
+		[takeState, framed],
 	);
 
 	const onSaving = useCallback(
@@ -171,6 +180,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 				language={config.language}
 				languages={shown?.languages ?? []}
 				onLanguage={(language) => frame.current?.navigate(language.path)}
+				nav={<DocumentNav words={words} back={opened.back} preview={opened.preview} renderedBy={opened.renderedBy} />}
 				staging={config.staging && shown ? `${config.staging}${shown.address}` : null}
 				draft={draftStateOf(saving, shown)}
 			/>
@@ -187,18 +197,25 @@ export function Shell({ config }: { config: ShellConfig }) {
 				data-building-region="canvas"
 				className="relative col-start-2 row-start-1 min-h-0 min-w-0"
 			>
-				<Frame
-					page={config.page}
-					words={words}
-					request={request}
-					cycle={() => cycle.current}
-					announce={announce}
-					breakpoints={config.breakpoints}
-					theme={theme}
-					handle={frame}
-					onPage={onPage}
-					onSaving={onSaving}
-				/>
+				{opened.shown?.status === "missing" || opened.shown?.status === "later" ? (
+					<NoDocument words={words} why={opened.shown.status} />
+				) : null}
+				{opened.shown?.status === "shown" ? (
+					<Frame
+						address={opened.shown.frame}
+						following={hidden}
+						onFollow={opened.follow}
+						words={words}
+						request={request}
+						cycle={() => cycle.current}
+						announce={announce}
+						breakpoints={config.breakpoints}
+						theme={theme}
+						handle={frame}
+						onPage={onPage}
+						onSaving={onSaving}
+					/>
+				) : null}
 			</main>
 			<div className="sr-only" data-wc-messages="">
 				<p role="status" aria-live="polite" aria-atomic="true">

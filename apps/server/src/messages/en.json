@@ -8533,6 +8533,36 @@
 		"narrow": {
 			"title": "The building area needs a window at least 1024 px wide",
 			"text": "Make the window wider to carry on: nothing is closed or lost."
+		},
+		"documents": {
+			"page": "Page",
+			"siteTemplate": "Site template",
+			"searchTemplate": "Search results template",
+			"entryTemplate": "Entry template",
+			"archiveTemplate": "Archive template",
+			"component": "Component",
+			"form": "Form",
+			"titled": "{name} · {kind}",
+			"untitled": "Untitled",
+			"switch": "Switch document: {document}",
+			"pages": "Pages",
+			"templates": "Templates",
+			"components": "Components",
+			"backTo": "Back to {page}",
+			"preview": "Preview: {entry}",
+			"previewLabel": "The Entry this Template previews: {entry}",
+			"previewNone": "No Entry to preview",
+			"renderedBy": "Rendered by: {template}",
+			"renderedByLabel": "Rendered by the {template}: open it",
+			"opened": "Opened {document}",
+			"opening": "Opening…",
+			"standIn": "No page shows it: drawn on its own",
+			"missingTitle": "Nothing to open here",
+			"missingText": "This address names no page, Template or Component of this Site that you can open.",
+			"missingLink": "Open the home page",
+			"formLaterTitle": "Forms open in the Forms place",
+			"formLaterText": "The Forms place comes with a later part of the building area. Until then, build Forms in the admin.",
+			"openIn": "Open in the building area"
 		}
 	},
 	"auth": {
