@@ -119,6 +119,10 @@ export async function buildingAreaEndpoint(
 		`<title>${escapeText(WORDS[language].pageTitle)}</title>`,
 		`<link rel="stylesheet" href="${files.shellStyles.path}">`,
 		`<script type="module" src="${files.shell.path}"></script>`,
+		// The shell its person gets (Staff's or a Member's) comes with the first file, not after it (BA-30).
+		...(config.permissions.includes("structure.edit") ? files.shellPreload.staff : files.shellPreload.member).map(
+			(path) => `<link rel="modulepreload" href="${path}">`,
+		),
 		"</head>",
 		'<body class="wc-shell">',
 		'<div id="webcraft-building-area"></div>',

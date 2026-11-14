@@ -8459,6 +8459,8 @@
 		"openHelp": "Il nuovo editor, mentre viene costruito",
 		"opening": "Apertura dell'area di costruzione…",
 		"skipToContent": "Vai al contenuto principale",
+		"shellFailed": "Impossibile caricare l'area di costruzione. Controlla la connessione, poi ricarica la pagina.",
+		"shellReload": "Ricarica la pagina",
 		"rail": "Area di costruzione",
 		"backToAdmin": "Torna all'admin",
 		"canvas": "Pagina",

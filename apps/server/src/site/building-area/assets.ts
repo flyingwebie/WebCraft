@@ -22,6 +22,12 @@ export type BuildingAreaAssets = {
 	 * share (`shell-main-<hash>.js`).
 	 */
 	shellChunks: readonly BuildingAreaAsset[];
+	/**
+	 * What the shell's document preloads (`<link rel="modulepreload">`) for its person, so the shell they
+	 * get comes with the first file rather than after it: Staff's shell (`Shell.tsx`) or a Member's
+	 * (`ClientShell.tsx`), each with the shared files it imports at once.
+	 */
+	shellPreload: { staff: readonly string[]; member: readonly string[] };
 	/** The shell's stylesheet: the admin's theme compiled for the shell's own classes, with Inter. */
 	shellStyles: BuildingAreaAsset;
 	/** The page agent, a classic script: the first script of every page shown in the frame. */
@@ -69,7 +75,7 @@ async function makeAssets(): Promise<BuildingAreaAssets> {
 	);
 	// Format's engine (Prettier) is the editing bar's file of its own, loaded the first time Format is used.
 	const { format } = await editBarAssets();
-	const [{ shell, shellChunks }, agentCode, styles] = await Promise.all([
+	const [{ shell, shellChunks, shellPreload }, agentCode, styles] = await Promise.all([
 		shellModules(formatEngine(format.path)),
 		bundle("@webcraft/server/building-area/agent", "iife"),
 		shellStylesheet(theme, fonts),
@@ -80,6 +86,7 @@ async function makeAssets(): Promise<BuildingAreaAssets> {
 	return {
 		shell,
 		shellChunks,
+		shellPreload,
 		shellStyles,
 		agent,
 		agentStyles,
@@ -131,7 +138,7 @@ async function bundle(entryName: string, format: "iife"): Promise<string> {
  */
 async function shellModules(
 	...plugins: Bun.BunPlugin[]
-): Promise<{ shell: BuildingAreaAsset; shellChunks: BuildingAreaAsset[] }> {
+): Promise<Pick<BuildingAreaAssets, "shell" | "shellChunks" | "shellPreload">> {
 	const entry = Bun.resolveSync("@webcraft/server/building-area/shell", dirname(fileURLToPath(import.meta.url)));
 	const built = await Bun.build({
 		entrypoints: [entry],
@@ -157,7 +164,35 @@ async function shellModules(
 	}));
 	const shell = files.find((each) => each.entry)?.file;
 	if (!shell) throw new Error("The shell couldn't be built: it has no entry file.");
-	return { shell, shellChunks: files.filter((each) => !each.entry).map((each) => each.file) };
+	const shellChunks = files.filter((each) => !each.entry).map((each) => each.file);
+	return {
+		shell,
+		shellChunks,
+		shellPreload: { staff: preloadOf("Shell", shellChunks), member: preloadOf("ClientShell", shellChunks) },
+	};
+}
+
+/**
+ * The paths of a module's file of the split shell (`shell-<module>-<hash>.js`) and of every file it
+ * imports at once, the shell's first file left out (the document loads it anyway).
+ */
+function preloadOf(module: string, chunks: readonly BuildingAreaAsset[]): string[] {
+	const byName = new Map(chunks.map((chunk) => [chunk.name, chunk]));
+	const first = chunks.find((chunk) => new RegExp(`^shell-${module}-[0-9a-f]{16}\\.js$`).test(chunk.name));
+	if (!first) throw new Error(`The shell couldn't be built: it has no file for ${module}.`);
+	const paths: string[] = [];
+	const waiting = [first];
+	const seen = new Set<string>();
+	for (let chunk = waiting.pop(); chunk; chunk = waiting.pop()) {
+		if (seen.has(chunk.name)) continue;
+		seen.add(chunk.name);
+		paths.push(chunk.path);
+		for (const [, name] of String(chunk.body).matchAll(/\b(?:from|import)\s*"\.\/([^"]+\.js)"/g)) {
+			const next = name ? byName.get(name) : undefined;
+			if (next) waiting.push(next);
+		}
+	}
+	return paths;
 }
 
 /** A file of the split shell: Bun's name (`shell-<stem>-<id>.js`) and its code. */

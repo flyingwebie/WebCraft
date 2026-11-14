@@ -1,12 +1,13 @@
 // The building area loads each place when it is opened (BA-30), in Chromium:
-// - the shell's first load, for Staff and for a Member, fetches one file of the shell's and no place's
-//   code (the network list);
+// - the shell's first load fetches its first file and its person's shell (Staff's, or a Member's) with
+//   the parts it shares, each once, and no place's code nor the other person's shell (the network list);
 // - each place opens from the rail, from its address on a reload, and from Back and Forward, its file
 //   fetched once in the page's life;
 // - the Media picker's file is fetched the first time a file is asked for, once;
 // - a place whose file can't be fetched shows its frame and header, says so in words, and Try again
 //   loads it; when the shell's own files are gone (WebCraft updated meanwhile), Try again loads the page
 //   again, which opens the place; a picker that can't be fetched says so in a toast and answers null;
+//   a person's shell that can't be fetched says so, and Reload draws it;
 // - the loading and failed frames pass axe and the keyboard check, light and dark.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Page, Route } from "playwright";
@@ -84,6 +85,18 @@ function moduleFiles(requests: ReadonlyMap<string, number>): string[] {
 	return [...requests.keys()].filter((name) => !/^shell-(main-)?[0-9a-f]{16}\.js$/.test(name));
 }
 
+/** The files of a place's code (or the Media picker's) the page asked for: none of a person's shell. */
+function placeFiles(requests: ReadonlyMap<string, number>): string[] {
+	return moduleFiles(requests).filter((name) => !/^shell-(Client)?Shell-/.test(name));
+}
+
+/** What a first load fetched: its first file, the person's shell, the shared parts, each once and nothing else. */
+function expectFirstLoad(requests: ReadonlyMap<string, number>, shell: "Shell" | "ClientShell"): void {
+	expect(moduleFiles(requests).map(moduleOf)).toEqual([shell]);
+	expect([...requests.keys()].filter((name) => /^shell-[0-9a-f]{16}\.js$/.test(name))).toHaveLength(1);
+	expect([...requests.values()].every((count) => count === 1)).toBe(true);
+}
+
 /** The module a file of the shell's holds (`ContentPlace` for `shell-ContentPlace-<hash>.js`). */
 function moduleOf(name: string): string {
 	return name.replace(/^shell-/, "").replace(/-[0-9a-f]{16}\.js$/, "");
@@ -153,9 +166,9 @@ describe("the shell loads each place when it is opened, for Staff", () => {
 		await page?.context().close();
 	});
 
-	test("the first load fetches one file of the shell's, and no place's code", async () => {
+	test("the first load fetches Staff's shell and no place's code", async () => {
 		await page.locator('[data-wc-place="content"]').waitFor();
-		expect([...requests]).toEqual([[expect.stringMatching(/^shell-[0-9a-f]{16}\.js$/), 1]]);
+		expectFirstLoad(requests, "Shell");
 	});
 
 	test("each place opens from the rail, its file fetched the first time only", async () => {
@@ -171,7 +184,7 @@ describe("the shell loads each place when it is opened, for Staff", () => {
 			await leave(page);
 		}
 		expect(requests).toEqual(before);
-		expect(moduleFiles(requests).map(moduleOf).sort()).toEqual(Object.values(PLACE_FILES).sort());
+		expect(placeFiles(requests).map(moduleOf).sort()).toEqual(Object.values(PLACE_FILES).sort());
 	});
 
 	test("a place opens from its address on a reload, and from Back and Forward, its file fetched once", async () => {
@@ -180,7 +193,7 @@ describe("the shell loads each place when it is opened, for Staff", () => {
 		await page.reload();
 		await placeDrawn(page, "media");
 		// The new page fetched the Media place's code with its first file, and no other place's.
-		expect(moduleFiles(requests)).toEqual([expect.stringMatching(/^shell-MediaPlace-[0-9a-f]{16}\.js$/)]);
+		expect(placeFiles(requests)).toEqual([expect.stringMatching(/^shell-MediaPlace-[0-9a-f]{16}\.js$/)]);
 
 		await page.locator('[data-wc-place="content"]').click();
 		await placeDrawn(page, "content");
@@ -252,13 +265,13 @@ describe("the shell loads each place when it is opened, for a Member", () => {
 		await page?.context().close();
 	});
 
-	test("the first load fetches one file of the shell's, and no place's code; Content comes when opened", async () => {
+	test("the first load fetches a Member's shell, not Staff's, and no place's code; Content comes when opened", async () => {
 		await page.locator('[data-wc-place="content"]').waitFor();
-		expect([...requests]).toEqual([[expect.stringMatching(/^shell-[0-9a-f]{16}\.js$/), 1]]);
+		expectFirstLoad(requests, "ClientShell");
 
 		await openFromRail(page, "content");
 		expect(await page.locator("[data-wc-place-back]").textContent()).toBe("Back to Menu");
-		expect(moduleFiles(requests)).toEqual([expect.stringMatching(/^shell-ContentPlace-[0-9a-f]{16}\.js$/)]);
+		expect(placeFiles(requests)).toEqual([expect.stringMatching(/^shell-ContentPlace-[0-9a-f]{16}\.js$/)]);
 	});
 });
 
@@ -322,6 +335,21 @@ describe("a place's code that can't be fetched", () => {
 		await page.unroute(shellFile, gone);
 		await placeDrawn(page, "content");
 		expect(new URL(page.url()).searchParams.get("wc-place")).toBe("content/pages");
+	});
+
+	test("the shell itself that can't be fetched says so, and Reload draws it", async () => {
+		const shellFile = /\/shell-Shell-[0-9a-f]{16}\.js$/;
+		await page.route(shellFile, offline);
+		await go(page, "/page/menu");
+		const failed = page.locator("[data-wc-shell-failed]");
+		await failed.waitFor();
+		expect(await failed.getByRole("alert").textContent()).toBe(
+			"The building area couldn't be loaded. Check the connection, then reload the page.",
+		);
+		await expectNoAxeViolations(page, "building area, the shell that couldn't load");
+		await page.unroute(shellFile, offline);
+		await failed.getByRole("button", { name: "Reload the page" }).click();
+		await page.locator('[data-wc-place="content"]').waitFor();
 	});
 
 	test("the Media picker that can't be fetched says so, and the caller gets null", async () => {

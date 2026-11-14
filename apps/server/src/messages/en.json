@@ -8459,6 +8459,8 @@
 		"openHelp": "The new editor, while it is being built",
 		"opening": "Opening the building area…",
 		"skipToContent": "Skip to main content",
+		"shellFailed": "The building area couldn't be loaded. Check the connection, then reload the page.",
+		"shellReload": "Reload the page",
 		"rail": "Building area",
 		"backToAdmin": "Back to the admin",
 		"canvas": "Page",

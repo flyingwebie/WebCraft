@@ -192,7 +192,10 @@ describe("the building area under the dev server", () => {
 		await page.goto(url);
 		await page.locator("iframe[data-wc-frame]").waitFor();
 		await page.locator('[data-wc-place="content"]').waitFor();
-		expect(scripts.size).toBe(1);
+		// The first file and Staff's shell with what it shares; no place yet.
+		const first = [...scripts].map((each) => new URL(each).pathname.split("/").pop() ?? "");
+		expect(first).toContainEqual(expect.stringMatching(/^shell-Shell-[0-9a-f]{16}\.js$/));
+		expect(first.filter((name) => /Place-/.test(name))).toEqual([]);
 
 		for (const [place, ready] of [
 			["content", "[data-wc-content-lists]"],

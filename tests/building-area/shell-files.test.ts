@@ -1,7 +1,8 @@
 // The shell's code in files of its own (BA-30): the file the shell's document loads imports nothing at
-// once, and names the rest of the shell's files (each place's, the Media picker's, the parts they
-// share) only for when they are needed. Every one of them is served from the Site's address as the
-// shell's first file is: hashed, kept a year, with nothing about the Site or the person in it.
+// once, and names the rest of the shell's files (each person's shell, each place's, the Media
+// picker's, the parts they share) only for when they are needed; the document preloads its person's.
+// Every one of them is served from the Site's address as the shell's first file is: hashed, kept a
+// year, with nothing about the Site or the person in it.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { openBuildingArea } from "../harness/building-area.ts";
@@ -32,15 +33,31 @@ function namedIn(code: string): { now: string[]; later: string[] } {
 }
 
 describe("the shell's files", () => {
-	test("the first file imports nothing at once, and each place and the Media picker are files of their own", async () => {
+	test("the first file imports nothing at once; each person's shell, each place and the Media picker are files of their own", async () => {
 		const building = await openBuildingArea(install, staff, siteId);
 		const html = await (await building.shell("/_webcraft/build/page/")).text();
 		const first = /src="\/_webcraft\/edit\/assets\/(shell-[0-9a-f]{16}\.js)"/.exec(html)?.[1] ?? "";
-		const code = await (await building.browser.request(`${building.origin}/_webcraft/edit/assets/${first}`)).text();
+		const read = async (name: string) =>
+			(await building.browser.request(`${building.origin}/_webcraft/edit/assets/${name}`)).text();
+		const moduleOf = (name: string) => name.replace(/-[0-9a-f]{16}\.js$/, "");
 
-		const { now, later } = namedIn(code);
+		const { now, later } = namedIn(await read(first));
 		expect(now).toEqual([]);
-		expect(later.map((name) => name.replace(/-[0-9a-f]{16}\.js$/, "")).sort()).toEqual(
+		// It fetches the shell its person gets: Staff's or a Member's.
+		expect(later.map(moduleOf).sort()).toEqual(["shell-ClientShell", "shell-Shell"]);
+		// The shells and what they import fetch the places and the picker when they are needed.
+		const fetchedLater = new Set<string>();
+		const seen = new Set<string>([first]);
+		const waiting = [...later];
+		while (waiting.length > 0) {
+			const name = waiting.pop() ?? "";
+			if (seen.has(name)) continue;
+			seen.add(name);
+			const named = namedIn(await read(name));
+			waiting.push(...named.now, ...named.later);
+			for (const each of named.later) fetchedLater.add(moduleOf(each));
+		}
+		expect([...fetchedLater].sort()).toEqual(
 			[
 				"shell-ComponentsPlace",
 				"shell-ContentPlace",
@@ -52,6 +69,27 @@ describe("the shell's files", () => {
 				"shell-TemplatesPlace",
 			].sort(),
 		);
+	});
+
+	test("the shell's document preloads the shell its person gets, and not the other", async () => {
+		for (const [person, own, other] of [
+			[staff, "Shell", "ClientShell"],
+			[editor, "ClientShell", "Shell"],
+		] as const) {
+			const building = await openBuildingArea(install, person, siteId);
+			const html = await (await building.shell("/_webcraft/build/page/")).text();
+			const preloaded = [...html.matchAll(/<link rel="modulepreload" href="\/_webcraft\/edit\/assets\/([^"]+)">/g)].map(
+				(match) => match[1] ?? "",
+			);
+			expect(preloaded).toContainEqual(expect.stringMatching(new RegExp(`^shell-${own}-[0-9a-f]{16}\\.js$`)));
+			expect(preloaded.some((name) => name.startsWith(`shell-${other}-`))).toBe(false);
+			// What it preloads is the shell and the shared parts it imports at once: no place, no picker.
+			expect(preloaded.every((name) => /^shell-(main-|Shell-|ClientShell-)[0-9a-f]{16}\.js$/.test(name))).toBe(true);
+			for (const name of preloaded) {
+				const file = await building.browser.request(`${building.origin}/_webcraft/edit/assets/${name}`);
+				expect({ name, status: file.status }).toEqual({ name, status: 200 });
+			}
+		}
 	});
 
 	test("every file the shell may load is served as its first file is, hashed and kept a year, to anyone", async () => {
@@ -75,8 +113,8 @@ describe("the shell's files", () => {
 			const { now, later } = namedIn(await file.text());
 			waiting.push(...now, ...later);
 		}
-		// The first file, eight files of their own and the parts they share.
-		expect(seen.size).toBeGreaterThan(9);
+		// The first file, the two shells, eight files of their own and the parts they share.
+		expect(seen.size).toBeGreaterThan(11);
 		const head = await anyone.request(`${building.origin}/_webcraft/edit/assets/${first}`, { method: "HEAD" });
 		expect(head.status).toBe(200);
 		expect(
