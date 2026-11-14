@@ -222,7 +222,7 @@ describe("Staff publish what the page shows", () => {
 		await measure();
 		expect(await cell(page).textContent()).toBe("Try again");
 		await said(page, "Couldn't publish: the server couldn't be reached.");
-		expect((await entryOf(site)).published?.values).not.toMatchObject({ subtitle: { en: "Still warm" } });
+		expect((await entryOf(site)).published?.fields.subtitle).toBe("Out of the oven");
 
 		// Trying again: Publishing… while the server answers (held a moment), then Published for 2 s.
 		await page.route("**/_webcraft/build/api/rpc/publishing/publishAll", async (route) => {
@@ -297,8 +297,8 @@ describe("a Member's sheet", () => {
 		await rowsAre(page, ["Subtitle: words changed"]);
 		await said(page, "Reverted Intro: words changed.");
 		const entry = await entryOf(site);
-		expect(entry.draft.values.intro).toEqual(entry.published?.values.intro);
-		expect(entry.draft.values.subtitle).not.toEqual(entry.published?.values.subtitle);
+		expect(entry.draft.fields.intro).toEqual(entry.published?.fields.intro);
+		expect(entry.draft.fields.subtitle).not.toEqual(entry.published?.fields.subtitle);
 		expect(await cell(page).textContent()).toBe("Publish1, 1 change");
 	});
 
@@ -310,7 +310,8 @@ describe("a Member's sheet", () => {
 		await page.locator("[data-wc-publish-day]").fill("2020-01-01");
 		await page.locator("[data-wc-publish-now]").click();
 		expect(await page.getByRole("alert").filter({ hasText: "Choose a time in the future." }).count()).toBe(1);
-		await page.locator("[data-wc-publish-day]").fill("2099-03-02");
+		const year = new Date().getFullYear() + 1;
+		await page.locator("[data-wc-publish-day]").fill(`${year}-03-02`);
 		await page.locator("[data-wc-publish-time]").fill("09:30");
 		await page.locator("[data-wc-publish-now]").click();
 		await sheet(page).waitFor({ state: "detached" });
@@ -322,8 +323,8 @@ describe("a Member's sheet", () => {
 		const { scheduled } = await api.publishing.scheduled({ siteId: site.siteId });
 		expect(scheduled).toHaveLength(1);
 		expect(scheduled[0]?.items.map((each) => each.item)).toEqual([{ kind: "entry", id: site.entryId }]);
-		expect(new Date(scheduled[0]?.at ?? 0).getFullYear()).toBe(2099);
-		expect((await entryOf(site)).published?.values.subtitle).toEqual({ en: "Out of the oven" });
+		expect(new Date(scheduled[0]?.at ?? 0).getFullYear()).toBe(year);
+		expect((await entryOf(site)).published?.fields.subtitle).toBe("Out of the oven");
 	});
 
 	test("Discard all asks first; Keep them keeps them, Discard puts the page back as published", async () => {
@@ -344,7 +345,7 @@ describe("a Member's sheet", () => {
 		await said(page, "Changes discarded.");
 		await page.locator("[data-wc-publish-sheet] p", { hasText: "There are no changes here." }).waitFor();
 		const entry = await entryOf(site);
-		expect(entry.draft.values.subtitle).toEqual(entry.published?.values.subtitle);
+		expect(entry.draft.fields.subtitle).toEqual(entry.published?.fields.subtitle);
 	});
 });
 

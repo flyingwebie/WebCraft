@@ -9556,7 +9556,8 @@
 				"refused": "{name} non si può ancora pubblicare.",
 				"scheduledAlready": "una di queste è già programmata.",
 				"nothing": "non c'è niente da pubblicare.",
-				"generic": "il server ha risposto {code}."
+				"generic": "il server ha risposto {code}.",
+				"scheduleInvalid": "scegli un momento nel futuro, entro dieci anni."
 			},
 			"review": {
 				"title": "Invia in revisione",

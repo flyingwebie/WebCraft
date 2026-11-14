@@ -9556,7 +9556,8 @@
 				"refused": "{name} can't be published yet.",
 				"scheduledAlready": "one of these is scheduled already.",
 				"nothing": "there is nothing to publish.",
-				"generic": "the server answered {code}."
+				"generic": "the server answered {code}.",
+				"scheduleInvalid": "choose a time in the future, within ten years."
 			},
 			"review": {
 				"title": "Send for review",

@@ -157,6 +157,8 @@ export function refusalText(error: unknown, words: Words): string {
 		case "CONFIRMATION_INVALID":
 		case "PUBLISH_ALL_INVALID":
 			return reasons.changed;
+		case "SCHEDULE_INVALID":
+			return reasons.scheduleInvalid;
 		case "ALREADY_SCHEDULED":
 			return reasons.scheduledAlready;
 		case "PUBLISH_ALL_REFUSED": {
