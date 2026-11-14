@@ -1570,6 +1570,16 @@
 			"files": "{count, plural, one {file} other {files}}",
 			"used": "used",
 			"of": "of {quota}"
+		},
+		"selection": {
+			"label": "Files selected",
+			"clear": "Clear the selection",
+			"count": "{count} selected",
+			"move": "Move to Folder",
+			"moved": "{count, plural, one {# file moved} other {# files moved}} to {folder}.",
+			"deleteTitle": "Delete {count, plural, one {# file} other {# files}}?",
+			"usedWarning": "{count, plural, one {# of them is used} other {# of them are used}} on the Site; those places show nothing until the file is restored:",
+			"deleted": "{count, plural, one {# file moved} other {# files moved}} to the Trash."
 		}
 	},
 	"invite": {
@@ -9123,6 +9133,43 @@
 				"urlPattern": "This URL pattern can't be used: it needs {slug}, and starts with /.",
 				"generic": "This setting can't be saved as it is."
 			}
+		},
+		"media": {
+			"lists": "Media's folders",
+			"search": "Search media",
+			"loading": "Reading the Media library…",
+			"loadFailed": "The Media library couldn't be read ({reason}).",
+			"storage": "Media storage used",
+			"folderActions": "Actions for the folder {name}",
+			"actions": "Actions",
+			"select": "Select {name}",
+			"selectAll": "Select all",
+			"addAlt": "add alt text…",
+			"copyAddress": "Copy the address of {name}",
+			"copied": "The address of {name} is copied.",
+			"copyFailed": "The address couldn't be copied.",
+			"moveOne": "Move {name} to a folder",
+			"moveTo": "Move to Folder",
+			"moveFailed": "{name} wasn't moved: {reason}",
+			"deleteOne": "Delete {name}",
+			"restoreOne": "Restore {name}",
+			"uploaded": "Files uploaded: {count}",
+			"open": "Open: {name}",
+			"closeFile": "Close the details of {name}",
+			"languageAlt": "Alt text in {language}",
+			"languageNoAlt": "Alt text in {language}, none yet",
+			"saveFailed": "The change wasn't saved ({reason}).",
+			"picker": {
+				"titleImage": "Choose a Media image",
+				"title": "Choose a Media file",
+				"select": "Select",
+				"cancel": "Cancel",
+				"close": "Close",
+				"chosen": "Chosen",
+				"files": "Files",
+				"folders": "Folders of the Media library"
+			},
+			"closeToast": "Dismiss"
 		}
 	},
 	"auth": {

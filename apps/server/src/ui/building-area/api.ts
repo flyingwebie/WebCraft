@@ -1,3 +1,5 @@
+import type { Permission } from "@webcraft/core";
+
 import type en from "../../messages/en.json";
 import type { Layout } from "./docks/layout.ts";
 
@@ -40,8 +42,29 @@ export type ShellConfig = {
 	admin: string;
 	/** The Site's languages, the Default language first (the Content place's languages). */
 	languages: { default: string; all: { code: string; name: string }[] };
+	/** Which of `SHELL_PERMISSIONS` the person holds on the Site (the Media place's uploads and folders). */
+	permissions: ShellPermission[];
+	/** The admin's own words for the admin parts the shell reuses (the Media library's), in `language`. */
+	adminMessages: AdminMessages;
 	/** Where the person keeps their panels (their editor preferences); null for the defaults. */
 	layout: Layout | null;
+};
+
+/**
+ * The Permissions the shell draws by, beyond Go to's (`builder.commandMenu`): uploading and changing
+ * one's own Media files, and everyone's with the folders. Every procedure still checks `can()`.
+ */
+export const SHELL_PERMISSIONS = ["media.upload", "media.manage"] as const satisfies readonly Permission[];
+
+export type ShellPermission = (typeof SHELL_PERMISSIONS)[number];
+
+/** The parts of the admin's messages the reused Media parts read (`ui/media/*`, through `use-intl`). */
+export type AdminMessages = {
+	media: (typeof en)["media"];
+	errors: (typeof en)["errors"];
+	popups: { title: string };
+	content: { media: (typeof en)["content"]["media"] };
+	editBar: { codeMode: { errors: (typeof en)["editBar"]["codeMode"]["errors"] } };
 };
 
 /** What the `state` edit request says of a page, as far as the shell reads it. */

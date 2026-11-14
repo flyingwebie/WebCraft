@@ -4,6 +4,7 @@ import type { ShellConfig, Words } from "../api.ts";
 import type { BuildingDocument, Documents } from "../documents.ts";
 import { ContentPlace } from "./content/ContentPlace.tsx";
 import { type PlaceKey, placeKeyOf } from "./keys.ts";
+import { MediaPlace } from "./media/MediaPlace.tsx";
 import { leftAt } from "./memory.ts";
 import { StylesPlace } from "./styles/StylesPlace.tsx";
 
@@ -47,6 +48,7 @@ export type PlaceEntry = {
 /** The places that exist so far: the rail offers these, and says "not available yet" of the rest. */
 const PLACES: Partial<Record<PlaceKey, PlaceEntry>> = {
 	content: { key: "content", first: "content/pages", component: ContentPlace },
+	media: { key: "media", first: "media", component: MediaPlace },
 	styles: { key: "styles", first: "styles/classes", component: StylesPlace },
 };
 
