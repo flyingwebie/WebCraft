@@ -411,6 +411,9 @@ describe("reading Submissions from the keyboard", () => {
 		await expect(rows.nth(1).getAttribute("aria-current")).resolves.toBe("true");
 		await page.locator("body").press("k");
 		await expect(rows.nth(0).getAttribute("aria-current")).resolves.toBe("true");
+		// The keys act on the Submission open once it has come.
+		const first = (await rows.nth(0).locator(".truncate").first().textContent()) ?? "";
+		await page.getByRole("heading", { name: first, exact: true }).waitFor();
 
 		await page.locator("body").press("Delete");
 		const dialog = page.getByRole("dialog");
