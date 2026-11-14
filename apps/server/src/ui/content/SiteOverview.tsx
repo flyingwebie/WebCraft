@@ -73,7 +73,7 @@ export function SiteOverview({
 						}
 					/>
 				) : null}
-				{data.activity ? <Activity activity={data.activity} /> : null}
+				{data.activity ? <ActivityCard activity={data.activity} /> : null}
 			</div>
 			<div className="grid min-w-0 gap-6">
 				<QuickActions siteId={siteId} postTypes={postTypes} permissions={permissions} />
@@ -143,8 +143,11 @@ function Reviews({ siteId, reviews }: { siteId: string; reviews: readonly Review
 	);
 }
 
-/** "Recent activity": the Site's newest Audit log entries, in words. */
-function Activity({ activity }: { activity: AuditPage }) {
+/**
+ * "Recent activity": a Site's or a Workspace's newest Audit log entries, in words; on a Workspace
+ * (`withSite`) each says which Site it happened on.
+ */
+export function ActivityCard({ activity, withSite = false }: { activity: AuditPage; withSite?: boolean }) {
 	const t = useT();
 	const words = useAuditWords();
 	return (
@@ -155,20 +158,16 @@ function Activity({ activity }: { activity: AuditPage }) {
 			{activity.entries.length > 0 ? (
 				<ul className="-my-2.5">
 					{activity.entries.map((entry) => {
-						const subject = subjectOf(entry.details);
 						const who = entry.personId ? (activity.people[entry.personId]?.name ?? null) : null;
+						const values = { who: words.who(entry, activity), action: words.action(entry.action) };
+						const subject = subjectOf(entry.details);
+						const line = subject
+							? t("site.overview.activitySubject", { ...values, subject })
+							: t("site.overview.activityLine", values);
+						const site = withSite && entry.siteId ? (activity.sites[entry.siteId] ?? null) : null;
 						return (
 							<Line key={entry.id} who={who} at={entry.at}>
-								{subject
-									? t("site.overview.activitySubject", {
-											who: words.who(entry, activity),
-											action: words.action(entry.action),
-											subject,
-										})
-									: t("site.overview.activityLine", {
-											who: words.who(entry, activity),
-											action: words.action(entry.action),
-										})}
+								{site ? t("site.overview.activityOn", { line, site }) : line}
 							</Line>
 						);
 					})}
@@ -295,6 +294,16 @@ const DOMAIN_TONES: Record<"active" | "waiting" | "unreachable", StateTone> = {
 	unreachable: "danger",
 };
 
+/** Whether a Site's domain is live ("Live", "Waiting for DNS", "Unreachable"), as a badge in words. */
+export function DomainState({ status }: { status: "active" | "waiting" | "unreachable" }) {
+	const t = useT();
+	return (
+		<StateBadge tone={DOMAIN_TONES[status]}>
+			{status === "active" ? t("site.overview.live") : t(`domains.status.${status}`)}
+		</StateBadge>
+	);
+}
+
 /** "Site": its Primary domain and whether it is live, its languages and its Staging address. */
 function SiteCard({
 	languages,
@@ -314,9 +323,7 @@ function SiteCard({
 					{primary ? (
 						<>
 							<span className="truncate font-mono font-medium">{primary.displayName}</span>
-							<StateBadge tone={DOMAIN_TONES[primary.status]}>
-								{primary.status === "active" ? t("site.overview.live") : t(`domains.status.${primary.status}`)}
-							</StateBadge>
+							<DomainState status={primary.status} />
 						</>
 					) : (
 						<span className="text-muted-foreground">{t("site.overview.noDomain")}</span>

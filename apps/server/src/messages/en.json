@@ -1254,7 +1254,6 @@
 			"body": "Staff create the Sites of a Workspace.",
 			"bodyStaff": "Create the first website of this Workspace."
 		},
-		"slugLabel": "Slug",
 		"dialog": {
 			"title": "New Site",
 			"description": "A website of {workspace}. You'll add its domains later.",
@@ -1266,7 +1265,11 @@
 			"cancel": "Cancel",
 			"close": "Close"
 		},
-		"created": "Site {name} created."
+		"created": "Site {name} created.",
+		"card": {
+			"changes": "{count, plural, one {# unpublished change} other {# unpublished changes}}",
+			"address": "Address"
+		}
 	},
 	"site": {
 		"pageTitle": "Overview",
@@ -1294,7 +1297,9 @@
 			"noDomain": "No domain yet",
 			"languages": "Languages",
 			"staging": "Staging",
-			"noStaging": "None"
+			"noStaging": "None",
+			"activityOn": "{line} · {site}",
+			"noDomainBadge": "No domain"
 		}
 	},
 	"publishAll": {

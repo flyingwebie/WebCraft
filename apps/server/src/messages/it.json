@@ -1254,7 +1254,6 @@
 			"body": "I Site di un Workspace li crea lo Staff.",
 			"bodyStaff": "Crea il primo sito web di questo Workspace."
 		},
-		"slugLabel": "Slug",
 		"dialog": {
 			"title": "Nuovo Site",
 			"description": "Un sito web di {workspace}. I domini li aggiungerai dopo.",
@@ -1266,7 +1265,11 @@
 			"cancel": "Annulla",
 			"close": "Chiudi"
 		},
-		"created": "Site {name} creato."
+		"created": "Site {name} creato.",
+		"card": {
+			"changes": "{count, plural, one {# modifica non pubblicata} other {# modifiche non pubblicate}}",
+			"address": "Indirizzo"
+		}
 	},
 	"site": {
 		"pageTitle": "Panoramica",
@@ -1294,7 +1297,9 @@
 			"noDomain": "Ancora nessun dominio",
 			"languages": "Lingue",
 			"staging": "Staging",
-			"noStaging": "Nessuno"
+			"noStaging": "Nessuno",
+			"activityOn": "{line} · {site}",
+			"noDomainBadge": "Nessun dominio"
 		}
 	},
 	"publishAll": {
