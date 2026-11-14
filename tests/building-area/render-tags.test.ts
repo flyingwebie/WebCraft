@@ -122,6 +122,8 @@ describe("a page in the building area's frame, for Staff", () => {
 		expect(mainOf(html)).toMatch(
 			/<h1 data-wc-item="entry:[0-9a-f-]+" data-wc-field="title" data-wc-type="text" data-wc-id="title" data-wc-code="content#title">Fresh bread<\/h1>/,
 		);
+		// What is typed in a region is the region's alone: no comment ranges inside it.
+		expect(html).toMatch(/data-wc-code="content#title">Fresh bread<\/h1>/);
 		// So is the Global in the Site template.
 		expect(html).toMatch(/<p data-wc-item="globals" data-wc-field="tagline"[^>]* data-wc-code="site#tagline">/);
 	});

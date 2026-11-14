@@ -315,7 +315,11 @@ export function structure(options: {
 		// The Site template opened first says what the outlet shows: a Template's elements, or a Page layout.
 		if (source.ref === "site") {
 			if (source.pageLayout) void readLayout(source.pageLayout.id, asked);
-			for (const waiting of pending.splice(0)) void load(waiting);
+			// The content's references open only where the content is a Template's (a Page's Placements
+			// open with BA-09); the Site template's own always do.
+			for (const waiting of pending.splice(0)) {
+				if (waiting.startsWith("site") || source.contentAvailable) void load(waiting);
+			}
 		}
 	};
 
@@ -364,7 +368,7 @@ export function structure(options: {
 				// The content's sources open once the Site template says the page's content is a Template's
 				// (a Page's Placements open with BA-09).
 				else if (site?.contentAvailable) void load(ref);
-				else if (!site) pending.push(ref);
+				else if (!site && !pending.includes(ref)) pending.push(ref);
 			}
 		},
 		select(ref, from = "panel") {

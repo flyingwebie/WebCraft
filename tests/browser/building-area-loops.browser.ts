@@ -153,6 +153,10 @@ describe("the Loops place, for Staff", () => {
 
 	test("opens from the rail in three columns: the Saved Loops and the settings, the definition, the result", async () => {
 		expect(await postsOnPage(page)).toEqual(["Bagels", "Brioche", "Focaccia"]);
+		// The page is announced once Edit mode has described it: the place's own announcement comes after.
+		await page.waitForFunction(() =>
+			document.querySelector("[data-wc-messages]")?.textContent?.includes("Opened Menu"),
+		);
 		await page.locator('[data-wc-place="loops"]').click();
 		await placeFrame(page).waitFor();
 		await page.locator("[data-wc-loop-form]").waitFor();
