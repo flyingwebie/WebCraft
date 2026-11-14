@@ -1,6 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import type { ApiClient } from "@webcraft/api";
-import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import {
 	Dialog,
@@ -13,9 +12,7 @@ import {
 } from "@webcraft/ui/components/dialog.tsx";
 import { FieldError } from "@webcraft/ui/components/field.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@webcraft/ui/components/sheet.tsx";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
-import { type FormEvent, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../../ui/api.ts";
@@ -25,6 +22,10 @@ import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
 import { useSensitiveAction } from "../../ui/identity-check.tsx";
 import { ConsentDetails, type ModuleView } from "../../ui/modules/ConsentDetails.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
+import { ConfirmDialog } from "../../ui/settings/confirm.tsx";
+import { SettingsForm, useSettingsSection } from "../../ui/settings/form.tsx";
+import { SettingsCard, SettingsListRow, SettingsRows, StateBadge, type StateTone } from "../../ui/settings/layout.tsx";
+import { PageSheet } from "../../ui/shell/page.tsx";
 
 export const Route = createFileRoute("/_admin/settings/modules")({
 	staticData: { crumb: "modules.pageTitle", width: "form" },
@@ -49,6 +50,13 @@ const STATUS_KEYS = {
 	"cannot-run": "modules.status.cannot-run",
 } as const satisfies Record<ModuleView["status"], MessageKey>;
 
+const STATUS_TONES: Record<ModuleView["status"], StateTone> = {
+	approved: "success",
+	waiting: "warning",
+	"update-waiting": "warning",
+	"cannot-run": "danger",
+};
+
 /**
  * Install settings › Modules: every Module of this version of WebCraft, the version running and the
  * one approved, where each is switched, and its Module log. The Superadmin approves what a Module
@@ -62,63 +70,50 @@ function ModulesPage() {
 	return (
 		<>
 			<PageHeader heading={t("modules.heading")}>{t("modules.intro")}</PageHeader>
-			{modules.length === 0 ? (
-				<p className="text-muted-foreground rounded-lg border border-dashed p-8 text-center">{t("modules.empty")}</p>
-			) : (
-				<div className="rounded-lg border">
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead className="ps-4">{t("modules.columns.module")}</TableHead>
-								<TableHead>{t("modules.columns.version")}</TableHead>
-								<TableHead>{t("modules.columns.status")}</TableHead>
-								<TableHead className="pe-4 text-end">{t("modules.columns.actions")}</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
+			<SettingsForm>
+				<SettingsCard title={t("modules.listTitle")}>
+					{modules.length === 0 ? (
+						<p className="text-muted-foreground text-sm">{t("modules.empty")}</p>
+					) : (
+						<SettingsRows>
 							{modules.map((module) => (
-								<TableRow key={module.id}>
-									<TableCell className="ps-4 whitespace-normal">
-										<span className="block font-medium">{module.name}</span>
-										<span className="text-muted-foreground block text-xs">{module.description}</span>
-										<span className="text-muted-foreground block text-xs">{t(LEVEL_KEYS[module.level])}</span>
-										{module.partitions.map((partition) => (
-											<KeepMonthsForm key={partition.table} module={module} partition={partition} />
-										))}
-									</TableCell>
-									<TableCell className="font-mono text-xs">
-										{module.version}
-										{module.approval && module.approval.version !== module.version ? (
-											<span className="text-muted-foreground block font-sans">
-												{t("modules.approvedVersion", { version: module.approval.version })}
-											</span>
-										) : null}
-									</TableCell>
-									<TableCell className="whitespace-normal">
-										<Badge variant={module.status === "approved" ? "secondary" : "outline"}>
-											{t(STATUS_KEYS[module.status])}
-										</Badge>
-										{module.problem ? (
-											<span className="text-destructive mt-1 block text-xs">
-												{t("modules.cannotRun", { problem: module.problem })}
-											</span>
-										) : null}
-									</TableCell>
-									<TableCell className="pe-4 text-end">
-										<div className="flex flex-wrap justify-end gap-2">
+								<SettingsListRow
+									key={module.id}
+									badge={<StateBadge tone={STATUS_TONES[module.status]}>{t(STATUS_KEYS[module.status])}</StateBadge>}
+									detail={
+										<div className="space-y-1">
+											<p>{module.description}</p>
+											<p>
+												{t(LEVEL_KEYS[module.level])} · <span className="font-mono">{module.version}</span>
+												{module.approval && module.approval.version !== module.version
+													? ` · ${t("modules.approvedVersion", { version: module.approval.version })}`
+													: null}
+											</p>
+											{module.problem ? (
+												<p className="text-destructive">{t("modules.cannotRun", { problem: module.problem })}</p>
+											) : null}
+											{module.partitions.map((partition) => (
+												<KeepMonths key={partition.table} module={module} partition={partition} />
+											))}
+										</div>
+									}
+									actions={
+										<>
 											{module.status === "waiting" || module.status === "update-waiting" ? (
 												<ConsentDialog module={module} />
 											) : null}
-											{module.status === "approved" ? <WithdrawDialog module={module} /> : null}
+											{module.status === "approved" ? <WithdrawButton module={module} /> : null}
 											<ModuleLogSheet module={module} />
-										</div>
-									</TableCell>
-								</TableRow>
+										</>
+									}
+								>
+									<span>{module.name}</span>
+								</SettingsListRow>
 							))}
-						</TableBody>
-					</Table>
-				</div>
-			)}
+						</SettingsRows>
+					)}
+				</SettingsCard>
+			</SettingsForm>
 		</>
 	);
 }
@@ -130,51 +125,35 @@ const KEEP_CHOICES = [1, 3, 6, 12, 13, 18, 24, 36, 60, 120];
 
 /**
  * How long the Install keeps the rows of one of a Module's partitioned tables (such as Site
- * analytics' raw events): an Install setting. Older months are dropped every day.
+ * analytics' raw events): an Install setting, saved with the foot bar. Older months are dropped
+ * every day.
  */
-function KeepMonthsForm({ module, partition }: { module: ModuleView; partition: Partition }) {
+function KeepMonths({ module, partition }: { module: ModuleView; partition: Partition }) {
 	const t = useT();
-	const router = useRouter();
 	const id = useId();
-	const [months, setMonths] = useState(partition.keepMonths);
-	const [busy, setBusy] = useState(false);
+	const section = useSettingsSection({
+		saved: { months: partition.keepMonths },
+		save: async ({ months }) =>
+			(await getApi()).modules.setKeepMonths({ moduleId: module.id, table: partition.table, months }),
+	});
 	const choices = [...new Set([...KEEP_CHOICES, partition.keepMonths])].sort((a, b) => a - b);
-
-	const save = async (event: FormEvent) => {
-		event.preventDefault();
-		setBusy(true);
-		try {
-			const api = await getApi();
-			await api.modules.setKeepMonths({ moduleId: module.id, table: partition.table, months });
-			toast.success(t("modules.keep.saved", { name: module.name, label: partition.label, count: months }));
-			await router.invalidate();
-		} catch (failure) {
-			toast.error(t(errorMessage(failure)));
-		} finally {
-			setBusy(false);
-		}
-	};
-
 	return (
-		<form className="mt-2 flex flex-wrap items-center gap-2 text-xs" onSubmit={save}>
+		<div className="text-foreground flex flex-wrap items-center gap-2 pt-1">
 			<label htmlFor={id}>{t("modules.keep.label", { label: partition.label })}</label>
-			<NativeSelect id={id} size="sm" value={months} onChange={(event) => setMonths(Number(event.target.value))}>
+			<NativeSelect
+				id={id}
+				size="sm"
+				value={section.values.months}
+				onChange={(event) => section.set({ months: Number(event.target.value) })}
+			>
 				{choices.map((choice) => (
 					<NativeSelectOption key={choice} value={choice}>
 						{t("modules.keep.months", { count: choice })}
 					</NativeSelectOption>
 				))}
 			</NativeSelect>
-			<Button
-				type="submit"
-				size="sm"
-				variant="outline"
-				disabled={busy || months === partition.keepMonths}
-				aria-label={t("modules.keep.saveOf", { name: module.name, label: partition.label })}
-			>
-				{t("modules.keep.save")}
-			</Button>
-		</form>
+			{section.error ? <FieldError className="basis-full">{t(section.error)}</FieldError> : null}
+		</div>
 	);
 }
 
@@ -248,14 +227,13 @@ function ConsentDialog({ module }: { module: ModuleView }) {
 	);
 }
 
-/** Withdraws an approval: the Module stops everywhere, keeping its data. */
-function WithdrawDialog({ module }: { module: ModuleView }) {
+/** Withdraws an approval, once confirmed: the Module stops everywhere, keeping its data. */
+function WithdrawButton({ module }: { module: ModuleView }) {
 	const t = useT();
 	const router = useRouter();
-	const [busy, setBusy] = useState(false);
+	const [confirming, setConfirming] = useState(false);
 
 	const withdraw = async () => {
-		setBusy(true);
 		try {
 			const api = await getApi();
 			await api.modules.withdraw({ moduleId: module.id });
@@ -263,21 +241,29 @@ function WithdrawDialog({ module }: { module: ModuleView }) {
 			await router.invalidate();
 		} catch (failure) {
 			toast.error(t(errorMessage(failure)));
-		} finally {
-			setBusy(false);
 		}
 	};
 
 	return (
-		<Button
-			variant="outline"
-			size="sm"
-			onClick={withdraw}
-			disabled={busy}
-			aria-label={t("modules.withdrawOf", { name: module.name })}
-		>
-			{t("modules.withdraw")}
-		</Button>
+		<>
+			<Button
+				variant="outline"
+				size="sm"
+				onClick={() => setConfirming(true)}
+				aria-label={t("modules.withdrawOf", { name: module.name })}
+			>
+				{t("modules.withdraw")}
+			</Button>
+			<ConfirmDialog
+				open={confirming}
+				onOpenChange={setConfirming}
+				title={t("modules.withdrawTitle", { name: module.name })}
+				confirm={t("modules.withdraw")}
+				onConfirm={withdraw}
+			>
+				{t("modules.withdrawBody", { name: module.name })}
+			</ConfirmDialog>
+		</>
 	);
 }
 
@@ -288,6 +274,8 @@ const LOG_LEVEL_KEYS = {
 	warn: "modules.log.levels.warn",
 	error: "modules.log.levels.error",
 } as const satisfies Record<LogLine["level"], MessageKey>;
+
+const LOG_TONES: Record<LogLine["level"], StateTone> = { info: "neutral", warn: "warning", error: "danger" };
 
 /** The Module log, newest first, in a side panel. */
 function ModuleLogSheet({ module }: { module: ModuleView }) {
@@ -308,42 +296,39 @@ function ModuleLogSheet({ module }: { module: ModuleView }) {
 	};
 
 	return (
-		<Sheet open={open} onOpenChange={setOpen}>
+		<>
 			<Button variant="outline" size="sm" onClick={show} aria-label={t("modules.showLogOf", { name: module.name })}>
 				{t("modules.showLog")}
 			</Button>
-			<SheetContent closeLabel={t("modules.log.close")} className="w-full sm:max-w-lg">
-				<SheetHeader className="pe-12">
-					<SheetTitle>{t("modules.log.title", { name: module.name })}</SheetTitle>
-					<SheetDescription>{t("modules.log.description")}</SheetDescription>
-				</SheetHeader>
-				<div className="min-h-0 flex-1 overflow-y-auto p-4">
-					{lines === null ? null : lines.length === 0 ? (
-						<p className="text-muted-foreground">{t("modules.log.empty")}</p>
-					) : (
-						<ol className="grid gap-3">
-							{lines.map((line) => (
-								<li key={line.id} className="grid gap-1 rounded-md border p-3 text-sm">
-									<div className="flex flex-wrap items-center gap-2">
-										<Badge variant={line.level === "error" ? "destructive" : "outline"}>
-											{t(LOG_LEVEL_KEYS[line.level])}
-										</Badge>
-										<time dateTime={new Date(line.at).toISOString()} className="text-muted-foreground text-xs">
-											{formatUtc(line.at)}
-										</time>
-									</div>
-									<p>{line.message}</p>
-									{Object.keys(line.details).length > 0 ? (
-										<pre className="bg-muted overflow-x-auto rounded p-2 text-xs">
-											{JSON.stringify(line.details, null, 2)}
-										</pre>
-									) : null}
-								</li>
-							))}
-						</ol>
-					)}
-				</div>
-			</SheetContent>
-		</Sheet>
+			<PageSheet
+				open={open}
+				onOpenChange={setOpen}
+				title={t("modules.log.title", { name: module.name })}
+				description={t("modules.log.description")}
+			>
+				{lines === null ? null : lines.length === 0 ? (
+					<p className="text-muted-foreground">{t("modules.log.empty")}</p>
+				) : (
+					<ol className="grid gap-3">
+						{lines.map((line) => (
+							<li key={line.id} className="grid gap-1 rounded-md border p-3 text-sm">
+								<div className="flex flex-wrap items-center gap-2">
+									<StateBadge tone={LOG_TONES[line.level]}>{t(LOG_LEVEL_KEYS[line.level])}</StateBadge>
+									<time dateTime={new Date(line.at).toISOString()} className="text-muted-foreground text-xs">
+										{formatUtc(line.at)}
+									</time>
+								</div>
+								<p>{line.message}</p>
+								{Object.keys(line.details).length > 0 ? (
+									<pre className="bg-muted overflow-x-auto rounded p-2 text-xs">
+										{JSON.stringify(line.details, null, 2)}
+									</pre>
+								) : null}
+							</li>
+						))}
+					</ol>
+				)}
+			</PageSheet>
+		</>
 	);
 }

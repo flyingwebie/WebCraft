@@ -1,6 +1,5 @@
 import { useRouter } from "@tanstack/react-router";
 import type { ApiClient } from "@webcraft/api";
-import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import {
 	Dialog,
@@ -23,7 +22,6 @@ import {
 } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
 import { CopyIcon, PlusIcon } from "lucide-react";
 import { type FormEvent, type RefObject, useId, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -34,6 +32,8 @@ import { formatUtc } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { useSensitiveAction } from "../identity-check.tsx";
 import { PageHeader } from "../PageHeader.tsx";
+import { SettingsCard, SettingsListRow, SettingsRows, StateBadge } from "../settings/layout.tsx";
+import { PageSheet } from "../shell/page.tsx";
 import { defaultToolsets, ToolsetChoice, useToolsetName } from "./ToolsetChoice.tsx";
 
 /** What the screen shows: the person's tokens, and the Workspaces (with their Sites) they may make one for. */
@@ -61,32 +61,32 @@ export function ApiTokensPage({ data }: { data: ApiTokensData }) {
 	const canCreate = data.workspaces.length > 0;
 	return (
 		<>
-			<PageHeader
-				heading={t("account.apiTokens.heading")}
-				action={
-					canCreate ? (
-						<Button ref={createButton} onClick={() => setCreating(true)}>
-							<PlusIcon aria-hidden="true" />
-							{t("account.apiTokens.create")}
-						</Button>
-					) : null
-				}
-			>
-				{t("account.apiTokens.intro")}
-			</PageHeader>
-			<div className="grid max-w-5xl grid-cols-1 gap-6">
-				{data.tokens.length === 0 ? (
-					<Empty className="border">
-						<EmptyHeader>
-							<EmptyTitle>{t("account.apiTokens.emptyTitle")}</EmptyTitle>
-							<EmptyDescription>
-								{canCreate ? t("account.apiTokens.emptyBody") : t("account.apiTokens.noWorkspaces")}
-							</EmptyDescription>
-						</EmptyHeader>
-					</Empty>
-				) : (
-					<TokenList tokens={data.tokens} toolsets={data.toolsets} />
-				)}
+			<PageHeader heading={t("account.apiTokens.heading")}>{t("account.apiTokens.intro")}</PageHeader>
+			<div className="grid grid-cols-1 gap-6">
+				<SettingsCard
+					title={t("account.apiTokens.listTitle")}
+					action={
+						canCreate ? (
+							<Button ref={createButton} variant="outline" onClick={() => setCreating(true)}>
+								<PlusIcon aria-hidden="true" />
+								{t("account.apiTokens.create")}
+							</Button>
+						) : null
+					}
+				>
+					{data.tokens.length === 0 ? (
+						<Empty className="border">
+							<EmptyHeader>
+								<EmptyTitle>{t("account.apiTokens.emptyTitle")}</EmptyTitle>
+								<EmptyDescription>
+									{canCreate ? t("account.apiTokens.emptyBody") : t("account.apiTokens.noWorkspaces")}
+								</EmptyDescription>
+							</EmptyHeader>
+						</Empty>
+					) : (
+						<TokenList tokens={data.tokens} toolsets={data.toolsets} />
+					)}
+				</SettingsCard>
 				<p className="text-muted-foreground text-sm">
 					{t("account.apiTokens.howTo", { path: "/api/v1", document: "/api/v1/openapi.json" })}
 				</p>
@@ -106,28 +106,12 @@ export function ApiTokensPage({ data }: { data: ApiTokensData }) {
 }
 
 function TokenList({ tokens, toolsets }: { tokens: TokenView[]; toolsets: ApiTokensData["toolsets"] }) {
-	const t = useT();
 	return (
-		<Table>
-			<TableHeader>
-				<TableRow>
-					<TableHead>{t("account.apiTokens.name")}</TableHead>
-					<TableHead>{t("account.apiTokens.reaches")}</TableHead>
-					<TableHead>{t("account.apiTokens.access")}</TableHead>
-					<TableHead>{t("account.apiTokens.expires")}</TableHead>
-					<TableHead>{t("account.apiTokens.lastUsed")}</TableHead>
-					<TableHead>{t("account.apiTokens.status")}</TableHead>
-					<TableHead>
-						<span className="sr-only">{t("account.apiTokens.actions")}</span>
-					</TableHead>
-				</TableRow>
-			</TableHeader>
-			<TableBody>
-				{tokens.map((token) => (
-					<TokenRow key={token.id} token={token} toolsets={toolsets} />
-				))}
-			</TableBody>
-		</Table>
+		<SettingsRows>
+			{tokens.map((token) => (
+				<TokenRow key={token.id} token={token} toolsets={toolsets} />
+			))}
+		</SettingsRows>
 	);
 }
 
@@ -141,33 +125,9 @@ function TokenRow({ token, toolsets }: { token: TokenView; toolsets: ApiTokensDa
 			? t("account.apiTokens.allSites")
 			: token.sites.map((site) => site.name).join(", ") || t("account.apiTokens.noSites");
 	return (
-		<TableRow>
-			<TableCell>
-				<span className="flex flex-col">
-					<span className="font-medium">{token.name}</span>
-					<span className="text-muted-foreground font-mono text-xs">
-						{t("account.apiTokens.hint", { hint: token.hint })}
-					</span>
-				</span>
-			</TableCell>
-			<TableCell>
-				<span className="flex flex-col">
-					<span>{token.workspace.name}</span>
-					<span className="text-muted-foreground text-xs">{sites}</span>
-				</span>
-			</TableCell>
-			<TableCell>
-				<span className="flex flex-col">
-					<span>{token.readOnly ? t("account.apiTokens.readOnly") : t("account.apiTokens.readWrite")}</span>
-					<span className="text-muted-foreground text-xs">
-						{token.toolsets.map((key) => nameOf(key, toolsets)).join(", ")}
-					</span>
-				</span>
-			</TableCell>
-			<TableCell>{token.expiresAt ? formatUtc(token.expiresAt) : t("account.apiTokens.never")}</TableCell>
-			<TableCell>{token.lastUsedAt ? formatUtc(token.lastUsedAt) : t("account.apiTokens.neverUsed")}</TableCell>
-			<TableCell>
-				<Badge variant={token.status === "active" ? "secondary" : "outline"}>
+		<SettingsListRow
+			badge={
+				<StateBadge tone={token.status === "active" ? "success" : "neutral"}>
 					{token.status === "active"
 						? t("account.apiTokens.active")
 						: token.status === "expired"
@@ -175,10 +135,28 @@ function TokenRow({ token, toolsets }: { token: TokenView; toolsets: ApiTokensDa
 							: token.revokedReason === "access"
 								? t("account.apiTokens.revokedAccess")
 								: t("account.apiTokens.revoked")}
-				</Badge>
-			</TableCell>
-			<TableCell className="text-end">
-				{token.status === "active" ? (
+				</StateBadge>
+			}
+			detail={
+				<div className="space-y-0.5">
+					<p className="font-mono">{t("account.apiTokens.hint", { hint: token.hint })}</p>
+					<p>
+						{token.workspace.name} · {sites}
+					</p>
+					<p>
+						{token.readOnly ? t("account.apiTokens.readOnly") : t("account.apiTokens.readWrite")} ·{" "}
+						{token.toolsets.map((key) => nameOf(key, toolsets)).join(", ")}
+					</p>
+					<p>
+						{t("account.apiTokens.expires")}:{" "}
+						{token.expiresAt ? formatUtc(token.expiresAt) : t("account.apiTokens.never")} ·{" "}
+						{t("account.apiTokens.lastUsed")}:{" "}
+						{token.lastUsedAt ? formatUtc(token.lastUsedAt) : t("account.apiTokens.neverUsed")}
+					</p>
+				</div>
+			}
+			actions={
+				token.status === "active" ? (
 					<Button
 						ref={revokeButton}
 						variant="outline"
@@ -188,12 +166,14 @@ function TokenRow({ token, toolsets }: { token: TokenView; toolsets: ApiTokensDa
 					>
 						{t("account.apiTokens.revoke")}
 					</Button>
-				) : null}
-				{revoking ? (
-					<RevokeTokenDialog token={token} onClose={() => setRevoking(false)} finalFocus={revokeButton} />
-				) : null}
-			</TableCell>
-		</TableRow>
+				) : null
+			}
+		>
+			<span>{token.name}</span>
+			{revoking ? (
+				<RevokeTokenDialog token={token} onClose={() => setRevoking(false)} finalFocus={revokeButton} />
+			) : null}
+		</SettingsListRow>
 	);
 }
 
@@ -268,164 +248,161 @@ function CreateTokenDialog({
 
 	const invalid = (field: "name" | "sites") => (problem?.field === field ? true : undefined);
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent
-				closeLabel={t("account.apiTokens.close")}
-				finalFocus={finalFocus}
-				className="max-h-[calc(100svh-2rem)] overflow-y-auto sm:max-w-xl"
-			>
-				<form onSubmit={submit} noValidate>
-					<DialogHeader>
-						<DialogTitle>{t("account.apiTokens.createTitle")}</DialogTitle>
-						<DialogDescription>{t("account.apiTokens.createIntro")}</DialogDescription>
-					</DialogHeader>
-					<FieldGroup className="my-6 gap-6">
-						<Field data-invalid={invalid("name")}>
-							<FieldLabel htmlFor={`${id}-name`}>{t("account.apiTokens.name")}</FieldLabel>
-							<Input
-								id={`${id}-name`}
-								value={name}
-								maxLength={100}
-								required
-								autoComplete="off"
-								onChange={(event) => setName(event.target.value)}
-								aria-invalid={invalid("name")}
-								aria-describedby={`${id}-name-help${problem?.field === "name" ? ` ${id}-name-error` : ""}`}
-							/>
-							<FieldDescription id={`${id}-name-help`}>{t("account.apiTokens.nameHelp")}</FieldDescription>
-							{problem?.field === "name" ? <FieldError id={`${id}-name-error`}>{t(problem.message)}</FieldError> : null}
-						</Field>
-						<Field>
-							<FieldLabel htmlFor={`${id}-workspace`}>{t("account.apiTokens.workspace")}</FieldLabel>
-							<NativeSelect
-								id={`${id}-workspace`}
-								value={workspaceId}
-								onChange={(event) => {
-									setWorkspaceId(event.target.value);
-									setChosen(new Set());
-								}}
-							>
-								{workspaces.map((each) => (
-									<NativeSelectOption key={each.id} value={each.id}>
-										{each.name}
-									</NativeSelectOption>
-								))}
-							</NativeSelect>
-						</Field>
-						<FieldSet data-invalid={invalid("sites")}>
-							<FieldLegend variant="label">{t("account.apiTokens.sites")}</FieldLegend>
-							<div className="flex flex-col gap-2">
-								<label className="flex items-center gap-2 text-sm">
-									<input
-										type="radio"
-										name={`${id}-reach`}
-										checked={reach === "all"}
-										onChange={() => setReach("all")}
-										className="accent-primary size-4"
-									/>
-									{t("account.apiTokens.allSitesOption")}
-								</label>
-								<label className="flex items-center gap-2 text-sm">
-									<input
-										type="radio"
-										name={`${id}-reach`}
-										checked={reach === "chosen"}
-										onChange={() => setReach("chosen")}
-										className="accent-primary size-4"
-									/>
-									{t("account.apiTokens.chosenSitesOption")}
-								</label>
-								{reach === "chosen" ? (
-									<div className="flex flex-col gap-2 ps-6">
-										{(workspace?.sites ?? []).map((site) => (
-											<label key={site.id} className="flex items-center gap-2 text-sm">
-												<input
-													type="checkbox"
-													checked={chosen.has(site.id)}
-													onChange={(event) =>
-														setChosen((current) => {
-															const next = new Set(current);
-															if (event.target.checked) next.add(site.id);
-															else next.delete(site.id);
-															return next;
-														})
-													}
-													aria-describedby={problem?.field === "sites" ? `${id}-sites-error` : undefined}
-													className="accent-primary size-4"
-												/>
-												{site.name}
-											</label>
-										))}
-										{workspace?.sites.length === 0 ? (
-											<p className="text-muted-foreground text-sm">{t("account.apiTokens.noSitesToChoose")}</p>
-										) : null}
-									</div>
-								) : null}
-							</div>
-							{problem?.field === "sites" ? (
-								<FieldError id={`${id}-sites-error`}>{t(problem.message)}</FieldError>
-							) : null}
-						</FieldSet>
-						<FieldSet>
-							<FieldLegend variant="label">{t("account.apiTokens.access")}</FieldLegend>
-							<div className="flex flex-col gap-2">
-								<label className="flex items-center gap-2 text-sm">
-									<input
-										type="radio"
-										name={`${id}-access`}
-										checked={!readOnly}
-										onChange={() => setReadOnly(false)}
-										className="accent-primary size-4"
-									/>
-									{t("account.apiTokens.readWrite")}
-								</label>
-								<label className="flex items-center gap-2 text-sm">
-									<input
-										type="radio"
-										name={`${id}-access`}
-										checked={readOnly}
-										onChange={() => setReadOnly(true)}
-										className="accent-primary size-4"
-									/>
-									{t("account.apiTokens.readOnly")}
-								</label>
-							</div>
-						</FieldSet>
-						<ToolsetChoice
-							offered={offered}
-							chosen={toolsets}
-							onChange={setToolsets}
-							problem={problem?.field === "toolsets" ? problem.message : null}
+		<PageSheet
+			open
+			onOpenChange={(open) => !open && onClose()}
+			title={t("account.apiTokens.createTitle")}
+			description={t("account.apiTokens.createIntro")}
+			finalFocus={finalFocus}
+			className="data-[side=right]:sm:max-w-xl"
+			footer={
+				<>
+					<Button type="button" variant="outline" onClick={onClose}>
+						{t("account.apiTokens.cancel")}
+					</Button>
+					<Button type="submit" form={`${id}-form`} disabled={busy}>
+						{t("account.apiTokens.createSubmit")}
+					</Button>
+				</>
+			}
+		>
+			<form id={`${id}-form`} onSubmit={submit} noValidate>
+				<FieldGroup className="gap-6">
+					<Field data-invalid={invalid("name")}>
+						<FieldLabel htmlFor={`${id}-name`}>{t("account.apiTokens.name")}</FieldLabel>
+						<Input
+							id={`${id}-name`}
+							value={name}
+							maxLength={100}
+							required
+							autoComplete="off"
+							onChange={(event) => setName(event.target.value)}
+							aria-invalid={invalid("name")}
+							aria-describedby={`${id}-name-help${problem?.field === "name" ? ` ${id}-name-error` : ""}`}
 						/>
-						<Field>
-							<FieldLabel htmlFor={`${id}-lifetime`}>{t("account.apiTokens.expires")}</FieldLabel>
-							<NativeSelect
-								id={`${id}-lifetime`}
-								value={lifetime}
-								onChange={(event) => setLifetime(event.target.value as (typeof LIFETIMES)[number]["value"])}
-								aria-describedby={`${id}-lifetime-help`}
-							>
-								{LIFETIMES.map((option) => (
-									<NativeSelectOption key={option.value} value={option.value}>
-										{t(option.label)}
-									</NativeSelectOption>
-								))}
-							</NativeSelect>
-							<FieldDescription id={`${id}-lifetime-help`}>{t("account.apiTokens.lifetimeHelp")}</FieldDescription>
-						</Field>
-						{problem?.field === null ? <FieldError>{t(problem.message)}</FieldError> : null}
-					</FieldGroup>
-					<DialogFooter>
-						<DialogClose render={<Button variant="outline" type="button" />}>
-							{t("account.apiTokens.cancel")}
-						</DialogClose>
-						<Button type="submit" disabled={busy}>
-							{t("account.apiTokens.createSubmit")}
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+						<FieldDescription id={`${id}-name-help`}>{t("account.apiTokens.nameHelp")}</FieldDescription>
+						{problem?.field === "name" ? <FieldError id={`${id}-name-error`}>{t(problem.message)}</FieldError> : null}
+					</Field>
+					<Field>
+						<FieldLabel htmlFor={`${id}-workspace`}>{t("account.apiTokens.workspace")}</FieldLabel>
+						<NativeSelect
+							id={`${id}-workspace`}
+							value={workspaceId}
+							onChange={(event) => {
+								setWorkspaceId(event.target.value);
+								setChosen(new Set());
+							}}
+						>
+							{workspaces.map((each) => (
+								<NativeSelectOption key={each.id} value={each.id}>
+									{each.name}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
+					</Field>
+					<FieldSet data-invalid={invalid("sites")}>
+						<FieldLegend variant="label">{t("account.apiTokens.sites")}</FieldLegend>
+						<div className="flex flex-col gap-2">
+							<label className="flex items-center gap-2 text-sm">
+								<input
+									type="radio"
+									name={`${id}-reach`}
+									checked={reach === "all"}
+									onChange={() => setReach("all")}
+									className="accent-primary size-4"
+								/>
+								{t("account.apiTokens.allSitesOption")}
+							</label>
+							<label className="flex items-center gap-2 text-sm">
+								<input
+									type="radio"
+									name={`${id}-reach`}
+									checked={reach === "chosen"}
+									onChange={() => setReach("chosen")}
+									className="accent-primary size-4"
+								/>
+								{t("account.apiTokens.chosenSitesOption")}
+							</label>
+							{reach === "chosen" ? (
+								<div className="flex flex-col gap-2 ps-6">
+									{(workspace?.sites ?? []).map((site) => (
+										<label key={site.id} className="flex items-center gap-2 text-sm">
+											<input
+												type="checkbox"
+												checked={chosen.has(site.id)}
+												onChange={(event) =>
+													setChosen((current) => {
+														const next = new Set(current);
+														if (event.target.checked) next.add(site.id);
+														else next.delete(site.id);
+														return next;
+													})
+												}
+												aria-describedby={problem?.field === "sites" ? `${id}-sites-error` : undefined}
+												className="accent-primary size-4"
+											/>
+											{site.name}
+										</label>
+									))}
+									{workspace?.sites.length === 0 ? (
+										<p className="text-muted-foreground text-sm">{t("account.apiTokens.noSitesToChoose")}</p>
+									) : null}
+								</div>
+							) : null}
+						</div>
+						{problem?.field === "sites" ? <FieldError id={`${id}-sites-error`}>{t(problem.message)}</FieldError> : null}
+					</FieldSet>
+					<FieldSet>
+						<FieldLegend variant="label">{t("account.apiTokens.access")}</FieldLegend>
+						<div className="flex flex-col gap-2">
+							<label className="flex items-center gap-2 text-sm">
+								<input
+									type="radio"
+									name={`${id}-access`}
+									checked={!readOnly}
+									onChange={() => setReadOnly(false)}
+									className="accent-primary size-4"
+								/>
+								{t("account.apiTokens.readWrite")}
+							</label>
+							<label className="flex items-center gap-2 text-sm">
+								<input
+									type="radio"
+									name={`${id}-access`}
+									checked={readOnly}
+									onChange={() => setReadOnly(true)}
+									className="accent-primary size-4"
+								/>
+								{t("account.apiTokens.readOnly")}
+							</label>
+						</div>
+					</FieldSet>
+					<ToolsetChoice
+						offered={offered}
+						chosen={toolsets}
+						onChange={setToolsets}
+						problem={problem?.field === "toolsets" ? problem.message : null}
+					/>
+					<Field>
+						<FieldLabel htmlFor={`${id}-lifetime`}>{t("account.apiTokens.expires")}</FieldLabel>
+						<NativeSelect
+							id={`${id}-lifetime`}
+							value={lifetime}
+							onChange={(event) => setLifetime(event.target.value as (typeof LIFETIMES)[number]["value"])}
+							aria-describedby={`${id}-lifetime-help`}
+						>
+							{LIFETIMES.map((option) => (
+								<NativeSelectOption key={option.value} value={option.value}>
+									{t(option.label)}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
+						<FieldDescription id={`${id}-lifetime-help`}>{t("account.apiTokens.lifetimeHelp")}</FieldDescription>
+					</Field>
+					{problem?.field === null ? <FieldError>{t(problem.message)}</FieldError> : null}
+				</FieldGroup>
+			</form>
+		</PageSheet>
 	);
 }
 

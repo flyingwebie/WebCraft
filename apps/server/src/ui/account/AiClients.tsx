@@ -1,6 +1,5 @@
 import { useRouter } from "@tanstack/react-router";
 import type { ApiClient } from "@webcraft/api";
-import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import {
 	Dialog,
@@ -12,7 +11,6 @@ import {
 	DialogTitle,
 } from "@webcraft/ui/components/dialog.tsx";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@webcraft/ui/components/empty.tsx";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
 import { type RefObject, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -21,6 +19,7 @@ import { errorMessage } from "../errors.ts";
 import { formatUtc } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { PageHeader } from "../PageHeader.tsx";
+import { SettingsCard, SettingsListRow, SettingsRows, StateBadge } from "../settings/layout.tsx";
 import { useToolsetName } from "./ToolsetChoice.tsx";
 
 /** What the screen shows: the AI clients the person approved. */
@@ -45,35 +44,23 @@ export function AiClientsPage({ data }: { data: AiClientsData }) {
 	return (
 		<>
 			<PageHeader heading={t("account.aiClients.heading")}>{t("account.aiClients.intro")}</PageHeader>
-			<div className="grid max-w-5xl grid-cols-1 gap-6">
-				{data.grants.length === 0 ? (
-					<Empty className="border">
-						<EmptyHeader>
-							<EmptyTitle>{t("account.aiClients.emptyTitle")}</EmptyTitle>
-							<EmptyDescription>{t("account.aiClients.emptyBody")}</EmptyDescription>
-						</EmptyHeader>
-					</Empty>
-				) : (
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead>{t("account.aiClients.client")}</TableHead>
-								<TableHead>{t("account.aiClients.reaches")}</TableHead>
-								<TableHead>{t("account.aiClients.access")}</TableHead>
-								<TableHead>{t("account.aiClients.lastUsed")}</TableHead>
-								<TableHead>{t("account.aiClients.status")}</TableHead>
-								<TableHead>
-									<span className="sr-only">{t("account.aiClients.actions")}</span>
-								</TableHead>
-							</TableRow>
-						</TableHeader>
-						<TableBody>
+			<div className="grid grid-cols-1 gap-6">
+				<SettingsCard title={t("account.aiClients.listTitle")}>
+					{data.grants.length === 0 ? (
+						<Empty className="border">
+							<EmptyHeader>
+								<EmptyTitle>{t("account.aiClients.emptyTitle")}</EmptyTitle>
+								<EmptyDescription>{t("account.aiClients.emptyBody")}</EmptyDescription>
+							</EmptyHeader>
+						</Empty>
+					) : (
+						<SettingsRows>
 							{data.grants.map((grant) => (
 								<GrantRow key={grant.id} grant={grant} />
 							))}
-						</TableBody>
-					</Table>
-				)}
+						</SettingsRows>
+					)}
+				</SettingsCard>
 				<p className="text-muted-foreground text-sm">{t("account.aiClients.howTo", { path: "/mcp" })}</p>
 			</div>
 		</>
@@ -94,44 +81,38 @@ function GrantRow({ grant }: { grant: GrantView }) {
 		grant.mayPublish ? t("account.aiClients.mayPublish") : null,
 	].filter((part): part is string => part !== null);
 	return (
-		<TableRow>
-			<TableCell>
-				<span className="flex flex-col">
-					<span className="font-medium">{grant.client.name}</span>
-					<span className="text-muted-foreground text-xs">
-						{grant.client.redirectHost === null
-							? t("account.aiClients.onDevice")
-							: t("account.aiClients.sendsBackTo", { host: grant.client.redirectHost })}
-					</span>
-					<span className="text-muted-foreground text-xs">
-						{t("account.aiClients.approvedAt", { date: formatUtc(grant.createdAt) })}
-					</span>
-				</span>
-			</TableCell>
-			<TableCell>
-				<span className="flex flex-col">
-					<span>{grant.workspace.name}</span>
-					<span className="text-muted-foreground text-xs">{sites}</span>
-				</span>
-			</TableCell>
-			<TableCell>
-				<span className="flex flex-col">
-					<span>{access.join(" · ")}</span>
-					<span className="text-muted-foreground text-xs">{grant.toolsets.map((key) => nameOf(key)).join(", ")}</span>
-				</span>
-			</TableCell>
-			<TableCell>{grant.lastUsedAt ? formatUtc(grant.lastUsedAt) : t("account.aiClients.neverUsed")}</TableCell>
-			<TableCell>
-				<Badge variant={grant.status === "active" ? "secondary" : "outline"}>
+		<SettingsListRow
+			badge={
+				<StateBadge tone={grant.status === "active" ? "success" : "neutral"}>
 					{grant.status === "active"
 						? t("account.aiClients.active")
 						: grant.status === "expired"
 							? t("account.aiClients.expired")
 							: t(REVOKED[grant.revokedReason ?? "person"])}
-				</Badge>
-			</TableCell>
-			<TableCell className="text-end">
-				{grant.status === "revoked" ? null : (
+				</StateBadge>
+			}
+			detail={
+				<div className="space-y-0.5">
+					<p>
+						{grant.client.redirectHost === null
+							? t("account.aiClients.onDevice")
+							: t("account.aiClients.sendsBackTo", { host: grant.client.redirectHost })}{" "}
+						· {t("account.aiClients.approvedAt", { date: formatUtc(grant.createdAt) })}
+					</p>
+					<p>
+						{grant.workspace.name} · {sites}
+					</p>
+					<p>
+						{access.join(" · ")} · {grant.toolsets.map((key) => nameOf(key)).join(", ")}
+					</p>
+					<p>
+						{t("account.aiClients.lastUsed")}:{" "}
+						{grant.lastUsedAt ? formatUtc(grant.lastUsedAt) : t("account.aiClients.neverUsed")}
+					</p>
+				</div>
+			}
+			actions={
+				grant.status === "revoked" ? null : (
 					<Button
 						ref={revokeButton}
 						variant="outline"
@@ -141,10 +122,12 @@ function GrantRow({ grant }: { grant: GrantView }) {
 					>
 						{t("account.aiClients.revoke")}
 					</Button>
-				)}
-				{revoking ? <RevokeDialog grant={grant} onClose={() => setRevoking(false)} finalFocus={revokeButton} /> : null}
-			</TableCell>
-		</TableRow>
+				)
+			}
+		>
+			<span>{grant.client.name}</span>
+			{revoking ? <RevokeDialog grant={grant} onClose={() => setRevoking(false)} finalFocus={revokeButton} /> : null}
+		</SettingsListRow>
 	);
 }
 

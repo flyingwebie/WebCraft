@@ -1,15 +1,6 @@
 import { Link, useRouter } from "@tanstack/react-router";
 import type { DeliveryAttemptView, DeliveryPage, DeliveryView, WebhookEvent, WebhookView } from "@webcraft/core";
-import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import {
-	Card,
-	CardAction,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@webcraft/ui/components/card.tsx";
 import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
 import {
 	Dialog,
@@ -51,7 +42,7 @@ import {
 	SendIcon,
 	TrashIcon,
 } from "lucide-react";
-import { type FormEvent, type RefObject, useEffect, useId, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, type RefObject, useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../api.ts";
@@ -60,6 +51,8 @@ import { formatUtc } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { useSensitiveAction } from "../identity-check.tsx";
 import { PageHeader } from "../PageHeader.tsx";
+import { SettingsCard, SettingsListRow, SettingsRows, StateBadge, type StateTone } from "../settings/layout.tsx";
+import { PageSheet } from "../shell/page.tsx";
 
 /** What the screen shows: the Site's Webhooks, the events a Webhook can receive, and one Webhook's delivery log. */
 export type WebhooksData = {
@@ -82,20 +75,8 @@ export function WebhooksPage({ siteId, data, canEdit }: { siteId: string; data: 
 	const [shownSecret, setShownSecret] = useState<{ name: string; secret: string } | null>(null);
 	return (
 		<>
-			<PageHeader
-				heading={t("webhooks.heading")}
-				action={
-					canEdit ? (
-						<Button ref={addButton} onClick={() => setAdding(true)}>
-							<PlusIcon aria-hidden="true" />
-							{t("webhooks.add")}
-						</Button>
-					) : null
-				}
-			>
-				{t("webhooks.intro")}
-			</PageHeader>
-			<div className="grid max-w-5xl grid-cols-1 gap-8">
+			<PageHeader heading={t("webhooks.heading")}>{t("webhooks.intro")}</PageHeader>
+			<div className="grid grid-cols-1 gap-6">
 				<WebhookList
 					siteId={siteId}
 					webhooks={data.webhooks}
@@ -103,6 +84,14 @@ export function WebhooksPage({ siteId, data, canEdit }: { siteId: string; data: 
 					selected={data.log?.webhook.id ?? null}
 					canEdit={canEdit}
 					onSecret={setShownSecret}
+					add={
+						canEdit ? (
+							<Button ref={addButton} variant="outline" onClick={() => setAdding(true)}>
+								<PlusIcon aria-hidden="true" />
+								{t("webhooks.add")}
+							</Button>
+						) : null
+					}
 				/>
 				{data.log ? <DeliveryLog siteId={siteId} log={data.log} /> : null}
 				{canEdit ? <Verifying /> : null}
@@ -132,6 +121,7 @@ function WebhookList({
 	selected,
 	canEdit,
 	onSecret,
+	add,
 }: {
 	siteId: string;
 	webhooks: readonly WebhookView[];
@@ -139,86 +129,77 @@ function WebhookList({
 	selected: string | null;
 	canEdit: boolean;
 	onSecret: ShowSecret;
+	/** The card's Add Webhook button, for Staff. */
+	add: ReactNode;
 }) {
 	const t = useT();
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("webhooks.listTitle")}</h2>
-				</CardTitle>
-				<CardDescription>{t("webhooks.listIntro")}</CardDescription>
-			</CardHeader>
-			<CardContent>
-				{webhooks.length === 0 ? (
-					<p className="text-muted-foreground text-sm">{t(canEdit ? "webhooks.none" : "webhooks.noneMember")}</p>
-				) : (
-					<Table>
-						<TableHeader>
-							<TableRow>
-								<TableHead>{t("webhooks.webhook")}</TableHead>
-								<TableHead>{t("webhooks.receives")}</TableHead>
-								<TableHead>{t("webhooks.status")}</TableHead>
-								<TableHead>{t("webhooks.lastDelivery")}</TableHead>
-								{canEdit ? (
-									<TableHead>
-										<span className="sr-only">{t("webhooks.actions")}</span>
-									</TableHead>
-								) : null}
-							</TableRow>
-						</TableHeader>
-						<TableBody>
-							{webhooks.map((webhook) => (
-								<TableRow key={webhook.id} aria-current={webhook.id === selected ? "true" : undefined}>
-									<TableCell className="max-w-80">
-										<div className="font-medium">{webhook.name}</div>
-										<div className="text-muted-foreground font-mono text-xs break-all">{webhook.url}</div>
+		<SettingsCard title={t("webhooks.listTitle")} description={t("webhooks.listIntro")} action={add}>
+			{webhooks.length === 0 ? (
+				<p className="text-muted-foreground text-sm">{t(canEdit ? "webhooks.none" : "webhooks.noneMember")}</p>
+			) : (
+				<SettingsRows>
+					{webhooks.map((webhook) => (
+						<div
+							key={webhook.id}
+							aria-current={webhook.id === selected ? "true" : undefined}
+							className="py-4 first:pt-0 last:pb-0"
+						>
+							<SettingsListRow
+								badge={<WebhookStatus webhook={webhook} />}
+								detail={
+									<div className="space-y-0.5">
+										<p className="font-mono break-all">{webhook.url}</p>
 										{webhook.secret?.set ? (
-											<div className="text-muted-foreground text-xs">
+											<p>
 												{webhook.secret.lastFour
 													? t("webhooks.secretSet", { lastFour: webhook.secret.lastFour })
 													: t("webhooks.secretSetShort")}
-											</div>
+											</p>
 										) : null}
-									</TableCell>
-									<TableCell>{webhook.events.map((event) => eventName(t, event)).join(", ")}</TableCell>
-									<TableCell>
-										<WebhookStatus webhook={webhook} />
-									</TableCell>
-									<TableCell>
-										<div className="grid gap-1">
+										<p>
+											{t("webhooks.receives")}: {webhook.events.map((event) => eventName(t, event)).join(", ")}
+										</p>
+										{webhook.status === "on" && webhook.failuresInARow > 0 ? (
+											<p>{t("webhooks.failuresInARow", { count: webhook.failuresInARow })}</p>
+										) : null}
+										<p className="flex flex-wrap items-center gap-2">
+											{t("webhooks.lastDelivery")}:{" "}
 											{webhook.lastDelivery ? (
-												<span className="flex flex-wrap items-center gap-2 text-sm">
+												<>
 													<DeliveryStatus status={webhook.lastDelivery.status} />
-													<span className="text-muted-foreground">{formatUtc(webhook.lastDelivery.at)}</span>
-												</span>
+													<span>{formatUtc(webhook.lastDelivery.at)}</span>
+												</>
 											) : (
-												<span className="text-muted-foreground text-sm">{t("webhooks.noDeliveries")}</span>
+												<span>{t("webhooks.noDeliveries")}</span>
 											)}
-											{canEdit ? (
-												<Link
-													to="/sites/$siteId/webhooks"
-													params={{ siteId }}
-													search={{ webhook: webhook.id }}
-													className="inline-flex min-h-6 items-center text-sm underline underline-offset-4"
-												>
-													{t("webhooks.openLog", { name: webhook.name })}
-												</Link>
-											) : null}
-										</div>
-									</TableCell>
-									{canEdit ? (
-										<TableCell className="text-end">
-											<WebhookActions siteId={siteId} webhook={webhook} events={events} onSecret={onSecret} />
-										</TableCell>
-									) : null}
-								</TableRow>
-							))}
-						</TableBody>
-					</Table>
-				)}
-			</CardContent>
-		</Card>
+										</p>
+										{canEdit ? (
+											<Link
+												to="/sites/$siteId/webhooks"
+												params={{ siteId }}
+												search={{ webhook: webhook.id }}
+												className="text-foreground inline-flex min-h-6 items-center underline underline-offset-4"
+											>
+												{t("webhooks.openLog", { name: webhook.name })}
+											</Link>
+										) : null}
+									</div>
+								}
+								actions={
+									canEdit ? (
+										<WebhookActions siteId={siteId} webhook={webhook} events={events} onSecret={onSecret} />
+									) : null
+								}
+								className="py-0"
+							>
+								<span>{webhook.name}</span>
+							</SettingsListRow>
+						</div>
+					))}
+				</SettingsRows>
+			)}
+		</SettingsCard>
 	);
 }
 
@@ -230,36 +211,25 @@ function eventName(t: ReturnType<typeof useT>, event: string): string {
 
 function WebhookStatus({ webhook }: { webhook: WebhookView }) {
 	const t = useT();
-	if (webhook.status === "on") {
-		return (
-			<span className="grid gap-1">
-				<Badge variant="secondary">{t("webhooks.on")}</Badge>
-				{webhook.failuresInARow > 0 ? (
-					<span className="text-muted-foreground text-xs">
-						{t("webhooks.failuresInARow", { count: webhook.failuresInARow })}
-					</span>
-				) : null}
-			</span>
-		);
-	}
+	if (webhook.status === "on") return <StateBadge tone="success">{t("webhooks.on")}</StateBadge>;
 	return webhook.offReason === "failing" ? (
-		<Badge variant="destructive">{t("webhooks.offFailing")}</Badge>
+		<StateBadge tone="danger">{t("webhooks.offFailing")}</StateBadge>
 	) : (
-		<Badge variant="outline">{t("webhooks.off")}</Badge>
+		<StateBadge>{t("webhooks.off")}</StateBadge>
 	);
 }
 
-const DELIVERY_STATUS: Record<string, { key: MessageKey; variant: "secondary" | "outline" | "destructive" }> = {
-	queued: { key: "webhooks.deliveryStatus.queued", variant: "outline" },
-	retrying: { key: "webhooks.deliveryStatus.retrying", variant: "outline" },
-	delivered: { key: "webhooks.deliveryStatus.delivered", variant: "secondary" },
-	failed: { key: "webhooks.deliveryStatus.failed", variant: "destructive" },
+const DELIVERY_STATUS: Record<string, { key: MessageKey; tone: StateTone }> = {
+	queued: { key: "webhooks.deliveryStatus.queued", tone: "neutral" },
+	retrying: { key: "webhooks.deliveryStatus.retrying", tone: "warning" },
+	delivered: { key: "webhooks.deliveryStatus.delivered", tone: "success" },
+	failed: { key: "webhooks.deliveryStatus.failed", tone: "danger" },
 };
 
 function DeliveryStatus({ status }: { status: string }) {
 	const t = useT();
 	const shown = DELIVERY_STATUS[status] ?? DELIVERY_STATUS.queued;
-	return shown ? <Badge variant={shown.variant}>{t(shown.key)}</Badge> : null;
+	return shown ? <StateBadge tone={shown.tone}>{t(shown.key)}</StateBadge> : null;
 }
 
 /** What an attempt (or a delivery's last one) came to, in words: the receiver's status, or what went wrong. */
@@ -456,105 +426,107 @@ function WebhookDialog({
 		}
 	};
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent closeLabel={t("webhooks.close")} finalFocus={finalFocus} className="sm:max-w-xl">
-				<form onSubmit={save} noValidate>
-					<DialogHeader>
-						<DialogTitle>
-							{webhook ? t("webhooks.editTitle", { name: webhook.name }) : t("webhooks.addTitle")}
-						</DialogTitle>
-						<DialogDescription>{t("webhooks.dialogIntro")}</DialogDescription>
-					</DialogHeader>
-					<FieldGroup className="my-6 gap-5">
-						<Field>
-							<FieldLabel htmlFor={`${id}-name`}>{t("webhooks.name")}</FieldLabel>
+		<PageSheet
+			open
+			onOpenChange={(open) => !open && onClose()}
+			title={webhook ? t("webhooks.editTitle", { name: webhook.name }) : t("webhooks.addTitle")}
+			description={t("webhooks.dialogIntro")}
+			finalFocus={finalFocus}
+			footer={
+				<>
+					<Button type="button" variant="outline" onClick={onClose}>
+						{t("webhooks.cancel")}
+					</Button>
+					<Button type="submit" form={`${id}-form`} disabled={busy || !url.trim() || events.length === 0}>
+						{webhook ? t("webhooks.save") : t("webhooks.add")}
+					</Button>
+				</>
+			}
+		>
+			<form id={`${id}-form`} onSubmit={save} noValidate>
+				<FieldGroup className="gap-5">
+					<Field>
+						<FieldLabel htmlFor={`${id}-name`}>{t("webhooks.name")}</FieldLabel>
+						<Input
+							id={`${id}-name`}
+							value={name}
+							maxLength={100}
+							onChange={(change) => setName(change.target.value)}
+							aria-describedby={`${id}-name-help`}
+						/>
+						<FieldDescription id={`${id}-name-help`}>{t("webhooks.nameHelp")}</FieldDescription>
+					</Field>
+					<Field data-invalid={problem?.field === "url" ? true : undefined}>
+						<FieldLabel htmlFor={`${id}-url`}>{t("webhooks.url")}</FieldLabel>
+						<Input
+							id={`${id}-url`}
+							type="url"
+							value={url}
+							required
+							maxLength={2048}
+							spellCheck={false}
+							className="font-mono"
+							placeholder="https://"
+							onChange={(change) => setUrl(change.target.value)}
+							aria-describedby={`${id}-url-help${problem?.field === "url" ? ` ${id}-url-error` : ""}`}
+							aria-invalid={problem?.field === "url" ? true : undefined}
+						/>
+						<FieldDescription id={`${id}-url-help`}>{t("webhooks.urlHelp")}</FieldDescription>
+						{problem?.field === "url" ? <FieldError id={`${id}-url-error`}>{t(problem.message)}</FieldError> : null}
+					</Field>
+					<FieldSet>
+						<FieldLegend variant="label">{t("webhooks.receives")}</FieldLegend>
+						{available.map((event) => (
+							<Field key={event} orientation="horizontal">
+								<Checkbox
+									id={`${id}-event-${event}`}
+									checked={events.includes(event)}
+									onCheckedChange={(checked) =>
+										setEvents((current) =>
+											checked === true ? [...new Set([...current, event])] : current.filter((each) => each !== event),
+										)
+									}
+									aria-describedby={`${id}-event-${event}-help`}
+								/>
+								<div className="grid gap-1">
+									<FieldLabel htmlFor={`${id}-event-${event}`}>{eventName(t, event)}</FieldLabel>
+									<FieldDescription id={`${id}-event-${event}-help`}>
+										{event === "publish"
+											? t("webhooks.eventHelp.publish")
+											: event === "unpublish"
+												? t("webhooks.eventHelp.unpublish")
+												: event === "formSubmitted"
+													? t("webhooks.eventHelp.formSubmitted")
+													: null}
+									</FieldDescription>
+								</div>
+							</Field>
+						))}
+					</FieldSet>
+					{webhook ? null : (
+						<Field data-invalid={problem?.field === "secret" ? true : undefined}>
+							<FieldLabel htmlFor={`${id}-secret`}>{t("webhooks.secret")}</FieldLabel>
 							<Input
-								id={`${id}-name`}
-								value={name}
-								maxLength={100}
-								onChange={(change) => setName(change.target.value)}
-								aria-describedby={`${id}-name-help`}
-							/>
-							<FieldDescription id={`${id}-name-help`}>{t("webhooks.nameHelp")}</FieldDescription>
-						</Field>
-						<Field data-invalid={problem?.field === "url" ? true : undefined}>
-							<FieldLabel htmlFor={`${id}-url`}>{t("webhooks.url")}</FieldLabel>
-							<Input
-								id={`${id}-url`}
-								type="url"
-								value={url}
-								required
-								maxLength={2048}
+								id={`${id}-secret`}
+								type="password"
+								autoComplete="off"
+								value={secret}
+								maxLength={200}
 								spellCheck={false}
 								className="font-mono"
-								placeholder="https://"
-								onChange={(change) => setUrl(change.target.value)}
-								aria-describedby={`${id}-url-help${problem?.field === "url" ? ` ${id}-url-error` : ""}`}
-								aria-invalid={problem?.field === "url" ? true : undefined}
+								onChange={(change) => setSecret(change.target.value)}
+								aria-describedby={`${id}-secret-help${problem?.field === "secret" ? ` ${id}-secret-error` : ""}`}
+								aria-invalid={problem?.field === "secret" ? true : undefined}
 							/>
-							<FieldDescription id={`${id}-url-help`}>{t("webhooks.urlHelp")}</FieldDescription>
-							{problem?.field === "url" ? <FieldError id={`${id}-url-error`}>{t(problem.message)}</FieldError> : null}
+							<FieldDescription id={`${id}-secret-help`}>{t("webhooks.secretHelp")}</FieldDescription>
+							{problem?.field === "secret" ? (
+								<FieldError id={`${id}-secret-error`}>{t(problem.message)}</FieldError>
+							) : null}
 						</Field>
-						<FieldSet>
-							<FieldLegend variant="label">{t("webhooks.receives")}</FieldLegend>
-							{available.map((event) => (
-								<Field key={event} orientation="horizontal">
-									<Checkbox
-										id={`${id}-event-${event}`}
-										checked={events.includes(event)}
-										onCheckedChange={(checked) =>
-											setEvents((current) =>
-												checked === true ? [...new Set([...current, event])] : current.filter((each) => each !== event),
-											)
-										}
-										aria-describedby={`${id}-event-${event}-help`}
-									/>
-									<div className="grid gap-1">
-										<FieldLabel htmlFor={`${id}-event-${event}`}>{eventName(t, event)}</FieldLabel>
-										<FieldDescription id={`${id}-event-${event}-help`}>
-											{event === "publish"
-												? t("webhooks.eventHelp.publish")
-												: event === "unpublish"
-													? t("webhooks.eventHelp.unpublish")
-													: event === "formSubmitted"
-														? t("webhooks.eventHelp.formSubmitted")
-														: null}
-										</FieldDescription>
-									</div>
-								</Field>
-							))}
-						</FieldSet>
-						{webhook ? null : (
-							<Field data-invalid={problem?.field === "secret" ? true : undefined}>
-								<FieldLabel htmlFor={`${id}-secret`}>{t("webhooks.secret")}</FieldLabel>
-								<Input
-									id={`${id}-secret`}
-									type="password"
-									autoComplete="off"
-									value={secret}
-									maxLength={200}
-									spellCheck={false}
-									className="font-mono"
-									onChange={(change) => setSecret(change.target.value)}
-									aria-describedby={`${id}-secret-help${problem?.field === "secret" ? ` ${id}-secret-error` : ""}`}
-									aria-invalid={problem?.field === "secret" ? true : undefined}
-								/>
-								<FieldDescription id={`${id}-secret-help`}>{t("webhooks.secretHelp")}</FieldDescription>
-								{problem?.field === "secret" ? (
-									<FieldError id={`${id}-secret-error`}>{t(problem.message)}</FieldError>
-								) : null}
-							</Field>
-						)}
-					</FieldGroup>
-					<DialogFooter>
-						<DialogClose render={<Button variant="outline" type="button" />}>{t("webhooks.cancel")}</DialogClose>
-						<Button type="submit" disabled={busy || !url.trim() || events.length === 0}>
-							{webhook ? t("webhooks.save") : t("webhooks.add")}
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+					)}
+				</FieldGroup>
+			</form>
+		</PageSheet>
 	);
 }
 
@@ -776,57 +748,52 @@ function DeliveryLog({ siteId, log }: { siteId: string; log: NonNullable<Webhook
 	const t = useT();
 	const { webhook, page, before } = log;
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("webhooks.logTitle", { name: webhook.name })}</h2>
-				</CardTitle>
-				<CardDescription>{t("webhooks.logIntro")}</CardDescription>
-				{before ? (
-					<CardAction>
-						<Button
-							variant="outline"
-							size="sm"
-							render={<Link to="/sites/$siteId/webhooks" params={{ siteId }} search={{ webhook: webhook.id }} />}
-							nativeButton={false}
-						>
-							{t("webhooks.newest")}
-						</Button>
-					</CardAction>
-				) : null}
-			</CardHeader>
-			<CardContent className="grid gap-4">
-				{page.deliveries.length === 0 ? (
-					<p className="text-muted-foreground text-sm">{t("webhooks.noDeliveriesYet")}</p>
-				) : (
-					<ul className="grid gap-2">
-						{page.deliveries.map((delivery) => (
-							<li key={delivery.id}>
-								<Delivery siteId={siteId} webhook={webhook} delivery={delivery} />
-							</li>
-						))}
-					</ul>
-				)}
-				{page.next ? (
-					<div>
-						<Button
-							variant="outline"
-							size="sm"
-							render={
-								<Link
-									to="/sites/$siteId/webhooks"
-									params={{ siteId }}
-									search={{ webhook: webhook.id, before: page.next }}
-								/>
-							}
-							nativeButton={false}
-						>
-							{t("webhooks.older")}
-						</Button>
-					</div>
-				) : null}
-			</CardContent>
-		</Card>
+		<SettingsCard
+			title={t("webhooks.logTitle", { name: webhook.name })}
+			description={t("webhooks.logIntro")}
+			action={
+				before ? (
+					<Button
+						variant="outline"
+						size="sm"
+						render={<Link to="/sites/$siteId/webhooks" params={{ siteId }} search={{ webhook: webhook.id }} />}
+						nativeButton={false}
+					>
+						{t("webhooks.newest")}
+					</Button>
+				) : null
+			}
+		>
+			{page.deliveries.length === 0 ? (
+				<p className="text-muted-foreground text-sm">{t("webhooks.noDeliveriesYet")}</p>
+			) : (
+				<ul className="grid gap-2">
+					{page.deliveries.map((delivery) => (
+						<li key={delivery.id}>
+							<Delivery siteId={siteId} webhook={webhook} delivery={delivery} />
+						</li>
+					))}
+				</ul>
+			)}
+			{page.next ? (
+				<div>
+					<Button
+						variant="outline"
+						size="sm"
+						render={
+							<Link
+								to="/sites/$siteId/webhooks"
+								params={{ siteId }}
+								search={{ webhook: webhook.id, before: page.next }}
+							/>
+						}
+						nativeButton={false}
+					>
+						{t("webhooks.older")}
+					</Button>
+				</div>
+			) : null}
+		</SettingsCard>
 	);
 }
 
@@ -945,23 +912,13 @@ function prettyJson(body: string): string {
 function Verifying() {
 	const t = useT();
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("webhooks.verifyTitle")}</h2>
-				</CardTitle>
-				<CardDescription>{t("webhooks.verifyIntro")}</CardDescription>
-			</CardHeader>
-			<CardContent className="grid gap-3 text-sm">
-				<pre className="bg-muted/40 rounded p-3 font-mono text-xs break-all whitespace-pre-wrap">
-					{
-						"WebCraft-Signature: t=<seconds>,v1=<HMAC-SHA256>\nWebCraft-Delivery: <delivery id>\nWebCraft-Event: publish"
-					}
-				</pre>
-				<p>{t("webhooks.verifySignature")}</p>
-				<p>{t("webhooks.verifyDelivery")}</p>
-				<p>{t("webhooks.verifyRetries")}</p>
-			</CardContent>
-		</Card>
+		<SettingsCard title={t("webhooks.verifyTitle")} description={t("webhooks.verifyIntro")}>
+			<pre className="bg-muted/40 rounded p-3 font-mono text-xs break-all whitespace-pre-wrap">
+				{"WebCraft-Signature: t=<seconds>,v1=<HMAC-SHA256>\nWebCraft-Delivery: <delivery id>\nWebCraft-Event: publish"}
+			</pre>
+			<p>{t("webhooks.verifySignature")}</p>
+			<p>{t("webhooks.verifyDelivery")}</p>
+			<p>{t("webhooks.verifyRetries")}</p>
+		</SettingsCard>
 	);
 }

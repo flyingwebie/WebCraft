@@ -590,7 +590,8 @@
 			"off": "Il controllo degli aggiornamenti è spento (WEBCRAFT_UPDATE_FEED=off).",
 			"problem": "L'ultimo controllo non ha potuto leggere il feed delle versioni.",
 			"notes": "Note di rilascio"
-		}
+		},
+		"installCard": "Installazione"
 	},
 	"securitySettings": {
 		"pageTitle": "Sicurezza",
@@ -598,15 +599,16 @@
 		"intro": "Come l'Install protegge gli account delle persone.",
 		"leakedPasswordCheck": "Controlla le nuove password negli elenchi di password trapelate",
 		"leakedPasswordCheckHelp": "Dal server escono solo i primi 5 caratteri dell'hash SHA-1 della password, quindi la password non viene mai inviata. Se il servizio non è raggiungibile, la password viene accettata. Disattiva il controllo per un'Install sempre offline.",
-		"save": "Salva",
-		"saved": "Salvato.",
 		"requireTwoFactor": "Rendi obbligatoria l'autenticazione a due fattori per tutti",
 		"requireTwoFactorHelp": "Chi non ce l'ha, Staff compreso, deve configurarla subito dopo l'accesso e non può fare altro finché non l'ha fatto. I token API continuano a funzionare.",
 		"requireTwoFactorOwnFirst": "Aggiungi prima l'autenticazione a due fattori al tuo account (Il tuo account).",
 		"auditRetention": "Conserva le voci dell'Audit log per",
 		"auditRetentionHelp": "Le voci più vecchie vengono rimosse ogni giorno, per sempre. Per modificarlo devi confermare chi sei.",
 		"auditRetentionDays": "{days, plural, one {# giorno} other {# giorni}}",
-		"auditRetentionYears": "{years, plural, one {# anno} other {# anni}}"
+		"auditRetentionYears": "{years, plural, one {# anno} other {# anni}}",
+		"signInCard": "Accesso",
+		"signInCardIntro": "Come le persone dimostrano chi sono.",
+		"auditCard": "Audit log"
 	},
 	"storageSettings": {
 		"pageTitle": "Archiviazione",
@@ -666,9 +668,7 @@
 			"theme": "Aspetto",
 			"themeSystem": "Come questo dispositivo",
 			"themeLight": "Chiaro",
-			"themeDark": "Scuro",
-			"save": "Salva",
-			"saved": "Salvato."
+			"themeDark": "Scuro"
 		},
 		"password": {
 			"heading": "Password",
@@ -684,10 +684,7 @@
 		"sessions": {
 			"heading": "Sessioni",
 			"intro": "I browser con cui hai effettuato l'accesso al tuo account. Disconnetti quelli che non riconosci.",
-			"browser": "Browser",
-			"network": "Rete",
 			"lastUsed": "Ultimo utilizzo",
-			"actions": "Azioni",
 			"deviceBoth": "{browser} su {os}",
 			"deviceOs": "Un browser su {os}",
 			"deviceUnknown": "Browser sconosciuto",
@@ -697,7 +694,10 @@
 			"signOutLabel": "Disconnetti {device}, usato l'ultima volta {lastUsed}",
 			"signedOut": "Disconnesso.",
 			"signOutOthers": "Disconnetti tutte le altre sessioni",
-			"signedOutOthers": "{count, plural, one {# altra sessione è stata disconnessa.} other {# altre sessioni sono state disconnesse.}}"
+			"signedOutOthers": "{count, plural, one {# altra sessione è stata disconnessa.} other {# altre sessioni sono state disconnesse.}}",
+			"signOutTitle": "Disconnettere {device}?",
+			"signOutOthersTitle": "Disconnettere {count, plural, one {l'altro browser} other {gli altri # browser}}?",
+			"signOutBody": "Chi lo usa deve accedere di nuovo. I token API e i client AI continuano a funzionare."
 		},
 		"twoFactor": {
 			"heading": "Autenticazione a due fattori",
@@ -708,9 +708,7 @@
 			"intro": "Scegli quali email di lavoro e di avviso ricevere.",
 			"security": "Le email di sicurezza, come inviti, reimpostazioni della password e avvisi sul tuo accesso, vengono sempre inviate.",
 			"work": "Lavoro",
-			"alerts": "Avvisi",
-			"save": "Salva",
-			"saved": "Salvato."
+			"alerts": "Avvisi"
 		},
 		"apiTokens": {
 			"pageTitle": "Token API",
@@ -726,7 +724,6 @@
 			"name": "Nome",
 			"nameHelp": "Cosa lo usa, per esempio Script di deploy, così sai quale token revocare.",
 			"nameRequired": "Dai un nome al token.",
-			"reaches": "Raggiunge",
 			"workspace": "Workspace",
 			"sites": "Siti",
 			"allSites": "Ogni Sito",
@@ -747,12 +744,10 @@
 			"never": "Mai",
 			"lastUsed": "Ultimo uso",
 			"neverUsed": "Non ancora",
-			"status": "Stato",
 			"active": "Attivo",
 			"expired": "Scaduto",
 			"revoked": "Revocato",
 			"revokedAccess": "Revocato: accesso terminato",
-			"actions": "Azioni",
 			"hint": "…{hint}",
 			"createTitle": "Crea un token API",
 			"createIntro": "Il token agisce come te: può fare ciò che puoi fare ora nel Workspace e si ferma quando il tuo accesso termina.",
@@ -769,7 +764,8 @@
 			"revokeLabel": "Revoca {name}",
 			"revokeTitle": "Revocare {name}?",
 			"revokeText": "Script e client AI che lo usano vengono rifiutati dalla richiesta successiva. Non si può annullare.",
-			"revokedToast": "{name} è stato revocato."
+			"revokedToast": "{name} è stato revocato.",
+			"listTitle": "I tuoi token"
 		},
 		"aiClients": {
 			"pageTitle": "Client AI",
@@ -780,13 +776,8 @@
 			"emptyTitle": "Ancora nessun client AI",
 			"emptyBody": "Quando un client AI chiede di lavorare come te, lo approvi in una pagina a cui ti manda. Poi compare qui.",
 			"howTo": "I client AI si collegano a {path} su questo indirizzo e ti chiedono di approvarli.",
-			"client": "Client AI",
-			"reaches": "Raggiunge",
-			"access": "Accesso",
 			"lastUsed": "Ultimo uso",
 			"neverUsed": "Non ancora",
-			"status": "Stato",
-			"actions": "Azioni",
 			"allSites": "Tutti i Siti",
 			"noSites": "Nessun Sito rimasto",
 			"readWrite": "Lettura e modifica",
@@ -807,7 +798,8 @@
 			"revokeText": "Viene rifiutato dalla prossima richiesta e dovrà chiederti di nuovo l'approvazione per tornare. Non si può annullare.",
 			"revokedToast": "{name} è stato revocato.",
 			"cancel": "Annulla",
-			"close": "Chiudi"
+			"close": "Chiudi",
+			"listTitle": "Client AI approvati"
 		}
 	},
 	"identityCheck": {
@@ -889,16 +881,11 @@
 			"portInvalid": "Inserisci una porta da 1 a 65535.",
 			"emailInvalid": "Inserisci un indirizzo email come nome@example.com."
 		},
-		"save": "Salva",
-		"discard": "Annulla le modifiche",
-		"saved": "Salvato.",
 		"siteServers": {
 			"heading": "Server di posta dei Siti",
 			"intro": "Un Sito può inviare le sue email da un server proprio, che lo Staff imposta in Sito › Email.",
 			"allowPrivate": "Consenti ai Siti di usare server di posta nella rete di questa Installazione",
-			"allowPrivateHelp": "Per un relay di posta che l'agenzia fa girare sui propri server. Se è disattivato, il server di un Sito deve essere su internet: lo Staff ne sceglie host e porta, e la sua email di prova potrebbe altrimenti raggiungere qualsiasi cosa in quella rete.",
-			"save": "Salva questa impostazione",
-			"saved": "L'impostazione è salvata."
+			"allowPrivateHelp": "Per un relay di posta che l'agenzia fa girare sui propri server. Se è disattivato, il server di un Sito deve essere su internet: lo Staff ne sceglie host e porta, e la sua email di prova potrebbe altrimenti raggiungere qualsiasi cosa in quella rete."
 		},
 		"branding": {
 			"heading": "Branding dell'Install",
@@ -912,7 +899,6 @@
 			"pickColour": "Scegli il colore principale",
 			"footer": "Testo a piè di pagina",
 			"footerHelp": "Mostrato sotto ogni email, come l'indirizzo della tua agenzia.",
-			"save": "Salva il branding",
 			"logoInvalid": "Inserisci un indirizzo che inizia con https://.",
 			"colourInvalid": "Inserisci un colore come #c2410c."
 		},
@@ -1568,12 +1554,6 @@
 		"heading": "Moduli",
 		"intro": "Funzioni che si collegano a WebCraft tramite l'SDK dei Moduli. Un Modulo funziona solo dopo che hai approvato ciò che chiede; poi lo Staff lo attiva o lo disattiva su ogni Site o Workspace.",
 		"empty": "Questa versione di WebCraft non ha Moduli.",
-		"columns": {
-			"module": "Modulo",
-			"version": "Versione",
-			"status": "Stato",
-			"actions": "Azioni"
-		},
 		"level": {
 			"site": "Attivato su ogni Site",
 			"workspace": "Attivato su ogni Workspace"
@@ -1655,7 +1635,6 @@
 			"title": "Registro del Modulo {name}",
 			"description": "Ciò che il Modulo ha scritto e ciò che è andato storto mentre funzionava, dal più recente.",
 			"empty": "Il registro è ancora vuoto.",
-			"close": "Chiudi",
 			"levels": {
 				"info": "Informazione",
 				"warn": "Avviso",
@@ -1670,15 +1649,16 @@
 			"workspaceIntro": "Attiva o disattiva i Moduli per questo Workspace. Disattivarne uno ne conserva i dati; rimuoverne i dati li elimina.",
 			"siteEmpty": "In questa versione di WebCraft nessun Modulo si attiva sui singoli Site.",
 			"workspaceEmpty": "In questa versione di WebCraft nessun Modulo si attiva sui singoli Workspace.",
-			"on": "Attivo",
 			"siteSwitch": "{name} su questo Site",
 			"workspaceSwitch": "{name} in questo Workspace",
 			"waiting": "In attesa dell'approvazione del Superadmin",
 			"cannotSwitchOn": "Si potrà attivare quando il Superadmin lo avrà approvato.",
-			"switchedOn": "{name} è attivo.",
-			"switchedOff": "{name} è disattivato. I suoi dati restano.",
 			"removeData": "Rimuovi i dati",
-			"removeDataOf": "Rimuovi i dati di {name}"
+			"removeDataOf": "Rimuovi i dati di {name}",
+			"listTitle": "Moduli",
+			"listIntro": "Attivane o disattivane uno, poi salva.",
+			"onBadge": "Attivo",
+			"offBadge": "Disattivato"
 		},
 		"remove": {
 			"title": "Rimuovere i dati di {name}?",
@@ -1700,11 +1680,11 @@
 		},
 		"keep": {
 			"label": "Conserva {label} per",
-			"months": "{count, plural, one {# mese} other {# mesi}}",
-			"save": "Salva",
-			"saveOf": "Salva per quanto {name} conserva {label}",
-			"saved": "{name} ora conserva {label} per {count, plural, one {# mese} other {# mesi}}."
-		}
+			"months": "{count, plural, one {# mese} other {# mesi}}"
+		},
+		"listTitle": "Moduli di questa versione",
+		"withdrawTitle": "Ritirare l'approvazione di {name}?",
+		"withdrawBody": "{name} si ferma su ogni Site e Workspace finché non lo approvi di nuovo. I suoi dati vengono conservati."
 	},
 	"editBar": {
 		"label": "Modalità modifica",
@@ -2139,11 +2119,9 @@
 		"intro": "Le lingue in cui è scritto questo sito. Gli indirizzi della lingua predefinita non hanno prefisso; quelli di ogni altra lingua iniziano con il suo codice.",
 		"listTitle": "Lingue di questo sito",
 		"listIntro": "I campi traducibili hanno un valore in ciascuna e, campo per campo, ricorrono alla lingua predefinita.",
-		"language": "Lingua",
 		"addresses": "Indirizzi",
 		"direction": "Direzione del testo",
 		"domain": "Dominio proprio",
-		"actions": "Azioni",
 		"default": "Lingua predefinita",
 		"noPrefix": "Nessun prefisso",
 		"directions": {
@@ -2175,7 +2153,6 @@
 		"redirectTitle": "Reindirizzamento in base alla lingua del browser",
 		"redirectLabel": "Porta la prima visita alla home page nella lingua del visitatore",
 		"redirectHelp": "Solo la prima richiesta di un visitatore alla home page, senza una lingua già scelta, verso una lingua in cui la home page è mostrata. Mai per i motori di ricerca o i link ad altre pagine; una lingua scelta con il selettore di lingua vince sempre.",
-		"redirectSaved": "Salvato.",
 		"makeDefaultTitle": "Rendere {name} la lingua predefinita?",
 		"makeDefaultWarning": "{name} perde il prefisso e {current} ne riceve uno (/{prefix}/…). I campi traducibili ricorreranno a {name}, quindi i valori senza un testo proprio in {name} lì non mostrano nulla. I valori condivisi restano invariati.",
 		"checkChanges": "Controlla cosa cambia",
@@ -2282,8 +2259,6 @@
 			"box": "I visitatori possono usare la pagina mentre è visibile.",
 			"dialog": "I visitatori rispondono prima di usare la pagina."
 		},
-		"save": "Salva",
-		"saved": "L'impostazione del banner del consenso è salvata.",
 		"current": "{mode}, {layout}. Lo Staff cambia come vengono chiesti i visitatori.",
 		"version": "Versione del banner {version}",
 		"wordsTitle": "Le parole del banner",
@@ -2350,11 +2325,9 @@
 			"marketing": "Marketing",
 			"media": "Media"
 		},
-		"hosts": "Host",
 		"blocked": "Bloccato",
 		"problems": "Non si può salvare:",
 		"line": "Riga {line}:",
-		"actions": "Azioni",
 		"actionsOf": "Azioni per {name}",
 		"edit": "Modifica",
 		"remove": "Rimuovi",
@@ -2369,8 +2342,6 @@
 		"hostsTitle": "Host permessi",
 		"hostsIntro": "Oltre al dominio del sito, script, stili, font, frame e richieste possono arrivare solo da questi host, in https.",
 		"noHosts": "Nessun host esterno è permesso: tutto arriva dal dominio del sito.",
-		"host": "Host",
-		"why": "Perché è permesso",
 		"neededBy": "Serve a {names}",
 		"byHand": "Aggiunto a mano",
 		"byScript": "Aggiunto per uno script esterno",
@@ -2396,8 +2367,9 @@
 			"relaxed": "Permette anche script scritti nelle pagine ed eval, che servono ad alcuni tag manager. Gli script esterni comunque non girano in modalità modifica.",
 			"reportOnly": "I browser segnalano nella console quello che la modalità rigorosa bloccherebbe, senza bloccarlo. Serve per provarla."
 		},
-		"modeSaved": "La policy è stata salvata.",
-		"appliesAtOnce": "Le modifiche valgono subito e non fanno parte di Pubblica tutto."
+		"appliesAtOnce": "Le modifiche valgono subito e non fanno parte di Pubblica tutto.",
+		"removeHostTitle": "Smettere di consentire {host}?",
+		"removeHostBody": "La policy del Site non permette più alle pagine di caricare nulla da lì."
 	},
 	"domains": {
 		"pageTitle": "Domini e staging",
@@ -2498,9 +2470,6 @@
 		"cdnNone": "Nessuna CDN",
 		"cdnOption": "{name}: visitatori indicati in {header}",
 		"cdnSteps": "Collega ogni dominio con il proxy della CDN disattivato. Quando è verificato e ha il suo certificato, attiva il proxy con TLS completo e rigoroso verso il sito.",
-		"cdnSave": "Salva CDN",
-		"cdnSaved": "{name} è davanti a questo sito.",
-		"cdnRemoved": "Nessuna CDN è davanti a questo sito.",
 		"cdnSecretTitle": "Segreto CDN",
 		"cdnSecretIntro": "Dagli indirizzi di {name} passano le richieste di tutti i suoi clienti, quindi da soli non dicono che una richiesta è passata dalla tua configurazione. Il segreto CDN sì: aggiungilo come intestazione di richiesta a tutto ciò che {name} inoltra a questo sito.",
 		"cdnSecretSet": "Questo sito ha un segreto CDN. Le richieste che lo portano contano come quelle del loro visitatore.",
@@ -2508,7 +2477,7 @@
 		"cdnSecretMake": "Crea il segreto CDN",
 		"cdnSecretRemake": "Crea un nuovo segreto CDN",
 		"cdnSecretShown": "Aggiungi questa intestazione di richiesta su {name}, per ogni richiesta che inoltra a questo sito. È mostrata solo adesso; un nuovo segreto disattiva il precedente.",
-		"appliesAtOnce": "Le modifiche qui valgono subito: non fanno parte di Pubblica tutto.",
+		"appliesAtOnce": "Le modifiche qui valgono appena salvate: non fanno parte di Pubblica tutto.",
 		"stagingPassword": "Password di staging",
 		"stagingPasswordHelp": "Chi non ha un account e la inserisce vede l'indirizzo di staging per una settimana, o finché non cambia. Chi accede non ne ha mai bisogno.",
 		"stagingPasswordSet": "È impostata una password (ultima modifica {date}).",
@@ -2518,10 +2487,6 @@
 		"stagingPasswordRules": "Da 8 a 200 caratteri. Condividila con chi rivede il sito; una volta salvata non può più essere mostrata.",
 		"stagingPasswordGenerate": "Genera",
 		"stagingPasswordGenerated": "Nel campo c'è una nuova password: mostrala e copiala prima di salvare.",
-		"stagingPasswordSave": "Salva password",
-		"stagingPasswordRemove": "Rimuovi password",
-		"stagingPasswordSaved": "Password di staging salvata. Chi era entrato con la precedente deve inserire quella nuova.",
-		"stagingPasswordRemoved": "Password di staging rimossa: ora solo chi accede vede l'indirizzo di staging.",
 		"pausedTitle": "Domini in pausa",
 		"pausedIntro": "Sono arrivati con il Sito quando è stato importato. Non servono nulla finché non li attivi; attivane uno quando il suo DNS punta a questa Install e nessun altro Sito qui lo usa.",
 		"pausedRole": {
@@ -2534,7 +2499,13 @@
 		"switchedOn": "{name} è stato aggiunto. Attende il DNS finché non viene verificato.",
 		"discard": "Scarta",
 		"discardLabel": "Scarta {name}",
-		"discarded": "{name} è stato scartato."
+		"discarded": "{name} è stato scartato.",
+		"stagingPasswordRequire": "Richiedi una password",
+		"stagingPasswordKeep": "Lascialo vuoto per tenere la password attuale.",
+		"stagingPasswordShort": "La password deve avere da 8 a 200 caratteri.",
+		"pausedBadge": "In pausa",
+		"discardTitle": "Scartare {name}?",
+		"discardBody": "Il dominio in pausa viene dimenticato; aggiungerlo di nuovo più tardi fa ripartire i controlli dall'inizio."
 	},
 	"webhooks": {
 		"pageTitle": "Webhook",
@@ -2546,11 +2517,8 @@
 		"listIntro": "Dove viene inviato ogni Webhook, cosa riceve e com'è andata la sua ultima consegna.",
 		"none": "Ancora nessun Webhook. Aggiungine uno per avvisare un altro sistema quando qualcosa viene pubblicato.",
 		"noneMember": "Questo Site non ha Webhook.",
-		"webhook": "Webhook",
 		"receives": "Riceve",
-		"status": "Stato",
 		"lastDelivery": "Ultima consegna",
-		"actions": "Azioni",
 		"actionsOf": "Azioni per {name}",
 		"secretSet": "Segreto di firma impostato, termina con {lastFour}",
 		"secretSetShort": "Segreto di firma impostato",
@@ -4233,7 +4201,9 @@
 			"noGlobal": "Nessuno",
 			"save": "Salva",
 			"saved": "Impostazioni SEO salvate.",
-			"notSaved": "Le impostazioni SEO non sono state salvate:"
+			"notSaved": "Le impostazioni SEO non sono state salvate:",
+			"titlesCard": "Titoli e immagini",
+			"titlesCardIntro": "Come finiscono i titoli delle pagine, e l'immagine delle pagine che non ne hanno una."
 		},
 		"crawlers": {
 			"heading": "Crawler",
@@ -4316,8 +4286,6 @@
 		"s3": "Bucket compatibile S3",
 		"s3Help": "I Backup vanno in una cartella backups del bucket, caricati a parti. Prima di salvare, WebCraft scrive, legge e rimuove lì un piccolo file. Usa un bucket diverso da quello dei Media.",
 		"prefixHelp": "Facoltativa. Messa davanti alla cartella backups, così un bucket può contenere più Install.",
-		"save": "Salva",
-		"saved": "Salvato.",
 		"log": {
 			"heading": "Backup recenti",
 			"emptyTitle": "Ancora nessun Backup",
@@ -4343,7 +4311,8 @@
 			"heading": "Ripristino",
 			"body": "Un Backup si ripristina sul server, in un database vuoto, con la Master key che l'Install aveva allora. Ferma prima web e worker, poi esegui:",
 			"site": "Il ripristino riporta l'intera Install. Per spostare o copiare un solo Sito, usa invece l'esportazione del Sito."
-		}
+		},
+		"scheduleCard": "Pianificazione"
 	},
 	"templates": {
 		"pageTitle": "Template",
@@ -5381,9 +5350,6 @@
 		"modes": {
 			"heading": "Modalità di traduzione per lingua",
 			"intro": "{language} è la Lingua predefinita. Ogni altra lingua ha la sua modalità.",
-			"language": "Lingua",
-			"mode": "Modalità",
-			"status": "Stato",
 			"upToDate": "Aggiornata",
 			"counts": "{toReview} da rivedere · {outdated} superate · {missing} mancanti"
 		},
@@ -5423,12 +5389,17 @@
 		"filterSite": "{name} {count}",
 		"empty": "Nessun Termine protetto qui.",
 		"addedBy": "Aggiunto da",
-		"actions": "Azioni",
 		"menu": "Azioni per {term}",
 		"remove": "Rimuovi",
 		"yes": "Sì",
 		"no": "No",
-		"note": "In questa versione un Termine protetto significa solo \"lascia com'è scritto\". Imporre una parola fissa per lingua non è ancora possibile. Editor, Owner e Staff possono modificare questo elenco."
+		"note": "In questa versione un Termine protetto significa solo \"lascia com'è scritto\". Imporre una parola fissa per lingua non è ancora possibile. Editor, Owner e Staff possono modificare questo elenco.",
+		"addTitle": "Aggiungi un termine",
+		"addIntro": "Un termine alla volta, o molti insieme con Importa CSV.",
+		"listTitle": "Termini",
+		"removeTitle": "Rimuovere “{term}”?",
+		"removeWorkspaceBody": "La traduzione AI potrà tradurlo di nuovo su ogni Site di questo Workspace.",
+		"removeSiteBody": "La traduzione AI potrà tradurlo di nuovo su {name}."
 	},
 	"aiKeys": {
 		"pageTitle": "Chiavi AI",
@@ -5472,12 +5443,13 @@
 			"never": "mai",
 			"none": "Nessuna chiave impostata.",
 			"save": "Salva la chiave",
-			"saved": "La chiave AI è salvata.",
 			"remove": "Rimuovi la chiave",
 			"removeTitle": "Rimuovere la chiave AI propria del Workspace?",
 			"removeBody": "La traduzione AI passa allora per la chiave condivisa dell'Install, se ne è assegnata una, o si ferma.",
 			"removed": "La chiave AI è stata rimossa.",
-			"cancel": "Annulla"
+			"cancel": "Annulla",
+			"modelNeeded": "Indica il modello.",
+			"keyNeeded": "Incolla la chiave, o tieni quella salvata."
 		},
 		"shared": {
 			"heading": "Chiave condivisa dell'Install",
@@ -5512,10 +5484,7 @@
 		"listIntro": "Salvate cifrate; si vedono solo gli ultimi 4 caratteri.",
 		"none": "Ancora nessuna chiave condivisa.",
 		"name": "Nome",
-		"providerModel": "Provider e modello",
-		"key": "Chiave",
 		"workspaces": "Assegnata a",
-		"actions": "Azioni",
 		"assignedTo": "{name} ({cap} al mese)",
 		"menu": "Azioni per {name}",
 		"edit": "Modifica",
@@ -5534,14 +5503,15 @@
 		"sharedKey": "Chiave condivisa",
 		"noKey": "Nessuna",
 		"monthlyCap": "Limite mensile ($)",
-		"saveAssignment": "Salva",
-		"assigned": "{name} è salvato.",
 		"assignedBadge": "Assegnata",
 		"privateHeading": "Modelli ospitati in proprio",
 		"private": "Consenti alle chiavi condivise di chiamare un endpoint compatibile con OpenAI nella rete dell'Install",
 		"privateHelp": "Per un modello che l'agenzia fa girare sui propri server. La chiave propria di un Workspace non può mai: permetterebbe a chiunque abbia quella chiave di entrare nella rete.",
-		"savePrivate": "Salva",
-		"privateSaved": "L'impostazione è salvata."
+		"notAssignedBadge": "Non assegnata",
+		"removeTitle": "Rimuovere {name}?",
+		"removeBody": "La chiave viene eliminata da questa Install per sempre.",
+		"removeInUse": "È assegnata a {workspaces}: le loro chiamate AI smettono subito di usarla.",
+		"nameAndKeyNeeded": "Dai un nome alla chiave e incolla la chiave."
 	},
 	"dashboards": {
 		"pageTitle": "Dashboard",
@@ -6075,8 +6045,9 @@
 		"checkpointDays": "Conserva i checkpoint per (giorni)",
 		"checkpointDaysHelp": "I checkpoint sono la bozza salvata mentre la si modifica; quelli più vecchi si rimuovono ogni notte.",
 		"outOfRange": "Usa un numero intero da {min} a {max}.",
-		"save": "Salva",
-		"saved": "Salvato."
+		"invalid": "Alcuni valori sono fuori intervallo.",
+		"revisionsCard": "Revisioni",
+		"checkpointsCard": "Checkpoint"
 	},
 	"filters": {
 		"pageTitle": "Filtri",
@@ -6486,8 +6457,6 @@
 			"client": "Brand del cliente",
 			"madeWith": "Creato con WebCraft"
 		},
-		"save": "Salva",
-		"saved": "Il brand è stato salvato.",
 		"workspaceHeading": "Brand dei report",
 		"workspaceIntro": "Come appaiono i report e i link di condivisione di questo spazio di lavoro.",
 		"workspaceAgencyIntro": "Usate il brand dell'agenzia dell'installazione, o uno proprio di questo spazio di lavoro.",
@@ -7266,8 +7235,6 @@
 		"switchTitle": "Interruttore",
 		"switchIntro": "Spenta finché non la accendi. Mentre è spenta, ogni richiesta risponde che è spenta e le chiavi non funzionano.",
 		"on": "Content API accesa",
-		"switchedOn": "La Content API è accesa.",
-		"switchedOff": "La Content API è spenta.",
 		"mainAddress": "Indirizzo",
 		"stagingAddress": "Sull'indirizzo di Staging",
 		"howTo": "I frontend inviano una chiave Content nell'intestazione {header}, mai nell'indirizzo. Il riferimento è openapi.json allo stesso indirizzo.",
@@ -7285,15 +7252,12 @@
 		"originsProblem": "Una chiave elenca fino a 20 origini.",
 		"keysProblem": "Questo Sito ha 50 chiavi attive: revocane prima una.",
 		"serversOnly": "Solo server",
-		"requests": "Richieste",
 		"today": "{count} oggi",
 		"lastDays": "{week} in 7 giorni · {month} in 30 giorni",
 		"lastUsed": "Ultimo uso",
 		"neverUsed": "Non ancora",
-		"status": "Stato",
 		"active": "Attiva",
 		"revoked": "Revocata",
-		"actions": "Azioni",
 		"hint": "…{hint}",
 		"edit": "Modifica",
 		"editLabel": "Modifica {name}",
@@ -7321,9 +7285,7 @@
 		"showPostType": "Mostra {name}",
 		"noFields": "Nessun Campo.",
 		"globals": "Globali",
-		"searchNote": "Un Post Type i cui campi di ricerca includono un Campo nascosto è escluso dalla ricerca dell'API.",
-		"saveShown": "Salva cosa mostra",
-		"shownSaved": "Quello che mostra la Content API è stato salvato."
+		"searchNote": "Un Post Type i cui campi di ricerca includono un Campo nascosto è escluso dalla ricerca dell'API."
 	},
 	"healthBanner": {
 		"title": "Una parte dell'installazione non funziona",
@@ -7756,13 +7718,8 @@
 		"listTitle": "Esportazioni",
 		"listIntro": "Ogni link di download funziona per 24 ore, solo per chi può esportare questo Sito; poi il file viene eliminato.",
 		"listEmpty": "Ancora nessuna esportazione di questo Sito.",
-		"caption": "Le esportazioni di questo Sito, dalla più recente",
 		"columns": {
-			"created": "Richiesta",
-			"by": "Da",
-			"status": "Stato",
-			"file": "File",
-			"secrets": "Segreti"
+			"by": "Da"
 		},
 		"status": {
 			"waiting": "In attesa",
@@ -8005,7 +7962,10 @@
 			"enforcement": "Procedura di attuazione e contatti dell’organismo",
 			"enforcementUrl": "Link alla procedura di attuazione (HTTPS)"
 		},
-		"languages": "Il modulo fornisce testi in inglese e italiano. Per le altre lingue del sito, traduci i campi della pagina con gli strumenti di traduzione prima di pubblicare."
+		"languages": "Il modulo fornisce testi in inglese e italiano. Per le altre lingue del sito, traduci i campi della pagina con gli strumenti di traduzione prima di pubblicare.",
+		"aboutTitle": "Informazioni su questa dichiarazione",
+		"pageTitle": "La Pagina della dichiarazione",
+		"formTitle": "Dati per la dichiarazione"
 	},
 	"popups": {
 		"title": "Popup",
@@ -8149,5 +8109,8 @@
 			"pick": "Prendi un Placement, o posalo",
 			"putBack": "Rimetti a posto un Placement preso"
 		}
+	},
+	"settingsLayout": {
+		"cancel": "Annulla"
 	}
 }
