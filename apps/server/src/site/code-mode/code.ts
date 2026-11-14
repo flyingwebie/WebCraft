@@ -1992,6 +1992,8 @@ export function codeMode(
 		const editable = !onComponent || component.editable;
 		jsEditor.readOnly(!editable);
 		jsSave.disabled = !editable;
+		// A box that can't be edited has no Format.
+		if (formatControls.js) formatControls.js.button.hidden = !editable || !script;
 		jsEditor.area.setAttribute(
 			"placeholder",
 			word(onComponent ? "componentPlaceholder" : jsKind === "site" ? "sitePlaceholder" : "pagePlaceholder"),
