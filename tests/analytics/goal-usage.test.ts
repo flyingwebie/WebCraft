@@ -64,8 +64,8 @@ test("names the Widgets, templates, Workspace Dashboards and Funnels that use ea
 
 	const { goals } = await analytics.goals.usage({ siteId });
 
-	const onSales = { kind: "dashboard", id: dashboard.id, name: "Sales" };
-	const inShop = { kind: "template", id: template.id, name: "Shop" };
+	const onSales = { kind: "dashboard", id: dashboard.id, name: "Sales" } as const;
+	const inShop = { kind: "template", id: template.id, name: "Shop" } as const;
 	const usageOf = (goalId: string) => goals.find((each) => each.goalId === goalId);
 	expect(usageOf(cake.id)).toEqual({
 		goalId: cake.id,
