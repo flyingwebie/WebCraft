@@ -8435,6 +8435,36 @@
 		"narrow": {
 			"title": "L'area di costruzione richiede una finestra larga almeno 1024 px",
 			"text": "Allarga la finestra per continuare: nulla viene chiuso o perso."
+		},
+		"documents": {
+			"page": "Pagina",
+			"siteTemplate": "Site template",
+			"searchTemplate": "Search results template",
+			"entryTemplate": "Entry template",
+			"archiveTemplate": "Archive template",
+			"component": "Component",
+			"form": "Form",
+			"titled": "{name} · {kind}",
+			"untitled": "Senza titolo",
+			"switch": "Cambia documento: {document}",
+			"pages": "Pagine",
+			"templates": "Template",
+			"components": "Component",
+			"backTo": "Torna a {page}",
+			"preview": "Anteprima: {entry}",
+			"previewLabel": "L'Entry di cui questo Template mostra l'anteprima: {entry}",
+			"previewNone": "Nessuna Entry di cui mostrare l'anteprima",
+			"renderedBy": "Mostrata da: {template}",
+			"renderedByLabel": "Mostrata dal {template}: aprilo",
+			"opened": "Aperto: {document}",
+			"opening": "Apertura…",
+			"standIn": "Nessuna pagina lo mostra: disegnato da solo",
+			"missingTitle": "Niente da aprire qui",
+			"missingText": "Questo indirizzo non indica una pagina, un Template o un Component di questo sito che puoi aprire.",
+			"missingLink": "Apri la home page",
+			"formLaterTitle": "I Form si aprono nel luogo Form",
+			"formLaterText": "Il luogo Form arriva con una parte successiva dell'area di costruzione. Fino ad allora, crea i Form nell'admin.",
+			"openIn": "Apri nell'area di costruzione"
 		}
 	}
 }

@@ -11,6 +11,15 @@ export const AGENT_HOST_PROPERTY = "webcraftAgentHost";
 export const BUILDING_PAGE_PREFIX = "/_webcraft/build/page";
 
 /**
+ * Where the stand-in for a Template or Component is (as `BUILDING_AREA_STAND_IN_PATH`): this, then the
+ * document's own address in the building area (`/component/<id>`).
+ */
+export const BUILDING_STAND_IN_PREFIX = "/_webcraft/build/stand-in";
+
+/** The building area's own addresses: this, then a document's address (`/page/…`, `/component/<id>`). */
+export const BUILDING_PREFIX = "/_webcraft/build";
+
+/**
  * Text and rich text regions the page agent makes editable (image regions and bodies come with
  * later parts of the building area).
  */
@@ -46,6 +55,15 @@ export type AgentHost = {
 	focus(inside: boolean): void;
 	/** An error the page reported (an uncaught exception, a script that didn't load). */
 	error(message: string, source: string | null): void;
+	/**
+	 * A link of the page was clicked while the shell lets links be followed (editing is off: the
+	 * interface is hidden). The agent stops the browser following it and hands its address here; the
+	 * shell opens it as the next document, or leaves it when it isn't a page of the Site. Answers
+	 * whether the shell took it.
+	 */
+	follow(href: string): boolean;
+	/** Whether links are followed now (editing is off), rather than selected. */
+	following(): boolean;
 };
 
 /** The agent's half, which the shell calls. */
