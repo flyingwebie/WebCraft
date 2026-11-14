@@ -7,6 +7,7 @@ import { ContentPlace } from "./content/ContentPlace.tsx";
 import { type PlaceKey, placeKeyOf } from "./keys.ts";
 import { MediaPlace } from "./media/MediaPlace.tsx";
 import { leftAt } from "./memory.ts";
+import { StylesPlace } from "./styles/StylesPlace.tsx";
 import { TemplatesPlace } from "./templates/TemplatesPlace.tsx";
 
 export { PLACE_KEYS } from "./keys.ts";
@@ -51,6 +52,7 @@ const PLACES: Partial<Record<PlaceKey, PlaceEntry>> = {
 	content: { key: "content", first: "content/pages", component: ContentPlace },
 	media: { key: "media", first: "media", component: MediaPlace },
 	templates: { key: "templates", first: "templates", component: TemplatesPlace },
+	styles: { key: "styles", first: "styles/classes", component: StylesPlace },
 	components: { key: "components", first: "components", component: ComponentsPlace },
 };
 

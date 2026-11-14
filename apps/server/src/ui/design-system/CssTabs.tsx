@@ -6,7 +6,7 @@ import { useId, useRef, useState } from "react";
 import { FormatButton, FormatNoteLine, useCodeFormat } from "../code-format/FormatControl.tsx";
 import { useT } from "../i18n.tsx";
 import { DeclarationsEditor } from "./DeclarationsEditor.tsx";
-import type { Editing } from "./DesignSystemScreen.tsx";
+import type { Editing } from "./editing.ts";
 import { html } from "./model.ts";
 import { StylePreview } from "./StylePreview.tsx";
 

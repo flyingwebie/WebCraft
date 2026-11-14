@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { compile, optimize } from "@tailwindcss/node";
 import { Scanner } from "@tailwindcss/oxide";
 
-import { EDIT_ASSETS_PATH } from "../edit-bar/assets.ts";
+import { EDIT_ASSETS_PATH, editBarAssets, formatEngine } from "../edit-bar/assets.ts";
 
 /** One of the building area's files: named by the hash of its content, so it never changes. */
 export type BuildingAreaAsset = {
@@ -61,8 +61,10 @@ async function makeAssets(): Promise<BuildingAreaAssets> {
 			return asset("inter", "woff2", new Uint8Array(await Bun.file(path).arrayBuffer()), "font/woff2");
 		}),
 	);
+	// Format's engine (Prettier) is the editing bar's file of its own, loaded the first time Format is used.
+	const { format } = await editBarAssets();
 	const [shellCode, agentCode, styles] = await Promise.all([
-		bundle("@webcraft/server/building-area/shell", "esm"),
+		bundle("@webcraft/server/building-area/shell", "esm", [formatEngine(format.path)]),
 		bundle("@webcraft/server/building-area/agent", "iife"),
 		shellStylesheet(theme, fonts),
 	]);
@@ -99,7 +101,7 @@ const INTER_FILES = [
  * found from the built bundle too: the shell as an ES module, the agent as a classic script (it must
  * run before any Site script, so it imports nothing at run time).
  */
-async function bundle(entryName: string, format: "esm" | "iife"): Promise<string> {
+async function bundle(entryName: string, format: "esm" | "iife", plugins: Bun.BunPlugin[] = []): Promise<string> {
 	const entry = Bun.resolveSync(entryName, dirname(fileURLToPath(import.meta.url)));
 	const built = await Bun.build({
 		entrypoints: [entry],
@@ -107,6 +109,7 @@ async function bundle(entryName: string, format: "esm" | "iife"): Promise<string
 		format,
 		minify: true,
 		define: { "process.env.NODE_ENV": JSON.stringify("production") },
+		plugins,
 	});
 	const [output] = built.outputs;
 	if (!built.success || !output) throw new Error(`${entryName} couldn't be built: ${built.logs.join("; ")}`);

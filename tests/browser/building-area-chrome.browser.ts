@@ -181,7 +181,7 @@ describe("the building area's chrome, for Staff", () => {
 		expect(await sizeOf(page, "[data-wc-publish]")).toEqual({ width: 112, height: 32 });
 
 		// Places are shown but not there yet; their names say so.
-		expect(await page.getByRole("button", { name: "Styles · not available yet" }).getAttribute("aria-disabled")).toBe(
+		expect(await page.getByRole("button", { name: "Loops · not available yet" }).getAttribute("aria-disabled")).toBe(
 			"true",
 		);
 		// The avatar names the person; Settings opens the Site's settings in the admin, in a new tab.

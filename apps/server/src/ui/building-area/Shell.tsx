@@ -19,6 +19,7 @@ import { NarrowNotice } from "./NarrowNotice.tsx";
 import { useOpenDocument } from "./open-document.ts";
 import { MediaShellHost } from "./places/media/Picker.tsx";
 import { PLACE_EVENT, PLACE_KEYS, type PlaceKey, placeEntry, placeKeyOf, reopenPlace } from "./places/registry.ts";
+import { BreakpointLines } from "./places/styles/BreakpointLines.tsx";
 import { Rail } from "./rail/Rail.tsx";
 
 /**
@@ -347,6 +348,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 								onSelect={(selected) => setSelection(selected ? { kind: "element", name: selected.name } : null)}
 							/>
 						) : null}
+						{/* The Breakpoints switched on in Styles (BA-24), drawn where the frame's edges would be. */}
+						<BreakpointLines />
 					</div>
 					{place && opened.address.place ? (
 						<place.component
