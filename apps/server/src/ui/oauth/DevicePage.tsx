@@ -2,10 +2,11 @@ import type { ApiClient } from "@webcraft/api";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
-import { CircleCheckIcon, CircleXIcon, TerminalIcon } from "lucide-react";
+import { CircleCheckIcon, CircleXIcon } from "lucide-react";
 import { type FormEvent, useEffect, useId, useRef, useState } from "react";
 
 import { getApi } from "../api.ts";
+import { AuthHeading, AuthLead, AuthPage } from "../auth/AuthPage.tsx";
 import { errorMessage } from "../errors.ts";
 import { formatUtc } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
@@ -40,27 +41,21 @@ export function DevicePage({
 	const shown = typed ?? data;
 	const check = shown?.check ?? null;
 	return (
-		<main
-			id="main"
-			tabIndex={-1}
-			className="bg-muted flex min-h-svh items-start justify-center p-4 outline-none sm:p-8"
-		>
-			<div className="bg-card text-card-foreground w-full max-w-xl rounded-xl border p-6 shadow-sm sm:p-8">
-				{outcome ? (
-					<Outcome outcome={outcome} />
-				) : check?.kind === "ask" && shown ? (
-					<DeviceApproval data={shown} request={check.request} person={person} onDone={setOutcome} />
-				) : (
-					<CodeEntry
-						// A link's code that wasn't looked up isn't filled in either: the person types their own.
-						userCode={check?.kind === "type" ? null : userCode}
-						fromLink={check?.kind === "type"}
-						problem={check?.kind === "refused" ? check.problem : null}
-						onChecked={setTyped}
-					/>
-				)}
-			</div>
-		</main>
+		<AuthPage width={check?.kind === "ask" && !outcome ? "wide" : "default"}>
+			{outcome ? (
+				<Outcome outcome={outcome} />
+			) : check?.kind === "ask" && shown ? (
+				<DeviceApproval data={shown} request={check.request} person={person} onDone={setOutcome} />
+			) : (
+				<CodeEntry
+					// A link's code that wasn't looked up isn't filled in either: the person types their own.
+					userCode={check?.kind === "type" ? null : userCode}
+					fromLink={check?.kind === "type"}
+					problem={check?.kind === "refused" ? check.problem : null}
+					onChecked={setTyped}
+				/>
+			)}
+		</AuthPage>
 	);
 }
 
@@ -117,16 +112,11 @@ function CodeEntry({
 
 	return (
 		<form onSubmit={submit} noValidate>
-			<div className="mb-6 flex items-start gap-3">
-				<TerminalIcon aria-hidden="true" className="text-muted-foreground mt-1 size-6 shrink-0" />
-				<div className="grid gap-1">
-					<h1 className="text-2xl font-semibold tracking-tight">{t("oauth.device.heading")}</h1>
-					<p className="text-muted-foreground text-sm">
-						{fromLink ? t("oauth.device.typeIt") : t("oauth.device.enterIntro")}
-					</p>
-				</div>
+			<div className="mb-5 grid gap-1.5">
+				<AuthHeading>{t("oauth.device.heading")}</AuthHeading>
+				<AuthLead>{fromLink ? t("oauth.device.typeIt") : t("oauth.device.enterIntro")}</AuthLead>
 			</div>
-			<FieldGroup className="gap-6">
+			<FieldGroup className="gap-5">
 				<Field data-invalid={message ? true : undefined}>
 					<FieldLabel htmlFor={`${id}-code`}>{t("oauth.device.codeLabel")}</FieldLabel>
 					<Input
@@ -145,11 +135,9 @@ function CodeEntry({
 					<FieldDescription id={`${id}-help`}>{t("oauth.device.codeHelp")}</FieldDescription>
 					{message ? <FieldError id={`${id}-error`}>{t(message)}</FieldError> : null}
 				</Field>
-				<div className="flex justify-end">
-					<Button type="submit" disabled={busy}>
-						{t("oauth.device.continue")}
-					</Button>
-				</div>
+				<Button type="submit" className="w-full" disabled={busy}>
+					{t("oauth.device.continue")}
+				</Button>
 			</FieldGroup>
 		</form>
 	);
@@ -216,15 +204,16 @@ function Outcome({ outcome }: { outcome: { kind: "approved" | "denied"; client: 
 	const approved = outcome.kind === "approved";
 	const Icon = approved ? CircleCheckIcon : CircleXIcon;
 	return (
-		<div className="flex items-start gap-3">
-			<Icon aria-hidden="true" className="text-muted-foreground mt-1 size-6 shrink-0" />
-			<div className="grid gap-1">
-				<h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold tracking-tight outline-none">
+		<div className="grid justify-items-start gap-3">
+			<Icon
+				aria-hidden="true"
+				className={approved ? "size-6 text-green-700 dark:text-green-400" : "text-muted-foreground size-6"}
+			/>
+			<div className="grid gap-1.5">
+				<AuthHeading ref={heading}>
 					{approved ? t("oauth.device.approvedHeading", { client: outcome.client }) : t("oauth.device.deniedHeading")}
-				</h1>
-				<p className="text-muted-foreground text-sm">
-					{approved ? t("oauth.device.approvedBody") : t("oauth.device.deniedBody")}
-				</p>
+				</AuthHeading>
+				<AuthLead>{approved ? t("oauth.device.approvedBody") : t("oauth.device.deniedBody")}</AuthLead>
 			</div>
 		</div>
 	);
