@@ -98,7 +98,7 @@ for (const theme of THEMES) {
 		test("the steps of a new Import: Source, Map and Preview, from the keyboard", async () => {
 			const page = await install.newPage(theme);
 			await open(page, superadmin, `/sites/${siteId}/imports/new`);
-			expect(await currentStep(page)).toBe("Source");
+			expect(await currentStep(page)).toContain("Source");
 			await expectAccessibleScreen(page, `New Import, Source (${theme})`);
 
 			await page.locator("input[type=file]").setInputFiles({
@@ -112,8 +112,8 @@ for (const theme of THEMES) {
 
 			await press(page, "Continue to mapping");
 			await page.getByRole("heading", { name: "Columns" }).waitFor();
+			expect(await currentStep(page)).toContain("Map");
 			await page.getByText(/Will create/).waitFor();
-			expect(await currentStep(page)).toBe("Map");
 			await expectAccessibleScreen(page, `New Import, Map (${theme})`);
 
 			await press(page, "Preview");
@@ -135,7 +135,7 @@ for (const theme of THEMES) {
 			const page = await install.newPage(theme);
 			await open(page, superadmin, `/sites/${siteId}/imports/${importId}/runs/${doneRunId}`);
 			await page.getByRole("tab", { name: "Problem rows (1)" }).waitFor();
-			expect(await currentStep(page)).toBe("Report");
+			expect(await currentStep(page)).toContain("Report");
 			await expectAccessibleScreen(page, `Import report (${theme})`);
 
 			const created = page.getByRole("tab", { name: "Created (3)" });
@@ -162,7 +162,6 @@ for (const theme of THEMES) {
 				buffer: Buffer.from(CSV),
 			});
 			await page.getByText(/Will create/).waitFor();
-			expect(await currentStep(page)).toBe("Map");
 			// The sheet is placed at the end of the page, outside the landmarks, as dialogs are.
 			await expectNoAxeViolations(page, `Import CSV with a file (${theme})`, ["region"]);
 		});

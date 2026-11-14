@@ -218,7 +218,7 @@ export function PopupSheet({
 				<p role="status" className="text-sm empty:hidden">
 					{message}
 				</p>
-				<SheetSection id={`${uid}-content`} title={t("popups.content")} intro={t("popups.contentIntro")}>
+				<SheetSection id={`${uid}-content-section`} title={t("popups.content")} intro={t("popups.contentIntro")}>
 					<div className="grid min-w-0 gap-4">
 						<div className="grid min-w-0 gap-2">
 							<label htmlFor={`${uid}-language`} className="text-sm font-medium">
@@ -311,7 +311,11 @@ export function PopupSheet({
 				</SheetSection>
 				{structure ? (
 					<>
-						<SheetSection id={`${uid}-layout`} title={t("popups.layoutSection")} intro={t("popups.layoutIntro")}>
+						<SheetSection
+							id={`${uid}-layout-section`}
+							title={t("popups.layoutSection")}
+							intro={t("popups.layoutIntro")}
+						>
 							<SettingsRows>
 								<SettingsRow className={ROW} label={t("popups.build")} help={t("popups.buildHelp")}>
 									<Link
@@ -375,7 +379,7 @@ export function PopupSheet({
 							</SettingsRows>
 						</SheetSection>
 						<SheetSection
-							id={`${uid}-triggers`}
+							id={`${uid}-triggers-section`}
 							title={t("popups.triggers")}
 							intro={t("popups.triggersIntro")}
 							action={
@@ -419,7 +423,7 @@ export function PopupSheet({
 								))}
 							</SettingsRows>
 						</SheetSection>
-						<SheetSection id={`${uid}-rules`} title={t("popups.rules")} intro={t("popups.rulesIntro")}>
+						<SheetSection id={`${uid}-rules-section`} title={t("popups.rules")} intro={t("popups.rulesIntro")}>
 							<SettingsRows>
 								<SettingsRow
 									className={cn(ROW, "@lg/sheet:items-start")}
