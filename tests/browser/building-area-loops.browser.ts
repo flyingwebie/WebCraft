@@ -190,6 +190,8 @@ describe("the Loops place, for Staff", () => {
 		expect(await page.locator("[data-wc-loop-limit]").inputValue()).toBe("3");
 		expect(await page.locator("[data-wc-loop-offset]").inputValue()).toBe("0");
 
+		// The result reads its items once the place is open: wait for it rather than read it at once.
+		await page.waitForFunction(() => Boolean(document.querySelector("[data-wc-loop-count]")?.textContent));
 		await expect(count(page).textContent()).resolves.toBe("3 of 5 items · just now");
 		expect(await page.locator("[data-wc-loop-used-on]").textContent()).toBe("Used on 2 pages");
 		// The first item starts open, its values by key.
