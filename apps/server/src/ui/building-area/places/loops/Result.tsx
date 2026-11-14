@@ -134,18 +134,21 @@ export function Result({
 								{expanded ? (
 									<ul id={listId} className="m-0 flex list-none flex-col p-0 ps-[18px]">
 										{resultRows(item.values).map((row) => (
-											<li key={row.path} className="group relative">
+											<li key={row.path}>
 												<button
 													type="button"
 													onClick={() => void copy(row.binding)}
 													aria-label={`${shown.copyPath}: ${row.binding}`}
-													className={`hover:bg-chrome-raised focus-visible:bg-chrome-raised flex h-[22px] w-full min-w-0 items-center gap-1.5 rounded-[4px] ps-2 pe-1 text-start font-mono text-[12px] ${CHROME_EASE} ${FOCUS_RING}`}
+													className={`group hover:bg-chrome-raised focus-visible:bg-chrome-raised relative flex h-[22px] w-full min-w-0 items-center gap-1.5 rounded-[4px] ps-2 pe-1 text-start font-mono text-[12px] ${CHROME_EASE} ${FOCUS_RING}`}
 													data-wc-loop-key={row.path}
 												>
 													<span className="text-condition shrink-0">{row.path}</span>
-													<span className="text-chrome-muted min-w-0 truncate">{row.shown}</span>
+													<span className="text-chrome-muted min-w-0 truncate" data-wc-loop-value="">
+														{row.shown}
+													</span>
+													{/* The tooltip shows on hover and on keyboard focus: "Copy path {{ item.title }}". */}
+													<Tip label={shown.copyPath} keys={row.binding} side="bottom" align="start" />
 												</button>
-												<Tip label={shown.copyPath} keys={row.binding} side="bottom" align="start" />
 											</li>
 										))}
 									</ul>

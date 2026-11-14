@@ -133,6 +133,7 @@ export function LoopsPlace({ config, words, place, view: viewText, documents, le
 						onPublished={(published) => {
 							replaced(published);
 							announce(shown.published);
+							reloadPage();
 						}}
 						announce={announce}
 					/>
@@ -181,6 +182,8 @@ export function LoopsPlace({ config, words, place, view: viewText, documents, le
 								/>
 							) : loop.draft.source === "query" ? (
 								<QueryForm
+									// One form per Loop: a change still waiting is saved to its own Loop as another opens.
+									key={loop.id}
 									words={words}
 									admin={config.adminMessages}
 									api={api}
@@ -193,6 +196,7 @@ export function LoopsPlace({ config, words, place, view: viewText, documents, le
 								/>
 							) : (
 								<ItemsGrid
+									key={loop.id}
 									words={words}
 									api={api}
 									siteId={siteId}
@@ -233,6 +237,14 @@ export function LoopsPlace({ config, words, place, view: viewText, documents, le
 			</div>
 		</Place>
 	);
+}
+
+/**
+ * Reads the framed page again, under the place: pages show a Loop as it was last published, so once it
+ * is, the page the canvas keeps shows it (a reload of the same address adds no history entry).
+ */
+function reloadPage(): void {
+	document.querySelector<HTMLIFrameElement>("iframe[data-wc-frame]")?.contentWindow?.location.reload();
 }
 
 /** The Saved Loops: one row each (the open one raised, in the Loop's colour), "+" for a new one, and Site search's built-in Loop. */
