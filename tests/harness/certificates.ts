@@ -165,8 +165,13 @@ const utf8String = (text: string) => tagged(0x0c, new TextEncoder().encode(text)
 const bitString = (bytes: Uint8Array, unusedBits: number) => tagged(0x03, concat([Uint8Array.of(unusedBits), bytes]));
 
 function integer(bytes: Uint8Array): Uint8Array {
-	// A leading zero keeps a number whose first bit is set positive.
-	return tagged(0x02, (bytes[0] ?? 0) & 0x80 ? concat([Uint8Array.of(0), bytes]) : bytes);
+	// DER wants the shortest form: no leading zero bytes (a random serial starts with one about once
+	// in 128, and TLS libraries refuse such a certificate as an invalid integer), except the one zero
+	// that keeps a number whose first bit is set positive.
+	let start = 0;
+	while (start < bytes.length - 1 && bytes[start] === 0) start++;
+	const shortest = bytes.subarray(start);
+	return tagged(0x02, (shortest[0] ?? 0) & 0x80 ? concat([Uint8Array.of(0), shortest]) : shortest);
 }
 
 function objectIdentifier(dotted: string): Uint8Array {
