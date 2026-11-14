@@ -65,15 +65,15 @@ export async function formatCode(
 		if (props) {
 			if (props.end < 0) return { ok: false, line: props.first + 1, reason: "{{@props}} has no {{/props}}" };
 			first = Math.max(first, props.end + 1);
-			if (first > last) return unchanged(given);
+			if (first > last) return unchanged(given, options.caret);
 		}
 	}
 	const part = lines.slice(first, last + 1);
-	const indent = Math.min(
-		...part.filter((line) => line.trim() !== "").map((line) => /^ */.exec(line)?.[0].length ?? 0),
-	);
-	const margin = Number.isFinite(indent) ? indent : 0;
-	const source = part.map((line) => line.slice(Math.min(margin, /^ */.exec(line)?.[0].length ?? 0))).join("\n");
+	// The part is formatted on its own, then put back at the indentation of its first line.
+	const indentOf = (line: string) => /^ */.exec(line)?.[0].length ?? 0;
+	const firstLine = part.find((line) => line.trim() !== "");
+	const margin = firstLine === undefined ? 0 : indentOf(firstLine);
+	const source = part.map((line) => line.slice(Math.min(margin, indentOf(line)))).join("\n");
 
 	let formatted: string;
 	try {
@@ -90,7 +90,7 @@ export async function formatCode(
 	const before = lines.slice(0, first);
 	const after = lines.slice(last + 1);
 	let result = [...before, placed, ...after].join("\n");
-	if (result === text) return unchanged(given);
+	if (result === text) return unchanged(given, options.caret);
 	if (given.includes("\r\n")) result = result.replace(/\n/g, "\r\n");
 	return {
 		ok: true,
@@ -100,8 +100,8 @@ export async function formatCode(
 	};
 }
 
-function unchanged(text: string): FormatResult {
-	return { ok: true, text, changedLines: 0, caret: 0 };
+function unchanged(text: string, caret = 0): FormatResult {
+	return { ok: true, text, changedLines: 0, caret };
 }
 
 /** Formats one stretch of code; throws `Unformattable` with the line (in this stretch) of a problem. */
