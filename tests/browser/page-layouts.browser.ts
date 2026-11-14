@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import type { Page } from "playwright";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
+import { chooseEditOnSite } from "./edit-on-site.ts";
 import { type BrowserInstall, startBrowserInstall, THEMES, type Theme } from "./harness.ts";
 
 let install: BrowserInstall;
@@ -63,7 +64,7 @@ async function enter(theme: Theme, site: Awaited<ReturnType<typeof fixture>>, ph
 	if (phone) await page.setViewportSize({ width: 390, height: 844 });
 	await install.signIn(page, site.member.account);
 	await page.goto(install.adminUrl(`/sites/${site.siteId}`));
-	await page.getByRole("button", { name: "Edit on site" }).click();
+	await chooseEditOnSite(page);
 	await page.waitForURL((url) => url.hostname !== new URL(install.adminUrl("/")).hostname);
 	await page.getByRole("button", { name: "Page layout", exact: true }).waitFor();
 	return page;
