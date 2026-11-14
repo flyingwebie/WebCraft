@@ -8,6 +8,7 @@ import type { PageLanguage } from "./bottom-bar/LanguageMenu.tsx";
 import { Frame, type FrameHandle, type PageTheme } from "./canvas/Frame.tsx";
 import { NoDocument } from "./canvas/NoDocument.tsx";
 import type { SavingStatus } from "./canvas/regions.ts";
+import { MemberDetails } from "./client/PageDetails.tsx";
 import { DocumentSwitcher } from "./DocumentSwitcher.tsx";
 import { DockArea, useDocks } from "./docks/Docks.tsx";
 import { PanelsMenu } from "./docks/PanelsMenu.tsx";
@@ -19,6 +20,7 @@ import { TextToolbar } from "./editing/TextToolbar.tsx";
 import { type RegionCycle, regionCycle } from "./keyboard.ts";
 import { NarrowNotice } from "./NarrowNotice.tsx";
 import { useOpenDocument } from "./open-document.ts";
+import { EntryPanel, EntryPanelActions, useEntryPanelView } from "./panels/EntryFields.tsx";
 import { MediaShellHost } from "./places/media/Picker.tsx";
 import {
 	PLACE_EVENT,
@@ -84,6 +86,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 	const [selection, setSelection] = useState<PanelContext["selection"]>(null);
 	const [saving, setSaving] = useState<"idle" | "saving" | "failed">("idle");
 	const shownAddress = useRef<string | null>(null);
+	// What Edit mode says of the page now: the Entry panel and Page details read its Entry from it (BA-13).
+	const [pageState, setPageState] = useState<PageState | null>(null);
 
 	const announce = useCallback((text: string, urgent = false) => {
 		// Alternating a trailing space makes the same words twice in a row heard twice.
@@ -133,6 +137,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 			void answer.then((state) => {
 				if (!state.ok || shownAddress.current !== address) return;
 				editing.pageState(state.data);
+				setPageState(state.data);
 				setShown({
 					address,
 					changes: state.data.changes.length,
@@ -153,6 +158,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 			shownAddress.current = address;
 			setSaving("idle");
 			setShown(null);
+			setPageState(null);
 			takeState(address, answer);
 			framed(address, answer);
 		},
@@ -262,10 +268,38 @@ export function Shell({ config }: { config: ShellConfig }) {
 		}),
 		[selection, kind],
 	);
+	// The Entry panel (Staff) or Page details (a Member, until client editing's side panel holds it, BA-14):
+	// the page's Entry filled in without leaving it; a page never published follows its new slug.
+	const staff = config.permissions.includes("structure.edit");
+	const entryView = useEntryPanelView();
+	const [memberHeading, setMemberHeading] = useState<{ title: string; sub: string } | null>(null);
+	const entryOptions = {
+		token: config.token,
+		siteId: config.site.id,
+		words,
+		request,
+		page: pageState,
+		onSaving,
+		onMoved: (path: string) => opened.documents.replace({ kind: "page", page: path }),
+		announce,
+	};
 	const docks = useDocks({
 		config,
 		context,
 		announce,
+		bodies: {
+			entry: staff ? (
+				<EntryPanel
+					{...entryOptions}
+					view={entryView}
+					admin={config.admin}
+					onLanguage={(path) => frame.current?.navigate(path)}
+				/>
+			) : (
+				<MemberDetails {...entryOptions} admin={config.admin} onHeading={setMemberHeading} />
+			),
+		},
+		panelActions: staff ? { entry: <EntryPanelActions words={words} view={entryView} /> } : {},
 		headings: {
 			layers: (
 				<DocumentSwitcher
@@ -276,6 +310,16 @@ export function Shell({ config }: { config: ShellConfig }) {
 					onOpen={opened.open}
 				/>
 			),
+			...(!staff && memberHeading
+				? {
+						entry: (
+							<span className="flex min-w-0 items-baseline gap-1.5 text-[12px]">
+								<span className="text-chrome-strong shrink-0 font-semibold">{memberHeading.title}</span>
+								<span className="text-chrome-muted truncate">{memberHeading.sub}</span>
+							</span>
+						),
+					}
+				: {}),
 		},
 	});
 

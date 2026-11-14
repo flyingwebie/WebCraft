@@ -74,6 +74,8 @@ export type Docks = {
 	context: PanelContext;
 	/** Panels whose header shows a control of their own in place of the title (Layers' document switcher). */
 	headings: Partial<Record<PanelKey, ReactNode>>;
+	/** What each panel shows under its header (BA-08 onwards: Layers, the Inspector); empty when none. */
+	bodies: Partial<Record<PanelKey, ReactNode>>;
 	change(next: Layout | null, said?: string): void;
 	/** A panel switched off or on in the Panels menu. */
 	toggle(id: PanelKey): void;
@@ -87,6 +89,8 @@ export type Docks = {
 	setDrawer(side: DockSide | null): void;
 	/** A panel whose menu button takes focus once the docks have drawn (after a move from its menu). */
 	focusLater(id: string | null): void;
+	/** The actions each panel's header shows beside its title (BA-13: the Entry panel's Find and Collapse). */
+	panelActions: Partial<Record<PanelKey, ReactNode>>;
 };
 
 /** The window's size, following it. */
@@ -114,12 +118,16 @@ export function useDocks({
 	config,
 	context,
 	headings = {},
+	bodies = {},
 	announce,
+	panelActions = {},
 }: {
 	config: ShellConfig;
 	context: PanelContext;
 	headings?: Partial<Record<PanelKey, ReactNode>>;
+	bodies?: Partial<Record<PanelKey, ReactNode>>;
 	announce(text: string, urgent?: boolean): void;
+	panelActions?: Partial<Record<PanelKey, ReactNode>>;
 }): Docks {
 	const { words } = config;
 	const [stored, setStored] = useState<Layout | null>(config.layout);
@@ -292,6 +300,7 @@ export function useDocks({
 		words,
 		context,
 		headings,
+		bodies,
 		change,
 		toggle,
 		reset,
@@ -301,6 +310,7 @@ export function useDocks({
 		drawer,
 		setDrawer,
 		focusLater: setFocusTarget,
+		panelActions,
 	};
 }
 
@@ -626,6 +636,7 @@ function Dock({
 								kind={across ? "side" : "bottom"}
 								title={titleOf(shownPanel, docks)}
 								sub={placement.id === "inspector" ? docks.context.selection?.name : undefined}
+								actions={docks.panelActions[placement.id as PanelKey]}
 								heading={docks.headings[placement.id as PanelKey]}
 								collapsed={Boolean(placement.collapsed)}
 								labels={{
@@ -641,7 +652,9 @@ function Dock({
 									change(setCollapsed(layout, placement.id, false), fill(words.docks.expanded, { panel: name }));
 									docks.focusLater(placement.id);
 								}}
-							/>
+							>
+								{docks.bodies[placement.id as PanelKey]}
+							</PanelFrame>
 							{next ? (
 								<Separator
 									orientation={across ? "horizontal" : "vertical"}
