@@ -123,6 +123,9 @@ export { type DiskRoom, type DiskSpace, systemDiskSpace } from "./disk.ts";
 export { type Dns, systemDns } from "./dns.ts";
 export * from "./domains/index.ts";
 export {
+	BUILDING_AREA_PAGE_PATH,
+	BUILDING_AREA_PATH,
+	buildingAreaPageAddress,
 	CODE_MODE_SCRIPT_PATH,
 	CODE_MODE_STYLESHEET_PATH,
 	EDIT_LINK_LIFETIME_MS,
@@ -140,12 +143,15 @@ export {
 	type EditSession,
 	type EnteredEditMode,
 	type ImageChange,
+	isAdminReturnPath,
+	isBuildingDocument,
 	isCodeSelection,
 	isEditPageAddress,
 	isEditPath,
 	LoopItemRestoreRefusedError,
 	type PageChange,
 	type PageState,
+	pageOfBuildingAddress,
 	type RegionChange,
 	type SavedImage,
 	type SavedRegion,

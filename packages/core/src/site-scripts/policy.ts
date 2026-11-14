@@ -182,5 +182,19 @@ export function editModePolicy(hosts: readonly string[] = []): string {
 	].join("; ");
 }
 
+/**
+ * An Edit mode policy for a page shown in the building area's frame (ADR 0037): the same policy, but
+ * the page's own origin may frame it (`frame-ancestors 'self'`), as visitors' pages already may. A
+ * script of the same origin already reads the page and its header token with a plain request, so the
+ * frame gives nothing away; every other origin still can't frame it.
+ */
+export function framedEditModePolicy(policy: string): string {
+	return policy
+		.split(";")
+		.map((directive) => directive.trim())
+		.map((directive) => (/^frame-ancestors(\s|$)/i.test(directive) ? "frame-ancestors 'self'" : directive))
+		.join("; ");
+}
+
 /** How many allowed hosts a Site holds at most, those Staff add and those its outside scripts need. */
 export const ALLOWED_HOSTS_PER_SITE = 100;
