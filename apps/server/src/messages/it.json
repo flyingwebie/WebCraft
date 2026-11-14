@@ -8332,6 +8332,67 @@
 			"pageTitle": "Apri l'area di costruzione dall'admin",
 			"text": "Questo browser non sta modificando questo sito, oppure la sessione di modifica è terminata. Riapri l'area di costruzione dall'admin.",
 			"link": "Vai all'admin"
+		},
+		"places": {
+			"content": "Contenuti",
+			"templates": "Template",
+			"media": "Media",
+			"styles": "Stili",
+			"loops": "Loop",
+			"components": "Componenti",
+			"more": "Altri spazi"
+		},
+		"unavailable": "non ancora disponibile",
+		"darkPreview": "Anteprima scura",
+		"noDarkMode": "il sito non ha la modalità scura",
+		"panels": "Pannelli",
+		"hideInterface": "Nascondi l'interfaccia",
+		"showInterface": "Mostra l'interfaccia",
+		"settings": "Impostazioni del sito (si apre in una nuova scheda)",
+		"exit": "Esci",
+		"exiting": "Uscita dall'area di costruzione…",
+		"exitFailed": "Impossibile chiudere la modalità modifica: {reason}",
+		"signedInAs": "Accesso come {name}",
+		"undo": "Annulla",
+		"redo": "Ripeti",
+		"undoStep": "Annulla {step}",
+		"redoStep": "Ripeti {step}",
+		"language": "Lingua",
+		"viewOnStaging": "Vedi sull'indirizzo di staging (si apre in una nuova scheda)",
+		"draftState": {
+			"label": "Stato della Bozza",
+			"saved": "Salvato",
+			"saving": "Salvataggio…",
+			"changes": {
+				"one": "Bozza · {count} modifica",
+				"other": "Bozza · {count} modifiche"
+			},
+			"review": "In revisione",
+			"failed": "Impossibile salvare"
+		},
+		"publish": "Pubblica",
+		"publishLater": "Pubblica arriva con una parte successiva dell'area di costruzione",
+		"size": {
+			"readout": "Dimensioni della cornice",
+			"presets": "Larghezza del dispositivo",
+			"desktop": "Desktop",
+			"tablet": "Tablet",
+			"phone": "Telefono",
+			"width": "Larghezza della pagina in pixel",
+			"height": "× {height} px",
+			"zoom": "Zoom",
+			"zoomedOut": "Rimpicciolita al {zoom} % per starci in larghezza",
+			"fullWidth": "Torna alla larghezza piena",
+			"breakpoint": "Breakpoint {name}",
+			"gutterStart": "Larghezza della pagina, bordo sinistro",
+			"gutterEnd": "Larghezza della pagina, bordo destro",
+			"gutterBelow": "Altezza della pagina",
+			"widthNow": "{width} px di larghezza",
+			"heightNow": "{height} px di altezza"
+		},
+		"narrow": {
+			"title": "L'area di costruzione richiede una finestra larga almeno 1024 px",
+			"text": "Allarga la finestra per continuare: nulla viene chiuso o perso."
 		}
 	}
 }

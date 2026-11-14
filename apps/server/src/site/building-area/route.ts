@@ -5,6 +5,7 @@ import {
 	type InstallServices,
 	isEditPath,
 	type SiteHost,
+	stagingUrl,
 } from "@webcraft/core";
 
 import en from "../../messages/en.json" with { type: "json" };
@@ -51,6 +52,8 @@ export async function buildingAreaEndpoint(
 	}
 	const person = await services.people.get(edit.session.personId);
 	const language = person?.adminLanguage ?? settings.defaultAdminLanguage;
+	const designSystem = (await services.designSystem.get(edit.session.scope)).draft;
+	const staging = stagingUrl(services.config, host.site.slug);
 	const config: ShellConfig = {
 		token: edit.session.headerToken,
 		page: `${page}${url.search}`,
@@ -58,6 +61,14 @@ export async function buildingAreaEndpoint(
 		language,
 		words: WORDS[language],
 		safe: safeModeOf(request),
+		site: { id: host.site.id, name: host.site.name },
+		person: { name: person?.name ?? "" },
+		breakpoints: [...designSystem.tokens.breakpoints]
+			.sort((a, b) => a.width - b.width)
+			.map(({ name, width }) => ({ name, width })),
+		darkMode: designSystem.darkMode,
+		staging: staging && host.address !== "staging" ? staging : null,
+		settings: new URL(`/sites/${host.site.id}/domains`, services.config.adminOrigin).toString(),
 	};
 	const files = await buildingAreaAssets();
 	const html = [

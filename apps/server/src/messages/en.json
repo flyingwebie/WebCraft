@@ -8332,6 +8332,67 @@
 			"pageTitle": "Open the building area from the admin",
 			"text": "This browser isn't editing this Site, or its editing session has ended. Open the building area again from the admin.",
 			"link": "Go to the admin"
+		},
+		"places": {
+			"content": "Content",
+			"templates": "Templates",
+			"media": "Media",
+			"styles": "Styles",
+			"loops": "Loops",
+			"components": "Components",
+			"more": "More places"
+		},
+		"unavailable": "not available yet",
+		"darkPreview": "Dark preview",
+		"noDarkMode": "the Site has no Dark mode",
+		"panels": "Panels",
+		"hideInterface": "Hide the interface",
+		"showInterface": "Show the interface",
+		"settings": "Site settings (opens in a new tab)",
+		"exit": "Exit",
+		"exiting": "Leaving the building area…",
+		"exitFailed": "Couldn't end Edit mode: {reason}",
+		"signedInAs": "Signed in as {name}",
+		"undo": "Undo",
+		"redo": "Redo",
+		"undoStep": "Undo {step}",
+		"redoStep": "Redo {step}",
+		"language": "Language",
+		"viewOnStaging": "View on Staging (opens in a new tab)",
+		"draftState": {
+			"label": "Draft state",
+			"saved": "Saved",
+			"saving": "Saving…",
+			"changes": {
+				"one": "Draft · {count} change",
+				"other": "Draft · {count} changes"
+			},
+			"review": "In review",
+			"failed": "Could not save"
+		},
+		"publish": "Publish",
+		"publishLater": "Publish comes with a later part of the building area",
+		"size": {
+			"readout": "Frame size",
+			"presets": "Device width",
+			"desktop": "Desktop",
+			"tablet": "Tablet",
+			"phone": "Phone",
+			"width": "Page width in pixels",
+			"height": "× {height} px",
+			"zoom": "Zoom",
+			"zoomedOut": "Zoomed out to {zoom} % to fit the width",
+			"fullWidth": "Back to full width",
+			"breakpoint": "Breakpoint {name}",
+			"gutterStart": "Page width, left edge",
+			"gutterEnd": "Page width, right edge",
+			"gutterBelow": "Page height",
+			"widthNow": "{width} px wide",
+			"heightNow": "{height} px high"
+		},
+		"narrow": {
+			"title": "The building area needs a window at least 1024 px wide",
+			"text": "Make the window wider to carry on: nothing is closed or lost."
 		}
 	}
 }

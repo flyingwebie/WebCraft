@@ -1,4 +1,4 @@
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compile, optimize } from "@tailwindcss/node";
 import { Scanner } from "@tailwindcss/oxide";
@@ -119,9 +119,11 @@ async function bundle(entryName: string, format: "esm" | "iife"): Promise<string
  */
 async function shellStylesheet(theme: string, fonts: readonly BuildingAreaAsset[]): Promise<string> {
 	const base = dirname(fileURLToPath(import.meta.url));
-	const css = (await Bun.file(theme).text()).replace('@import "@fontsource-variable/inter";', "");
-	const compiled = await compile(css, { base: dirname(theme), onDependency() {} });
 	const shellEntry = Bun.resolveSync("@webcraft/server/building-area/shell", base);
+	// The chrome's own colours (SPEC 4) come after the admin's theme, as Tailwind colours of their own.
+	const chrome = await Bun.file(join(dirname(shellEntry), "theme.css")).text();
+	const css = `${(await Bun.file(theme).text()).replace('@import "@fontsource-variable/inter";', "")}\n${chrome}`;
+	const compiled = await compile(css, { base: dirname(theme), onDependency() {} });
 	const scanner = new Scanner({ sources: [{ base: dirname(shellEntry), pattern: "**/*.{ts,tsx}", negated: false }] });
 	const faces = INTER_FILES.map(
 		({ range }, index) =>
