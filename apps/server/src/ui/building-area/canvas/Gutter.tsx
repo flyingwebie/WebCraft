@@ -89,7 +89,6 @@ export function Gutter({
 				if (event.button !== 0) return;
 				event.preventDefault();
 				event.currentTarget.setPointerCapture(event.pointerId);
-				event.currentTarget.focus({ preventScroll: true });
 				onDragStart(side, event.clientX, event.clientY);
 			}}
 			onPointerMove={(event) => {
