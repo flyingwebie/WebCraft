@@ -241,7 +241,7 @@ for (const theme of THEMES) {
 			await toast.waitFor();
 			expect(await notifications.getAttribute("aria-live")).toBe("polite");
 			const box = await toast.boundingBox();
-			const width = page.viewportSize()?.width ?? 0;
+			const width = await page.evaluate(() => document.documentElement.clientWidth);
 			expect(Math.abs((box?.x ?? 0) + (box?.width ?? 0) / 2 - width / 2)).toBeLessThan(2);
 			expect(box?.y ?? Number.POSITIVE_INFINITY).toBeLessThan(100);
 			if (theme === "light") {

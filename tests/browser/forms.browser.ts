@@ -213,10 +213,11 @@ for (const theme of THEMES) {
 			const page = await install.newPage(theme);
 			await install.signIn(page, owner);
 			await page.goto(install.adminUrl(`/sites/${siteWithoutFormsId}`));
-			await page.getByRole("link", { name: /^Forms$/ }).click();
+			const row = page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: /^Forms$/ });
+			await row.click();
 			await page.waitForURL((url) => url.pathname === `/sites/${siteWithoutFormsId}/forms`);
 			await page.getByText("Your agency has not built a Form for this Site yet").waitFor();
-			expect(await page.getByRole("link", { name: /^Forms$/ }).getAttribute("aria-current")).toBe("page");
+			expect(await row.getAttribute("aria-current")).toBe("page");
 
 			await expectAccessibleScreen(page, `Site › Forms, none yet, as an Owner sees it (${theme})`);
 		});
