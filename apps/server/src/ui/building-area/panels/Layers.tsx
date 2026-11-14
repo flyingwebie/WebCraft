@@ -141,7 +141,15 @@ function holdsOutlet(node: TreeNode): boolean {
 	return node.type === "outlet" || childLists(node).some((list) => list.some(holdsOutlet));
 }
 
-/** Whether the selection is inside a node (its Component's elements, for a Placement): it opens towards it. */
+/** Whether a source is `ref` or one of the sources nested under it (`content/a` holds `content/a/b`). */
+function within(source: string, ref: string): boolean {
+	return source === ref || source.startsWith(`${ref}/`);
+}
+
+/**
+ * Whether the selection is inside a node: among its descendants in its own source, or in the Component
+ * of a Placement it holds (or of the Placement it is). The tree opens towards it.
+ */
 function holdsSelection(
 	node: TreeNode,
 	source: StructureSource,
@@ -149,11 +157,16 @@ function holdsSelection(
 	selected: string | null,
 ): boolean {
 	if (!selected) return false;
-	if (nested) return sourceOf(selected).startsWith(nested.ref);
-	if (sourceOf(selected) !== source.ref) return false;
+	const at = sourceOf(selected);
+	if (nested) return within(at, nested.ref);
 	const key = keyOf(selected);
 	const found = (list: readonly TreeNode[]): boolean =>
-		list.some((child) => ("id" in child && child.id === key) || childLists(child).some(found));
+		list.some(
+			(child) =>
+				(at === source.ref && "id" in child && child.id === key) ||
+				(child.type === "component" && within(at, `${source.ref}/${child.id}`)) ||
+				childLists(child).some(found),
+		);
 	return found(childLists(node).flat());
 }
 
@@ -168,8 +181,7 @@ function rowsOf(
 	if (!site) return rows;
 	const content = snapshot.sources.get("content");
 	const selected = snapshot.selection?.ref ?? null;
-	const onTheWay = (ref: string) =>
-		selected !== null && selected !== ref && sourceOf(selected).startsWith(sourceOf(ref));
+	const onTheWay = (ref: string) => selected !== null && selected !== ref && within(sourceOf(selected), sourceOf(ref));
 
 	const visit = (
 		source: StructureSource,
@@ -411,7 +423,7 @@ export function Layers({ structure, words }: { structure: Structure; words: Word
 						<div
 							key={row.key}
 							role="presentation"
-							className="text-chrome-faint flex h-[26px] items-center gap-1.5 text-[11px] font-semibold tracking-[0.06em] uppercase"
+							className="text-chrome-muted flex h-[26px] items-center gap-1.5 text-[11px] font-semibold tracking-[0.06em] uppercase"
 							style={{ paddingInlineStart: `${8 + row.depth * INDENT}px` }}
 							data-wc-layers-divider=""
 						>
@@ -541,7 +553,7 @@ function TreeRow({
 							{named.name}
 						</span>
 						{named.detail ? (
-							<span className="text-chrome-faint truncate font-mono text-[11px]">{named.detail}</span>
+							<span className="text-chrome-muted truncate font-mono text-[11px]">{named.detail}</span>
 						) : null}
 					</>
 				) : (
@@ -600,7 +612,7 @@ function RowActions({
 						event.stopPropagation();
 						onAction(action);
 					}}
-					className={`group text-chrome-muted hover:bg-chrome-hover hover:text-chrome-strong relative grid size-5 place-items-center rounded-[4px] ${CHROME_EASE} ${FOCUS_RING}`}
+					className={`group text-chrome-muted hover:bg-chrome-hover hover:text-chrome-strong relative grid size-6 place-items-center rounded-[4px] ${CHROME_EASE} ${FOCUS_RING}`}
 					data-wc-row-action={action}
 				>
 					<Icon aria-hidden="true" className="size-3.5" />

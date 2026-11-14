@@ -307,7 +307,7 @@ function ElementInspector({
 			</div>
 			<Field
 				label={said.inspector.classes}
-				aside={<span className="text-chrome-faint truncate text-[11px]">{said.inspector.classesHint}</span>}
+				aside={<span className="text-chrome-muted truncate text-[11px]">{said.inspector.classesHint}</span>}
 			>
 				<div className="flex flex-wrap items-center gap-1" data-wc-classes="">
 					{node.classes.map((id) => {
@@ -316,7 +316,7 @@ function ElementInspector({
 						return (
 							<span
 								key={id}
-								className={`inline-flex h-[22px] items-center rounded-[4px] border font-mono text-[11px] ${
+								className={`inline-flex h-6 items-center rounded-[4px] border font-mono text-[11px] ${
 									on ? "text-chrome-strong border-[#6366f1] bg-[#6366f1]/20" : "border-chrome-line text-chrome-text"
 								}`}
 								data-wc-class={named}
@@ -340,7 +340,7 @@ function ElementInspector({
 											fill(said.steps.removeClass, { className: named, name }),
 										)
 									}
-									className={`text-chrome-muted hover:text-chrome-strong grid h-full place-items-center rounded-e-[4px] pe-1 disabled:hidden ${FOCUS_RING}`}
+									className={`text-chrome-muted hover:text-chrome-strong grid h-full w-6 place-items-center rounded-e-[4px] disabled:hidden ${FOCUS_RING}`}
 								>
 									<XIcon aria-hidden="true" className="size-3" />
 								</button>
@@ -374,7 +374,7 @@ function ElementInspector({
 								onBlur={() => {
 									if (!className.trim()) setAdding(false);
 								}}
-								className={`border-chrome-line text-chrome-strong h-[22px] w-36 rounded-[4px] border bg-transparent px-1.5 font-mono text-[11px] ${FOCUS_RING}`}
+								className={`border-chrome-line text-chrome-strong h-6 w-36 rounded-[4px] border bg-transparent px-1.5 font-mono text-[11px] ${FOCUS_RING}`}
 							/>
 							<datalist id={`${ids.classInput}-list`}>
 								{known.map((each) => (
@@ -388,7 +388,7 @@ function ElementInspector({
 							disabled={readOnly}
 							aria-label={said.inspector.addClassLabel}
 							onClick={() => setAdding(true)}
-							className={`border-chrome-line text-chrome-muted hover:text-chrome-strong hover:bg-chrome-hover inline-flex h-[22px] items-center gap-1 rounded-[4px] border px-1.5 text-[11px] disabled:hidden ${CHROME_EASE} ${FOCUS_RING}`}
+							className={`border-chrome-line text-chrome-muted hover:text-chrome-strong hover:bg-chrome-hover inline-flex h-6 items-center gap-1 rounded-[4px] border px-1.5 text-[11px] disabled:hidden ${CHROME_EASE} ${FOCUS_RING}`}
 							data-wc-add-class=""
 						>
 							<PlusIcon aria-hidden="true" className="size-3" />
@@ -399,7 +399,7 @@ function ElementInspector({
 			</Field>
 			<Field label={said.inspector.content}>
 				<p className="text-chrome-strong truncate font-mono text-[12px]" data-wc-content="">
-					{contentOf(node) || <span className="text-chrome-faint font-sans">{said.inspector.noContent}</span>}
+					{contentOf(node) || <span className="text-chrome-muted font-sans">{said.inspector.noContent}</span>}
 				</p>
 			</Field>
 			<Field label={said.inspector.id} htmlFor={ids.id}>
@@ -427,7 +427,7 @@ function ElementInspector({
 										fill(said.steps.removeAttribute, { attribute: attribute.name, name }),
 									)
 								}
-								className={`text-chrome-muted hover:text-chrome-strong rounded-[4px] ${FOCUS_RING}`}
+								className={`text-chrome-muted hover:text-chrome-strong -my-1 grid size-6 place-items-center rounded-[4px] ${FOCUS_RING}`}
 							>
 								<XIcon aria-hidden="true" className="size-3" />
 							</button>
