@@ -428,11 +428,18 @@ describe("client editing, for an Editor", () => {
 			() => document.querySelector("[data-wc-frame-box]")?.getBoundingClientRect().width === 390,
 		);
 		expect(await frame.evaluate(() => innerWidth)).toBe(390);
-		// The marks follow the narrowed page.
-		const region = await boxIn(frame, subtitle);
-		await page.mouse.move(region.x + 4, region.y + region.height / 2);
-		const outline = await page.locator('[data-wc-client-mark="hover"]').boundingBox();
-		expect(Math.abs((outline?.x ?? 0) - (region.x - 6))).toBeLessThanOrEqual(1);
+		// The marks follow the narrowed page (the width eases for 200 ms; the marks follow each frame).
+		let drift = Number.POSITIVE_INFINITY;
+		for (let attempt = 0; attempt < 20 && drift > 1; attempt++) {
+			if (attempt > 0) await page.waitForTimeout(50);
+			const region = await boxIn(frame, subtitle);
+			await page.mouse.move(region.x + 4, region.y + region.height / 2);
+			await settled(page);
+			const outline = await page.locator('[data-wc-client-mark="hover"]').boundingBox();
+			const now = await boxIn(frame, subtitle);
+			drift = outline ? Math.abs(outline.x - (now.x - 6)) : Number.POSITIVE_INFINITY;
+		}
+		expect(drift).toBeLessThanOrEqual(1);
 		await page.locator('[data-wc-segment="desktop"]').click();
 		await page.waitForFunction(
 			() => document.querySelector("[data-wc-frame-box]")?.getBoundingClientRect().width === 1340,

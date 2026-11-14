@@ -171,15 +171,45 @@ export function clientEditing(options: {
 
 	// ── drawing ──
 
+	/**
+	 * What the layer holds, by a key that stays from one drawing to the next: the same marks are the
+	 * same elements, moved and changed in place, never made again (they are drawn every frame the page
+	 * moves).
+	 */
+	const pool = new Map<string, HTMLElement>();
+	let used = new Set<string>();
+	/** The element for `key`, made the first time; `layer` order: rest outlines, dots, outlines, chips. */
+	const take = (key: string, className: string, level: number) => {
+		used.add(key);
+		let found = pool.get(key);
+		if (!found) {
+			found = (layer?.ownerDocument ?? document).createElement("div");
+			found.className = className;
+			found.style.setProperty("z-index", String(level));
+			pool.set(key, found);
+			layer?.append(found);
+		}
+		return found;
+	};
+	/** Removes what this drawing didn't use. */
+	const prune = () => {
+		for (const [key, element] of pool) {
+			if (used.has(key)) continue;
+			element.remove();
+			pool.delete(key);
+		}
+	};
+
 	const draw = () => {
 		const layerNow = layer;
 		const frame = parts?.frame;
 		const overlay = parts?.overlay;
 		if (!layerNow || !frame || !overlay) return;
-		layerNow.replaceChildren();
+		used = new Set();
 		// Regions the page shows later are made editable by the agent: in Preview they aren't either.
 		if (mode === "preview") applyMode();
 		if (mode === "preview" || !doc) {
+			prune();
 			layerNow.hidden = true;
 			return;
 		}
@@ -215,31 +245,30 @@ export function clientEditing(options: {
 		const strong = new Set([editingRegion, focused, pointed].filter(Boolean));
 
 		// At rest: every area that may change, dashed.
+		let rest = 0;
 		for (const region of marked()) {
 			if (strong.has(region)) continue;
 			const box = outer(region);
-			if (box) layerNow.append(outline(box, "rest"));
+			if (box) outline(`rest:${rest++}`, box, "rest");
 		}
 		// The dots of what changed, on the outline's corner.
+		let dots = 0;
 		for (const region of changed) {
 			if (!region.isConnected) continue;
 			const box = outer(region);
 			if (!box) continue;
-			const dot = element("div", "absolute box-border rounded-full border-2 border-white shadow-sm");
+			const dot = take(`dot:${dots++}`, "absolute box-border rounded-full border-2 border-white shadow-sm", 1);
 			dot.dataset.wcClientMark = "changed";
 			place(dot, { left: box.left - DOT_SIZE / 2, top: box.top - DOT_SIZE / 2, width: DOT_SIZE, height: DOT_SIZE });
 			dot.style.setProperty("background-color", CHANGED);
-			layerNow.append(dot);
 		}
 		// Locked, under the pointer: a grey outline and the reason on a lock chip.
 		if (pointed && !pointed.matches(MARKED)) {
 			const box = outer(pointed);
 			if (box) {
-				layerNow.append(outline(box, "locked"));
+				outline("locked", box, "locked");
 				const name = pointed.matches("footer, [role='contentinfo']") ? said.footer : said.header;
-				layerNow.append(
-					chip(box, { icon: "lock", name, hint: said.sameEverywhere, colour: LOCK_CHIP, kind: "locked" }),
-				);
+				chip(box, { icon: "lock", name, hint: said.sameEverywhere, colour: LOCK_CHIP, kind: "locked" });
 			}
 		}
 		// Under the pointer, with focus, being edited: solid, with the chip (unless a toolbar names it).
@@ -249,60 +278,57 @@ export function clientEditing(options: {
 			if (!box) continue;
 			const isEditing = region === editingRegion;
 			const isHover = region === pointed && !isEditing && region !== focused;
-			layerNow.append(outline(box, isEditing ? "editing" : isHover ? "hover" : "focus"));
+			const kind = isEditing ? "editing" : isHover ? "hover" : "focus";
+			outline(kind, box, kind);
 			if (isEditing && toolbar) continue;
 			const hint = isEditing ? null : isHover ? said.clickToEdit : said.enterToEdit;
-			layerNow.append(
-				chip(box, {
-					icon: "type",
-					name: nameOf(region, words),
-					hint,
-					colour: MARK,
-					kind: isEditing ? "editing" : isHover ? "hover" : "focus",
-				}),
-			);
+			chip(box, { icon: "type", name: nameOf(region, words), hint, colour: MARK, kind });
 		}
+		prune();
 	};
 
-	const element = (tag: string, className: string) => {
-		const made = (layer?.ownerDocument ?? document).createElement(tag);
-		made.className = className;
-		return made;
-	};
-
-	const outline = (box: Box, kind: "rest" | "hover" | "focus" | "editing" | "locked") => {
-		const drawn = element("div", "absolute box-border rounded-[8px]");
+	const outline = (key: string, box: Box, kind: "rest" | "hover" | "focus" | "editing" | "locked") => {
+		const drawn = take(`outline:${key}`, "absolute box-border rounded-[8px]", kind === "rest" ? 0 : 2);
 		drawn.dataset.wcClientMark = kind;
 		place(drawn, box);
-		if (kind === "rest") drawn.style.setProperty("border", `1.5px dashed ${MARK_SOFT}`);
-		else drawn.style.setProperty("border", `2px solid ${kind === "locked" ? LOCK_OUTLINE : MARK}`);
-		if (kind === "hover") drawn.style.setProperty("background-color", MARK_TINT);
-		return drawn;
+		drawn.style.setProperty(
+			"border",
+			kind === "rest" ? `1.5px dashed ${MARK_SOFT}` : `2px solid ${kind === "locked" ? LOCK_OUTLINE : MARK}`,
+		);
+		drawn.style.setProperty("background-color", kind === "hover" ? MARK_TINT : "transparent");
 	};
 
 	const chip = (
 		box: Box,
 		look: { icon: "type" | "lock"; name: string; hint: string | null; colour: string; kind: string },
 	) => {
-		const drawn = element(
-			"div",
+		const drawn = take(
+			`chip:${look.kind}`,
 			"absolute flex h-[26px] items-center gap-1.5 whitespace-nowrap rounded-[7px] px-[9px] text-[12px] leading-4 text-white shadow-[0_2px_8px_rgba(0,0,0,0.18)]",
+			3,
 		);
 		drawn.dataset.wcClientChip = look.kind;
 		drawn.style.setProperty("background-color", look.colour);
-		const name = element("span", "font-semibold");
-		name.textContent = look.name;
-		drawn.append(icon(drawn.ownerDocument, look.icon), name);
-		if (look.hint) {
-			const hint = element("span", "font-normal text-white/80");
-			hint.textContent = look.hint;
-			drawn.append(hint);
+		// Its words are made again only when they change.
+		const words = `${look.icon}|${look.name}|${look.hint ?? ""}`;
+		if (drawn.dataset.wcWords !== words) {
+			drawn.dataset.wcWords = words;
+			const doc = drawn.ownerDocument;
+			const name = doc.createElement("span");
+			name.className = "font-semibold";
+			name.textContent = look.name;
+			drawn.replaceChildren(icon(doc, look.icon), name);
+			if (look.hint) {
+				const hint = doc.createElement("span");
+				hint.className = "font-normal text-white/80";
+				hint.textContent = look.hint;
+				drawn.append(hint);
+			}
 		}
 		// Above the outline's top left corner; inside its top when there is no room above.
 		const above = box.top - CHIP_GAP - CHIP_HEIGHT;
 		drawn.style.setProperty("left", `${Math.max(0, box.left - 2)}px`);
 		drawn.style.setProperty("top", `${above >= 0 ? above : box.top + CHIP_GAP}px`);
-		return drawn;
 	};
 
 	// ── the wrapper ──
@@ -336,6 +362,7 @@ export function clientEditing(options: {
 				for (const stop of stops.splice(0)) stop();
 				layer?.remove();
 				layer = null;
+				pool.clear();
 				next.overlay.outlines(true);
 				parts = null;
 			};
