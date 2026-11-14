@@ -43,9 +43,11 @@ export function fileSize(bytes: number): string {
 	return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
-/** A day as the lists show it ("2 Nov"), in the person's Admin language. */
+/** A day as the lists show it ("2 Nov", the day first as the admin's dates are), in the person's Admin language. */
 export function shortDate(language: string, when: Date | string): string {
-	return new Intl.DateTimeFormat(language, { day: "numeric", month: "short", timeZone: "UTC" }).format(new Date(when));
+	const date = new Date(when);
+	const month = new Intl.DateTimeFormat(language, { month: "short", timeZone: "UTC" }).format(date);
+	return `${date.getUTCDate()} ${month}`;
 }
 
 /** A checkbox on the chrome (16 square), named for what it selects. */

@@ -272,7 +272,7 @@ function FileDetails({
 	const altId = `${id}-alt`;
 
 	return (
-		<div className="grid min-h-full [grid-template-columns:minmax(0,420px)_minmax(0,1fr)] gap-6">
+		<div className="grid min-h-full [grid-template-columns:minmax(0,420px)_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] gap-6">
 			<div className="flex min-w-0 flex-col justify-center gap-2" data-wc-media-picture="">
 				{editable && item.kind === "image" && preview ? (
 					<FocalPointPicker src={preview} value={focal} onChange={onFocal} />
@@ -465,36 +465,38 @@ function FileDetails({
 				)}
 
 				{item.canEdit ? null : <p className="text-chrome-muted m-0 text-[12px]">{t("media.details.readOnly")}</p>}
-
-				<div className="mt-auto flex flex-wrap items-center gap-2 pt-4" data-wc-media-file-actions="">
-					{trashed ? (
-						item.canEdit ? (
-							<>
-								<RestoreButton siteId={siteId} item={item} onRestored={onRemoved} />
-								<DeleteForeverDialog siteId={siteId} item={item} onDeleted={onRemoved} />
-							</>
-						) : null
-					) : (
+			</div>
+			<div
+				className="col-span-2 flex flex-wrap items-center justify-end gap-2 self-end pt-2"
+				data-wc-media-file-actions=""
+			>
+				{trashed ? (
+					item.canEdit ? (
 						<>
-							{editable ? <ReplaceButton siteId={siteId} item={item} onChanged={onChanged} /> : null}
-							{item.url ? (
-								<a
-									href={item.url}
-									download={item.fileName}
-									className={`border-chrome-hover text-chrome-text hover:bg-chrome-hover inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-[13px] font-medium ${CHROME_EASE} ${FOCUS_RING}`}
-								>
-									<DownloadIcon aria-hidden="true" className="size-4" />
-									{t("media.details.download")}
-								</a>
-							) : null}
-							{editable ? (
-								<span className="ms-auto">
-									<DeleteDialog siteId={siteId} item={item} onDeleted={onRemoved} />
-								</span>
-							) : null}
+							<RestoreButton siteId={siteId} item={item} onRestored={onRemoved} />
+							<DeleteForeverDialog siteId={siteId} item={item} onDeleted={onRemoved} />
 						</>
-					)}
-				</div>
+					) : null
+				) : (
+					<>
+						{editable ? <ReplaceButton siteId={siteId} item={item} onChanged={onChanged} /> : null}
+						{item.url ? (
+							<a
+								href={item.url}
+								download={item.fileName}
+								className={`border-chrome-hover text-chrome-text hover:bg-chrome-hover inline-flex h-9 items-center gap-1.5 rounded-md border px-3 text-[13px] font-medium ${CHROME_EASE} ${FOCUS_RING}`}
+							>
+								<DownloadIcon aria-hidden="true" className="size-4" />
+								{t("media.details.download")}
+							</a>
+						) : null}
+						{editable ? (
+							<span className="ms-4">
+								<DeleteDialog siteId={siteId} item={item} onDeleted={onRemoved} />
+							</span>
+						) : null}
+					</>
+				)}
 			</div>
 		</div>
 	);
