@@ -25,7 +25,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 
 	const announce = useCallback((text: string, urgent = false) => {
 		// Alternating a trailing space makes the same words twice in a row heard twice.
-		setMessage((last) => ({ text: `${text}${last.count % 2 ? " " : ""}`, urgent, count: last.count + 1 }));
+		setMessage((last) => ({ text: `${text}${last.count % 2 ? "\u00a0" : ""}`, urgent, count: last.count + 1 }));
 	}, []);
 
 	useEffect(() => {

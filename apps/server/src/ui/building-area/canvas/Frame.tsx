@@ -171,9 +171,6 @@ export function Frame({
 				<iframe
 					ref={frame}
 					title={words.frameTitle}
-					// The page is a region of its own, reached with F6 and the skip link; Tab then moves
-					// through the page, and leaves it for the shell's next control.
-					tabIndex={-1}
 					className="block h-full w-full origin-top-left border-0 bg-white"
 					data-wc-frame=""
 				/>
