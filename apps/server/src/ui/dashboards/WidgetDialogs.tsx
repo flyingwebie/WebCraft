@@ -1,30 +1,12 @@
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
-import {
-	Dialog,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@webcraft/ui/components/dialog.tsx";
-import {
-	Field,
-	FieldDescription,
-	FieldGroup,
-	FieldLabel,
-	FieldLegend,
-	FieldSet,
-} from "@webcraft/ui/components/field.tsx";
+import { Field, FieldGroup, FieldLabel, FieldLegend, FieldSet } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
-import { RadioGroup, RadioGroupItem } from "@webcraft/ui/components/radio-group.tsx";
 import { Textarea } from "@webcraft/ui/components/textarea.tsx";
-import { type FormEvent, type RefObject, useEffect, useId, useState } from "react";
-import { toast } from "sonner";
+import { ArrowLeftIcon, CopyIcon, Trash2Icon } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
 
-import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
 import {
 	type CatalogKind,
@@ -106,79 +88,6 @@ export function RangeFields({
 	);
 }
 
-/** Add a Widget: the catalog, each kind with what it shows; kinds whose Module is off here say so. */
-export function WidgetPicker({
-	catalog,
-	onPick,
-	onClose,
-	finalFocus,
-}: {
-	catalog: readonly CatalogKind[];
-	onPick: (kind: CatalogKind) => Promise<void>;
-	onClose: () => void;
-	finalFocus: RefObject<HTMLElement | null>;
-}) {
-	const t = useT();
-	const id = useId();
-	const [chosen, setChosen] = useState(catalog.find((kind) => kind.available)?.kind ?? "note");
-	const [busy, setBusy] = useState(false);
-	const submit = async (event: FormEvent) => {
-		event.preventDefault();
-		const kind = catalog.find((each) => each.kind === chosen);
-		if (!kind) return;
-		setBusy(true);
-		try {
-			await onPick(kind);
-		} finally {
-			setBusy(false);
-		}
-	};
-	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent closeLabel={t("dashboards.close")} finalFocus={finalFocus} className="sm:max-w-2xl">
-				<form onSubmit={submit}>
-					<DialogHeader>
-						<DialogTitle>{t("dashboards.pickerTitle")}</DialogTitle>
-						<DialogDescription>{t("dashboards.pickerIntro")}</DialogDescription>
-					</DialogHeader>
-					<FieldSet className="my-6 max-h-[55vh] overflow-y-auto pe-1">
-						<FieldLegend className="sr-only">{t("dashboards.pickerKinds")}</FieldLegend>
-						<RadioGroup value={chosen} onValueChange={(value) => setChosen(String(value))}>
-							{catalog.map((kind) => (
-								<Field key={kind.kind} orientation="horizontal">
-									<RadioGroupItem
-										value={kind.kind}
-										id={`${id}-${kind.kind}`}
-										aria-describedby={`${id}-${kind.kind}-help`}
-									/>
-									<div className="grid gap-1">
-										<FieldLabel htmlFor={`${id}-${kind.kind}`}>
-											{kind.label}
-											<span className="text-muted-foreground text-xs font-normal">
-												{t(`dashboards.shapes.${kind.shape}`)}
-											</span>
-										</FieldLabel>
-										<FieldDescription id={`${id}-${kind.kind}-help`}>
-											{kind.description}
-											{kind.available ? null : ` ${t("dashboards.unavailable")}`}
-										</FieldDescription>
-									</div>
-								</Field>
-							))}
-						</RadioGroup>
-					</FieldSet>
-					<DialogFooter>
-						<DialogClose render={<Button variant="outline" type="button" />}>{t("dashboards.cancel")}</DialogClose>
-						<Button type="submit" disabled={busy}>
-							{t("dashboards.add")}
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
-	);
-}
-
 /** Whether a new Widget of this kind needs a choice before it can count (a Goal, a Funnel). */
 export function needsChoice(kind: CatalogKind): boolean {
 	return kind.shape === "note" || kind.settings.some((setting) => setting.options === null && !setting.multiple);
@@ -225,10 +134,12 @@ function SettingField({
 		const chosen = new Set(typeof value === "string" ? [value] : (value ?? []));
 		return (
 			<FieldSet>
-				<FieldLegend variant="label">{setting.label}</FieldLegend>
+				<FieldLegend variant="label" className="text-muted-foreground text-xs">
+					{setting.label}
+				</FieldLegend>
 				{options === null ? <p className="text-muted-foreground text-sm">{t("dashboards.optionsLoading")}</p> : null}
 				{options?.length === 0 ? <p className="text-muted-foreground text-sm">{t("dashboards.noOptions")}</p> : null}
-				<div className="grid gap-2 sm:grid-cols-2">
+				<div className="grid gap-2">
 					{(options ?? []).map((option) => (
 						<Field key={option.value} orientation="horizontal">
 							<Checkbox
@@ -253,9 +164,14 @@ function SettingField({
 	const single = typeof value === "string" ? value : (value?.[0] ?? "");
 	const known = (options ?? []).some((option) => option.value === single);
 	return (
-		<Field>
+		<Field className="gap-2">
 			<FieldLabel htmlFor={id}>{setting.label}</FieldLabel>
-			<NativeSelect id={id} value={single} onChange={(change) => onChange(change.target.value || undefined)}>
+			<NativeSelect
+				id={id}
+				className="w-full"
+				value={single}
+				onChange={(change) => onChange(change.target.value || undefined)}
+			>
 				<NativeSelectOption value="">
 					{options === null ? t("dashboards.optionsLoading") : t("dashboards.choose")}
 				</NativeSelectOption>
@@ -289,10 +205,15 @@ function GoalFilter({
 	const options = useOptions(place, kind, "filter:goal", null);
 	const known = (options ?? []).some((option) => option.value.toLowerCase() === (value ?? "").toLowerCase());
 	return (
-		<Field>
-			<FieldLabel htmlFor={id}>{t("dashboards.goal")}</FieldLabel>
-			<NativeSelect id={id} value={value ?? ""} onChange={(change) => onChange(change.target.value || undefined)}>
-				<NativeSelectOption value="">{t("dashboards.anyGoal")}</NativeSelectOption>
+		<Field className="gap-2">
+			<FieldLabel htmlFor={id}>{t("dashboards.goalFilter")}</FieldLabel>
+			<NativeSelect
+				id={id}
+				className="w-full"
+				value={value ?? ""}
+				onChange={(change) => onChange(change.target.value || undefined)}
+			>
+				<NativeSelectOption value="">{t("dashboards.any")}</NativeSelectOption>
 				{value && !known && options !== null ? (
 					<NativeSelectOption value={value}>{t("dashboards.missingOption", { name: value })}</NativeSelectOption>
 				) : null}
@@ -306,277 +227,337 @@ function GoalFilter({
 	);
 }
 
-/** Edit a Widget: its title, days, filters (those its kind takes), settings, rows (tables) or note. */
-export function WidgetSettingsDialog({
+/** What the settings panel changes on a Widget. */
+export type WidgetFields = {
+	title: string | null;
+	range: DashboardRange | null;
+	filters: WidgetFilters;
+	settings: Record<string, string | string[]>;
+	rows: number;
+};
+
+export function fieldsOf(widget: WidgetView): WidgetFields {
+	return {
+		title: widget.title,
+		range: widget.range,
+		filters: widget.filters,
+		settings: widget.settings,
+		rows: widget.rows,
+	};
+}
+
+/** A small label above a group of fields ("Filters"). */
+function GroupLabel({ children }: { children: string }) {
+	return <p className="text-muted-foreground pt-1 text-xs font-medium">{children}</p>;
+}
+
+/**
+ * A Widget's settings, in the library's place while arranging (SPEC 14.3): its title, its range (the
+ * Dashboard's or its own), what it shows, its filters (those its kind takes), rows for lists, and
+ * Duplicate and Remove. The Widget on the grid follows as they change: each change is saved a moment
+ * after the last keystroke, as one step Undo takes back.
+ */
+export function WidgetSettingsPanel({
 	place,
-	dashboardId,
 	widget,
 	kind,
-	onSaved,
-	onClose,
-	finalFocus,
+	onChange,
+	onBack,
+	onDuplicate,
+	onRemove,
 }: {
 	place: DashboardPlace;
-	dashboardId: string;
 	widget: WidgetView;
 	kind: CatalogKind | undefined;
-	onSaved: () => Promise<void>;
-	onClose: () => void;
-	finalFocus: RefObject<HTMLElement | null>;
+	onChange: (fields: WidgetFields) => void;
+	onBack: () => void;
+	onDuplicate: () => void;
+	onRemove: () => void;
 }) {
 	const t = useT();
 	const id = useId();
-	const [title, setTitle] = useState(widget.title ?? "");
-	const [range, setRange] = useState<DashboardRange | null>(widget.range);
-	const [filters, setFilters] = useState<WidgetFilters>(widget.filters);
-	const [settings, setSettings] = useState<Record<string, string | string[]>>(widget.settings);
-	const [rows, setRows] = useState(widget.rows);
-	const [busy, setBusy] = useState(false);
+	const back = useRef<HTMLButtonElement>(null);
+	const [fields, setFields] = useState<WidgetFields>(() => fieldsOf(widget));
+	const sent = useRef(JSON.stringify(fieldsOf(widget)));
+	const change = useRef(onChange);
+	change.current = onChange;
+	// Saved a moment after the last change, and at once when the panel closes.
+	const latest = useRef(fields);
+	latest.current = fields;
+	useEffect(() => {
+		const text = JSON.stringify(fields);
+		if (text === sent.current) return;
+		const timer = window.setTimeout(() => {
+			sent.current = text;
+			change.current(fields);
+		}, 450);
+		return () => window.clearTimeout(timer);
+	}, [fields]);
+	useEffect(
+		() => () => {
+			const text = JSON.stringify(latest.current);
+			if (text !== sent.current) change.current(latest.current);
+		},
+		[],
+	);
+	useEffect(() => {
+		back.current?.focus();
+	}, []);
+
+	const { filters, settings } = fields;
+	const update = (next: Partial<WidgetFields>) => setFields((before) => ({ ...before, ...next }));
 	const takes = (filter: string) => (kind?.filters as readonly string[] | undefined)?.includes(filter) ?? false;
 	const setFilter = <Key extends keyof WidgetFilters>(key: Key, value: WidgetFilters[Key] | undefined) =>
-		setFilters((before) => {
-			const next = { ...before };
+		setFields((before) => {
+			const next = { ...before.filters };
 			if (value === undefined || value === "") delete next[key];
 			else next[key] = value;
-			return next;
+			return { ...before, filters: next };
 		});
-	const save = async (event: FormEvent) => {
-		event.preventDefault();
-		setBusy(true);
-		try {
-			const api = await dashboardsApi();
-			await api.widgets.update({
-				...place,
-				dashboardId,
-				widgetId: widget.id,
-				title: title.trim() || null,
-				range,
-				filters,
-				settings,
-				...(widget.shape === "table" ? { rows } : {}),
-			});
-			toast.success(t("dashboards.savedToast"));
-			await onSaved();
-			onClose();
-		} catch (failure) {
-			toast.error(t(errorMessage(failure)));
-		} finally {
-			setBusy(false);
-		}
-	};
-	const label = widget.title || widget.label;
+	const today = new Date().toISOString().slice(0, 10);
+	const range = fields.range;
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent closeLabel={t("dashboards.close")} finalFocus={finalFocus} className="sm:max-w-2xl">
-				<form onSubmit={save} noValidate>
-					<DialogHeader>
-						<DialogTitle>{t("dashboards.editTitle", { title: label })}</DialogTitle>
-						<DialogDescription>{t("dashboards.editIntro")}</DialogDescription>
-					</DialogHeader>
-					<FieldGroup className="my-6 max-h-[60vh] gap-6 overflow-y-auto pe-1">
-						<Field>
-							<FieldLabel htmlFor={`${id}-title`}>{t("dashboards.title")}</FieldLabel>
-							<Input
-								id={`${id}-title`}
-								value={title}
-								maxLength={100}
-								onChange={(change) => setTitle(change.target.value)}
-								aria-describedby={`${id}-title-help`}
-							/>
-							<FieldDescription id={`${id}-title-help`}>
-								{t("dashboards.titleHelp", { name: widget.label })}
-							</FieldDescription>
+		<div className="flex min-h-0 flex-1 flex-col">
+			<div className="flex h-9 shrink-0 items-center gap-1">
+				<Button
+					ref={back}
+					variant="ghost"
+					size="icon-sm"
+					aria-label={t("dashboards.backToLibrary")}
+					title={t("dashboards.backToLibrary")}
+					onClick={onBack}
+				>
+					<ArrowLeftIcon aria-hidden="true" />
+				</Button>
+				<h2 id={`${id}-heading`} className="truncate text-sm font-semibold">
+					{widget.label}
+				</h2>
+			</div>
+			<FieldGroup className="mt-2 min-h-0 flex-1 gap-4 overflow-y-auto px-0.5 pb-4">
+				<Field className="gap-2">
+					<FieldLabel htmlFor={`${id}-title`}>{t("dashboards.title")}</FieldLabel>
+					<Input
+						id={`${id}-title`}
+						value={fields.title ?? ""}
+						placeholder={widget.label}
+						maxLength={100}
+						onChange={(event) => update({ title: event.target.value.trim() ? event.target.value : null })}
+					/>
+				</Field>
+				{widget.shape === "note" ? (
+					<Field className="gap-2">
+						<FieldLabel htmlFor={`${id}-note`}>{t("dashboards.note")}</FieldLabel>
+						<Textarea
+							id={`${id}-note`}
+							value={typeof settings.text === "string" ? settings.text : ""}
+							maxLength={2000}
+							rows={6}
+							onChange={(event) => update({ settings: { text: event.target.value } })}
+						/>
+					</Field>
+				) : (
+					<>
+						<Field className="gap-2">
+							<FieldLabel htmlFor={`${id}-range`}>{t("dashboards.rangeChoice")}</FieldLabel>
+							<NativeSelect
+								id={`${id}-range`}
+								className="w-full"
+								value={range ? range.preset : ""}
+								onChange={(event) => {
+									const preset = event.target.value;
+									update({
+										range:
+											preset === ""
+												? null
+												: preset === "custom"
+													? {
+															preset: "custom",
+															from: range?.preset === "custom" ? range.from : today,
+															to: range?.preset === "custom" ? range.to : today,
+														}
+													: { preset: preset as (typeof RANGE_PRESETS)[number] },
+									});
+								}}
+							>
+								<NativeSelectOption value="">{t("dashboards.rangeDashboard")}</NativeSelectOption>
+								{RANGE_PRESETS.map((preset) => (
+									<NativeSelectOption key={preset} value={preset}>
+										{t(`dashboards.presets.${preset}`)}
+									</NativeSelectOption>
+								))}
+								<NativeSelectOption value="custom">{t("dashboards.presets.custom")}</NativeSelectOption>
+							</NativeSelect>
 						</Field>
-						{widget.shape === "note" ? (
-							<Field>
-								<FieldLabel htmlFor={`${id}-note`}>{t("dashboards.note")}</FieldLabel>
-								<Textarea
-									id={`${id}-note`}
-									value={typeof settings.text === "string" ? settings.text : ""}
-									maxLength={2000}
-									rows={5}
-									onChange={(change) => setSettings({ text: change.target.value })}
-									aria-describedby={`${id}-note-help`}
-								/>
-								<FieldDescription id={`${id}-note-help`}>{t("dashboards.noteHelp")}</FieldDescription>
-							</Field>
-						) : (
-							<>
-								<FieldSet>
-									<FieldLegend variant="label">{t("dashboards.rangeChoice")}</FieldLegend>
-									<RadioGroup
-										value={range ? "own" : "dashboard"}
-										onValueChange={(value) => setRange(value === "own" ? (range ?? { preset: "last30Days" }) : null)}
-									>
-										<Field orientation="horizontal">
-											<RadioGroupItem value="dashboard" id={`${id}-range-dashboard`} />
-											<FieldLabel htmlFor={`${id}-range-dashboard`} className="font-normal">
-												{t("dashboards.rangeDashboard")}
-											</FieldLabel>
-										</Field>
-										<Field orientation="horizontal">
-											<RadioGroupItem value="own" id={`${id}-range-own`} />
-											<FieldLabel htmlFor={`${id}-range-own`} className="font-normal">
-												{t("dashboards.rangeOwn")}
-											</FieldLabel>
-										</Field>
-									</RadioGroup>
-									{range ? (
-										<RangeFields
-											range={range}
-											onChange={setRange}
-											id={`${id}-own`}
-											label={t("dashboards.rangeLabel")}
-										/>
-									) : null}
-								</FieldSet>
-								{kind?.settings.map((setting) => (
-									<SettingField
-										key={setting.key}
-										place={place}
-										kind={kind}
-										setting={setting}
-										value={settings[setting.key]}
-										onChange={(value) =>
-											setSettings((before) => {
-												const next = { ...before };
-												if (value === undefined) delete next[setting.key];
-												else next[setting.key] = value;
-												return next;
-											})
+						{range?.preset === "custom" ? (
+							<div className="grid gap-2">
+								<Field className="gap-1.5">
+									<FieldLabel htmlFor={`${id}-from`}>{t("dashboards.customFrom")}</FieldLabel>
+									<Input
+										id={`${id}-from`}
+										type="date"
+										value={range.from}
+										max={range.to}
+										onChange={(event) =>
+											event.target.value && update({ range: { ...range, from: event.target.value } })
 										}
 									/>
-								))}
-								{widget.shape === "table" ? (
-									<Field>
-										<FieldLabel htmlFor={`${id}-rows`}>{t("dashboards.rows")}</FieldLabel>
+								</Field>
+								<Field className="gap-1.5">
+									<FieldLabel htmlFor={`${id}-to`}>{t("dashboards.customTo")}</FieldLabel>
+									<Input
+										id={`${id}-to`}
+										type="date"
+										value={range.to}
+										min={range.from}
+										onChange={(event) => event.target.value && update({ range: { ...range, to: event.target.value } })}
+									/>
+								</Field>
+							</div>
+						) : null}
+						{kind?.settings.map((setting) => (
+							<SettingField
+								key={setting.key}
+								place={place}
+								kind={kind}
+								setting={setting}
+								value={settings[setting.key]}
+								onChange={(value) =>
+									setFields((before) => {
+										const next = { ...before.settings };
+										if (value === undefined) delete next[setting.key];
+										else next[setting.key] = value;
+										return { ...before, settings: next };
+									})
+								}
+							/>
+						))}
+						{widget.shape === "table" ? (
+							<Field className="gap-2">
+								<FieldLabel htmlFor={`${id}-rows`}>{t("dashboards.rows")}</FieldLabel>
+								<NativeSelect
+									id={`${id}-rows`}
+									className="w-full"
+									value={String(fields.rows)}
+									onChange={(event) => update({ rows: Number(event.target.value) })}
+								>
+									{[5, 10, 20, 50].map((count) => (
+										<NativeSelectOption key={count} value={String(count)}>
+											{count}
+										</NativeSelectOption>
+									))}
+								</NativeSelect>
+							</Field>
+						) : null}
+						{kind && kind.filters.length > 0 ? (
+							<>
+								<GroupLabel>{t("dashboards.filters")}</GroupLabel>
+								{takes("page") ? (
+									<>
+										<Field className="gap-2">
+											<FieldLabel htmlFor={`${id}-page`}>{t("dashboards.pagePath")}</FieldLabel>
+											<Input
+												id={`${id}-page`}
+												value={filters.page?.path ?? ""}
+												placeholder={t("dashboards.any")}
+												maxLength={1000}
+												onChange={(event) => {
+													const path = event.target.value.trim();
+													setFilter("page", path ? { path, match: filters.page?.match ?? "exact" } : undefined);
+												}}
+											/>
+										</Field>
+										{filters.page ? (
+											<Field className="gap-2">
+												<FieldLabel htmlFor={`${id}-match`}>{t("dashboards.pageMatch")}</FieldLabel>
+												<NativeSelect
+													id={`${id}-match`}
+													className="w-full"
+													value={filters.page.match}
+													onChange={(event) =>
+														filters.page &&
+														setFilter("page", {
+															path: filters.page.path,
+															match: event.target.value === "prefix" ? "prefix" : "exact",
+														})
+													}
+												>
+													<NativeSelectOption value="exact">{t("dashboards.matchExact")}</NativeSelectOption>
+													<NativeSelectOption value="prefix">{t("dashboards.matchPrefix")}</NativeSelectOption>
+												</NativeSelect>
+											</Field>
+										) : null}
+									</>
+								) : null}
+								{takes("source") ? (
+									<Field className="gap-2">
+										<FieldLabel htmlFor={`${id}-source`}>{t("dashboards.source")}</FieldLabel>
+										<Input
+											id={`${id}-source`}
+											value={filters.source ?? ""}
+											placeholder={t("dashboards.any")}
+											maxLength={200}
+											onChange={(event) => setFilter("source", event.target.value.trim() || undefined)}
+										/>
+									</Field>
+								) : null}
+								{takes("country") ? (
+									<Field className="gap-2">
+										<FieldLabel htmlFor={`${id}-country`}>{t("dashboards.country")}</FieldLabel>
+										<Input
+											id={`${id}-country`}
+											value={filters.country ?? ""}
+											placeholder={t("dashboards.any")}
+											maxLength={2}
+											className="uppercase placeholder:normal-case"
+											aria-describedby={`${id}-country-help`}
+											onChange={(event) => setFilter("country", event.target.value.trim().toUpperCase() || undefined)}
+										/>
+										<span id={`${id}-country-help`} className="sr-only">
+											{t("dashboards.countryHelp")}
+										</span>
+									</Field>
+								) : null}
+								{takes("device") ? (
+									<Field className="gap-2">
+										<FieldLabel htmlFor={`${id}-device`}>{t("dashboards.device")}</FieldLabel>
 										<NativeSelect
-											id={`${id}-rows`}
-											value={String(rows)}
-											onChange={(change) => setRows(Number(change.target.value))}
+											id={`${id}-device`}
+											className="w-full"
+											value={filters.device ?? ""}
+											onChange={(event) =>
+												setFilter("device", (event.target.value || undefined) as WidgetFilters["device"] | undefined)
+											}
 										>
-											{[5, 10, 20, 50].map((count) => (
-												<NativeSelectOption key={count} value={String(count)}>
-													{count}
-												</NativeSelectOption>
-											))}
+											<NativeSelectOption value="">{t("dashboards.any")}</NativeSelectOption>
+											<NativeSelectOption value="desktop">{t("dashboards.devices.desktop")}</NativeSelectOption>
+											<NativeSelectOption value="mobile">{t("dashboards.devices.mobile")}</NativeSelectOption>
+											<NativeSelectOption value="tablet">{t("dashboards.devices.tablet")}</NativeSelectOption>
 										</NativeSelect>
 									</Field>
 								) : null}
-								{kind && kind.filters.length > 0 ? (
-									<FieldSet>
-										<FieldLegend variant="label">{t("dashboards.filters")}</FieldLegend>
-										<FieldDescription>{t("dashboards.filtersHelp")}</FieldDescription>
-										<div className="grid gap-4 sm:grid-cols-2">
-											{takes("page") ? (
-												<>
-													<Field>
-														<FieldLabel htmlFor={`${id}-page`}>{t("dashboards.pagePath")}</FieldLabel>
-														<Input
-															id={`${id}-page`}
-															value={filters.page?.path ?? ""}
-															placeholder="/pricing"
-															className="font-mono"
-															maxLength={1000}
-															onChange={(change) => {
-																const path = change.target.value.trim();
-																setFilter("page", path ? { path, match: filters.page?.match ?? "exact" } : undefined);
-															}}
-														/>
-													</Field>
-													<Field>
-														<FieldLabel htmlFor={`${id}-match`}>{t("dashboards.pageMatch")}</FieldLabel>
-														<NativeSelect
-															id={`${id}-match`}
-															value={filters.page?.match ?? "exact"}
-															disabled={!filters.page}
-															onChange={(change) =>
-																filters.page &&
-																setFilter("page", {
-																	path: filters.page.path,
-																	match: change.target.value === "prefix" ? "prefix" : "exact",
-																})
-															}
-														>
-															<NativeSelectOption value="exact">{t("dashboards.matchExact")}</NativeSelectOption>
-															<NativeSelectOption value="prefix">{t("dashboards.matchPrefix")}</NativeSelectOption>
-														</NativeSelect>
-													</Field>
-												</>
-											) : null}
-											{takes("source") ? (
-												<Field>
-													<FieldLabel htmlFor={`${id}-source`}>{t("dashboards.source")}</FieldLabel>
-													<Input
-														id={`${id}-source`}
-														value={filters.source ?? ""}
-														placeholder="search.example"
-														maxLength={200}
-														onChange={(change) => setFilter("source", change.target.value.trim() || undefined)}
-														aria-describedby={`${id}-source-help`}
-													/>
-													<FieldDescription id={`${id}-source-help`}>{t("dashboards.sourceHelp")}</FieldDescription>
-												</Field>
-											) : null}
-											{takes("country") ? (
-												<Field>
-													<FieldLabel htmlFor={`${id}-country`}>{t("dashboards.country")}</FieldLabel>
-													<Input
-														id={`${id}-country`}
-														value={filters.country ?? ""}
-														placeholder="IE"
-														maxLength={2}
-														className="w-24 uppercase"
-														onChange={(change) =>
-															setFilter("country", change.target.value.trim().toUpperCase() || undefined)
-														}
-														aria-describedby={`${id}-country-help`}
-													/>
-													<FieldDescription id={`${id}-country-help`}>{t("dashboards.countryHelp")}</FieldDescription>
-												</Field>
-											) : null}
-											{takes("device") ? (
-												<Field>
-													<FieldLabel htmlFor={`${id}-device`}>{t("dashboards.device")}</FieldLabel>
-													<NativeSelect
-														id={`${id}-device`}
-														value={filters.device ?? ""}
-														onChange={(change) =>
-															setFilter(
-																"device",
-																(change.target.value || undefined) as WidgetFilters["device"] | undefined,
-															)
-														}
-													>
-														<NativeSelectOption value="">{t("dashboards.anyDevice")}</NativeSelectOption>
-														<NativeSelectOption value="desktop">{t("dashboards.devices.desktop")}</NativeSelectOption>
-														<NativeSelectOption value="mobile">{t("dashboards.devices.mobile")}</NativeSelectOption>
-														<NativeSelectOption value="tablet">{t("dashboards.devices.tablet")}</NativeSelectOption>
-													</NativeSelect>
-												</Field>
-											) : null}
-											{takes("goal") && kind ? (
-												<GoalFilter
-													place={place}
-													kind={kind}
-													value={filters.goal}
-													onChange={(value) => setFilter("goal", value)}
-												/>
-											) : null}
-										</div>
-									</FieldSet>
+								{takes("goal") && kind ? (
+									<GoalFilter
+										place={place}
+										kind={kind}
+										value={filters.goal}
+										onChange={(value) => setFilter("goal", value)}
+									/>
 								) : null}
 							</>
-						)}
-					</FieldGroup>
-					<DialogFooter>
-						<DialogClose render={<Button variant="outline" type="button" />}>{t("dashboards.cancel")}</DialogClose>
-						<Button type="submit" disabled={busy}>
-							{t("dashboards.save")}
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+						) : null}
+					</>
+				)}
+			</FieldGroup>
+			<div className="bg-background flex shrink-0 gap-2 border-t pt-3">
+				<Button type="button" variant="outline" size="sm" onClick={onDuplicate}>
+					<CopyIcon aria-hidden="true" />
+					{t("dashboards.duplicate")}
+				</Button>
+				<Button type="button" variant="destructive" size="sm" onClick={onRemove}>
+					<Trash2Icon aria-hidden="true" />
+					{t("dashboards.removeWidget")}
+				</Button>
+			</div>
+		</div>
 	);
 }
