@@ -1,80 +1,48 @@
-import type { ApiClient } from "@webcraft/api";
-import type forms from "@webcraft/module-forms";
-import type { ModuleApi, SubmissionDelivery } from "@webcraft/module-sdk";
-import { type FormField, formTextIn } from "@webcraft/renderer/forms";
-import { Badge } from "@webcraft/ui/components/badge.tsx";
+import type { FormField } from "@webcraft/renderer/forms";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import {
-	Dialog,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@webcraft/ui/components/dialog.tsx";
-import { Field, FieldLabel } from "@webcraft/ui/components/field.tsx";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@webcraft/ui/components/empty.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
-import {
-	DownloadIcon,
-	InboxIcon,
-	MailIcon,
-	ReplyIcon,
-	ShieldAlertIcon,
-	ShieldCheckIcon,
-	TrashIcon,
-	WebhookIcon,
-} from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from "react";
+import { DownloadIcon, InboxIcon, PaperclipIcon, SearchIcon, ShieldCheckIcon } from "lucide-react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { useLocale } from "use-intl";
 
 import { getApi } from "../api.ts";
 import { languageName } from "../content/DraftParts.tsx";
 import { errorMessage } from "../errors.ts";
-import { formatUtc } from "../format.ts";
-import { type MessageKey, useT } from "../i18n.tsx";
+import { Segmented } from "../filters/Segmented.tsx";
+import { useT } from "../i18n.tsx";
+import { ExportDialog } from "./ExportDialog.tsx";
+import {
+	type Folder,
+	firstLineOf,
+	formsApi,
+	hasFiles,
+	type Listed,
+	type ReadFilter,
+	rowTime,
+	type Submission,
+	senderOf,
+	senderValueOf,
+} from "./mailbox.ts";
+import { type DetailActions, SubmissionDetail } from "./SubmissionDetail.tsx";
 
-/** The Forms Module's procedures, as the admin calls them (`m.forms.…`). */
-function formsApi(api: ApiClient): ModuleApi<typeof forms> {
-	return (api as unknown as { m: { forms: ModuleApi<typeof forms> } }).m.forms;
-}
-
-type Listed = Awaited<ReturnType<ModuleApi<typeof forms>["submissions"]["list"]>>;
-type Submission = Listed["submissions"][number];
-type Folder = "inbox" | "spam";
-type ReadFilter = "all" | "unread" | "read";
-
-/** How many Submissions a page of the list shows. */
+/** How many more Submissions "Show more" brings, and the most the list holds at once. */
 const PAGE_SIZE = 25;
+const LIST_MOST = 200;
 
 /** How long a Form may keep its Submissions: forever (null), or a number of days. */
 const KEEP_CHOICES = [null, 30, 90, 365] as const;
 
-const SPAM_REASONS: Record<string, MessageKey> = {
-	honeypot: "submissions.spamReasons.honeypot",
-	"too-fast": "submissions.spamReasons.tooFast",
-	token: "submissions.spamReasons.token",
-	"rate-limit": "submissions.spamReasons.rateLimit",
-	size: "submissions.spamReasons.size",
-	captcha: "submissions.spamReasons.captcha",
-};
-
-const DELIVERY_STATUS: Record<SubmissionDelivery["status"], MessageKey> = {
-	queued: "emailLog.status.queued",
-	retrying: "emailLog.status.retrying",
-	sent: "emailLog.status.sent",
-	failed: "emailLog.status.failed",
-	logged: "emailLog.status.logged",
-};
-
 /**
- * The Submissions tab (the Forms Module, for Staff, Owners and Editors): the Form's inbox and Spam
- * folder, searched and filtered (read or unread, a language), a page at a time; the Submission chosen
- * (from the list, or the address's `submission`) with its values and its delivery log; marking it read
- * or unread, Not spam, deleting it (two steps), exporting the list as CSV, and how long the Form keeps
- * them. Opening a Submission marks it read.
+ * The Submissions tab (the Forms Module, for Staff, Owners and Editors), a mailbox (frame 01): the
+ * list on the left, 400 wide, the chosen Submission on the right, both filling the page. The list has
+ * Inbox and Spam (with how many Spam holds), a search, All or Unread, the language when the Site has
+ * more than one, and Export; each row has an unread dot, who sent it, the first line of what they
+ * wrote, when, and a clip when files came. J and K move through the list, U marks the open one
+ * unread, Delete removes it after asking. Opening one marks it read; whatever changes a
+ * Submission's state tells the sidebar's counts (`onCountsChanged`).
  */
 export function SubmissionsTab({
 	siteId,
@@ -83,8 +51,11 @@ export function SubmissionsTab({
 	languages,
 	defaultLanguage,
 	canManage,
+	canResend,
+	placedOn,
 	initialSubmission,
 	onSelect,
+	onCountsChanged,
 }: {
 	siteId: string;
 	formId: string;
@@ -94,20 +65,30 @@ export function SubmissionsTab({
 	defaultLanguage: string;
 	/** Whether the person may delete, take out of spam and choose how long they are kept. */
 	canManage: boolean;
+	/** Whether the person may send a failed Webhook call again (Staff). */
+	canResend: boolean;
+	/** Where the Form is placed, in words, for the empty inbox. */
+	placedOn: readonly string[];
 	initialSubmission?: string;
 	onSelect?(submissionId: string | null): void;
+	/** A Submission was read, marked unread, taken out of Spam or deleted. */
+	onCountsChanged?(): void;
 }) {
 	const t = useT();
+	const locale = useLocale();
 	const [folder, setFolder] = useState<Folder>("inbox");
 	const [typed, setTyped] = useState("");
 	const [search, setSearch] = useState("");
 	const [read, setRead] = useState<ReadFilter>("all");
 	const [language, setLanguage] = useState("");
-	const [offset, setOffset] = useState(0);
+	const [shown, setShown] = useState(PAGE_SIZE);
 	const [listed, setListed] = useState<Listed | null>(null);
 	const [selected, setSelected] = useState<string | null>(initialSubmission ?? null);
 	const [refreshed, setRefreshed] = useState(0);
-	const ids = useId();
+	const [exporting, setExporting] = useState(false);
+	const root = useRef<HTMLDivElement>(null);
+	const list = useRef<HTMLUListElement>(null);
+	const actions = useRef<DetailActions | null>(null);
 	// The translator, for effects that report a failure without running again when it changes.
 	const words = useRef(t);
 	words.current = t;
@@ -116,7 +97,7 @@ export function SubmissionsTab({
 	useEffect(() => {
 		const timer = setTimeout(() => {
 			setSearch(typed.trim());
-			setOffset(0);
+			setShown(PAGE_SIZE);
 		}, 300);
 		return () => clearTimeout(timer);
 	}, [typed]);
@@ -133,8 +114,8 @@ export function SubmissionsTab({
 					read,
 					search: search || undefined,
 					language: language || undefined,
-					limit: PAGE_SIZE,
-					offset,
+					limit: Math.min(shown, LIST_MOST),
+					offset: 0,
 				});
 				// `refreshed` asks for the list again after a change.
 				if (current && refreshed >= 0) setListed(answer);
@@ -145,325 +126,330 @@ export function SubmissionsTab({
 		return () => {
 			current = false;
 		};
-	}, [siteId, formId, folder, read, search, language, offset, refreshed]);
+	}, [siteId, formId, folder, read, search, language, shown, refreshed]);
 
-	const refresh = useCallback(() => setRefreshed((count) => count + 1), []);
-	const choose = (id: string | null) => {
-		setSelected(id);
-		onSelect?.(id);
+	const items = listed?.submissions ?? [];
+	const changed = useCallback(() => {
+		setRefreshed((count) => count + 1);
+		onCountsChanged?.();
+	}, [onCountsChanged]);
+	const choose = useCallback(
+		(id: string | null) => {
+			setSelected(id);
+			onSelect?.(id);
+		},
+		[onSelect],
+	);
+	const filtersChange = () => {
+		setShown(PAGE_SIZE);
+		choose(null);
 	};
 
-	const exportCsv = async () => {
-		try {
-			const api = formsApi(await getApi());
-			const { filename, csv, count } = await api.submissions.export({
-				siteId,
-				formId,
-				folder,
-				read,
-				search: search || undefined,
-				language: language || undefined,
-			});
-			const link = document.createElement("a");
-			link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-			link.download = filename;
-			link.click();
-			URL.revokeObjectURL(link.href);
-			toast.success(t("submissions.exported", { count }));
-		} catch (error) {
-			toast.error(t(errorMessage(error)));
+	// The mailbox's keys, while its tab shows and nobody is typing or in a dialog.
+	useEffect(() => {
+		const onKey = (event: KeyboardEvent) => {
+			if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
+			const container = root.current;
+			if (!container || container.closest("[hidden]") || container.offsetParent === null) return;
+			const target = event.target as HTMLElement | null;
+			if (
+				target?.closest(
+					'input, textarea, select, [contenteditable="true"], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]',
+				)
+			) {
+				return;
+			}
+			const key = event.key.toLowerCase();
+			if (key === "j" || key === "k") {
+				if (items.length === 0) return;
+				const at = items.findIndex((item) => item.id === selected);
+				const next = at < 0 ? 0 : key === "j" ? Math.min(at + 1, items.length - 1) : Math.max(at - 1, 0);
+				const target = items[next];
+				if (!target) return;
+				event.preventDefault();
+				choose(target.id);
+				const row = list.current?.querySelector<HTMLButtonElement>(`[data-submission="${target.id}"]`);
+				row?.scrollIntoView({ block: "nearest", inline: "nearest" });
+				if (list.current?.contains(document.activeElement)) row?.focus();
+			} else if (key === "u") {
+				if (!actions.current) return;
+				event.preventDefault();
+				actions.current.markUnread();
+			} else if (key === "delete" || key === "backspace") {
+				if (!actions.current || !canManage) return;
+				event.preventDefault();
+				actions.current.askDelete();
+			}
+		};
+		document.addEventListener("keydown", onKey);
+		return () => document.removeEventListener("keydown", onKey);
+	}, [items, selected, choose, canManage]);
+
+	// The labels of the fields that say who sent each Submission, so Export can leave them out.
+	const senderLabels = useMemo(() => {
+		const labels = new Set<string>();
+		for (const submission of items) {
+			const sender = senderValueOf(submission);
+			if (sender) labels.add(sender.label);
+			const email = submission.values.find((value) => value.type === "email");
+			if (email) labels.add(email.label);
 		}
-	};
+		return labels;
+	}, [items]);
 
-	const keepDays = listed?.keepDays ?? null;
+	const filtered = Boolean(search || read !== "all" || language);
 	const total = listed?.total ?? 0;
+	const now = new Date();
+	const timeWords = {
+		yesterday: t("submissions.yesterday"),
+		daysAgo: (days: number) => t("submissions.daysAgo", { days }),
+	};
 
 	return (
-		<div className="grid gap-6 @4xl/page:grid-cols-[12rem_minmax(0,1fr)_22rem]">
-			<nav aria-label={t("submissions.folders")} className="grid content-start gap-2">
-				{(["inbox", "spam"] as const).map((each) => (
-					<Button
-						key={each}
-						variant={folder === each ? "secondary" : "ghost"}
-						className="justify-between"
-						aria-current={folder === each ? "true" : undefined}
-						onClick={() => {
-							setFolder(each);
-							setOffset(0);
+		<div
+			ref={root}
+			className="grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-[10px] border @3xl/page:h-[calc(100dvh-15.5rem)] @3xl/page:min-h-[30rem] @3xl/page:grid-cols-[400px_minmax(0,1fr)]"
+		>
+			<section
+				aria-label={t("submissions.listLabel")}
+				className="flex min-h-0 min-w-0 flex-col gap-3 border-b p-4 @3xl/page:border-e @3xl/page:border-b-0"
+			>
+				<Segmented
+					label={t("submissions.folders")}
+					value={folder}
+					options={[
+						{ value: "inbox", label: t("submissions.inbox") },
+						{
+							value: "spam",
+							label: listed?.counts.spam
+								? t("submissions.spamCount", { count: listed.counts.spam })
+								: t("submissions.spam"),
+						},
+					]}
+					onChange={(next) => {
+						setFolder(next);
+						filtersChange();
+					}}
+				/>
+				<div className="relative">
+					<SearchIcon
+						className="text-muted-foreground pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2"
+						aria-hidden="true"
+					/>
+					<Input
+						type="search"
+						className="ps-9"
+						value={typed}
+						maxLength={200}
+						placeholder={t("submissions.searchPlaceholder")}
+						aria-label={t("submissions.search")}
+						onChange={(event) => setTyped(event.target.value)}
+					/>
+				</div>
+				<div className="flex flex-wrap items-center gap-2">
+					<Segmented
+						label={t("submissions.show")}
+						size="sm"
+						value={read}
+						options={[
+							{ value: "all", label: t("submissions.filter.all") },
+							{ value: "unread", label: t("submissions.filter.unread") },
+						]}
+						onChange={(next) => {
+							setRead(next);
+							filtersChange();
 						}}
+					/>
+					{languages.length > 1 ? (
+						<NativeSelect
+							size="sm"
+							aria-label={t("submissions.language")}
+							value={language}
+							onChange={(event) => {
+								setLanguage(event.target.value);
+								filtersChange();
+							}}
+						>
+							<NativeSelectOption value="">{t("submissions.allLanguages")}</NativeSelectOption>
+							{languages.map((code) => (
+								<NativeSelectOption key={code} value={code}>
+									{languageName(code)}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
+					) : null}
+					<Button
+						variant="outline"
+						size="sm"
+						className="ms-auto"
+						onClick={() => setExporting(true)}
+						disabled={total === 0}
 					>
-						<span className="flex items-center gap-2">
-							{each === "inbox" ? (
-								<InboxIcon aria-hidden="true" data-icon="inline-start" />
-							) : (
-								<ShieldAlertIcon aria-hidden="true" data-icon="inline-start" />
-							)}
-							{each === "inbox" ? t("submissions.inbox") : t("submissions.spam")}
-						</span>
-						<span className="text-muted-foreground tabular-nums">
-							{each === "inbox" ? (listed?.counts.inbox ?? "") : (listed?.counts.spam ?? "")}
-						</span>
+						<DownloadIcon aria-hidden="true" data-icon="inline-start" />
+						{t("submissions.export")}
 					</Button>
-				))}
-				<p className="text-muted-foreground mt-2 rounded-md border p-3 text-xs">{t("submissions.spamNote")}</p>
-			</nav>
-
-			<section aria-labelledby={`${ids}-list`} className="grid min-w-0 content-start gap-4">
-				<div className="flex flex-wrap items-start justify-between gap-3">
-					<div className="space-y-1">
-						<h2 id={`${ids}-list`} className="text-lg font-semibold">
-							{folder === "inbox" ? t("submissions.inbox") : t("submissions.spam")}
-						</h2>
-						<p className="text-muted-foreground text-sm" aria-live="polite">
-							{listed
-								? t("submissions.summary", {
-										total: listed.counts.inbox,
-										unread: listed.counts.unread,
-										kept:
-											keepDays === null ? t("submissions.keptForever") : t("submissions.keptDays", { days: keepDays }),
-									})
-								: t("submissions.loading")}
-						</p>
-					</div>
-					<div className="flex flex-wrap items-end gap-2">
-						<Retention siteId={siteId} formId={formId} keepDays={keepDays} canManage={canManage} onChanged={refresh} />
-						<Button variant="outline" onClick={() => void exportCsv()} disabled={total === 0}>
-							<DownloadIcon aria-hidden="true" data-icon="inline-start" />
-							{t("submissions.export")}
-						</Button>
-					</div>
 				</div>
 
-				<div className="flex flex-wrap items-end gap-3">
-					<Field className="min-w-48 flex-1">
-						<FieldLabel htmlFor={`${ids}-search`}>{t("submissions.search")}</FieldLabel>
-						<Input
-							id={`${ids}-search`}
-							type="search"
-							value={typed}
-							maxLength={200}
-							onChange={(event) => setTyped(event.target.value)}
-						/>
-					</Field>
-					<fieldset className="flex rounded-md border p-0.5">
-						<legend className="sr-only">{t("submissions.show")}</legend>
-						{(["all", "unread", "read"] as const).map((each) => (
-							<Button
-								key={each}
-								size="sm"
-								variant={read === each ? "secondary" : "ghost"}
-								aria-pressed={read === each}
-								onClick={() => {
-									setRead(each);
-									setOffset(0);
-								}}
-							>
-								{t(`submissions.filter.${each}`)}
-							</Button>
-						))}
-					</fieldset>
-					{languages.length > 1 ? (
-						<Field className="w-44">
-							<FieldLabel htmlFor={`${ids}-language`}>{t("submissions.language")}</FieldLabel>
-							<NativeSelect
-								id={`${ids}-language`}
-								value={language}
-								onChange={(event) => {
-									setLanguage(event.target.value);
-									setOffset(0);
-								}}
-							>
-								<NativeSelectOption value="">{t("submissions.allLanguages")}</NativeSelectOption>
-								{languages.map((code) => (
-									<NativeSelectOption key={code} value={code}>
-										{languageName(code)}
-									</NativeSelectOption>
-								))}
-							</NativeSelect>
-						</Field>
+				<div className="-mx-1 max-h-[28rem] min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-1 @3xl/page:max-h-none">
+					{listed && items.length === 0 ? (
+						filtered ? (
+							<p className="text-muted-foreground p-6 text-center text-sm">{t("submissions.noMatch")}</p>
+						) : (
+							<Empty className="p-6">
+								<EmptyHeader>
+									<EmptyMedia variant="icon">
+										{folder === "spam" ? <ShieldCheckIcon aria-hidden="true" /> : <InboxIcon aria-hidden="true" />}
+									</EmptyMedia>
+									<EmptyTitle>{folder === "spam" ? t("submissions.emptySpam") : t("submissions.empty")}</EmptyTitle>
+									<EmptyDescription>
+										{folder === "spam"
+											? t("submissions.emptySpamNote")
+											: placedOn.length > 0
+												? t("submissions.emptyPlaced", { places: placedOn.join(", ") })
+												: t("submissions.emptyNotPlaced")}
+									</EmptyDescription>
+								</EmptyHeader>
+							</Empty>
+						)
+					) : null}
+					{listed === null ? (
+						<p className="text-muted-foreground p-6 text-center text-sm" aria-live="polite">
+							{t("submissions.loading")}
+						</p>
+					) : null}
+					{items.length > 0 ? (
+						<ul
+							ref={list}
+							className="grid grid-cols-[minmax(0,1fr)] gap-0.5 py-1"
+							aria-label={t("submissions.tableLabel")}
+						>
+							{items.map((submission) => (
+								<Row
+									key={submission.id}
+									submission={submission}
+									spam={folder === "spam"}
+									current={submission.id === selected}
+									time={rowTime(submission.receivedAt, now, locale, timeWords)}
+									onOpen={() => choose(submission.id)}
+								/>
+							))}
+						</ul>
+					) : null}
+					{items.length > 0 && items.length < total ? (
+						<div className="grid justify-items-center gap-1 py-2">
+							{items.length < LIST_MOST ? (
+								<Button variant="ghost" size="sm" onClick={() => setShown((before) => before + PAGE_SIZE)}>
+									{t("submissions.showMore")}
+								</Button>
+							) : (
+								<p className="text-muted-foreground text-center text-xs">
+									{t("submissions.showingNewest", { count: LIST_MOST })}
+								</p>
+							)}
+						</div>
 					) : null}
 				</div>
 
-				{listed && listed.submissions.length === 0 ? (
-					<p className="text-muted-foreground rounded-md border p-6 text-center text-sm">
-						{search || read !== "all" || language
-							? t("submissions.noMatch")
-							: folder === "spam"
-								? t("submissions.emptySpam")
-								: t("submissions.empty")}
-					</p>
-				) : null}
-				{listed && listed.submissions.length > 0 ? (
-					<div className="overflow-x-auto rounded-md border">
-						<Table>
-							<caption className="sr-only">{t("submissions.tableLabel")}</caption>
-							<TableHeader>
-								<TableRow>
-									<TableHead>{t("submissions.columns.submitter")}</TableHead>
-									<TableHead>{t("submissions.columns.language")}</TableHead>
-									<TableHead>{t("submissions.columns.received")}</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{listed.submissions.map((submission) => (
-									<TableRow key={submission.id} data-state={submission.id === selected ? "selected" : undefined}>
-										<TableCell className="min-w-56">
-											<button
-												type="button"
-												className="focus-visible:ring-ring/50 flex w-full items-start gap-2 rounded-sm text-start outline-none focus-visible:ring-3"
-												aria-current={submission.id === selected ? "true" : undefined}
-												onClick={() => choose(submission.id)}
-											>
-												<span
-													className={`mt-1.5 size-2 shrink-0 rounded-full ${submission.read ? "bg-transparent" : "bg-primary"}`}
-													aria-hidden="true"
-												/>
-												<span className="grid min-w-0">
-													<span className={submission.read ? "" : "font-semibold"}>{titleOf(submission, t)}</span>
-													<span className="text-muted-foreground truncate text-sm">{detailOf(submission)}</span>
-													{submission.read ? null : <span className="sr-only">{t("submissions.unread")}</span>}
-												</span>
-											</button>
-										</TableCell>
-										<TableCell>
-											<Badge variant="outline" lang={submission.language}>
-												{submission.language.toUpperCase()}
-											</Badge>
-										</TableCell>
-										<TableCell className="whitespace-nowrap">{formatUtc(submission.receivedAt)}</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					</div>
-				) : null}
-				{listed && total > 0 ? (
-					<div className="flex flex-wrap items-center justify-between gap-3">
-						<p className="text-muted-foreground text-sm">
-							{t("submissions.showing", {
-								from: offset + 1,
-								to: Math.min(offset + PAGE_SIZE, total),
-								total,
-							})}
-						</p>
-						<div className="flex gap-2">
-							<Button
-								variant="outline"
-								onClick={() => setOffset(Math.max(offset - PAGE_SIZE, 0))}
-								disabled={offset === 0}
-							>
-								{t("submissions.previous")}
-							</Button>
-							<Button
-								variant="outline"
-								onClick={() => setOffset(offset + PAGE_SIZE)}
-								disabled={offset + PAGE_SIZE >= total}
-							>
-								{t("submissions.next")}
-							</Button>
-						</div>
-					</div>
-				) : null}
+				<Retention
+					siteId={siteId}
+					formId={formId}
+					keepDays={listed?.keepDays ?? null}
+					canManage={canManage}
+					onChanged={() => setRefreshed((count) => count + 1)}
+				/>
 			</section>
 
-			<SubmissionPanel
+			<div className="min-h-0 overflow-y-auto">
+				<SubmissionDetail
+					siteId={siteId}
+					submissionId={selected}
+					fields={fields}
+					defaultLanguage={defaultLanguage}
+					canManage={canManage}
+					canResend={canResend}
+					actions={actions}
+					onChanged={changed}
+					onGone={(gone) => {
+						// The next Submission opens in its place, else the one before.
+						const at = items.findIndex((item) => item.id === gone);
+						const next = items[at + 1] ?? items[at - 1];
+						choose(next && next.id !== gone ? next.id : null);
+						changed();
+					}}
+				/>
+			</div>
+
+			<ExportDialog
+				open={exporting}
+				onOpenChange={setExporting}
 				siteId={siteId}
-				submissionId={selected}
-				fields={fields}
-				defaultLanguage={defaultLanguage}
-				canManage={canManage}
-				onChanged={refresh}
-				onGone={() => {
-					choose(null);
-					refresh();
-				}}
+				formId={formId}
+				filters={{ folder, read, search: search || undefined, language: language || undefined }}
+				senderLabels={senderLabels}
 			/>
 		</div>
 	);
 }
 
-/** A Submission's name in the list: its first text value (a name), else its first value, else when it came. */
-function titleOf(submission: Submission, t: ReturnType<typeof useT>): string {
-	const text = submission.values.find(
-		(value) => value.type === "text" && typeof value.value === "string" && value.value,
+/** One row of the list (board 05): unread dot, who sent it, when, the first line, a clip for files. */
+function Row({
+	submission,
+	spam,
+	current,
+	time,
+	onOpen,
+}: {
+	submission: Submission;
+	spam: boolean;
+	current: boolean;
+	time: string;
+	onOpen(): void;
+}) {
+	const t = useT();
+	const sender = senderOf(submission);
+	const unread = !submission.read && !spam;
+	const files = hasFiles(submission);
+	return (
+		<li>
+			<button
+				type="button"
+				data-submission={submission.id}
+				aria-current={current ? "true" : undefined}
+				aria-keyshortcuts="J K"
+				onClick={onOpen}
+				className="hover:bg-muted aria-[current=true]:bg-accent focus-visible:ring-ring/50 grid w-full min-w-0 grid-cols-[minmax(0,1fr)] gap-1 rounded-lg px-2.5 py-2 text-start outline-none focus-visible:ring-3"
+			>
+				<span className="flex items-center gap-2">
+					<span
+						aria-hidden="true"
+						className={`size-2 shrink-0 rounded-full ${unread ? "bg-orange-500" : "bg-transparent"}`}
+					/>
+					<span
+						className={`min-w-0 flex-1 truncate text-sm ${unread ? "font-semibold" : "font-medium"} ${spam ? "text-muted-foreground" : ""}`}
+					>
+						{sender ?? t("submissions.noName")}
+					</span>
+					{unread ? <span className="sr-only">{t("submissions.unread")}</span> : null}
+					<span className="text-muted-foreground shrink-0 text-xs">{time}</span>
+				</span>
+				<span className="flex items-center gap-1.5 ps-4">
+					<span className="text-muted-foreground min-w-0 flex-1 truncate text-[13px]">{firstLineOf(submission)}</span>
+					{files ? (
+						<>
+							<PaperclipIcon className="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />
+							<span className="sr-only">{t("submissions.withFiles")}</span>
+						</>
+					) : null}
+				</span>
+			</button>
+		</li>
 	);
-	const any = submission.values.find((value) => typeof value.value === "string" && value.value);
-	return String(text?.value ?? any?.value ?? t("submissions.noName"));
-}
-
-/** The line under its name: its first email address, else its page. */
-function detailOf(submission: Submission): string {
-	const email = submission.values.find((value) => value.type === "email" && typeof value.value === "string");
-	return String(email?.value ?? submission.page ?? "");
-}
-
-/** A Form upload as the Submission's procedures answer it: never its bytes, a link to download it. */
-type UploadValue = { uploadId: string | null; name: string; size: number; contentType: string; url: string | null };
-
-/** A file field's uploads, or null for any other value. */
-function filesOf(value: Submission["values"][number]): UploadValue[] | null {
-	const raw = value.value;
-	return Array.isArray(raw) && raw.some((item) => typeof item === "object" && item !== null)
-		? (raw as unknown as UploadValue[])
-		: null;
-}
-
-/** A size as people read it: `3 KB`, `2.4 MB`. */
-function sizeOf(bytes: number): string {
-	if (bytes >= 1024 * 1024) return `${Math.round((bytes / (1024 * 1024)) * 10) / 10} MB`;
-	return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
 /**
- * A Submission's files: each a link to download it through the admin (only people who may read the
- * Submissions get it, and each download is in the Audit log), or its name when it wasn't kept (spam).
+ * How long the Form keeps its Submissions, at the foot of the list: a choice for those who may
+ * manage them, else in words.
  */
-function Uploads({ files }: { files: readonly UploadValue[] }) {
-	const t = useT();
-	if (files.length === 0) return <>—</>;
-	return (
-		<ul className="grid gap-1">
-			{files.map((file, index) => (
-				// biome-ignore lint/suspicious/noArrayIndexKey: a Submission's files never change order.
-				<li key={index}>
-					{file.url ? (
-						<a
-							href={file.url}
-							download={file.name}
-							className="text-primary underline underline-offset-4"
-							aria-label={t("forms.uploadFiles.download", { name: file.name })}
-						>
-							{file.name}
-						</a>
-					) : (
-						t("forms.uploadFiles.notKept", { name: file.name })
-					)}{" "}
-					<span className="text-muted-foreground">({sizeOf(file.size)})</span>
-				</li>
-			))}
-		</ul>
-	);
-}
-
-/** A value as the panel shows it: a choice by its label (in the Site's Default language), a consent Yes or No. */
-function shown(
-	value: Submission["values"][number],
-	fields: readonly FormField[],
-	language: string,
-	t: ReturnType<typeof useT>,
-): string {
-	const raw = value.value;
-	if (raw === null || raw === "" || (Array.isArray(raw) && raw.length === 0)) return "—";
-	if (typeof raw === "boolean") return raw ? t("submissions.yes") : t("submissions.no");
-	const options = fields.find((field) => field.key === value.key)?.options ?? [];
-	const label = (choice: string) => {
-		const option = options.find((candidate) => candidate.value === choice);
-		return option ? formTextIn(option.label, language) : choice;
-	};
-	if (Array.isArray(raw)) return raw.map((choice) => (typeof choice === "string" ? label(choice) : "")).join(", ");
-	return typeof raw === "string" ? label(raw) : String(raw);
-}
-
 function Retention({
 	siteId,
 	formId,
@@ -479,12 +465,21 @@ function Retention({
 }) {
 	const t = useT();
 	const id = useId();
-	if (!canManage) return null;
+	if (!canManage) {
+		return (
+			<p className="text-muted-foreground border-t pt-3 text-xs">
+				{keepDays === null ? t("submissions.keptForever") : t("submissions.keptDays", { days: keepDays })}
+			</p>
+		);
+	}
 	return (
-		<Field className="w-44">
-			<FieldLabel htmlFor={id}>{t("submissions.retention")}</FieldLabel>
+		<div className="flex items-center justify-between gap-2 border-t pt-3">
+			<label htmlFor={id} className="text-muted-foreground text-xs">
+				{t("submissions.retention")}
+			</label>
 			<NativeSelect
 				id={id}
+				size="sm"
 				value={keepDays === null ? "" : String(keepDays)}
 				onChange={async (event) => {
 					const days = event.target.value === "" ? null : (Number(event.target.value) as 30 | 90 | 365);
@@ -504,273 +499,6 @@ function Retention({
 					</NativeSelectOption>
 				))}
 			</NativeSelect>
-		</Field>
-	);
-}
-
-type Opened = Awaited<ReturnType<ModuleApi<typeof forms>["submissions"]["get"]>>;
-
-function SubmissionPanel({
-	siteId,
-	submissionId,
-	fields,
-	defaultLanguage,
-	canManage,
-	onChanged,
-	onGone,
-}: {
-	siteId: string;
-	submissionId: string | null;
-	fields: readonly FormField[];
-	defaultLanguage: string;
-	canManage: boolean;
-	onChanged(): void;
-	onGone(): void;
-}) {
-	const t = useT();
-	const [opened, setOpened] = useState<Opened | null>(null);
-	const [loaded, setLoaded] = useState(0);
-	const [deleting, setDeleting] = useState<{ confirmation: string } | null>(null);
-	const [busy, setBusy] = useState(false);
-	const deleteButton = useRef<HTMLButtonElement>(null);
-	// The Submissions this panel marked read when they were first opened: never again (after Not spam).
-	const marked = useRef(new Set<string>());
-	const heading = useId();
-	const words = useRef(t);
-	words.current = t;
-
-	useEffect(() => {
-		let current = true;
-		if (!submissionId) {
-			setOpened(null);
-			return;
-		}
-		void (async () => {
-			try {
-				const api = formsApi(await getApi());
-				let answer = await api.submissions.get({ siteId, id: submissionId });
-				// Opening a Submission marks it read, for everyone.
-				if (!answer.submission.read && !marked.current.has(submissionId) && loaded >= 0) {
-					marked.current.add(submissionId);
-					await api.submissions.setRead({ siteId, ids: [submissionId], read: true });
-					answer = { ...answer, submission: { ...answer.submission, read: true } };
-					onChanged();
-				}
-				if (current) setOpened(answer);
-			} catch (error) {
-				if (current) {
-					setOpened(null);
-					toast.error(words.current(errorMessage(error)));
-				}
-			}
-		})();
-		return () => {
-			current = false;
-		};
-	}, [siteId, submissionId, loaded, onChanged]);
-
-	if (!submissionId || !opened) {
-		return (
-			<aside className="text-muted-foreground self-start rounded-md border p-6 text-sm" aria-live="polite">
-				{submissionId ? t("submissions.loading") : t("submissions.choose")}
-			</aside>
-		);
-	}
-	const { submission, deliveries } = opened;
-	const act = async (work: () => Promise<void>) => {
-		setBusy(true);
-		try {
-			await work();
-		} catch (error) {
-			toast.error(t(errorMessage(error)));
-		} finally {
-			setBusy(false);
-		}
-	};
-
-	return (
-		<aside aria-labelledby={heading} className="flex min-w-0 flex-col gap-5 self-start rounded-md border p-4">
-			<div className="grid gap-1">
-				<h2 id={heading} className="text-lg font-semibold break-words">
-					{titleOf(submission, t)}
-				</h2>
-				<p className="text-muted-foreground text-sm">
-					{t("submissions.came", {
-						time: formatUtc(submission.receivedAt),
-						language: languageName(submission.language),
-						page: submission.page ?? "—",
-					})}
-				</p>
-			</div>
-			{submission.folder === "spam" ? (
-				<p className="border-warning-border bg-warning text-warning-foreground rounded-md border p-3 text-sm">
-					{t("submissions.inSpam", {
-						reason: t(SPAM_REASONS[submission.spamReason ?? ""] ?? "submissions.spamReasons.other"),
-					})}
-				</p>
-			) : null}
-			<div className="flex flex-wrap gap-2">
-				<Button
-					variant="outline"
-					size="sm"
-					disabled={busy}
-					onClick={() =>
-						act(async () => {
-							const api = formsApi(await getApi());
-							await api.submissions.setRead({ siteId, ids: [submission.id], read: !submission.read });
-							setOpened({ ...opened, submission: { ...submission, read: !submission.read } });
-							onChanged();
-						})
-					}
-				>
-					<MailIcon aria-hidden="true" data-icon="inline-start" />
-					{submission.read ? t("submissions.markUnread") : t("submissions.markRead")}
-				</Button>
-				{canManage && submission.folder === "spam" ? (
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={busy}
-						onClick={() =>
-							act(async () => {
-								const api = formsApi(await getApi());
-								await api.submissions.notSpam({ siteId, id: submission.id });
-								toast.success(t("submissions.notSpamDone"));
-								setLoaded((count) => count + 1);
-								onChanged();
-							})
-						}
-					>
-						<ShieldCheckIcon aria-hidden="true" data-icon="inline-start" />
-						{t("submissions.notSpam")}
-					</Button>
-				) : null}
-				{canManage ? (
-					<Button
-						ref={deleteButton}
-						variant="outline"
-						size="sm"
-						disabled={busy}
-						onClick={() =>
-							act(async () => {
-								const api = formsApi(await getApi());
-								const asked = await api.submissions.delete({ siteId, ids: [submission.id] });
-								if (!asked.deleted) setDeleting({ confirmation: asked.confirmation.id });
-							})
-						}
-					>
-						<TrashIcon aria-hidden="true" data-icon="inline-start" />
-						{t("submissions.delete")}
-					</Button>
-				) : null}
-			</div>
-
-			<dl className="grid gap-3 rounded-md border p-3">
-				{submission.values.map((value) => (
-					<div key={value.key} className="grid gap-0.5 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] sm:gap-3">
-						<dt className="text-muted-foreground min-w-0 text-sm break-words">{value.label}</dt>
-						<dd className="min-w-0 text-sm break-words whitespace-pre-line">
-							{filesOf(value) ? <Uploads files={filesOf(value) ?? []} /> : shown(value, fields, defaultLanguage, t)}
-						</dd>
-					</div>
-				))}
-			</dl>
-
-			<section aria-labelledby={`${heading}-log`} className="grid gap-2">
-				<h3 id={`${heading}-log`} className="font-semibold">
-					{t("submissions.deliveries")}
-				</h3>
-				{deliveries.length === 0 ? (
-					<p className="text-muted-foreground text-sm">{t("submissions.deliveriesNone")}</p>
-				) : (
-					<ul className="grid gap-2">
-						{deliveries.map((delivery) => (
-							<DeliveryLine key={delivery.id} delivery={delivery} />
-						))}
-					</ul>
-				)}
-			</section>
-
-			{submission.folder === "spam" && canManage ? (
-				<p className="text-muted-foreground text-xs">{t("submissions.notSpamNote")}</p>
-			) : null}
-
-			{deleting ? (
-				<Dialog open onOpenChange={(open) => !open && setDeleting(null)}>
-					<DialogContent closeLabel={t("submissions.cancel")} finalFocus={deleteButton}>
-						<DialogHeader>
-							<DialogTitle>{t("submissions.deleteTitle")}</DialogTitle>
-							<DialogDescription>{t("submissions.deleteBody")}</DialogDescription>
-						</DialogHeader>
-						<DialogFooter>
-							<DialogClose render={<Button variant="outline" />}>{t("submissions.cancel")}</DialogClose>
-							<Button
-								variant="destructive"
-								disabled={busy}
-								onClick={() =>
-									act(async () => {
-										const api = formsApi(await getApi());
-										await api.submissions.delete({
-											siteId,
-											ids: [submission.id],
-											confirmation: deleting.confirmation,
-										});
-										setDeleting(null);
-										toast.success(t("submissions.deleted"));
-										onGone();
-									})
-								}
-							>
-								{t("submissions.delete")}
-							</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
-			) : null}
-		</aside>
-	);
-}
-
-function DeliveryLine({ delivery }: { delivery: SubmissionDelivery }) {
-	const t = useT();
-	const icon: ReactNode =
-		delivery.kind === "notification" ? (
-			<MailIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-		) : delivery.kind === "autoReply" ? (
-			<ReplyIcon className="mt-0.5 size-4 shrink-0 rtl:-scale-x-100" aria-hidden="true" />
-		) : (
-			<WebhookIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-		);
-	const what =
-		delivery.kind === "notification"
-			? t("submissions.deliveryNotification", { to: delivery.to })
-			: delivery.kind === "autoReply"
-				? t("submissions.deliveryAutoReply", { to: delivery.to })
-				: t("submissions.deliveryWebhook", { name: delivery.to });
-	return (
-		<li className="flex items-start justify-between gap-3 text-sm">
-			<span className="flex min-w-0 flex-1 items-start gap-2">
-				{icon}
-				<span className="grid min-w-0">
-					<span className="wrap-anywhere">{what}</span>
-					{delivery.problem ? (
-						<span className="text-muted-foreground text-xs break-words">
-							{t("submissions.deliveryProblem", { problem: delivery.problem })}
-						</span>
-					) : null}
-					{delivery.nextAttemptAt && delivery.status === "retrying" ? (
-						<span className="text-muted-foreground text-xs">
-							{t("emailLog.nextAttempt", { time: formatUtc(delivery.nextAttemptAt) })}
-						</span>
-					) : null}
-				</span>
-			</span>
-			<Badge
-				variant={delivery.status === "sent" ? "secondary" : "outline"}
-				className={`shrink-0 ${delivery.status === "failed" ? "border-destructive/60" : ""}`}
-			>
-				{t(DELIVERY_STATUS[delivery.status])}
-			</Badge>
-		</li>
+		</div>
 	);
 }

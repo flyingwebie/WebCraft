@@ -3582,7 +3582,12 @@
 		"uploadFiles": {
 			"download": "Download {name}",
 			"notKept": "{name} (not kept)"
-		}
+		},
+		"newColumn": "New",
+		"newCount": "{count} new",
+		"noneYet": "No Forms yet",
+		"noneYetNote": "Make one to place it on a page.",
+		"noneForClients": "Your agency has not built a Form for this Site yet"
 	},
 	"workspaceStorage": {
 		"heading": "Media storage",
@@ -5140,7 +5145,6 @@
 	},
 	"formEmails": {
 		"content": "Content",
-		"intro": "What each Submission sends: Notifications to the Site's people, and an Auto-reply to the visitor. Changes stay in the Draft until you publish them.",
 		"publish": "Publish emails",
 		"saved": "Saved to the Draft.",
 		"published": "The emails were published: Submissions send them from now on.",
@@ -5148,101 +5152,146 @@
 		"leaveEmpty": "Leave it empty for: {example}",
 		"notifications": {
 			"heading": "Notifications",
-			"intro": "Each address gets its own email, in the Site's Default language, with everything the visitor sent. Replies go to the visitor.",
 			"none": "No Notifications: Submissions are only kept.",
 			"add": "Add Notification",
 			"title": "Notification {number}",
 			"remove": "Remove Notification {number}",
 			"recipients": "Send to",
-			"recipientsHelp": "One email address per line, at most {max}.",
+			"recipientsHelp": "Press Enter after each address, at most {max}.",
 			"routing": "Route by a field",
 			"routingNone": "Don't route",
 			"routingHelp": "Send to other addresses depending on the answer to a select or radio field.",
 			"routingNoField": "Add a select or radio field to the Form to route by its answer.",
 			"routeFor": "When {field} is {option}",
-			"routeHelp": "One address per line. Empty: the addresses above.",
+			"routeHelp": "Empty: the addresses above.",
 			"subject": "Subject",
 			"intro2": "Opening text",
-			"introHelp": "Shown above the visitor's answers. Leave it empty for WebCraft's words."
+			"introHelp": "Shown above the visitor's answers. Leave it empty for WebCraft's words.",
+			"upToTen": "Up to ten"
 		},
 		"autoReply": {
 			"heading": "Auto-reply",
-			"intro": "An email back to the visitor, in the language they used, with your words only: never what they typed.",
 			"enabled": "Send an Auto-reply",
-			"field": "Send to the address in",
+			"field": "Answers the address in",
 			"firstEmailField": "The first email field",
 			"fieldHelp": "The email field the visitor fills in.",
 			"noEmailField": "Add an email field to the Form to send an Auto-reply.",
-			"inDefault": "{language} (as written)",
-			"inLanguage": "{language}",
 			"subject": "Subject",
 			"text": "Text",
 			"textHelp": "Separate paragraphs with an empty line.",
-			"translationHelp": "Left empty, visitors in this language get the text as written."
+			"translationHelp": "Left empty, visitors in this language get the text as written.",
+			"languages": "Languages of the Auto-reply"
+		},
+		"state": {
+			"neverPublished": "Draft · not published yet",
+			"published": "Published",
+			"changes": "Draft · {count, plural, one {# change} other {# changes}}"
+		},
+		"recipients": {
+			"add": "Add an address",
+			"remove": "Remove {address}",
+			"password": "Changing who receives these asks for your password again."
 		}
 	},
 	"submissions": {
 		"folders": "Folders",
+		"listLabel": "Submissions",
 		"inbox": "Inbox",
 		"spam": "Spam",
-		"spamNote": "Spam is deleted after 30 days. It never sends Notifications, Auto-replies or Webhooks.",
-		"summary": "{total, plural, one {# Submission} other {# Submissions}} · {unread} unread · {kept}",
-		"keptForever": "kept forever",
-		"keptDays": "kept {days} days",
+		"spamCount": "Spam {count}",
 		"loading": "Loading…",
-		"export": "Export CSV",
+		"export": "Export",
+		"exportTitle": "Export this list as CSV",
+		"exportParts": "What the file holds",
+		"exportPart": {
+			"sender": "Sender",
+			"received": "Received",
+			"answers": "Every answer"
+		},
+		"exportButton": "Export",
 		"exported": "{count, plural, one {# Submission} other {# Submissions}} exported.",
 		"search": "Search Submissions",
+		"searchPlaceholder": "Search submissions",
 		"show": "Show",
 		"filter": {
 			"all": "All",
-			"unread": "Unread",
-			"read": "Read"
+			"unread": "Unread"
 		},
 		"language": "Language",
 		"allLanguages": "All languages",
 		"tableLabel": "Submissions, newest first",
-		"columns": {
-			"submitter": "Submitter",
-			"language": "Language",
-			"received": "Received"
-		},
 		"unread": "Unread",
-		"noName": "No name",
-		"empty": "No Submissions yet.",
-		"emptySpam": "The Spam folder is empty.",
+		"withFiles": "Files came with it",
+		"yesterday": "Yesterday",
+		"daysAgo": "{days, plural, one {# day ago} other {# days ago}}",
+		"noName": "No name given",
+		"empty": "Nothing has come in yet",
+		"emptyPlaced": "This Form is placed on {places}.",
+		"emptyNotPlaced": "This Form isn't placed on a page yet.",
+		"emptySpam": "No spam caught",
+		"emptySpamNote": "Automated Submissions land here.",
 		"noMatch": "No Submissions match.",
-		"showing": "Showing {from}–{to} of {total}",
-		"previous": "Previous",
-		"next": "Next",
+		"showMore": "Show more",
+		"showingNewest": "Showing the newest {count}. Search to find older ones.",
 		"choose": "Choose a Submission to read it.",
-		"came": "{time} · {language} · from {page}",
-		"inSpam": "In the Spam folder: {reason}.",
-		"spamReasons": {
-			"honeypot": "a field people never see was filled in",
-			"tooFast": "it was sent sooner than a person could fill it in",
-			"token": "it came without the page's token, or with one more than a day old",
-			"rateLimit": "one address sent it too often",
-			"size": "it was too large",
-			"captcha": "the CAPTCHA couldn't be checked",
-			"other": "a spam check caught it"
+		"received": "Received {time} · from the page {page} · {language}",
+		"caught": "Caught {time} · from the page {page}",
+		"caughtBecause": {
+			"honeypot": "A hidden field was filled in",
+			"tooFast": "Filled in faster than a person could",
+			"token": "Sent without the page's token, or with one more than a day old",
+			"rateLimit": "Sent too often from one address",
+			"size": "Too large to keep",
+			"captcha": "The CAPTCHA couldn't be checked",
+			"other": "A spam check caught it"
 		},
+		"spamKept": "Kept for 30 days, then removed. Nobody was notified.",
+		"notGiven": "(not given)",
+		"notKept": "Not kept",
 		"markUnread": "Mark as unread",
 		"markRead": "Mark as read",
 		"notSpam": "Not spam",
-		"notSpamDone": "Moved to the inbox: its Notifications, Auto-reply and Webhooks are on their way.",
-		"notSpamNote": "Not spam moves it to the inbox and sends its Notifications, Auto-reply (within a day of when it came) and Webhooks.",
+		"notSpamDone": "Moved to the Inbox: its Notifications, Auto-reply and Webhooks are on their way.",
+		"notSpamNote": "Moves it to the Inbox and sends its Notifications, Auto-reply and Webhooks",
 		"delete": "Delete",
-		"deleteTitle": "Delete this Submission?",
-		"deleteBody": "It is deleted for good, with any files that came with it.",
+		"deleteTitle": "Delete for good?",
+		"deleteBody": "Its files are deleted with it. This cannot be undone.",
 		"deleted": "The Submission was deleted.",
 		"cancel": "Cancel",
-		"deliveries": "Delivery log",
-		"deliveriesNone": "Nothing was sent for it.",
-		"deliveryNotification": "Notification → {to}",
-		"deliveryAutoReply": "Auto-reply → {to}",
-		"deliveryWebhook": "Webhook · {name}",
-		"deliveryProblem": "Last answer: {problem}",
+		"delivery": {
+			"heading": "What happened next",
+			"none": "Nothing was sent for it.",
+			"problem": "Last answer: {problem}",
+			"sendAgain": "Send again",
+			"sentAgain": "Queued again: it is sent in a moment.",
+			"sent": {
+				"notification": "Notification sent to {to}",
+				"autoReply": "Auto-reply sent to {to}",
+				"webhook": "Webhook {to} delivered"
+			},
+			"logged": {
+				"notification": "Notification to {to} written to the Email log: no email server is set",
+				"autoReply": "Auto-reply to {to} written to the Email log: no email server is set",
+				"webhook": "Webhook {to} delivered"
+			},
+			"queued": {
+				"notification": "Notification to {to} queued",
+				"autoReply": "Auto-reply to {to} queued",
+				"webhook": "Webhook {to} queued"
+			},
+			"retrying": {
+				"notification": "Notification to {to}: queued, will retry shortly",
+				"autoReply": "Auto-reply to {to}: queued, will retry shortly",
+				"webhook": "Webhook {to}: queued, will retry shortly"
+			},
+			"failed": {
+				"notification": "Could not send the Notification to {to}",
+				"autoReply": "Could not send the Auto-reply to {to}",
+				"webhook": "Could not reach the webhook {to}"
+			}
+		},
+		"keptForever": "Submissions are kept forever.",
+		"keptDays": "Submissions are kept {days} days.",
 		"retention": "Keep Submissions",
 		"retentionForever": "Forever",
 		"retentionDays": "{days} days",
