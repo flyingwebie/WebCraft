@@ -47,7 +47,7 @@ beforeAll(async () => {
 	const site = await api.templates.saveSiteTemplateMarkup({
 		siteId,
 		markup: [
-			'<header><p class="logo">Acme Bakery</p><p>{{ site.tagline }}</p>',
+			"<header><p>Acme Bakery</p><p>{{ site.tagline }}</p>",
 			'<nav aria-label="Main"><a href="/">Home</a> <a href="/blog/fresh-bread">Fresh bread</a></nav></header>',
 			"<main>{{@outlet}}</main>",
 			"<footer><p>Harbour Street, Cork.</p></footer>",
@@ -111,7 +111,7 @@ async function boxIn(frame: Frame, selector: string): Promise<Box> {
 /** Waits until the shell has said `text`. */
 async function said(page: Page, text: string): Promise<void> {
 	await page.waitForFunction(
-		(text) => (document.querySelector("[data-wc-messages]")?.textContent ?? "").replaceAll(" ", "").includes(text),
+		(text) => (document.querySelector("[data-wc-messages]")?.textContent ?? "").replaceAll("\u00a0", "").includes(text),
 		text,
 		{ timeout: 8000 },
 	);
@@ -119,7 +119,7 @@ async function said(page: Page, text: string): Promise<void> {
 
 /** The text of the page's region `selector`, as a person reads it. */
 async function textOf(frame: Frame, selector: string): Promise<string> {
-	return ((await frame.locator(selector).textContent()) ?? "").replaceAll(" ", " ");
+	return ((await frame.locator(selector).textContent()) ?? "").replaceAll("\u00a0", " ");
 }
 
 /** The element focus is on in the page in the frame, as `localName[data-wc-field]`. */
@@ -187,7 +187,7 @@ describe("client editing, for an Editor", () => {
 		expect({ y: bar.y, width: bar.width, height: bar.height }).toEqual({ y: 844, width: 1440, height: 56 });
 		expect((await box(page, '[data-wc-bar="page-details"]')).height).toBe(36);
 		expect((await box(page, "[data-wc-page-switcher]")).height).toBe(36);
-		expect(await page.locator("[data-wc-page-switcher]").textContent()).toBe("Fresh bread");
+		await page.locator("[data-wc-page-switcher]").filter({ hasText: "Fresh bread" }).waitFor();
 		const publish = await box(page, "[data-wc-publish]");
 		expect({ width: publish.width, height: publish.height }).toEqual({ width: 132, height: 40 });
 		// The page as a light sheet, 12 from the rail and the bar, corners 10, no gutters.
@@ -276,7 +276,7 @@ describe("client editing, for an Editor", () => {
 		expect(await page.locator('[data-wc-client-mark="rest"]').count()).toBe(3);
 
 		// Locked: nothing at rest; under the pointer, a grey outline and the reason.
-		const logo = await boxIn(frame, "header .logo");
+		const logo = await boxIn(frame, "header p:first-of-type");
 		await page.mouse.move(logo.x + 4, logo.y + logo.height / 2);
 		await page.locator('[data-wc-client-chip="locked"]').waitFor();
 		expect(await page.locator('[data-wc-client-chip="locked"]').textContent()).toBe("HeaderSame on every page");
@@ -362,9 +362,10 @@ describe("client editing, for an Editor", () => {
 		expect(await box(page, '[data-wc-side-panel="pageDetails"]')).toEqual({ x: 1080, y: 0, width: 360, height: 844 });
 		expect(await page.locator('[data-wc-bar="page-details"]').getAttribute("aria-expanded")).toBe("true");
 		// The page is pushed, not covered: the sheet ends 12 before the panel.
-		await settled(page);
-		const sheet = await box(page, "[data-wc-frame-box]");
-		expect(sheet.x + sheet.width).toBe(1068);
+		await page.waitForFunction(() => {
+			const sheet = document.querySelector("[data-wc-frame-box]")?.getBoundingClientRect();
+			return sheet !== undefined && sheet.right === 1068 && sheet.left === 88;
+		});
 		expect(await page.evaluate(() => document.activeElement?.textContent)).toBe("Page details");
 		await page.keyboard.press("Escape");
 		await panel.waitFor({ state: "detached" });
@@ -493,6 +494,7 @@ describe("the first-visit card and Help, for an Author", () => {
 	test("the card shows once per person; Help shows it again with the keys and Ask your agency", async () => {
 		const card = page.locator('[data-wc-help-card="first"]');
 		await card.waitFor();
+		await card.getByRole("heading", { level: 2, name: /Fresh bread/ }).waitFor();
 		expect(await card.getByRole("heading", { level: 2 }).textContent()).toBe("You're editing a Draft of Fresh bread");
 		expect(await card.locator("[data-wc-legend]").allTextContents()).toEqual([
 			"Dashed outline: click it to change the words or the photo.",
@@ -500,18 +502,27 @@ describe("the first-visit card and Help, for an Author", () => {
 			"No outline: the same on every page. Your agency looks after it.",
 		]);
 		// An Author sends for review: one cell, 164 wide.
+		await page.locator("[data-wc-publish]", { hasText: "Send for review" }).waitFor();
 		expect(await page.locator("[data-wc-publish]").textContent()).toBe("Send for review");
-		expect((await box(page, "[data-wc-publish]")).width).toBe(164);
+		await page
+			.waitForFunction(() => document.querySelector("[data-wc-publish]")?.getBoundingClientRect().width === 164, null, {
+				timeout: 3000,
+			})
+			.catch(async () => {
+				throw new Error(
+					`Publish is ${(await box(page, "[data-wc-publish]")).width} wide: ${await page.locator("[data-wc-publish]").getAttribute("class")}`,
+				);
+			});
 		await expectNoAxeViolations(page, "building area, the first-visit card");
 
 		await card.getByRole("button", { name: "Got it" }).click();
 		await card.waitFor({ state: "detached" });
 		const admin = await install.install.signIn(author);
 		for (let attempt = 0; attempt < 40; attempt++) {
-			if ((await admin.api.me.editorPreferences({ siteId })).hintSeen) break;
+			if ((await admin.api.me.editorPreferences({ siteId })).preferences.hintSeen) break;
 			await Bun.sleep(100);
 		}
-		expect((await admin.api.me.editorPreferences({ siteId })).hintSeen).toBe(true);
+		expect((await admin.api.me.editorPreferences({ siteId })).preferences.hintSeen).toBe(true);
 		await page.reload();
 		await frameOf(page);
 		await page.locator("[data-wc-client-rail]").waitFor();

@@ -127,10 +127,11 @@ export function clientEditing(options: {
 
 	/** Finishes editing an area: saved now, the toolbar put away; focus stays on it. */
 	const finish = (region: HTMLElement) => {
-		// The page editing saves it and puts its toolbar away, as when focus leaves it.
+		// The page editing saves it and puts its toolbar away, as when focus leaves it; said once it is saved.
 		inner.tools.left(null);
 		arm(region, false);
-		announce(fill(said.finished, { name: nameOf(region, words) }));
+		const done = () => announce(fill(said.finished, { name: nameOf(region, words) }));
+		void parts?.saving.left(region).then(done, done);
 	};
 
 	/** Moves focus to another area with the keyboard: it has focus, not editing. */
@@ -242,7 +243,7 @@ export function clientEditing(options: {
 			}
 		}
 		// Under the pointer, with focus, being edited: solid, with the chip (unless a toolbar names it).
-		for (const region of [pointed, focused, editingRegion]) {
+		for (const region of new Set([pointed, focused, editingRegion])) {
 			if (!region?.matches(MARKED) || !region.isConnected) continue;
 			const box = outer(region);
 			if (!box) continue;
