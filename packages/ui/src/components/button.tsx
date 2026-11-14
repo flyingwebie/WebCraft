@@ -1,7 +1,9 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
+import { mergeProps } from "@base-ui/react/merge-props";
+import { useRender } from "@base-ui/react/use-render";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
-import { isValidElement } from "react";
+import { isValidElement, type ReactElement } from "react";
 
 // WebCraft: transitions leave out opacity. A Button that stops being disabled (its own `disabled`, or
 // a disabled fieldset around it) shows full contrast at once instead of fading from the dimmed look.
@@ -19,9 +21,12 @@ const buttonVariants = cva(
 				ghost:
 					"hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
 				// WebCraft: solid in light mode, where red text on a pale red fill falls short of 4.5:1;
-				// hover darkens, so the label keeps at least the contrast it has at rest.
+				// hover darkens, so the label keeps at least the contrast it has at rest. In dark the label is
+				// the lighter red step: the destructive red itself on its own tint falls under 4.5:1 on a
+				// card, a popover or a muted row and once hovered; the lighter step keeps 4.8:1 and more on
+				// the page, a card, a popover and a muted row, at rest and hovered.
 				destructive:
-					"bg-destructive focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:text-destructive dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40 text-white hover:bg-[color-mix(in_oklch,var(--destructive),black_12%)]",
+					"bg-destructive focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40 text-white hover:bg-[color-mix(in_oklch,var(--destructive),black_12%)] dark:text-red-300",
 				// WebCraft: `text-primary` is the primary colour's text step (`--primary-text` in globals.css),
 				// which keeps 4.5:1 on the page in dark as well; the fill's orange does not.
 				link: "text-primary underline-offset-4 hover:underline",
@@ -47,9 +52,11 @@ const buttonVariants = cva(
 );
 
 /**
- * WebCraft: a Button drawn as something else (`render={<Link … />}`, an anchor) is not a native
- * `<button>`, and Base UI logs an error unless it is told so. The Button works it out from `render`:
- * only an element that is not a `<button>` switches it off; `nativeButton` still overrides.
+ * WebCraft: a Button drawn as a link (`render={<Link … />}`, an anchor) stays a link: it is drawn with
+ * the button's look and nothing else, so assistive technology hears a link and Enter follows it, as
+ * on any link. Base UI's Button would make it a `role="button"` that Space activates. A Button drawn
+ * as another element that is not a `<button>` is a button without the native element (Base UI logs
+ * an error unless it is told so); `nativeButton` still overrides.
  */
 function Button({
 	className,
@@ -59,15 +66,35 @@ function Button({
 	nativeButton,
 	...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+	const classes = cn(buttonVariants({ variant, size, className: className as string | undefined }));
+	if (nativeButton === undefined && isLink(render)) {
+		const { disabled: _disabled, focusableWhenDisabled: _focusable, ...linkProps } = props;
+		return <LinkButton render={render} className={classes} {...(linkProps as useRender.ComponentProps<"a">)} />;
+	}
 	return (
 		<ButtonPrimitive
 			data-slot="button"
-			className={cn(buttonVariants({ variant, size, className }))}
+			className={classes}
 			render={render}
 			nativeButton={nativeButton ?? !(isValidElement(render) && render.type !== "button")}
 			{...props}
 		/>
 	);
+}
+
+/** An element that goes somewhere: an anchor, or a router link (it has `to` or `href`). */
+function isLink(render: unknown): render is ReactElement<{ to?: unknown; href?: unknown }> {
+	if (!isValidElement<{ to?: unknown; href?: unknown }>(render)) return false;
+	return render.type === "a" || render.props.to !== undefined || render.props.href !== undefined;
+}
+
+function LinkButton({ render, ref, ...props }: useRender.ComponentProps<"a">) {
+	return useRender({
+		defaultTagName: "a",
+		render,
+		ref,
+		props: mergeProps<"a">({ "data-slot": "button" } as useRender.ComponentProps<"a">, props),
+	});
 }
 
 export { Button, buttonVariants };
