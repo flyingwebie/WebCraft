@@ -58,6 +58,7 @@ export function Frame({
 	handle,
 	onPage,
 	onSaving,
+	onSelect,
 }: {
 	/** The page the frame opens first: its path on the Site, with its query. */
 	page: string;
@@ -74,14 +75,16 @@ export function Frame({
 	onPage(address: string, state: Promise<EditAnswer<PageState>>): void;
 	/** Saving to the Draft started, ended, or failed. */
 	onSaving(status: SavingStatus): void;
+	/** The selection changed: the element selected in the page and its name, or nothing. */
+	onSelect?(selected: { element: Element; name: string } | null): void;
 }) {
 	const canvas = useRef<HTMLDivElement>(null);
 	const frame = useRef<HTMLIFrameElement>(null);
 	const overlayOf = useRef<Overlay | null>(null);
 	const [focused, setFocused] = useState(false);
 	// The newest of what the agent's events need, without making the frame again.
-	const latest = useRef({ words, request, cycle, announce, theme, onPage, onSaving });
-	latest.current = { words, request, cycle, announce, theme, onPage, onSaving };
+	const latest = useRef({ words, request, cycle, announce, theme, onPage, onSaving, onSelect });
+	latest.current = { words, request, cycle, announce, theme, onPage, onSaving, onSelect };
 
 	// The frame's size: the canvas as measured, the size given, and whether the last change eases.
 	const [area, setArea] = useState<{ width: number; height: number } | null>(null);
@@ -148,7 +151,21 @@ export function Frame({
 		const area = canvas.current;
 		if (!element || !area) return;
 		const doc = element.ownerDocument;
-		const overlay: Overlay = createOverlay({ canvas: area, frame: element, words: latest.current.words });
+		const drawn: Overlay = createOverlay({ canvas: area, frame: element, words: latest.current.words });
+		/** Tells the shell what is selected (the docks' panels follow it). */
+		const tellSelected = (chosen: Element | null) =>
+			latest.current.onSelect?.(chosen ? { element: chosen, name: nameOf(chosen, latest.current.words) } : null);
+		const overlay: Overlay = {
+			...drawn,
+			select(chosen) {
+				drawn.select(chosen);
+				tellSelected(chosen);
+			},
+			attach(document) {
+				drawn.attach(document);
+				tellSelected(null);
+			},
+		};
 		overlayOf.current = overlay;
 		const saving = regionSaving({
 			request: (action, body) => latest.current.request(action, body),

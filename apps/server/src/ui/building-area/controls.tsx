@@ -92,13 +92,29 @@ export function IconButton(
 	props: CommonProps & {
 		onClick?(): void;
 		pressed?: boolean;
+		/** It opens a menu: whether that menu is open, and the menu's id. */
+		popup?: { open: boolean; id: string };
 		disabled?: boolean;
 		ref?: Ref<HTMLButtonElement>;
 		/** Extra attributes for tests and for the region it belongs to. */
 		data?: Record<`data-${string}`, string>;
 	},
 ) {
-	const { icon: Glyph, label, keys, side, align, unavailable, pressed, disabled, onClick, ref, data, children } = props;
+	const {
+		icon: Glyph,
+		label,
+		keys,
+		side,
+		align,
+		unavailable,
+		pressed,
+		popup,
+		disabled,
+		onClick,
+		ref,
+		data,
+		children,
+	} = props;
 	const tip = unavailable ? `${label} · ${unavailable}` : label;
 	return (
 		<button
@@ -107,6 +123,9 @@ export function IconButton(
 			aria-label={unavailable ? tip : label}
 			aria-keyshortcuts={keys?.aria || undefined}
 			aria-pressed={pressed}
+			aria-haspopup={popup ? "menu" : undefined}
+			aria-expanded={popup ? popup.open : undefined}
+			aria-controls={popup?.open ? popup.id : undefined}
 			aria-disabled={unavailable ? true : undefined}
 			disabled={disabled}
 			onClick={unavailable || disabled ? undefined : onClick}

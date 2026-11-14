@@ -8,6 +8,9 @@ import { draftStateOf } from "./bottom-bar/DraftState.tsx";
 import type { PageLanguage } from "./bottom-bar/LanguageMenu.tsx";
 import { Frame, type FrameHandle, type PageTheme } from "./canvas/Frame.tsx";
 import type { SavingStatus } from "./canvas/regions.ts";
+import { DockArea, useDocks } from "./docks/Docks.tsx";
+import { PanelsMenu } from "./docks/PanelsMenu.tsx";
+import type { PanelContext } from "./docks/panels.ts";
 import { type RegionCycle, regionCycle } from "./keyboard.ts";
 import { NarrowNotice } from "./NarrowNotice.tsx";
 import { Rail } from "./rail/Rail.tsx";
@@ -55,6 +58,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 
 	// The page in the frame and the Draft state beside Publish.
 	const [shown, setShown] = useState<ShownPage | null>(null);
+	// What is selected on the canvas, which the docks' panels follow.
+	const [selection, setSelection] = useState<PanelContext["selection"]>(null);
 	const [saving, setSaving] = useState<"idle" | "saving" | "failed">("idle");
 	const shownAddress = useRef<string | null>(null);
 
@@ -127,6 +132,10 @@ export function Shell({ config }: { config: ShellConfig }) {
 		return history.listen({ announce: (text, refused) => announce(text, refused) });
 	}, [config.site.id, announce]);
 
+	// The open document is a page for now (documents come with a later part of the building area).
+	const context = useMemo<PanelContext>(() => ({ selection, document: "page", componentInPlace: false }), [selection]);
+	const docks = useDocks({ config, context, announce });
+
 	const exit = async () => {
 		setExiting(true);
 		announce(words.exiting);
@@ -164,6 +173,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 				onHidden={setHidden}
 				onExit={() => void exit()}
 				exiting={exiting}
+				panelsMenu={<PanelsMenu docks={docks} />}
 			/>
 			{/* Before the canvas in the Tab order, so the page (and whatever it holds) comes last; F6 still goes rail, page, bar. */}
 			<BottomBar
@@ -174,32 +184,48 @@ export function Shell({ config }: { config: ShellConfig }) {
 				staging={config.staging && shown ? `${config.staging}${shown.address}` : null}
 				draft={draftStateOf(saving, shown)}
 			/>
-			<main
-				id="wc-canvas"
-				tabIndex={-1}
-				onFocus={(event) => {
-					// Reached by the skip link: focus goes on into the page, and the address keeps no fragment.
-					if (event.target !== event.currentTarget) return;
-					focusFrame();
-					if (location.hash) history.replaceState(history.state, "", `${location.pathname}${location.search}`);
-				}}
-				aria-label={words.canvas}
-				data-building-region="canvas"
-				className="relative col-start-2 row-start-1 min-h-0 min-w-0"
+			{/*
+			  The working area: the docks around the canvas (left and right full height, the bottom one under
+			  the canvas). The docks come before the canvas in the Tab order, so the page is still the last stop.
+			*/}
+			<div
+				className="relative col-start-2 row-start-1 grid min-h-0 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)_auto] [grid-template-areas:'left_canvas_right''left_bottom_right']"
+				data-wc-work=""
 			>
-				<Frame
-					page={config.page}
-					words={words}
-					request={request}
-					cycle={() => cycle.current}
-					announce={announce}
-					breakpoints={config.breakpoints}
-					theme={theme}
-					handle={frame}
-					onPage={onPage}
-					onSaving={onSaving}
+				<DockArea
+					docks={docks}
+					fit={fit.layout}
+					hidden={hidden}
+					onHideFocus={() => document.querySelector<HTMLElement>('[data-wc-rail="panels"]')?.focus()}
 				/>
-			</main>
+				<main
+					id="wc-canvas"
+					tabIndex={-1}
+					onFocus={(event) => {
+						// Reached by the skip link: focus goes on into the page, and the address keeps no fragment.
+						if (event.target !== event.currentTarget) return;
+						focusFrame();
+						if (location.hash) history.replaceState(history.state, "", `${location.pathname}${location.search}`);
+					}}
+					aria-label={words.canvas}
+					data-building-region="canvas"
+					className="relative min-h-0 min-w-0 [grid-area:canvas]"
+				>
+					<Frame
+						page={config.page}
+						words={words}
+						request={request}
+						cycle={() => cycle.current}
+						announce={announce}
+						breakpoints={config.breakpoints}
+						theme={theme}
+						handle={frame}
+						onPage={onPage}
+						onSaving={onSaving}
+						onSelect={(selected) => setSelection(selected ? { kind: "element", name: selected.name } : null)}
+					/>
+				</main>
+			</div>
 			<div className="sr-only" data-wc-messages="">
 				<p role="status" aria-live="polite" aria-atomic="true">
 					{message.urgent ? "" : message.text}

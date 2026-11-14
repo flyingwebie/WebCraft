@@ -9,11 +9,11 @@ import {
 	LogOutIcon,
 	MoonIcon,
 	PaletteIcon,
-	PanelsTopLeftIcon,
 	RepeatIcon,
 	SettingsIcon,
 	SunIcon,
 } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { fill, type ShellConfig } from "../api.ts";
 import { FOCUS_RING, type Icon, IconButton, IconLink, Tip } from "../controls.tsx";
@@ -49,6 +49,7 @@ export function Rail({
 	onHidden,
 	onExit,
 	exiting,
+	panelsMenu,
 }: {
 	config: ShellConfig;
 	/** Whether the page in the frame shows its dark values. */
@@ -59,6 +60,8 @@ export function Rail({
 	onHidden(hidden: boolean): void;
 	onExit(): void;
 	exiting: boolean;
+	/** The Panels menu's button and its menu (the docks', BA-05). */
+	panelsMenu: ReactNode;
 }) {
 	const { words } = config;
 	return (
@@ -113,13 +116,7 @@ export function Rail({
 					onClick={() => onDarkPreview(!darkPreview)}
 					data={{ "data-wc-rail": "dark-preview" }}
 				/>
-				<IconButton
-					icon={PanelsTopLeftIcon}
-					label={words.panels}
-					side="end"
-					unavailable={words.unavailable}
-					data={{ "data-wc-rail": "panels" }}
-				/>
+				{panelsMenu}
 				<IconButton
 					icon={hidden ? EyeOffIcon : EyeIcon}
 					label={hidden ? words.showInterface : words.hideInterface}

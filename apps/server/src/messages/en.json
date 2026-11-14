@@ -8393,6 +8393,58 @@
 		"narrow": {
 			"title": "The building area needs a window at least 1024 px wide",
 			"text": "Make the window wider to carry on: nothing is closed or lost."
+		},
+		"dockPanels": {
+			"layers": "Layers",
+			"inspector": "Inspector",
+			"entry": "Entry",
+			"component": "Component",
+			"html": "HTML",
+			"css": "CSS",
+			"js": "JS"
+		},
+		"inspectorTitles": {
+			"element": "Element",
+			"placement": "Props",
+			"loop": "Loop",
+			"condition": "Condition"
+		},
+		"docks": {
+			"dockNames": {
+				"left": "left dock",
+				"right": "right dock",
+				"bottom": "bottom dock"
+			},
+			"dockTitles": {
+				"left": "Left dock",
+				"right": "Right dock",
+				"bottom": "Bottom dock"
+			},
+			"dropBox": "{dock}",
+			"moveTo": {
+				"left": "Move to left dock",
+				"right": "Move to right dock",
+				"bottom": "Move to bottom dock"
+			},
+			"collapse": "Collapse",
+			"expand": "Expand",
+			"hide": "Hide panel",
+			"reset": "Reset panel layout",
+			"panelMenu": "{panel}: panel menu",
+			"expandPanel": "Expand {panel}",
+			"grip": "Move panel",
+			"resizeDock": "Resize the {dock}",
+			"between": "Between {first} and {second}",
+			"moved": "{panel} moved to the {dock}",
+			"moveCancelled": "Move cancelled",
+			"collapsed": "{panel} collapsed",
+			"expanded": "{panel} expanded",
+			"switchedOff": "{panel} switched off. The Panels menu switches it on again.",
+			"switchedOn": "{panel} switched on",
+			"resetDone": "Panel layout reset",
+			"saveFailed": "Couldn't save your panel layout. It is kept in this tab.",
+			"openDrawer": "Show the {dock}",
+			"closeDrawer": "Hide the {dock}"
 		}
 	}
 }

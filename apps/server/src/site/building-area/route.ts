@@ -54,6 +54,7 @@ export async function buildingAreaEndpoint(
 	const language = person?.adminLanguage ?? settings.defaultAdminLanguage;
 	const designSystem = (await services.designSystem.get(edit.session.scope)).draft;
 	const staging = stagingUrl(services.config, host.site.slug);
+	const preferences = await services.people.editorPreferences(edit.session.personId);
 	const config: ShellConfig = {
 		token: edit.session.headerToken,
 		page: `${page}${url.search}`,
@@ -69,6 +70,7 @@ export async function buildingAreaEndpoint(
 		darkMode: designSystem.darkMode,
 		staging: staging && host.address !== "staging" ? staging : null,
 		settings: new URL(`/sites/${host.site.id}/domains`, services.config.adminOrigin).toString(),
+		layout: preferences.layout,
 	};
 	const files = await buildingAreaAssets();
 	const html = [

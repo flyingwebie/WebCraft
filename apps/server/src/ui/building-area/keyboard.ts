@@ -1,11 +1,14 @@
 /**
- * F6 and Shift+F6 move focus between the building area's regions (ADR 0037): the rail, the frame
- * (the page itself), the bottom bar, and back round. Docks join the cycle with their panels. A key
- * pressed in the page reaches here through the page agent, before any Site script sees it.
+ * F6 and Shift+F6 move focus between the building area's regions (ADR 0037): the rail, the docks
+ * that are open (left, right, bottom), the frame (the page itself), the bottom bar, and back round.
+ * A key pressed in the page reaches here through the page agent, before any Site script sees it.
  */
-export type BuildingRegion = "rail" | "canvas" | "bar";
+export type BuildingRegion = "rail" | "left" | "right" | "bottom" | "canvas" | "bar";
 
-const ORDER: readonly BuildingRegion[] = ["rail", "canvas", "bar"];
+const ORDER: readonly BuildingRegion[] = ["rail", "left", "right", "bottom", "canvas", "bar"];
+
+/** The regions that may be absent: a closed dock has no place in the cycle. */
+const OPTIONAL: readonly BuildingRegion[] = ["left", "right", "bottom"];
 
 export type RegionCycle = {
 	/** Handles F6 / Shift+F6 from the shell or, with `from: "canvas"`, from the page. True when taken. */
@@ -28,6 +31,9 @@ export function regionCycle(options: {
 		const found = active?.closest<HTMLElement>("[data-building-region]")?.dataset.buildingRegion;
 		return ORDER.find((name) => name === found) ?? null;
 	};
+
+	/** The regions drawn now, in order. */
+	const present = () => ORDER.filter((name) => !OPTIONAL.includes(name) || regionElement(name) !== null);
 
 	const focus = (name: BuildingRegion) => {
 		if (name === "canvas") {
@@ -52,11 +58,12 @@ export function regionCycle(options: {
 			if (event.key !== "F6" || event.altKey || event.ctrlKey || event.metaKey) return false;
 			event.preventDefault();
 			const at = from ?? current();
-			const index = at ? ORDER.indexOf(at) : -1;
+			const order = present();
+			const index = at ? order.indexOf(at) : -1;
 			const next =
 				index < 0
-					? ORDER[event.shiftKey ? ORDER.length - 1 : 0]
-					: ORDER[(index + (event.shiftKey ? -1 : 1) + ORDER.length) % ORDER.length];
+					? order[event.shiftKey ? order.length - 1 : 0]
+					: order[(index + (event.shiftKey ? -1 : 1) + order.length) % order.length];
 			if (next) focus(next);
 			return true;
 		},
