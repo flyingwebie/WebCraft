@@ -5,6 +5,7 @@ import type { BuildingDocument, Documents } from "../documents.ts";
 import { ComponentsPlace } from "./components/ComponentsPlace.tsx";
 import { ContentPlace } from "./content/ContentPlace.tsx";
 import { type PlaceKey, placeKeyOf } from "./keys.ts";
+import { LoopsPlace } from "./loops/LoopsPlace.tsx";
 import { MediaPlace } from "./media/MediaPlace.tsx";
 import { leftAt } from "./memory.ts";
 import { StylesPlace } from "./styles/StylesPlace.tsx";
@@ -54,6 +55,7 @@ const PLACES: Partial<Record<PlaceKey, PlaceEntry>> = {
 	templates: { key: "templates", first: "templates", component: TemplatesPlace },
 	styles: { key: "styles", first: "styles/classes", component: StylesPlace },
 	components: { key: "components", first: "components", component: ComponentsPlace },
+	loops: { key: "loops", first: "loops", component: LoopsPlace },
 };
 
 /** The place registered for a rail button, if it exists yet. */

@@ -181,9 +181,9 @@ describe("the building area's chrome, for Staff", () => {
 		expect(await sizeOf(page, "[data-wc-publish]")).toEqual({ width: 112, height: 32 });
 
 		// Places are shown but not there yet; their names say so.
-		expect(await page.getByRole("button", { name: "Loops · not available yet" }).getAttribute("aria-disabled")).toBe(
-			"true",
-		);
+		expect(
+			await page.getByRole("button", { name: "More places · not available yet" }).getAttribute("aria-disabled"),
+		).toBe("true");
 		// The avatar names the person; Settings opens the Site's settings in the admin, in a new tab.
 		expect(await page.getByRole("img", { name: "Signed in as Davide Del Gatto" }).textContent()).toBe("DG");
 		const settings = page.getByRole("link", { name: "Site settings (opens in a new tab)" });

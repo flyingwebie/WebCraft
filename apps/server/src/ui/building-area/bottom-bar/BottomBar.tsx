@@ -39,6 +39,8 @@ export function BottomBar({
 	staging,
 	draft,
 	insertRow = true,
+	onUndo = () => void editorHistory().undo(),
+	onRedo = () => void editorHistory().redo(),
 }: {
 	words: Words;
 	/** The open document's part of the left cluster, after Undo and Redo (`DocumentNav`). */
@@ -53,6 +55,9 @@ export function BottomBar({
 	draft: DraftState;
 	/** Whether the insert row has its place in the middle: none while a place is open (SPEC 8); the middle stays. */
 	insertRow?: boolean;
+	/** Undo and Redo: the shell's, which first saves what was typed (`editing/history.ts`). */
+	onUndo?(): void;
+	onRedo?(): void;
 }) {
 	const history = useHistory();
 	const undoLabel = history.undo ? fill(words.undoStep, { step: history.undo }) : words.undo;
@@ -72,7 +77,7 @@ export function BottomBar({
 					align="start"
 					size="bar"
 					disabled={!history.undo || history.busy}
-					onClick={() => void editorHistory().undo()}
+					onClick={onUndo}
 					data={{ "data-wc-bar": "undo" }}
 				/>
 				<IconButton
@@ -82,7 +87,7 @@ export function BottomBar({
 					side="top"
 					size="bar"
 					disabled={!history.redo || history.busy}
-					onClick={() => void editorHistory().redo()}
+					onClick={onRedo}
 					data={{ "data-wc-bar": "redo" }}
 				/>
 				{nav}

@@ -134,6 +134,7 @@ export const TOOL_PLACES = {
 	"loops.saveDraft": place(["structure"], "structure.edit"),
 	"loops.saveItems": place(["content", "structure"], "entry.edit"),
 	"loops.data": place(["structure"], "structure.edit"),
+	"loops.result": place(["structure"], "structure.edit"),
 	"loops.publish": publishing(["structure", "publishing"], "structure.edit"),
 	"filters.list": place(["structure"], "structure.edit"),
 	"filters.get": place(["structure"], "structure.edit"),
