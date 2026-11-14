@@ -135,6 +135,17 @@ svg { flex: none; }
 .check input { margin: 0; accent-color: #6366f1; }
 .muted { color: var(--muted); }
 .note { margin: 0; padding: 0.5rem 0.625rem; color: var(--muted); border-bottom: 1px solid var(--line); }
+/* Format (SPEC 5.1): the { } button in a panel's header, and the line under the box. */
+.format-button[data-format-phase="done"] { color: #4ade80; }
+.format-button[data-format-phase="failed"] { color: #fca5a5; }
+.format-button[data-format-phase="working"] svg { animation: wc-format-spin 1s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .format-button[data-format-phase="working"] svg { animation: none; } }
+@keyframes wc-format-spin { to { transform: rotate(360deg); } }
+.format-note { display: flex; align-items: center; gap: 0.25rem; margin: 0; padding: 0.25rem 0.625rem; font-size: 12px; color: var(--muted); }
+.format-note:empty { padding: 0; }
+.format-note[data-format-note="problem"], .format-note[data-format-note="unavailable"] { color: #fca5a5; }
+.format-note[data-format-note="changed"] svg, .format-note[data-format-note="tidy"] svg { color: #4ade80; }
+.format-note .link-button { color: inherit; padding: 0; text-align: start; }
 
 .editor {
 	position: relative; display: flex; flex: 1 1 auto; min-height: 4rem;

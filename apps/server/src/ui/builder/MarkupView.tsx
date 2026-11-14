@@ -2,6 +2,7 @@ import { propsBlockAt } from "@webcraft/renderer/builder";
 import { Field, FieldDescription, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Textarea } from "@webcraft/ui/components/textarea.tsx";
 import { useEffect, useId, useRef } from "react";
+import { FormatButton, FormatNoteLine, useCodeFormat } from "../code-format/FormatControl.tsx";
 import { useT } from "../i18n.tsx";
 import { applyCodeKey } from "./apply-code-key.ts";
 import { editorHistory } from "./editor-history.ts";
@@ -31,6 +32,7 @@ export function MarkupView({
 	const id = useId();
 	const area = useRef<HTMLTextAreaElement>(null);
 	const highlight = useRef<HTMLPreElement>(null);
+	const formatting = useCodeFormat("html", area, value);
 	// Tags may contain a quoted >; commands and text use their parser-owned extent.
 	let tagEnd = selected?.end ?? 0;
 	if (selected && value[selected.start] === "<") {
@@ -67,7 +69,10 @@ export function MarkupView({
 	return (
 		<div className="flex min-h-0 flex-1 flex-col gap-3 p-3">
 			<Field className="flex min-h-0 flex-1 flex-col">
-				<FieldLabel htmlFor={`${id}-markup`}>{t("builder.markup.label")}</FieldLabel>
+				<div className="flex items-center justify-between gap-2">
+					<FieldLabel htmlFor={`${id}-markup`}>{t("builder.markup.label")}</FieldLabel>
+					<FormatButton format={formatting} />
+				</div>
 				<FieldDescription id={`${id}-help`}>{t("builder.markup.help")}</FieldDescription>
 				<div className="relative min-h-32 flex-1 overflow-hidden">
 					<pre
@@ -75,7 +80,19 @@ export function MarkupView({
 						aria-hidden="true"
 						className="pointer-events-none absolute inset-0 m-0 overflow-hidden rounded-md border border-transparent px-3 py-2 font-mono text-xs leading-5 whitespace-pre text-transparent"
 					>
-						{selected ? (
+						{formatting.problemLine ? (
+							// The line Format couldn't read, marked behind the text.
+							value.split("\n").map((line, index) => (
+								<span
+									// biome-ignore lint/suspicious/noArrayIndexKey: a line is its number.
+									key={index}
+									data-format-problem={index + 1 === formatting.problemLine ? "" : undefined}
+									className={`block min-h-5 ${index + 1 === formatting.problemLine ? "bg-destructive/20" : ""}`}
+								>
+									{line || " "}
+								</span>
+							))
+						) : selected ? (
 							<>
 								{value.slice(0, selected.start)}
 								<mark data-selected-tag="" className="bg-amber-200 text-transparent dark:bg-amber-900">
@@ -96,6 +113,7 @@ export function MarkupView({
 						value={value}
 						onChange={(event) => onChange(event.target.value)}
 						onKeyDown={(event) => {
+							if (formatting.onKeyDown(event)) return;
 							applyCodeKey(event, onChange);
 						}}
 						onMouseUp={(event) => onCaret?.(event.currentTarget.selectionStart)}
@@ -121,6 +139,7 @@ export function MarkupView({
 						className="relative h-full min-h-32 w-full resize-none bg-transparent font-mono text-xs leading-5 whitespace-pre dark:bg-transparent"
 					/>
 				</div>
+				<FormatNoteLine format={formatting} />
 			</Field>
 			<div id={`${id}-problems`} aria-live="off" className="empty:hidden">
 				{problems.length > 0 ? (

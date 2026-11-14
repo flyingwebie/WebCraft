@@ -4,6 +4,7 @@ import { Button } from "@webcraft/ui/components/button.tsx";
 import { Textarea } from "@webcraft/ui/components/textarea.tsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getApi } from "../api.ts";
+import { FormatButton, FormatNoteLine, useCodeFormat } from "../code-format/FormatControl.tsx";
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
 import { applyCodeKey } from "./apply-code-key.ts";
@@ -186,6 +187,8 @@ export function ComponentScriptPanel({
 	};
 	const saveNow = useRef(save);
 	saveNow.current = save;
+	const area = useRef<HTMLTextAreaElement>(null);
+	const formatting = useCodeFormat("js", area, draft?.code ?? "", draft !== null);
 	useEffect(() => {
 		departure.current = () => saveNow.current();
 		return () => {
@@ -201,9 +204,12 @@ export function ComponentScriptPanel({
 						{t("editBar.codeMode.componentTab")}
 					</Button>
 				</fieldset>
-				<Button size="sm" variant="outline" disabled={!draft || busy} onClick={() => void save()}>
-					{t("editBar.codeMode.save")}
-				</Button>
+				<div className="flex items-center gap-1">
+					{draft ? <FormatButton format={formatting} /> : null}
+					<Button size="sm" variant="outline" disabled={!draft || busy} onClick={() => void save()}>
+						{t("editBar.codeMode.save")}
+					</Button>
+				</div>
 			</div>
 			<div ref={settingsHost} />
 			{conflict !== null ? (
@@ -220,6 +226,7 @@ export function ComponentScriptPanel({
 				</div>
 			) : null}
 			<Textarea
+				ref={area}
 				data-editor-default-focus=""
 				data-editor-code=""
 				aria-label={t("editBar.codeMode.jsOf", { name: title })}
@@ -235,6 +242,7 @@ export function ComponentScriptPanel({
 				}}
 				onBlur={() => history.boundary()}
 				onKeyDown={(event) => {
+					if (formatting.onKeyDown(event)) return;
 					if (
 						applyCodeKey(event, (text) => {
 							if (!latest.current) return;
@@ -250,6 +258,7 @@ export function ComponentScriptPanel({
 					}
 				}}
 			/>
+			<FormatNoteLine format={formatting} />
 			<p className="text-muted-foreground text-xs">{t("builder.scriptPreview")}</p>
 			<p role="status" aria-live="off" className="text-sm">
 				{message}
