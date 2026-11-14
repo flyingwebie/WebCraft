@@ -6,6 +6,7 @@ import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
 import type { BuildingDocument } from "../documents.ts";
 import { managementApi } from "../management.ts";
 import { PAGE_CHANGED_EVENT } from "../open-document.ts";
+import type { PlaceBar } from "../places/registry.ts";
 import { type ChangeRow, changeText, countOf, type PublishItem, refusalText, usePublishData } from "./data.ts";
 import { type CellSize, type CellState, PublishCell } from "./PublishCell.tsx";
 import { PublishSheet, type SheetActions } from "./PublishSheet.tsx";
@@ -30,6 +31,7 @@ export function Publish({
 	path,
 	document,
 	changed,
+	handedIn = null,
 	size = "bar",
 	announce,
 	onPublished,
@@ -42,6 +44,11 @@ export function Publish({
 	document: BuildingDocument | null;
 	/** Changes when what Publish covers may have changed: it reads it again. */
 	changed: unknown;
+	/**
+	 * What a place hands in of its own (the Forms place's Form, BA-26: `PlaceBar`): while it does, the
+	 * cell counts its changes and publishes them at once, through the place.
+	 */
+	handedIn?: PlaceBar | null;
 	size?: CellSize;
 	announce(text: string, urgent?: boolean): void;
 	/** Something was published, reverted or discarded: the shell reads the page's state again. */
@@ -64,11 +71,13 @@ export function Publish({
 	const button = useRef<HTMLButtonElement>(null);
 	const sheetId = useId();
 
-	const author = data ? !data.canPublish : false;
-	const count = countOf(data);
+	const author = !handedIn && data ? !data.canPublish : false;
+	const count = handedIn ? handedIn.changes : countOf(data);
 	const withdrawable = data?.reviews.some((review) => review.status === "inReview" && review.canWithdraw) ?? false;
 	// Nothing to publish, revert or withdraw: the cell is drawn quiet and does nothing.
-	const nothing = !data || (data.changes.length === 0 && data.drafts.length === 0 && !withdrawable);
+	const nothing = handedIn
+		? handedIn.changes === 0
+		: !data || (data.changes.length === 0 && data.drafts.length === 0 && !withdrawable);
 	const disabled = cell === "publishing" || cell === "published" || (cell === "ready" && nothing);
 
 	const state: CellState = cell === "ready" ? (author ? { kind: "review" } : { kind: "ready", count }) : { kind: cell };
@@ -130,7 +139,22 @@ export function Publish({
 		return () => clearTimeout(timer);
 	}, [cell]);
 
+	/** A place's own Publish (the Forms place's Form): at once, its result in the cell; the place says why it failed. */
+	const publishHandedIn = async (bar: PlaceBar) => {
+		setOpen(false);
+		setCell("publishing");
+		setBusy(true);
+		const published = await bar.publish().catch(() => false);
+		setBusy(false);
+		setCell(published ? "published" : "ready");
+		if (published) changedEverywhere([]);
+	};
+
 	const press = () => {
+		if (handedIn) {
+			void publishHandedIn(handedIn);
+			return;
+		}
 		if (cell === "failed" && retry.current) {
 			void publish(retry.current);
 			return;
@@ -143,11 +167,11 @@ export function Publish({
 	};
 
 	// ⌘↵ opens Publish (SPEC 13.9): from the shell, and from the page through its agent (`PUBLISH_OPEN_EVENT`).
-	const latest = useRef({ disabled, open });
-	latest.current = { disabled, open };
+	const latest = useRef({ disabled, open, handedIn });
+	latest.current = { disabled, open, handedIn };
 	useEffect(() => {
 		const openIt = () => {
-			if (latest.current.disabled || latest.current.open) return;
+			if (latest.current.disabled || latest.current.open || latest.current.handedIn) return;
 			setOpen(true);
 			void read();
 		};
@@ -249,6 +273,7 @@ export function Publish({
 				language={language}
 				size={size}
 				open={open}
+				opensSheet={!handedIn && cell !== "failed"}
 				sheetId={sheetId}
 				disabled={disabled}
 				onPress={press}

@@ -8501,7 +8501,8 @@
 			"styles": "Styles",
 			"loops": "Loops",
 			"components": "Components",
-			"more": "More places"
+			"more": "More places",
+			"forms": "Forms"
 		},
 		"unavailable": "not available yet",
 		"darkPreview": "Dark preview",
@@ -9570,6 +9571,181 @@
 				"failed": "Couldn't send it: {reason}",
 				"sentBack": "Sent back by {name}: {comment}"
 			}
+		},
+		"forms": {
+			"sidebar": "The Site's Forms",
+			"status": {
+				"draft": "Draft",
+				"published": "Published",
+				"changed": "Unpublished changes"
+			},
+			"placed": {
+				"none": "Not placed yet",
+				"one": "Placed in {count} place",
+				"other": "Placed in {count} places"
+			},
+			"staffOnly": "Forms are Structure: only Staff build them.",
+			"loading": "Reading the Forms…",
+			"loadFailed": "Couldn't read the Forms: {reason}",
+			"formFailed": "Couldn't read this Form: {reason}",
+			"empty": {
+				"title": "No Forms yet",
+				"text": "Make the Site's first Form, blank or from a starter."
+			},
+			"tabsLabel": "Parts of {name}",
+			"tabs": {
+				"build": "Build",
+				"afterSending": "After sending",
+				"emails": "Emails",
+				"translations": "Translations",
+				"settings": "Settings"
+			},
+			"laterText": "This tab comes with a later part of the building area. Until then, the Form's page in the admin has it.",
+			"openInAdmin": "Open the Form in the admin (new tab)",
+			"newForm": {
+				"title": "New Form",
+				"name": "Name",
+				"namePlaceholder": "Booking request",
+				"nameRequired": "Give the Form a name.",
+				"key": "Key",
+				"keyPending": "Made from the name",
+				"keyWhy": "Made from the name. Template markup places the Form by its key.",
+				"startFrom": "Start from",
+				"cancel": "Cancel",
+				"create": "Create Form",
+				"creating": "Creating…",
+				"creatingNamed": "Creating {name}…",
+				"made": "{name} made"
+			},
+			"starters": {
+				"blank": "Blank",
+				"contact": "Contact",
+				"booking": "Booking request",
+				"newsletter": "Newsletter sign-up",
+				"job": "Job application"
+			},
+			"starterFields": {
+				"name": "Name",
+				"email": "Email",
+				"message": "Message",
+				"phone": "Phone",
+				"date": "Date",
+				"people": "Number of people",
+				"anythingElse": "Anything else we should know?",
+				"newsletterConsent": "I'd like to get the newsletter",
+				"role": "The position you are applying for",
+				"cv": "CV",
+				"coverLetter": "Cover letter"
+			},
+			"reasons": {
+				"keyTaken": "another Form has that key",
+				"invalid": "something in it isn't right",
+				"forbidden": "only Staff may do that",
+				"network": "the Site didn't answer",
+				"generic": "it was refused ({code})"
+			},
+			"kinds": {
+				"text": "Text",
+				"email": "Email",
+				"phone": "Phone",
+				"url": "Web address",
+				"textarea": "Long text",
+				"number": "Number",
+				"date": "Date",
+				"select": "Dropdown",
+				"radio": "One choice",
+				"checkboxes": "Several choices",
+				"consent": "Consent",
+				"file": "File",
+				"hidden": "Hidden",
+				"section": "Section",
+				"step": "Step"
+			},
+			"kindField": "{kind} field",
+			"add": "Add",
+			"addField": "Add a field",
+			"addAfterHeading": "Add a field after {label}",
+			"addAfter": "Add a field after {label}",
+			"layout": "Layout",
+			"full": "The Form holds as many items as it may (100).",
+			"panel": "Field settings",
+			"option": "Option",
+			"stepTitle": "Step {number}",
+			"steps": "Steps",
+			"stepTab": "{number} {title}",
+			"step": "Step",
+			"addStep": "Add a step",
+			"stepAdded": "Step {number} added",
+			"stepMoved": "Step {from} moved to place {to}",
+			"added": "{kind} added",
+			"removed": "{label} removed",
+			"undo": "Undo",
+			"duplicated": "{label} duplicated",
+			"movedTo": "{label} moved",
+			"widthSet": "{label}: {width}",
+			"goesHere": "{label} goes here",
+			"duplicate": "Duplicate",
+			"remove": "Remove",
+			"keyLocked": "Submissions keep this field's answers under its key, so it no longer changes once published.",
+			"width": {
+				"label": "Width",
+				"whole": "Whole",
+				"half": "Half",
+				"third": "Third"
+			},
+			"source": {
+				"page": "the page's address",
+				"query": "?{name} in the page's address",
+				"fixed": "fixed text"
+			},
+			"rule": {
+				"shownWhen": "Shown when {rule}",
+				"andMore": "{rule} and {count} more",
+				"orMore": "{rule} or {count} more",
+				"ops": {
+					"is": "{field} is {value}",
+					"isNot": "{field} is not {value}",
+					"isEmpty": "{field} is empty",
+					"isNotEmpty": "{field} is filled in",
+					"greaterThan": "{field} is more than {value}",
+					"lessThan": "{field} is less than {value}"
+				}
+			},
+			"sheet": {
+				"label": "{name} as visitors will see it",
+				"list": "Fields of {name}",
+				"option": "{label}, {kind}",
+				"required": "required",
+				"empty": "No fields here yet. Drag a kind onto the Form, or choose one on the right."
+			},
+			"keys": {
+				"picked": "{label} picked up. The arrow keys move it, Space drops it, Escape puts it back.",
+				"moved": "{label}: place {position}",
+				"dropped": "{label} dropped",
+				"putBack": "{label} put back",
+				"cleared": "Nothing chosen"
+			},
+			"history": {
+				"added": "Add {kind}",
+				"removed": "Remove {label}",
+				"duplicated": "Duplicate {label}",
+				"moved": "Move {label}",
+				"changed": "Change {label}",
+				"width": "Width of {label}",
+				"stepMoved": "Move a step"
+			},
+			"tryIt": {
+				"label": "Try it",
+				"help": "Fill the Form in here to try rules and steps. Nothing is sent.",
+				"on": "Trying the Form: nothing is sent",
+				"off": "Building the Form",
+				"notSent": "Nothing was sent: this was a try.",
+				"again": "Try again"
+			},
+			"published": "{name} published",
+			"publishFailed": "Couldn't publish {name}: {reason}",
+			"saveFailed": "Couldn't save {name}: {reason}",
+			"problemsFound": "{name} can't be saved yet: {count} problems, shown at their fields."
 		}
 	},
 	"auth": {

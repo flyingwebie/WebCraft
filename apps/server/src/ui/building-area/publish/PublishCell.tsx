@@ -48,6 +48,7 @@ export function PublishCell({
 	language,
 	size = "bar",
 	open,
+	opensSheet,
 	sheetId,
 	disabled,
 	onPress,
@@ -59,6 +60,8 @@ export function PublishCell({
 	size?: CellSize;
 	/** Whether the sheet above it is open. */
 	open: boolean;
+	/** Whether a press opens the sheet; false when it publishes at once (Try again, a place's own Publish). */
+	opensSheet: boolean;
 	sheetId: string;
 	disabled: boolean;
 	onPress(): void;
@@ -147,8 +150,8 @@ export function PublishCell({
 			// Off by `aria-disabled`, never `disabled`: the button keeps focus while it publishes and after.
 			aria-disabled={disabled || undefined}
 			onClick={disabled ? undefined : onPress}
-			aria-haspopup={state.kind === "failed" ? undefined : "dialog"}
-			aria-expanded={state.kind === "failed" ? undefined : open}
+			aria-haspopup={opensSheet ? "dialog" : undefined}
+			aria-expanded={opensSheet ? open : undefined}
 			aria-controls={open ? sheetId : undefined}
 			aria-keyshortcuts={keys.aria}
 			aria-busy={state.kind === "publishing" ? true : undefined}
