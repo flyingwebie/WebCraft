@@ -6,6 +6,7 @@ import { useT } from "../i18n.tsx";
 import { PageHeader } from "../PageHeader.tsx";
 import { RedirectsScreen, redirectsData } from "../redirects/Redirects.tsx";
 import type { AdminPlace } from "../shell/levels.ts";
+import { PageColumn, type PageWidth } from "../shell/page.tsx";
 
 /**
  * What a Module's admin page gets: where it is, which of the Module's pages it is, what its `load`
@@ -17,6 +18,8 @@ export type ModulePageProps = { place: AdminPlace; moduleId: string; path: strin
 export type ModuleScreen = {
 	Screen: ComponentType<ModulePageProps>;
 	load?(placeId: string): Promise<unknown>;
+	/** The width of the page's column (`docs/development.md` › "Admin screens"); `default` when not said. */
+	width?: PageWidth;
 };
 
 /**
@@ -34,12 +37,23 @@ export const MODULE_PAGES: Readonly<Record<string, Readonly<Record<string, Modul
 	},
 };
 
-/** A Module's admin page in the shell, or a plain notice when this version of the admin has no screen for it. */
+/**
+ * A Module's admin page in the shell, in a column at the width its screen asks for (the routes leave
+ * the whole main column to it), or the page header with a plain notice when this version of the admin
+ * has no screen for it. What the screen itself renders, its own page header first, is the Module's.
+ */
 export function ModulePage({ place, moduleId, path, data, tab }: ModulePageProps) {
 	const t = useT();
 	const pages = place.level === "install" ? [] : place.modulePages;
 	const page = pages.find((candidate) => candidate.moduleId === moduleId && candidate.path === path);
 	const screen = MODULE_PAGES[moduleId]?.[path];
-	if (page && screen) return <screen.Screen place={place} moduleId={moduleId} path={path} data={data} tab={tab} />;
-	return <PageHeader heading={page?.label ?? t("modules.page.heading")}>{t("modules.page.body")}</PageHeader>;
+	return (
+		<PageColumn width={(page && screen?.width) || "default"} data-module-page={`${moduleId}/${path}`}>
+			{page && screen ? (
+				<screen.Screen place={place} moduleId={moduleId} path={path} data={data} tab={tab} />
+			) : (
+				<PageHeader heading={page?.label ?? t("modules.page.heading")}>{t("modules.page.body")}</PageHeader>
+			)}
+		</PageColumn>
+	);
 }
