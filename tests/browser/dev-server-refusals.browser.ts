@@ -21,8 +21,9 @@ beforeAll(async () => {
 	await install.createSuperadmin();
 	const workspaceId = (await install.install.createWorkspace("Acme Ltd")).id;
 	email = (await install.install.createMember({ workspaceId, role: "editor" })).account.email;
-	// One answer before the change: the dev server has loaded the web process's code once.
-	await install.webBrowser().api.setup.state();
+	// A page rendered before the change: the dev server has loaded the web process's code, its routes too.
+	const before = await install.webBrowser().request(install.adminUrl("/sign-in"));
+	expect(before.status).toBe(200);
 
 	const now = new Date();
 	await utimes(SOURCE_FILE, now, now);
