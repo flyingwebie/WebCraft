@@ -8123,7 +8123,28 @@
 			"search": "Search results template",
 			"designSystem": "Design system"
 		},
-		"popupPhoneEarly": "On phones, wait at least 5 seconds before opening a Popup."
+		"popupPhoneEarly": "On phones, wait at least 5 seconds before opening a Popup.",
+		"screen": {
+			"description": "Things worth fixing. They never stop publishing.",
+			"counts": "Open Checks by kind",
+			"kinds": {
+				"accessibility": "Accessibility",
+				"search": "Search",
+				"words": "Words and links"
+			},
+			"filter": "Show Checks of a kind",
+			"all": "All {count}",
+			"kindCount": "{kind} {count}",
+			"search": "Search checks",
+			"noneFound": "No open Check matches.",
+			"open": "Open",
+			"items": {
+				"page": "Page",
+				"entry": "Entry",
+				"component": "Component",
+				"popup": "Popup"
+			}
+		}
 	},
 	"statement": {
 		"heading": "Accessibility statement",

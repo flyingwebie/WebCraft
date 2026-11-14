@@ -8123,7 +8123,28 @@
 			"search": "Template dei risultati di ricerca",
 			"designSystem": "Sistema di design"
 		},
-		"popupPhoneEarly": "Su telefono, attendi almeno 5 secondi prima di aprire un Popup."
+		"popupPhoneEarly": "Su telefono, attendi almeno 5 secondi prima di aprire un Popup.",
+		"screen": {
+			"description": "Cose da sistemare. Non bloccano mai la pubblicazione.",
+			"counts": "Controlli aperti per tipo",
+			"kinds": {
+				"accessibility": "Accessibilità",
+				"search": "Ricerca",
+				"words": "Parole e link"
+			},
+			"filter": "Mostra i controlli di un tipo",
+			"all": "Tutti {count}",
+			"kindCount": "{kind} {count}",
+			"search": "Cerca nei controlli",
+			"noneFound": "Nessun controllo aperto corrisponde.",
+			"open": "Apri",
+			"items": {
+				"page": "Pagina",
+				"entry": "Voce",
+				"component": "Componente",
+				"popup": "Popup"
+			}
+		}
 	},
 	"statement": {
 		"heading": "Dichiarazione di accessibilità",
