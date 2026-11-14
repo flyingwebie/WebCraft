@@ -196,6 +196,8 @@ describe("the Entry panel, for Staff", () => {
 		);
 		expect(await panel.getByLabel("Address · English", { exact: true }).inputValue()).toBe("fresh-bread");
 		expect(await panel.locator("[data-wc-entry-status]").textContent()).toBe("Published");
+		// Each language's translation, once read: the Italian has none of its own yet.
+		await panel.locator('[data-wc-language-chip="it"][data-state="missing"]').waitFor();
 		expect(
 			await panel
 				.locator("[data-wc-language-chip]")

@@ -503,6 +503,10 @@ export function useEntryDetails({
 		};
 	}, [run]);
 
+	// Another Entry: its translations are read again.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: only another Entry clears them.
+	useEffect(() => setTranslations({}), [entryId]);
+
 	// Another page: its problems are its own.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: only another item clears them.
 	useEffect(() => setProblems(new Map()), [item, language]);

@@ -319,8 +319,9 @@ function LanguagesCard({
 			</span>
 			<ul aria-labelledby={id} className="m-0 flex list-none flex-wrap gap-1.5 p-0">
 				{languages.map((language) => {
-					const state = details.translations[language.code] ?? "done";
-					const look = LANGUAGE_LOOK[state];
+					// Until each language's translation is read, its chip says nothing of it.
+					const state: TranslationState | undefined = details.translations[language.code];
+					const look = state ? LANGUAGE_LOOK[state] : { chip: "bg-chrome-hover text-chrome-text", icon: null };
 					const Glyph = look.icon;
 					return (
 						<li key={language.code}>
@@ -334,12 +335,14 @@ function LanguagesCard({
 									language.current ? "ring-chrome-text/60 ring-1" : "hover:brightness-125"
 								} ${FOCUS_RING}`}
 								data-wc-language-chip={language.code}
-								data-state={state}
+								data-state={state ?? "reading"}
 							>
-								<Glyph aria-hidden="true" className="size-[11px]" />
+								{Glyph ? <Glyph aria-hidden="true" className="size-[11px]" /> : null}
 								<span aria-hidden="true">{language.code.toUpperCase()}</span>
 								<span className="sr-only">
-									{fill(said.languageChip, { language: language.name, state: said.translation[state] })}
+									{state
+										? fill(said.languageChip, { language: language.name, state: said.translation[state] })
+										: language.name}
 								</span>
 							</button>
 						</li>
