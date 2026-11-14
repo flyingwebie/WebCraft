@@ -1,0 +1,2 @@
+ALTER TABLE "people" ADD COLUMN "editor_preferences" jsonb DEFAULT '{}' NOT NULL;--> statement-breakpoint
+ALTER TABLE "people" ADD CONSTRAINT "people_editor_preferences_object" CHECK (jsonb_typeof("editor_preferences") = 'object');

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, integer, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /**
  * Everyone with an account on the Install: the Superadmin, Staff and Members. `@webcraft/auth`
@@ -24,6 +24,12 @@ export const people = pgTable(
 		/** Light or dark admin, or `system` to follow the device. */
 		adminTheme: text("admin_theme").notNull().default("system"),
 		/**
+		 * How the person likes the building area (`EditorPreferences` in `@webcraft/core`): where its
+		 * panels are, "Format when I leave the box", whether they saw the first-visit card. The same on
+		 * every Site and in every browser; `{}` until they change something.
+		 */
+		editorPreferences: jsonb("editor_preferences").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+		/**
 		 * Wrong codes in a row at the second step of signing in, since the last right one (or the last
 		 * lock); 10 lock the second step. Wrong passwords are counted in `sign_in_throttles`.
 		 */
@@ -43,7 +49,10 @@ export const people = pgTable(
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},
-	(table) => [check("people_admin_theme_known", sql`${table.adminTheme} in ('system', 'light', 'dark')`)],
+	(table) => [
+		check("people_admin_theme_known", sql`${table.adminTheme} in ('system', 'light', 'dark')`),
+		check("people_editor_preferences_object", sql`jsonb_typeof(${table.editorPreferences}) = 'object'`),
+	],
 );
 
 /**
