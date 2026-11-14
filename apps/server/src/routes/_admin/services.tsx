@@ -22,5 +22,5 @@ function ServicesRoute() {
 	const t = useT();
 	const services = Route.useLoaderData();
 	if (!services) return <Forbidden heading={t("forbidden.heading")} body={t("forbidden.body")} />;
-	return <ServicesListPage key={JSON.stringify(services)} services={services} />;
+	return <ServicesListPage services={services} />;
 }
