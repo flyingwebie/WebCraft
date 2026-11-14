@@ -21,6 +21,7 @@
 		"./cdns": "./src/cdns/registry.ts",
 		"./ai-models": "./src/ai/models.ts",
 		"./edit-paths": "./src/edit-mode/paths.ts",
+		"./building-addresses": "./src/edit-mode/building.ts",
 		"./staging-rules": "./src/staging/password-rules.ts",
 		"./site-transfer-rules": "./src/site-transfer/rules.ts",
 		"./draft-document": "./src/co-editing/browser.ts",
