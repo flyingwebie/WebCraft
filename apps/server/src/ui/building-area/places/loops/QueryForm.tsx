@@ -92,9 +92,18 @@ export function QueryForm({
 	// biome-ignore lint/correctness/useExhaustiveDependencies: `flush` reads only refs.
 	useEffect(() => () => flush(), []);
 
-	/** Changes the query: saved at once, or after a pause while typing (`typed`). */
+	/**
+	 * Changes the query: saved at once, or after a pause while typing (`typed`). A rule still waiting for
+	 * its value (a new one, say) isn't saved until it has one: the server would refuse it.
+	 */
 	const change = (next: Query, typed = false) => {
 		setQuery(next);
+		if (next.filters.some(waiting)) {
+			if (timer.current) clearTimeout(timer.current);
+			timer.current = null;
+			pending.current = null;
+			return;
+		}
 		pending.current = next;
 		if (typed) {
 			if (timer.current) clearTimeout(timer.current);
@@ -314,6 +323,23 @@ export function QueryForm({
 			</section>
 		</div>
 	);
+}
+
+/** Whether a rule still waits for what it compares with: an empty value, no Relationship, no Entry or status chosen. */
+function waiting(filter: Filter): boolean {
+	switch (filter.type) {
+		case "field":
+			return takesValue(filter.operator) && (filter.value === "" || filter.value === null);
+		case "relationship":
+			return filter.field === "" || (filter.to === "entries" && filter.entries.length === 0);
+		case "date":
+			return (
+				((filter.window === "last" || filter.window === "next") && !filter.amount) ||
+				(filter.window === "between" && !filter.from && !filter.to)
+			);
+		default:
+			return filter.statuses.length === 0;
+	}
 }
 
 /** One rule of Match: what it reads, how it compares, its value; and its remove button. */
@@ -751,11 +777,7 @@ function NumberField({
 			<label htmlFor={id} className="text-chrome-strong text-[13px] font-semibold">
 				{label}
 			</label>
-			<span
-				className={`border-chrome-hover bg-chrome focus-within:ring-chrome-focus flex h-[30px] items-center gap-2 rounded-md border px-2 focus-within:ring-2 ${
-					problem ? "border-chrome-danger" : ""
-				}`}
-			>
+			<span className="relative flex">
 				<input
 					id={id}
 					type="text"
@@ -777,10 +799,13 @@ function NumberField({
 					onKeyDown={(event) => {
 						if (event.key === "Enter") onBlur();
 					}}
-					className="text-chrome-text min-w-0 grow bg-transparent font-mono text-[12px] outline-none"
+					className={`${FIELD_LOOK} w-full pe-32 font-mono ${problem ? "border-chrome-danger" : ""}`}
 					{...data}
 				/>
-				<span id={`${id}-hint`} className="text-chrome-muted shrink-0 text-[11px]">
+				<span
+					id={`${id}-hint`}
+					className="text-chrome-muted pointer-events-none absolute end-2 top-1/2 -translate-y-1/2 text-[11px]"
+				>
 					{hint}
 				</span>
 			</span>

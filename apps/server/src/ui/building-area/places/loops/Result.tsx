@@ -138,10 +138,10 @@ export function Result({
 												<button
 													type="button"
 													onClick={() => void copy(row.binding)}
-													aria-label={`${shown.copyPath}: ${row.binding}`}
-													className={`group hover:bg-chrome-raised focus-visible:bg-chrome-raised relative flex h-[22px] w-full min-w-0 items-center gap-1.5 rounded-[4px] ps-2 pe-1 text-start font-mono text-[12px] ${CHROME_EASE} ${FOCUS_RING}`}
+													className={`group hover:bg-chrome-raised focus-visible:bg-chrome-raised relative flex h-6 w-full min-w-0 items-center gap-1.5 rounded-[4px] ps-2 pe-1 text-start font-mono text-[12px] ${CHROME_EASE} ${FOCUS_RING}`}
 													data-wc-loop-key={row.path}
 												>
+													<span className="sr-only">{`${shown.copyPath}: `}</span>
 													<span className="text-condition shrink-0">{row.path}</span>
 													<span className="text-chrome-muted min-w-0 truncate" data-wc-loop-value="">
 														{row.shown}

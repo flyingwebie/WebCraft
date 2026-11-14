@@ -6,6 +6,7 @@ import type { Query } from "../../../content/loop-query.ts";
 import { fill, type Words } from "../../api.ts";
 import { CHROME_EASE, FOCUS_RING } from "../../controls.tsx";
 import { managementApi } from "../../management.ts";
+import { PAGE_CHANGED_EVENT } from "../../open-document.ts";
 import { Card, Locked } from "../content/post-types/controls.tsx";
 import { buttonLook, PlaceIconButton, SidebarLabel } from "../content/ui.tsx";
 import { rememberPlace } from "../memory.ts";
@@ -240,11 +241,11 @@ export function LoopsPlace({ config, words, place, view: viewText, documents, le
 }
 
 /**
- * Reads the framed page again, under the place: pages show a Loop as it was last published, so once it
- * is, the page the canvas keeps shows it (a reload of the same address adds no history entry).
+ * Asks the shell to read the framed page again, under the place: pages show a Loop as it was last
+ * published, so once it is, the page the canvas keeps shows it.
  */
 function reloadPage(): void {
-	document.querySelector<HTMLIFrameElement>("iframe[data-wc-frame]")?.contentWindow?.location.reload();
+	document.dispatchEvent(new CustomEvent(PAGE_CHANGED_EVENT));
 }
 
 /** The Saved Loops: one row each (the open one raised, in the Loop's colour), "+" for a new one, and Site search's built-in Loop. */
