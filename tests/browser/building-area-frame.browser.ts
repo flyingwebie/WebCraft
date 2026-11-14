@@ -263,7 +263,7 @@ for (const engine of ENGINES) {
 				const box = element.getBoundingClientRect();
 				return `${Math.round(box.width)} × ${Math.round(box.height)}`;
 			});
-			expect(await chip.textContent()).toBe(`Subtitle · ${own}`);
+			expect(await chip.textContent()).toBe(`p · Subtitle · ${own}`);
 		});
 
 		test("a drag from a shell button across the frame's edge finds the element under the drop, at 100 % and zoomed", async () => {
