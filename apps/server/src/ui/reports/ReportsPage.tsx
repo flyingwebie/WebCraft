@@ -1,5 +1,4 @@
 import { Link, useNavigate, useRouter } from "@tanstack/react-router";
-import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
 import {
@@ -31,27 +30,31 @@ import { Input } from "@webcraft/ui/components/input.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
 import { Textarea } from "@webcraft/ui/components/textarea.tsx";
+import { cn } from "@webcraft/ui/lib/utils.ts";
 import {
-	ArrowLeftIcon,
-	CheckIcon,
 	DownloadIcon,
 	EllipsisIcon,
+	EyeIcon,
 	MailIcon,
 	PencilIcon,
 	PlusIcon,
-	SendIcon,
+	RotateCwIcon,
+	SparklesIcon,
 	TrashIcon,
 	UsersIcon,
 } from "lucide-react";
 import { type FormEvent, type RefObject, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { cellClass, headClass, headRowClass, TableFrame } from "../analytics/parts.tsx";
 import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
-import { formatUtc, formatUtcDate } from "../format.ts";
+import { formatUtc } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { useSensitiveAction } from "../identity-check.tsx";
 import { PageHeader } from "../PageHeader.tsx";
+import { StateBadge, type StateTone, Switch } from "../settings/layout.tsx";
+import { PageSheet } from "../shell/page.tsx";
 import {
 	downloadPdf,
 	REPORT_LANGUAGE_NAMES,
@@ -63,36 +66,110 @@ import {
 	recipientsFrom,
 } from "./model.ts";
 
-/** What the page shows: the Dashboard's Reports, one Report's history, and one entry held for review. */
+/** What the page shows: the Dashboard's Reports, what they sent (newest first), and one entry opened for review. */
 export type ReportsData = {
 	dashboard: { id: string; name: string };
 	reports: ReportView[];
-	selected: { report: ReportView; sends: ReportSend[] } | null;
+	sent: ReportSend[];
 	review: ReportSendDetail | null;
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MONTHS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"] as const;
+
 /**
- * A Dashboard's Reports (`…/dashboards/<id>/reports`): each one's schedule, language and recipients,
- * and the history of what each sent, with its PDF. Staff set Reports up, send a test to themselves,
- * review AI text that waits for it and send one again (`report.manage`); Owners see them and change who
- * they go to (`reportRecipients.edit`).
+ * Days as the Reports page says them, in UTC as every admin date is (`ui/format.ts`), in words that
+ * read the same on the server and in the browser: a period ("1–31 October 2026"), the day a Report
+ * was made ("Today", "8 November") and the day it goes out next ("1 Dec").
+ */
+function useDays() {
+	const t = useT();
+	const month = (date: Date) => t(`reports.months.${MONTHS[date.getUTCMonth()] ?? "jan"}` as MessageKey);
+	const short = (date: Date) => t(`content.when.months.${MONTHS[date.getUTCMonth()] ?? "jan"}` as MessageKey);
+	return {
+		/** A period, its last day counted: `to` is where it ends, the start of the day after. */
+		period(range: { from: Date | string; to: Date | string }): string {
+			const from = new Date(range.from);
+			const last = new Date(new Date(range.to).getTime() - 1);
+			if (from.getUTCFullYear() !== last.getUTCFullYear()) {
+				return t("reports.period.other", {
+					fromDay: from.getUTCDate(),
+					fromMonth: month(from),
+					fromYear: from.getUTCFullYear(),
+					toDay: last.getUTCDate(),
+					toMonth: month(last),
+					toYear: last.getUTCFullYear(),
+				});
+			}
+			if (from.getUTCMonth() !== last.getUTCMonth()) {
+				return t("reports.period.sameYear", {
+					fromDay: from.getUTCDate(),
+					fromMonth: month(from),
+					toDay: last.getUTCDate(),
+					toMonth: month(last),
+					year: last.getUTCFullYear(),
+				});
+			}
+			return t("reports.period.sameMonth", {
+				fromDay: from.getUTCDate(),
+				toDay: last.getUTCDate(),
+				month: month(last),
+				year: last.getUTCFullYear(),
+			});
+		},
+		/** The day something was made: today, yesterday, or the day. */
+		made(value: Date | string, now = new Date()): string {
+			const date = new Date(value);
+			const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+			if (date.getTime() >= today) return t("reports.made.today");
+			if (date.getTime() >= today - DAY_MS) return t("reports.made.yesterday");
+			return date.getUTCFullYear() === now.getUTCFullYear()
+				? t("reports.made.day", { day: date.getUTCDate(), month: month(date) })
+				: t("reports.made.dayYear", { day: date.getUTCDate(), month: month(date), year: date.getUTCFullYear() });
+		},
+		/** The day something happens next, short. */
+		next(value: Date | string, now = new Date()): string {
+			const date = new Date(value);
+			return date.getUTCFullYear() === now.getUTCFullYear()
+				? t("content.when.day", { day: date.getUTCDate(), month: short(date) })
+				: t("content.when.dayYear", { day: date.getUTCDate(), month: short(date), year: date.getUTCFullYear() });
+		},
+	};
+}
+
+/** A send's state as a badge: what it means, in words. */
+const STATE_TONES: Record<ReportSend["status"], StateTone> = {
+	preparing: "info",
+	review: "warning",
+	rendering: "info",
+	sent: "success",
+	failed: "danger",
+	discarded: "neutral",
+};
+
+/**
+ * A Dashboard's Reports (`…/dashboards/<id>/reports`): the schedules (each one's name, how often,
+ * language, recipients, next run, and whether it goes out), then what they sent, each with its
+ * period, when it was made, its state in words and what can be done with it (its PDF, sending it
+ * again, reviewing its AI text). Staff set Reports up, send a test to themselves, review AI text that
+ * waits for it and send one again (`report.manage`); Owners see them and change who they go to
+ * (`reportRecipients.edit`).
  */
 export function ReportsPage({
 	place,
 	data,
 	canManage,
 	canEditRecipients,
-	dashboardPath,
 }: {
 	place: ReportPlace;
 	data: ReportsData;
 	canManage: boolean;
 	canEditRecipients: boolean;
-	dashboardPath: { to: string; params: Record<string, string> };
 }) {
 	const t = useT();
 	const router = useRouter();
-	const navigate = useNavigate();
+	const days = useDays();
+	const runSensitive = useSensitiveAction();
 	const newButton = useRef<HTMLButtonElement>(null);
 	const [dialog, setDialog] = useState<
 		| { kind: "new" }
@@ -101,29 +178,38 @@ export function ReportsPage({
 	>(null);
 	const menuButtons = useRef(new Map<string, HTMLButtonElement>());
 	const reload = () => router.invalidate();
-	const { dashboard, reports, selected } = data;
+	const { dashboard, reports } = data;
+	const from = (report: ReportView) => ({ current: menuButtons.current.get(report.id) ?? null });
 
 	const sendTest = async (report: ReportView) => {
 		try {
 			await (await getApi()).reports.sendTest({ ...place, reportId: report.id });
 			toast.success(t("reports.testQueued"));
-			await navigate({ to: ".", search: { report: report.id }, replace: true });
 			await reload();
 		} catch (error) {
 			toast.error(t(errorMessage(error)));
 		}
 	};
+	// A switch shows its new state at once, until the page has loaded what was saved.
+	const [switched, setSwitched] = useState<Record<string, boolean>>({});
+	const setActive = async (report: ReportView, active: boolean) => {
+		setSwitched((current) => ({ ...current, [report.id]: active }));
+		try {
+			const api = await getApi();
+			await runSensitive(() => api.reports.update({ ...place, reportId: report.id, active }));
+			toast.success(t(active ? "reports.turnedOn" : "reports.turnedOff", { name: report.name }));
+			await reload();
+		} catch (error) {
+			toast.error(t(errorMessage(error)));
+		} finally {
+			setSwitched(({ [report.id]: _done, ...rest }) => rest);
+		}
+	};
 
 	return (
-		<div className="space-y-10">
-			<div>
-				<Button variant="ghost" size="sm" render={<Link to={dashboardPath.to} params={dashboardPath.params} />}>
-					<ArrowLeftIcon aria-hidden="true" className="rtl:rotate-180" />
-					{t("reports.backToDashboard", { name: dashboard.name })}
-				</Button>
-			</div>
+		<>
 			<PageHeader
-				heading={t("reports.heading", { name: dashboard.name })}
+				heading={t("reports.heading")}
 				action={
 					canManage ? (
 						<Button ref={newButton} onClick={() => setDialog({ kind: "new" })}>
@@ -133,125 +219,155 @@ export function ReportsPage({
 					) : null
 				}
 			>
-				{t("reports.intro")}
+				{t("reports.intro", { name: dashboard.name })}
 			</PageHeader>
 
-			{reports.length === 0 ? (
-				<p className="text-muted-foreground">{canManage ? t("reports.emptyStaff") : t("reports.empty")}</p>
-			) : (
-				<Table aria-label={t("reports.listLabel")}>
-					<TableHeader>
-						<TableRow>
-							<TableHead scope="col">{t("reports.columns.name")}</TableHead>
-							<TableHead scope="col">{t("reports.columns.schedule")}</TableHead>
-							<TableHead scope="col">{t("reports.columns.language")}</TableHead>
-							<TableHead scope="col">{t("reports.columns.recipients")}</TableHead>
-							<TableHead scope="col">{t("reports.columns.next")}</TableHead>
-							<TableHead scope="col">
-								<span className="sr-only">{t("reports.columns.actions")}</span>
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{reports.map((report) => (
-							<TableRow key={report.id} aria-current={selected?.report.id === report.id ? "true" : undefined}>
-								<TableCell className="font-medium break-all whitespace-normal">
-									<Link to="." search={{ report: report.id }} className="underline-offset-4 hover:underline">
-										{report.name}
-									</Link>
-									{report.review ? (
-										<Badge variant="outline" className="ms-2">
-											{t("reports.reviewBadge")}
-										</Badge>
-									) : null}
-								</TableCell>
-								<TableCell>{t(`reports.schedules.${report.schedule}`)}</TableCell>
-								<TableCell>{REPORT_LANGUAGE_NAMES[report.language as ReportLanguage] ?? report.language}</TableCell>
-								<TableCell className="whitespace-normal">
-									{report.recipients.length === 0 ? t("reports.nobody") : report.recipients.join(", ")}
-								</TableCell>
-								<TableCell>{report.nextRunAt ? formatUtc(report.nextRunAt) : t("reports.off")}</TableCell>
-								<TableCell className="text-end">
-									{canManage || canEditRecipients ? (
-										<DropdownMenu>
-											<DropdownMenuTrigger
-												ref={(button) => {
-													if (button) menuButtons.current.set(report.id, button);
-												}}
-												render={
-													<Button variant="ghost" size="icon" aria-label={t("reports.menu", { name: report.name })} />
-												}
-											>
-												<EllipsisIcon aria-hidden="true" />
-											</DropdownMenuTrigger>
-											<DropdownMenuContent align="end" className="w-auto min-w-56">
-												{canManage ? (
-													<DropdownMenuItem
-														onClick={() =>
-															setDialog({
-																kind: "edit",
-																report,
-																from: { current: menuButtons.current.get(report.id) ?? null },
-															})
+			<div className="grid gap-8">
+				<TableFrame>
+					<Table aria-label={t("reports.listLabel")} className="min-w-180 table-fixed">
+						<colgroup>
+							<col />
+							<col className="w-28" />
+							<col className="w-28" />
+							<col className="w-34" />
+							<col className="w-26" />
+							<col className="w-20" />
+							<col className="w-14" />
+						</colgroup>
+						<TableHeader>
+							<TableRow className={headRowClass}>
+								<TableHead scope="col" className={headClass}>
+									{t("reports.columns.name")}
+								</TableHead>
+								<TableHead scope="col" className={headClass}>
+									{t("reports.columns.schedule")}
+								</TableHead>
+								<TableHead scope="col" className={headClass}>
+									{t("reports.columns.language")}
+								</TableHead>
+								<TableHead scope="col" className={headClass}>
+									{t("reports.columns.recipients")}
+								</TableHead>
+								<TableHead scope="col" className={headClass}>
+									{t("reports.columns.next")}
+								</TableHead>
+								<TableHead scope="col" className={headClass}>
+									{t("reports.columns.active")}
+								</TableHead>
+								<TableHead scope="col" className={headClass}>
+									<span className="sr-only">{t("reports.columns.actions")}</span>
+								</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{reports.length === 0 ? (
+								<TableRow className="hover:bg-transparent">
+									<TableCell colSpan={7} className="text-muted-foreground px-4 py-8 text-center whitespace-normal">
+										{canManage ? t("reports.emptyStaff") : t("reports.empty")}
+									</TableCell>
+								</TableRow>
+							) : (
+								reports.map((report) => (
+									<TableRow key={report.id}>
+										<TableCell className={cellClass}>
+											<span className="flex min-w-0 items-center gap-2">
+												<span className="truncate font-medium" title={report.name}>
+													{report.name}
+												</span>
+												{report.review ? <StateBadge>{t("reports.reviewBadge")}</StateBadge> : null}
+											</span>
+										</TableCell>
+										<TableCell className={cn(cellClass, "text-muted-foreground")}>
+											{t(`reports.howOften.${report.schedule}`)}
+										</TableCell>
+										<TableCell className={cn(cellClass, "text-muted-foreground")}>
+											{REPORT_LANGUAGE_NAMES[report.language as ReportLanguage] ?? report.language}
+										</TableCell>
+										<TableCell className={cn(cellClass, "text-muted-foreground")} title={report.recipients.join(", ")}>
+											{t("reports.recipientCount", { count: report.recipients.length })}
+										</TableCell>
+										<TableCell className={cn(cellClass, "text-muted-foreground")}>
+											{report.nextRunAt ? (
+												<time dateTime={new Date(report.nextRunAt).toISOString()} title={formatUtc(report.nextRunAt)}>
+													{days.next(report.nextRunAt)}
+												</time>
+											) : (
+												t("reports.off")
+											)}
+										</TableCell>
+										<TableCell className={cellClass}>
+											<Switch
+												checked={switched[report.id] ?? report.active}
+												disabled={!canManage}
+												onCheckedChange={(active) => void setActive(report, active)}
+												aria-label={t("reports.activeLabel", { name: report.name })}
+											/>
+										</TableCell>
+										<TableCell className={cn(cellClass, "text-end")}>
+											{canManage || canEditRecipients ? (
+												<DropdownMenu>
+													<DropdownMenuTrigger
+														ref={(button) => {
+															if (button) menuButtons.current.set(report.id, button);
+														}}
+														render={
+															<Button
+																variant="ghost"
+																size="icon-sm"
+																aria-label={t("reports.menu", { name: report.name })}
+															/>
 														}
 													>
-														<PencilIcon aria-hidden="true" />
-														{t("reports.edit")}
-													</DropdownMenuItem>
-												) : null}
-												<DropdownMenuItem
-													onClick={() =>
-														setDialog({
-															kind: "recipients",
-															report,
-															from: { current: menuButtons.current.get(report.id) ?? null },
-														})
-													}
-												>
-													<UsersIcon aria-hidden="true" />
-													{t("reports.changeRecipients")}
-												</DropdownMenuItem>
-												{canManage ? (
-													<>
-														<DropdownMenuItem onClick={() => void sendTest(report)}>
-															<MailIcon aria-hidden="true" />
-															{t("reports.sendTest")}
-														</DropdownMenuItem>
-														<DropdownMenuSeparator />
+														<EllipsisIcon aria-hidden="true" />
+													</DropdownMenuTrigger>
+													<DropdownMenuContent align="end" className="w-auto min-w-56">
+														{canManage ? (
+															<DropdownMenuItem onClick={() => setDialog({ kind: "edit", report, from: from(report) })}>
+																<PencilIcon aria-hidden="true" />
+																{t("reports.edit")}
+															</DropdownMenuItem>
+														) : null}
 														<DropdownMenuItem
-															variant="destructive"
-															onClick={() =>
-																setDialog({
-																	kind: "delete",
-																	report,
-																	from: { current: menuButtons.current.get(report.id) ?? null },
-																})
-															}
+															onClick={() => setDialog({ kind: "recipients", report, from: from(report) })}
 														>
-															<TrashIcon aria-hidden="true" />
-															{t("reports.delete")}
+															<UsersIcon aria-hidden="true" />
+															{t("reports.changeRecipients")}
 														</DropdownMenuItem>
-													</>
-												) : null}
-											</DropdownMenuContent>
-										</DropdownMenu>
-									) : null}
-								</TableCell>
-							</TableRow>
-						))}
-					</TableBody>
-				</Table>
-			)}
+														{canManage ? (
+															<>
+																<DropdownMenuItem onClick={() => void sendTest(report)}>
+																	<MailIcon aria-hidden="true" />
+																	{t("reports.sendTest")}
+																</DropdownMenuItem>
+																<DropdownMenuSeparator />
+																<DropdownMenuItem
+																	variant="destructive"
+																	onClick={() => setDialog({ kind: "delete", report, from: from(report) })}
+																>
+																	<TrashIcon aria-hidden="true" />
+																	{t("reports.delete")}
+																</DropdownMenuItem>
+															</>
+														) : null}
+													</DropdownMenuContent>
+												</DropdownMenu>
+											) : null}
+										</TableCell>
+									</TableRow>
+								))
+							)}
+						</TableBody>
+					</Table>
+				</TableFrame>
 
-			{selected ? (
-				<History place={place} report={selected.report} sends={selected.sends} canManage={canManage} />
-			) : null}
+				<Sent place={place} reports={reports} sent={data.sent} canManage={canManage} />
+			</div>
 
 			{dialog?.kind === "new" ? (
-				<ReportDialog place={place} dashboardId={dashboard.id} onClose={() => setDialog(null)} finalFocus={newButton} />
+				<ReportSheet place={place} dashboardId={dashboard.id} onClose={() => setDialog(null)} finalFocus={newButton} />
 			) : null}
 			{dialog?.kind === "edit" ? (
-				<ReportDialog
+				<ReportSheet
 					place={place}
 					dashboardId={dashboard.id}
 					report={dialog.report}
@@ -260,7 +376,7 @@ export function ReportsPage({
 				/>
 			) : null}
 			{dialog?.kind === "recipients" ? (
-				<RecipientsDialog
+				<RecipientsSheet
 					place={place}
 					report={dialog.report}
 					onClose={() => setDialog(null)}
@@ -270,26 +386,27 @@ export function ReportsPage({
 			{dialog?.kind === "delete" ? (
 				<DeleteDialog place={place} report={dialog.report} onClose={() => setDialog(null)} finalFocus={dialog.from} />
 			) : null}
-			{data.review ? <ReviewDialog place={place} send={data.review} canManage={canManage} /> : null}
-		</div>
+			{data.review ? <ReviewSheet place={place} send={data.review} canManage={canManage} /> : null}
+		</>
 	);
 }
 
-/** A Report's history, newest first. */
-function History({
+/** What the Dashboard's Reports sent, newest first: each one's period, when it was made, its state and its action. */
+function Sent({
 	place,
-	report,
-	sends,
+	reports,
+	sent,
 	canManage,
 }: {
 	place: ReportPlace;
-	report: ReportView;
-	sends: ReportSend[];
+	reports: ReportView[];
+	sent: ReportSend[];
 	canManage: boolean;
 }) {
 	const t = useT();
 	const router = useRouter();
 	const id = useId();
+	const days = useDays();
 	const download = async (send: ReportSend) => {
 		try {
 			downloadPdf(await (await getApi()).reports.sends.pdf({ ...place, sendId: send.id }));
@@ -306,106 +423,139 @@ function History({
 			toast.error(t(errorMessage(error)));
 		}
 	};
+	// With more than one Report, each entry says whose it is.
+	const nameOf = (send: ReportSend) =>
+		reports.length > 1 ? reports.find((report) => report.id === send.reportId)?.name : undefined;
 	return (
-		<section aria-labelledby={`${id}-heading`} className="space-y-4">
-			<div className="space-y-1">
-				<h2 id={`${id}-heading`} className="text-lg font-semibold">
-					{t("reports.historyOf", { name: report.name })}
-				</h2>
-				<p className="text-muted-foreground text-sm">{t("reports.historyIntro")}</p>
-			</div>
-			{sends.length === 0 ? (
-				<p className="text-muted-foreground">{t("reports.noHistory")}</p>
-			) : (
-				<Table aria-labelledby={`${id}-heading`}>
+		<section aria-labelledby={`${id}-heading`} className="grid gap-3">
+			<h2 id={`${id}-heading`} className="text-base font-semibold">
+				{t("reports.sent")}
+			</h2>
+			<TableFrame>
+				<Table aria-labelledby={`${id}-heading`} className="min-w-180 table-fixed">
+					<colgroup>
+						<col />
+						<col className="w-32" />
+						<col className="w-52" />
+						<col className="w-56" />
+					</colgroup>
 					<TableHeader>
-						<TableRow>
-							<TableHead scope="col">{t("reports.historyColumns.made")}</TableHead>
-							<TableHead scope="col">{t("reports.historyColumns.days")}</TableHead>
-							<TableHead scope="col">{t("reports.historyColumns.status")}</TableHead>
-							<TableHead scope="col">{t("reports.historyColumns.ai")}</TableHead>
-							<TableHead scope="col">{t("reports.historyColumns.recipients")}</TableHead>
-							<TableHead scope="col">
-								<span className="sr-only">{t("reports.columns.actions")}</span>
+						<TableRow className={headRowClass}>
+							<TableHead scope="col" className={headClass}>
+								{t("reports.sentColumns.period")}
+							</TableHead>
+							<TableHead scope="col" className={headClass}>
+								{t("reports.sentColumns.made")}
+							</TableHead>
+							<TableHead scope="col" className={headClass}>
+								{t("reports.sentColumns.state")}
+							</TableHead>
+							<TableHead scope="col" className={headClass}>
+								{t("reports.sentColumns.action")}
 							</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{sends.map((send) => (
-							<TableRow key={send.id}>
-								<TableCell>
-									{formatUtc(send.createdAt)}
-									{send.kind === "test" ? (
-										<Badge variant="outline" className="ms-2">
-											{t("reports.test")}
-										</Badge>
-									) : null}
-								</TableCell>
-								<TableCell>
-									{formatUtcDate(send.period.from)} – {formatUtcDate(new Date(new Date(send.period.to).getTime() - 1))}
-								</TableCell>
-								<TableCell className="whitespace-normal">
-									<Badge
-										variant={
-											send.status === "failed" ? "destructive" : send.status === "sent" ? "secondary" : "outline"
-										}
-									>
-										{t(`reports.statuses.${send.status}`)}
-									</Badge>
-									{send.problem ? <span className="text-muted-foreground block text-xs">{send.problem}</span> : null}
-								</TableCell>
-								<TableCell className="whitespace-normal">{send.ai ? t(`reports.ai.${send.ai}`) : "–"}</TableCell>
-								<TableCell className="whitespace-normal">
-									<ul className="space-y-1">
-										{send.recipients.map((recipient) => (
-											<li key={recipient.address} className="break-all">
-												{recipient.address}
-												<span className="text-muted-foreground">
-													{" · "}
-													{recipient.status
-														? t(`reports.mailStatuses.${recipient.status}` as MessageKey)
-														: t("reports.mailStatuses.waiting")}
-												</span>
-											</li>
-										))}
-									</ul>
-								</TableCell>
-								<TableCell className="text-end">
-									<div className="flex flex-wrap justify-end gap-2">
-										{send.status === "review" ? (
-											<Button size="sm" render={<Link to="." search={{ report: report.id, review: send.id }} />}>
-												{t("reports.review")}
-											</Button>
-										) : null}
-										{send.pdf ? (
-											<Button
-												size="sm"
-												variant="outline"
-												onClick={() => void download(send)}
-												aria-label={t("reports.downloadLabel", { day: formatUtc(send.createdAt) })}
-											>
-												<DownloadIcon aria-hidden="true" />
-												{t("reports.download")}
-											</Button>
-										) : null}
-										{canManage && (send.status === "sent" || send.status === "failed") ? (
-											<Button
-												size="sm"
-												variant="outline"
-												onClick={() => void resend(send)}
-												aria-label={t("reports.resendLabel", { day: formatUtc(send.createdAt) })}
-											>
-												<SendIcon aria-hidden="true" />
-												{t("reports.resend")}
-											</Button>
-										) : null}
-									</div>
+						{sent.length === 0 ? (
+							<TableRow className="hover:bg-transparent">
+								<TableCell colSpan={4} className="text-muted-foreground px-4 py-8 text-center whitespace-normal">
+									{t("reports.noHistory")}
 								</TableCell>
 							</TableRow>
-						))}
+						) : (
+							sent.map((send) => {
+								const period = days.period(send.period);
+								const whose = nameOf(send);
+								const note =
+									send.problem ??
+									(send.ai === "noKey" || send.ai === "cap" || send.ai === "failed"
+										? t("reports.aiNote", { state: t(`reports.ai.${send.ai}`) })
+										: null);
+								const pdfButton = (label: boolean) =>
+									send.pdf ? (
+										<Button
+											size={label ? "xs" : "icon-xs"}
+											variant="outline"
+											onClick={() => void download(send)}
+											aria-label={t("reports.downloadLabel", { period })}
+											title={label ? undefined : t("reports.downloadPdf")}
+										>
+											<DownloadIcon aria-hidden="true" />
+											{label ? t("reports.downloadPdf") : null}
+										</Button>
+									) : null;
+								const resendButton = (label: boolean) =>
+									canManage && (send.status === "sent" || send.status === "failed") ? (
+										<Button
+											size={label ? "xs" : "icon-xs"}
+											variant="outline"
+											onClick={() => void resend(send)}
+											aria-label={t("reports.resendLabel", { period })}
+											title={label ? undefined : t("reports.resend")}
+										>
+											<RotateCwIcon aria-hidden="true" />
+											{label ? t("reports.resend") : null}
+										</Button>
+									) : null;
+								return (
+									<TableRow key={send.id}>
+										<TableCell className={cn(cellClass, "py-2")}>
+											<span className="flex min-w-0 items-center gap-2">
+												<span className="truncate font-medium">{period}</span>
+												{send.kind === "test" ? <StateBadge>{t("reports.test")}</StateBadge> : null}
+											</span>
+											{whose ? <span className="text-muted-foreground block truncate text-xs">{whose}</span> : null}
+										</TableCell>
+										<TableCell className={cn(cellClass, "text-muted-foreground")}>
+											<time
+												dateTime={new Date(send.createdAt).toISOString()}
+												title={formatUtc(send.createdAt)}
+												// The server draws first and the day may turn before the page wakes: only the words differ.
+												suppressHydrationWarning
+											>
+												{days.made(send.createdAt)}
+											</time>
+										</TableCell>
+										<TableCell className={cn(cellClass, "py-2 whitespace-normal")}>
+											<StateBadge tone={STATE_TONES[send.status]}>{t(`reports.statuses.${send.status}`)}</StateBadge>
+											{note ? (
+												<span className="text-muted-foreground mt-1 block truncate text-xs" title={note}>
+													{note}
+												</span>
+											) : null}
+										</TableCell>
+										<TableCell className={cellClass}>
+											<span className="flex items-center gap-1.5">
+												{send.status === "review" ? (
+													<Button
+														size="xs"
+														variant="outline"
+														render={<Link to="." search={{ review: send.id }} />}
+														aria-label={t("reports.reviewLabel", { period })}
+													>
+														<EyeIcon aria-hidden="true" />
+														{t("reports.review")}
+													</Button>
+												) : send.status === "failed" ? (
+													<>
+														{resendButton(true)}
+														{pdfButton(false)}
+													</>
+												) : (
+													<>
+														{pdfButton(true)}
+														{resendButton(false)}
+													</>
+												)}
+											</span>
+										</TableCell>
+									</TableRow>
+								);
+							})
+						)}
 					</TableBody>
 				</Table>
-			)}
+			</TableFrame>
 		</section>
 	);
 }
@@ -420,8 +570,8 @@ function problemOf(error: unknown): Problem {
 	return { field: null, message: errorMessage(error) };
 }
 
-/** Sets up a Report, or changes one. */
-function ReportDialog({
+/** Sets up a Report, or changes one: a sheet over the page. */
+function ReportSheet({
 	place,
 	dashboardId,
 	report,
@@ -471,90 +621,96 @@ function ReportDialog({
 		}
 	};
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent closeLabel={t("reports.close")} finalFocus={finalFocus} className="sm:max-w-xl">
-				<form onSubmit={save} noValidate>
-					<DialogHeader>
-						<DialogTitle>{report ? t("reports.editTitle", { name: report.name }) : t("reports.newTitle")}</DialogTitle>
-						<DialogDescription>{t("reports.dialogIntro")}</DialogDescription>
-					</DialogHeader>
-					<FieldGroup className="my-6 gap-5">
-						<Field data-invalid={problem?.field === "name" ? true : undefined}>
-							<FieldLabel htmlFor={`${id}-name`}>{t("reports.name")}</FieldLabel>
-							<Input
-								id={`${id}-name`}
-								value={name}
-								required
-								maxLength={100}
-								onChange={(change) => setName(change.target.value)}
-								aria-invalid={problem?.field === "name" ? true : undefined}
-								aria-describedby={problem?.field === "name" ? `${id}-name-error` : undefined}
+		<PageSheet
+			open
+			onOpenChange={(open) => !open && onClose()}
+			title={report ? t("reports.editTitle", { name: report.name }) : t("reports.newTitle")}
+			description={t("reports.dialogIntro")}
+			finalFocus={finalFocus}
+			footer={
+				<>
+					<Button type="button" variant="outline" onClick={onClose}>
+						{t("reports.cancel")}
+					</Button>
+					<Button type="submit" form={`${id}-form`} disabled={busy}>
+						{report ? t("reports.save") : t("reports.create")}
+					</Button>
+				</>
+			}
+		>
+			<form id={`${id}-form`} onSubmit={save} noValidate>
+				<FieldGroup className="gap-5">
+					<Field data-invalid={problem?.field === "name" ? true : undefined}>
+						<FieldLabel htmlFor={`${id}-name`}>{t("reports.name")}</FieldLabel>
+						<Input
+							id={`${id}-name`}
+							value={name}
+							required
+							maxLength={100}
+							onChange={(change) => setName(change.target.value)}
+							aria-invalid={problem?.field === "name" ? true : undefined}
+							aria-describedby={problem?.field === "name" ? `${id}-name-error` : undefined}
+						/>
+						{problem?.field === "name" ? <FieldError id={`${id}-name-error`}>{t(problem.message)}</FieldError> : null}
+					</Field>
+					<Field>
+						<FieldLabel htmlFor={`${id}-schedule`}>{t("reports.schedule")}</FieldLabel>
+						<NativeSelect
+							id={`${id}-schedule`}
+							className="w-full"
+							value={schedule}
+							onChange={(change) => setSchedule(change.target.value as "weekly" | "monthly")}
+							aria-describedby={`${id}-schedule-help`}
+						>
+							<NativeSelectOption value="weekly">{t("reports.schedules.weekly")}</NativeSelectOption>
+							<NativeSelectOption value="monthly">{t("reports.schedules.monthly")}</NativeSelectOption>
+						</NativeSelect>
+						<FieldDescription id={`${id}-schedule-help`}>{t("reports.scheduleHelp")}</FieldDescription>
+					</Field>
+					<Field>
+						<FieldLabel htmlFor={`${id}-language`}>{t("reports.language")}</FieldLabel>
+						<NativeSelect
+							id={`${id}-language`}
+							className="w-full"
+							value={language}
+							onChange={(change) => setLanguage(change.target.value as ReportLanguage)}
+							aria-describedby={`${id}-language-help`}
+						>
+							{Object.entries(REPORT_LANGUAGE_NAMES).map(([code, label]) => (
+								<NativeSelectOption key={code} value={code} lang={code}>
+									{label}
+								</NativeSelectOption>
+							))}
+						</NativeSelect>
+						<FieldDescription id={`${id}-language-help`}>{t("reports.languageHelp")}</FieldDescription>
+					</Field>
+					<RecipientsField id={id} value={recipients} onChange={setRecipients} problem={problem} />
+					<FieldSet>
+						<FieldLegend variant="label">{t("reports.sending")}</FieldLegend>
+						<Field orientation="horizontal">
+							<Checkbox
+								id={`${id}-review`}
+								checked={review}
+								onCheckedChange={(checked) => setReview(checked === true)}
+								aria-describedby={`${id}-review-help`}
 							/>
-							{problem?.field === "name" ? <FieldError id={`${id}-name-error`}>{t(problem.message)}</FieldError> : null}
+							<div className="grid gap-1">
+								<FieldLabel htmlFor={`${id}-review`}>{t("reports.holdForReview")}</FieldLabel>
+								<FieldDescription id={`${id}-review-help`}>{t("reports.holdForReviewHelp")}</FieldDescription>
+							</div>
 						</Field>
-						<Field>
-							<FieldLabel htmlFor={`${id}-schedule`}>{t("reports.schedule")}</FieldLabel>
-							<NativeSelect
-								id={`${id}-schedule`}
-								value={schedule}
-								onChange={(change) => setSchedule(change.target.value as "weekly" | "monthly")}
-								aria-describedby={`${id}-schedule-help`}
-							>
-								<NativeSelectOption value="weekly">{t("reports.schedules.weekly")}</NativeSelectOption>
-								<NativeSelectOption value="monthly">{t("reports.schedules.monthly")}</NativeSelectOption>
-							</NativeSelect>
-							<FieldDescription id={`${id}-schedule-help`}>{t("reports.scheduleHelp")}</FieldDescription>
+						<Field orientation="horizontal">
+							<Checkbox
+								id={`${id}-active`}
+								checked={active}
+								onCheckedChange={(checked) => setActive(checked === true)}
+							/>
+							<FieldLabel htmlFor={`${id}-active`}>{t("reports.active")}</FieldLabel>
 						</Field>
-						<Field>
-							<FieldLabel htmlFor={`${id}-language`}>{t("reports.language")}</FieldLabel>
-							<NativeSelect
-								id={`${id}-language`}
-								value={language}
-								onChange={(change) => setLanguage(change.target.value as ReportLanguage)}
-								aria-describedby={`${id}-language-help`}
-							>
-								{Object.entries(REPORT_LANGUAGE_NAMES).map(([code, label]) => (
-									<NativeSelectOption key={code} value={code} lang={code}>
-										{label}
-									</NativeSelectOption>
-								))}
-							</NativeSelect>
-							<FieldDescription id={`${id}-language-help`}>{t("reports.languageHelp")}</FieldDescription>
-						</Field>
-						<RecipientsField id={id} value={recipients} onChange={setRecipients} problem={problem} />
-						<FieldSet>
-							<FieldLegend variant="label">{t("reports.sending")}</FieldLegend>
-							<Field orientation="horizontal">
-								<Checkbox
-									id={`${id}-review`}
-									checked={review}
-									onCheckedChange={(checked) => setReview(checked === true)}
-									aria-describedby={`${id}-review-help`}
-								/>
-								<div className="grid gap-1">
-									<FieldLabel htmlFor={`${id}-review`}>{t("reports.holdForReview")}</FieldLabel>
-									<FieldDescription id={`${id}-review-help`}>{t("reports.holdForReviewHelp")}</FieldDescription>
-								</div>
-							</Field>
-							<Field orientation="horizontal">
-								<Checkbox
-									id={`${id}-active`}
-									checked={active}
-									onCheckedChange={(checked) => setActive(checked === true)}
-								/>
-								<FieldLabel htmlFor={`${id}-active`}>{t("reports.active")}</FieldLabel>
-							</Field>
-						</FieldSet>
-					</FieldGroup>
-					<DialogFooter>
-						<DialogClose render={<Button type="button" variant="outline" />}>{t("reports.cancel")}</DialogClose>
-						<Button type="submit" disabled={busy}>
-							{report ? t("reports.save") : t("reports.create")}
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+					</FieldSet>
+				</FieldGroup>
+			</form>
+		</PageSheet>
 	);
 }
 
@@ -590,7 +746,7 @@ function RecipientsField({
 }
 
 /** Changes who a Report goes to: what Owners may change too. */
-function RecipientsDialog({
+function RecipientsSheet({
 	place,
 	report,
 	onClose,
@@ -630,28 +786,33 @@ function RecipientsDialog({
 		}
 	};
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent closeLabel={t("reports.close")} finalFocus={finalFocus}>
-				<form onSubmit={save} noValidate>
-					<DialogHeader>
-						<DialogTitle>{t("reports.recipientsTitle", { name: report.name })}</DialogTitle>
-						<DialogDescription>{t("reports.recipientsIntro")}</DialogDescription>
-					</DialogHeader>
-					<FieldGroup className="my-6">
-						<RecipientsField id={id} value={recipients} onChange={setRecipients} problem={problem} />
-					</FieldGroup>
-					<DialogFooter>
-						<DialogClose render={<Button type="button" variant="outline" />}>{t("reports.cancel")}</DialogClose>
-						<Button type="submit" disabled={busy}>
-							{t("reports.save")}
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+		<PageSheet
+			open
+			onOpenChange={(open) => !open && onClose()}
+			title={t("reports.recipientsTitle", { name: report.name })}
+			description={t("reports.recipientsIntro")}
+			finalFocus={finalFocus}
+			footer={
+				<>
+					<Button type="button" variant="outline" onClick={onClose}>
+						{t("reports.cancel")}
+					</Button>
+					<Button type="submit" form={`${id}-form`} disabled={busy}>
+						{t("reports.save")}
+					</Button>
+				</>
+			}
+		>
+			<form id={`${id}-form`} onSubmit={save} noValidate>
+				<FieldGroup>
+					<RecipientsField id={id} value={recipients} onChange={setRecipients} problem={problem} />
+				</FieldGroup>
+			</form>
+		</PageSheet>
 	);
 }
 
+/** Deleting a Report: it names the Report, and focus starts on Cancel. */
 function DeleteDialog({
 	place,
 	report,
@@ -665,13 +826,12 @@ function DeleteDialog({
 }) {
 	const t = useT();
 	const router = useRouter();
-	const navigate = useNavigate();
+	const cancel = useRef<HTMLButtonElement>(null);
 	const remove = async () => {
 		try {
 			await (await getApi()).reports.delete({ ...place, reportId: report.id });
 			toast.success(t("reports.deleted", { name: report.name }));
 			onClose();
-			await navigate({ to: ".", search: {}, replace: true });
 			await router.invalidate();
 		} catch (error) {
 			toast.error(t(errorMessage(error)));
@@ -679,13 +839,15 @@ function DeleteDialog({
 	};
 	return (
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent closeLabel={t("reports.close")} finalFocus={finalFocus}>
+			<DialogContent closeLabel={t("reports.close")} initialFocus={cancel} finalFocus={finalFocus}>
 				<DialogHeader>
 					<DialogTitle>{t("reports.deleteTitle", { name: report.name })}</DialogTitle>
 					<DialogDescription>{t("reports.deleteIntro")}</DialogDescription>
 				</DialogHeader>
 				<DialogFooter>
-					<DialogClose render={<Button type="button" variant="outline" />}>{t("reports.cancel")}</DialogClose>
+					<DialogClose ref={cancel} render={<Button type="button" variant="outline" />}>
+						{t("reports.cancel")}
+					</DialogClose>
 					<Button variant="destructive" onClick={() => void remove()}>
 						{t("reports.delete")}
 					</Button>
@@ -696,22 +858,27 @@ function DeleteDialog({
 }
 
 /**
- * A Report waiting for review: its AI text, which Staff edit (plain text), then approve to send it,
- * or discard. Owners read it.
+ * Review before it goes: a Report waiting for review, as a sheet over the page. What happened (which
+ * Staff may change), a line per Widget and the suggestions, each with the Service it points to; Staff
+ * may change those too ("Change the text"), then approve to send it, or discard it. Owners read it.
  */
-function ReviewDialog({ place, send, canManage }: { place: ReportPlace; send: ReportSendDetail; canManage: boolean }) {
+function ReviewSheet({ place, send, canManage }: { place: ReportPlace; send: ReportSendDetail; canManage: boolean }) {
 	const t = useT();
 	const router = useRouter();
 	const navigate = useNavigate();
+	const days = useDays();
 	const id = useId();
 	const text = send.text ?? { widgets: {}, whatHappened: "", suggestions: [] };
 	const [widgets, setWidgets] = useState<Record<string, string>>(text.widgets);
 	const [whatHappened, setWhatHappened] = useState(text.whatHappened);
 	const [suggestions, setSuggestions] = useState(text.suggestions);
+	const [changing, setChanging] = useState(false);
 	const [busy, setBusy] = useState(false);
 	const held = send.status === "review";
 	const editable = canManage && held;
-	const close = () => void navigate({ to: ".", search: { report: send.reportId }, replace: true });
+	const close = () => void navigate({ to: ".", search: {}, replace: true });
+	const serviceName = (serviceId: string | null) =>
+		serviceId ? send.services.find((service) => service.id === serviceId)?.name : undefined;
 	const act = async (action: "approve" | "discard") => {
 		setBusy(true);
 		try {
@@ -732,64 +899,100 @@ function ReviewDialog({ place, send, canManage }: { place: ReportPlace; send: Re
 			setBusy(false);
 		}
 	};
+	const noted = send.widgets.filter((widget) => changing || (widgets[widget.id] ?? "").trim() !== "");
 	return (
-		<Dialog open onOpenChange={(open) => !open && close()}>
-			<DialogContent closeLabel={t("reports.close")} className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-				<form
-					onSubmit={(event) => {
-						event.preventDefault();
-						void act("approve");
-					}}
-					noValidate
-				>
-					<DialogHeader>
-						<DialogTitle>{t("reports.reviewTitle")}</DialogTitle>
-						<DialogDescription>
-							{held ? t("reports.reviewIntro") : t(`reports.statuses.${send.status}`)}
-						</DialogDescription>
-					</DialogHeader>
-					<FieldGroup className="my-6 gap-5">
-						<Field>
-							<FieldLabel htmlFor={`${id}-what`}>{t("reports.whatHappened")}</FieldLabel>
-							<Textarea
-								id={`${id}-what`}
-								value={whatHappened}
-								rows={4}
-								readOnly={!editable}
-								onChange={(change) => setWhatHappened(change.target.value)}
-							/>
-						</Field>
-						{send.widgets.map((widget) => (
-							<Field key={widget.id}>
-								<FieldLabel htmlFor={`${id}-${widget.id}`}>
-									{t("reports.aboutWidget", { title: widget.title })}
-								</FieldLabel>
-								<Textarea
-									id={`${id}-${widget.id}`}
-									value={widgets[widget.id] ?? ""}
-									rows={2}
-									readOnly={!editable}
-									onChange={(change) => setWidgets((current) => ({ ...current, [widget.id]: change.target.value }))}
-								/>
-							</Field>
-						))}
-						<FieldSet>
-							<FieldLegend variant="label">{t("reports.suggestions")}</FieldLegend>
-							{suggestions.length === 0 ? (
-								<p className="text-muted-foreground text-sm">{t("reports.noSuggestions")}</p>
-							) : null}
-							{suggestions.map((suggestion, index) => (
+		<PageSheet
+			open
+			onOpenChange={(open) => !open && close()}
+			title={t("reports.reviewTitle")}
+			description={
+				held ? t("reports.reviewIntro", { period: days.period(send.period) }) : t(`reports.statuses.${send.status}`)
+			}
+			className="data-[side=right]:sm:max-w-95"
+			footer={
+				editable ? (
+					<>
+						<Button type="button" variant="outline" disabled={busy} onClick={() => void act("discard")}>
+							{t("reports.discard")}
+						</Button>
+						<Button type="submit" form={`${id}-form`} disabled={busy}>
+							{t("reports.approve")}
+						</Button>
+					</>
+				) : (
+					<Button type="button" variant="outline" onClick={close}>
+						{t("reports.close")}
+					</Button>
+				)
+			}
+		>
+			<form
+				id={`${id}-form`}
+				onSubmit={(event) => {
+					event.preventDefault();
+					void act("approve");
+				}}
+				noValidate
+			>
+				<FieldGroup className="gap-5">
+					<Field>
+						<FieldLabel htmlFor={`${id}-what`}>{t("reports.whatHappened")}</FieldLabel>
+						<Textarea
+							id={`${id}-what`}
+							value={whatHappened}
+							rows={4}
+							readOnly={!editable}
+							onChange={(change) => setWhatHappened(change.target.value)}
+						/>
+					</Field>
+					{noted.length > 0 ? (
+						<FieldSet className="gap-2">
+							<FieldLegend variant="label" className="mb-0">
+								{t("reports.perWidget")}
+							</FieldLegend>
+							{changing
+								? noted.map((widget) => (
+										<Field key={widget.id}>
+											<FieldLabel htmlFor={`${id}-${widget.id}`} className="text-[13px]">
+												{t("reports.aboutWidget", { title: widget.title })}
+											</FieldLabel>
+											<Textarea
+												id={`${id}-${widget.id}`}
+												value={widgets[widget.id] ?? ""}
+												rows={2}
+												onChange={(change) =>
+													setWidgets((current) => ({ ...current, [widget.id]: change.target.value }))
+												}
+											/>
+										</Field>
+									))
+								: noted.map((widget) => (
+										<p key={widget.id} className="text-[13px]">
+											<span className="font-semibold">{widget.title}:</span>{" "}
+											<span className="text-muted-foreground">{widgets[widget.id]}</span>
+										</p>
+									))}
+						</FieldSet>
+					) : null}
+					<FieldSet className="gap-2.5">
+						<FieldLegend variant="label" className="mb-0">
+							{t("reports.suggestions")}
+						</FieldLegend>
+						{suggestions.length === 0 ? (
+							<p className="text-muted-foreground text-sm">{t("reports.noSuggestions")}</p>
+						) : null}
+						{suggestions.map((suggestion, index) =>
+							changing ? (
 								// biome-ignore lint/suspicious/noArrayIndexKey: suggestions are kept in their order.
-								<div key={index} className="grid gap-2 rounded-md border p-3">
+								<div key={index} className="bg-muted grid gap-2 rounded-[10px] p-3">
 									<Field>
-										<FieldLabel htmlFor={`${id}-suggestion-${index}`}>
+										<FieldLabel htmlFor={`${id}-suggestion-${index}`} className="text-[13px]">
 											{t("reports.suggestionN", { n: index + 1 })}
 										</FieldLabel>
 										<Textarea
 											id={`${id}-suggestion-${index}`}
 											value={suggestion.text}
 											rows={2}
-											readOnly={!editable}
 											onChange={(change) =>
 												setSuggestions((current) =>
 													current.map((each, at) => (at === index ? { ...each, text: change.target.value } : each)),
@@ -798,11 +1001,13 @@ function ReviewDialog({ place, send, canManage }: { place: ReportPlace; send: Re
 										/>
 									</Field>
 									<Field>
-										<FieldLabel htmlFor={`${id}-service-${index}`}>{t("reports.relatedService")}</FieldLabel>
+										<FieldLabel htmlFor={`${id}-service-${index}`} className="text-[13px]">
+											{t("reports.relatedService")}
+										</FieldLabel>
 										<NativeSelect
 											id={`${id}-service-${index}`}
+											className="w-full"
 											value={suggestion.service ?? ""}
-											disabled={!editable}
 											onChange={(change) =>
 												setSuggestions((current) =>
 													current.map((each, at) =>
@@ -819,38 +1024,42 @@ function ReviewDialog({ place, send, canManage }: { place: ReportPlace; send: Re
 											))}
 										</NativeSelect>
 									</Field>
-									{editable ? (
-										<Button
-											type="button"
-											variant="outline"
-											size="sm"
-											className="justify-self-start"
-											onClick={() => setSuggestions((current) => current.filter((_, at) => at !== index))}
-										>
-											<TrashIcon aria-hidden="true" />
-											{t("reports.removeSuggestion", { n: index + 1 })}
-										</Button>
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										className="justify-self-start"
+										onClick={() => setSuggestions((current) => current.filter((_, at) => at !== index))}
+									>
+										<TrashIcon aria-hidden="true" />
+										{t("reports.removeSuggestion", { n: index + 1 })}
+									</Button>
+								</div>
+							) : (
+								// biome-ignore lint/suspicious/noArrayIndexKey: suggestions are kept in their order.
+								<div key={index} className="bg-muted grid justify-items-start gap-2 rounded-[10px] p-3">
+									<p className="text-[13px]">{suggestion.text}</p>
+									{serviceName(suggestion.service) ? (
+										<StateBadge className="gap-1">
+											<SparklesIcon aria-hidden="true" className="size-3" />
+											<span className="sr-only">{t("reports.relatedService")}: </span>
+											{serviceName(suggestion.service)}
+										</StateBadge>
 									) : null}
 								</div>
-							))}
-						</FieldSet>
-					</FieldGroup>
-					<DialogFooter>
-						<DialogClose render={<Button type="button" variant="outline" />}>{t("reports.close")}</DialogClose>
-						{editable ? (
-							<>
-								<Button type="button" variant="destructive" disabled={busy} onClick={() => void act("discard")}>
-									{t("reports.discard")}
-								</Button>
-								<Button type="submit" disabled={busy}>
-									<CheckIcon aria-hidden="true" />
-									{t("reports.approve")}
-								</Button>
-							</>
-						) : null}
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+							),
+						)}
+					</FieldSet>
+					{editable && !changing ? (
+						<div>
+							<Button type="button" variant="ghost" size="sm" onClick={() => setChanging(true)}>
+								<PencilIcon aria-hidden="true" />
+								{t("reports.changeText")}
+							</Button>
+						</div>
+					) : null}
+				</FieldGroup>
+			</form>
+		</PageSheet>
 	);
 }

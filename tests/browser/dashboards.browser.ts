@@ -4,7 +4,9 @@
 // library's place, removing with Undo), moving and resizing a Widget from the keyboard (checked by
 // what is saved, and said in the live region), New Dashboard over the current one, the built-in
 // Dashboard's menu, who sees Arrange, a Dashboard on a phone, a Workspace Dashboard, and Site
-// analytics' Goal and Funnel editors, in light and dark.
+// analytics' Goals (the table, the Add Goal sheet and its kinds from the keyboard, Delete asking
+// first) and Funnels (the two panes, the New Funnel sheet, an open Funnel's steps reordered from the
+// keyboard and saved), which Owners never see, in light and dark.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type siteAnalytics from "@webcraft/module-site-analytics";
 
@@ -381,41 +383,124 @@ for (const theme of THEMES) {
 			await expectAccessibleScreen(page, `Workspace Dashboard (${theme})`);
 		});
 
-		test("Site › Goals and its Goal editor", async () => {
+		test("Site › Goals: the table, the Add Goal sheet with its four kinds, a Goal's menu", async () => {
 			const page = await open(`/sites/${siteId}/m/site-analytics/goals`);
 			await page.getByRole("cell", { name: "Saw the menu", exact: true }).waitFor();
+			// What each counts, and how often it was reached in the Dashboard's default range.
+			await page.getByRole("cell", { name: "A page is visited · /menu", exact: true }).waitFor();
+			await page.getByRole("columnheader", { name: "Reached (30d)" }).waitFor();
 			await expectAccessibleScreen(page, `Goals (${theme})`);
 			await expectOverlayUsable(
 				page,
 				page.getByRole("button", { name: "Add Goal" }),
 				"dialog",
-				`Goals › Add a Goal (${theme})`,
+				`Goals › Add Goal (${theme})`,
 			);
+
+			// "What counts" is a radio group of cards: the arrow keys choose the kind, and its fields follow.
+			await page.getByRole("button", { name: "Add Goal" }).click();
+			const sheet = page.getByRole("dialog", { name: "Add Goal" });
+			await sheet.getByRole("radio", { name: "A page is visited" }).focus();
+			await page.keyboard.press("ArrowDown");
+			expect(await sheet.getByRole("radio", { name: "A link is clicked" }).isChecked()).toBe(true);
+			await sheet.getByLabel("Only links to").waitFor();
+			await page.keyboard.press("ArrowDown");
+			await sheet.getByLabel("Event name").waitFor();
+			await page.waitForTimeout(250);
+			await expectNoAxeViolations(page, `Goals › Add Goal, a custom event (${theme})`, ["region"]);
+			await page.keyboard.press("Escape");
+
 			await expectOverlayUsable(
 				page,
 				page.getByRole("button", { name: "Actions for Signed up" }),
 				"menu",
 				`Goals › a Goal's menu (${theme})`,
 			);
+			// Delete asks first, naming the Goal; Cancel has the focus.
+			await page.getByRole("button", { name: "Actions for Saw the menu" }).click();
+			await page.getByRole("menuitem", { name: "Delete" }).click();
+			const asked = page.getByRole("dialog", { name: "Delete Saw the menu?" });
+			await asked.waitFor();
+			await page.waitForFunction(() => document.activeElement?.textContent === "Cancel");
+			await page.keyboard.press("Enter");
+			await asked.waitFor({ state: "hidden" });
 		});
 
-		test("Site › Funnels and its Funnel editor, steps moved from the keyboard", async () => {
+		test("Site › Funnels: the list beside the open Funnel, its steps and the last 30 days", async () => {
 			const page = await open(`/sites/${siteId}/m/site-analytics/funnels`);
-			await page.getByRole("cell", { name: "Sign-up", exact: true }).waitFor();
+			// The list beside it opens a Funnel.
+			await page.getByRole("button", { name: /^Sign-up/ }).click();
+			await page.getByRole("heading", { name: "Sign-up", level: 2 }).waitFor();
+			await page.getByRole("list", { name: "Sign-up, the last 30 days" }).waitFor();
 			await expectAccessibleScreen(page, `Funnels (${theme})`);
 			await expectOverlayUsable(
 				page,
-				page.getByRole("button", { name: "Add Funnel" }),
+				page.getByRole("button", { name: "New Funnel" }),
 				"dialog",
-				`Funnels › Add a Funnel (${theme})`,
+				`Funnels › New Funnel (${theme})`,
 			);
 
-			await page.getByRole("button", { name: "Add Funnel" }).click();
-			const dialog = page.getByRole("dialog");
-			await dialog.getByRole("button", { name: "Move step 1 down" }).focus();
+			// The New Funnel sheet's steps move from the keyboard too.
+			await page.getByRole("button", { name: "New Funnel" }).click();
+			const sheet = page.getByRole("dialog");
+			await sheet.getByRole("button", { name: "Move step 1 down" }).focus();
 			await page.keyboard.press("Enter");
-			await dialog.getByRole("status").filter({ hasText: "Step moved: now 2 of 2." }).waitFor({ state: "attached" });
-			await expectNoAxeViolations(page, `Funnels › a step moved (${theme})`, ["region"]);
+			await sheet.getByRole("status").filter({ hasText: "Step moved: now 2 of 2." }).waitFor({ state: "attached" });
+			await expectNoAxeViolations(page, `Funnels › New Funnel, a step moved (${theme})`, ["region"]);
+		});
+
+		test("Site › Funnels: an open Funnel's steps reordered from the keyboard, saved at once", async () => {
+			const analytics = moduleApi<typeof siteAnalytics>(staffBrowser, "site-analytics");
+			const name = `Checkout ${theme}`;
+			await analytics.funnels.create({
+				siteId,
+				name,
+				steps: [
+					{ kind: "page", path: "/", match: "exact" },
+					{ kind: "page", path: "/menu", match: "exact" },
+					{ kind: "page", path: "/order", match: "exact" },
+				],
+			});
+			const page = await open(`/sites/${siteId}/m/site-analytics/funnels`);
+			await page.getByRole("button", { name: new RegExp(`^${name}`) }).click();
+			await page.getByRole("heading", { name, level: 2 }).waitFor();
+
+			await page.getByRole("button", { name: "Move step 1 down" }).focus();
+			await page.keyboard.press("Enter");
+			await page.getByRole("status").filter({ hasText: "Step moved: now 2 of 3." }).waitFor({ state: "attached" });
+			// Focus stays with the step it moved, so it can go on moving.
+			await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "Move step 2 down");
+			await page.keyboard.press("Enter");
+			await page.getByRole("status").filter({ hasText: "Step moved: now 3 of 3." }).waitFor({ state: "attached" });
+
+			const saved = async () => {
+				const deadline = Date.now() + 5000;
+				let paths: string[] = [];
+				while (Date.now() < deadline) {
+					const { funnels } = await analytics.funnels.list({ siteId });
+					paths = (funnels.find((funnel) => funnel.name === name)?.steps ?? []).map((step) => step.label);
+					if (paths.join(" ") === "/menu /order /") break;
+					await new Promise((resolve) => setTimeout(resolve, 100));
+				}
+				return paths;
+			};
+			expect(await saved()).toEqual(["/menu", "/order", "/"]);
+			await expectNoAxeViolations(page, `Funnels › steps moved in place (${theme})`);
+
+			// Removing a step is saved at once too, down to the two a Funnel keeps.
+			await page.getByRole("button", { name: "Remove step 3" }).click();
+			await page.getByRole("status").filter({ hasText: "Step 3 removed." }).waitFor({ state: "attached" });
+			expect(await page.getByRole("button", { name: "Remove step 1" }).isDisabled()).toBe(true);
+		});
+
+		test("Goals and Funnels are for Staff: an Owner sees neither", async () => {
+			const page = await open(`/sites/${siteId}/dashboards/${dashboardId}`, owner);
+			await page.getByRole("heading", { name: "Overview", level: 1 }).waitFor();
+			expect(await page.getByRole("link", { name: "Goals", exact: true }).count()).toBe(0);
+			expect(await page.getByRole("link", { name: "Funnels", exact: true }).count()).toBe(0);
+			await page.goto(install.adminUrl(`/sites/${siteId}/m/site-analytics/goals`));
+			await page.waitForLoadState("networkidle");
+			expect(await page.getByRole("heading", { name: "Goals", level: 1 }).count()).toBe(0);
 		});
 	});
 }

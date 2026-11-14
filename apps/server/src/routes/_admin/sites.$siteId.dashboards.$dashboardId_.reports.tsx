@@ -8,7 +8,10 @@ import { Forbidden } from "../../ui/PageHeader.tsx";
 import { loadReports } from "../../ui/reports/load.ts";
 import { ReportsPage } from "../../ui/reports/ReportsPage.tsx";
 
-/** Whose history shows (the first Report's unless given), and an entry of it opened for review. */
+/**
+ * An entry opened for review (`review`); `report` is what older links named to show one Report's
+ * history, which the page now shows with every other Report's.
+ */
 const search = z.object({
 	report: z.uuid().optional().catch(undefined),
 	review: z.uuid().optional().catch(undefined),
@@ -16,7 +19,7 @@ const search = z.object({
 
 export const Route = createFileRoute("/_admin/sites/$siteId/dashboards/$dashboardId_/reports")({
 	validateSearch: search,
-	loaderDeps: ({ search: { report, review } }) => ({ report, review }),
+	loaderDeps: ({ search: { review } }) => ({ review }),
 	loader: async ({ params, deps, context }) => {
 		if (!context.place.permissions.includes("report.view")) return null;
 		try {
@@ -36,17 +39,16 @@ export const Route = createFileRoute("/_admin/sites/$siteId/dashboards/$dashboar
 function SiteReports() {
 	const t = useT();
 	const data = Route.useLoaderData();
-	const { siteId, dashboardId } = Route.useParams();
+	const { siteId } = Route.useParams();
 	const { place } = Route.useRouteContext();
 	if (!data) return <Forbidden heading={t("forbidden.heading")} body={t("forbidden.body")} />;
 	return (
 		<ReportsPage
-			key={`${data.selected?.report.id}-${data.review?.id}`}
+			key={data.review?.id ?? "reports"}
 			place={{ siteId }}
 			data={data}
 			canManage={place.permissions.includes("report.manage")}
 			canEditRecipients={place.permissions.includes("reportRecipients.edit")}
-			dashboardPath={{ to: "/sites/$siteId/dashboards/$dashboardId", params: { siteId, dashboardId } }}
 		/>
 	);
 }

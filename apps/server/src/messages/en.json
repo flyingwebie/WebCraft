@@ -5867,11 +5867,10 @@
 	},
 	"analyticsGoals": {
 		"goalsHeading": "Goals",
-		"goalsIntro": "What counts as a result on this Site. Goals count only visitors who accepted Analytics.",
+		"goalsIntro": "What matters on this Site, and how often it happens.",
 		"funnelsHeading": "Funnels",
-		"funnelsIntro": "How many visitors reach each step, in order, within one day.",
+		"funnelsIntro": "Steps a visitor must complete in order, within one day.",
 		"addGoal": "Add Goal",
-		"addFunnel": "Add Funnel",
 		"noGoals": "No Goals yet.",
 		"noFunnels": "No Funnels yet.",
 		"name": "Name",
@@ -5886,9 +5885,9 @@
 		"save": "Save",
 		"kind": "What counts",
 		"kinds": {
-			"form": "A Form Submission",
-			"page": "A page visit",
-			"link": "A link click",
+			"form": "A Form is sent",
+			"page": "A page is visited",
+			"link": "A link is clicked",
 			"event": "A custom event"
 		},
 		"linkKinds": {
@@ -5898,15 +5897,14 @@
 			"mailto": "Email link"
 		},
 		"describe": {
-			"form": "{form} sent",
-			"page": "A visit to {path}",
-			"pagePrefix": "A visit to {path} or a page under it",
-			"link": "A click on any {link}",
-			"linkTo": "A click on a {link} to {target}",
-			"event": "The custom event {event}"
+			"form": "A Form is sent · {form}",
+			"page": "A page is visited · {path}",
+			"pagePrefix": "A page is visited · {path} and the pages under it",
+			"link": "A link is clicked · any {link}",
+			"linkTo": "A link is clicked · {link} to {target}",
+			"event": "A custom event · {event}"
 		},
 		"unknownForm": "a Form no longer here",
-		"addGoalTitle": "Add a Goal",
 		"editGoalTitle": "Change {name}",
 		"goalDialogIntro": "Widgets, templates and Workspace Dashboards find Goals by their names: after a rename, choose the Goal again in their Widgets.",
 		"form": "Form",
@@ -5932,7 +5930,6 @@
 		"deleteGoalTitle": "Delete {name}?",
 		"deleteGoalIntro": "Widgets naming it count nothing until a Goal has its name again. What it counted stays in Site analytics.",
 		"goalDeletedToast": "{name} deleted.",
-		"addFunnelTitle": "Add a Funnel",
 		"editFunnelTitle": "Change {name}",
 		"funnelDialogIntro": "Two to five steps, each a Goal or a page visit. A visitor reaches a step after reaching the one before, the same day.",
 		"stepN": "Step {n}",
@@ -5940,7 +5937,7 @@
 		"stepGoal": "A Goal",
 		"stepPage": "A page visit",
 		"goal": "Goal",
-		"addStep": "Add a step",
+		"addStep": "Add step",
 		"removeStep": "Remove step {n}",
 		"moveUp": "Move step {n} up",
 		"moveDown": "Move step {n} down",
@@ -5953,7 +5950,6 @@
 		"deleteFunnelTitle": "Delete {name}?",
 		"deleteFunnelIntro": "Widgets naming it count nothing until a Funnel has its name again.",
 		"funnelDeletedToast": "{name} deleted.",
-		"formStepNote": "A Form Submission step counts Submissions linked to the sender's visit: sent with Analytics accepted, during a visit counted on the Site.",
 		"problems": {
 			"GOAL_NAME_TAKEN": "This Site already has a Goal of that name.",
 			"GOAL_IN_FUNNEL": "A Funnel uses this Goal: change the Funnel first.",
@@ -5963,7 +5959,17 @@
 			"FUNNEL_STEP_INVALID": "A step names a Goal this Site doesn't have.",
 			"FUNNELS_TOO_MANY": "A Site has at most 50 Funnels.",
 			"FUNNEL_NOT_FOUND": "That Funnel is no longer here."
-		}
+		},
+		"reached": "Reached (30d)",
+		"newFunnel": "New Funnel",
+		"stepCount": "{count, plural, one {# step} other {# steps}}",
+		"stepPageBadge": "Page",
+		"stepGoalBadge": "Goal",
+		"stepsLimit": "Up to 5 steps per Funnel.",
+		"addStepIntro": "It becomes the Funnel's last step, saved at once.",
+		"lastThirtyDays": "The last 30 days",
+		"lastThirtyDaysOf": "{name}, the last 30 days",
+		"notCounted": "The steps could not be counted just now."
 	},
 	"toolsets": {
 		"legend": "Toolsets",
@@ -6458,27 +6464,26 @@
 		}
 	},
 	"reports": {
-		"heading": "Reports of {name}",
-		"intro": "Each Report sends this Dashboard as a PDF on its schedule, comparing its days with the ones before, with plain-language AI text when the Workspace has an AI key.",
-		"backToDashboard": "Back to {name}",
+		"heading": "Reports",
+		"intro": "Scheduled summaries of {name}, sent by email.",
 		"new": "New Report",
 		"empty": "This Dashboard has no Reports yet.",
 		"emptyStaff": "This Dashboard has no Reports yet. Set one up to send it to the client every week or month.",
 		"listLabel": "Reports",
 		"columns": {
-			"name": "Report",
-			"schedule": "Schedule",
+			"name": "Name",
+			"schedule": "How often",
 			"language": "Language",
 			"recipients": "Recipients",
-			"next": "Goes out next",
-			"actions": "Actions"
+			"next": "Next",
+			"actions": "Actions",
+			"active": "Active"
 		},
 		"schedules": {
 			"weekly": "Weekly, on Mondays",
 			"monthly": "Monthly, on the 1st"
 		},
 		"reviewBadge": "Review first",
-		"nobody": "Nobody yet",
 		"off": "Off",
 		"menu": "Actions for {name}",
 		"edit": "Edit",
@@ -6489,23 +6494,14 @@
 		"deleted": "{name} was deleted.",
 		"deleteTitle": "Delete {name}?",
 		"deleteIntro": "It stops going out, and its history and PDFs are deleted.",
-		"historyOf": "History of {name}",
-		"historyIntro": "Each Report made, newest first, with its PDF for 400 days.",
 		"noHistory": "Nothing was sent yet.",
-		"historyColumns": {
-			"made": "Made",
-			"days": "Days",
-			"status": "State",
-			"ai": "AI text",
-			"recipients": "Sent to"
-		},
 		"test": "Test",
 		"statuses": {
 			"preparing": "Being made",
-			"review": "Waiting for review",
+			"review": "Waiting for your review",
 			"rendering": "Making its PDF",
 			"sent": "Sent",
-			"failed": "Failed",
+			"failed": "Could not send",
 			"discarded": "Discarded"
 		},
 		"ai": {
@@ -6515,19 +6511,10 @@
 			"failed": "None: the AI provider didn't answer",
 			"none": "None needed"
 		},
-		"mailStatuses": {
-			"queued": "Queued",
-			"retrying": "Retrying",
-			"sent": "Sent",
-			"failed": "Failed",
-			"logged": "Written to the log",
-			"waiting": "Not sent yet"
-		},
 		"review": "Review",
-		"download": "PDF",
-		"downloadLabel": "Download the PDF made {day}",
+		"downloadLabel": "Download PDF for {period}",
 		"resend": "Send again",
-		"resendLabel": "Send again the Report made {day}",
+		"resendLabel": "Send again the Report for {period}",
 		"resent": "It is being sent again.",
 		"close": "Close",
 		"cancel": "Cancel",
@@ -6552,8 +6539,8 @@
 		"holdForReview": "Wait for someone to review the AI text",
 		"holdForReviewHelp": "Staff are emailed when it is ready; it goes out once one of them approves it.",
 		"active": "Send it on its schedule",
-		"reviewTitle": "Review the AI text",
-		"reviewIntro": "Check what the AI wrote from this Report's totals. Change anything, then approve to send it, or discard it.",
+		"reviewTitle": "Review before it goes",
+		"reviewIntro": "The AI's draft for {period}.",
 		"whatHappened": "What happened",
 		"aboutWidget": "About {title}",
 		"suggestions": "Suggestions",
@@ -6566,20 +6553,65 @@
 		"discarded": "The Report was discarded: it won't go out.",
 		"approve": "Approve and send",
 		"approved": "Approved: the Report is being sent.",
-		"forbiddenWorkspace": "A Workspace Dashboard's Reports add up every Site of the Workspace, so only people who see every Site open them."
+		"forbiddenWorkspace": "A Workspace Dashboard's Reports add up every Site of the Workspace, so only people who see every Site open them.",
+		"howOften": {
+			"weekly": "Weekly",
+			"monthly": "Monthly"
+		},
+		"recipientCount": "{count, plural, =0 {Nobody yet} one {# recipient} other {# recipients}}",
+		"activeLabel": "Send {name} on its schedule",
+		"turnedOn": "{name} goes out on its schedule again.",
+		"turnedOff": "{name} no longer goes out on its schedule.",
+		"sent": "Sent",
+		"sentColumns": {
+			"period": "Period",
+			"made": "Made",
+			"state": "State",
+			"action": "Action"
+		},
+		"aiNote": "AI text: {state}",
+		"months": {
+			"jan": "January",
+			"feb": "February",
+			"mar": "March",
+			"apr": "April",
+			"may": "May",
+			"jun": "June",
+			"jul": "July",
+			"aug": "August",
+			"sep": "September",
+			"oct": "October",
+			"nov": "November",
+			"dec": "December"
+		},
+		"period": {
+			"sameMonth": "{fromDay}–{toDay} {month} {year}",
+			"sameYear": "{fromDay} {fromMonth} – {toDay} {toMonth} {year}",
+			"other": "{fromDay} {fromMonth} {fromYear} – {toDay} {toMonth} {toYear}"
+		},
+		"made": {
+			"today": "Today",
+			"yesterday": "Yesterday",
+			"day": "{day} {month}",
+			"dayYear": "{day} {month} {year}"
+		},
+		"downloadPdf": "Download PDF",
+		"reviewLabel": "Review the Report for {period}",
+		"perWidget": "Per Widget",
+		"changeText": "Change the text"
 	},
 	"shareLinks": {
 		"title": "Share links",
-		"intro": "Anyone holding a Share link explores this Dashboard without an account: they change its days and filters, nothing else. Links are never indexed by search engines.",
+		"intro": "A Share link lets someone without an account look at this Dashboard and change nothing.",
 		"loading": "Loading the links…",
 		"empty": "No Share links yet.",
 		"listLabel": "Share links",
 		"states": {
-			"active": "Works",
+			"active": "Active",
 			"expired": "Expired",
 			"revoked": "Revoked"
 		},
-		"withPassword": "Password",
+		"withPassword": "Password set",
 		"withoutPassword": "No password",
 		"expires": "Expires {day}",
 		"noExpiry": "Never expires",
@@ -6588,24 +6620,34 @@
 		"revoke": "Revoke",
 		"revokeLabel": "Revoke {name}",
 		"revoked": "{name} no longer works.",
-		"new": "New Share link",
 		"newTitle": "New Share link",
 		"name": "Name",
-		"nameHelp": "For you to tell links apart, such as who it was sent to.",
-		"password": "Password (optional)",
-		"passwordHelp": "8 to 200 characters. People give it once on the link's page; it is kept only as a hash.",
-		"expiry": "Expires on (optional)",
+		"password": "Password",
+		"passwordHelp": "Optional.",
+		"expiry": "Expires",
 		"expiryHelp": "The link stops working at the end of that day (UTC).",
-		"language": "Language of its page",
-		"make": "Make link",
-		"cancel": "Cancel",
-		"close": "Close",
+		"language": "Language",
+		"make": "Create",
 		"made": "{name} is ready.",
 		"address": "Its address",
-		"shownOnce": "Copy it now: it isn't shown again.",
+		"shownOnce": "Shown once. Copy it now.",
 		"copy": "Copy",
 		"copied": "The address was copied.",
-		"copyFailed": "The address couldn't be copied: select it and copy it yourself."
+		"copyFailed": "The address couldn't be copied: select it and copy it yourself.",
+		"endsIn": "…ends in {hint}",
+		"revokeSure": "Revoke for good",
+		"revokeAgain": "Revoke {name} for good: it stops working",
+		"namePlaceholder": "e.g. For the agency",
+		"passwordPlaceholder": "None",
+		"expiries": {
+			"in7": "In 7 days",
+			"in30": "In 30 days",
+			"in90": "In 90 days",
+			"in365": "In a year",
+			"never": "Never",
+			"day": "On a day…"
+		},
+		"expiryDay": "The last day it works"
 	},
 	"branding": {
 		"installPageTitle": "Report branding",

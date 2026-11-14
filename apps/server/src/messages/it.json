@@ -5867,11 +5867,10 @@
 	},
 	"analyticsGoals": {
 		"goalsHeading": "Obiettivi",
-		"goalsIntro": "Cosa conta come risultato su questo sito. Gli obiettivi contano solo i visitatori che hanno accettato le statistiche.",
+		"goalsIntro": "Cosa conta su questo sito, e quanto spesso succede.",
 		"funnelsHeading": "Funnel",
-		"funnelsIntro": "Quanti visitatori raggiungono ogni passo, in ordine, nello stesso giorno.",
+		"funnelsIntro": "Passi che un visitatore deve completare in ordine, nello stesso giorno.",
 		"addGoal": "Aggiungi obiettivo",
-		"addFunnel": "Aggiungi funnel",
 		"noGoals": "Ancora nessun obiettivo.",
 		"noFunnels": "Ancora nessun funnel.",
 		"name": "Nome",
@@ -5886,9 +5885,9 @@
 		"save": "Salva",
 		"kind": "Cosa conta",
 		"kinds": {
-			"form": "Un invio di form",
-			"page": "La visita a una pagina",
-			"link": "Un clic su un link",
+			"form": "Viene inviato un form",
+			"page": "Viene visitata una pagina",
+			"link": "Viene cliccato un link",
 			"event": "Un evento personalizzato"
 		},
 		"linkKinds": {
@@ -5898,15 +5897,14 @@
 			"mailto": "Link email"
 		},
 		"describe": {
-			"form": "{form} inviato",
-			"page": "Una visita a {path}",
-			"pagePrefix": "Una visita a {path} o a una pagina sotto",
-			"link": "Un clic su qualsiasi {link}",
-			"linkTo": "Un clic su un {link} verso {target}",
-			"event": "L'evento personalizzato {event}"
+			"form": "Viene inviato un form · {form}",
+			"page": "Viene visitata una pagina · {path}",
+			"pagePrefix": "Viene visitata una pagina · {path} e quelle sotto",
+			"link": "Viene cliccato un link · qualsiasi {link}",
+			"linkTo": "Viene cliccato un link · {link} verso {target}",
+			"event": "Un evento personalizzato · {event}"
 		},
 		"unknownForm": "un form non più presente",
-		"addGoalTitle": "Aggiungi un obiettivo",
 		"editGoalTitle": "Modifica {name}",
 		"goalDialogIntro": "Widget, modelli e dashboard del workspace trovano gli obiettivi per nome: dopo averlo rinominato, sceglilo di nuovo nei loro widget.",
 		"form": "Form",
@@ -5932,7 +5930,6 @@
 		"deleteGoalTitle": "Eliminare {name}?",
 		"deleteGoalIntro": "I widget che lo nominano non contano nulla finché un obiettivo non ha di nuovo il suo nome. Quanto ha contato resta nelle statistiche del sito.",
 		"goalDeletedToast": "{name} eliminato.",
-		"addFunnelTitle": "Aggiungi un funnel",
 		"editFunnelTitle": "Modifica {name}",
 		"funnelDialogIntro": "Da due a cinque passi, ciascuno un obiettivo o la visita a una pagina. Un visitatore raggiunge un passo dopo aver raggiunto il precedente, nello stesso giorno.",
 		"stepN": "Passo {n}",
@@ -5940,7 +5937,7 @@
 		"stepGoal": "Un obiettivo",
 		"stepPage": "La visita a una pagina",
 		"goal": "Obiettivo",
-		"addStep": "Aggiungi un passo",
+		"addStep": "Aggiungi passo",
 		"removeStep": "Rimuovi il passo {n}",
 		"moveUp": "Sposta su il passo {n}",
 		"moveDown": "Sposta giù il passo {n}",
@@ -5953,7 +5950,6 @@
 		"deleteFunnelTitle": "Eliminare {name}?",
 		"deleteFunnelIntro": "I widget che lo nominano non contano nulla finché un funnel non ha di nuovo il suo nome.",
 		"funnelDeletedToast": "{name} eliminato.",
-		"formStepNote": "Un passo di invio di form conta gli invii collegati alla visita di chi li ha inviati: inviati con le statistiche accettate, durante una visita contata sul sito.",
 		"problems": {
 			"GOAL_NAME_TAKEN": "Questo sito ha già un obiettivo con quel nome.",
 			"GOAL_IN_FUNNEL": "Un funnel usa questo obiettivo: modifica prima il funnel.",
@@ -5963,7 +5959,17 @@
 			"FUNNEL_STEP_INVALID": "Un passo nomina un obiettivo che questo sito non ha.",
 			"FUNNELS_TOO_MANY": "Un sito ha al massimo 50 funnel.",
 			"FUNNEL_NOT_FOUND": "Quel funnel non è più qui."
-		}
+		},
+		"reached": "Raggiunti (30 g)",
+		"newFunnel": "Nuovo funnel",
+		"stepCount": "{count, plural, one {# passo} other {# passi}}",
+		"stepPageBadge": "Pagina",
+		"stepGoalBadge": "Obiettivo",
+		"stepsLimit": "Fino a 5 passi per funnel.",
+		"addStepIntro": "Diventa l'ultimo passo del funnel, salvato subito.",
+		"lastThirtyDays": "Gli ultimi 30 giorni",
+		"lastThirtyDaysOf": "{name}, gli ultimi 30 giorni",
+		"notCounted": "Non è stato possibile contare i passi in questo momento."
 	},
 	"toolsets": {
 		"legend": "Toolset",
@@ -6458,27 +6464,26 @@
 		}
 	},
 	"reports": {
-		"heading": "Report di {name}",
-		"intro": "Ogni report invia questa dashboard in PDF secondo la sua cadenza, confrontando i suoi giorni con i precedenti, con un testo dell'IA in parole semplici quando lo spazio di lavoro ha una chiave IA.",
-		"backToDashboard": "Torna a {name}",
+		"heading": "Report",
+		"intro": "Riepiloghi programmati di {name}, inviati per email.",
 		"new": "Nuovo report",
 		"empty": "Questa dashboard non ha ancora report.",
 		"emptyStaff": "Questa dashboard non ha ancora report. Impostatene uno per inviarlo al cliente ogni settimana o mese.",
 		"listLabel": "Report",
 		"columns": {
-			"name": "Report",
-			"schedule": "Cadenza",
+			"name": "Nome",
+			"schedule": "Ogni quanto",
 			"language": "Lingua",
 			"recipients": "Destinatari",
-			"next": "Prossimo invio",
-			"actions": "Azioni"
+			"next": "Prossimo",
+			"actions": "Azioni",
+			"active": "Attivo"
 		},
 		"schedules": {
 			"weekly": "Settimanale, il lunedì",
 			"monthly": "Mensile, il giorno 1"
 		},
 		"reviewBadge": "Prima la revisione",
-		"nobody": "Ancora nessuno",
 		"off": "Disattivato",
 		"menu": "Azioni per {name}",
 		"edit": "Modifica",
@@ -6489,23 +6494,14 @@
 		"deleted": "{name} è stato eliminato.",
 		"deleteTitle": "Eliminare {name}?",
 		"deleteIntro": "Smette di essere inviato, e la sua cronologia e i suoi PDF vengono eliminati.",
-		"historyOf": "Cronologia di {name}",
-		"historyIntro": "Ogni report creato, dal più recente, con il suo PDF per 400 giorni.",
 		"noHistory": "Non è ancora stato inviato nulla.",
-		"historyColumns": {
-			"made": "Creato",
-			"days": "Giorni",
-			"status": "Stato",
-			"ai": "Testo dell'IA",
-			"recipients": "Inviato a"
-		},
 		"test": "Prova",
 		"statuses": {
 			"preparing": "In preparazione",
-			"review": "In attesa di revisione",
+			"review": "In attesa della tua revisione",
 			"rendering": "Creazione del PDF",
 			"sent": "Inviato",
-			"failed": "Non riuscito",
+			"failed": "Invio non riuscito",
 			"discarded": "Scartato"
 		},
 		"ai": {
@@ -6515,19 +6511,10 @@
 			"failed": "Nessuno: il fornitore di IA non ha risposto",
 			"none": "Non necessario"
 		},
-		"mailStatuses": {
-			"queued": "In coda",
-			"retrying": "Nuovo tentativo",
-			"sent": "Inviata",
-			"failed": "Non riuscita",
-			"logged": "Scritta nel log",
-			"waiting": "Non ancora inviata"
-		},
 		"review": "Rivedi",
-		"download": "PDF",
-		"downloadLabel": "Scarica il PDF creato il {day}",
+		"downloadLabel": "Scarica PDF di {period}",
 		"resend": "Invia di nuovo",
-		"resendLabel": "Invia di nuovo il report creato il {day}",
+		"resendLabel": "Invia di nuovo il report di {period}",
 		"resent": "È in corso un nuovo invio.",
 		"close": "Chiudi",
 		"cancel": "Annulla",
@@ -6552,8 +6539,8 @@
 		"holdForReview": "Aspetta che qualcuno riveda il testo dell'IA",
 		"holdForReviewHelp": "Lo staff riceve un'email quando è pronto; parte quando uno di loro lo approva.",
 		"active": "Invialo secondo la cadenza",
-		"reviewTitle": "Rivedi il testo dell'IA",
-		"reviewIntro": "Controllate cosa ha scritto l'IA a partire dai totali di questo report. Modificate ciò che serve, poi approvate per inviarlo, oppure scartatelo.",
+		"reviewTitle": "Rivedi prima dell'invio",
+		"reviewIntro": "La bozza dell'IA per {period}.",
 		"whatHappened": "Cosa è successo",
 		"aboutWidget": "Su {title}",
 		"suggestions": "Suggerimenti",
@@ -6566,20 +6553,65 @@
 		"discarded": "Il report è stato scartato: non partirà.",
 		"approve": "Approva e invia",
 		"approved": "Approvato: il report è in invio.",
-		"forbiddenWorkspace": "I report di una dashboard dello spazio di lavoro sommano tutti i siti dello spazio di lavoro, quindi li apre solo chi vede ogni sito."
+		"forbiddenWorkspace": "I report di una dashboard dello spazio di lavoro sommano tutti i siti dello spazio di lavoro, quindi li apre solo chi vede ogni sito.",
+		"howOften": {
+			"weekly": "Settimanale",
+			"monthly": "Mensile"
+		},
+		"recipientCount": "{count, plural, =0 {Ancora nessuno} one {# destinatario} other {# destinatari}}",
+		"activeLabel": "Invia {name} secondo la sua programmazione",
+		"turnedOn": "{name} viene di nuovo inviato secondo la sua programmazione.",
+		"turnedOff": "{name} non viene più inviato secondo la sua programmazione.",
+		"sent": "Inviati",
+		"sentColumns": {
+			"period": "Periodo",
+			"made": "Creato",
+			"state": "Stato",
+			"action": "Azione"
+		},
+		"aiNote": "Testo IA: {state}",
+		"months": {
+			"jan": "gennaio",
+			"feb": "febbraio",
+			"mar": "marzo",
+			"apr": "aprile",
+			"may": "maggio",
+			"jun": "giugno",
+			"jul": "luglio",
+			"aug": "agosto",
+			"sep": "settembre",
+			"oct": "ottobre",
+			"nov": "novembre",
+			"dec": "dicembre"
+		},
+		"period": {
+			"sameMonth": "{fromDay}–{toDay} {month} {year}",
+			"sameYear": "{fromDay} {fromMonth} – {toDay} {toMonth} {year}",
+			"other": "{fromDay} {fromMonth} {fromYear} – {toDay} {toMonth} {toYear}"
+		},
+		"made": {
+			"today": "Oggi",
+			"yesterday": "Ieri",
+			"day": "{day} {month}",
+			"dayYear": "{day} {month} {year}"
+		},
+		"downloadPdf": "Scarica PDF",
+		"reviewLabel": "Rivedi il report di {period}",
+		"perWidget": "Per widget",
+		"changeText": "Modifica il testo"
 	},
 	"shareLinks": {
 		"title": "Link di condivisione",
-		"intro": "Chiunque abbia un link di condivisione esplora questa dashboard senza un account: ne cambia i giorni e i filtri, nient'altro. I link non sono mai indicizzati dai motori di ricerca.",
+		"intro": "Un link di condivisione permette a chi non ha un account di guardare questa dashboard senza cambiare nulla.",
 		"loading": "Caricamento dei link…",
 		"empty": "Ancora nessun link di condivisione.",
 		"listLabel": "Link di condivisione",
 		"states": {
-			"active": "Funziona",
+			"active": "Attivo",
 			"expired": "Scaduto",
 			"revoked": "Revocato"
 		},
-		"withPassword": "Password",
+		"withPassword": "Password impostata",
 		"withoutPassword": "Senza password",
 		"expires": "Scade il {day}",
 		"noExpiry": "Non scade mai",
@@ -6588,24 +6620,34 @@
 		"revoke": "Revoca",
 		"revokeLabel": "Revoca {name}",
 		"revoked": "{name} non funziona più.",
-		"new": "Nuovo link di condivisione",
 		"newTitle": "Nuovo link di condivisione",
 		"name": "Nome",
-		"nameHelp": "Per distinguere i link, ad esempio a chi è stato inviato.",
-		"password": "Password (facoltativa)",
-		"passwordHelp": "Da 8 a 200 caratteri. Si inserisce una volta nella pagina del link; è conservata solo come hash.",
-		"expiry": "Scade il (facoltativo)",
+		"password": "Password",
+		"passwordHelp": "Facoltativa.",
+		"expiry": "Scade",
 		"expiryHelp": "Il link smette di funzionare alla fine di quel giorno (UTC).",
-		"language": "Lingua della pagina",
-		"make": "Crea il link",
-		"cancel": "Annulla",
-		"close": "Chiudi",
+		"language": "Lingua",
+		"make": "Crea",
 		"made": "{name} è pronto.",
 		"address": "Il suo indirizzo",
-		"shownOnce": "Copiatelo ora: non viene più mostrato.",
+		"shownOnce": "Mostrato una volta sola. Copialo ora.",
 		"copy": "Copia",
 		"copied": "L'indirizzo è stato copiato.",
-		"copyFailed": "Non è stato possibile copiare l'indirizzo: selezionatelo e copiatelo voi."
+		"copyFailed": "Non è stato possibile copiare l'indirizzo: selezionatelo e copiatelo voi.",
+		"endsIn": "…finisce con {hint}",
+		"revokeSure": "Revoca per sempre",
+		"revokeAgain": "Revoca {name} per sempre: smette di funzionare",
+		"namePlaceholder": "es. Per l'agenzia",
+		"passwordPlaceholder": "Nessuna",
+		"expiries": {
+			"in7": "Tra 7 giorni",
+			"in30": "Tra 30 giorni",
+			"in90": "Tra 90 giorni",
+			"in365": "Tra un anno",
+			"never": "Mai",
+			"day": "In un giorno preciso…"
+		},
+		"expiryDay": "L'ultimo giorno in cui funziona"
 	},
 	"branding": {
 		"installPageTitle": "Brand dei report",
