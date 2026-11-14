@@ -11,6 +11,7 @@ import type { Locator, Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
+import { chooseEditOnSite } from "./edit-on-site.ts";
 import { type BrowserInstall, startBrowserInstall, THEMES, type Theme } from "./harness.ts";
 
 let install: BrowserInstall;
@@ -102,7 +103,7 @@ async function enter(theme: Theme, site: Fixture, account: TestAccount, width = 
 	await page.setViewportSize({ width, height: 800 });
 	await install.signIn(page, account);
 	await page.goto(install.adminUrl(`/sites/${site.siteId}`));
-	await page.getByRole("button", { name: "Edit on site" }).click();
+	await chooseEditOnSite(page);
 	await page.waitForURL((url) => url.hostname.startsWith(site.slug));
 	await page.getByRole("button", { name: /^Publish|^Changes/ }).waitFor();
 	return page;

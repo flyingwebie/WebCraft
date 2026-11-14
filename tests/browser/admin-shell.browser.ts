@@ -128,11 +128,16 @@ for (const theme of THEMES) {
 			expect((await currentRows(page)).secondary).toEqual(["Templates (page)"]);
 			await expectAccessibleScreen(page, `Structure › Templates (${theme})`);
 
+			// Every Site has its built-in Site analytics Dashboard, listed first: Analytics opens it.
 			await navigation.getByRole("link", { name: "Analytics" }).click();
 			const analytics = page.getByRole("navigation", { name: "Analytics" });
 			await analytics.getByRole("link", { name: "Orders" }).waitFor();
 			await analytics.getByRole("link", { name: "New Dashboard" }).waitFor();
-			expect(await currentRows(page)).toEqual({ primary: ["Analytics (true)"], secondary: ["Orders (page)"] });
+			await page.getByRole("heading", { level: 1, name: "Site analytics" }).waitFor();
+			expect(await currentRows(page)).toEqual({
+				primary: ["Analytics (true)"],
+				secondary: ["Site analytics (page)"],
+			});
 		});
 
 		test("the Workspace and the Install have their own short navigation, settings pinned at the foot", async () => {
@@ -270,7 +275,7 @@ describe("navigation", () => {
 		});
 		await page.getByRole("navigation", { name: "Admin" }).getByRole("link", { name: "Media" }).click();
 		await page.getByRole("progressbar", { name: "Loading the page" }).waitFor();
-		await page.getByRole("heading", { level: 1, name: "Media" }).waitFor();
+		await page.getByRole("heading", { level: 1, name: "All files" }).waitFor();
 		await page.getByRole("progressbar", { name: "Loading the page" }).waitFor({ state: "hidden" });
 	});
 

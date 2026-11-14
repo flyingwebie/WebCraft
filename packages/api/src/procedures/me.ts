@@ -1,4 +1,4 @@
-import { ADMIN_THEMES, SYSTEM_EMAIL_TYPE_IDS } from "@webcraft/core";
+import { ADMIN_THEMES, editorPreferencesChangeSchema, SYSTEM_EMAIL_TYPE_IDS } from "@webcraft/core";
 import { z } from "zod";
 
 import {
@@ -27,6 +27,31 @@ export const me = {
 		.handler(async ({ context, input }) => ({
 			person: personView(await context.services.people.updatePreferences(context.person.id, input)),
 		})),
+
+	/**
+	 * The person's own editor preferences: how they like the building area (where its panels are,
+	 * "Format when I leave the box", the first-visit card seen), the same on every Site. `siteId` is
+	 * the Site whose building area asks, which the person must be able to edit (`entry.edit`): the
+	 * building area calls this on that Site's own address.
+	 */
+	editorPreferences: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
+		await context.services.data.site(context.access, input.siteId, "entry.edit");
+		return { preferences: await context.services.people.editorPreferences(context.person.id) };
+	}),
+
+	/**
+	 * Saves a change to the person's own editor preferences: what `preferences` names replaces what
+	 * was there, `layout: null` resets the panels. A layout from an older version of the building
+	 * area is reset, not kept; a newer version, an unknown shape or more than the cap is refused.
+	 * Answers the preferences as they now are. `siteId` as for `editorPreferences`.
+	 */
+	saveEditorPreferences: signedIn
+		.use(notWhileImpersonating("preferences"))
+		.input(z.object({ siteId: id, preferences: editorPreferencesChangeSchema }))
+		.handler(async ({ context, input }) => {
+			await context.services.data.site(context.access, input.siteId, "entry.edit");
+			return { preferences: await context.services.people.saveEditorPreferences(context.person.id, input.preferences) };
+		}),
 
 	/** The browsers the person is signed in with: see them, and sign them out. */
 	sessions: {

@@ -844,7 +844,8 @@ function KeyCard({
 		<li
 			className={cn(
 				"grid gap-3 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(12rem,16rem)] sm:items-center",
-				target === null && "opacity-75",
+				// Not imported: a dashed edge, never a lower opacity (dimmed muted text fell under 4.5:1).
+				target === null && "border-dashed",
 			)}
 		>
 			<div className="grid gap-1">

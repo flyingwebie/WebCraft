@@ -1,4 +1,5 @@
-import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tanstack/react-router";
+import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
 import {
@@ -16,10 +17,11 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@webcraft/ui/components/dropdown-menu.tsx";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@webcraft/ui/components/empty.tsx";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
-import { EllipsisIcon, PlusIcon, TrashIcon } from "lucide-react";
+import { ClipboardListIcon, EllipsisIcon, PlusIcon, TrashIcon } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 
@@ -34,13 +36,22 @@ import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 export const Route = createFileRoute("/_admin/sites/$siteId/forms/")({
 	staticData: { crumb: "forms.pageTitle" },
 	loader: async ({ context, params }) => {
-		if (!context.place.permissions.includes("structure.edit")) return null;
+		const permissions = context.place.permissions;
+		if (!permissions.includes("structure.edit")) {
+			if (!permissions.includes("formEmails.edit")) return null;
+			// Clients read a Form's Submissions on its own page: the first one opens, else they learn there is none.
+			const { forms } = await getApi().then((api) => api.forms.list({ siteId: params.siteId }));
+			const first = forms[0];
+			if (first)
+				throw redirect({ to: "/sites/$siteId/forms/$formId", params: { siteId: params.siteId, formId: first.id } });
+			return { client: true as const };
+		}
 		const api = await getApi();
 		const [{ forms }, captcha] = await Promise.all([
 			api.forms.list({ siteId: params.siteId }),
 			api.forms.captcha.get({ siteId: params.siteId }),
 		]);
-		return { forms, captcha };
+		return { client: false as const, forms, captcha };
 	},
 	head: ({ match }) => ({ meta: [{ title: pageTitle(match.context.shell.language.code, "forms.pageTitle") }] }),
 	component: FormsPage,
@@ -48,14 +59,30 @@ export const Route = createFileRoute("/_admin/sites/$siteId/forms/")({
 
 /**
  * Site › Forms (Structure, Staff only): the Site's Forms, each with its key (`{{@form <key>}}`), its
- * status and where it is placed; a new Form; deleting one that nothing places; and the Site's
- * CAPTCHA, which every Form of the Site shows once it is set up.
+ * status, where it is placed and how many of its Submissions are new; "New Form" beside the title;
+ * deleting one that nothing places; and the Site's CAPTCHA, which every Form of the Site shows once
+ * it is set up. A client who opens it reads the first Form, or learns their agency has built none.
  */
 function FormsPage() {
 	const t = useT();
 	const data = Route.useLoaderData();
 	const { siteId } = Route.useParams();
 	if (!data) return <Forbidden heading={t("forbidden.heading")} body={t("forbidden.body")} />;
+	if (data.client) {
+		return (
+			<>
+				<PageHeader heading={t("forms.heading")} />
+				<Empty className="max-w-130 border">
+					<EmptyHeader>
+						<EmptyMedia variant="icon">
+							<ClipboardListIcon aria-hidden="true" />
+						</EmptyMedia>
+						<EmptyTitle>{t("forms.noneForClients")}</EmptyTitle>
+					</EmptyHeader>
+				</Empty>
+			</>
+		);
+	}
 	return (
 		<>
 			<PageHeader heading={t("forms.heading")} action={<NewFormDialog siteId={siteId} />}>
@@ -71,15 +98,23 @@ function FormsPage() {
 					</CardHeader>
 					<CardContent>
 						{data.forms.length === 0 ? (
-							<p className="text-muted-foreground text-sm">{t("forms.none")}</p>
+							<Empty className="border p-8">
+								<EmptyHeader>
+									<EmptyMedia variant="icon">
+										<ClipboardListIcon aria-hidden="true" />
+									</EmptyMedia>
+									<EmptyTitle>{t("forms.noneYet")}</EmptyTitle>
+									<EmptyDescription>{t("forms.noneYetNote")}</EmptyDescription>
+								</EmptyHeader>
+							</Empty>
 						) : (
 							<Table>
 								<TableHeader>
 									<TableRow>
 										<TableHead>{t("forms.name")}</TableHead>
-										<TableHead>{t("forms.key")}</TableHead>
 										<TableHead>{t("forms.status")}</TableHead>
 										<TableHead>{t("forms.placed")}</TableHead>
+										<TableHead>{t("forms.newColumn")}</TableHead>
 										<TableHead>
 											<span className="sr-only">{t("forms.actions")}</span>
 										</TableHead>
@@ -89,20 +124,31 @@ function FormsPage() {
 									{data.forms.map((form) => (
 										<TableRow key={form.id}>
 											<TableCell>
-												<Link
-													to="/sites/$siteId/forms/$formId"
-													params={{ siteId, formId: form.id }}
-													className="font-medium underline-offset-4 hover:underline"
-												>
-													{form.name}
-												</Link>
+												<div className="grid gap-0.5">
+													<Link
+														to="/sites/$siteId/forms/$formId"
+														params={{ siteId, formId: form.id }}
+														className="font-medium underline-offset-4 hover:underline"
+													>
+														{form.name}
+													</Link>
+													<span className="text-muted-foreground font-mono text-xs">{`{{@form ${form.key}}}`}</span>
+												</div>
 											</TableCell>
-											<TableCell className="font-mono text-sm">{`{{@form ${form.key}}}`}</TableCell>
 											<TableCell>
 												<StatusBadge status={form.status} />
 											</TableCell>
 											<TableCell className="text-sm">
 												{t("forms.placedCount", { count: form.usage.usedIn.length })}
+											</TableCell>
+											<TableCell>
+												{form.newSubmissions ? (
+													<Badge className="bg-blue-100 text-blue-800 tabular-nums dark:bg-blue-900/40 dark:text-blue-200">
+														{t("forms.newCount", { count: form.newSubmissions })}
+													</Badge>
+												) : (
+													<span className="text-muted-foreground text-sm">—</span>
+												)}
 											</TableCell>
 											<TableCell className="text-end">
 												<FormActions siteId={siteId} form={form} />

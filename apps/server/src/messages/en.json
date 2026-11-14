@@ -1254,7 +1254,6 @@
 			"body": "Staff create the Sites of a Workspace.",
 			"bodyStaff": "Create the first website of this Workspace."
 		},
-		"slugLabel": "Slug",
 		"dialog": {
 			"title": "New Site",
 			"description": "A website of {workspace}. You'll add its domains later.",
@@ -1266,20 +1265,42 @@
 			"cancel": "Cancel",
 			"close": "Close"
 		},
-		"created": "Site {name} created."
+		"created": "Site {name} created.",
+		"card": {
+			"changes": "{count, plural, one {# unpublished change} other {# unpublished changes}}",
+			"address": "Address"
+		}
 	},
 	"site": {
 		"pageTitle": "Overview",
 		"intro": "A Site of {workspace}.",
-		"details": "Details",
-		"name": "Name",
-		"slug": "Slug",
-		"workspace": "Workspace",
-		"created": "Created",
 		"editOnSite": "Edit on site",
 		"editOptions": "More ways to open Edit mode",
 		"editInSafeMode": "Edit in Safe mode",
-		"editInSafeModeHelp": "With none of the Site's own scripts running"
+		"editInSafeModeHelp": "With none of the Site's own scripts running",
+		"overview": {
+			"requested": "{name} requested review on “{title}”",
+			"draftsHeading": "Drafts and changes",
+			"draftsReady": "{count, plural, one {# change ready to publish.} other {# changes ready to publish.}}",
+			"draftsNone": "Everything is published.",
+			"activityHeading": "Recent activity",
+			"activityNone": "Nothing has happened on this Site yet.",
+			"activityLine": "{who}: {action}",
+			"activitySubject": "{who}: {action}, “{subject}”",
+			"quickHeading": "Quick actions",
+			"newIn": "New in {name}",
+			"uploadMedia": "Upload Media",
+			"editHome": "Edit the home page on site",
+			"siteHeading": "Site",
+			"domain": "Domain",
+			"live": "Live",
+			"noDomain": "No domain yet",
+			"languages": "Languages",
+			"staging": "Staging",
+			"noStaging": "None",
+			"activityOn": "{line} · {site}",
+			"noDomainBadge": "No domain"
+		}
 	},
 	"publishAll": {
 		"changedVia": "{person} via {client}",
@@ -1348,11 +1369,10 @@
 	"media": {
 		"pageTitle": "Media",
 		"heading": "Media",
-		"intro": "{count, plural, one {# file} other {# files}} · images, documents, video and audio",
 		"folders": {
 			"heading": "Folders",
-			"all": "All media",
-			"none": "Not in a folder",
+			"all": "All files",
+			"none": "Unfiled",
 			"new": "New folder",
 			"actionsOf": "Actions for {name}",
 			"rename": "Rename",
@@ -1375,14 +1395,13 @@
 		"search": "Search name or alt text",
 		"kinds": {
 			"label": "Kind of file",
-			"all": "All",
 			"image": "Images",
 			"document": "Documents",
 			"video": "Video",
-			"audio": "Audio"
+			"audio": "Audio",
+			"allTypes": "All types"
 		},
 		"upload": "Upload",
-		"uploading": "Uploading {count, plural, one {# file} other {# files}}…",
 		"uploaded": "{name} uploaded.",
 		"uploadFailed": "{name} wasn't uploaded: {reason}",
 		"dropHint": "Drop files anywhere here to upload",
@@ -1394,18 +1413,8 @@
 		"failed": "Can't be read",
 		"details": {
 			"heading": "Details",
-			"close": "Close details",
-			"size": "Size",
-			"dimensions": "Dimensions",
 			"dimensionsValue": "{width} × {height}",
-			"type": "Type",
-			"uploaded": "Uploaded",
 			"uploadedBy": "{date} by {name}",
-			"address": "Address",
-			"sizes": "Sizes",
-			"sizesValue": "{count, plural, one {# width} other {# widths}} in AVIF and WebP",
-			"translatable": "Translatable",
-			"language": "Texts in {language}",
 			"title": "Title",
 			"alt": "Alt text",
 			"altHelp": "Say what the image shows, for people who can't see it.",
@@ -1414,7 +1423,13 @@
 			"save": "Save",
 			"saved": "Saved. Pages showing this file change at once.",
 			"readOnly": "Only the person who uploaded this file, Editors, Owners and Staff can change it.",
-			"processingHelp": "WebCraft is removing the photo's location and camera data and making its sizes. It shows here when it's ready."
+			"processingHelp": "WebCraft is removing the photo's location and camera data and making its sizes. It shows here when it's ready.",
+			"file": "File",
+			"copy": "Copy the address",
+			"copied": "Address copied.",
+			"languages": "Texts in",
+			"sizesMade": "Sizes made at upload",
+			"download": "Download"
 		},
 		"importUrl": "Import from URL",
 		"import": {
@@ -1519,6 +1534,31 @@
 				"element": "parts that can't be kept",
 				"attribute": "attributes that can't be kept"
 			}
+		},
+		"count": "{count, plural, one {# file} other {# files}}",
+		"uploadMore": "More ways to add files",
+		"uploadingOne": "Uploading {done} of {total}: {name}",
+		"shownOf": "The newest {shown} of {total} files. Search or pick a folder to find the others.",
+		"view": {
+			"label": "Show files as",
+			"list": "List",
+			"grid": "Grid"
+		},
+		"columns": {
+			"name": "Name",
+			"alt": "Alt text ({language})",
+			"type": "Type",
+			"pixels": "Pixels",
+			"size": "Size",
+			"added": "Added",
+			"deleted": "Deleted"
+		},
+		"noAlt": "No alt text yet",
+		"noAltShort": "No alt text",
+		"tiles": {
+			"files": "{count, plural, one {file} other {files}}",
+			"used": "used",
+			"of": "of {quota}"
 		}
 	},
 	"invite": {
@@ -2822,6 +2862,28 @@
 			"moved": "Row {from} moved to place {to} of {count}.",
 			"removed": "Row {row} removed.",
 			"added": "Row {row} added."
+		},
+		"when": {
+			"now": "Just now",
+			"minutes": "{count, plural, one {# minute ago} other {# minutes ago}}",
+			"hours": "{count, plural, one {# hour ago} other {# hours ago}}",
+			"yesterday": "Yesterday",
+			"day": "{day} {month}",
+			"dayYear": "{day} {month} {year}",
+			"months": {
+				"jan": "Jan",
+				"feb": "Feb",
+				"mar": "Mar",
+				"apr": "Apr",
+				"may": "May",
+				"jun": "Jun",
+				"jul": "Jul",
+				"aug": "Aug",
+				"sep": "Sep",
+				"oct": "Oct",
+				"nov": "Nov",
+				"dec": "Dec"
+			}
 		}
 	},
 	"body": {
@@ -3006,16 +3068,32 @@
 			"languagesOf": "Languages of {title}",
 			"empty": "No {name} yet.",
 			"noMatch": "No Entries match.",
-			"toFix": "{count, plural, one {# to fix} other {# to fix}}"
+			"toFix": "{count, plural, one {# to fix} other {# to fix}}",
+			"inReview": "In review {count}",
+			"actions": "Actions",
+			"edit": "Edit",
+			"emptyCreate": "No {name} yet. Write a title in the row above to make the first one.",
+			"shown": "{shown} of {total}",
+			"showMore": "Show more",
+			"hidden": "(hidden)",
+			"hiddenIn": "{language}: hidden",
+			"language": "Language",
+			"languageAll": "Language: All",
+			"languageOne": "Language: {language}",
+			"loading": "Loading the list…"
 		},
 		"create": {
-			"open": "New in {name}",
 			"title": "New in {name}",
 			"intro": "Give it a title; you write the rest in the editor, saved as a Draft as you go.",
 			"titleRequired": "Give it a title.",
 			"submit": "Create",
 			"cancel": "Cancel",
-			"close": "Close"
+			"close": "Close",
+			"newPage": "New page",
+			"newEntry": "New Entry",
+			"rowPage": "Title of a new page…",
+			"rowEntry": "Title of a new Entry…",
+			"rowHelp": "Enter makes a Draft and opens it"
 		},
 		"editor": {
 			"back": "Back to {name}",
@@ -3041,7 +3119,9 @@
 			"toFix": "{count, plural, one {# thing keeps} other {# things keep}} this from being published:",
 			"liveAt": "Visitors find it at",
 			"detailsHeading": "Details",
-			"linkedFrom": "Linked from"
+			"linkedFrom": "Linked from",
+			"basicsHeading": "Title and address",
+			"fieldsHeading": "Fields"
 		},
 		"delete": {
 			"open": "Delete",
@@ -3219,7 +3299,8 @@
 		"empty": "This Site has no Globals yet.",
 		"defineFields": "Define the Globals' Fields",
 		"publishHelp": "Publishing puts these values live on every page at once.",
-		"published": "The Globals are live."
+		"published": "The Globals are live.",
+		"valuesHeading": "Values"
 	},
 	"loops": {
 		"pageTitle": "Loops",
@@ -3582,7 +3663,12 @@
 		"uploadFiles": {
 			"download": "Download {name}",
 			"notKept": "{name} (not kept)"
-		}
+		},
+		"newColumn": "New",
+		"newCount": "{count} new",
+		"noneYet": "No Forms yet",
+		"noneYetNote": "Make one to place it on a page.",
+		"noneForClients": "Your agency has not built a Form for this Site yet"
 	},
 	"workspaceStorage": {
 		"heading": "Media storage",
@@ -5140,7 +5226,6 @@
 	},
 	"formEmails": {
 		"content": "Content",
-		"intro": "What each Submission sends: Notifications to the Site's people, and an Auto-reply to the visitor. Changes stay in the Draft until you publish them.",
 		"publish": "Publish emails",
 		"saved": "Saved to the Draft.",
 		"published": "The emails were published: Submissions send them from now on.",
@@ -5148,101 +5233,146 @@
 		"leaveEmpty": "Leave it empty for: {example}",
 		"notifications": {
 			"heading": "Notifications",
-			"intro": "Each address gets its own email, in the Site's Default language, with everything the visitor sent. Replies go to the visitor.",
 			"none": "No Notifications: Submissions are only kept.",
 			"add": "Add Notification",
 			"title": "Notification {number}",
 			"remove": "Remove Notification {number}",
 			"recipients": "Send to",
-			"recipientsHelp": "One email address per line, at most {max}.",
+			"recipientsHelp": "Press Enter after each address, at most {max}.",
 			"routing": "Route by a field",
 			"routingNone": "Don't route",
 			"routingHelp": "Send to other addresses depending on the answer to a select or radio field.",
 			"routingNoField": "Add a select or radio field to the Form to route by its answer.",
 			"routeFor": "When {field} is {option}",
-			"routeHelp": "One address per line. Empty: the addresses above.",
+			"routeHelp": "Empty: the addresses above.",
 			"subject": "Subject",
 			"intro2": "Opening text",
-			"introHelp": "Shown above the visitor's answers. Leave it empty for WebCraft's words."
+			"introHelp": "Shown above the visitor's answers. Leave it empty for WebCraft's words.",
+			"upToTen": "Up to ten"
 		},
 		"autoReply": {
 			"heading": "Auto-reply",
-			"intro": "An email back to the visitor, in the language they used, with your words only: never what they typed.",
 			"enabled": "Send an Auto-reply",
-			"field": "Send to the address in",
+			"field": "Answers the address in",
 			"firstEmailField": "The first email field",
 			"fieldHelp": "The email field the visitor fills in.",
 			"noEmailField": "Add an email field to the Form to send an Auto-reply.",
-			"inDefault": "{language} (as written)",
-			"inLanguage": "{language}",
 			"subject": "Subject",
 			"text": "Text",
 			"textHelp": "Separate paragraphs with an empty line.",
-			"translationHelp": "Left empty, visitors in this language get the text as written."
+			"translationHelp": "Left empty, visitors in this language get the text as written.",
+			"languages": "Languages of the Auto-reply"
+		},
+		"state": {
+			"neverPublished": "Draft · not published yet",
+			"published": "Published",
+			"changes": "Draft · {count, plural, one {# change} other {# changes}}"
+		},
+		"recipients": {
+			"add": "Add an address",
+			"remove": "Remove {address}",
+			"password": "Changing who receives these asks for your password again."
 		}
 	},
 	"submissions": {
 		"folders": "Folders",
+		"listLabel": "Submissions",
 		"inbox": "Inbox",
 		"spam": "Spam",
-		"spamNote": "Spam is deleted after 30 days. It never sends Notifications, Auto-replies or Webhooks.",
-		"summary": "{total, plural, one {# Submission} other {# Submissions}} · {unread} unread · {kept}",
-		"keptForever": "kept forever",
-		"keptDays": "kept {days} days",
+		"spamCount": "Spam {count}",
 		"loading": "Loading…",
-		"export": "Export CSV",
+		"export": "Export",
+		"exportTitle": "Export this list as CSV",
+		"exportParts": "What the file holds",
+		"exportPart": {
+			"sender": "Sender",
+			"received": "Received",
+			"answers": "Every answer"
+		},
+		"exportButton": "Export",
 		"exported": "{count, plural, one {# Submission} other {# Submissions}} exported.",
 		"search": "Search Submissions",
+		"searchPlaceholder": "Search submissions",
 		"show": "Show",
 		"filter": {
 			"all": "All",
-			"unread": "Unread",
-			"read": "Read"
+			"unread": "Unread"
 		},
 		"language": "Language",
 		"allLanguages": "All languages",
 		"tableLabel": "Submissions, newest first",
-		"columns": {
-			"submitter": "Submitter",
-			"language": "Language",
-			"received": "Received"
-		},
 		"unread": "Unread",
-		"noName": "No name",
-		"empty": "No Submissions yet.",
-		"emptySpam": "The Spam folder is empty.",
+		"withFiles": "Files came with it",
+		"yesterday": "Yesterday",
+		"daysAgo": "{days, plural, one {# day ago} other {# days ago}}",
+		"noName": "No name given",
+		"empty": "Nothing has come in yet",
+		"emptyPlaced": "This Form is placed on {places}.",
+		"emptyNotPlaced": "This Form isn't placed on a page yet.",
+		"emptySpam": "No spam caught",
+		"emptySpamNote": "Automated Submissions land here.",
 		"noMatch": "No Submissions match.",
-		"showing": "Showing {from}–{to} of {total}",
-		"previous": "Previous",
-		"next": "Next",
+		"showMore": "Show more",
+		"showingNewest": "Showing the newest {count}. Search to find older ones.",
 		"choose": "Choose a Submission to read it.",
-		"came": "{time} · {language} · from {page}",
-		"inSpam": "In the Spam folder: {reason}.",
-		"spamReasons": {
-			"honeypot": "a field people never see was filled in",
-			"tooFast": "it was sent sooner than a person could fill it in",
-			"token": "it came without the page's token, or with one more than a day old",
-			"rateLimit": "one address sent it too often",
-			"size": "it was too large",
-			"captcha": "the CAPTCHA couldn't be checked",
-			"other": "a spam check caught it"
+		"received": "Received {time} · from the page {page} · {language}",
+		"caught": "Caught {time} · from the page {page}",
+		"caughtBecause": {
+			"honeypot": "A hidden field was filled in",
+			"tooFast": "Filled in faster than a person could",
+			"token": "Sent without the page's token, or with one more than a day old",
+			"rateLimit": "Sent too often from one address",
+			"size": "Too large to keep",
+			"captcha": "The CAPTCHA couldn't be checked",
+			"other": "A spam check caught it"
 		},
+		"spamKept": "Kept for 30 days, then removed. Nobody was notified.",
+		"notGiven": "(not given)",
+		"notKept": "Not kept",
 		"markUnread": "Mark as unread",
 		"markRead": "Mark as read",
 		"notSpam": "Not spam",
-		"notSpamDone": "Moved to the inbox: its Notifications, Auto-reply and Webhooks are on their way.",
-		"notSpamNote": "Not spam moves it to the inbox and sends its Notifications, Auto-reply (within a day of when it came) and Webhooks.",
+		"notSpamDone": "Moved to the Inbox: its Notifications, Auto-reply and Webhooks are on their way.",
+		"notSpamNote": "Moves it to the Inbox and sends its Notifications, Auto-reply and Webhooks",
 		"delete": "Delete",
-		"deleteTitle": "Delete this Submission?",
-		"deleteBody": "It is deleted for good, with any files that came with it.",
+		"deleteTitle": "Delete for good?",
+		"deleteBody": "Its files are deleted with it. This cannot be undone.",
 		"deleted": "The Submission was deleted.",
 		"cancel": "Cancel",
-		"deliveries": "Delivery log",
-		"deliveriesNone": "Nothing was sent for it.",
-		"deliveryNotification": "Notification → {to}",
-		"deliveryAutoReply": "Auto-reply → {to}",
-		"deliveryWebhook": "Webhook · {name}",
-		"deliveryProblem": "Last answer: {problem}",
+		"delivery": {
+			"heading": "What happened next",
+			"none": "Nothing was sent for it.",
+			"problem": "Last answer: {problem}",
+			"sendAgain": "Send again",
+			"sentAgain": "Queued again: it is sent in a moment.",
+			"sent": {
+				"notification": "Notification sent to {to}",
+				"autoReply": "Auto-reply sent to {to}",
+				"webhook": "Webhook {to} delivered"
+			},
+			"logged": {
+				"notification": "Notification to {to} written to the Email log: no email server is set",
+				"autoReply": "Auto-reply to {to} written to the Email log: no email server is set",
+				"webhook": "Webhook {to} delivered"
+			},
+			"queued": {
+				"notification": "Notification to {to} queued",
+				"autoReply": "Auto-reply to {to} queued",
+				"webhook": "Webhook {to} queued"
+			},
+			"retrying": {
+				"notification": "Notification to {to}: queued, will retry shortly",
+				"autoReply": "Auto-reply to {to}: queued, will retry shortly",
+				"webhook": "Webhook {to}: queued, will retry shortly"
+			},
+			"failed": {
+				"notification": "Could not send the Notification to {to}",
+				"autoReply": "Could not send the Auto-reply to {to}",
+				"webhook": "Could not reach the webhook {to}"
+			}
+		},
+		"keptForever": "Submissions are kept forever.",
+		"keptDays": "Submissions are kept {days} days.",
 		"retention": "Keep Submissions",
 		"retentionForever": "Forever",
 		"retentionDays": "{days} days",
