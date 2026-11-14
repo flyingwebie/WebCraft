@@ -48,13 +48,25 @@ export type ShellConfig = {
 	adminMessages: AdminMessages;
 	/** Where the person keeps their panels (their editor preferences); null for the defaults. */
 	layout: Layout | null;
+	/** Whether the person has seen the first-visit card of client editing (their editor preferences, BA-14). */
+	hintSeen: boolean;
+	/**
+	 * Who built the Site, for Help's "Ask your agency" (BA-14): Install branding's sender name, and its
+	 * footer text, which is where an agency puts how to reach it (null when it has none).
+	 */
+	agency: { name: string; note: string | null };
 };
 
 /**
  * The Permissions the shell draws by, beyond Go to's (`builder.commandMenu`): uploading and changing
- * one's own Media files, and everyone's with the folders. Every procedure still checks `can()`.
+ * one's own Media files, and everyone's with the folders; changing Structure, which draws the whole
+ * shell (Staff) rather than client editing (a Member, BA-14). Every procedure still checks `can()`.
  */
-export const SHELL_PERMISSIONS = ["media.upload", "media.manage"] as const satisfies readonly Permission[];
+export const SHELL_PERMISSIONS = [
+	"media.upload",
+	"media.manage",
+	"structure.edit",
+] as const satisfies readonly Permission[];
 
 export type ShellPermission = (typeof SHELL_PERMISSIONS)[number];
 

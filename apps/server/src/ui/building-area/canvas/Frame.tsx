@@ -66,6 +66,7 @@ export function Frame({
 	onSaving,
 	onSelect,
 	editing,
+	sheet,
 }: {
 	/** What the frame shows: a page's path on the Site with its query, or a stand-in's address. */
 	address: string;
@@ -96,6 +97,11 @@ export function Frame({
 	 * Undo history's steps and keys, the page's shared Drafts and Presence. It sees the page's events first.
 	 */
 	editing?: PageEditing;
+	/**
+	 * Drawn as client editing's sheet (SPEC 13.1, BA-14) instead: no gutters and no size readout, the
+	 * corners 10, and the width the bar's Desktop, Tablet or Phone gives (null: the pane's), centred.
+	 */
+	sheet?: { width: number | null };
 }) {
 	const canvas = useRef<HTMLDivElement>(null);
 	const frame = useRef<HTMLIFrameElement>(null);
@@ -145,7 +151,7 @@ export function Frame({
 		layout: FrameLayout;
 	} | null>(null);
 	const pane: Pane = paneOf(area ?? { width: 0, height: 0 });
-	const layout = frameLayout(size, pane);
+	const layout = frameLayout(sheet ? { width: sheet.width, height: null } : size, pane);
 
 	// The readout: under the pointer or focus, or always while the frame isn't the pane's full width.
 	const [pointerIn, setPointerIn] = useState({ gutter: false, readout: false });
@@ -176,6 +182,16 @@ export function Frame({
 		},
 		[followEase],
 	);
+
+	// Client editing's sheet takes its width from the bar, and eases to it as a control's change does.
+	const sheetWidth = sheet ? sheet.width : undefined;
+	const sheetWas = useRef(sheetWidth);
+	useEffect(() => {
+		if (sheetWas.current === sheetWidth) return;
+		sheetWas.current = sheetWidth;
+		setEasing(true);
+		followEase();
+	}, [sheetWidth, followEase]);
 
 	useEffect(() => {
 		const element = canvas.current;
@@ -430,7 +446,7 @@ export function Frame({
 
 	return (
 		<div ref={canvas} className="absolute inset-0 flex justify-center overflow-hidden" data-wc-canvas="">
-			{readoutShown && area ? (
+			{readoutShown && area && !sheet ? (
 				<SizeReadout
 					size={size}
 					layout={layout}
@@ -451,11 +467,15 @@ export function Frame({
 				}}
 			>
 				{/* The gutters before the frame in the Tab order: the page comes last. */}
-				{gutter("start")}
-				{gutter("end")}
-				{gutter("below")}
+				{sheet ? null : (
+					<>
+						{gutter("start")}
+						{gutter("end")}
+						{gutter("below")}
+					</>
+				)}
 				<div
-					className={`absolute start-3 end-3 top-0 bottom-3 overflow-hidden rounded-b-md bg-white ${drag ? "[&>iframe]:pointer-events-none" : ""}`}
+					className={`absolute start-3 end-3 top-0 bottom-3 overflow-hidden bg-white ${sheet ? "rounded-[10px]" : "rounded-b-md"} ${drag ? "[&>iframe]:pointer-events-none" : ""}`}
 					data-wc-frame-box=""
 				>
 					<iframe
@@ -480,7 +500,7 @@ export function Frame({
 					{/* Focus in the page: a ring drawn over the frame's edge, since the page draws its own focus inside. */}
 					{focused ? (
 						<div
-							className="pointer-events-none absolute inset-0 rounded-b-md shadow-[inset_0_0_0_2px_#818cf8]"
+							className={`pointer-events-none absolute inset-0 shadow-[inset_0_0_0_2px_#818cf8] ${sheet ? "rounded-[10px]" : "rounded-b-md"}`}
 							data-wc-frame-focus=""
 						/>
 					) : null}
