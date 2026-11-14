@@ -299,6 +299,9 @@ for (const theme of THEMES) {
 				await page.goto(install.adminUrl(`/sites/${siteId}/forms/${formId}`));
 				await page.waitForLoadState("networkidle");
 				await page.getByRole("tab", { name: tab }).click();
+				// Check the tab the click chose, once its panel shows, not the one that was showing before.
+				await page.getByRole("tab", { name: tab, selected: true }).waitFor();
+				await page.getByRole("tabpanel").waitFor();
 
 				await expectAccessibleScreen(page, `Site › Form, ${tab} (${theme})`);
 			});
