@@ -30,6 +30,7 @@ import {
 	fitDocks,
 	type Layout,
 	movePanel,
+	PANEL_MIN,
 	type PanelPlacement,
 	panelWeights,
 	resizeDock,
@@ -610,8 +611,8 @@ function Dock({
 					const style: CSSProperties = placement.collapsed
 						? { flex: "none" }
 						: across
-							? { flexGrow: weightOf(placement.id), flexBasis: 0, minHeight: 80 }
-							: { flexGrow: weightOf(placement.id), flexBasis: 0, minWidth: 160 };
+							? { flex: `${weightOf(placement.id)} 1 0px`, minHeight: PANEL_MIN.side }
+							: { flex: `${weightOf(placement.id)} 1 0px`, minWidth: PANEL_MIN.bottom };
 					return (
 						<Fragment key={placement.id}>
 							<PanelFrame

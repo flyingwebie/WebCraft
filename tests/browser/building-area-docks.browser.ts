@@ -99,6 +99,24 @@ async function boxOf(page: Page, selector: string): Promise<Box> {
 	return { x: Math.round(box.x), y: Math.round(box.y), width: Math.round(box.width), height: Math.round(box.height) };
 }
 
+/** Resizes the window and waits until the shell has drawn itself for the new size (the docks follow a moment later). */
+async function resize(page: Page, width: number, height: number): Promise<void> {
+	await page.setViewportSize({ width, height });
+	await page.waitForFunction(([w, h]) => window.innerWidth === w && window.innerHeight === h, [width, height]);
+	let last = "";
+	for (let attempt = 0; attempt < 20; attempt++) {
+		await settled(page);
+		const now = await page.evaluate(() =>
+			[...document.querySelectorAll("[data-wc-dock], main#wc-canvas")]
+				.map((element) => JSON.stringify(element.getBoundingClientRect()))
+				.join(),
+		);
+		if (now === last) return;
+		last = now;
+		await page.waitForTimeout(50);
+	}
+}
+
 /** The panels each dock shows, in order. */
 async function docksOf(page: Page): Promise<Record<string, string[]>> {
 	return page.evaluate(() => {
@@ -387,20 +405,17 @@ describe("the building area's docks and panels", () => {
 		expect((await boxOf(page, '[data-wc-dock="bottom"]')).height).toBe(40);
 
 		// Taller window: the bottom dock reaches its 700.
-		await page.setViewportSize({ width: 1440, height: 1300 });
-		await settled(page);
+		await resize(page, 1440, 1300);
 		await drag('[data-wc-dock-edge="bottom"]', 0, -900);
 		expect((await boxOf(page, '[data-wc-dock="bottom"]')).height).toBe(700);
 
 		// Kept as shares: 400 of 1440 is 356 of 1280.
-		await page.setViewportSize({ width: 1440, height: 900 });
-		await settled(page);
+		await resize(page, 1440, 900);
 		await drag('[data-wc-dock-edge="right"]', -200, 0);
 		expect((await boxOf(page, '[data-wc-dock="right"]')).width).toBe(400);
-		await page.setViewportSize({ width: 1280, height: 900 });
-		await settled(page);
+		await resize(page, 1280, 900);
 		expect((await boxOf(page, '[data-wc-dock="right"]')).width).toBe(356);
-		await page.setViewportSize({ width: 1440, height: 900 });
+		await resize(page, 1440, 900);
 		await clearSelection(page, frame);
 		await resetLayout(page);
 	});
@@ -434,8 +449,7 @@ describe("the building area's docks and panels", () => {
 
 	test("between 1024 and 1279 px the side docks open one at a time over the canvas", async () => {
 		const { page } = await shared();
-		await page.setViewportSize({ width: 1200, height: 800 });
-		await settled(page);
+		await resize(page, 1200, 800);
 		expect(await page.locator('[data-wc-dock="right"]').count()).toBe(0);
 		expect(await boxOf(page, "main#wc-canvas")).toMatchObject({ x: 48, width: 1200 - 48 });
 		const toggle = page.locator('[data-wc-drawer-toggle="right"]');
@@ -452,8 +466,7 @@ describe("the building area's docks and panels", () => {
 		await page.keyboard.press("Escape");
 		await page.locator('[data-wc-dock="right"]').waitFor({ state: "detached" });
 		expect(await page.evaluate(() => document.activeElement?.getAttribute("data-wc-drawer-toggle"))).toBe("right");
-		await page.setViewportSize({ width: 1440, height: 900 });
-		await settled(page);
+		await resize(page, 1440, 900);
 		expect(await docksOf(page)).toEqual({ right: ["layers", "entry"] });
 	});
 
