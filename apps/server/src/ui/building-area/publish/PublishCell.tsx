@@ -144,14 +144,15 @@ export function PublishCell({
 		<button
 			ref={ref}
 			type="button"
-			disabled={disabled}
-			onClick={onPress}
+			// Off by `aria-disabled`, never `disabled`: the button keeps focus while it publishes and after.
+			aria-disabled={disabled || undefined}
+			onClick={disabled ? undefined : onPress}
 			aria-haspopup={state.kind === "failed" ? undefined : "dialog"}
 			aria-expanded={state.kind === "failed" ? undefined : open}
 			aria-controls={open ? sheetId : undefined}
 			aria-keyshortcuts={keys.aria}
 			aria-busy={state.kind === "publishing" ? true : undefined}
-			className={`inline-flex shrink-0 items-center justify-center font-semibold whitespace-nowrap disabled:cursor-default ${
+			className={`inline-flex shrink-0 items-center justify-center font-semibold whitespace-nowrap aria-disabled:cursor-default ${
 				state.kind === "review" ? look.author : look.box
 			} ${look.text} ${face.colours} ${CHROME_EASE} ${FOCUS_RING}`}
 			data-wc-publish={state.kind}

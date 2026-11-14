@@ -196,7 +196,7 @@ describe("Staff publish what the page shows", () => {
 				() => document.querySelector("[data-wc-publish]")?.getAttribute("data-wc-publish") === "ready",
 			);
 			await cellIs(checked, "ready");
-			await checked.waitForFunction(() => !document.querySelector<HTMLButtonElement>("[data-wc-publish]")?.disabled);
+			await checked.waitForFunction(() => !document.querySelector("[data-wc-publish]")?.hasAttribute("aria-disabled"));
 			await cell(checked).click();
 			await sheet(checked).waitFor();
 			await rowsAre(checked, ["Subtitle: words changed", "Entry template · Blog posts: changed"]);
@@ -247,7 +247,9 @@ describe("Staff publish what the page shows", () => {
 		expect(Date.now() - publishedAt).toBeGreaterThanOrEqual(1500);
 		await measure();
 		// Nothing is left to publish: the cell is quiet and does nothing.
-		await page.waitForFunction(() => document.querySelector<HTMLButtonElement>("[data-wc-publish]")?.disabled === true);
+		await page.waitForFunction(
+			() => document.querySelector("[data-wc-publish]")?.getAttribute("aria-disabled") === "true",
+		);
 		await measure();
 		// The button never changed width.
 		expect([...sizes]).toEqual([JSON.stringify({ width: 112, height: 32 })]);
@@ -279,7 +281,7 @@ describe("a Member's sheet", () => {
 
 	test("Revert puts one change back", async () => {
 		await page.waitForFunction(
-			() => !document.querySelector<HTMLButtonElement>("[data-wc-publish]")?.disabled,
+			() => !document.querySelector("[data-wc-publish]")?.hasAttribute("aria-disabled"),
 			undefined,
 			{
 				timeout: 8000,
@@ -365,7 +367,7 @@ describe("an Author's sheet", () => {
 	test("Send for review is 164 wide; it sends the page with a note, and Withdraw takes it back", async () => {
 		await cellIs(page, "review");
 		await page.waitForFunction(
-			() => !document.querySelector<HTMLButtonElement>("[data-wc-publish]")?.disabled,
+			() => !document.querySelector("[data-wc-publish]")?.hasAttribute("aria-disabled"),
 			undefined,
 			{
 				timeout: 8000,

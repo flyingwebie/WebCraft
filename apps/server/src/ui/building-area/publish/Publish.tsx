@@ -199,11 +199,8 @@ export function Publish({
 				announce(fill(shown.reverted, { name }));
 				onPublished();
 			} else announce(fill(shown.revertFailed, { name, reason: answer.code }), true);
-			const next = await read();
-			// The last row went: focus stays in the sheet.
-			if (next && next.changes.length + next.drafts.length === 0) {
-				globalThis.document.querySelector<HTMLElement>("[data-wc-publish-sheet]")?.focus();
-			}
+			await read();
+			keepFocusInSheet();
 		},
 		async discard() {
 			if (!pagePath) return;
@@ -215,7 +212,7 @@ export function Publish({
 				onPublished();
 			} else announce(fill(shown.failed, { reason: answer.code }), true);
 			await read();
-			globalThis.document.querySelector<HTMLElement>("[data-wc-publish-sheet]")?.focus();
+			keepFocusInSheet();
 		},
 		async submit(note) {
 			if (!pagePath) return;
@@ -239,6 +236,7 @@ export function Publish({
 				onPublished();
 			} else announce(fill(shown.failed, { reason: answer.code }), true);
 			await read();
+			keepFocusInSheet();
 		},
 	};
 
@@ -276,6 +274,15 @@ export function Publish({
 			) : null}
 		</span>
 	);
+}
+
+/**
+ * After a row or a button of the sheet went away (or was off while it acted), focus goes back to the
+ * sheet rather than being lost; focus elsewhere in the sheet stays where it is.
+ */
+function keepFocusInSheet(): void {
+	const sheet = document.querySelector<HTMLElement>("[data-wc-publish-sheet]");
+	if (sheet && !sheet.contains(document.activeElement)) sheet.focus();
 }
 
 /** "Published · View live page" at the top centre (SPEC 10): 5 s, paused while the pointer or focus is on it. */
