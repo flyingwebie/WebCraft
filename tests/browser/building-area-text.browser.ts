@@ -3,8 +3,9 @@
 // - text that takes formatting gets the floating toolbar: Alt+F10 reaches it, the arrow keys move in
 //   it, its tools act on the text, Escape gives focus back to the text, and it never covers the text;
 // - a region's problem shows beside it and is said;
-// - the Draft state beside Publish says each state: Saved, Saving…, Draft · N changes, In review and
-//   Could not save (a save the server refuses);
+// - the Draft state beside Publish says each state, in a Member's words (SPEC 13.8, BA-14): No changes
+//   yet, Saving…, Saved, N changes not published, Sent for review and Could not save (a save the server
+//   refuses);
 // - two people on one page each see the other's text arrive, and their name on the region they are in;
 // - the shell with the toolbar open passes the accessibility checks, light and dark.
 // The building area's own test of the old editing bar's typing, toolbar and Presence cases
@@ -124,13 +125,13 @@ async function framedAt(page: Page, path: string): Promise<Frame> {
 	throw new Error(`The frame never showed ${path}.`);
 }
 
-/** Opens another page of the Site in the shell, as following its link does with the interface hidden (no reload). */
+/** Opens another page of the Site in the shell, as following its link does in a Member's Preview (no reload). */
 async function openThrough(page: Page, frame: Frame, path: string): Promise<Frame> {
-	await page.getByRole("button", { name: "Hide the interface" }).click();
+	await page.locator('[data-wc-segment="preview"]').click();
 	await frame.locator(`nav a[href="${path}"]`).click();
 	await page.waitForURL((url) => url.pathname === `/_webcraft/build/page${path}`);
 	const shown = await framedAt(page, path);
-	await page.getByRole("button", { name: "Show the interface" }).click();
+	await page.locator('[data-wc-segment="edit"]').click();
 	return shown;
 }
 
@@ -229,7 +230,7 @@ describe("content typed in place, for a Member", () => {
 			() => !document.querySelector('[data-wc-field="intro"] span, [data-wc-field="intro"] img'),
 		);
 		// Title, Subtitle and Intro of the Entry, and the Globals' Tagline.
-		await page.locator('[data-wc-draft-state="changes"]').filter({ hasText: "Draft · 4 changes" }).waitFor();
+		await page.locator('[data-wc-draft-state="changes"]').filter({ hasText: "4 changes not published" }).waitFor();
 	});
 
 	test("the text toolbar: Alt+F10 reaches it, the arrows move, its tools act, Escape goes back, it never covers the text", async () => {
@@ -321,7 +322,7 @@ describe("content typed in place, for a Member", () => {
 		await eventually(drafts, (now) => now.bread.fields.subtitle === "Out of the oven");
 	});
 
-	test("the Draft state says Saved, Saving…, Draft · N changes, In review and Could not save", async () => {
+	test("the Draft state says No changes yet, Saving…, Saved, N changes not published, Sent for review and Could not save", async () => {
 		// The Rye loaf's page shows the Globals too: with them published, it has no change at all.
 		const { api } = await install.install.superadmin();
 		await api.globals.publish({ siteId });
@@ -334,8 +335,8 @@ describe("content typed in place, for a Member", () => {
 	});
 
 	async function draftStateCase() {
-		await expect(draftState(page).getAttribute("data-wc-draft-state")).resolves.toBe("saved");
-		expect(await draftState(page).textContent()).toContain("Saved");
+		await expect(draftState(page).getAttribute("data-wc-draft-state")).resolves.toBe("none");
+		expect(await draftState(page).textContent()).toContain("No changes yet");
 
 		// A save under way: "Saving…" until it is answered, then the page's changes.
 		let release: () => void = () => {};
@@ -352,8 +353,11 @@ describe("content typed in place, for a Member", () => {
 		await page.locator('[data-wc-draft-state="saving"]').waitFor();
 		expect(await draftState(page).textContent()).toContain("Saving…");
 		release();
+		// "Saved" for a moment, then what is left to publish.
+		await page.locator('[data-wc-draft-state="saved"]').waitFor();
+		expect(await draftState(page).textContent()).toContain("Saved");
 		await page.locator('[data-wc-draft-state="changes"]').waitFor();
-		expect(await draftState(page).textContent()).toContain("Draft · 1 change");
+		expect(await draftState(page).textContent()).toContain("1 change not published");
 		await page.unroute("**/_webcraft/edit/api/save");
 
 		// Sent for Review: the page's state says so with its next change.
@@ -363,7 +367,7 @@ describe("content typed in place, for a Member", () => {
 		await page.keyboard.type("!");
 		await page.keyboard.press("Tab");
 		await page.locator('[data-wc-draft-state="review"]').waitFor({ timeout: 6000 });
-		expect(await draftState(page).textContent()).toContain("In review");
+		expect(await draftState(page).textContent()).toContain("Sent for review");
 
 		// A save the server refuses (a value it doesn't let this page change).
 		await frame.evaluate(() =>

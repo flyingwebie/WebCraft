@@ -416,13 +416,19 @@ describe("Templates and Components, for a Member", () => {
 		await page?.context().close();
 	});
 
-	test("a Member gets neither place, even at their addresses", async () => {
-		await go(page, placed("templates"));
-		await page.locator('[data-wc-place-frame="templates"]').waitFor();
-		await page.locator("[data-wc-place-pane]", { hasText: "only Staff change them" }).waitFor();
+	test("a Member gets neither place, even at their addresses: the page opens (client editing, BA-14)", async () => {
+		await page.locator("[data-wc-client-rail]").waitFor();
+		for (const place of ["templates", "components"]) {
+			expect({ place, buttons: await page.locator(`[data-wc-place="${place}"]`).count() }).toEqual({
+				place,
+				buttons: 0,
+			});
+			await go(page, placed(place));
+			await page.locator("iframe[data-wc-frame]").waitFor();
+			await page.locator("[data-wc-client-rail]").waitFor();
+			expect({ place, frames: await page.locator("[data-wc-place-frame]").count() }).toEqual({ place, frames: 0 });
+		}
 		expect(await page.locator("[data-wc-template-columns]").count()).toBe(0);
-		await go(page, placed("components"));
-		await page.locator("[data-wc-place-pane]", { hasText: "only Staff change them" }).waitFor();
 		expect(await page.locator("[data-wc-component-grid]").count()).toBe(0);
 		expect(await page.locator("[data-wc-component-new]").count()).toBe(0);
 	});

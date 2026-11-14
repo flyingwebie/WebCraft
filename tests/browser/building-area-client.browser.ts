@@ -193,9 +193,9 @@ describe("client editing, for an Editor", () => {
 		// The page as a light sheet, 12 from the rail and the bar, corners 10, no gutters.
 		const sheet = await box(page, "[data-wc-frame-box]");
 		expect(sheet).toEqual({ x: 88, y: 12, width: 1340, height: 820 });
-		expect(await page.locator("[data-wc-frame-box]").evaluate((element) => getComputedStyle(element).borderRadius)).toBe(
-			"10px",
-		);
+		expect(
+			await page.locator("[data-wc-frame-box]").evaluate((element) => getComputedStyle(element).borderRadius),
+		).toBe("10px");
 
 		// Not hidden: absent.
 		for (const absent of [
@@ -423,7 +423,9 @@ describe("client editing, for an Editor", () => {
 		expect(tablet.x).toBe(88 + (1340 - 768) / 2);
 		expect(await frame.evaluate(() => [innerWidth, matchMedia("(max-width: 768px)").matches])).toEqual([768, true]);
 		await page.locator('[data-wc-segment="phone"]').click();
-		await page.waitForFunction(() => document.querySelector("[data-wc-frame-box]")?.getBoundingClientRect().width === 390);
+		await page.waitForFunction(
+			() => document.querySelector("[data-wc-frame-box]")?.getBoundingClientRect().width === 390,
+		);
 		expect(await frame.evaluate(() => innerWidth)).toBe(390);
 		// The marks follow the narrowed page.
 		const region = await boxIn(frame, subtitle);
