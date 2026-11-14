@@ -384,6 +384,8 @@ for (const theme of THEMES) {
 			// Actions now holds the Placement's: Props, Move up and down, Duplicate, Hide and Remove.
 			await page.keyboard.press("ControlOrMeta+k");
 			await menu.waitFor();
+			// The Placement's group follows the selection into the menu a moment after it opens: wait for it.
+			await menu.getByRole("listbox").getByRole("group", { name: "Placement", exact: true }).waitFor();
 			expect(await groups(menu)).toEqual(["Page", "Placement"]);
 			expect((await options(menu)).filter((option) => option.includes(", Placement"))).toEqual([
 				"Props, Placement",
