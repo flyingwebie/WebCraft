@@ -8420,7 +8420,6 @@
 				"right": "Right dock",
 				"bottom": "Bottom dock"
 			},
-			"dropBox": "{dock}",
 			"moveTo": {
 				"left": "Move to left dock",
 				"right": "Move to right dock",

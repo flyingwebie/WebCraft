@@ -8,8 +8,9 @@
 // - sizes are kept as shares of the window, within the limits (side 200–500, bottom 40–700), so a
 //   smaller window keeps the shape; the docks together always leave the canvas its 320 × 320 frame;
 // - a separator between two panels shares their length and leaves the others where they are;
-// - every layout the model makes is one the stored shape accepts, and its version is the stored one.
-import { describe, expect, test } from "bun:test";
+// - every layout the model makes is one the stored shape accepts, and its version is the stored one;
+// - the shell starts from the layout the person keeps (their editor preferences), or none.
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { EDITOR_LAYOUT_VERSION, editorLayoutSchema } from "@webcraft/core";
 
 import {
@@ -31,7 +32,9 @@ import {
 	storedLayout,
 	withPanels,
 } from "../../apps/server/src/ui/building-area/docks/layout.ts";
-import { type PanelContext, PANELS } from "../../apps/server/src/ui/building-area/docks/panels.ts";
+import { PANELS, type PanelContext } from "../../apps/server/src/ui/building-area/docks/panels.ts";
+import { openBuildingArea, shellConfigIn } from "../harness/building-area.ts";
+import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 
 const WINDOW = { width: 1440, height: 900 };
 const ids = (layout: Layout, side: "left" | "right" | "bottom") => layout.docks[side].panels.map((panel) => panel.id);
@@ -289,5 +292,42 @@ describe("the panels' rules (SPEC 5)", () => {
 	test("a Template has no Entry panel; a Component edited in place brings the Component panel", () => {
 		expect(shown({ ...nothing, document: "template" })).toEqual(["layers"]);
 		expect(shown({ ...nothing, document: "entry", componentInPlace: true })).toEqual(["layers", "entry", "component"]);
+	});
+});
+
+describe("the shell's start", () => {
+	let install: TestInstall;
+	let staff: TestBrowser;
+	let siteId: string;
+	let otherSiteId: string;
+
+	beforeAll(async () => {
+		install = await createTestInstall();
+		const workspaceId = (await install.createWorkspace("Acme Ltd")).id;
+		staff = (await install.createStaff({ workspaces: [workspaceId], name: "Davide Del Gatto" })).browser;
+		siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
+		otherSiteId = (await install.createSite(workspaceId, { name: "Acme Dairy", slug: "dairy" })).id;
+	});
+
+	afterAll(async () => {
+		await install.close();
+	});
+
+	const layoutIn = async (site: string) => {
+		const building = await openBuildingArea(install, staff, site);
+		return shellConfigIn(await (await building.shell(building.landed)).text())?.layout;
+	};
+
+	test("is the defaults (none) until the person moves a panel, then their layout on every Site", async () => {
+		expect(await layoutIn(siteId)).toBeNull();
+
+		const moved = storedLayout(resizeDock(movePanel(defaults(), "layers", "left"), "right", 400, WINDOW));
+		await staff.api.me.saveEditorPreferences({ siteId, preferences: { version: LAYOUT_VERSION, layout: moved } });
+		expect(await layoutIn(siteId)).toEqual(moved);
+		expect(await layoutIn(otherSiteId)).toEqual(moved);
+
+		// Reset: none again.
+		await staff.api.me.saveEditorPreferences({ siteId, preferences: { version: LAYOUT_VERSION, layout: null } });
+		expect(await layoutIn(otherSiteId)).toBeNull();
 	});
 });

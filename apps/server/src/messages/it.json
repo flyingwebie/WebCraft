@@ -8420,7 +8420,6 @@
 				"right": "Lato destro",
 				"bottom": "In basso"
 			},
-			"dropBox": "{dock}",
 			"moveTo": {
 				"left": "Sposta a sinistra",
 				"right": "Sposta a destra",

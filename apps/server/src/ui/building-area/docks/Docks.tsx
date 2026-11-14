@@ -21,7 +21,7 @@ import {
 
 import type { EditorLayout } from "../../builder/editor-fit.ts";
 import { fill, type ShellConfig, type Words } from "../api.ts";
-import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
+import { CHROME_EASE, FOCUS_RING, Tip } from "../controls.tsx";
 import {
 	DOCK_LIMITS,
 	DOCK_SIDES,
@@ -370,7 +370,7 @@ function DrawerToggles({ docks }: { docks: Docks }) {
 							dock: words.docks.dockNames[side],
 						})}
 						onClick={() => docks.setDrawer(docks.drawer === side ? null : side)}
-						className={`bg-chrome-raised text-chrome-text hover:bg-chrome-hover absolute top-2 z-30 grid size-7 place-items-center rounded-md shadow-[0_6px_16px_rgba(0,0,0,0.5)] ${
+						className={`group bg-chrome-raised text-chrome-text hover:bg-chrome-hover absolute top-2 z-30 grid size-7 place-items-center rounded-md shadow-[0_6px_16px_rgba(0,0,0,0.5)] ${
 							side === "left" ? "start-2" : "end-2"
 						} ${CHROME_EASE} ${FOCUS_RING}`}
 						style={{ gridArea: "canvas" }}
@@ -381,6 +381,12 @@ function DrawerToggles({ docks }: { docks: Docks }) {
 						) : (
 							<PanelRightIcon aria-hidden="true" className="size-4" />
 						)}
+						<Tip
+							label={fill(docks.drawer === side ? words.docks.closeDrawer : words.docks.openDrawer, {
+								dock: words.docks.dockNames[side],
+							})}
+							side="bottom"
+						/>
 					</button>
 				) : null,
 			)}
@@ -580,7 +586,7 @@ function Dock({
 					}`}
 					data-wc-drop-box={side}
 				>
-					{fill(words.docks.dropBox, { dock: words.docks.dockTitles[side] })}
+					{words.docks.dockTitles[side]}
 				</div>
 			) : (
 				panels.map((shownPanel, index) => {
