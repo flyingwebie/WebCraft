@@ -252,6 +252,13 @@ for (const theme of THEMES) {
 				.click();
 			const guard = page.getByRole("dialog", { name: "Leave without saving?" });
 			await guard.waitFor();
+			// A dialog dims the page behind it, without blurring it.
+			const layer = await page.locator('[data-slot="dialog-overlay"]').evaluate((element) => {
+				const style = getComputedStyle(element);
+				return { background: style.backgroundColor, blur: style.backdropFilter };
+			});
+			expect(layer.background).toMatch(/0\.5\)$/);
+			expect(layer.blur).toBe("none");
 			// Focus lands on "Keep editing", the choice that loses nothing.
 			await page.waitForFunction(() => document.activeElement?.textContent === "Keep editing", undefined, {
 				timeout: 2000,

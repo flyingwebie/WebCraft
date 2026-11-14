@@ -272,7 +272,7 @@ export function PageSheet({
 				finalFocus={finalFocus}
 				closeLabel={t("shell.sheet.close")}
 				// Inside the page card, not the window: the layer and the sheet cover the card under the top bar.
-				overlayClassName="absolute z-30 bg-black/40 duration-0 supports-backdrop-filter:backdrop-blur-none"
+				overlayClassName="absolute z-30 bg-black/40 duration-0"
 				className={cn(
 					"absolute z-30 w-full gap-0 duration-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md",
 					className,
