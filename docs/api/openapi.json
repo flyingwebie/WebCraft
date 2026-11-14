@@ -20006,7 +20006,7 @@
 		"/dashboards/list": {
 			"post": {
 				"operationId": "dashboards.list",
-				"summary": "Lists a Site's Dashboards, or a Workspace's, that the caller sees.",
+				"summary": "Lists a Site's Dashboards, or a Workspace's, that the caller sees (a Site's built-in one first).",
 				"tags": ["dashboards"],
 				"requestBody": {
 					"required": true,
@@ -20274,7 +20274,7 @@
 		"/dashboards/delete": {
 			"post": {
 				"operationId": "dashboards.delete",
-				"summary": "Deletes a Dashboard.",
+				"summary": "Deletes a Dashboard (never a Site's built-in Site analytics Dashboard).",
 				"tags": ["dashboards"],
 				"requestBody": {
 					"required": true,
@@ -20678,6 +20678,62 @@
 				"x-webcraft-permissions": ["dashboard.manage"]
 			}
 		},
+		"/dashboards/widgets/duplicate": {
+			"post": {
+				"operationId": "dashboards.widgets.duplicate",
+				"summary": "Copies a Widget, with its settings, into the first free place.",
+				"tags": ["dashboards"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"dashboardId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"widgetId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["dashboardId", "widgetId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["dashboard.manage"]
+			}
+		},
 		"/dashboards/widgets/update": {
 			"post": {
 				"operationId": "dashboards.widgets.update",
@@ -20997,7 +21053,7 @@
 		"/dashboards/widgets/data": {
 			"post": {
 				"operationId": "dashboards.widgets.data",
-				"summary": "What a Widget shows now: its counts for its range, or why it shows nothing.",
+				"summary": "What a Widget shows now: its counts for its range (and the period before, when asked), or why it shows nothing.",
 				"tags": ["dashboards"],
 				"requestBody": {
 					"required": true,
@@ -21063,6 +21119,9 @@
 												"additionalProperties": false
 											}
 										]
+									},
+									"compare": {
+										"type": "boolean"
 									}
 								},
 								"required": ["dashboardId", "widgetId"]

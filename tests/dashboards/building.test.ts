@@ -149,7 +149,8 @@ describe("a Dashboard's grid", () => {
 		const removed = await staff.api.dashboards.widgets.remove({ siteId, dashboardId: dashboard.id, widgetId: note });
 		expect(removed.dashboard.widgets.map((widget) => widget.kind)).not.toContain("note");
 		expect((await staff.api.dashboards.list({ siteId })).dashboards).toEqual([
-			expect.objectContaining({ name: "Overview", widgets: 3, sharedWithEveryone: false }),
+			expect.objectContaining({ name: "Site analytics", builtIn: true }),
+			expect.objectContaining({ name: "Overview", widgets: 3, sharedWithEveryone: false, builtIn: false }),
 		]);
 	});
 

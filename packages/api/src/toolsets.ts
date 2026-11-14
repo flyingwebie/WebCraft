@@ -262,6 +262,7 @@ export const TOOL_PLACES = {
 	"dashboards.saveAsTemplate": place(["analytics"], "dashboard.manage"),
 	"dashboards.export": place(["analytics"], "site.view", "workspace.view"),
 	"dashboards.widgets.add": place(["analytics"], "dashboard.manage"),
+	"dashboards.widgets.duplicate": place(["analytics"], "dashboard.manage"),
 	"dashboards.widgets.update": place(["analytics"], "dashboard.manage"),
 	"dashboards.widgets.move": place(["analytics"], "dashboard.manage"),
 	"dashboards.widgets.remove": place(["analytics"], "dashboard.manage"),

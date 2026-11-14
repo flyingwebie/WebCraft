@@ -55,6 +55,8 @@ import {
 	NOTE_MAX_LENGTH,
 	placeWidget,
 	type Rect,
+	type ResolvedRange,
+	rangeBefore,
 	rangeProblem,
 	resolveRange,
 	type StoredWidget,
@@ -70,10 +72,12 @@ import type {
 	DashboardView,
 	WidgetAnswerView,
 	WidgetDataView,
+	WidgetPeriodView,
 	WidgetView,
 	WidgetViewShape,
 } from "./views.ts";
 
+export * from "./built-in.ts";
 export { csvCell } from "./csv.ts";
 export * from "./errors.ts";
 export * from "./model.ts";
@@ -137,6 +141,17 @@ export type Dashboards = {
 		input: WidgetInput & { kind: string; at?: Partial<Rect> },
 		language: string,
 	): Promise<{ dashboard: DashboardView; widgetId: string }>;
+	/**
+	 * A copy of a Widget: its kind, title, range, filters, settings and rows, at its size, in the first
+	 * free place (as a new Widget lands).
+	 */
+	duplicateWidget(
+		access: Access,
+		place: DashboardPlace,
+		dashboardId: string,
+		widgetId: string,
+		language: string,
+	): Promise<{ dashboard: DashboardView; widgetId: string }>;
 	updateWidget(
 		access: Access,
 		place: DashboardPlace,
@@ -161,13 +176,17 @@ export type Dashboards = {
 		widgetId: string,
 		language: string,
 	): Promise<DashboardView>;
-	/** What one Widget shows now: for its own range, else `range` when given (exploring), else the Dashboard's. */
+	/**
+	 * What one Widget shows now: for its own range, else `range` when given (exploring), else the
+	 * Dashboard's. With `compare`, also `previous`: the period of the same length just before it (null
+	 * for a Widget that doesn't compare); without it, no `previous` at all.
+	 */
 	widgetData(
 		access: Access,
 		place: DashboardPlace,
 		dashboardId: string,
 		widgetId: string,
-		options: { range?: DashboardRange; language: string },
+		options: { range?: DashboardRange; compare?: boolean; language: string },
 	): Promise<WidgetAnswerView>;
 	/** Every Widget of a Dashboard, worked out as `widgetData` does (the seam for Reports and Share links, #104). */
 	widgetAnswers(
@@ -222,6 +241,8 @@ type Row = {
 	range: unknown;
 	sharedWithEveryone: boolean;
 	widgets: unknown;
+	/** A Site Dashboard's: whether it is the built-in one (Workspace Dashboards have none). */
+	builtIn?: boolean;
 	createdAt: Date;
 	updatedAt: Date;
 };
@@ -273,6 +294,9 @@ const SIZES: Record<WidgetViewShape, { w: number; h: number }> = {
 	table: { w: 6, h: 5 },
 	funnel: { w: 6, h: 4 },
 };
+
+/** The shapes that can show the period before their range beside it: a number, and lines over time. */
+const COMPARES: ReadonlySet<WidgetViewShape> = new Set(["number", "series"]);
 
 /** What `options` is asked for the Goals a Widget's Goal filter offers. */
 export const GOAL_FILTER = "filter:goal";
@@ -388,6 +412,7 @@ export function createDashboards(deps: {
 			name: row.name,
 			range: storedRange(row.range),
 			sharedWithEveryone: row.sharedWithEveryone,
+			builtIn: row.builtIn === true,
 			widgets: storedWidgets(row.widgets).map((widget): WidgetView => {
 				const info = known.get(widget.kind);
 				return {
@@ -502,11 +527,30 @@ export function createDashboards(deps: {
 		language: string,
 		known: Map<string, KindInfo>,
 		explore: WidgetFilters = {},
+		compare = false,
 	): Promise<WidgetAnswerView> => {
 		const info = known.get(widget.kind);
 		const range = resolveRange(widget.range ?? override ?? storedRange(row.range), clock.now());
 		const title = widget.title ?? (info ? wordsIn(info.label, language, info.languages) : widget.kind);
-		const base = { widgetId: widget.id, title, range, countedFrom: null, sites: null };
+		const now = await counted(opened, widget, info, range, language, explore);
+		if (!compare) return { widgetId: widget.id, title, ...now };
+		const previous =
+			info?.moduleId && COMPARES.has(info.shape)
+				? await counted(opened, widget, info, rangeBefore(range), language, explore)
+				: null;
+		return { widgetId: widget.id, title, ...now, previous };
+	};
+
+	/** What a Widget shows for one period: its Module's counts on the Site, or added up over the Sites. */
+	const counted = async (
+		opened: Opened,
+		widget: StoredWidget,
+		info: KindInfo | undefined,
+		range: ResolvedRange,
+		language: string,
+		explore: WidgetFilters,
+	): Promise<WidgetPeriodView> => {
+		const base = { range, countedFrom: null, sites: null };
 		if (widget.kind === NOTE_KIND) {
 			const text = typeof widget.settings.text === "string" ? widget.settings.text : "";
 			return { ...base, data: { shape: "note", text }, problem: null };
@@ -695,6 +739,7 @@ export function createDashboards(deps: {
 					settings: info.settings.map((setting) => settingView(setting, info, language)),
 					available,
 					size: SIZES[info.shape],
+					compares: info.moduleId !== null && COMPARES.has(info.shape),
 				});
 			}
 			return catalog;
@@ -719,13 +764,16 @@ export function createDashboards(deps: {
 			const rows = await queries(opened).select(opened.table, undefined, {
 				orderBy: [asc(opened.table.name), asc(opened.table.createdAt)],
 			});
+			// The built-in Dashboard first, then the rest by name.
 			return rows
 				.filter((row) => all || row.sharedWithEveryone)
+				.sort((a, b) => Number(b.builtIn === true) - Number(a.builtIn === true))
 				.map((row) => ({
 					id: row.id,
 					name: row.name,
 					widgets: storedWidgets(row.widgets).length,
 					sharedWithEveryone: row.sharedWithEveryone,
+					builtIn: row.builtIn === true,
 					updatedAt: row.updatedAt,
 				}));
 		},
@@ -802,6 +850,12 @@ export function createDashboards(deps: {
 		async delete(access, place, dashboardId) {
 			const opened = await open(access, place, true);
 			const row = await find(opened, dashboardId);
+			if (row.builtIn) {
+				throw new DashboardInvalidError(
+					"builtIn",
+					"This Dashboard is built in: every Site keeps it. Arrange or rename it, or show it to fewer people, instead.",
+				);
+			}
 			await queries(opened).transaction(async (tx) => {
 				await (tx as unknown as ReturnType<typeof queries>).delete(opened.table, eq(opened.table.id, dashboardId));
 				await tx.audit("dashboard.delete", { dashboardId, name: row.name });
@@ -823,6 +877,22 @@ export function createDashboards(deps: {
 						: freePlace(widgets, size);
 				const widget: StoredWidget = { id, kind: info.kind, ...rect, ...checked(info, input, null) };
 				return { widgets: placeWidget([...widgets, widget], id, rect) };
+			});
+			return { dashboard: viewOf(opened, row, language), widgetId: id };
+		},
+
+		async duplicateWidget(access, place, dashboardId, widgetId, language) {
+			const opened = await open(access, place, true);
+			const id = crypto.randomUUID();
+			const row = await change(opened, dashboardId, (_row, widgets) => {
+				const original = widgets.find((widget) => widget.id === widgetId);
+				if (!original) throw new WidgetNotFoundError();
+				if (widgets.length >= MAX_WIDGETS) {
+					throw new DashboardInvalidError("widgets", `A Dashboard holds at most ${MAX_WIDGETS} Widgets.`);
+				}
+				const rect = freePlace(widgets, { w: original.w, h: original.h });
+				const copy: StoredWidget = { ...structuredClone(original), id, ...rect };
+				return { widgets: [...widgets, copy] };
 			});
 			return { dashboard: viewOf(opened, row, language), widgetId: id };
 		},
@@ -868,6 +938,8 @@ export function createDashboards(deps: {
 				options.range,
 				options.language,
 				kinds(options.language),
+				{},
+				options.compare === true,
 			);
 		},
 

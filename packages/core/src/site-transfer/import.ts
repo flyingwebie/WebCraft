@@ -11,6 +11,8 @@ import { useDumpSettings } from "../backups/dump.ts";
 import { readTar, type TarEntry } from "../backups/tar.ts";
 import { storedComponentVersion } from "../content/component-versions.ts";
 import { capturePropContracts, retainedContract } from "../content/prop-migrations.ts";
+import { SITE_ANALYTICS_DASHBOARD, siteAnalyticsWidgets } from "../dashboards/built-in.ts";
+import { DEFAULT_RANGE } from "../dashboards/model.ts";
 import { MediaQuotaFullError } from "../media/errors.ts";
 import type { InstallStorage } from "../media/install-storage.ts";
 import { keyParts } from "../media/storage.ts";
@@ -373,6 +375,7 @@ export async function importSite(
 		const paused = await pausedDomains(client, siteId);
 		await reopenScheduledReviews(client, target, siteId);
 		const reportsPaused = await pauseReports(client, target, siteId);
+		await keepSiteAnalyticsDashboard(client, { workspaceId: plan.workspaceId, siteId }, context.now());
 		await stopImportRuns(client, target, siteId, context.now());
 
 		// Secrets: carried under the passphrase and opened with its key, or dropped.
@@ -1039,6 +1042,30 @@ async function pauseReports(client: pg.ClientBase, target: ReadonlyMap<string, S
 		[siteId],
 	);
 	return rows.map((row) => row.name).sort();
+}
+
+/**
+ * Every Site has the built-in "Site analytics" Dashboard: one the archive carries stays as it was
+ * arranged; an archive from before it existed gets one, as a new Site does.
+ */
+async function keepSiteAnalyticsDashboard(
+	client: pg.ClientBase,
+	place: { workspaceId: string; siteId: string },
+	now: Date,
+): Promise<void> {
+	await client.query(
+		`INSERT INTO public.dashboards (workspace_id, site_id, name, range, shared_with_everyone, widgets, built_in, created_at, updated_at)
+   VALUES ($1, $2, $3, $4::jsonb, false, $5::jsonb, true, $6, $6)
+   ON CONFLICT (site_id) WHERE built_in DO NOTHING`,
+		[
+			place.workspaceId,
+			place.siteId,
+			SITE_ANALYTICS_DASHBOARD,
+			JSON.stringify(DEFAULT_RANGE),
+			JSON.stringify(siteAnalyticsWidgets()),
+			now,
+		],
+	);
 }
 
 /** An Import run under way on the Site it came from stops: its file isn't part of the export. */
