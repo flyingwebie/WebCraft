@@ -9,6 +9,7 @@ import { useAfterRender } from "../after-render.ts";
 import { errorCode, errorMessage } from "../errors.ts";
 import { formatUtc } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
+import { StateBadge } from "../settings/layout.tsx";
 import type { AutosaveStatus } from "./autosave.ts";
 import { controlId, type FieldDefinition, type Problem } from "./model.ts";
 import { problemPlace, problemText, subjectOf } from "./problems.ts";
@@ -16,8 +17,8 @@ import { problemPlace, problemText, subjectOf } from "./problems.ts";
 /** Where an Entry (or the Globals) stands for visitors: never published, published, or changed since. */
 export function StatusBadge({ status }: { status: "draft" | "published" | "changed" }) {
 	const t = useT();
-	const variant = status === "published" ? "secondary" : status === "changed" ? "default" : "outline";
-	return <Badge variant={variant}>{t(`entries.status.${status}`)}</Badge>;
+	const tone = status === "published" ? "success" : status === "changed" ? "warning" : "neutral";
+	return <StateBadge tone={tone}>{t(`entries.status.${status}`)}</StateBadge>;
 }
 
 /** Whether the Draft is saved, being saved, or failed to save; for screen readers too, politely. */
