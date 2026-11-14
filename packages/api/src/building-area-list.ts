@@ -35,6 +35,22 @@ export const BUILDING_AREA_PROCEDURES = [
 	"media.usage",
 	"media.folders.list",
 	"media.upload",
+	// The Media place and its picker (BA-22): a file's texts, folder and Focal point, Replace file, Import
+	// from URL, the folders and the Trash, as the admin's Media screen does them (`media.upload` for
+	// one's own uploads, `media.manage` for everyone's and the folders). Moving to the Trash, deleting for
+	// good and emptying the Trash each take two calls, the second with the confirmation the first
+	// answered, for everyone; Import from URL keeps its guarded fetcher and its limits per person and per
+	// Site. Suggest alt text (an AI provider's cost) stays the admin's.
+	"media.update",
+	"media.replace",
+	"media.importUrl",
+	"media.delete",
+	"media.restore",
+	"media.deleteForever",
+	"media.emptyTrash",
+	"media.folders.create",
+	"media.folders.rename",
+	"media.folders.delete",
 	// The Design system.
 	"designSystem.get",
 	"designSystem.saveDraft",

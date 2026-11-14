@@ -219,7 +219,7 @@ describe("anything not on the list", () => {
 			["languages.add", { siteId: site.siteId, code: "it" }],
 			["entries.delete", { siteId: site.siteId, entryId: site.entryId }],
 			["entries.saveDraft", { siteId: site.siteId, entryId: site.entryId, title: "Changed" }],
-			["media.deleteForever", { siteId: site.siteId, mediaId: crypto.randomUUID() }],
+			["media.suggestAltText", { siteId: site.siteId, mediaId: crypto.randomUUID() }],
 			["domains.list", { siteId: site.siteId }],
 			["sites.get", { siteId: site.siteId }],
 			["builder.transferHistory", { siteId: site.siteId, payload: "x" }],

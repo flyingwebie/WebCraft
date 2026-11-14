@@ -1,9 +1,9 @@
-import { Link } from "@tanstack/react-router";
 import type { ApiClient } from "@webcraft/api";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Link2Icon } from "lucide-react";
 
 import { type MessageKey, useT } from "../i18n.tsx";
+import { useMediaHost } from "./host.tsx";
 
 /** Where a file is used, as the Management API answers it. */
 export type MediaUses = Awaited<ReturnType<ApiClient["media"]["usage"]>>["usedIn"];
@@ -39,8 +39,8 @@ function placeName(use: Use, t: ReturnType<typeof useT>): string {
 }
 
 /**
- * The places a file is used, each linked to where it is changed when the person can open it there:
- * Entries and the Globals for everyone, Loops and the SEO settings for Staff (Structure).
+ * The places a file is used, each linked by the host (`host.tsx`) to where it is changed when the
+ * person can open it there.
  */
 export function UsedInList({
 	siteId,
@@ -52,6 +52,7 @@ export function UsedInList({
 	permissions: readonly string[];
 }) {
 	const t = useT();
+	const { UseLink } = useMediaHost();
 	const structure = permissions.includes("structure.edit");
 	return (
 		<ul className="grid gap-1.5 text-sm">
@@ -59,30 +60,15 @@ export function UsedInList({
 				const name = placeName(use, t);
 				const draftOnly = !use.versions.includes("published");
 				const linkClass = "hover:underline focus-visible:ring-ring/50 rounded-sm outline-none focus-visible:ring-3";
-				const label =
-					use.kind === "entry" ? (
-						<Link
-							to="/sites/$siteId/entries/$postTypeId/$entryId"
-							params={{ siteId, postTypeId: use.postType.id, entryId: use.id }}
-							className={linkClass}
-						>
-							{name}
-						</Link>
-					) : use.kind === "globals" ? (
-						<Link to="/sites/$siteId/globals" params={{ siteId }} className={linkClass}>
-							{name}
-						</Link>
-					) : use.kind === "seoSettings" && structure ? (
-						<Link to="/sites/$siteId/seo" params={{ siteId }} className={linkClass}>
-							{name}
-						</Link>
-					) : use.kind === "loop" && structure ? (
-						<Link to="/sites/$siteId/loops/$loopId" params={{ siteId, loopId: use.id }} className={linkClass}>
-							{name}
-						</Link>
-					) : (
-						<span>{name}</span>
-					);
+				// The host links the place to where it is changed (the admin's screens; the building area's
+				// canvas or the admin), when the person can open it there.
+				const label = UseLink ? (
+					<UseLink siteId={siteId} use={use} structure={structure} className={linkClass}>
+						{name}
+					</UseLink>
+				) : (
+					<span>{name}</span>
+				);
 				return (
 					<li key={`${use.kind}:${"id" in use ? use.id : ""}`} className="flex flex-wrap items-center gap-2">
 						<Link2Icon className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />

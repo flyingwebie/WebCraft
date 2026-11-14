@@ -124,7 +124,12 @@ async function shellStylesheet(theme: string, fonts: readonly BuildingAreaAsset[
 	const chrome = await Bun.file(join(dirname(shellEntry), "theme.css")).text();
 	const css = `${(await Bun.file(theme).text()).replace('@import "@fontsource-variable/inter";', "")}\n${chrome}`;
 	const compiled = await compile(css, { base: dirname(theme), onDependency() {} });
-	const scanner = new Scanner({ sources: [{ base: dirname(shellEntry), pattern: "**/*.{ts,tsx}", negated: false }] });
+	// The shell's own sources, and the admin's parts it reuses as they are (the Media library's, BA-22,
+	// with the shared components they draw with).
+	const reused = [join(dirname(shellEntry), "..", "media"), join(dirname(theme), "..", "components")];
+	const scanner = new Scanner({
+		sources: [dirname(shellEntry), ...reused].map((base) => ({ base, pattern: "**/*.{ts,tsx}", negated: false })),
+	});
 	const faces = INTER_FILES.map(
 		({ range }, index) =>
 			`@font-face{font-family:"Inter Variable";font-style:normal;font-display:swap;font-weight:100 900;src:url(${fonts[index]?.path}) format("woff2-variations");unicode-range:${range}}`,
