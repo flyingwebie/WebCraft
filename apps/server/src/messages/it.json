@@ -1901,7 +1901,6 @@
 			"savedName": "Salvato nella bozza · {name}",
 			"notSaved": "Non salvato: {reason}",
 			"format": "Formatta",
-			"formatHint": "Mette ogni elemento a blocco su una riga propria",
 			"valid": "{panel} valido",
 			"problemsOne": "{panel}: 1 problema",
 			"problemsOther": "{panel}: {count} problemi",
@@ -2018,7 +2017,13 @@
 			"tooNarrow": "La modalità codice richiede una finestra larga almeno 1024px",
 			"tooNarrowText": "Allarga la finestra per continuare: niente viene chiuso o perso.",
 			"createProp": "Crea la Prop “{name}” ({type})",
-			"propCreated": "Prop {name} ({type}) aggiunta al blocco delle Props"
+			"propCreated": "Prop {name} ({type}) aggiunta al blocco delle Props",
+			"formatTitle": "Formatta {keys}",
+			"formattedOne": "Formattato · 1 riga cambiata",
+			"formattedOther": "Formattato · {count} righe cambiate",
+			"tidy": "Già in ordine",
+			"cantFormat": "Impossibile formattare: {reason} alla riga {line}",
+			"formatUnavailable": "La formattazione non è disponibile in questo momento. Riprova tra poco."
 		},
 		"alsoEditing": "Stanno modificando anche questa pagina",
 		"inReview": "In revisione",
@@ -4888,7 +4893,8 @@
 				"components": "Component",
 				"layers": "Livelli in questa pagina",
 				"page": "Pagina",
-				"placements": "Placement in questa pagina"
+				"placements": "Placement in questa pagina",
+				"format": "Formattazione"
 			},
 			"actions": {
 				"save": "Salva bozza",
@@ -4917,7 +4923,11 @@
 				"makeComponent": "Crea Component",
 				"newComponent": "Nuovo Component",
 				"sendToReview": "Invia in revisione",
-				"edit": "Modifica"
+				"edit": "Modifica",
+				"formatHtml": "Formatta HTML",
+				"formatCss": "Formatta CSS",
+				"formatJs": "Formatta JS",
+				"formatAll": "Formatta tutti e tre"
 			},
 			"wrap": {
 				"div": "div",
@@ -4953,7 +4963,8 @@
 				"edit": "modifica cambia torna",
 				"props": "props impostazioni campi contenuto",
 				"moveUp": "sposta su prima",
-				"moveDown": "sposta giù dopo"
+				"moveDown": "sposta giù dopo",
+				"format": "formatta formattazione ordina rientro indenta pulisci prettier"
 			},
 			"nothingToUndo": "Niente da annullare.",
 			"nothingToRedo": "Niente da ripetere.",
@@ -5125,6 +5136,14 @@
 			"help": "Permetti a ogni Placement del Component di indicare un suo valore.",
 			"done": "Collegato a {binding}."
 		}
+	},
+	"codeFormat": {
+		"format": "Formatta",
+		"formatted": "Formattato",
+		"changed": "Formattato · {count, plural, one {# riga cambiata} other {# righe cambiate}}",
+		"tidy": "Già in ordine",
+		"problem": "Impossibile formattare: {reason} alla riga {line}",
+		"unavailable": "La formattazione non è disponibile in questo momento. Riprova tra poco."
 	},
 	"siteEmail": {
 		"pageTitle": "Email (SMTP)",

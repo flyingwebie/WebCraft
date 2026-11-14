@@ -20,6 +20,7 @@
 		"@webcraft/module-redirects": "workspace:*",
 		"@webcraft/module-sdk": "workspace:*",
 		"@webcraft/module-site-analytics": "workspace:*",
+		"@webcraft/renderer": "workspace:*",
 		"@webcraft/server": "workspace:*",
 		"@webcraft/worker": "workspace:*",
 		"pg": "catalog:",
