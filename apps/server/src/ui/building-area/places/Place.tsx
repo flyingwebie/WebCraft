@@ -48,7 +48,7 @@ export function Place({
 	sidebar?: ReactNode;
 	/** The inner sidebar's name, for screen readers. */
 	sidebarLabel?: string;
-	/** The header's own controls, at its end (a place with no sidebar). */
+	/** The header's own controls, at its end (a place with no sidebar, or the `header` shape). */
 	actions?: ReactNode;
 	/**
 	 * A details panel at the place's end, the full height beside the header and the pane (a place with
@@ -61,9 +61,11 @@ export function Place({
 	/**
 	 * `ruled` (Content, `places-content/01`): a 256 sidebar ruled off from the pane, the header in a
 	 * 53 px band. `card` (Media, `places-assets/01`): a 300 column and the place's own card beside it,
-	 * 8 apart and 8 from the edges, the header 40 high with no rule.
+	 * 8 apart and 8 from the edges, the header 40 high with no rule. `header` (Forms, `forms-builder/01`):
+	 * the header (40 high, its controls at its end) across the whole place, the 256 sidebar and the
+	 * pane under it, 10 apart and 8 from the edges.
 	 */
-	shape?: "ruled" | "card";
+	shape?: "ruled" | "card" | "header";
 	/** What sits at the foot of the sidebar, below its rows (Media's file count and storage). */
 	sidebarFoot?: ReactNode;
 }) {
@@ -96,7 +98,11 @@ export function Place({
 		// `places-content/01` draws it, level with the pane's first row.
 		<div
 			className={`flex shrink-0 items-center ${
-				shape === "card" ? "px-1" : sidebar ? "border-chrome-line h-[53px] border-b px-3" : "mt-1 px-4"
+				shape === "card" || shape === "header"
+					? "px-1"
+					: sidebar
+						? "border-chrome-line h-[53px] border-b px-3"
+						: "mt-1 px-4"
 			}`}
 		>
 			<div className="flex h-10 min-w-0 grow items-center gap-2.5" data-wc-place-header="">
@@ -122,6 +128,31 @@ export function Place({
 			</div>
 		</div>
 	);
+
+	if (shape === "header") {
+		return (
+			<section
+				aria-label={title}
+				data-wc-place-frame={place}
+				className="bg-chrome text-chrome-text absolute inset-0 z-10 flex min-h-0 min-w-0 flex-col gap-2.5 p-2"
+			>
+				{header}
+				<div className="flex min-h-0 min-w-0 grow gap-2.5">
+					{sidebar ? (
+						<div className="flex w-64 shrink-0 flex-col" data-wc-place-sidebar="">
+							<nav aria-label={sidebarLabel ?? title} className="min-h-0 grow overflow-y-auto">
+								{sidebar}
+							</nav>
+							{sidebarFoot}
+						</div>
+					) : null}
+					<div className="flex min-h-0 min-w-0 grow flex-col" data-wc-place-pane="">
+						{children}
+					</div>
+				</div>
+			</section>
+		);
+	}
 
 	return (
 		<section

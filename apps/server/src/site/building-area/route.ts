@@ -29,6 +29,7 @@ const ADMIN_MESSAGES: Record<AdminLanguageCode, AdminMessages> = { en: adminMess
 function adminMessagesOf(messages: typeof en): AdminMessages {
 	return {
 		media: messages.media,
+		forms: messages.forms,
 		errors: messages.errors,
 		popups: { title: messages.popups.title },
 		content: { media: messages.content.media },
