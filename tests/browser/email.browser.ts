@@ -90,7 +90,8 @@ for (const theme of THEMES) {
 			await expectAccessibleScreen(page, `Email (SMTP), refused (${theme})`);
 
 			await page.locator("#smtp-host").fill(host);
-			await page.getByRole("region", { name: "Saving this screen" }).getByRole("button", { name: "Try again" }).click();
+			// Editing after a refusal is a new change: the foot bar offers Save again.
+			await save.click();
 			await page.locator("#branding-accentColour-error").waitFor();
 			expect(await page.evaluate(() => document.activeElement?.id)).toBe("branding-accentColour");
 		});

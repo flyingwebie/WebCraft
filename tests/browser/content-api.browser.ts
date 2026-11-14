@@ -157,6 +157,7 @@ for (const theme of THEMES) {
 			await price.focus();
 			await page.keyboard.press("Space");
 			const bar = page.getByRole("region", { name: "Saving this screen" });
+			await bar.getByText("Unsaved changes").waitFor();
 			await bar.getByRole("button", { name: "Save" }).focus();
 			await page.keyboard.press("Enter");
 			await bar.getByText("Saved", { exact: true }).waitFor();

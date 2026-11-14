@@ -266,7 +266,7 @@ export function ProtectedTermsPage({
 														<EllipsisIcon aria-hidden="true" />
 													</DropdownMenuTrigger>
 													<DropdownMenuContent align="end">
-														<DropdownMenuItem variant="destructive" onClick={() => setRemoving(item)}>
+														<DropdownMenuItem onClick={() => setRemoving(item)}>
 															<TrashIcon aria-hidden="true" />
 															{t("protectedTerms.remove")}
 														</DropdownMenuItem>

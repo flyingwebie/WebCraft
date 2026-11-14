@@ -155,11 +155,6 @@ function OutsideScriptList({ siteId, scripts }: { siteId: string; scripts: reado
 					{scripts.map((script) => (
 						<SettingsListRow
 							key={script.id}
-							badge={
-								script.blockedHosts.length > 0 ? (
-									<StateBadge tone="danger">{t("outsideScripts.blocked")}</StateBadge>
-								) : null
-							}
 							detail={
 								<div className="space-y-0.5">
 									<p>
@@ -175,7 +170,7 @@ function OutsideScriptList({ siteId, scripts }: { siteId: string; scripts: reado
 												<li key={host} className="flex items-center gap-1.5">
 													<span className="font-mono">{host}</span>
 													{script.blockedHosts.includes(host) ? (
-														<span className="text-destructive">({t("outsideScripts.blocked")})</span>
+														<StateBadge tone="danger">{t("outsideScripts.blocked")}</StateBadge>
 													) : null}
 												</li>
 											))}

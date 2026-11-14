@@ -34,10 +34,13 @@ for (const theme of THEMES) {
 			await page.goto(install.adminUrl("/settings/security"));
 			await page.waitForLoadState("networkidle");
 			await page.getByRole("switch", { name: /leaked passwords/ }).uncheck();
+			// The foot bar's Save is enabled once the change reaches it.
+			await page.getByRole("region", { name: "Saving this screen" }).getByText("Unsaved changes").waitFor();
 
 			await expectOverlayUsable(
 				page,
-				page.getByRole("button", { name: "Save" }),
+				// The foot bar's main button: Save, which says Try again once the action was cancelled.
+				page.locator('[data-slot="save-bar"] button').last(),
 				"dialog",
 				`Confirm it's you (${theme})`,
 			);
