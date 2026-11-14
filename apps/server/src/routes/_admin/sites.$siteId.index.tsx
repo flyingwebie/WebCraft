@@ -11,8 +11,10 @@ const ACTIVITY = 5;
 
 export const Route = createFileRoute("/_admin/sites/$siteId/")({
 	staticData: { crumb: "site.pageTitle", width: "wide" },
-	// `publishAll=1` opens Publish all at once (the shell reads it); "Drafts and changes" links there.
-	validateSearch: z.object({ publishAll: z.string().max(1).optional().catch(undefined) }),
+	// `publishAll=1` opens Publish all at once (the shell reads it); "Drafts and changes" links there. A
+	// link written by hand (the editing bar's, a Scheduled publish's) reads as the number, one made by
+	// the router as the text.
+	validateSearch: z.object({ publishAll: z.union([z.literal("1"), z.literal(1)]).optional().catch(undefined) }),
 	loader: async ({ params, context }) => {
 		const api = await getApi();
 		const workspaceId = context.place.level === "site" ? context.place.workspace.id : undefined;
