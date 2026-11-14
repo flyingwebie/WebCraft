@@ -35,6 +35,10 @@ export type ShellConfig = {
 	staging: string | null;
 	/** The Site's settings in the admin (the rail's Settings, in a new tab). */
 	settings: string;
+	/** The Site in the admin (`…/sites/<id>`): the places link to its screens for what they don't do. */
+	admin: string;
+	/** The Site's languages, the Default language first (the Content place's languages). */
+	languages: { default: string; all: { code: string; name: string }[] };
 };
 
 /** What the `state` edit request says of a page, as far as the shell reads it. */
