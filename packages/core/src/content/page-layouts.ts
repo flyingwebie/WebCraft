@@ -296,6 +296,24 @@ export function pageLayoutTree(version: EntryVersion, languages: Languages): Ele
 		}),
 	};
 }
+/**
+ * A Page's Draft Page layout as the tree its page renders (`pageLayoutTree`), in a language; null for
+ * an Entry that isn't a Page or a Page with no Page layout of its own. Code mode and the building area
+ * follow references through its Placements (`content/<placement id>`) from it.
+ */
+export async function draftPageLayoutTree(
+	scope: SiteScope,
+	entryId: string,
+	language: string,
+): Promise<ElementTree | null> {
+	const row = await scope.first(entries, eq(entries.id, entryId));
+	if (!row || !isPagePostType(await getPostType(scope, row.postTypeId))) return null;
+	const version = storedVersion(row.draft);
+	if (!version.layout) return null;
+	const languages = languagesFor(await siteLanguages(scope), language);
+	return languages ? pageLayoutTree(version, languages) : null;
+}
+
 function propText(field: FieldDefinition, value: Json): string {
 	if (value === null) return "";
 	if (field.type === "media") return `media:${value}`;
