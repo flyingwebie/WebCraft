@@ -1,6 +1,6 @@
-// The Media library's dialogs and menus from the keyboard: New folder, a folder's menu, Import from
-// URL, Delete (with where the file is used), Empty Trash, the Workspace's quota; and setting a Focal
-// point without a mouse. In light and dark.
+// The Media library's dialogs and menus from the keyboard: New folder, a folder's menu, Upload's menu
+// with Import from URL, the details sheet with Delete (with where the file is used), Empty Trash, the
+// Workspace's quota; the list and the grid; and setting a Focal point without a mouse. In light and dark.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { pdf, photo, upload } from "../harness/images.ts";
@@ -68,16 +68,52 @@ for (const theme of THEMES) {
 			);
 		});
 
+		test("the files as a list and as a grid, and a file's details in a sheet that Escape closes", async () => {
+			const page = await install.newPage(theme);
+			await install.signIn(page, superadmin);
+			await page.goto(install.adminUrl(`/sites/${siteId}/media`));
+			await page.waitForLoadState("networkidle");
+			await page.getByRole("table", { name: "Files" }).getByRole("link", { name: "harbour.jpg" }).waitFor();
+			await expectNoAxeViolations(page, `Media, the list (${theme})`);
+
+			await page.getByRole("button", { name: "Grid" }).click();
+			await page.waitForURL((url) => url.searchParams.get("view") === "grid");
+			const tile = page.getByRole("list", { name: "Files" }).getByRole("link", { name: "harbour.jpg" });
+			await tile.waitFor();
+			await expectNoAxeViolations(page, `Media, the grid (${theme})`);
+
+			await tile.focus();
+			await page.keyboard.press("Enter");
+			const sheet = page.getByRole("dialog", { name: "harbour.jpg" });
+			await sheet.getByLabel("Alt text").waitFor();
+			await expectNoAxeViolations(page, `Media, a file's details (${theme})`, ["region"]);
+			await page.keyboard.press("Escape");
+			await page.waitForURL((url) => !url.searchParams.has("file"));
+			await sheet.waitFor({ state: "detached" });
+		});
+
 		test("Import from URL opens and closes from the keyboard, and shows a missing address accessibly", async () => {
 			const page = await install.newPage(theme);
 			await install.signIn(page, superadmin);
 			await page.goto(install.adminUrl(`/sites/${siteId}/media`));
 			await page.waitForLoadState("networkidle");
-			const trigger = page.getByRole("button", { name: "Import from URL" });
+			const more = page.getByRole("button", { name: "More ways to add files" });
+			await expectOverlayUsable(page, more, "menu", `Upload's menu (${theme})`);
 
-			await expectOverlayUsable(page, trigger, "dialog", `Import from URL (${theme})`);
+			// Import from URL is in Upload's menu; its dialog gives focus back to the menu's button.
+			await more.focus();
+			await page.keyboard.press("Enter");
+			await page.getByRole("menuitem", { name: "Import from URL" }).focus();
+			await page.keyboard.press("Enter");
+			const dialog = page.getByRole("dialog", { name: "Import from URL" });
+			await dialog.waitFor();
+			await expectNoAxeViolations(page, `Import from URL (${theme})`, ["region"]);
+			await page.keyboard.press("Escape");
+			await dialog.waitFor({ state: "detached" });
+			expect(await more.evaluate((button) => button === document.activeElement)).toBe(true);
 
-			await trigger.click();
+			await page.getByRole("button", { name: "More ways to add files" }).click();
+			await page.getByRole("menuitem", { name: "Import from URL" }).click();
 			await page.getByRole("button", { name: "Import", exact: true }).click();
 			await page.getByText("Enter the address of a file.").waitFor();
 			await expectNoAxeViolations(page, `Import from URL, no address (${theme})`, ["region"]);

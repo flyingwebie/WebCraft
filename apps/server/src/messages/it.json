@@ -1369,11 +1369,10 @@
 	"media": {
 		"pageTitle": "Media",
 		"heading": "Media",
-		"intro": "{count, plural, one {# file} other {# file}} · immagini, documenti, video e audio",
 		"folders": {
 			"heading": "Cartelle",
-			"all": "Tutti i media",
-			"none": "Fuori dalle cartelle",
+			"all": "Tutti i file",
+			"none": "Senza cartella",
 			"new": "Nuova cartella",
 			"actionsOf": "Azioni per {name}",
 			"rename": "Rinomina",
@@ -1396,14 +1395,13 @@
 		"search": "Cerca per nome o testo alternativo",
 		"kinds": {
 			"label": "Tipo di file",
-			"all": "Tutti",
 			"image": "Immagini",
 			"document": "Documenti",
 			"video": "Video",
-			"audio": "Audio"
+			"audio": "Audio",
+			"allTypes": "Tutti i tipi"
 		},
 		"upload": "Carica",
-		"uploading": "Caricamento di {count, plural, one {# file} other {# file}}…",
 		"uploaded": "{name} caricato.",
 		"uploadFailed": "{name} non è stato caricato: {reason}",
 		"dropHint": "Trascina qui i file per caricarli",
@@ -1415,18 +1413,8 @@
 		"failed": "Non leggibile",
 		"details": {
 			"heading": "Dettagli",
-			"close": "Chiudi i dettagli",
-			"size": "Dimensione",
-			"dimensions": "Misure",
 			"dimensionsValue": "{width} × {height}",
-			"type": "Tipo",
-			"uploaded": "Caricato",
 			"uploadedBy": "{date} da {name}",
-			"address": "Indirizzo",
-			"sizes": "Formati",
-			"sizesValue": "{count, plural, one {# larghezza} other {# larghezze}} in AVIF e WebP",
-			"translatable": "Traducibile",
-			"language": "Testi in {language}",
 			"title": "Titolo",
 			"alt": "Testo alternativo",
 			"altHelp": "Descrivi cosa mostra l'immagine, per chi non può vederla.",
@@ -1435,7 +1423,13 @@
 			"save": "Salva",
 			"saved": "Salvato. Le pagine che mostrano questo file cambiano subito.",
 			"readOnly": "Solo chi ha caricato questo file, gli Editor, gli Owner e lo Staff possono modificarlo.",
-			"processingHelp": "WebCraft sta rimuovendo dalla foto la posizione e i dati della fotocamera e ne prepara le misure. Compare qui quando è pronta."
+			"processingHelp": "WebCraft sta rimuovendo dalla foto la posizione e i dati della fotocamera e ne prepara le misure. Compare qui quando è pronta.",
+			"file": "File",
+			"copy": "Copia l'indirizzo",
+			"copied": "Indirizzo copiato.",
+			"languages": "Testi in",
+			"sizesMade": "Dimensioni create al caricamento",
+			"download": "Scarica"
 		},
 		"importUrl": "Importa da URL",
 		"import": {
@@ -1540,6 +1534,31 @@
 				"element": "parti che non si possono tenere",
 				"attribute": "attributi che non si possono tenere"
 			}
+		},
+		"count": "{count, plural, one {# file} other {# file}}",
+		"uploadMore": "Altri modi di aggiungere file",
+		"uploadingOne": "Caricamento {done} di {total}: {name}",
+		"shownOf": "I {shown} file più recenti su {total}. Cerca o scegli una cartella per trovare gli altri.",
+		"view": {
+			"label": "Mostra i file come",
+			"list": "Elenco",
+			"grid": "Griglia"
+		},
+		"columns": {
+			"name": "Nome",
+			"alt": "Testo alternativo ({language})",
+			"type": "Tipo",
+			"pixels": "Pixel",
+			"size": "Peso",
+			"added": "Aggiunto",
+			"deleted": "Eliminato"
+		},
+		"noAlt": "Ancora nessun testo alternativo",
+		"noAltShort": "Senza testo alternativo",
+		"tiles": {
+			"files": "{count, plural, one {file} other {file}}",
+			"used": "usati",
+			"of": "su {quota}"
 		}
 	},
 	"invite": {

@@ -1369,11 +1369,10 @@
 	"media": {
 		"pageTitle": "Media",
 		"heading": "Media",
-		"intro": "{count, plural, one {# file} other {# files}} · images, documents, video and audio",
 		"folders": {
 			"heading": "Folders",
-			"all": "All media",
-			"none": "Not in a folder",
+			"all": "All files",
+			"none": "Unfiled",
 			"new": "New folder",
 			"actionsOf": "Actions for {name}",
 			"rename": "Rename",
@@ -1396,14 +1395,13 @@
 		"search": "Search name or alt text",
 		"kinds": {
 			"label": "Kind of file",
-			"all": "All",
 			"image": "Images",
 			"document": "Documents",
 			"video": "Video",
-			"audio": "Audio"
+			"audio": "Audio",
+			"allTypes": "All types"
 		},
 		"upload": "Upload",
-		"uploading": "Uploading {count, plural, one {# file} other {# files}}…",
 		"uploaded": "{name} uploaded.",
 		"uploadFailed": "{name} wasn't uploaded: {reason}",
 		"dropHint": "Drop files anywhere here to upload",
@@ -1415,18 +1413,8 @@
 		"failed": "Can't be read",
 		"details": {
 			"heading": "Details",
-			"close": "Close details",
-			"size": "Size",
-			"dimensions": "Dimensions",
 			"dimensionsValue": "{width} × {height}",
-			"type": "Type",
-			"uploaded": "Uploaded",
 			"uploadedBy": "{date} by {name}",
-			"address": "Address",
-			"sizes": "Sizes",
-			"sizesValue": "{count, plural, one {# width} other {# widths}} in AVIF and WebP",
-			"translatable": "Translatable",
-			"language": "Texts in {language}",
 			"title": "Title",
 			"alt": "Alt text",
 			"altHelp": "Say what the image shows, for people who can't see it.",
@@ -1435,7 +1423,13 @@
 			"save": "Save",
 			"saved": "Saved. Pages showing this file change at once.",
 			"readOnly": "Only the person who uploaded this file, Editors, Owners and Staff can change it.",
-			"processingHelp": "WebCraft is removing the photo's location and camera data and making its sizes. It shows here when it's ready."
+			"processingHelp": "WebCraft is removing the photo's location and camera data and making its sizes. It shows here when it's ready.",
+			"file": "File",
+			"copy": "Copy the address",
+			"copied": "Address copied.",
+			"languages": "Texts in",
+			"sizesMade": "Sizes made at upload",
+			"download": "Download"
 		},
 		"importUrl": "Import from URL",
 		"import": {
@@ -1540,6 +1534,31 @@
 				"element": "parts that can't be kept",
 				"attribute": "attributes that can't be kept"
 			}
+		},
+		"count": "{count, plural, one {# file} other {# files}}",
+		"uploadMore": "More ways to add files",
+		"uploadingOne": "Uploading {done} of {total}: {name}",
+		"shownOf": "The newest {shown} of {total} files. Search or pick a folder to find the others.",
+		"view": {
+			"label": "Show files as",
+			"list": "List",
+			"grid": "Grid"
+		},
+		"columns": {
+			"name": "Name",
+			"alt": "Alt text ({language})",
+			"type": "Type",
+			"pixels": "Pixels",
+			"size": "Size",
+			"added": "Added",
+			"deleted": "Deleted"
+		},
+		"noAlt": "No alt text yet",
+		"noAltShort": "No alt text",
+		"tiles": {
+			"files": "{count, plural, one {file} other {files}}",
+			"used": "used",
+			"of": "of {quota}"
 		}
 	},
 	"invite": {
