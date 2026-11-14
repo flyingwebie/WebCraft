@@ -9,11 +9,11 @@ import {
 	LogOutIcon,
 	MoonIcon,
 	PaletteIcon,
-	PanelsTopLeftIcon,
 	RepeatIcon,
 	SettingsIcon,
 	SunIcon,
 } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { fill, type ShellConfig } from "../api.ts";
 import { FOCUS_RING, type Icon, IconButton, IconLink, Tip } from "../controls.tsx";
@@ -52,6 +52,7 @@ export function Rail({
 	onHidden,
 	onExit,
 	exiting,
+	panelsMenu,
 }: {
 	config: ShellConfig;
 	/** The place open over the canvas (its button is drawn as the open place; pressing it again leaves). */
@@ -66,6 +67,8 @@ export function Rail({
 	onHidden(hidden: boolean): void;
 	onExit(): void;
 	exiting: boolean;
+	/** The Panels menu's button and its menu (the docks', BA-05). */
+	panelsMenu: ReactNode;
 }) {
 	const { words } = config;
 	return (
@@ -129,13 +132,7 @@ export function Rail({
 				{/* The Panels menu and Hide interface are the canvas's: a place has neither (`places-content/01`). */}
 				{place ? null : (
 					<>
-						<IconButton
-							icon={PanelsTopLeftIcon}
-							label={words.panels}
-							side="end"
-							unavailable={words.unavailable}
-							data={{ "data-wc-rail": "panels" }}
-						/>
+						{panelsMenu}
 						<IconButton
 							icon={hidden ? EyeOffIcon : EyeIcon}
 							label={hidden ? words.showInterface : words.hideInterface}

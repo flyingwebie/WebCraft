@@ -8546,6 +8546,57 @@
 			"title": "L'area di costruzione richiede una finestra larga almeno 1024 px",
 			"text": "Allarga la finestra per continuare: nulla viene chiuso o perso."
 		},
+		"dockPanels": {
+			"layers": "Livelli",
+			"inspector": "Ispettore",
+			"entry": "Voce",
+			"component": "Componente",
+			"html": "HTML",
+			"css": "CSS",
+			"js": "JS"
+		},
+		"inspectorTitles": {
+			"element": "Elemento",
+			"placement": "Props",
+			"loop": "Ciclo",
+			"condition": "Condizione"
+		},
+		"docks": {
+			"dockNames": {
+				"left": "pannello laterale sinistro",
+				"right": "pannello laterale destro",
+				"bottom": "pannello in basso"
+			},
+			"dockTitles": {
+				"left": "Lato sinistro",
+				"right": "Lato destro",
+				"bottom": "In basso"
+			},
+			"moveTo": {
+				"left": "Sposta a sinistra",
+				"right": "Sposta a destra",
+				"bottom": "Sposta in basso"
+			},
+			"collapse": "Comprimi",
+			"expand": "Espandi",
+			"hide": "Nascondi pannello",
+			"reset": "Ripristina disposizione dei pannelli",
+			"panelMenu": "{panel}: menu del pannello",
+			"expandPanel": "Espandi {panel}",
+			"grip": "Sposta pannello",
+			"resizeDock": "Ridimensiona il {dock}",
+			"between": "Tra {first} e {second}",
+			"moved": "{panel} spostato nel {dock}",
+			"moveCancelled": "Spostamento annullato",
+			"collapsed": "{panel} compresso",
+			"expanded": "{panel} espanso",
+			"switchedOff": "{panel} disattivato. Il menu Pannelli lo riattiva.",
+			"switchedOn": "{panel} attivato",
+			"resetDone": "Disposizione dei pannelli ripristinata",
+			"saveFailed": "Non è stato possibile salvare la disposizione dei pannelli. Resta valida in questa scheda.",
+			"openDrawer": "Mostra il {dock}",
+			"closeDrawer": "Nascondi il {dock}"
+		},
 		"documents": {
 			"page": "Pagina",
 			"siteTemplate": "Site template",
