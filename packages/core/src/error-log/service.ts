@@ -4,6 +4,7 @@ import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, or, type SQL, sql }
 
 import type { Clock } from "../clock.ts";
 import { type LogContext, type Logger, withoutLogContext } from "../log.ts";
+import { personIdOf } from "../permissions/can.ts";
 import { redactText } from "../redaction.ts";
 import type { InstallScope } from "../tenancy/data-layer.ts";
 import { fingerprintOf } from "./fingerprint.ts";
@@ -244,7 +245,8 @@ export function createErrorLog(deps: {
 		async resolve(scope, groupId) {
 			await flush();
 			const now = scope.now();
-			const personId = scope.access.actor.kind === "person" ? scope.access.actor.personId : null;
+			// The person behind whoever marks it: a person, or the person of a session or client acting for them.
+			const personId = personIdOf(scope.access.actor);
 			return scope.transaction(async (tx) => {
 				const [row] = await tx.db
 					.update(errorGroups)
