@@ -1369,7 +1369,8 @@
 		"checksNeverStop": "I controlli non bloccano mai la pubblicazione.",
 		"later": "Pubblica più tardi",
 		"laterHelp": "Scegli un giorno e un'ora invece di adesso.",
-		"changesMore": "Modificato: {list} e altri {count}"
+		"changesMore": "Modificato: {list} e altri {count}",
+		"openReview": "In revisione: apri la revisione di {name}"
 	},
 	"staging": {
 		"button": "Staging",
@@ -7418,7 +7419,24 @@
 		},
 		"authorHelp": "Le tue modifiche sono salvate come bozza. Inviale in revisione quando sono pronte: le pubblica un Editor o un Owner.",
 		"inReviewHelp": "È in revisione. Puoi continuare a modificarlo; chi lo rivede vede cosa è cambiato dopo l'invio.",
-		"navBadge": "{count} da rivedere"
+		"navBadge": "{count} da rivedere",
+		"sheet": {
+			"title": "Revisione: {name}",
+			"loading": "Caricamento della revisione…",
+			"sent": "{name} l'ha inviato: {when}",
+			"decided": "Qualcuno ha già agito su questa revisione.",
+			"open": "Apri la pagina",
+			"whatChanged": "Cosa è cambiato",
+			"new": "Nuovo",
+			"newLine": "Mai pubblicato: è tutto nuovo",
+			"changedLine": "Modificato nella bozza",
+			"noDetail": "La bozza è diversa da ciò che vedono i visitatori.",
+			"commentFor": "Commento per {name}",
+			"commentPlaceholder": "Aggiungi un commento (facoltativo)",
+			"commentHelp": "Per rimandarlo indietro serve: {name} lo vede accanto alla bozza.",
+			"publish": "Pubblica",
+			"openReview": "Apri la revisione"
+		}
 	},
 	"contentApi": {
 		"heading": "Content API",

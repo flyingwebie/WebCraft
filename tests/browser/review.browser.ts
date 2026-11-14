@@ -1,9 +1,9 @@
 // Review in a real browser (GLOSSARY.md › Review): the Author's "Submit for review" and its dialog, an
 // item In review as its Author sees it (Withdraw) and as a reviewer sees it (Send back and its
-// dialog), a sent-back comment, the Site overview's "Waiting for review" list with the sidebar's
-// count, the Entries list's chips, and Edit mode's Publish menu for an Author (Submit for review, then
-// In review), in light and dark, with axe and the keyboard; and submitting and sending back without a
-// mouse.
+// dialog), the Review sheet opened from the editor and from Publish all, a sent-back comment, the
+// Site overview's "Waiting for review" list with the sidebar's count, the Entries list's chips, and
+// Edit mode's Publish menu for an Author (Submit for review, then In review), in light and dark, with
+// axe and the keyboard; and submitting, sending back and publishing a Review without a mouse.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Cookie, Page } from "playwright";
 
@@ -26,6 +26,8 @@ let winterId: string;
 let summerId: string;
 /** Sent back from the keyboard. */
 let soupId: string;
+/** Published from the Review sheet. */
+let pieId: string;
 
 const slug = "review-bakery";
 const path = "/blog/fresh-bread";
@@ -85,6 +87,8 @@ beforeAll(async () => {
 	summerId = await draft("Summer menu");
 	soupId = await draft("Soup of the day");
 	await submit(soupId);
+	pieId = await draft("Apple pie");
+	await submit(pieId, "The pie is back for the autumn.");
 });
 
 afterAll(async () => {
@@ -168,6 +172,22 @@ for (const theme of THEMES) {
 			);
 		});
 
+		test("the Review sheet: who sent it and when, their note, what changed, a comment, Send back and Publish", async () => {
+			const page = await open(theme, editor, editorOf(springId));
+			const trigger = page.getByRole("button", { name: "Open the Review" });
+			await trigger.click();
+			const sheet = page.getByRole("dialog", { name: "Review: Spring menu" });
+			await sheet.getByText(/^Ann Author sent this /).waitFor();
+			await sheet.getByRole("heading", { name: "What changed" }).waitFor();
+			await sheet.getByRole("button", { name: "Publish", exact: true }).waitFor();
+			expect(new URL(page.url()).searchParams.get("review")).not.toBeNull();
+			await expectNoAxeViolations(page, `The Review sheet (${theme}, open)`, ["region"]);
+			await page.keyboard.press("Escape");
+			await sheet.waitFor({ state: "hidden" });
+			expect(new URL(page.url()).searchParams.get("review")).toBeNull();
+			await expectOverlayUsable(page, trigger, "dialog", `The Review sheet (${theme})`);
+		});
+
 		test("sent back, the comment shows to its Author until they submit it again", async () => {
 			const page = await open(theme, author, editorOf(autumnId));
 			await page.getByText("The prices are last year's. Check them with the shop.").waitFor();
@@ -245,6 +265,24 @@ describe("without a mouse", () => {
 
 		const { entry } = await (await install.install.superadmin()).api.entries.get({ siteId, entryId: soupId });
 		expect(entry.review).toMatchObject({ status: "sentBack", comment: "Add the soup's allergens." });
+	});
+
+	test("a reviewer opens the Review from Publish all and publishes it from its sheet", async () => {
+		const page = await open("light", editor, `/sites/${siteId}?publishAll=1`);
+		await page.getByRole("button", { name: "In review: open the Review of Apple pie" }).click();
+		const sheet = page.getByRole("dialog", { name: "Review: Apple pie" });
+		await sheet.getByText("The pie is back for the autumn.").waitFor();
+		// Send back needs a comment: it says why.
+		await sheet.getByRole("button", { name: "Send back" }).click();
+		await sheet.getByText("Say why you're sending it back.").waitFor();
+		await sheet.getByRole("button", { name: "Publish", exact: true }).focus();
+		await page.keyboard.press("Enter");
+		await sheet.waitFor({ state: "hidden" });
+
+		const { entry } = await (await install.install.superadmin()).api.entries.get({ siteId, entryId: pieId });
+		expect(entry.published?.title).toBe("Apple pie");
+		const { reviews } = await (await install.install.superadmin()).api.reviews.list({ siteId });
+		expect(reviews.some((review) => review.item.kind === "entry" && review.item.id === pieId)).toBe(false);
 	});
 
 	test("in Edit mode an Author submits the page with a note, then sees it In review with Withdraw", async () => {

@@ -21,6 +21,7 @@ import { type ReactNode, useEffect, useState } from "react";
 
 import { useT } from "../i18n.tsx";
 import { PublishAllButton } from "../publishing/PublishAll.tsx";
+import { ReviewFromAddress } from "../review/Review.tsx";
 import { AdminSearch } from "./AdminSearch.tsx";
 import { BackupFailingBanner } from "./BackupFailingBanner.tsx";
 import { Breadcrumbs } from "./Breadcrumbs.tsx";
@@ -107,6 +108,8 @@ function TopBar({ shell, place }: { shell: ShellContext; place: AdminPlace }) {
 						<SiteActionsMenu siteId={place.site.id} staging={mayStage} edit={mayEdit} className="@3xl/bar:hidden" />
 					) : null}
 					{mayPublish ? <PublishAllButton siteId={place.site.id} count={place.drafts} open={publishAllAsked} /> : null}
+					{/* A Review opens over any screen of the Site, from `?review=<id>`. */}
+					<ReviewFromAddress siteId={place.site.id} />
 				</div>
 			) : null}
 			<RouteProgress />

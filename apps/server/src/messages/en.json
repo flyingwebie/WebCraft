@@ -1369,7 +1369,8 @@
 		"checksNeverStop": "Checks never stop publishing.",
 		"later": "Publish later",
 		"laterHelp": "Choose a day and a time instead of now.",
-		"changesMore": "Changed: {list} and {count} more"
+		"changesMore": "Changed: {list} and {count} more",
+		"openReview": "In review: open the Review of {name}"
 	},
 	"staging": {
 		"button": "Staging",
@@ -7418,7 +7419,24 @@
 		},
 		"authorHelp": "Your changes are saved as a Draft. Submit them for review when they're ready: an Editor or Owner publishes them.",
 		"inReviewHelp": "It's In review. You can go on editing; the reviewer sees what changed since you submitted it.",
-		"navBadge": "{count} to review"
+		"navBadge": "{count} to review",
+		"sheet": {
+			"title": "Review: {name}",
+			"loading": "Loading the Review…",
+			"sent": "{name} sent this {when}",
+			"decided": "Someone already acted on this Review.",
+			"open": "Open the page",
+			"whatChanged": "What changed",
+			"new": "New",
+			"newLine": "Never published: all of it is new",
+			"changedLine": "Changed in the Draft",
+			"noDetail": "The Draft differs from what visitors see.",
+			"commentFor": "Comment for {name}",
+			"commentPlaceholder": "Add a comment (optional)",
+			"commentHelp": "Sending it back needs one: {name} sees it beside the Draft.",
+			"publish": "Publish",
+			"openReview": "Open the Review"
+		}
 	},
 	"contentApi": {
 		"heading": "Content API",

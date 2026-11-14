@@ -32,7 +32,7 @@ import { When } from "../content/When.tsx";
 import { errorMessage } from "../errors.ts";
 import { formatUtc } from "../format.ts";
 import { useT } from "../i18n.tsx";
-import { ReviewBadge } from "../review/Review.tsx";
+import { useOpenReview } from "../review/Review.tsx";
 import { Switch } from "../settings/layout.tsx";
 import type { AdminPlace } from "../shell/levels.ts";
 import { PageSheet } from "../shell/page.tsx";
@@ -199,7 +199,9 @@ function PublishAllDialog({
 	const id = useId();
 	const [drafts, setDrafts] = useState<SiteDraft[] | null>(null);
 	const [scheduled, setScheduled] = useState<Scheduled[]>([]);
-	const [inReview, setInReview] = useState<ReadonlySet<string>>(new Set());
+	// The Reviews waiting, by the item they are of.
+	const [inReview, setInReview] = useState<ReadonlyMap<string, string>>(new Map());
+	const openReview = useOpenReview();
 	const [unticked, setUnticked] = useState<ReadonlySet<string>>(new Set());
 	const [busy, setBusy] = useState(false);
 	const [problem, setProblem] = useState<string | null>(null);
@@ -218,7 +220,7 @@ function PublishAllDialog({
 		]);
 		setDrafts(listed);
 		setScheduled(waiting);
-		setInReview(new Set(reviews.map((review) => keyOf(review.item))));
+		setInReview(new Map(reviews.map((review) => [keyOf(review.item), review.id])));
 	}, [siteId]);
 	const reload = useCallback(() => {
 		load().catch((failure: unknown) => setProblem(t(errorMessage(failure))));
@@ -390,7 +392,11 @@ function PublishAllDialog({
 									siteId={siteId}
 									draft={draft}
 									waiting={waiting.get(keyOf(draft.item)) ?? null}
-									inReview={inReview.has(keyOf(draft.item))}
+									review={inReview.get(keyOf(draft.item)) ?? null}
+									onReview={(reviewId) => {
+										onClose();
+										openReview(reviewId);
+									}}
 									ticked={draft.canPublish && !unticked.has(keyOf(draft.item))}
 									onToggle={(on) => toggle(draft, on)}
 								/>
@@ -642,7 +648,8 @@ function DraftRow({
 	siteId,
 	draft,
 	waiting,
-	inReview,
+	review,
+	onReview,
 	ticked,
 	onToggle,
 }: {
@@ -651,8 +658,10 @@ function DraftRow({
 	draft: SiteDraft;
 	/** The Scheduled publish it waits in, if any: when, and whether its Draft changed since. */
 	waiting: { at: Date | string; changedSinceScheduled: boolean } | null;
-	/** Its Author submitted it for Review, and it waits: publishing it ends the Review. */
-	inReview: boolean;
+	/** The Review it waits in, if its Author submitted it: publishing it ends the Review. */
+	review: string | null;
+	/** Opens that Review's sheet. */
+	onReview: (reviewId: string) => void;
 	ticked: boolean;
 	onToggle: (on: boolean) => void;
 }) {
@@ -687,7 +696,7 @@ function DraftRow({
 					{who ? ` · ${who}` : ""} · <When value={draft.changedAt} />
 					{!draft.canPublish ? ` · ${t("publishAll.staffOnly")}` : ""}
 				</p>
-				{waiting || inReview ? (
+				{waiting || review ? (
 					<div className="flex flex-wrap gap-1 pt-1">
 						{waiting ? (
 							<Badge variant="outline" title={formatUtc(waiting.at)}>
@@ -696,7 +705,19 @@ function DraftRow({
 								<span className="sr-only"> {formatUtc(waiting.at)}</span>
 							</Badge>
 						) : null}
-						{inReview ? <ReviewBadge status="inReview" /> : null}
+						{review ? (
+							<Button
+								type="button"
+								variant="outline"
+								size="xs"
+								aria-haspopup="dialog"
+								aria-label={t("publishAll.openReview", { name: title })}
+								onClick={() => onReview(review)}
+							>
+								<ClipboardCheckIcon aria-hidden="true" />
+								{t("review.badge")}
+							</Button>
+						) : null}
 					</div>
 				) : null}
 			</div>
