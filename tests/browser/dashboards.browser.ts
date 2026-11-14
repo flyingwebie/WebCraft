@@ -149,7 +149,9 @@ for (const theme of THEMES) {
 			const quiet = (await local.createSite(workspaceId, { name: `Quiet ${theme}`, slug: `quiet-${theme}` })).id;
 			await install.goLive(quiet);
 			await (await local.superadmin()).api.modules.setOnSite({ siteId: quiet, moduleId: "site-analytics", on: true });
-			const builtIn = (await staffBrowser.api.dashboards.list({ siteId: quiet })).dashboards.find((each) => each.builtIn);
+			const builtIn = (await staffBrowser.api.dashboards.list({ siteId: quiet })).dashboards.find(
+				(each) => each.builtIn,
+			);
 			const page = await open(`/sites/${quiet}/dashboards/${builtIn?.id}`);
 			await page.getByText("Nothing counted yet").first().waitFor();
 			await page.getByText("Starts after the Consent banner is accepted.").first().waitFor();
@@ -414,7 +416,10 @@ for (const theme of THEMES) {
 			await page.getByRole("columnheader", { name: "Reached (30d)" }).waitFor();
 			// Where each is used: "Signed up" is a step of the Sign-up Funnel.
 			await page.getByRole("columnheader", { name: "Where it is used" }).waitFor();
-			await page.getByRole("row", { name: /Signed up/ }).getByText(/1 Funnel/).waitFor();
+			await page
+				.getByRole("row", { name: /Signed up/ })
+				.getByText(/1 Funnel/)
+				.waitFor();
 			await expectAccessibleScreen(page, `Goals (${theme})`);
 			await expectOverlayUsable(
 				page,
