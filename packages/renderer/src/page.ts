@@ -303,6 +303,11 @@ export type EditModePage = {
 	 * instead of the editable regions, since selecting an element opens its code.
 	 */
 	code?: boolean;
+	/**
+	 * With `code`, the editable regions are tagged too: the building area's render for Staff (ADR 0037
+	 * › 1.3), where one click selects an element of a Template or Component and, on text, starts typing.
+	 */
+	regions?: boolean;
 };
 
 /**
@@ -323,6 +328,9 @@ export function renderDocument(page: PageToRender): RenderedPage {
 	const { site } = page;
 	const title = page.seo ? page.seo.title : page.title.trim() ? `${page.title} · ${site.name}` : site.name;
 	const { editMode } = page;
+	// Edit mode's region tags: always, except in Code mode, which tags elements instead (unless the
+	// building area asks for both, `EditModePage.regions`).
+	const tagged = editMode && (!editMode.code || editMode.regions) ? editMode : undefined;
 	// The theme toggle shows only with dark values to switch to; its script comes only with it.
 	let toggles = 0;
 	const themeToggle = () => {
@@ -400,10 +408,10 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		languageSwitcher,
 		consentSettings,
 		held,
-		editRegion: editMode && !editMode.code ? (value, place) => editMode.region(value, "content", place) : undefined,
-		editPlacement: editMode && !editMode.code ? editMode.placement : undefined,
-		editLoop: editMode && !editMode.code ? (name) => editMode.loop?.(name) : undefined,
-		markBodyBlocks: Boolean(editMode && !editMode.code),
+		editRegion: tagged ? (value, place) => tagged.region(value, "content", place) : undefined,
+		editPlacement: tagged?.placement,
+		editLoop: tagged ? (name) => tagged.loop?.(name) : undefined,
+		markBodyBlocks: Boolean(tagged),
 		codeSource: editMode?.code || page.checkMarkup ? "content" : undefined,
 		showHiddenPlacements: Boolean(editMode),
 	});
@@ -423,10 +431,7 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		rootedComponents,
 		className: page.className,
 		media: page.media,
-		outlet: () =>
-			editMode?.placement && !editMode.code
-				? `<!--wc-page-layout-start-->${content}<!--wc-page-layout-end-->`
-				: content,
+		outlet: () => (tagged?.placement ? `<!--wc-page-layout-start-->${content}<!--wc-page-layout-end-->` : content),
 		footer,
 		extraAttributes: mainAttributes,
 		component: page.component,
@@ -443,9 +448,9 @@ export function renderDocument(page: PageToRender): RenderedPage {
 		languageSwitcher,
 		consentSettings,
 		held,
-		editRegion: editMode && !editMode.code ? (value, place) => editMode.region(value, "site", place) : undefined,
-		editLoop: editMode && !editMode.code ? (name) => editMode.loop?.(name) : undefined,
-		markBodyBlocks: Boolean(editMode && !editMode.code),
+		editRegion: tagged ? (value, place) => tagged.region(value, "site", place) : undefined,
+		editLoop: tagged ? (name) => tagged.loop?.(name) : undefined,
+		markBodyBlocks: Boolean(tagged),
 		codeSource: editMode?.code || page.checkMarkup ? "site" : undefined,
 		showHiddenPlacements: Boolean(editMode),
 	});
