@@ -683,7 +683,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 									if (!staff) return;
 									// The canvas selected it: the Structure, the tree and the address follow.
 									pageStructure.select(ref, "canvas");
-									documentsRef.current.select(ref);
+									// What the Structure selected (a Page's Placement for its element; what was, when refused).
+									documentsRef.current.select(pageStructure.snapshot().selection?.ref ?? null);
 								}}
 								onReady={(document) => {
 									if (staff) pageStructure.found(document);

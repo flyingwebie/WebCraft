@@ -334,6 +334,8 @@ export function Layers({
 	const lockedRow = (row: Row): boolean => {
 		const inPlace = snapshot.inPlace;
 		if (!inPlace || row.kind === "divider") return false;
+		// The Placement of a Template whose Component is edited in place is that Component's row.
+		if (row.kind === "node" && row.nested && within(row.nested.ref, inPlace)) return false;
 		const ref = row.kind === "node" ? sourceOf(row.ref) : `content/${row.placement.id}`;
 		return !within(ref, inPlace);
 	};
