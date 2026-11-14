@@ -8501,7 +8501,8 @@
 			"styles": "Stili",
 			"loops": "Loop",
 			"components": "Componenti",
-			"more": "Altri spazi"
+			"more": "Altri spazi",
+			"forms": "Form"
 		},
 		"unavailable": "non ancora disponibile",
 		"darkPreview": "Anteprima scura",
@@ -8533,6 +8534,8 @@
 		},
 		"publish": "Pubblica",
 		"publishLater": "Pubblica arriva con una parte successiva dell'area di costruzione",
+		"publishing": "Pubblicazione…",
+		"publishedNow": "Pubblicato",
 		"size": {
 			"readout": "Dimensioni della cornice",
 			"presets": "Larghezza del dispositivo",
@@ -9463,6 +9466,181 @@
 			"joined": "Anche {name} sta modificando questa pagina",
 			"changedHere": "Modificato, non pubblicato",
 			"refused": "Questa modifica non è stata salvata: {reason}"
+		},
+		"forms": {
+			"sidebar": "I Form del Sito",
+			"status": {
+				"draft": "Bozza",
+				"published": "Pubblicato",
+				"changed": "Modifiche non pubblicate"
+			},
+			"placed": {
+				"none": "Non ancora inserito",
+				"one": "Inserito in {count} punto",
+				"other": "Inserito in {count} punti"
+			},
+			"staffOnly": "I Form sono Struttura: li costruisce solo lo Staff.",
+			"loading": "Lettura dei Form…",
+			"loadFailed": "Impossibile leggere i Form: {reason}",
+			"formFailed": "Impossibile leggere questo Form: {reason}",
+			"empty": {
+				"title": "Ancora nessun Form",
+				"text": "Crea il primo Form del Sito, vuoto o da un modello."
+			},
+			"tabsLabel": "Parti di {name}",
+			"tabs": {
+				"build": "Costruzione",
+				"afterSending": "Dopo l'invio",
+				"emails": "Email",
+				"translations": "Traduzioni",
+				"settings": "Impostazioni"
+			},
+			"laterText": "Questa scheda arriva con una fase successiva dell'area di costruzione. Fino ad allora la trovi nella pagina del Form nell'admin.",
+			"openInAdmin": "Apri il Form nell'admin (nuova scheda)",
+			"newForm": {
+				"title": "Nuovo Form",
+				"name": "Nome",
+				"namePlaceholder": "Richiesta di prenotazione",
+				"nameRequired": "Dai un nome al Form.",
+				"key": "Chiave",
+				"keyPending": "Creata dal nome",
+				"keyWhy": "Creata dal nome. Il markup dei Template inserisce il Form tramite la sua chiave.",
+				"startFrom": "Parti da",
+				"cancel": "Annulla",
+				"create": "Crea Form",
+				"creating": "Creazione…",
+				"creatingNamed": "Creazione di {name}…",
+				"made": "{name} creato"
+			},
+			"starters": {
+				"blank": "Vuoto",
+				"contact": "Contatti",
+				"booking": "Richiesta di prenotazione",
+				"newsletter": "Iscrizione alla newsletter",
+				"job": "Candidatura"
+			},
+			"starterFields": {
+				"name": "Nome",
+				"email": "Email",
+				"message": "Messaggio",
+				"phone": "Telefono",
+				"date": "Data",
+				"people": "Numero di persone",
+				"anythingElse": "C'è altro che dovremmo sapere?",
+				"newsletterConsent": "Voglio ricevere la newsletter",
+				"role": "La posizione per cui ti candidi",
+				"cv": "CV",
+				"coverLetter": "Lettera di presentazione"
+			},
+			"reasons": {
+				"keyTaken": "un altro Form ha già questa chiave",
+				"invalid": "qualcosa non va",
+				"forbidden": "può farlo solo lo Staff",
+				"network": "il Sito non ha risposto",
+				"generic": "è stato rifiutato ({code})"
+			},
+			"kinds": {
+				"text": "Testo",
+				"email": "Email",
+				"phone": "Telefono",
+				"url": "Indirizzo web",
+				"textarea": "Testo lungo",
+				"number": "Numero",
+				"date": "Data",
+				"select": "Menu a tendina",
+				"radio": "Una scelta",
+				"checkboxes": "Più scelte",
+				"consent": "Consenso",
+				"file": "File",
+				"hidden": "Nascosto",
+				"section": "Sezione",
+				"step": "Passo"
+			},
+			"kindField": "Campo {kind}",
+			"add": "Aggiungi",
+			"addField": "Aggiungi un campo",
+			"addAfterHeading": "Aggiungi un campo dopo {label}",
+			"addAfter": "Aggiungi un campo dopo {label}",
+			"layout": "Struttura",
+			"full": "Il Form contiene già tutti gli elementi possibili (100).",
+			"panel": "Impostazioni del campo",
+			"option": "Opzione",
+			"stepTitle": "Passo {number}",
+			"steps": "Passi",
+			"stepTab": "{number} {title}",
+			"step": "Passo",
+			"addStep": "Aggiungi un passo",
+			"stepAdded": "Passo {number} aggiunto",
+			"stepMoved": "Passo {from} spostato al posto {to}",
+			"added": "{kind} aggiunto",
+			"removed": "{label} rimosso",
+			"undo": "Annulla",
+			"duplicated": "{label} duplicato",
+			"movedTo": "{label} spostato",
+			"widthSet": "{label}: {width}",
+			"goesHere": "{label} va qui",
+			"duplicate": "Duplica",
+			"remove": "Rimuovi",
+			"keyLocked": "Gli Invii conservano le risposte di questo campo sotto la sua chiave: una volta pubblicato non cambia più.",
+			"width": {
+				"label": "Larghezza",
+				"whole": "Intera",
+				"half": "Metà",
+				"third": "Un terzo"
+			},
+			"source": {
+				"page": "l'indirizzo della pagina",
+				"query": "?{name} nell'indirizzo della pagina",
+				"fixed": "testo fisso"
+			},
+			"rule": {
+				"shownWhen": "Mostrato quando {rule}",
+				"andMore": "{rule} e altre {count}",
+				"orMore": "{rule} o altre {count}",
+				"ops": {
+					"is": "{field} è {value}",
+					"isNot": "{field} non è {value}",
+					"isEmpty": "{field} è vuoto",
+					"isNotEmpty": "{field} è compilato",
+					"greaterThan": "{field} è maggiore di {value}",
+					"lessThan": "{field} è minore di {value}"
+				}
+			},
+			"sheet": {
+				"label": "{name} come lo vedranno i visitatori",
+				"list": "Campi di {name}",
+				"option": "{label}, {kind}",
+				"required": "obbligatorio",
+				"empty": "Ancora nessun campo qui. Trascina un tipo sul Form, o sceglilo a destra."
+			},
+			"keys": {
+				"picked": "{label} preso. Le frecce lo spostano, Spazio lo lascia, Esc lo rimette a posto.",
+				"moved": "{label}: posto {position}",
+				"dropped": "{label} lasciato",
+				"putBack": "{label} rimesso a posto",
+				"cleared": "Nessuna scelta"
+			},
+			"history": {
+				"added": "Aggiungi {kind}",
+				"removed": "Rimuovi {label}",
+				"duplicated": "Duplica {label}",
+				"moved": "Sposta {label}",
+				"changed": "Modifica {label}",
+				"width": "Larghezza di {label}",
+				"stepMoved": "Sposta un passo"
+			},
+			"tryIt": {
+				"label": "Prova",
+				"help": "Compila qui il Form per provare regole e passi. Non viene inviato nulla.",
+				"on": "Prova del Form: non viene inviato nulla",
+				"off": "Costruzione del Form",
+				"notSent": "Non è stato inviato nulla: era una prova.",
+				"again": "Riprova"
+			},
+			"published": "{name} pubblicato",
+			"publishFailed": "Impossibile pubblicare {name}: {reason}",
+			"saveFailed": "Impossibile salvare {name}: {reason}",
+			"problemsFound": "Impossibile salvare {name} per ora: {count} problemi, indicati nei rispettivi campi."
 		}
 	},
 	"auth": {

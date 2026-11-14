@@ -20,7 +20,15 @@ import { type RegionCycle, regionCycle } from "./keyboard.ts";
 import { NarrowNotice } from "./NarrowNotice.tsx";
 import { useOpenDocument } from "./open-document.ts";
 import { MediaShellHost } from "./places/media/Picker.tsx";
-import { PLACE_EVENT, PLACE_KEYS, type PlaceKey, placeEntry, placeKeyOf, reopenPlace } from "./places/registry.ts";
+import {
+	PLACE_EVENT,
+	PLACE_KEYS,
+	type PlaceBar,
+	type PlaceKey,
+	placeEntry,
+	placeKeyOf,
+	reopenPlace,
+} from "./places/registry.ts";
 import { BreakpointLines } from "./places/styles/BreakpointLines.tsx";
 import { Rail } from "./rail/Rail.tsx";
 
@@ -170,6 +178,12 @@ export function Shell({ config }: { config: ShellConfig }) {
 		[placeKey, opened.documents],
 	);
 	const leavePlace = useCallback(() => opened.documents.openPlace(null), [opened.documents]);
+	// What the open place has of its own for the bottom bar (its Draft state and Publish: the Forms
+	// place's Form); the page's again once the place is left.
+	const [placeBar, setPlaceBar] = useState<PlaceBar | null>(null);
+	useEffect(() => {
+		if (!placeKey) setPlaceBar(null);
+	}, [placeKey]);
 	// The Command menu's way in and out of places (it comes with BA-10): `webcraft:place` on the shell's
 	// document, its detail the place to open (`{ place: "content" }`) or none to leave (`{ place: null }`).
 	useEffect(() => {
@@ -322,7 +336,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 				staging={config.staging && shown ? `${config.staging}${shown.address}` : null}
 				onUndo={() => void undoHistory.undo()}
 				onRedo={() => void undoHistory.redo()}
-				draft={draftStateOf(saving, shown)}
+				draft={draftStateOf(saving, place && placeBar ? { changes: placeBar.changes, inReview: false } : shown)}
+				onPublish={place && placeBar ? placeBar.publish : undefined}
 			/>
 			{/*
 			  The working area: the docks around the canvas (left and right full height, the bottom one under
@@ -404,6 +419,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 							open={opened.open}
 							announce={announce}
 							onSaving={(status) => setSaving(status === "saving" ? "saving" : status === "failed" ? "failed" : "idle")}
+							onBar={setPlaceBar}
 						/>
 					) : null}
 				</main>

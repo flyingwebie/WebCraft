@@ -59,6 +59,23 @@ export function newField(fields: readonly FormField[], type: FormFieldType, labe
 	return field;
 }
 
+/** How deep an item sits: inside a step (1), and inside a section of a step or of the Form (one more). */
+export function depthOf(fields: readonly FormField[], index: number): number {
+	const item = fields[index];
+	if (!item) return 0;
+	let step = false;
+	let section = false;
+	for (const each of fields.slice(0, index)) {
+		if (each.type === "step") {
+			step = true;
+			section = false;
+		} else if (each.type === "section") section = true;
+	}
+	if (item.type === "step") return 0;
+	if (item.type === "section") return step ? 1 : 0;
+	return (step ? 1 : 0) + (section ? 1 : 0);
+}
+
 /** A copy of `field` under a new key, placed after it. */
 export function duplicateField(fields: readonly FormField[], index: number): FormField[] {
 	const field = fields[index];

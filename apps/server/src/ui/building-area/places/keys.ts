@@ -1,5 +1,11 @@
-/** The rail's places (SPEC 2), in the rail's order. */
-export const PLACE_KEYS = ["content", "templates", "media", "styles", "loops", "components"] as const;
+/**
+ * The places (SPEC 2): the rail's six, in the rail's order, then those behind its "more" (the places
+ * Modules add: Forms, SPEC 15.2).
+ */
+export const PLACE_KEYS = ["content", "templates", "media", "styles", "loops", "components", "forms"] as const;
+
+/** The places behind the rail's "more", rather than a button of their own. */
+export const MORE_PLACE_KEYS = ["forms"] as const satisfies readonly (typeof PLACE_KEYS)[number][];
 
 export type PlaceKey = (typeof PLACE_KEYS)[number];
 
