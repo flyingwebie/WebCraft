@@ -189,6 +189,9 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 		(address: string, answer: Promise<EditAnswer<PageState>>) => {
 			shownAddress.current = address;
 			setSaving("idle");
+			// "Saved" belonged to the page before.
+			setJustSaved(false);
+			window.clearTimeout(savedTimer.current);
 			setShown(null);
 			takeState(address, answer);
 			framed(address, answer);

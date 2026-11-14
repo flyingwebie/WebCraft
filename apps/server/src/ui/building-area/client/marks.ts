@@ -387,8 +387,9 @@ export function clientEditing(options: {
 				case "focusin": {
 					const region = regionOf(event.target);
 					if (!region) break;
-					// From the pointer, focus is editing; from the keyboard, it waits for Enter.
-					if (!arming && pointing) {
+					// From the pointer, focus is editing; from the keyboard, it waits for Enter. Focus coming back
+					// to the region being edited (from its toolbar) goes on editing.
+					if (!arming && (pointing || region === editingNow())) {
 						armed = null;
 						return inner.event(kind, event);
 					}
