@@ -336,7 +336,13 @@ function renderNodeContent(node: TreeNode, options: RenderOptions, state: Render
 				attributes += ` ${CODE_ATTRIBUTE}="${escapeAttribute(`${options.codeSource}#${node.id}`)}"`;
 			}
 			if (VOID_ELEMENTS.has(node.tag)) return `<${node.tag}${attributes}>`;
-			let children = renderNodes(node.children, { ...options, placementRoot: undefined }, state);
+			// An editable region holds one binding, typed over in place: Code mode's comment ranges around
+			// it would end up in what is typed (the building area tags both, `EditModePage.regions`).
+			let children = renderNodes(
+				node.children,
+				{ ...options, placementRoot: undefined, ...(tags.length > 0 ? { codeSource: undefined } : {}) },
+				state,
+			);
 			if (inlineProp)
 				children = `<span${tags.map(([name, value]) => ` ${name}="${escapeAttribute(value)}"`).join("")}>${children}</span>`;
 			if (node.tag === "footer") children += options.footer?.() ?? "";

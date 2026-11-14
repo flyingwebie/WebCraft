@@ -6,7 +6,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { type BuildingAreaBrowser, openBuildingArea } from "../harness/building-area.ts";
-import { headOf } from "../harness/code-mode.ts";
+import { codeTagsIn, headOf } from "../harness/code-mode.ts";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { fakeNpmPackage } from "../harness/fake-npm.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
@@ -211,12 +211,14 @@ describe("a page shown in the building area's frame", () => {
 
 	test("Code mode's cookie changes nothing in it: the agent, never Code mode's script", async () => {
 		const staffBuilding = await openBuildingArea(install, staff, siteId);
+		const before = await (await staffBuilding.page("/")).text();
 		expect((await staffBuilding.edit("code/start")).status).toBe(200);
 
 		const html = await (await staffBuilding.page("/")).text();
 
 		expect(html).not.toContain('<meta name="webcraft-code-mode" content="on">');
-		expect(html).not.toContain("data-wc-code=");
+		// Staff's frame tags every element (BA-08), with the cookie or without it.
+		expect(codeTagsIn(html)).toEqual(codeTagsIn(before));
 		expect(headScripts(html)[0]).toMatch(/\/_webcraft\/edit\/assets\/agent-/);
 	});
 });

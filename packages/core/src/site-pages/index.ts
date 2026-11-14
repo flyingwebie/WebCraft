@@ -314,6 +314,12 @@ export type PageEditing = {
 	safe?: boolean;
 	/** In Code mode, unsaved changes to show in place of the Drafts, as Staff type them. */
 	preview?: CodePreview;
+	/**
+	 * With `code`, the editable regions are tagged as well as every element (`EditModePage.regions`):
+	 * the building area's frame for Staff (ADR 0037 › 1.3), which shows the Drafts of the Structure
+	 * and lets one click select an element and, on text, start typing.
+	 */
+	regions?: boolean;
 };
 
 /**
@@ -2241,6 +2247,7 @@ async function renderSitePage(
 				return shown && [`loop:${shown.id}`, shown.source, shown.name];
 			},
 			code: view.structure === "draft",
+			regions: editing.regions,
 		},
 		component: placed.render,
 		form: (id) => {
@@ -2258,12 +2265,17 @@ async function renderSitePage(
 	};
 	const rendered = renderDocument(document);
 	let formIndex = 0;
-	const checks = editing?.code
-		? renderedChecks(renderDocument({ ...document, checkMarkup: true, form: () => formHtml[formIndex++] ?? "" }).html, {
-				language: language.code,
-				complete: true,
-			})
-		: undefined;
+	// Code mode's Checks of the page; the building area's frame (`regions`) has no use for them.
+	const checks =
+		editing?.code && !editing.regions
+			? renderedChecks(
+					renderDocument({ ...document, checkMarkup: true, form: () => formHtml[formIndex++] ?? "" }).html,
+					{
+						language: language.code,
+						complete: true,
+					},
+				)
+			: undefined;
 	const hosts = await policyHosts(view, forms.captchaHost);
 	const headers = editing
 		? { "content-security-policy": editModePolicy(hosts) }

@@ -138,7 +138,13 @@ export function createOverlay(options: {
 			chip.classList.add("hidden");
 			return;
 		}
-		chip.textContent = `${nameOf(chosen, words)} · ${Math.round(shown.rect.width)} × ${Math.round(shown.rect.height)}`;
+		chip.textContent = `${chipName(chosen, words)} · ${Math.round(shown.rect.width)} × ${Math.round(shown.rect.height)}`;
+		// An element of a Component is drawn in the Component colour (SPEC 7).
+		const inComponent = isInComponent(chosen);
+		selectedBox.classList.toggle("border-[#a78bfa]", inComponent);
+		selectedBox.classList.toggle("border-[#6366f1]", !inComponent);
+		chip.classList.toggle("bg-[#7c3aed]", inComponent);
+		chip.classList.toggle("bg-[#4f46e5]", !inComponent);
 		chip.classList.remove("hidden");
 		// Above the outline's top left corner, or inside it when there is no room above.
 		const above = shown.top - CHIP_HEIGHT;
@@ -339,6 +345,23 @@ function personIcon(doc: Document): SVGSVGElement {
 	return svg;
 }
 
+/**
+ * What the selected element's chip calls it: for an element of a Template or Component (Staff's page,
+ * `data-wc-code`), its tag and then its name (`h1 · Heading`); else its name.
+ */
+export function chipName(element: Element, words: Words): string {
+	return element.hasAttribute("data-wc-code")
+		? `${element.localName} · ${nameOf(element, words)}`
+		: nameOf(element, words);
+}
+
+/** Whether an element of the page is a Component's (its reference goes through a Placement: `content/<id>#…`). */
+export function isInComponent(element: Element): boolean {
+	const ref = element.getAttribute("data-wc-code") ?? "";
+	const at = ref.indexOf("#");
+	return (at < 0 ? ref : ref.slice(0, at)).includes("/");
+}
+
 /** What an element is called on its chip and when announced: a region by its Field, else by its kind. */
 export function nameOf(element: Element, words: Words): string {
 	if (element.matches(TEXT_REGION)) {
@@ -346,7 +369,11 @@ export function nameOf(element: Element, words: Words): string {
 		if (label) return label;
 		if (element.getAttribute("data-wc-field") === "title") return words.title;
 	}
-	const tag = element.localName;
+	return tagName(element.localName, words);
+}
+
+/** What an element with a tag is called: its kind (`Heading`), or its tag where there is no word for it. */
+export function tagName(tag: string, words: Words): string {
 	const kind = ELEMENT_KINDS[tag];
 	return kind ? words.elements[kind] : tag;
 }
