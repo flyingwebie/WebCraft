@@ -57,6 +57,7 @@ import {
 } from "./page.ts";
 import { type PageDetails, type PageDetailsChange, pageDetails, savePageDetails } from "./page-details.ts";
 import { EDIT_MODE_PATH, isEditPath } from "./paths.ts";
+import { type DocumentPublish, documentPublish, type PublishSource } from "./publish.ts";
 import {
 	type ImageChange,
 	type RegionChange,
@@ -99,6 +100,7 @@ export {
 	isEditPageAddress,
 	isEditPath,
 } from "./paths.ts";
+export type { DocumentPublish, PublishChange, PublishDraft, PublishSource } from "./publish.ts";
 export type { EditItem, ImageChange, RegionChange, SavedImage, SavedRegion } from "./regions.ts";
 
 /** How long an "Edit on site" link works after it is made. */
@@ -196,6 +198,15 @@ export type EditMode = {
 	pasteBody(session: EditSession, region: BodyRegion & Pasted): Promise<{ blocks: Block[] }>;
 	/** What the editing bar shows for the page at `path`: its changes, the Site's pages, who is editing. */
 	pageState(session: EditSession, host: SiteHost, path: string): Promise<PageState>;
+	/**
+	 * What the building area's Publish shows and publishes (ADR 0037 › 1.5): the page's changes, and
+	 * for Staff the Structure it shows, with what the shell names besides (`publish.ts`).
+	 */
+	documentPublish(
+		session: EditSession,
+		host: SiteHost,
+		input: { path: string | null; sources: readonly PublishSource[] },
+	): Promise<DocumentPublish>;
 	/** Undoes one of the page's changes (`key` of `item`), answering the page's state afterwards. */
 	undo(session: EditSession, host: SiteHost, input: { path: string; item: string; key: string }): Promise<PageState>;
 	/** Discards every change of the page, answering the page's state afterwards. */
@@ -457,6 +468,7 @@ export function createEditMode(options: {
 		body: (session, region) => bodyEditing(session.scope, region),
 		pasteBody: (session, region) => pasteIntoBody(session.scope, region),
 		pageState: (session, host, path) => pageState(deps, session, host, path),
+		documentPublish: (session, host, input) => documentPublish({ ...deps, config }, session, host, input),
 		undo: (session, host, input) => undoChange(deps, session, host, input),
 		discard: (session, host, path) => discardChanges(deps, session, host, path),
 		publish: (session, host, path) => publishPage(deps, session, host, path),
