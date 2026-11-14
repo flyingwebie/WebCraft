@@ -91,7 +91,8 @@ describe("shell addresses", () => {
 	});
 
 	test("an Entry template previewing another Entry is the same document", () => {
-		const entryTemplate = (entryId: string | null) => ({ kind: "entryTemplate", postTypeId: POST_TYPE, entryId }) as const;
+		const entryTemplate = (entryId: string | null) =>
+			({ kind: "entryTemplate", postTypeId: POST_TYPE, entryId }) as const;
 		expect(sameDocument(entryTemplate(null), entryTemplate(ENTRY))).toBe(true);
 		expect(sameDocument({ kind: "page", page: "/" }, { kind: "page", page: "/menu" })).toBe(false);
 		expect(sameDocument(null, null)).toBe(true);
