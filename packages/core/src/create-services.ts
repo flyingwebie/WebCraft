@@ -163,7 +163,7 @@ import { createSecrets, installSecretsOnly, openSecrets, writeSecret } from "./s
 import { createSeo } from "./seo/index.ts";
 import type { InstallPorts, InstallServices } from "./services.ts";
 import { createInstallSetup } from "./setup.ts";
-import { entryTemplateData, globalsData, loopData } from "./site-pages/data-samples.ts";
+import { entryTemplateData, globalsData, loopData, loopResult } from "./site-pages/data-samples.ts";
 import { createSitePages, reservedSlugs, stagingUrl } from "./site-pages/index.ts";
 import { createSiteScripts } from "./site-scripts/index.ts";
 import { createSiteTransfer } from "./site-transfer/index.ts";
@@ -573,6 +573,7 @@ export async function createInstallServices(
 			saveDraft: saveLoopDraft,
 			saveItems: saveLoopItems,
 			data: loopData,
+			result: loopResult,
 		},
 		domains: createDomains({
 			config,

@@ -110,6 +110,18 @@ export const loops = {
 			return context.services.loops.data(site, input.loopId, input.language);
 		}),
 
+	/**
+	 * What a Loop's Draft lists (Staff only; the Loops place's result): its items read as the Data tab
+	 * reads them, at most its limit (a query's offset applied; a Loop of its own items, every one), how
+	 * many items there are in all, and on how many published pages visitors see the Loop.
+	 */
+	result: signedIn
+		.input(z.object({ siteId: id, loopId: id, language: language.optional() }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return context.services.loops.result(site, input.loopId, input.language);
+		}),
+
 	/** Publishes a Loop's Draft: every page showing it changes at once, and the Site's page cache is cleared. */
 	publish: signedIn
 		.input(z.object({ siteId: id, loopId: id, confirmation: confirmationInput }))

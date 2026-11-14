@@ -113,7 +113,7 @@ import type { SiteSearch } from "./search/service.ts";
 import type { InstallSecrets } from "./secrets/store.ts";
 import type { SeoService } from "./seo/index.ts";
 import type { InstallSetup } from "./setup.ts";
-import type { DataSample } from "./site-pages/data-samples.ts";
+import type { DataSample, LoopResult } from "./site-pages/data-samples.ts";
 import type { SitePages } from "./site-pages/index.ts";
 import type { SiteScripts } from "./site-scripts/index.ts";
 import type { SiteTransfer } from "./site-transfer/index.ts";
@@ -463,6 +463,8 @@ export type InstallServices = InstallPorts & {
 		saveItems(scope: SiteScope, loopId: string, change: LoopItemsChange): Promise<Loop>;
 		/** Its Data tab: its first item from the Drafts, as JSON, with the bindings that read it. */
 		data(scope: SiteScope, loopId: string, language?: string): Promise<DataSample>;
+		/** What its Draft lists (the Loops place's result): its items, how many in all, and the published pages showing it. */
+		result(scope: SiteScope, loopId: string, language?: string): Promise<LoopResult>;
 	};
 	/**
 	 * The Site script and page scripts (ADR 0016): Structure with a Draft, published through
