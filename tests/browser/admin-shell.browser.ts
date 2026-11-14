@@ -226,6 +226,8 @@ for (const theme of THEMES) {
 			});
 			expect(layer.background).toMatch(/0\.4\)$/);
 			expect(layer.blur).toBe("none");
+			// Unlike a dialog, a sheet keeps its slide from the edge (SPEC 10).
+			expect(await sheet.evaluate((element) => getComputedStyle(element).transitionDuration)).not.toBe("0s");
 			await expectNoAxeViolations(page, `Publish all, opened by its address (${theme})`, ["region"]);
 			// Focus is in the sheet, and Escape closes it.
 			expect(await sheet.evaluate((element) => element.contains(document.activeElement))).toBe(true);
@@ -259,6 +261,19 @@ for (const theme of THEMES) {
 			});
 			expect(layer.background).toMatch(/0\.5\)$/);
 			expect(layer.blur).toBe("none");
+			// A dialog and its layer appear at once: no fade, no zoom (SPEC 10).
+			const motion = await page
+				.locator('[data-slot="dialog-overlay"], [data-slot="dialog-content"]')
+				.evaluateAll((elements) =>
+					elements.map((element) => {
+						const style = getComputedStyle(element);
+						return { animation: style.animationName, transition: style.transitionDuration };
+					}),
+				);
+			expect(motion).toEqual([
+				{ animation: "none", transition: "0s" },
+				{ animation: "none", transition: "0s" },
+			]);
 			// Focus lands on "Keep editing", the choice that loses nothing.
 			await page.waitForFunction(() => document.activeElement?.textContent === "Keep editing", undefined, {
 				timeout: 2000,
