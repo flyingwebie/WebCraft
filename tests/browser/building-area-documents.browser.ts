@@ -98,6 +98,8 @@ afterAll(async () => {
 /** The shell's address, after `/_webcraft/build`. */
 function shellAddress(page: Page): string {
 	const url = new URL(page.url());
+	// What is selected (`wc-select`, BA-08) is kept beside the document, never part of its address.
+	url.searchParams.delete("wc-select");
 	return `${url.pathname.slice("/_webcraft/build".length)}${url.search}`;
 }
 
