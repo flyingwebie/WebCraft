@@ -3,6 +3,7 @@ import type { ApiClient } from "@webcraft/api";
 import type { Page } from "playwright";
 import { photo, upload } from "../harness/images.ts";
 import { expectNoAxeViolations } from "./checks.ts";
+import { chooseEditOnSite } from "./edit-on-site.ts";
 import { type BrowserInstall, startBrowserInstall, THEMES, type Theme } from "./harness.ts";
 
 let install: BrowserInstall;
@@ -72,7 +73,7 @@ async function enter(
 	if (phone) await page.setViewportSize({ width: 390, height: 844 });
 	await install.signIn(page, (peer ? site.peer : site.member).account);
 	await page.goto(install.adminUrl(`/sites/${site.input.siteId}`));
-	await page.getByRole("button", { name: "Edit on site" }).click();
+	await chooseEditOnSite(page);
 	await page.waitForURL((url) => url.hostname !== new URL(install.adminUrl("/")).hostname);
 	await page.getByRole("button", { name: "Page layout", exact: true }).click();
 	await page.getByRole("button", { name: "Props", exact: true }).click();

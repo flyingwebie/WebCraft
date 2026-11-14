@@ -2,6 +2,8 @@ import { ORPCError } from "@orpc/server";
 import { API_BODY_MAX_BYTES, MULTIPART_ALLOWANCE, payloadTooLarge, toApiError } from "@webcraft/api";
 import {
 	type AdminLanguageCode,
+	BUILDING_AREA_PATH,
+	buildingAreaPageAddress,
 	CODE_MODE_SCRIPT_PATH,
 	CODE_MODE_STYLESHEET_PATH,
 	CONSENT_CATEGORIES,
@@ -11,10 +13,13 @@ import {
 	type EditSession,
 	editModePolicy,
 	type FieldInput,
+	framedEditModePolicy,
 	getPageLayout,
 	HISTORY_TRANSFER_MAX_LENGTH,
 	type InstallServices,
 	isAdminLanguage,
+	isAdminReturnPath,
+	isBuildingDocument,
 	isCodeSelection,
 	isEditPageAddress,
 	LIBRARIES_PER_SITE,
@@ -39,7 +44,8 @@ import { clientAddress } from "../client-address.ts";
 import en from "../messages/en.json" with { type: "json" };
 import it from "../messages/it.json" with { type: "json" };
 import { json, plainText } from "../responses.ts";
-import { cookieValue, siteCookie, siteCookieName } from "./cookies.ts";
+import { buildingAreaAssets, isBuildingAreaAsset } from "./building-area/assets.ts";
+import { BUILDING_AREA_COOKIE, buildingAreaCookieOf, cookieValue, siteCookie, siteCookieName } from "./cookies.ts";
 import { EDIT_ASSETS_PATH, editBarAssets } from "./edit-bar/assets.ts";
 
 /**
@@ -515,12 +521,18 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 	/** Withdraws the page's Reviews the person submitted. */
 	"review/withdraw": async (services, session, body, _request, host) =>
 		json(200, await services.editMode.withdrawReview(session, host, parse(pagePath, body).path)),
-	/** Ends Edit mode for this browser: the cookie is cleared and opens nothing any more. */
+	/**
+	 * Ends Edit mode for this browser: the cookie is cleared and opens nothing any more, and so are the
+	 * cookies that only mean something with it (Safe mode's, Code mode's, the building area's).
+	 */
 	end: async (services, session, _body, request) => {
 		await services.editMode.end(session);
 		const response = json(200, { ended: true });
+		const hostname = new URL(request.url).hostname;
 		response.headers.append("set-cookie", clearEditCookie(request));
-		response.headers.append("set-cookie", siteCookie(new URL(request.url).hostname, SAFE_COOKIE, "", 0));
+		response.headers.append("set-cookie", siteCookie(hostname, SAFE_COOKIE, "", 0));
+		response.headers.append("set-cookie", siteCookie(hostname, "code", "", 0));
+		response.headers.append("set-cookie", siteCookie(hostname, BUILDING_AREA_COOKIE, "", 0));
 		return response;
 	},
 };
@@ -842,7 +854,10 @@ function fromSitePages(request: Request): boolean {
  * a year; it holds nothing about the Site or the person, so anyone may load it.
  */
 async function assetFile(request: Request, name: string): Promise<Response> {
-	const file = (await editBarAssets()).byName.get(name);
+	// The building area's files (ADR 0037) are made only once something asks for one of them.
+	const file = isBuildingAreaAsset(name)
+		? (await buildingAreaAssets()).byName.get(name)
+		: (await editBarAssets()).byName.get(name);
 	if (!file) return plainText(404, "Not Found", { "x-robots-tag": "noindex" });
 	return new Response(request.method === "HEAD" ? null : file.body, {
 		headers: {
@@ -897,10 +912,29 @@ export function safeModeOf(request: Request): boolean {
  * What a page needs to render for Edit mode: the person's scope, and WebCraft's files in <head>. With
  * `code` (the Site opened with `structure.edit`), the page is rendered for Code mode, which loads its
  * own script after the editing bar's. With `safe`, it runs none of the Site's own scripts (Safe mode).
+ * With `building`, it is rendered for the building area's frame (ADR 0037): the page agent comes first
+ * instead of the editing bar, and Code mode's script never loads.
  */
-export async function pageEditing(session: EditSession, code?: SiteScope | null, safe = false): Promise<PageEditing> {
-	const files = await editBarAssets();
+export async function pageEditing(
+	session: EditSession,
+	code?: SiteScope | null,
+	safe = false,
+	building = false,
+): Promise<PageEditing> {
 	const safeMeta: [string, string][] = safe ? [["webcraft-safe-mode", "on"]] : [];
+	if (building) {
+		const files = await buildingAreaAssets();
+		return {
+			scope: session.scope,
+			safe,
+			head: {
+				meta: [["webcraft-edit-token", session.headerToken], ...safeMeta],
+				scripts: [files.agent.path],
+				stylesheets: [files.agentStyles.path],
+			},
+		};
+	}
+	const files = await editBarAssets();
 	if (code) {
 		return {
 			scope: code,
@@ -980,12 +1014,36 @@ async function codeModeStylesheet(services: InstallServices, request: Request, h
 	});
 }
 
-/** A page in Edit mode, as HTML with Edit mode's headers (and the page's own policy, when given). */
-export function editModeHtml(status: number, html: string, headers: Record<string, string> = {}): Response {
-	return new Response(html, {
-		status,
-		headers: { "content-type": "text/html; charset=utf-8", ...EDIT_MODE_PAGE_HEADERS, ...headers },
-	});
+/**
+ * A page in Edit mode, as HTML with Edit mode's headers (and the page's own policy, when given). A page
+ * `framed` for the building area (ADR 0037) may be framed by its own origin, and by no other.
+ */
+export function editModeHtml(
+	status: number,
+	html: string,
+	headers: Record<string, string> = {},
+	framed = false,
+): Response {
+	const all: Record<string, string> = {
+		"content-type": "text/html; charset=utf-8",
+		...EDIT_MODE_PAGE_HEADERS,
+		...headers,
+	};
+	if (framed) {
+		all["x-frame-options"] = "SAMEORIGIN";
+		all["content-security-policy"] = framedEditModePolicy(
+			all["content-security-policy"] ?? EDIT_MODE_PAGE_HEADERS["content-security-policy"] ?? "",
+		);
+	}
+	return new Response(html, { status, headers: all });
+}
+
+/**
+ * Whether a request in Edit mode is the building area's (ADR 0037): it carries the building-area
+ * cookie. Its pages are then rendered for the frame, and a page opened at the top level goes into the shell.
+ */
+export function inBuildingArea(request: Request): boolean {
+	return buildingAreaCookieOf(request) !== null;
 }
 
 /** The `Set-Cookie` line that clears an edit cookie that no longer opens Edit mode. */
@@ -1020,6 +1078,9 @@ async function enter(services: InstallServices, request: Request, host: SiteHost
 		);
 	}
 	const query = new URL(request.url).searchParams;
+	const hostname = new URL(request.url).hostname;
+	const maxAge = Math.max(0, Math.floor((entered.expiresAt.getTime() - services.clock.now().getTime()) / 1000));
+	if (query.get("build") === "1") return enterBuildingArea(request, host, entered, query, maxAge, headers);
 	const code = query.get("code") === "1";
 	if (code) {
 		const session = await services.editMode.session(host, entered.cookie);
@@ -1031,8 +1092,6 @@ async function enter(services: InstallServices, request: Request, host: SiteHost
 	const history = new URL(request.url).searchParams.get("history");
 	const selected =
 		code && selection && isCodeSelection(selection) ? `#wc-selection=${encodeURIComponent(selection)}` : "";
-	const hostname = new URL(request.url).hostname;
-	const maxAge = Math.max(0, Math.floor((entered.expiresAt.getTime() - services.clock.now().getTime()) / 1000));
 	const answer = new Response(null, {
 		status: 303,
 		headers: {
@@ -1046,9 +1105,49 @@ async function enter(services: InstallServices, request: Request, host: SiteHost
 	});
 	answer.headers.append("set-cookie", editCookie(hostname, entered.cookie, maxAge));
 	if (code) answer.headers.append("set-cookie", siteCookie(hostname, "code", "on", maxAge));
-	// A link opened from "Edit in Safe mode" starts Safe mode; any other link ends it.
+	safeModeFollows(request, answer, safe, maxAge);
+	// A link that doesn't open the building area leaves it: pages show the editing bar again.
+	if (inBuildingArea(request)) answer.headers.append("set-cookie", siteCookie(hostname, BUILDING_AREA_COOKIE, "", 0));
+	return answer;
+}
+
+/** A link opened from "Edit in Safe mode" starts Safe mode; any other link ends it. */
+function safeModeFollows(request: Request, answer: Response, safe: boolean, maxAge: number): void {
+	const hostname = new URL(request.url).hostname;
 	if (safe) answer.headers.append("set-cookie", siteCookie(hostname, SAFE_COOKIE, "on", maxAge));
 	else if (safeModeOf(request)) answer.headers.append("set-cookie", siteCookie(hostname, SAFE_COOKIE, "", 0));
+}
+
+/**
+ * Follows a link that opens the building area (ADR 0037): sets the building-area cookie beside the
+ * edit cookie, holding the admin path the logo tile goes back to, and sends the browser to the shell
+ * at the document the link names. Both are checked again here, since the person could change the
+ * link: a document that isn't one opens the page the link was made for, and an admin path that
+ * isn't one goes back to the Site's page in the admin. Code mode never starts with it.
+ */
+function enterBuildingArea(
+	request: Request,
+	host: SiteHost,
+	entered: { cookie: string; path: string },
+	query: URLSearchParams,
+	maxAge: number,
+	headers: Record<string, string>,
+): Response {
+	const hostname = new URL(request.url).hostname;
+	const open = query.get("open") ?? "";
+	const asked = query.get("return") ?? "";
+	const returnTo = isAdminReturnPath(asked) ? asked : `/sites/${host.site.id}`;
+	const location = isBuildingDocument(open)
+		? `${BUILDING_AREA_PATH.slice(0, -1)}${open}`
+		: buildingAreaPageAddress(entered.path);
+	const answer = new Response(null, { status: 303, headers: { location, "cache-control": "no-store", ...headers } });
+	answer.headers.append("set-cookie", editCookie(hostname, entered.cookie, maxAge));
+	answer.headers.append("set-cookie", siteCookie(hostname, BUILDING_AREA_COOKIE, encodeURIComponent(returnTo), maxAge));
+	// The building area has no Code mode to switch: its code panes follow the selection.
+	if (cookieValue(request, siteCookieName(hostname, "code")) === "on") {
+		answer.headers.append("set-cookie", siteCookie(hostname, "code", "", 0));
+	}
+	safeModeFollows(request, answer, query.get("safe") === "1", maxAge);
 	return answer;
 }
 

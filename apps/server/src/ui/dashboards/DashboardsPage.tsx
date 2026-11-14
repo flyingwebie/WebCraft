@@ -1,30 +1,10 @@
-import { Link, useNavigate, useRouter } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
-import {
-	Dialog,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@webcraft/ui/components/dialog.tsx";
-import {
-	Field,
-	FieldDescription,
-	FieldError,
-	FieldGroup,
-	FieldLabel,
-	FieldLegend,
-	FieldSet,
-} from "@webcraft/ui/components/field.tsx";
-import { Input } from "@webcraft/ui/components/input.tsx";
-import { RadioGroup, RadioGroupItem } from "@webcraft/ui/components/radio-group.tsx";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
 import { PlusIcon, TrashIcon } from "lucide-react";
-import { type FormEvent, type RefObject, useId, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../api.ts";
@@ -32,7 +12,8 @@ import { errorMessage } from "../errors.ts";
 import { formatUtc } from "../format.ts";
 import { useT } from "../i18n.tsx";
 import { PageHeader } from "../PageHeader.tsx";
-import { type DashboardPlace, type DashboardSummary, dashboardsApi, type TemplateView } from "./model.ts";
+import type { DashboardPlace, DashboardSummary, TemplateView } from "./model.ts";
+import { NewDashboardDialog } from "./NewDashboardDialog.tsx";
 
 /** What a Dashboards page shows: the Dashboards the person sees, and the templates they may start from. */
 export type DashboardsData = { dashboards: DashboardSummary[]; templates: TemplateView[] | null; canManage: boolean };
@@ -132,14 +113,7 @@ export function DashboardsPage({ place, data }: { place: DashboardPlace; data: D
 				</Card>
 				{data.templates ? <Templates templates={data.templates} /> : null}
 			</div>
-			{creating ? (
-				<NewDashboardDialog
-					place={place}
-					templates={data.templates ?? []}
-					onClose={() => setCreating(false)}
-					finalFocus={newButton}
-				/>
-			) : null}
+			{creating ? <NewDashboardDialog place={place} onClose={() => setCreating(false)} finalFocus={newButton} /> : null}
 		</>
 	);
 }
@@ -204,122 +178,5 @@ function Templates({ templates }: { templates: TemplateView[] }) {
 				)}
 			</CardContent>
 		</Card>
-	);
-}
-
-function NewDashboardDialog({
-	place,
-	templates,
-	onClose,
-	finalFocus,
-}: {
-	place: DashboardPlace;
-	templates: TemplateView[];
-	onClose: () => void;
-	finalFocus: RefObject<HTMLElement | null>;
-}) {
-	const t = useT();
-	const navigate = useNavigate();
-	const id = useId();
-	const [name, setName] = useState("");
-	const [from, setFrom] = useState("blank");
-	const [missing, setMissing] = useState(false);
-	const [busy, setBusy] = useState(false);
-	const create = async (event: FormEvent) => {
-		event.preventDefault();
-		if (!name.trim()) {
-			setMissing(true);
-			return;
-		}
-		setBusy(true);
-		try {
-			const template = templates.find((each) => each.id === from);
-			const made = await (await dashboardsApi()).create({
-				...place,
-				name: name.trim(),
-				template: template ? { workspaceId: template.workspaceId, templateId: template.id } : undefined,
-			});
-			toast.success(t("dashboards.createdToast"));
-			if (made.unmatched.length > 0)
-				toast.warning(t("dashboards.unmatchedToast", { names: made.unmatched.join(", ") }));
-			onClose();
-			if ("workspaceId" in place) {
-				await navigate({
-					to: "/workspaces/$workspaceId/dashboards/$dashboardId",
-					params: { workspaceId: place.workspaceId, dashboardId: made.dashboard.id },
-				});
-			} else {
-				await navigate({
-					to: "/sites/$siteId/dashboards/$dashboardId",
-					params: { siteId: place.siteId, dashboardId: made.dashboard.id },
-				});
-			}
-		} catch (failure) {
-			toast.error(t(errorMessage(failure)));
-			setBusy(false);
-		}
-	};
-	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent closeLabel={t("dashboards.close")} finalFocus={finalFocus} className="sm:max-w-xl">
-				<form onSubmit={create} noValidate>
-					<DialogHeader>
-						<DialogTitle>{t("dashboards.newTitle")}</DialogTitle>
-						<DialogDescription>{t("dashboards.newIntro")}</DialogDescription>
-					</DialogHeader>
-					<FieldGroup className="my-6 gap-5">
-						<Field data-invalid={missing ? true : undefined}>
-							<FieldLabel htmlFor={`${id}-name`}>{t("dashboards.name")}</FieldLabel>
-							<Input
-								id={`${id}-name`}
-								value={name}
-								required
-								maxLength={100}
-								autoFocus
-								onChange={(change) => {
-									setName(change.target.value);
-									setMissing(false);
-								}}
-								aria-invalid={missing ? true : undefined}
-								aria-describedby={missing ? `${id}-name-error` : undefined}
-							/>
-							{missing ? <FieldError id={`${id}-name-error`}>{t("dashboards.nameRequired")}</FieldError> : null}
-						</Field>
-						{templates.length > 0 ? (
-							<FieldSet>
-								<FieldLegend variant="label">{t("dashboards.startFrom")}</FieldLegend>
-								<RadioGroup value={from} onValueChange={(value) => setFrom(String(value))}>
-									<Field orientation="horizontal">
-										<RadioGroupItem value="blank" id={`${id}-blank`} />
-										<FieldLabel htmlFor={`${id}-blank`} className="font-normal">
-											{t("dashboards.blank")}
-										</FieldLabel>
-									</Field>
-									{templates.map((template) => (
-										<Field key={template.id} orientation="horizontal">
-											<RadioGroupItem value={template.id} id={`${id}-${template.id}`} />
-											<FieldLabel htmlFor={`${id}-${template.id}`} className="font-normal">
-												{t("dashboards.templateOption", {
-													name: template.name,
-													workspace: template.workspace,
-													widgets: template.widgets,
-												})}
-											</FieldLabel>
-										</Field>
-									))}
-								</RadioGroup>
-								<FieldDescription>{t("dashboards.templateHelp")}</FieldDescription>
-							</FieldSet>
-						) : null}
-					</FieldGroup>
-					<DialogFooter>
-						<DialogClose render={<Button variant="outline" type="button" />}>{t("dashboards.cancel")}</DialogClose>
-						<Button type="submit" disabled={busy}>
-							{t("dashboards.create")}
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
 	);
 }

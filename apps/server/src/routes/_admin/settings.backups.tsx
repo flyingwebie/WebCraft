@@ -431,8 +431,8 @@ function BackupLog({ backups }: { backups: readonly BackupLine[] }) {
 			) : (
 				// Scrolls sideways on narrow screens: focusable, so keyboards can scroll it too. A group, not a
 				// second landmark: the card around it is already the "Backup log" region.
+				// biome-ignore lint/a11y/useSemanticElements: a scrolling box around a table, not a set of form controls.
 				<div
-					// biome-ignore lint/a11y/useSemanticElements: a scrolling box around a table, not a set of form controls.
 					role="group"
 					aria-labelledby="backup-log-caption"
 					// biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable region must be reachable by keyboard.
