@@ -6,7 +6,7 @@ import type { Query } from "../../../content/loop-query.ts";
 import { fill, type Words } from "../../api.ts";
 import { CHROME_EASE, FOCUS_RING } from "../../controls.tsx";
 import { managementApi } from "../../management.ts";
-import { PAGE_CHANGED_EVENT } from "../../open-document.ts";
+import { useOnPublished, usePublishSources } from "../../publish/sources.ts";
 import { Card, Locked } from "../content/post-types/controls.tsx";
 import { buttonLook, PlaceIconButton, SidebarLabel } from "../content/ui.tsx";
 import { rememberPlace } from "../memory.ts";
@@ -49,6 +49,12 @@ export function LoopsPlace({ config, words, place, view: viewText, documents, le
 	// `loops` alone shows the first Loop, without a history entry of its own.
 	const loopId = loopIdOf(place) ?? loops[0]?.id ?? null;
 	const loop = loops.find((each) => each.id === loopId) ?? null;
+	// The bar's Publish covers the open Loop (BA-12); once something is published, the statuses are read again.
+	usePublishSources(loop ? [{ kind: "loop", id: loop.id }] : []);
+	useOnPublished(() => {
+		void reload();
+		setVersion((was) => was + 1);
+	});
 	const [version, setVersion] = useState(0);
 	const { result, failed: resultFailed, read } = useLoopResult(api, siteId, loop?.id ?? null, version);
 	const [problems, setProblems] = useState<Problem[]>([]);
@@ -126,17 +132,9 @@ export function LoopsPlace({ config, words, place, view: viewText, documents, le
 					<LoopSettings
 						key={loop.id}
 						words={words}
-						api={api}
-						siteId={siteId}
 						loop={loop}
 						postTypes={data?.postTypes ?? []}
 						onSave={(change) => save({ siteId, loopId: loop.id, ...change })}
-						onPublished={(published) => {
-							replaced(published);
-							announce(shown.published);
-							reloadPage();
-						}}
-						announce={announce}
 					/>
 				) : null
 			}
@@ -238,14 +236,6 @@ export function LoopsPlace({ config, words, place, view: viewText, documents, le
 			</div>
 		</Place>
 	);
-}
-
-/**
- * Asks the shell to read the framed page again, under the place: pages show a Loop as it was last
- * published, so once it is, the page the canvas keeps shows it.
- */
-function reloadPage(): void {
-	document.dispatchEvent(new CustomEvent(PAGE_CHANGED_EVENT));
 }
 
 /** The Saved Loops: one row each (the open one raised, in the Loop's colour), "+" for a new one, and Site search's built-in Loop. */
@@ -418,48 +408,25 @@ function LoopList({
 	);
 }
 
-/** The open Loop's settings: its name (locked), where its items come from, the Post Types a query lists, and Publish. */
+/**
+ * The open Loop's settings: its name (locked), where its items come from, the Post Types a query lists,
+ * and its status. The bar's Publish publishes it (BA-12).
+ */
 function LoopSettings({
 	words,
-	api,
-	siteId,
 	loop,
 	postTypes,
 	onSave,
-	onPublished,
-	announce,
 }: {
 	words: Words;
-	api: BuildingAreaApiClient;
-	siteId: string;
 	loop: LoopRow;
 	postTypes: readonly { key: string; name: string }[];
 	onSave(change: Omit<DraftChange, "siteId" | "loopId">): void;
-	onPublished(loop: LoopRow): void;
-	announce(text: string, urgent?: boolean): void;
 }) {
 	const shown = words.loops;
 	const id = useId();
-	const [publishing, setPublishing] = useState(false);
-	const [refused, setRefused] = useState<string | null>(null);
 	const query = loop.draft.query;
 	const listed = postTypes.filter((postType) => query.postTypes.includes(postType.key));
-
-	const publish = async () => {
-		setPublishing(true);
-		setRefused(null);
-		try {
-			// A person in the building area publishes in one call (API clients confirm a preview first).
-			const { loop: published } = await api.loops.publish({ siteId, loopId: loop.id });
-			onPublished(published as LoopRow);
-		} catch (error) {
-			const reason = reasonText(words, error);
-			setRefused(reason);
-			announce(reason, true);
-		} finally {
-			setPublishing(false);
-		}
-	};
 
 	const status =
 		loop.status === "published"
@@ -522,27 +489,10 @@ function LoopSettings({
 						>
 							{status}
 						</span>
-						{loop.status !== "published" ? (
-							<button
-								type="button"
-								disabled={publishing}
-								onClick={() => void publish()}
-								aria-describedby={`${id}-publish-help`}
-								className={buttonLook("primary")}
-								data-wc-loop-publish=""
-							>
-								{publishing ? shown.publishing : shown.publish}
-							</button>
-						) : null}
 					</SettingsRow>
 					{loop.status !== "published" ? (
-						<p id={`${id}-publish-help`} className="text-chrome-muted m-0 text-[11px]">
+						<p className="text-chrome-muted m-0 text-[11px]" data-wc-loop-publish-help="">
 							{shown.publishHelp}
-						</p>
-					) : null}
-					{refused ? (
-						<p role="alert" className="text-chrome-danger m-0 text-[11px]">
-							{refused}
 						</p>
 					) : null}
 				</Card>

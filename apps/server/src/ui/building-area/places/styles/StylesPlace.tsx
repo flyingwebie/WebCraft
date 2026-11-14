@@ -18,6 +18,7 @@ import type { DesignSystemView, Preview } from "../../../design-system/model.ts"
 import { fill, type Words } from "../../api.ts";
 import { CHROME_EASE, FOCUS_RING, type Icon } from "../../controls.tsx";
 import { managementApi } from "../../management.ts";
+import { usePublishSources } from "../../publish/sources.ts";
 import { rememberPlace } from "../memory.ts";
 import { Place } from "../Place.tsx";
 import type { PlaceProps } from "../registry.ts";
@@ -86,6 +87,8 @@ export function StylesPlace(props: PlaceProps) {
 	const siteId = config.site.id;
 
 	useEffect(() => rememberPlace(place, view), [place, view]);
+	// The bar's Publish covers the Design system while Styles is open (BA-12).
+	usePublishSources([{ kind: "designSystem" }]);
 
 	const read = useCallback(async () => {
 		setFailed(null);

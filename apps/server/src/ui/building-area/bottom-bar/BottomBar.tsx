@@ -1,10 +1,10 @@
 import { ExternalLinkIcon, Redo2Icon, Undo2Icon } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 
 import { editorHistory } from "../../builder/editor-history.ts";
 import { ariaKeys, shortcutText } from "../../builder/shortcuts.ts";
 import { fill, type Words } from "../api.ts";
-import { FOCUS_RING, IconButton, IconLink, Tip } from "../controls.tsx";
+import { IconButton, IconLink } from "../controls.tsx";
 import { type DraftState, DraftStateCell } from "./DraftState.tsx";
 import { LanguageMenu, type PageLanguage } from "./LanguageMenu.tsx";
 
@@ -28,9 +28,7 @@ function keysOf(id: string) {
  * The bottom bar (SPEC 2 and 4): 48 high, full width. Left (400): Undo, Redo and the open document's
  * own controls (Back to its page, the Entry it previews, the Template rendering it). Centre: the insert
  * row's place (it comes with BA-10). Right (400): the page's language, View on Staging, the Draft
- * state and Publish (112 × 32, never changing width; it publishes from BA-12). A place with something of
- * its own to publish hands it in (`onPublish`: the Forms place's Form, BA-26): its label, progress and
- * result then share the button's one cell (SPEC 10).
+ * state and Publish (112 × 32, never changing width).
  */
 export function BottomBar({
 	words,
@@ -41,9 +39,9 @@ export function BottomBar({
 	staging,
 	draft,
 	insertRow = true,
+	publish,
 	onUndo = () => void editorHistory().undo(),
 	onRedo = () => void editorHistory().redo(),
-	onPublish,
 }: {
 	words: Words;
 	/** The open document's part of the left cluster, after Undo and Redo (`DocumentNav`). */
@@ -58,26 +56,13 @@ export function BottomBar({
 	draft: DraftState;
 	/** Whether the insert row has its place in the middle: none while a place is open (SPEC 8); the middle stays. */
 	insertRow?: boolean;
+	/** Publish (`publish/Publish.tsx`, BA-12): its cell, 112 × 32, and the sheet above it. */
+	publish?: ReactNode;
 	/** Undo and Redo: the shell's, which first saves what was typed (`editing/history.ts`). */
 	onUndo?(): void;
 	onRedo?(): void;
-	/** Publishes what a place hands in; answers whether it was published. None: Publish waits for BA-12. */
-	onPublish?(): Promise<boolean>;
 }) {
 	const history = useHistory();
-	const [publishing, setPublishing] = useState<"idle" | "busy" | "done">("idle");
-	const shownDone = useRef<ReturnType<typeof setTimeout> | null>(null);
-	useEffect(() => () => clearTimeout(shownDone.current ?? undefined), []);
-	const publish = async () => {
-		if (!onPublish || publishing === "busy") return;
-		setPublishing("busy");
-		const published = await onPublish();
-		setPublishing(published ? "done" : "idle");
-		if (published) {
-			clearTimeout(shownDone.current ?? undefined);
-			shownDone.current = setTimeout(() => setPublishing("idle"), 2000);
-		}
-	};
 	const undoLabel = history.undo ? fill(words.undoStep, { step: history.undo }) : words.undo;
 	const redoLabel = history.redo ? fill(words.redoStep, { step: history.redo }) : words.redo;
 	return (
@@ -129,19 +114,7 @@ export function BottomBar({
 					/>
 				) : null}
 				<DraftStateCell state={draft} words={words} language={language} />
-				<span className="group relative inline-flex shrink-0">
-					<button
-						type="button"
-						disabled={!onPublish || publishing === "busy"}
-						aria-busy={publishing === "busy" || undefined}
-						onClick={() => void publish()}
-						className={`bg-primary text-primary-foreground h-8 w-28 shrink-0 rounded-lg text-[13px] font-semibold disabled:opacity-60 ${FOCUS_RING}`}
-						data-wc-publish={publishing}
-					>
-						{publishing === "busy" ? words.publishing : publishing === "done" ? words.publishedNow : words.publish}
-					</button>
-					{onPublish ? null : <Tip label={words.publishLater} side="top" align="end" />}
-				</span>
+				{publish}
 			</div>
 		</section>
 	);
