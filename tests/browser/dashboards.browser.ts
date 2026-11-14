@@ -18,6 +18,7 @@ import { type BrowserInstall, startBrowserInstall, THEMES, type Theme } from "./
 
 let install: BrowserInstall;
 let staff: TestAccount;
+let superadmin: TestAccount;
 let staffBrowser: TestBrowser;
 let owner: TestAccount;
 let workspaceId: string;
@@ -28,12 +29,12 @@ let workspaceDashboardId: string;
 
 beforeAll(async () => {
 	install = await startBrowserInstall();
-	await install.createSuperadmin();
+	superadmin = await install.createSuperadmin();
 	const local = install.install;
 	// The web process counts by the real clock: the visits come now too.
 	await local.clock.set(new Date());
 	const admin = await local.superadmin();
-	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
+	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.2.0" });
 	workspaceId = (await local.createWorkspace("Acme Ltd")).id;
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
 	await install.goLive(siteId);
@@ -92,6 +93,11 @@ beforeAll(async () => {
 		dashboardId: workspaceDashboardId,
 		kind: "site-analytics:totals",
 	});
+	await staffBrowser.api.dashboards.widgets.add({
+		workspaceId,
+		dashboardId: workspaceDashboardId,
+		kind: "site-analytics:by-site",
+	});
 });
 
 afterAll(async () => {
@@ -139,9 +145,26 @@ for (const theme of THEMES) {
 			return page;
 		};
 
+		test("a Site that has counted nothing yet says so in its Widgets", async () => {
+			// A Workspace of its own, so the other checks' Workspace keeps its one Site.
+			const local = install.install;
+			const admin = await local.superadmin();
+			const elsewhere = (await local.createWorkspace(`Quiet Ltd ${theme}`)).id;
+			const quiet = (await local.createSite(elsewhere, { name: `Quiet ${theme}`, slug: `quiet-${theme}` })).id;
+			await install.goLive(quiet);
+			await admin.api.modules.setOnSite({ siteId: quiet, moduleId: "site-analytics", on: true });
+			const builtIn = (await admin.api.dashboards.list({ siteId: quiet })).dashboards.find((each) => each.builtIn);
+			const page = await open(`/sites/${quiet}/dashboards/${builtIn?.id}`, superadmin);
+			await page.getByText("Nothing counted yet").first().waitFor();
+			await page.getByText("Starts after the Consent banner is accepted.").first().waitFor();
+			await expectAccessibleScreen(page, `Dashboard of a Site that counted nothing yet (${theme})`);
+		});
+
 		test("a Dashboard with every shape of Widget", async () => {
 			const page = await openOverview();
 			await page.getByText("Spring sale started on Monday.").waitFor();
+			// Each total has its small trend beside it, day by day over the range.
+			await page.locator("[data-spark]").first().waitFor();
 			await page.getByRole("slider", { name: /Over time/ }).waitFor();
 			await page.getByRole("list", { name: "Sign-up" }).getByText("Signed up").waitFor();
 			await page.getByRole("list", { name: "Devices" }).getByText("Computer").waitFor();
@@ -380,6 +403,10 @@ for (const theme of THEMES) {
 			await page.getByRole("heading", { name: "All Sites", level: 1 }).waitFor();
 			await page.getByText("Adds up the 1 Site of Acme Ltd.").waitFor();
 			await page.getByText("Counting…").first().waitFor({ state: "detached" });
+			// By Site: each Site by name, its visitors, their change and its Form Submissions.
+			const bySite = page.getByRole("table", { name: "By Site" });
+			await bySite.getByRole("columnheader", { name: "Change" }).waitFor();
+			await bySite.getByRole("cell", { name: "Acme Bakery" }).waitFor();
 			await expectAccessibleScreen(page, `Workspace Dashboard (${theme})`);
 		});
 
@@ -389,6 +416,12 @@ for (const theme of THEMES) {
 			// What each counts, and how often it was reached in the Dashboard's default range.
 			await page.getByRole("cell", { name: "A page is visited · /menu", exact: true }).waitFor();
 			await page.getByRole("columnheader", { name: "Reached (30d)" }).waitFor();
+			// Where each is used: "Signed up" is a step of the Sign-up Funnel.
+			await page.getByRole("columnheader", { name: "Where it is used" }).waitFor();
+			await page
+				.getByRole("row", { name: /Signed up/ })
+				.getByText(/1 Funnel/)
+				.waitFor();
 			await expectAccessibleScreen(page, `Goals (${theme})`);
 			await expectOverlayUsable(
 				page,

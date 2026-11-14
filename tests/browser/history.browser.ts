@@ -143,6 +143,8 @@ for (const theme of THEMES) {
 				`/sites/${siteId}/history?item=component&itemId=${componentId}&copy=revision:${componentRevisionId}`,
 			);
 			await page.getByText("Per dozen").waitFor();
+			// It is published: its newest Revision is what visitors see.
+			await page.getByText("Live now").first().waitFor();
 			await expectAccessibleScreen(page, `History, a Component (${theme})`);
 		});
 

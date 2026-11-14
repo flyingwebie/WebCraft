@@ -1,4 +1,5 @@
 import type en from "../../messages/en.json";
+import type { Layout } from "./docks/layout.ts";
 
 /** The building area's words, in the person's Admin language (`buildingArea` in the message files). */
 export type Words = (typeof en)["buildingArea"];
@@ -35,6 +36,12 @@ export type ShellConfig = {
 	staging: string | null;
 	/** The Site's settings in the admin (the rail's Settings, in a new tab). */
 	settings: string;
+	/** The Site in the admin (`…/sites/<id>`): the places link to its screens for what they don't do. */
+	admin: string;
+	/** The Site's languages, the Default language first (the Content place's languages). */
+	languages: { default: string; all: { code: string; name: string }[] };
+	/** Where the person keeps their panels (their editor preferences); null for the defaults. */
+	layout: Layout | null;
 };
 
 /** What the `state` edit request says of a page, as far as the shell reads it. */

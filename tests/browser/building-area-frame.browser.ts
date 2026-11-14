@@ -8,7 +8,7 @@
 //   after the Site's script changes the page and after the window is resized;
 // - a drag from a shell button across the frame's edge finds the element under the drop;
 // - typing in a text region saves to the Draft, plain text stays on one line, links don't leave;
-// - F6 and Shift+F6 move focus rail → page → bar and back, focus visible on each;
+// - F6 and Shift+F6 move focus rail → the open docks → page → bar and back, focus visible on each;
 // - a page opened at the top level lands in the shell on that page.
 // The shell's chrome passes the accessibility checks (Chromium, light and dark), and the admin's way
 // in and the logo tile's way back are checked there too.
@@ -318,7 +318,7 @@ for (const engine of ENGINES) {
 			expect(await page.locator("[data-wc-chip]").textContent()).toMatch(/^Link · /);
 		});
 
-		test("F6 and Shift+F6 move focus rail → page → bar and back, focus visible on each", async () => {
+		test("F6 and Shift+F6 move focus rail → the open docks → page → bar and back, focus visible on each", async () => {
 			await reset(page, frame);
 			await focusShellStart(page);
 			const where = () =>
@@ -333,6 +333,17 @@ for (const engine of ENGINES) {
 			expect(await where()).toBe("rail");
 			expect(await page.evaluate(() => document.activeElement?.hasAttribute("data-wc-logo"))).toBe(true);
 			expect(await shellFocusVisible(page)).toBe(true);
+
+			// The open docks, in order (Layers is always shown on the right; the bottom one while something is selected).
+			const docks = await page.evaluate(() =>
+				["left", "right", "bottom"].filter((side) => document.querySelector(`[data-wc-dock="${side}"]`) !== null),
+			);
+			expect(docks).toContain("right");
+			for (const dock of docks) {
+				await page.keyboard.press("F6");
+				expect(await where()).toBe(dock);
+				expect(await shellFocusVisible(page)).toBe(true);
+			}
 
 			await page.keyboard.press("F6");
 			expect(await where()).toBe("canvas");
@@ -356,6 +367,10 @@ for (const engine of ENGINES) {
 			expect(await where()).toBe("canvas");
 			await settled(page);
 			expect(await frameRing()).toBe(true);
+			for (const dock of [...docks].reverse()) {
+				await page.keyboard.press("Shift+F6");
+				expect(await where()).toBe(dock);
+			}
 			await page.keyboard.press("Shift+F6");
 			expect(await where()).toBe("rail");
 		});

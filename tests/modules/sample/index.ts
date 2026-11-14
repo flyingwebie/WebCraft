@@ -31,6 +31,7 @@ export const PROBES = [
 	"unset-secret",
 	"email",
 	"submissions",
+	"widgets",
 ] as const;
 
 const view = (note: typeof notes.$inferSelect) => ({
@@ -359,6 +360,10 @@ async function probe(attempt: (typeof PROBES)[number], context: ModuleContext): 
 		case "submissions":
 			// Form Submissions are the Forms Module's, never another Module's (SDK 1.6).
 			await context.submissions.deliveries("00000000-0000-4000-8000-000000000001");
+			return;
+		case "widgets":
+			// Where Widgets are placed is for a Module that adds Widget kinds (SDK 1.16).
+			await context.widgets.placed();
 			return;
 	}
 }

@@ -164,6 +164,7 @@ describe("what a Module never declared", () => {
 				"unset-secret": "secret",
 				email: "email",
 				submissions: "submissions",
+				widgets: "widgets",
 			};
 
 			expect(await api(staff).probe({ siteId, attempt })).toEqual({ refused: expected[attempt] });

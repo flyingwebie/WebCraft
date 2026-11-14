@@ -11,7 +11,7 @@ let domains = 0;
 
 beforeAll(async () => {
 	install = await createTestInstall({ now: new Date("2026-03-16T09:00:00Z") });
-	await (await install.superadmin()).api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
+	await (await install.superadmin()).api.modules.approve({ moduleId: "site-analytics", version: "1.2.0" });
 });
 
 afterAll(async () => {
@@ -59,7 +59,35 @@ describe("Dashboard templates", () => {
 			name: "Client standard",
 			madeFrom: "Standard",
 			widgets: 3,
+			// Where each Widget sits, for a picture of the layout in New Dashboard.
+			layout: [
+				{
+					kind: "site-analytics:totals",
+					x: expect.any(Number),
+					y: expect.any(Number),
+					w: expect.any(Number),
+					h: expect.any(Number),
+				},
+				{
+					kind: "site-analytics:goal",
+					x: expect.any(Number),
+					y: expect.any(Number),
+					w: expect.any(Number),
+					h: expect.any(Number),
+				},
+				{
+					kind: "site-analytics:funnel",
+					x: expect.any(Number),
+					y: expect.any(Number),
+					w: expect.any(Number),
+					h: expect.any(Number),
+				},
+			],
 		});
+		const { dashboard: saved } = await staff.api.dashboards.get({ siteId: bakery.siteId, dashboardId: dashboard.id });
+		expect((await staff.api.dashboardTemplates.list()).templates[0]?.layout).toEqual(
+			saved.widgets.map(({ kind, x, y, w, h }) => ({ kind, x, y, w, h })),
+		);
 		expect((await staff.api.dashboardTemplates.list()).templates.map((each) => each.name)).toEqual(["Client standard"]);
 		// Staff of the other Workspace only never see the bakery's templates.
 		expect((await onlyOther.api.dashboardTemplates.list()).templates).toEqual([]);
@@ -152,6 +180,12 @@ describe("a Workspace Dashboard", () => {
 		const data = async (browser: TestBrowser, widgetId: string) =>
 			(await browser.api.dashboards.widgets.data({ ...place, dashboardId: dashboard.id, widgetId })).widget;
 
+		// The Sites' points add up day by day, as their counts do.
+		const added = (await data(staff, totals)).data;
+		if (added?.shape !== "number") throw new Error("Totals are numbers.");
+		for (const value of added.values) {
+			expect((value.points ?? []).reduce((sum, each) => sum + each, 0)).toBe(value.count);
+		}
 		expect(await data(staff, totals)).toMatchObject({
 			sites: { counted: 2, of: 3 },
 			data: {

@@ -1162,8 +1162,10 @@
 			"role": "Ruolo",
 			"sites": "Siti",
 			"actions": "Azioni",
+			"lastSeen": "Ultimo accesso",
 			"twoFactor": "2FA"
 		},
+		"neverSignedIn": "Mai",
 		"allSites": "Tutti i Site",
 		"noSites": "Nessun Site",
 		"someSites": "{names}",
@@ -1542,6 +1544,7 @@
 				"attribute": "attributi che non si possono tenere"
 			}
 		},
+		"countAndSize": "{count, plural, one {# file} other {# file}} · {size}",
 		"count": "{count, plural, one {# file} other {# file}}",
 		"uploadMore": "Altri modi di aggiungere file",
 		"uploadingOne": "Caricamento {done} di {total}: {name}",
@@ -1558,7 +1561,8 @@
 			"pixels": "Pixel",
 			"size": "Peso",
 			"added": "Aggiunto",
-			"deleted": "Eliminato"
+			"deleted": "Eliminato",
+			"used": "Usato"
 		},
 		"noAlt": "Ancora nessun testo alternativo",
 		"noAltShort": "Senza testo alternativo",
@@ -5298,7 +5302,8 @@
 		"exportPart": {
 			"sender": "Mittente",
 			"received": "Ricevuto",
-			"answers": "Tutte le risposte"
+			"answers": "Tutte le risposte",
+			"deliveries": "Registro degli invii"
 		},
 		"exportButton": "Esporta",
 		"exported": "{count, plural, one {# invio esportato} other {# invii esportati}}.",
@@ -5832,6 +5837,8 @@
 		"lineBefore": "{line}, prima",
 		"before": "Prima",
 		"readoutHelp": "Le frecce si spostano tra i giorni; il riquadro elenca ogni linea in quel giorno.",
+		"nothingCountedYet": "Ancora nessun dato",
+		"countingStarts": "Il conteggio parte quando il Banner del consenso viene accettato.",
 		"nothingInRange": "Niente in questo periodo",
 		"needsModule": "Serve il suo modulo",
 		"ownDays": "giorni propri: {days}",
@@ -5966,6 +5973,11 @@
 			"FUNNELS_TOO_MANY": "Un sito ha al massimo 50 funnel.",
 			"FUNNEL_NOT_FOUND": "Quel funnel non è più qui."
 		},
+		"whereUsed": "Dove è usato",
+		"usedWidgets": "{count, plural, one {# widget} other {# widget}}",
+		"usedTemplates": "{count, plural, one {# modello di dashboard} other {# modelli di dashboard}}",
+		"usedFunnels": "{count, plural, one {# Funnel} other {# Funnel}}",
+		"notUsed": "Non ancora usato",
 		"reached": "Raggiunti (30 g)",
 		"newFunnel": "Nuovo funnel",
 		"stepCount": "{count, plural, one {# passo} other {# passi}}",
@@ -8534,6 +8546,57 @@
 			"title": "L'area di costruzione richiede una finestra larga almeno 1024 px",
 			"text": "Allarga la finestra per continuare: nulla viene chiuso o perso."
 		},
+		"dockPanels": {
+			"layers": "Livelli",
+			"inspector": "Ispettore",
+			"entry": "Voce",
+			"component": "Componente",
+			"html": "HTML",
+			"css": "CSS",
+			"js": "JS"
+		},
+		"inspectorTitles": {
+			"element": "Elemento",
+			"placement": "Props",
+			"loop": "Ciclo",
+			"condition": "Condizione"
+		},
+		"docks": {
+			"dockNames": {
+				"left": "pannello laterale sinistro",
+				"right": "pannello laterale destro",
+				"bottom": "pannello in basso"
+			},
+			"dockTitles": {
+				"left": "Lato sinistro",
+				"right": "Lato destro",
+				"bottom": "In basso"
+			},
+			"moveTo": {
+				"left": "Sposta a sinistra",
+				"right": "Sposta a destra",
+				"bottom": "Sposta in basso"
+			},
+			"collapse": "Comprimi",
+			"expand": "Espandi",
+			"hide": "Nascondi pannello",
+			"reset": "Ripristina disposizione dei pannelli",
+			"panelMenu": "{panel}: menu del pannello",
+			"expandPanel": "Espandi {panel}",
+			"grip": "Sposta pannello",
+			"resizeDock": "Ridimensiona il {dock}",
+			"between": "Tra {first} e {second}",
+			"moved": "{panel} spostato nel {dock}",
+			"moveCancelled": "Spostamento annullato",
+			"collapsed": "{panel} compresso",
+			"expanded": "{panel} espanso",
+			"switchedOff": "{panel} disattivato. Il menu Pannelli lo riattiva.",
+			"switchedOn": "{panel} attivato",
+			"resetDone": "Disposizione dei pannelli ripristinata",
+			"saveFailed": "Non è stato possibile salvare la disposizione dei pannelli. Resta valida in questa scheda.",
+			"openDrawer": "Mostra il {dock}",
+			"closeDrawer": "Nascondi il {dock}"
+		},
 		"documents": {
 			"page": "Pagina",
 			"siteTemplate": "Site template",
@@ -8563,6 +8626,110 @@
 			"formLaterTitle": "I Form si aprono nel luogo Form",
 			"formLaterText": "Il luogo Form arriva con una parte successiva dell'area di costruzione. Fino ad allora, crea i Form nell'admin.",
 			"openIn": "Apri nell'area di costruzione"
+		},
+		"place": {
+			"backToCanvas": "Torna alla tela",
+			"backToPage": "Torna a {page}",
+			"opened": "{place} aperto",
+			"left": "Di nuovo sulla tela",
+			"laterTitle": "Non ancora qui",
+			"laterText": "Questa parte arriva con una fase successiva dell'area di costruzione. Fino ad allora usa l'admin.",
+			"openAdmin": "Apri l'admin (nuova scheda)"
+		},
+		"content": {
+			"sections": "Contenuti",
+			"pages": "Pagine",
+			"globals": "Globals",
+			"siteDetails": "Dati del sito",
+			"allDetails": "Tutti i dati",
+			"postTypes": "Post Type",
+			"staffOnly": "Staff",
+			"newPostType": "Nuovo Post Type",
+			"entries": {
+				"one": "{count} Entry",
+				"other": "{count} Entry"
+			},
+			"summary": "{count} · {languages}",
+			"search": "Cerca",
+			"searchIn": "Cerca in {name}",
+			"status": {
+				"label": "Stato",
+				"all": "Tutti",
+				"published": "Pubblicato",
+				"draft": "Bozza",
+				"drafts": "Bozze",
+				"changed": "Modifiche non pubblicate",
+				"review": "In revisione"
+			},
+			"statusChip": "Stato: {value}",
+			"language": "Lingua",
+			"languageChip": "Lingua: {value}",
+			"allLanguages": "Tutte",
+			"sort": {
+				"label": "Ordina",
+				"title": "Titolo, dalla A alla Z",
+				"-title": "Titolo, dalla Z alla A",
+				"address": "Indirizzo, dalla A alla Z",
+				"-address": "Indirizzo, dalla Z alla A",
+				"status": "Stato: prima le bozze",
+				"author": "Autore, dalla A alla Z",
+				"-updated": "Aggiornato: prima i più recenti",
+				"updated": "Aggiornato: prima i meno recenti",
+				"sorted": "Ordinato per {sort}"
+			},
+			"columns": {
+				"title": "Titolo",
+				"address": "Indirizzo",
+				"status": "Stato",
+				"languages": "Lingue",
+				"author": "Autore",
+				"updated": "Aggiornato",
+				"actions": "Azioni"
+			},
+			"untitled": "Senza titolo",
+			"newPage": "Nuova pagina",
+			"newEntry": "Nuova Entry",
+			"newPageTitle": "Titolo della nuova pagina",
+			"newEntryTitle": "Titolo della nuova Entry",
+			"writeNewPage": "Scrivi una nuova pagina…",
+			"writeNewEntry": "Scrivi una nuova Entry…",
+			"create": "Crea",
+			"createHelp": "Invio crea una bozza e la apre sulla tela",
+			"creating": "Creazione…",
+			"created": "{title} creata come bozza",
+			"createFailed": "Impossibile crearla: {reason}",
+			"open": "Apri {title} sulla tela",
+			"noAddress": "{title} non ha un indirizzo da aprire sulla tela",
+			"edit": "Modifica",
+			"more": "Altro per {title}",
+			"openInAdmin": "Apri nell'admin (nuova scheda)",
+			"copyAddress": "Copia l'indirizzo",
+			"copied": "Indirizzo copiato",
+			"languagesOf": "Lingue di {title}",
+			"hiddenIn": "{language}: nascosta",
+			"shownIn": "{language}: mostrata",
+			"empty": "Ancora nessuna Entry.",
+			"emptyCreate": "Ancora nessuna Entry: dai un titolo alla prima qui sotto.",
+			"noMatch": "Niente corrisponde a questa ricerca e a questi filtri.",
+			"loading": "Caricamento…",
+			"loadFailed": "Impossibile caricare i contenuti: {reason}",
+			"shown": "{shown} di {total}",
+			"showMore": "Mostra altri",
+			"justNow": "Adesso",
+			"lists": "Elenchi",
+			"globalsForm": {
+				"intro": "I valori propri del sito, come il telefono o l'indirizzo, che ogni Template può mostrare.",
+				"empty": "I Globals non hanno ancora campi. Lo Staff li aggiunge nell'admin.",
+				"notHere": "Si modifica nell'admin",
+				"editInAdmin": "Modifica i Globals nell'admin (nuova scheda)",
+				"yes": "Sì",
+				"no": "No",
+				"none": "Nessuno",
+				"linkUrl": "Indirizzo",
+				"linkText": "Testo",
+				"required": "Obbligatorio",
+				"saveFailed": "Impossibile salvare {field}: {reason}"
+			}
 		}
 	},
 	"auth": {

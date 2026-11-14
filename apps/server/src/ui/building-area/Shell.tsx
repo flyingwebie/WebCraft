@@ -10,9 +10,14 @@ import type { PageLanguage } from "./bottom-bar/LanguageMenu.tsx";
 import { Frame, type FrameHandle, type PageTheme } from "./canvas/Frame.tsx";
 import { NoDocument } from "./canvas/NoDocument.tsx";
 import type { SavingStatus } from "./canvas/regions.ts";
+import { DocumentSwitcher } from "./DocumentSwitcher.tsx";
+import { DockArea, useDocks } from "./docks/Docks.tsx";
+import { PanelsMenu } from "./docks/PanelsMenu.tsx";
+import type { PanelContext } from "./docks/panels.ts";
 import { type RegionCycle, regionCycle } from "./keyboard.ts";
 import { NarrowNotice } from "./NarrowNotice.tsx";
 import { useOpenDocument } from "./open-document.ts";
+import { PLACE_EVENT, PLACE_KEYS, type PlaceKey, placeEntry, placeKeyOf, reopenPlace } from "./places/registry.ts";
 import { Rail } from "./rail/Rail.tsx";
 
 /**
@@ -20,8 +25,13 @@ import { Rail } from "./rail/Rail.tsx";
  * goes back to the admin), the canvas with the page in its frame, and the bottom bar (48 high). The
  * chrome is always dark; the page inside the frame follows the device, or Dark preview.
  */
-/** Puts focus in the page shown in the frame. */
+/** Puts focus in the page shown in the frame, or in the place open over it (BA-20). */
 function focusFrame(): void {
+	const place = document.querySelector<HTMLElement>("[data-wc-place-frame]");
+	if (place) {
+		place.querySelector<HTMLElement>("[data-wc-place-back]")?.focus();
+		return;
+	}
 	const frame = document.querySelector<HTMLIFrameElement>("iframe[data-wc-frame]");
 	if (!frame) return;
 	frame.focus();
@@ -58,6 +68,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 
 	// The page in the frame and the Draft state beside Publish.
 	const [shown, setShown] = useState<ShownPage | null>(null);
+	// What is selected on the canvas, which the docks' panels follow.
+	const [selection, setSelection] = useState<PanelContext["selection"]>(null);
 	const [saving, setSaving] = useState<"idle" | "saving" | "failed">("idle");
 	const shownAddress = useRef<string | null>(null);
 
@@ -93,6 +105,57 @@ export function Shell({ config }: { config: ShellConfig }) {
 		},
 		[takeState, framed],
 	);
+
+	// The place open over the canvas (BA-20): it takes the canvas's and the docks' room; the canvas stays
+	// as it was underneath (its page, selection and panels), hidden and inert until the place is left.
+	const placeKey = placeKeyOf(opened.address.place);
+	const place = placeKey ? placeEntry(placeKey) : null;
+	const placeOpener = useRef<Element | null>(null);
+	const openPlace = useCallback(
+		(key: PlaceKey) => {
+			if (key === placeKey) {
+				opened.documents.openPlace(null);
+				return;
+			}
+			const at = reopenPlace(key);
+			if (!at) return;
+			if (!placeKey) placeOpener.current = document.activeElement;
+			opened.documents.openPlace(at.place, at.view);
+		},
+		[placeKey, opened.documents],
+	);
+	const leavePlace = useCallback(() => opened.documents.openPlace(null), [opened.documents]);
+	// The Command menu's way in and out of places (it comes with BA-10): `webcraft:place` on the shell's
+	// document, its detail the place to open (`{ place: "content" }`) or none to leave (`{ place: null }`).
+	useEffect(() => {
+		const onPlaceEvent = (event: Event) => {
+			const wanted = (event as CustomEvent<{ place?: unknown } | null>).detail?.place;
+			if (wanted === null) leavePlace();
+			// Opening the place that is open already leaves it open (the rail's button is the toggle).
+			else if (typeof wanted === "string" && wanted !== placeKey && PLACE_KEYS.includes(wanted as PlaceKey))
+				openPlace(wanted as PlaceKey);
+		};
+		document.addEventListener(PLACE_EVENT, onPlaceEvent);
+		return () => document.removeEventListener(PLACE_EVENT, onPlaceEvent);
+	}, [leavePlace, openPlace, placeKey]);
+	// Said as a place opens and as it is left; leaving puts focus back where it was before the place opened.
+	const lastPlace = useRef<PlaceKey | null>(null);
+	useEffect(() => {
+		const was = lastPlace.current;
+		lastPlace.current = placeKey;
+		if (was === placeKey) return;
+		if (placeKey) announce(fill(words.place.opened, { place: words.places[placeKey] }));
+		else if (was) {
+			announce(words.place.left);
+			const opener = placeOpener.current;
+			placeOpener.current = null;
+			const back =
+				opener instanceof HTMLElement && opener.isConnected && !opener.closest("[data-wc-place-frame]")
+					? opener
+					: document.querySelector<HTMLElement>(`[data-wc-place="${was}"]`);
+			back?.focus();
+		}
+	}, [placeKey, announce, words]);
 
 	const onSaving = useCallback(
 		(status: SavingStatus) => {
@@ -136,6 +199,34 @@ export function Shell({ config }: { config: ShellConfig }) {
 		return history.listen({ announce: (text, refused) => announce(text, refused) });
 	}, [config.site.id, announce]);
 
+	// The open document is a page for now (documents come with a later part of the building area).
+	// What the panels' rules read: the selection and the open document's kind (a Template of any kind is a Template).
+	const kind = opened.address.document?.kind ?? null;
+	const context = useMemo<PanelContext>(
+		() => ({
+			selection,
+			document: kind === null ? null : kind === "page" || kind === "component" || kind === "form" ? kind : "template",
+			componentInPlace: false,
+		}),
+		[selection, kind],
+	);
+	const docks = useDocks({
+		config,
+		context,
+		announce,
+		headings: {
+			layers: (
+				<DocumentSwitcher
+					words={words}
+					title={opened.title}
+					current={opened.address.document}
+					data={opened.switchable}
+					onOpen={opened.open}
+				/>
+			),
+		},
+	});
+
 	const exit = async () => {
 		setExiting(true);
 		announce(words.exiting);
@@ -154,6 +245,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 		<div
 			className="bg-chrome text-chrome-text grid h-dvh w-full grid-cols-[48px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_48px] overflow-hidden font-sans text-[12px]"
 			data-interface={hidden ? "hidden" : "shown"}
+			data-place={placeKey ?? undefined}
 		>
 			{/* The page itself is the main content: following the link puts focus in the frame (see <main>). */}
 			<a
@@ -164,6 +256,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 			</a>
 			<Rail
 				config={config}
+				place={placeKey}
+				onPlace={openPlace}
 				darkPreview={darkPreview}
 				onDarkPreview={(on) => {
 					setDarkPreview(on);
@@ -173,50 +267,102 @@ export function Shell({ config }: { config: ShellConfig }) {
 				onHidden={setHidden}
 				onExit={() => void exit()}
 				exiting={exiting}
+				panelsMenu={<PanelsMenu docks={docks} />}
 			/>
 			{/* Before the canvas in the Tab order, so the page (and whatever it holds) comes last; F6 still goes rail, page, bar. */}
 			<BottomBar
 				words={words}
 				language={config.language}
-				languages={shown?.languages ?? []}
+				languages={place ? [] : (shown?.languages ?? [])}
 				onLanguage={(language) => frame.current?.navigate(language.path)}
-				nav={<DocumentNav words={words} back={opened.back} preview={opened.preview} renderedBy={opened.renderedBy} />}
+				nav={
+					place ? null : (
+						<DocumentNav words={words} back={opened.back} preview={opened.preview} renderedBy={opened.renderedBy} />
+					)
+				}
+				insertRow={!place}
 				staging={config.staging && shown ? `${config.staging}${shown.address}` : null}
 				draft={draftStateOf(saving, shown)}
 			/>
-			<main
-				id="wc-canvas"
-				tabIndex={-1}
-				onFocus={(event) => {
-					// Reached by the skip link: focus goes on into the page, and the address keeps no fragment.
-					if (event.target !== event.currentTarget) return;
-					focusFrame();
-					if (location.hash) history.replaceState(history.state, "", `${location.pathname}${location.search}`);
-				}}
-				aria-label={words.canvas}
-				data-building-region="canvas"
-				className="relative col-start-2 row-start-1 min-h-0 min-w-0"
+			{/*
+			  The working area: the docks around the canvas (left and right full height, the bottom one under
+			  the canvas). The docks come before the canvas in the Tab order, so the page is still the last stop.
+			  A place replaces the canvas and the docks (SPEC 8): it covers the whole working area, while both
+			  stay as they were underneath, hidden and inert, until the place is left.
+			*/}
+			<div
+				className="relative col-start-2 row-start-1 grid min-h-0 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)_auto] [grid-template-areas:'left_canvas_right'_'left_bottom_right']"
+				data-wc-work=""
 			>
-				{opened.shown?.status === "missing" || opened.shown?.status === "later" ? (
-					<NoDocument words={words} why={opened.shown.status} />
-				) : null}
-				{opened.shown?.status === "shown" ? (
-					<Frame
-						address={opened.shown.frame}
-						following={hidden}
-						onFollow={opened.follow}
-						words={words}
-						request={request}
-						cycle={() => cycle.current}
-						announce={announce}
-						breakpoints={config.breakpoints}
-						theme={theme}
-						handle={frame}
-						onPage={onPage}
-						onSaving={onSaving}
+				<div
+					className={`contents ${place ? "invisible" : ""}`}
+					inert={place ? true : undefined}
+					data-wc-docks-under-place=""
+				>
+					<DockArea
+						docks={docks}
+						fit={fit.layout}
+						hidden={hidden}
+						onHideFocus={() => document.querySelector<HTMLElement>('[data-wc-rail="panels"]')?.focus()}
 					/>
-				) : null}
-			</main>
+				</div>
+				<main
+					id="wc-canvas"
+					tabIndex={-1}
+					onFocus={(event) => {
+						// Reached by the skip link: focus goes on into the page, and the address keeps no fragment.
+						if (event.target !== event.currentTarget) return;
+						focusFrame();
+						if (location.hash) history.replaceState(history.state, "", `${location.pathname}${location.search}`);
+					}}
+					aria-label={place && placeKey ? words.places[placeKey] : words.canvas}
+					data-building-region="canvas"
+					// Not positioned, so an open place (absolute, inset 0) covers the working area, docks included.
+					className="min-h-0 min-w-0 [grid-area:canvas]"
+				>
+					{/* While a place is open the canvas stays as it was (its page, selection and panels), hidden and inert. */}
+					<div
+						className={`relative h-full w-full ${place ? "invisible" : ""}`}
+						inert={place ? true : undefined}
+						data-wc-under-place=""
+					>
+						{opened.shown?.status === "missing" || opened.shown?.status === "later" ? (
+							<NoDocument words={words} why={opened.shown.status} />
+						) : null}
+						{opened.shown?.status === "shown" ? (
+							<Frame
+								address={opened.shown.frame}
+								following={hidden}
+								onFollow={opened.follow}
+								words={words}
+								request={request}
+								cycle={() => cycle.current}
+								announce={announce}
+								breakpoints={config.breakpoints}
+								theme={theme}
+								handle={frame}
+								onPage={onPage}
+								onSaving={onSaving}
+								onSelect={(selected) => setSelection(selected ? { kind: "element", name: selected.name } : null)}
+							/>
+						) : null}
+					</div>
+					{place && opened.address.place ? (
+						<place.component
+							config={config}
+							words={words}
+							place={opened.address.place}
+							view={opened.address.view ?? null}
+							documents={opened.documents}
+							documentName={opened.title.name}
+							leave={leavePlace}
+							open={opened.open}
+							announce={announce}
+							onSaving={(status) => setSaving(status === "saving" ? "saving" : status === "failed" ? "failed" : "idle")}
+						/>
+					) : null}
+				</main>
+			</div>
 			<div className="sr-only" data-wc-messages="">
 				<p role="status" aria-live="polite" aria-atomic="true">
 					{message.urgent ? "" : message.text}

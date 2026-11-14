@@ -1162,8 +1162,10 @@
 			"role": "Role",
 			"sites": "Sites",
 			"actions": "Actions",
+			"lastSeen": "Last seen",
 			"twoFactor": "2FA"
 		},
+		"neverSignedIn": "Never",
 		"allSites": "All Sites",
 		"noSites": "No Sites",
 		"someSites": "{names}",
@@ -1542,6 +1544,7 @@
 				"attribute": "attributes that can't be kept"
 			}
 		},
+		"countAndSize": "{count, plural, one {# file} other {# files}} · {size}",
 		"count": "{count, plural, one {# file} other {# files}}",
 		"uploadMore": "More ways to add files",
 		"uploadingOne": "Uploading {done} of {total}: {name}",
@@ -1558,7 +1561,8 @@
 			"pixels": "Pixels",
 			"size": "Size",
 			"added": "Added",
-			"deleted": "Deleted"
+			"deleted": "Deleted",
+			"used": "Used"
 		},
 		"noAlt": "No alt text yet",
 		"noAltShort": "No alt text",
@@ -5298,7 +5302,8 @@
 		"exportPart": {
 			"sender": "Sender",
 			"received": "Received",
-			"answers": "Every answer"
+			"answers": "Every answer",
+			"deliveries": "Delivery log"
 		},
 		"exportButton": "Export",
 		"exported": "{count, plural, one {# Submission} other {# Submissions}} exported.",
@@ -5832,6 +5837,8 @@
 		"lineBefore": "{line}, before",
 		"before": "Before",
 		"readoutHelp": "The arrow keys move along the days; the readout lists every line at that day.",
+		"nothingCountedYet": "Nothing counted yet",
+		"countingStarts": "Starts after the Consent banner is accepted.",
 		"nothingInRange": "Nothing in this range",
 		"needsModule": "Needs its Module",
 		"ownDays": "its own days: {days}",
@@ -5966,6 +5973,11 @@
 			"FUNNELS_TOO_MANY": "A Site has at most 50 Funnels.",
 			"FUNNEL_NOT_FOUND": "That Funnel is no longer here."
 		},
+		"whereUsed": "Where it is used",
+		"usedWidgets": "{count, plural, one {# Widget} other {# Widgets}}",
+		"usedTemplates": "{count, plural, one {# Dashboard template} other {# Dashboard templates}}",
+		"usedFunnels": "{count, plural, one {# Funnel} other {# Funnels}}",
+		"notUsed": "Not used yet",
 		"reached": "Reached (30d)",
 		"newFunnel": "New Funnel",
 		"stepCount": "{count, plural, one {# step} other {# steps}}",
@@ -8534,6 +8546,57 @@
 			"title": "The building area needs a window at least 1024 px wide",
 			"text": "Make the window wider to carry on: nothing is closed or lost."
 		},
+		"dockPanels": {
+			"layers": "Layers",
+			"inspector": "Inspector",
+			"entry": "Entry",
+			"component": "Component",
+			"html": "HTML",
+			"css": "CSS",
+			"js": "JS"
+		},
+		"inspectorTitles": {
+			"element": "Element",
+			"placement": "Props",
+			"loop": "Loop",
+			"condition": "Condition"
+		},
+		"docks": {
+			"dockNames": {
+				"left": "left dock",
+				"right": "right dock",
+				"bottom": "bottom dock"
+			},
+			"dockTitles": {
+				"left": "Left dock",
+				"right": "Right dock",
+				"bottom": "Bottom dock"
+			},
+			"moveTo": {
+				"left": "Move to left dock",
+				"right": "Move to right dock",
+				"bottom": "Move to bottom dock"
+			},
+			"collapse": "Collapse",
+			"expand": "Expand",
+			"hide": "Hide panel",
+			"reset": "Reset panel layout",
+			"panelMenu": "{panel}: panel menu",
+			"expandPanel": "Expand {panel}",
+			"grip": "Move panel",
+			"resizeDock": "Resize the {dock}",
+			"between": "Between {first} and {second}",
+			"moved": "{panel} moved to the {dock}",
+			"moveCancelled": "Move cancelled",
+			"collapsed": "{panel} collapsed",
+			"expanded": "{panel} expanded",
+			"switchedOff": "{panel} switched off. The Panels menu switches it on again.",
+			"switchedOn": "{panel} switched on",
+			"resetDone": "Panel layout reset",
+			"saveFailed": "Couldn't save your panel layout. It is kept in this tab.",
+			"openDrawer": "Show the {dock}",
+			"closeDrawer": "Hide the {dock}"
+		},
 		"documents": {
 			"page": "Page",
 			"siteTemplate": "Site template",
@@ -8563,6 +8626,110 @@
 			"formLaterTitle": "Forms open in the Forms place",
 			"formLaterText": "The Forms place comes with a later part of the building area. Until then, build Forms in the admin.",
 			"openIn": "Open in the building area"
+		},
+		"place": {
+			"backToCanvas": "Back to the canvas",
+			"backToPage": "Back to {page}",
+			"opened": "{place} opened",
+			"left": "Back to the canvas",
+			"laterTitle": "Not here yet",
+			"laterText": "This part of the place comes with a later part of the building area. Until then, use the admin.",
+			"openAdmin": "Open the admin (new tab)"
+		},
+		"content": {
+			"sections": "Content",
+			"pages": "Pages",
+			"globals": "Globals",
+			"siteDetails": "Site details",
+			"allDetails": "All details",
+			"postTypes": "Post Types",
+			"staffOnly": "Staff",
+			"newPostType": "New Post Type",
+			"entries": {
+				"one": "{count} Entry",
+				"other": "{count} Entries"
+			},
+			"summary": "{count} · {languages}",
+			"search": "Search",
+			"searchIn": "Search {name}",
+			"status": {
+				"label": "Status",
+				"all": "All",
+				"published": "Published",
+				"draft": "Draft",
+				"drafts": "Drafts",
+				"changed": "Unpublished changes",
+				"review": "In review"
+			},
+			"statusChip": "Status: {value}",
+			"language": "Language",
+			"languageChip": "Language: {value}",
+			"allLanguages": "All",
+			"sort": {
+				"label": "Sort",
+				"title": "Title, A to Z",
+				"-title": "Title, Z to A",
+				"address": "Address, A to Z",
+				"-address": "Address, Z to A",
+				"status": "Status: Drafts first",
+				"author": "Author, A to Z",
+				"-updated": "Updated: newest first",
+				"updated": "Updated: oldest first",
+				"sorted": "Sorted by {sort}"
+			},
+			"columns": {
+				"title": "Title",
+				"address": "Address",
+				"status": "Status",
+				"languages": "Languages",
+				"author": "Author",
+				"updated": "Updated",
+				"actions": "Actions"
+			},
+			"untitled": "Untitled",
+			"newPage": "New Page",
+			"newEntry": "New Entry",
+			"newPageTitle": "Title of the new Page",
+			"newEntryTitle": "Title of the new Entry",
+			"writeNewPage": "Write a new Page…",
+			"writeNewEntry": "Write a new Entry…",
+			"create": "Create",
+			"createHelp": "Enter makes a Draft and opens it on the canvas",
+			"creating": "Creating…",
+			"created": "{title} made as a Draft",
+			"createFailed": "Couldn't make it: {reason}",
+			"open": "Open {title} on the canvas",
+			"noAddress": "{title} has no address to open on the canvas",
+			"edit": "Edit",
+			"more": "More for {title}",
+			"openInAdmin": "Open in the admin (new tab)",
+			"copyAddress": "Copy its address",
+			"copied": "Address copied",
+			"languagesOf": "Languages of {title}",
+			"hiddenIn": "{language}: hidden",
+			"shownIn": "{language}: shown",
+			"empty": "No Entries yet.",
+			"emptyCreate": "No Entries yet: give the first one a title below.",
+			"noMatch": "Nothing matches this search and these filters.",
+			"loading": "Loading…",
+			"loadFailed": "Couldn't load the content: {reason}",
+			"shown": "{shown} of {total}",
+			"showMore": "Show more",
+			"justNow": "Just now",
+			"lists": "Lists",
+			"globalsForm": {
+				"intro": "The Site's own values, such as its phone number or address, that every Template can show.",
+				"empty": "The Globals have no Fields yet. Staff add them in the admin.",
+				"notHere": "Edited in the admin",
+				"editInAdmin": "Edit the Globals in the admin (new tab)",
+				"yes": "Yes",
+				"no": "No",
+				"none": "None",
+				"linkUrl": "Address",
+				"linkText": "Text",
+				"required": "Required",
+				"saveFailed": "Couldn't save {field}: {reason}"
+			}
 		}
 	},
 	"auth": {

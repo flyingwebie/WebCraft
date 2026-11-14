@@ -277,7 +277,12 @@ export function addUp(answers: readonly WidgetData[], limit: number): WidgetData
 			.sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
 	switch (first.shape) {
 		case "number": {
-			const values = first.values.map((value) => ({ ...value, of: value.of }));
+			// Points add hour by hour or day by day, while every Site gave them for the same periods.
+			const values = first.values.map((value) => ({
+				...value,
+				of: value.of,
+				points: value.points ? [...value.points] : undefined,
+			}));
 			for (const answer of answers.slice(1)) {
 				if (answer.shape !== "number") continue;
 				for (const value of answer.values) {
@@ -285,6 +290,11 @@ export function addUp(answers: readonly WidgetData[], limit: number): WidgetData
 					if (!into) continue;
 					into.count += value.count;
 					if (into.of !== undefined) into.of += value.of ?? 0;
+					const points = value.points;
+					into.points =
+						into.points && points?.length === into.points.length
+							? into.points.map((each, index) => each + (points[index] ?? 0))
+							: undefined;
 				}
 			}
 			return { shape: "number", values, countedFrom };

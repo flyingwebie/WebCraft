@@ -20,6 +20,8 @@ export const BUILDING_AREA_PROCEDURES = [
 	"entries.get",
 	"entries.create",
 	"globals.get",
+	// The Content place's Globals form (Members as Staff: `entry.edit`, as in the admin).
+	"globals.saveDraft",
 	// The Media library: reads and uploads.
 	"media.list",
 	"media.overview",

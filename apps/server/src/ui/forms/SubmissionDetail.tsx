@@ -447,20 +447,9 @@ function DeliveryLine({
 		setBusy(true);
 		try {
 			const api = await getApi();
-			// A Submission's delivery log names the Webhook; its calls are found under the Webhook's id.
-			const { webhooks } = await api.webhooks.list({ siteId });
-			let sent = false;
-			let failure: unknown = null;
-			for (const webhook of webhooks.filter((candidate) => candidate.name === delivery.to)) {
-				try {
-					await api.webhooks.redeliver({ siteId, webhookId: webhook.id, deliveryId: delivery.id });
-					sent = true;
-					break;
-				} catch (error) {
-					failure = error;
-				}
-			}
-			if (!sent) throw failure ?? new Error("WEBHOOK_NOT_FOUND");
+			// The call is sent again under the Webhook it went to, whatever that Webhook is called now.
+			if (!delivery.webhookId) throw new Error("WEBHOOK_NOT_FOUND");
+			await api.webhooks.redeliver({ siteId, webhookId: delivery.webhookId, deliveryId: delivery.id });
 			toast.success(t("submissions.delivery.sentAgain"));
 			onResent();
 		} catch (error) {

@@ -143,6 +143,7 @@ export function HistoryScreen({
 			name={name}
 			editor={editor}
 			copies={copies}
+			live={first.live}
 			selected={comparison ? copyParam(comparison.copy) : null}
 			more={cursor ? { loading, load: loadOlder } : null}
 			retention={t("history.retention", {
@@ -207,6 +208,7 @@ function CopyList({
 	name,
 	editor,
 	copies,
+	live: isLive,
 	selected,
 	more,
 	retention,
@@ -218,6 +220,8 @@ function CopyList({
 	name: string;
 	editor: LinkProps | null;
 	copies: readonly HistoryCopy[];
+	/** Whether the item is published now (`history.list`'s `live`). */
+	live: boolean;
 	selected: string | null;
 	more: { loading: boolean; load: () => void } | null;
 	retention: string;
@@ -225,8 +229,8 @@ function CopyList({
 	const t = useT();
 	const revisions = copies.filter((copy) => copy.type === "revision");
 	const checkpoints = copies.filter((copy) => copy.type === "checkpoint");
-	// The newest Revision holds what visitors see now: it was published last.
-	const live = revisions[0]?.id ?? null;
+	// The newest Revision holds what visitors see now, while the item is published: it was published last.
+	const live = isLive ? (revisions[0]?.id ?? null) : null;
 	const group = (key: "revisions" | "checkpoints", listed: readonly HistoryCopy[]) =>
 		listed.length === 0 ? null : (
 			<>

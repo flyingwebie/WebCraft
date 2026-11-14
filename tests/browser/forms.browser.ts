@@ -455,7 +455,10 @@ describe("reading Submissions from the keyboard", () => {
 		await page.getByRole("button", { name: "Export", exact: true }).click();
 		const dialog = page.getByRole("dialog", { name: "Export this list as CSV" });
 		await expect(dialog.getByRole("checkbox", { name: "Every answer" }).isChecked()).resolves.toBe(true);
+		// The delivery log is left out unless asked for.
+		await expect(dialog.getByRole("checkbox", { name: "Delivery log" }).isChecked()).resolves.toBe(false);
 		await dialog.getByRole("checkbox", { name: "Every answer" }).click();
+		await dialog.getByRole("checkbox", { name: "Delivery log" }).click();
 		const [download] = await Promise.all([
 			page.waitForEvent("download"),
 			dialog.getByRole("button", { name: "Export", exact: true }).click(),
@@ -465,5 +468,6 @@ describe("reading Submissions from the keyboard", () => {
 		expect(header).toContain('"Your name"');
 		expect(header).toContain('"Received (UTC)"');
 		expect(header).not.toContain('"Message"');
+		expect(header.endsWith('"Delivery log"')).toBe(true);
 	});
 });

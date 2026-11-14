@@ -64,7 +64,7 @@ import {
 } from "../shell/SecondarySidebar.tsx";
 import { type FocalPoint, FocalPointPicker } from "./FocalPointPicker.tsx";
 import { ImportDialog } from "./ImportDialog.tsx";
-import { formatBytes, imagePreview, KIND_ICONS, type MediaItem, previewPath } from "./preview.ts";
+import { formatBytes, imagePreview, KIND_ICONS, type ListedMediaItem, type MediaItem, previewPath } from "./preview.ts";
 import { percentUsed, QuotaNotice } from "./StorageCard.tsx";
 import { DeleteDialog, DeleteForeverDialog, EmptyTrashDialog, RestoreButton } from "./TrashDialogs.tsx";
 import { type MediaUses, UsedIn } from "./UsedIn.tsx";
@@ -130,6 +130,8 @@ export function MediaLibrary({
 	const [uploading, setUploading] = useState<Uploading | null>(null);
 	const [dragging, setDragging] = useState(false);
 	const folderId = search.folder && search.folder !== "none" ? search.folder : null;
+	// All files, unfiltered: the header says what the Site's whole library takes too.
+	const allFiles = !inTrash && search.folder === undefined && !search.q && !search.kind;
 	const view: MediaView = search.view ?? "list";
 	const processing =
 		list.items.some((item) => item.status === "processing" || item.replacing) ||
@@ -239,7 +241,11 @@ export function MediaLibrary({
 							) : null
 						}
 					>
-						{inTrash ? t("media.trash.intro") : t("media.count", { count: list.total })}
+						{inTrash
+							? t("media.trash.intro")
+							: allFiles
+								? t("media.countAndSize", { count: list.total, size: formatBytes(overview.siteBytes) })
+								: t("media.count", { count: list.total })}
 					</PageHeader>
 				</div>
 
@@ -502,7 +508,10 @@ function fileLink(siteId: string, id: string) {
 	};
 }
 
-/** The files as a list: a picture, the name, the alt text, the kind, its pixels, size and when it was added. */
+/**
+ * The files as a list: a picture, the name, the alt text, the kind, its pixels, size, when it was
+ * added and in how many places it is used (what Used in lists).
+ */
 function FileTable({
 	siteId,
 	items,
@@ -511,7 +520,7 @@ function FileTable({
 	inTrash,
 }: {
 	siteId: string;
-	items: readonly MediaItem[];
+	items: readonly ListedMediaItem[];
 	selectedId: string | undefined;
 	language: string;
 	inTrash: boolean;
@@ -527,6 +536,7 @@ function FileTable({
 					<col className="w-28" />
 					<col className="w-24" />
 					<col className="w-36" />
+					<col className="w-20" />
 				</colgroup>
 				<TableHeader className="bg-muted/50">
 					<TableRow className="hover:bg-transparent">
@@ -540,6 +550,7 @@ function FileTable({
 						<TableHead className="text-muted-foreground px-4">
 							{inTrash ? t("media.columns.deleted") : t("media.columns.added")}
 						</TableHead>
+						<TableHead className="text-muted-foreground px-4">{t("media.columns.used")}</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
@@ -588,6 +599,10 @@ function FileTable({
 								</TableCell>
 								<TableCell className="text-muted-foreground px-4 py-2">
 									<When value={inTrash ? (item.trashedAt ?? item.createdAt) : item.createdAt} />
+								</TableCell>
+								<TableCell className="text-muted-foreground px-4 py-2 tabular-nums">
+									<span aria-hidden="true">{item.uses}</span>
+									<span className="sr-only">{t("media.usedIn.count", { count: item.uses })}</span>
 								</TableCell>
 							</TableRow>
 						);

@@ -75,7 +75,7 @@ const BOT = { hidden: { "wc-t": null } };
 
 beforeAll(async () => {
 	install = await createTestInstall();
-	await (await install.superadmin()).api.modules.approve({ moduleId: "forms", version: "1.3.0" });
+	await (await install.superadmin()).api.modules.approve({ moduleId: "forms", version: "1.4.0" });
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 });

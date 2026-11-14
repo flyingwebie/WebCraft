@@ -34,7 +34,7 @@ async function sendAfter(seconds: number, fields: Record<string, string>, visito
 
 beforeAll(async () => {
 	install = await createTestInstall();
-	await (await install.superadmin()).api.modules.approve({ moduleId: "forms", version: "1.3.0" });
+	await (await install.superadmin()).api.modules.approve({ moduleId: "forms", version: "1.4.0" });
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
 	await goLive(install, siteId);

@@ -62,6 +62,8 @@ describe("the Members screen", () => {
 				since: install.clock.now(),
 				manageable: true,
 				deactivated: false,
+				// Accepting the invite signed them in.
+				lastSignedInAt: install.clock.now(),
 			},
 			{
 				id: owner.personId,
@@ -73,6 +75,8 @@ describe("the Members screen", () => {
 				since: install.clock.now(),
 				manageable: true,
 				deactivated: false,
+				// Accepting the invite signed them in.
+				lastSignedInAt: install.clock.now(),
 			},
 		]);
 		expect(list.invites).toEqual([
@@ -89,6 +93,31 @@ describe("the Members screen", () => {
 			{ role: "editor", allSites: true, sites: [site.id] },
 			{ role: "author", allSites: true, sites: [site.id] },
 		]);
+	});
+
+	test("says when each Member last signed in, whichever way they did", async () => {
+		const workspace = await install.createWorkspace("Last Seen Ltd");
+		const owner = await install.createMember({ workspaceId: workspace.id, role: "owner" });
+		const joinedAt = install.clock.now();
+		const author = await install.createMember({ workspaceId: workspace.id, role: "author" });
+		const lastSeen = async () =>
+			(await owner.browser.api.members.list({ workspaceId: workspace.id })).members.find(
+				(member) => member.id === author.personId,
+			)?.lastSignedInAt;
+		expect(await lastSeen()).toEqual(joinedAt);
+
+		// Using a session already open is not signing in.
+		await install.clock.advance(60 * 60_000);
+		await author.browser.api.session.current();
+		expect(await lastSeen()).toEqual(joinedAt);
+
+		// A wrong password is not either; the right one is.
+		await expect(
+			install.browser().api.session.signIn({ email: author.account.email, password: "not the password at all" }),
+		).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
+		expect(await lastSeen()).toEqual(joinedAt);
+		await install.signIn(author.account);
+		expect(await lastSeen()).toEqual(install.clock.now());
 	});
 
 	test("the agency Staff list is read-only: Owners can't invite, change or remove Staff from here", async () => {

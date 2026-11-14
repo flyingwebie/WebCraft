@@ -14,7 +14,7 @@ let domains = 0;
 beforeAll(async () => {
 	// A Monday at 09:00 UTC: "today" and "last 7 days" are easy to read.
 	install = await createTestInstall({ now: new Date("2026-03-16T09:00:00Z") });
-	await (await install.superadmin()).api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
+	await (await install.superadmin()).api.modules.approve({ moduleId: "site-analytics", version: "1.2.0" });
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 });
@@ -238,6 +238,15 @@ describe("a Widget's data", () => {
 			problem: null,
 			sites: null,
 		});
+		// Each total also comes day by day over the range, for the small trend beside it: they add up to it.
+		const daily = (await data(month)).data;
+		if (daily?.shape !== "number") throw new Error("Totals are numbers.");
+		for (const value of daily.values) {
+			expect(value.points).toHaveLength(30);
+			expect((value.points ?? []).reduce((sum, each) => sum + each, 0)).toBe(value.count);
+		}
+		// Page views: one on 9 March, two today (16 March).
+		expect(daily.values[0]?.points?.slice(-8)).toEqual([1, 0, 0, 0, 0, 0, 0, 2]);
 		expect(await data(today)).toMatchObject({
 			title: "Today",
 			range: { from: new Date("2026-03-16T00:00:00Z"), to: new Date("2026-03-17T00:00:00Z"), interval: "hour" },
@@ -263,9 +272,10 @@ describe("a Widget's data", () => {
 		expect((await data(converted)).data).toEqual({
 			shape: "number",
 			values: [
-				{ key: "conversions", label: "Conversions", count: 1, of: null },
-				{ key: "visitors", label: "Visitors converted", count: 1, of: null },
-				{ key: "rate", label: "Conversion rate", count: 1, of: 3 },
+				// A Goal's numbers come without points: no small trend beside them.
+				{ key: "conversions", label: "Conversions", count: 1, of: null, points: null },
+				{ key: "visitors", label: "Visitors converted", count: 1, of: null, points: null },
+				{ key: "rate", label: "Conversion rate", count: 1, of: 3, points: null },
 			],
 		});
 		expect((await data(pages)).data).toEqual({

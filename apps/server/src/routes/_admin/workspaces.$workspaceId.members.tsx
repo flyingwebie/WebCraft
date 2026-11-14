@@ -39,6 +39,7 @@ import { toast } from "sonner";
 
 import { type AccountChange, AccountChangeDialog } from "../../ui/accounts/AccountDialogs.tsx";
 import { getApi } from "../../ui/api.ts";
+import { When } from "../../ui/content/When.tsx";
 import { errorMessage } from "../../ui/errors.ts";
 import { formatUtcDate } from "../../ui/format.ts";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
@@ -173,6 +174,7 @@ function MembersPage() {
 										<TableHead className="ps-4">{t("members.columns.member")}</TableHead>
 										<TableHead>{t("members.columns.role")}</TableHead>
 										<TableHead>{t("members.columns.sites")}</TableHead>
+										<TableHead>{t("members.columns.lastSeen")}</TableHead>
 										<TableHead>{t("members.columns.twoFactor")}</TableHead>
 										<TableHead className="pe-4 text-end">
 											<span className="sr-only">{t("members.columns.actions")}</span>
@@ -182,7 +184,7 @@ function MembersPage() {
 								<TableBody>
 									{shown.length === 0 ? (
 										<TableRow>
-											<TableCell colSpan={5} className="text-muted-foreground p-6 text-center">
+											<TableCell colSpan={6} className="text-muted-foreground p-6 text-center">
 												{t("members.noMatch")}
 											</TableCell>
 										</TableRow>
@@ -217,6 +219,9 @@ function MembersPage() {
 												</TableCell>
 												<TableCell className="text-muted-foreground whitespace-normal">
 													<SiteAccessText access={member} />
+												</TableCell>
+												<TableCell className="text-muted-foreground">
+													{member.lastSignedInAt ? <When value={member.lastSignedInAt} /> : t("members.neverSignedIn")}
 												</TableCell>
 												<TableCell className="text-muted-foreground">
 													<TwoFactorText methods={methodsOf.get(member.id) ?? []} />

@@ -4,13 +4,30 @@ import { eq } from "drizzle-orm";
 
 import { assertNewPasswordAllowed, hashPassword, type PasswordCheck } from "./passwords.ts";
 
+declare const checked: unique symbol;
+
+/**
+ * A new person's password, already checked against the password rules (the leaked-password check
+ * among them) and hashed: what `createPerson` stores. Only `newPassword` makes one, and it runs
+ * outside any transaction: the checks may call out and read Install settings, and hashing takes a
+ * while, none of which may happen while a transaction holds a database connection.
+ */
+export type NewPassword = { readonly hash: string; readonly [checked]: true };
+
+/** Checks a new person's password and hashes it (`PasswordRefusedError` when the rules refuse it). */
+export async function newPassword(password: string, passwordChecks?: readonly PasswordCheck[]): Promise<NewPassword> {
+	await assertNewPasswordAllowed(password, passwordChecks);
+	return { hash: await hashPassword(password) } as NewPassword;
+}
+
 /** The provider id the sign-in library gives password credentials. */
 export const PASSWORD_PROVIDER = "credential";
 
 export type NewPerson = {
 	name: string;
 	email: string;
-	password: string;
+	/** Made by `newPassword` before the transaction. */
+	password: NewPassword;
 	/** The person's own Admin language; omit to follow the Install's default. */
 	adminLanguage?: string;
 };
@@ -44,16 +61,15 @@ export function assertValidEmail(email: string): void {
 /**
  * Creates a person who signs in with an email and password, inside the caller's transaction, so
  * whatever else the caller records (a role, a Membership) is saved together with them or not at all.
- * Refuses a password the rules don't allow (`PasswordRefusedError`), a malformed email
+ * The password was checked and hashed before (`newPassword`). Refuses a malformed email
  * (`InvalidEmailError`) and one another person already has (`EmailInUseError`).
  */
 export async function createPerson(
 	tx: Transaction,
 	person: NewPerson,
-	options: { now: Date; passwordChecks?: readonly PasswordCheck[] },
+	options: { now: Date },
 ): Promise<{ personId: string }> {
 	assertValidEmail(person.email);
-	await assertNewPasswordAllowed(person.password, options.passwordChecks);
 	const email = normaliseEmail(person.email);
 	const [existing] = await tx.select({ id: people.id }).from(people).where(eq(people.email, email));
 	if (existing) throw new EmailInUseError(`Another person already signs in with ${email}.`);
@@ -75,7 +91,7 @@ export async function createPerson(
 		// The library identifies a password credential by the person's own id.
 		accountId: created.id,
 		providerId: PASSWORD_PROVIDER,
-		password: await hashPassword(person.password),
+		password: person.password.hash,
 		createdAt: options.now,
 		updatedAt: options.now,
 	});

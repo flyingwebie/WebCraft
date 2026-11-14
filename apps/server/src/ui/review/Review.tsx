@@ -520,12 +520,15 @@ export function useOpenReview(): (reviewId: string) => void {
 
 /**
  * The Review sheet, while the address names a Review (`?review=<id>`): the top bar holds it, so a link
- * from any screen of the Site opens it over that screen.
+ * from any screen of the Site opens it over that screen. A Dashboard's Reports page is the one screen
+ * whose own `review` names something else (a Report's send waiting for review, which its email links
+ * to): the address is that page's there.
  */
 export function ReviewFromAddress({ siteId }: { siteId: string }) {
 	const navigate = useNavigate();
 	const reviewId = useRouterState({
 		select: (state) => {
+			if (state.matches.some((match) => match.routeId.endsWith("/reports"))) return null;
 			const value = (state.location.search as { review?: unknown }).review;
 			return typeof value === "string" && value !== "" ? value : null;
 		},

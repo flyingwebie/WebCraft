@@ -60,6 +60,8 @@ export async function buildingAreaEndpoint(
 	const language = person?.adminLanguage ?? settings.defaultAdminLanguage;
 	const designSystem = (await services.designSystem.get(edit.session.scope)).draft;
 	const staging = stagingUrl(services.config, host.site.slug);
+	const siteLanguages = await services.languages.get(edit.session.scope);
+	const preferences = await services.people.editorPreferences(edit.session.personId);
 	const config: ShellConfig = {
 		token: edit.session.headerToken,
 		page: document?.kind === "page" ? document.page : null,
@@ -75,6 +77,12 @@ export async function buildingAreaEndpoint(
 		darkMode: designSystem.darkMode,
 		staging: staging && host.address !== "staging" ? staging : null,
 		settings: new URL(`/sites/${host.site.id}/domains`, services.config.adminOrigin).toString(),
+		admin: new URL(`/sites/${host.site.id}`, services.config.adminOrigin).toString(),
+		languages: {
+			default: siteLanguages.defaultLanguage,
+			all: siteLanguages.languages.map(({ code, name }) => ({ code, name })),
+		},
+		layout: preferences.layout,
 	};
 	const files = await buildingAreaAssets();
 	const html = [
@@ -100,8 +108,8 @@ export async function buildingAreaEndpoint(
 	});
 }
 
-/** The shell's own parameters, which belong to no document: the open place and the selection. */
-const SHELL_PARAMETERS = ["wc-place", "wc-select"];
+/** The shell's own parameters, which belong to no document: the open place, its view and the selection. */
+const SHELL_PARAMETERS = ["wc-place", "wc-view", "wc-select"];
 
 /**
  * The document part of a shell address (after `/_webcraft/build`, with the document's own query, the

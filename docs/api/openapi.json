@@ -23495,6 +23495,10 @@
 										"type": "string",
 										"maxLength": 35
 									},
+									"deliveryLog": {
+										"type": "boolean",
+										"default": false
+									},
 									"siteId": {
 										"type": "string",
 										"format": "uuid"
@@ -24235,6 +24239,50 @@
 				"x-webcraft-access": "read",
 				"x-webcraft-toolsets": ["analytics"],
 				"x-webcraft-permissions": ["site-analytics.analytics.view"]
+			}
+		},
+		"/m/site-analytics/goals/usage": {
+			"post": {
+				"operationId": "m.site-analytics.goals.usage",
+				"summary": "Site analytics: goals.usage.",
+				"tags": ["m.site-analytics"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/m/site-analytics/goals/create": {

@@ -66,7 +66,11 @@ export type DashboardView = {
 /** A Widget's data, its labels in the person's language: counts only, rates as two counts. */
 export type WidgetDataView =
 	| { shape: "note"; text: string }
-	| { shape: "number"; values: { key: string; label: string; count: number; of: number | null }[] }
+	| {
+			shape: "number";
+			/** `points`: each count hour by hour or day by day over the range, for a small trend; null when not given. */
+			values: { key: string; label: string; count: number; of: number | null; points: number[] | null }[];
+	  }
 	| {
 			shape: "series";
 			lines: { key: string; label: string }[];

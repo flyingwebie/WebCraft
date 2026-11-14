@@ -108,6 +108,18 @@ for (const theme of THEMES) {
 			await expectNoAxeViolations(page, `Invite a Member, chosen Sites (${theme})`, ["region"]);
 		});
 
+		test("the Members table says when each Member last signed in", async () => {
+			const page = await install.newPage(theme);
+			await install.signIn(page, superadmin);
+			await page.goto(install.adminUrl(`/workspaces/${workspaceId}/members`));
+			await page.getByRole("columnheader", { name: "Last seen" }).waitFor();
+
+			// Accepting the invite signed Giulia in: the cell says when, with the exact time as its title.
+			const when = page.getByRole("row", { name: /Giulia Romano/ }).locator("time");
+			expect(await when.getAttribute("datetime")).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+			await expectNoAxeViolations(page, `Members, Last seen (${theme})`, ["region"]);
+		});
+
 		test("a Member's menu, its Change role and Sites panel and its Remove dialog work from the keyboard", async () => {
 			const page = await install.newPage(theme);
 			await install.signIn(page, superadmin);

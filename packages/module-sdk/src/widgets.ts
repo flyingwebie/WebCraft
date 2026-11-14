@@ -67,18 +67,27 @@ export type WidgetRequest = {
 	limit: number;
 };
 
-/** A table's cell: text, a count, or a rate as two counts. */
+/** A table's cell: text, a count, or two counts (a rate; a change, now and before). */
 export type WidgetCell = string | number | { count: number; of: number };
 
 /**
  * How the admin shows a table's column: text as it is, a page's path, a source (empty: direct), a
  * country's code (by its name in the person's language; empty: unknown), a device, a count or a rate.
+ * SDK 1.16 adds `site` (the cell is the Site's id: shown by its name) and `change` (the cell is a
+ * count now and `of` the same count for the period before: shown as the signed change).
  */
-export type WidgetColumnKind = "text" | "path" | "source" | "country" | "device" | "count" | "rate";
+export type WidgetColumnKind = "text" | "path" | "source" | "country" | "device" | "count" | "rate" | "site" | "change";
 
-/** A Widget's data, in its kind's shape. `countedFrom`: the counts start there, older raw events being gone. */
+/**
+ * A Widget's data, in its kind's shape. `countedFrom`: the counts start there, older raw events being
+ * gone. A number may carry its `points` (SDK 1.16): its count in each hour or day of the range
+ * (`request.interval`), oldest first, which the admin draws as a small trend beside it.
+ */
 export type WidgetData = (
-	| { shape: "number"; values: readonly { key: string; label: Label; count: number; of?: number }[] }
+	| {
+			shape: "number";
+			values: readonly { key: string; label: Label; count: number; of?: number; points?: readonly number[] }[];
+	  }
 	| {
 			shape: "series";
 			lines: readonly { key: string; label: Label }[];
@@ -108,6 +117,11 @@ export type ModuleWidget = {
 	/** The filters it takes (none unless listed). `goal` needs the definition's `widgetGoals`. */
 	filters?: readonly WidgetFilterName[];
 	settings?: readonly WidgetSetting[];
+	/**
+	 * Offered on Workspace Dashboards only (SDK 1.16): a kind that lists each Site (one row a Site,
+	 * keyed and named by a `site` column), which a Site's own Dashboard has no use for.
+	 */
+	workspaceOnly?: boolean;
 	query(request: WidgetRequest, context: ModuleContext): Promise<WidgetData>;
 };
 
@@ -115,3 +129,30 @@ export type ModuleWidget = {
 export function widget(definition: ModuleWidget): ModuleWidget {
 	return definition;
 }
+
+/**
+ * One of a Module's Widgets where Staff placed it (SDK 1.16): on a Dashboard of the Site, on one of
+ * its Workspace's Dashboards (which add every Site up), or in one of its Workspace's Dashboard
+ * templates. Widgets name what Staff made (a Goal, a Funnel) by its name, so this is how a Module
+ * says where one of its things is used.
+ */
+export type PlacedWidget = {
+	id: string;
+	/** Its kind, as the Module declares it (`goal`, without the Module's id). */
+	kind: string;
+	/** The title Staff gave it; null for its kind's own. */
+	title: string | null;
+	filters: WidgetFilters;
+	settings: WidgetSettings;
+	/** Where it is, by name. */
+	on: { kind: "dashboard" | "workspaceDashboard" | "template"; id: string; name: string };
+};
+
+/** The Module's own Widgets, for a Module that adds Widget kinds, at a Site (SDK 1.16). */
+export type ModuleWidgets = {
+	/**
+	 * Every Widget of the Module's kinds placed where the Site's people see it or build from: the
+	 * Site's Dashboards, its Workspace's Dashboards and its Workspace's Dashboard templates.
+	 */
+	placed(): Promise<PlacedWidget[]>;
+};

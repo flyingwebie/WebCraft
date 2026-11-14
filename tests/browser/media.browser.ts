@@ -75,7 +75,15 @@ for (const theme of THEMES) {
 			await install.signIn(page, superadmin);
 			await page.goto(install.adminUrl(`/sites/${siteId}/media`));
 			await page.waitForLoadState("networkidle");
-			await page.getByRole("table", { name: "Files" }).getByRole("link", { name: "harbour.jpg" }).waitFor();
+			const files = page.getByRole("table", { name: "Files" });
+			await files.getByRole("link", { name: "harbour.jpg" }).waitFor();
+			// How many places use each file, and the whole library's count and size in the header.
+			await files.getByRole("columnheader", { name: "Used" }).waitFor();
+			await files
+				.getByRole("row", { name: /harbour\.jpg/ })
+				.getByText("Used in 0 places")
+				.waitFor({ state: "attached" });
+			await page.getByText(/^1 file · \d/).waitFor();
 			await expectNoAxeViolations(page, `Media, the list (${theme})`);
 
 			await page.getByRole("button", { name: "Grid" }).click();

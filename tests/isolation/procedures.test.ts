@@ -28,8 +28,8 @@ beforeAll(async () => {
 	const admin = await install.superadmin();
 	await admin.api.modules.approve({ moduleId: "sample", version: "1.0.0" });
 	await admin.api.modules.approve({ moduleId: "sample-board", version: "1.0.0" });
-	await admin.api.modules.approve({ moduleId: "forms", version: "1.3.0" });
-	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
+	await admin.api.modules.approve({ moduleId: "forms", version: "1.4.0" });
+	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.2.0" });
 	await admin.api.modules.approve({ moduleId: "redirects", version: "1.1.0" });
 	await admin.api.modules.approve({ moduleId: "wordpress-import", version: "1.1.0" });
 	install.dns.answer("isolated.example", ["93.184.216.34"]);
@@ -1887,6 +1887,9 @@ describe("Site analytics", () => {
 		"m.site-analytics.goals.list",
 		async (api, { siteId }) => (await analytics(api, siteId)).goals.list({ siteId }),
 		{ as: ["staff", "owner"] },
+	);
+	isolation.refuses("m.site-analytics.goals.usage", async (api, { siteId }) =>
+		(await analytics(api, siteId)).goals.usage({ siteId }),
 	);
 	isolation.refuses("m.site-analytics.goals.create", async (api, { siteId }) =>
 		(await analytics(api, siteId)).goals.create({

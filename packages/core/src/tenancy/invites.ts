@@ -244,11 +244,15 @@ export function createInvites(options: InvitesOptions): InvitesService {
 		},
 
 		async accept(token, account, via) {
+			// A link that doesn't work says so before the password is looked at. The password is checked
+			// and hashed before the transaction: its checks read Install settings and may call out.
+			if (!(await findInvite(db, token))) throw new InviteInvalidError();
+			const password = await auth.newPassword(account.password);
 			return db.transaction(async (tx) => {
 				const invite = await lockInvite(tx, token);
 				const staff = ASSIGNED_ROLES.includes(invite.role);
 				if (!staff && !invite.workspaceId) throw new InviteInvalidError();
-				const { personId } = await auth.createPerson(tx, { ...account, email: invite.email });
+				const { personId } = await auth.createPerson(tx, { ...account, password, email: invite.email });
 				if (staff) {
 					await joinStaff(tx, invite, personId, via);
 					return { personId, email: invite.email, workspaceId: null };

@@ -54,6 +54,8 @@ for (const theme of THEMES) {
 		await page.goto(install.adminUrl(`/sites/${siteId}/checks`));
 		const link = page.locator(`a[href='/builder/${siteId}/entry-template/${postTypeId}?element=photo']`).first();
 		await link.waitFor();
+		// Each Check says since when it has been there, the exact time as its title.
+		expect(await page.locator("main li time").count()).toBeGreaterThan(0);
 		await expectAccessibleScreen(page, `Checks with open warnings (${theme})`);
 		await link.focus();
 		await page.keyboard.press("Enter");

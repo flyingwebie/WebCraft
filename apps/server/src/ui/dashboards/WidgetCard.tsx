@@ -99,6 +99,7 @@ export function WidgetCard({
 	selected,
 	flash,
 	readout,
+	neverCounted,
 	onPreview,
 	onMove,
 	onAnnounce,
@@ -127,6 +128,8 @@ export function WidgetCard({
 	flash: boolean;
 	/** The size readout while its width or height changes ("6 of 12 wide · 4 rows"). */
 	readout: string | null;
+	/** The Site never counted anything: an empty Widget says counting hasn't started. */
+	neverCounted: boolean;
 	onPreview: (rect: Rect | null) => void;
 	onMove: (rect: Rect) => void;
 	onAnnounce: (message: string) => void;
@@ -393,6 +396,11 @@ export function WidgetCard({
 						nowLabel={widget.range ? daysText(answer.range) : nowLabel}
 						beforeLabel={t("dashboards.daysBefore", { days })}
 					/>
+				) : data && neverCounted ? (
+					<WidgetState icon="nothing">
+						<span className="text-foreground block font-medium">{t("dashboards.nothingCountedYet")}</span>
+						<span className="block">{t("dashboards.countingStarts")}</span>
+					</WidgetState>
 				) : data ? (
 					<WidgetState icon="nothing">{t("dashboards.nothingInRange")}</WidgetState>
 				) : problem === "MODULE_NOT_RUNNING" ? (

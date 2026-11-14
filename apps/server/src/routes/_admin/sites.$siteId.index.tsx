@@ -11,10 +11,13 @@ const ACTIVITY = 5;
 
 export const Route = createFileRoute("/_admin/sites/$siteId/")({
 	staticData: { crumb: "site.pageTitle", width: "wide" },
-	// `publishAll=1` opens Publish all at once (the shell reads it); "Drafts and changes" links there. A
-	// link written by hand (the editing bar's, a Scheduled publish's) reads as the number, one made by
-	// the router as the text.
-	validateSearch: z.object({ publishAll: z.union([z.literal("1"), z.literal(1)]).optional().catch(undefined) }),
+	// `publishAll=1` opens Publish all at once and `review=<id>` a Review's sheet (the shell reads both);
+	// "Drafts and changes" and "Waiting for review" link there. Typed in an address, `1` reads as a
+	// number, so it is taken as its text; the other keys stay for the shell.
+	validateSearch: z.looseObject({
+		publishAll: z.coerce.string().max(1).optional().catch(undefined),
+		review: z.string().max(100).optional().catch(undefined),
+	}),
 	loader: async ({ params, context }) => {
 		const api = await getApi();
 		const workspaceId = context.place.level === "site" ? context.place.workspace.id : undefined;

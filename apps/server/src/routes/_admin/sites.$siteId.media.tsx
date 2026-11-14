@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getApi } from "../../ui/api.ts";
 import { pageTitle } from "../../ui/i18n.tsx";
 import { MEDIA_VIEWS, MediaLibrary } from "../../ui/media/MediaLibrary.tsx";
+import type { MediaItem } from "../../ui/media/preview.ts";
 
 /**
  * What the Media library shows: a folder (`none`: files in no folder), a search, a kind, the file
@@ -46,7 +47,7 @@ export const Route = createFileRoute("/_admin/sites/$siteId/media")({
 			api.media.folders.list({ siteId }),
 			api.media.overview({ siteId }),
 		]);
-		let selected = deps.file ? list.items.find((item) => item.id === deps.file) : undefined;
+		let selected: MediaItem | undefined = deps.file ? list.items.find((item) => item.id === deps.file) : undefined;
 		if (deps.file && !selected) {
 			selected = await api.media.get({ siteId, mediaId: deps.file, language: deps.language }).then(
 				({ media }) => media,

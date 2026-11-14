@@ -25,6 +25,7 @@ import {
 import { useId, useMemo, useState } from "react";
 
 import { languageName } from "../content/DraftParts.tsx";
+import { When } from "../content/When.tsx";
 import { Segmented } from "../filters/Segmented.tsx";
 import { type MessageKey, useT } from "../i18n.tsx";
 import type { PlacePostType } from "../shell/levels.ts";
@@ -87,10 +88,9 @@ function iconOf(check: string): LucideIcon {
 
 /**
  * Site › Checks (frame "Checks"): how many are open by kind, as tiles; a filter by kind and a search;
- * then the open Checks in groups, each with what is wrong in plain words, where it is, and Open, which
- * goes to that spot (the editor, or the builder for Structure). Checks are advice: they never stop
- * publishing. The app keeps no record of when a Check appeared, nor a way to ignore one: a Check goes
- * when what it is about is fixed.
+ * then the open Checks in groups, each with what is wrong in plain words, where it is, since when, and
+ * Open, which goes to that spot (the editor, or the builder for Structure). Checks are advice: they
+ * never stop publishing. There is no way to ignore one: a Check goes when what it is about is fixed.
  */
 export function ChecksScreen({
 	checks,
@@ -212,7 +212,9 @@ export function ChecksScreen({
 														<p id={rowId} className="text-sm font-medium">
 															{message}
 														</p>
-														<p className="text-muted-foreground text-[13px]">{where}</p>
+														<p className="text-muted-foreground text-[13px]">
+															{where} · <When value={check.since} />
+														</p>
 													</div>
 													{check.href ? (
 														<Button
