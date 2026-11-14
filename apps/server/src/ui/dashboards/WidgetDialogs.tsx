@@ -549,11 +549,11 @@ export function WidgetSettingsPanel({
 				)}
 			</FieldGroup>
 			<div className="bg-background flex shrink-0 gap-2 border-t pt-3">
-				<Button type="button" variant="outline" size="sm" onClick={onDuplicate}>
+				<Button type="button" variant="outline" size="sm" className="px-2" onClick={onDuplicate}>
 					<CopyIcon aria-hidden="true" />
 					{t("dashboards.duplicate")}
 				</Button>
-				<Button type="button" variant="destructive" size="sm" onClick={onRemove}>
+				<Button type="button" variant="destructive" size="sm" className="px-2" onClick={onRemove}>
 					<Trash2Icon aria-hidden="true" />
 					{t("dashboards.removeWidget")}
 				</Button>

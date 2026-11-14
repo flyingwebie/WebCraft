@@ -164,10 +164,15 @@ export function NewDashboardDialog({
 
 	return (
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent closeLabel={t("dashboards.close")} finalFocus={finalFocus} className="sm:max-w-[30rem]">
+			<DialogContent
+				closeLabel={t("dashboards.close")}
+				finalFocus={finalFocus}
+				showCloseButton={false}
+				className="sm:max-w-[30rem]"
+			>
 				<form onSubmit={create} noValidate>
 					<DialogHeader>
-						<DialogTitle>{t("dashboards.newTitle")}</DialogTitle>
+						<DialogTitle className="text-lg">{t("dashboards.newTitle")}</DialogTitle>
 						<DialogDescription className="sr-only">{t("dashboards.newIntro")}</DialogDescription>
 					</DialogHeader>
 					<FieldGroup className="mt-5 mb-6 gap-5">

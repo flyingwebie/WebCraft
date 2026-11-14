@@ -840,7 +840,7 @@ export function DashboardScreen({
 					<ul
 						ref={grid}
 						aria-label={t("dashboards.gridLabel", { name: dashboard.name })}
-						className="relative grid grid-cols-1 gap-4 @3xl/page:auto-rows-[minmax(5rem,auto)] @3xl/page:grid-cols-12"
+						className="relative grid grid-cols-1 content-start gap-4 @3xl/page:auto-rows-[minmax(5rem,auto)] @3xl/page:grid-cols-12"
 						style={arranging ? { minHeight: (bottom + 4) * (ROW_HEIGHT + GRID_GAP) - GRID_GAP } : undefined}
 					>
 						{ordered.map((widget) => (
@@ -873,7 +873,7 @@ export function DashboardScreen({
 						{slot ? (
 							<li
 								aria-hidden="true"
-								className="border-primary bg-primary/5 text-muted-foreground [grid-column:var(--wc-x)_/_span_var(--wc-w)] [grid-row:var(--wc-y)_/_span_var(--wc-h)] flex items-center justify-center rounded-xl border-2 border-dashed text-sm"
+								className="border-primary text-muted-foreground [grid-column:var(--wc-x)_/_span_var(--wc-w)] [grid-row:var(--wc-y)_/_span_var(--wc-h)] flex items-center justify-center rounded-[14px] border-2 border-dashed bg-[color-mix(in_oklab,var(--primary)_7%,var(--background))] text-sm font-medium"
 								style={
 									{
 										"--wc-x": slot.rect.x + 1,
