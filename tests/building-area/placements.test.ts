@@ -34,7 +34,8 @@ beforeAll(async () => {
 
 	const site = await staff.api.templates.saveSiteTemplateMarkup({
 		siteId,
-		markup: '<header data-wc-id="header"><p data-wc-id="name">Acme Bakery</p></header><main data-wc-id="main">{{@outlet}}</main>',
+		markup:
+			'<header data-wc-id="header"><p data-wc-id="name">Acme Bakery</p></header><main data-wc-id="main">{{@outlet}}</main>',
 	});
 	await staff.api.templates.publish({ siteId, templateId: site.template.id });
 	const { component } = await staff.api.components.create({
@@ -65,7 +66,12 @@ beforeAll(async () => {
 		basedOn: state.version,
 		layout: {
 			placements: [
-				{ id: "quote", component: quoteId, props, values: { quote: { en: "Best buns in Cork" }, name: { en: "Aoife" } } },
+				{
+					id: "quote",
+					component: quoteId,
+					props,
+					values: { quote: { en: "Best buns in Cork" }, name: { en: "Aoife" } },
+				},
 			],
 		},
 	});

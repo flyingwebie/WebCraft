@@ -1,3 +1,4 @@
+import { PencilIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useEditorFit } from "../builder/editor-fit.ts";
 import { BUILDING_STAND_IN_PREFIX } from "./agent/contract.ts";
@@ -12,18 +13,23 @@ import { tagName } from "./canvas/overlay.ts";
 import type { SavingStatus } from "./canvas/regions.ts";
 import { DocumentSwitcher } from "./DocumentSwitcher.tsx";
 import { DockArea, useDocks } from "./docks/Docks.tsx";
+import { PanelButton } from "./docks/PanelFrame.tsx";
 import { PanelsMenu } from "./docks/PanelsMenu.tsx";
 import type { PanelContext } from "./docks/panels.ts";
+import { componentInPlace, type InPlaceTarget, rootsOf } from "./editing/component-in-place.ts";
 import { reverseElsewhere } from "./editing/drafts.ts";
 import { pageEditing } from "./editing/editing.ts";
 import { shellHistory } from "./editing/history.ts";
-import { refOf, structure } from "./editing/selection.ts";
+import { pageLayoutEditor } from "./editing/page-layout.ts";
+import { refOf, type StructureSnapshot, structure } from "./editing/selection.ts";
 import { TextToolbar } from "./editing/TextToolbar.tsx";
 import { type RegionCycle, regionCycle } from "./keyboard.ts";
 import { NarrowNotice } from "./NarrowNotice.tsx";
 import { useOpenDocument } from "./open-document.ts";
+import { AddPropButton, ComponentPanel } from "./panels/ComponentPanel.tsx";
 import { Inspector } from "./panels/Inspector.tsx";
 import { Layers } from "./panels/Layers.tsx";
+import { conditionName, loopAround } from "./panels/LoopPanel.tsx";
 import { MediaShellHost } from "./places/media/Picker.tsx";
 import {
 	PLACE_EVENT,
@@ -66,6 +72,52 @@ function typingIn(target: EventTarget | null): boolean {
 
 /** What the bottom bar shows of the page in the frame. */
 type ShownPage = { address: string; changes: number; inReview: boolean; languages: PageLanguage[] };
+
+/**
+ * What a Placement selected is called (its Component's name), for the canvas's chip and the Inspector's
+ * title; null when the reference names no Placement (a Page's, `content/<id>`, or a Template's node).
+ */
+function placementName(snapshot: StructureSnapshot, ref: string | null): string | null {
+	if (!ref) return null;
+	if (!ref.includes("#")) return snapshot.layout?.find((each) => `content/${each.id}` === ref)?.name ?? null;
+	const selection = snapshot.selection?.ref === ref ? snapshot.selection : null;
+	const node = selection?.node;
+	if (node?.type !== "component") return null;
+	return (
+		snapshot.sources.get(`${selection?.source}/${node.id}`)?.name ??
+		snapshot.sources.get(selection?.source ?? "")?.catalogue.components.find((each) => each.id === node.component)
+			?.name ??
+		null
+	);
+}
+
+/**
+ * The Component a Placement selected places, as editing it in place needs it: its source on the page,
+ * its id and name, and what Done selects again. Null when the selection is no Placement.
+ */
+function inPlaceTargetOf(snapshot: StructureSnapshot): InPlaceTarget | null {
+	const selection = snapshot.selection;
+	if (selection?.kind !== "placement") return null;
+	if (!selection.key) {
+		const placement = snapshot.layout?.find((each) => `content/${each.id}` === selection.ref);
+		return placement
+			? { source: selection.ref, componentId: placement.component, name: placement.name, placement: selection.ref }
+			: null;
+	}
+	const node = selection.node;
+	if (node?.type !== "component") return null;
+	const source = `${selection.source}/${node.id}`;
+	const name = placementName(snapshot, selection.ref) ?? node.component;
+	return { source, componentId: node.component, name, placement: selection.ref };
+}
+
+/** What Done selects for a Component's source on the page: a Page's Placement, or the Placement node in its Template. */
+function placementOfSource(snapshot: StructureSnapshot, source: string): string {
+	const page = snapshot.sources.get("site")?.pageLayout;
+	if (page && /^content\/[^/#]+$/.test(source)) return source;
+	const at = source.lastIndexOf("/");
+	return at < 0 ? source : `${source.slice(0, at)}#${source.slice(at + 1)}`;
+}
 
 export function Shell({ config }: { config: ShellConfig }) {
 	const { words } = config;
@@ -154,6 +206,59 @@ export function Shell({ config }: { config: ShellConfig }) {
 	);
 	useEffect(() => () => pageStructure.destroy(), [pageStructure]);
 	const structureNow = useSyncExternalStore(pageStructure.subscribe, pageStructure.snapshot);
+
+	// A Page's Page layout (BA-09): its Placements moved, hidden, duplicated, deleted and their Props'
+	// values changed, each one Undo step through the Page's shared Draft; then read and drawn again.
+	const layoutEditor = useMemo(
+		() =>
+			pageLayoutEditor({
+				token: config.token,
+				siteId: config.site.id,
+				words,
+				announce: (text, urgent) => announceRef.current(text, urgent),
+				changed: () => {
+					void pageStructure.reloadLayout();
+					void frame.current?.rerender();
+				},
+				failed: () => setSaving("failed"),
+			}),
+		[config.token, config.site.id, words, pageStructure],
+	);
+	useEffect(() => () => layoutEditor.destroy(), [layoutEditor]);
+	useEffect(
+		() => layoutEditor.page(staff ? structureNow.layoutInfo : null),
+		[layoutEditor, staff, structureNow.layoutInfo],
+	);
+
+	// A Component edited in place (BA-09, `builder/06`): the rest of the page dimmed and locked, the
+	// Component panel in the left dock, Done in the bar.
+	const inPlace = useMemo(
+		() => componentInPlace({ words: { editing: (name) => fill(words.placements.component.editing, { name }) } }),
+		[words],
+	);
+	useEffect(() => () => inPlace.destroy(), [inPlace]);
+	const inPlaceTarget = useSyncExternalStore(inPlace.subscribe, inPlace.current);
+	const editInPlace = useCallback(
+		(target: InPlaceTarget) => {
+			if (inPlace.current()?.source === target.source) return;
+			inPlace.done();
+			pageStructure.editInPlace(target.source);
+			inPlace.start(target);
+			announce(fill(words.placements.component.started, { name: target.name }));
+			// Its first element is selected, as the Section button will leave a new one (`builder/06`).
+			const page = document.querySelector<HTMLIFrameElement>("iframe[data-wc-frame]")?.contentDocument;
+			const first = page ? rootsOf(page, target.source)[0]?.getAttribute("data-wc-code") : null;
+			if (first) pageStructure.select(first);
+		},
+		[inPlace, pageStructure, announce, words],
+	);
+	const doneInPlace = useCallback(() => {
+		const was = inPlace.done();
+		pageStructure.editInPlace(null);
+		if (!was) return;
+		announce(fill(words.placements.component.ended, { name: was.name }));
+		pageStructure.select(was.placement);
+	}, [inPlace, pageStructure, announce, words]);
 	/** What the canvas selected last: its name as its chip says it, and its reference when it has one. */
 	const [canvasSelection, setCanvasSelection] = useState<{ ref: string | null; name: string } | null>(null);
 
@@ -181,6 +286,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 	const onPage = useCallback(
 		(address: string, answer: Promise<EditAnswer<PageState>>) => {
 			shownAddress.current = address;
+			// A page loaded: a Component edited in place on the one before is done (its Draft keeps every change).
+			if (inPlace.done()) pageStructure.editInPlace(null);
 			if (staff)
 				pageStructure.page(address.startsWith(`${BUILDING_STAND_IN_PREFIX}/`) ? null : (address.split("?")[0] ?? "/"));
 			setSaving("idle");
@@ -188,7 +295,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 			takeState(address, answer);
 			framed(address, answer);
 		},
-		[takeState, framed, staff, pageStructure],
+		[takeState, framed, staff, pageStructure, inPlace],
 	);
 
 	// The place open over the canvas (BA-20): it takes the canvas's and the docks' room; the canvas stays
@@ -198,6 +305,11 @@ export function Shell({ config }: { config: ShellConfig }) {
 	const placeOpener = useRef<Element | null>(null);
 	const openPlace = useCallback(
 		(key: PlaceKey) => {
+			// Other places are locked while a Component is edited in place (`builder/06`): Done first.
+			if (inPlace.current() && key !== placeKey) {
+				announce(words.placements.component.placesLocked, true);
+				return;
+			}
 			if (key === placeKey) {
 				opened.documents.openPlace(null);
 				return;
@@ -207,7 +319,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 			if (!placeKey) placeOpener.current = document.activeElement;
 			opened.documents.openPlace(at.place, at.view);
 		},
-		[placeKey, opened.documents],
+		[placeKey, opened.documents, inPlace, announce, words],
 	);
 	const leavePlace = useCallback(() => opened.documents.openPlace(null), [opened.documents]);
 	// What the open place has of its own for the bottom bar (its Draft state and Publish: the Forms
@@ -292,7 +404,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 	const documentsRef = useRef(opened.documents);
 	documentsRef.current = opened.documents;
 	selectedRef.current = (ref) => {
-		frame.current?.select(ref);
+		frame.current?.select(ref, placementName(pageStructure.snapshot(), ref));
 		documentsRef.current.select(ref);
 	};
 	// The address's selection is selected once the page shows what it names: as the shell starts (a
@@ -314,22 +426,33 @@ export function Shell({ config }: { config: ShellConfig }) {
 	const chosenNode = chosen?.node;
 	const panelSelection = useMemo<PanelContext["selection"]>(() => {
 		if (!staff || !chosen) return selection;
-		const name =
-			canvasSelection?.ref === chosen.ref
-				? canvasSelection.name
-				: chosenNode?.type === "element"
-					? `${chosenNode.tag} · ${chosenNode.label ?? tagName(chosenNode.tag, words)}`
-					: (selection?.name ?? "");
+		const placed = chosen.kind === "placement" ? placementName(structureNow, chosen.ref) : null;
+		const name = placed
+			? placed
+			: chosenNode?.type === "loop"
+				? chosenNode.source
+				: chosenNode?.type === "condition"
+					? conditionName(words, chosenNode)
+					: canvasSelection?.ref === chosen.ref
+						? canvasSelection.name
+						: chosenNode?.type === "element"
+							? `${chosenNode.tag} · ${chosenNode.label ?? tagName(chosenNode.tag, words)}`
+							: (selection?.name ?? "");
 		return { kind: chosen.kind, name };
-	}, [staff, chosen, chosenNode, canvasSelection, selection, words]);
+	}, [staff, chosen, chosenNode, canvasSelection, selection, words, structureNow]);
+	// An element a Loop repeats: the Inspector is the Loop's (`builder/07`), with the element's own below.
+	const chosenSource = chosen ? structureNow.sources.get(chosen.source) : undefined;
+	const loopOfElement =
+		chosen?.kind === "element" && chosenSource && chosen.path ? loopAround(chosenSource.tree, chosen.path) : null;
 	const context = useMemo<PanelContext>(
 		() => ({
 			selection: panelSelection,
 			document: kind === null ? null : kind === "page" || kind === "component" || kind === "form" ? kind : "template",
-			componentInPlace: false,
+			componentInPlace: inPlaceTarget !== null,
 		}),
-		[panelSelection, kind],
+		[panelSelection, kind, inPlaceTarget],
 	);
+	const editTarget = staff ? inPlaceTargetOf(structureNow) : null;
 	const docks = useDocks({
 		config,
 		context,
@@ -344,19 +467,69 @@ export function Shell({ config }: { config: ShellConfig }) {
 					onOpen={opened.open}
 				/>
 			),
+			// The Component edited in place: its name in the Component colour (`builder/06`).
+			...(inPlaceTarget
+				? {
+						component: (
+							<span className="truncate text-[12px] font-semibold text-[#a78bfa]" data-wc-in-place-title="">
+								{inPlaceTarget.name}
+							</span>
+						),
+					}
+				: {}),
 		},
 		bodies: staff
 			? {
-					layers: <Layers structure={pageStructure} words={words} />,
+					layers: <Layers structure={pageStructure} words={words} layout={layoutEditor} />,
 					inspector: (
 						<Inspector
 							structure={pageStructure}
 							words={words}
-							onOpenComponent={(componentId) => opened.open({ kind: "component", componentId })}
+							token={config.token}
+							siteId={config.site.id}
+							layout={layoutEditor}
+							onOpenComponent={(componentId, source) => {
+								// Placed on this page: edited in place; else opened as the document.
+								const snapshot = pageStructure.snapshot();
+								const placed = snapshot.sources.get(source);
+								if (placed)
+									editInPlace({
+										source,
+										componentId,
+										name: placed.name ?? componentId,
+										placement: placementOfSource(snapshot, source),
+									});
+								else opened.open({ kind: "component", componentId });
+							}}
+							onOpenLoop={(loopId) => opened.documents.openPlace(`loops/${loopId}`)}
 						/>
 					),
+					...(inPlaceTarget
+						? { component: <ComponentPanel structure={pageStructure} words={words} target={inPlaceTarget} /> }
+						: {}),
 				}
 			: {},
+		actions: staff
+			? {
+					...(editTarget && !inPlaceTarget
+						? {
+								inspector: (
+									<PanelButton
+										icon={PencilIcon}
+										label={words.placements.props.edit}
+										onClick={() => editInPlace(editTarget)}
+										data={{ "data-wc-edit-component": "" }}
+									/>
+								),
+							}
+						: {}),
+					...(inPlaceTarget
+						? { component: <AddPropButton structure={pageStructure} words={words} target={inPlaceTarget} /> }
+						: {}),
+				}
+			: {},
+		titles: loopOfElement ? { inspector: words.inspectorTitles.loop } : {},
+		subs: loopOfElement ? { inspector: loopOfElement.node.source } : {},
 	});
 
 	const exit = async () => {
@@ -405,7 +578,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 			<BottomBar
 				words={words}
 				language={config.language}
-				languages={place ? [] : (shown?.languages ?? [])}
+				languages={place || inPlaceTarget ? [] : (shown?.languages ?? [])}
 				onLanguage={(language) => frame.current?.navigate(language.path)}
 				nav={
 					place ? null : (
@@ -413,21 +586,33 @@ export function Shell({ config }: { config: ShellConfig }) {
 					)
 				}
 				insertRow={!place}
-				staging={config.staging && shown ? `${config.staging}${shown.address}` : null}
+				staging={config.staging && shown && !inPlaceTarget ? `${config.staging}${shown.address}` : null}
 				onUndo={() => void undoHistory.undo()}
 				onRedo={() => void undoHistory.redo()}
 				draft={draftStateOf(saving, place && placeBar ? { changes: placeBar.changes, inReview: false } : shown)}
 				publish={
-					<Publish
-						config={config}
-						request={request}
-						path={shown ? (shown.address.split("?")[0] ?? "/") : null}
-						document={opened.address.document}
-						changed={publishChanged}
-						handedIn={place && placeBar ? placeBar : null}
-						announce={announce}
-						onPublished={refreshState}
-					/>
+					<>
+						{inPlaceTarget && !place ? (
+							<button
+								type="button"
+								onClick={doneInPlace}
+								className="border-chrome-line text-chrome-strong hover:bg-chrome-hover focus-visible:ring-chrome-focus h-8 shrink-0 rounded-md border px-5 text-[13px] font-medium outline-none focus-visible:ring-2"
+								data-wc-done=""
+							>
+								{words.placements.component.done}
+							</button>
+						) : null}
+						<Publish
+							config={config}
+							request={request}
+							path={shown ? (shown.address.split("?")[0] ?? "/") : null}
+							document={opened.address.document}
+							changed={publishChanged}
+							handedIn={place && placeBar ? placeBar : null}
+							announce={announce}
+							onPublished={refreshState}
+						/>
+					</>
 				}
 			/>
 			{/*
@@ -502,6 +687,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 								}}
 								onReady={(document) => {
 									if (staff) pageStructure.found(document);
+									// The Component edited in place stays locked and dimmed on the page as drawn now.
+									inPlace.page(document, frame.current?.overlay() ?? null);
 								}}
 								editing={editing}
 							/>

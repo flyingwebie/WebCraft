@@ -9884,6 +9884,110 @@
 				"notOpen": "This element's Template or Component isn't open here: select it again once the page has loaded.",
 				"badValue": "This isn't a value: {value}. Write a value's name between double braces."
 			}
+		},
+		"placements": {
+			"placement": "this Placement",
+			"locked": "Locked while you edit the Component in place: press Done to leave it.",
+			"connecting": "Still connecting to the Page's Draft. Try again in a moment.",
+			"notSaved": "The change couldn't be saved. It is kept in this tab and sent once the connection is back.",
+			"refused": "Couldn't change the Page layout: {reason}",
+			"values": "Values",
+			"treeKeys": "A Page's Placements move with Alt and the up and down arrows, or by dragging their rows; the Site template's rows around them stay where they are.",
+			"dragElsewhere": "{name} can't go there: an element moves within its own Template or Component.",
+			"layoutRefusals": {
+				"unavailable": "The Page layout can't be arranged now.",
+				"locked": "{name} is locked.",
+				"besideLocked": "{name} can't move past a locked Placement.",
+				"edge": "{name} can't move further: a Page layout holds its Placements in one list.",
+				"outside": "{name} stays in the Page layout: the Site template's rows are locked."
+			},
+			"steps": {
+				"move": "Move {name}",
+				"hide": "Hide {name}",
+				"show": "Show {name}",
+				"duplicate": "Duplicate {name}",
+				"remove": "Delete {name}",
+				"prop": "Change {prop} of {name}",
+				"addProp": "Add the Prop {prop} to {name}",
+				"removeProp": "Remove the Prop {prop} from {name}",
+				"renameProp": "Rename the Prop {prop} of {name}"
+			},
+			"props": {
+				"onPages": "On {count} pages: editing the Component changes all.",
+				"none": "This Component has no Props.",
+				"edit": "Edit Component",
+				"on": "On",
+				"off": "Off",
+				"noChoice": "None",
+				"notHere": "This kind of Prop is changed in the Page's own editing for now.",
+				"url": "Address of {name}",
+				"urlPlaceholder": "Paste an address",
+				"linkText": "Text of {name}",
+				"linkTextPlaceholder": "Link text",
+				"noFile": "No file",
+				"choose": "Choose",
+				"chooseFor": "Choose a Media file for {name}",
+				"removeFile": "Remove the file from {name}"
+			},
+			"component": {
+				"add": "Add a Prop",
+				"addMenu": "Add Prop",
+				"noProps": "No Props yet",
+				"addHint": "Click + to add one",
+				"label": "Label of props.{name}",
+				"remove": "Remove the Prop {name}",
+				"editing": "{name} · Editing",
+				"started": "Editing {name} in place. The rest of the page is locked until Done.",
+				"ended": "Done editing {name}. Its changes are in its Draft.",
+				"placesLocked": "Other places are locked while you edit a Component in place: press Done first.",
+				"done": "Done",
+				"types": {
+					"text": "Text",
+					"richText": "Rich text",
+					"number": "Number",
+					"boolean": "Switch",
+					"date": "Date",
+					"select": "Select",
+					"media": "Media",
+					"link": "Link",
+					"email": "Email",
+					"relationship": "Relationship",
+					"group": "Group",
+					"repeater": "Repeater"
+				}
+			},
+			"loop": {
+				"which": "Loop",
+				"entries": "Entries",
+				"items": "Items",
+				"eachItem": "Each item is called",
+				"notFound": "There's no Loop called {name} on this Site.",
+				"open": "Open in Loops",
+				"step": "Repeat the Loop {name}",
+				"aliasStep": "Rename the items of {name}",
+				"ownItems": "Its own Loop items.",
+				"setByLoop": "The Loop sets this, not the markup.",
+				"entriesOf": "Entries of {postTypes}",
+				"atMost": "{count} at most",
+				"order": {
+					"newest": "newest first",
+					"oldest": "oldest first",
+					"az": "by {field}, A to Z",
+					"za": "by {field}, Z to A"
+				},
+				"element": "Element · {name}"
+			},
+			"condition": {
+				"test": "Shows when",
+				"elseIf": "Else, when",
+				"otherwise": "Otherwise",
+				"otherwiseHint": "Otherwise shows its own elements when no test holds.",
+				"otherwiseOn": "Add Otherwise",
+				"otherwiseOff": "Remove Otherwise",
+				"step": "Change the test of {name}",
+				"bad": "This test can't be read: {problem}",
+				"name": "If {test}"
+			}
 		}
 	},
 	"auth": {
