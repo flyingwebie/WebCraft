@@ -323,6 +323,7 @@ export {
 	type AddedPermission,
 	actingPerson,
 	can,
+	type EditSessionActor,
 	holdsAccess,
 	INSTALL,
 	type MemberAccess,
