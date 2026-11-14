@@ -106,6 +106,7 @@ export async function buildingAreaEndpoint(
 		adminMessages: ADMIN_MESSAGES[language],
 		layout: preferences.layout,
 		hintSeen: preferences.hintSeen,
+		formatOnLeave: preferences.formatOnLeave,
 		agency: { name: branding.senderName, note: branding.footer },
 	};
 	const files = await buildingAreaAssets();

@@ -8,6 +8,8 @@
  * page), stops links from leaving while editing, hands the page's events to the shell, and tells the
  * shell what the frame shows. A page opened outside the frame goes into the shell instead.
  */
+
+import { pageConsole } from "./console.ts";
 import {
 	AGENT_HOST_PROPERTY,
 	type AgentEventKind,
@@ -114,16 +116,9 @@ import { pageRegions } from "./regions.ts";
 	listen.call(doc, "selectionchange", forward("selectionchange"));
 	listen.call(win, "focus", () => host.focus(true));
 	listen.call(win, "blur", () => host.focus(false));
-	// The page's errors, for the JS pane: from the start, before any Site script runs.
-	listen.call(
-		win,
-		"error",
-		(event: Event) => {
-			if (event instanceof win.ErrorEvent) host.error(event.message, event.filename || null);
-			else if (event.target instanceof win.HTMLScriptElement) host.error("load", event.target.src || null);
-		},
-		{ capture: true },
-	);
+	// The page's console, errors and rejected promises, for the JS pane: from the start, before any
+	// Site script runs (`console.ts`).
+	pageConsole(win, host, listen);
 
 	const start = () => {
 		adopt([doc.body]);

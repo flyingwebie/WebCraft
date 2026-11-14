@@ -289,10 +289,12 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 	 * The page as Code mode shows it with unsaved markup in place of its source's Draft, rendered by
 	 * the server through the same parser as saving; nothing is saved.
 	 */
-	"code/preview": async (services, session, body, _request, host) => {
+	"code/preview": async (services, session, body, request, host) => {
 		const scope = await services.codeMode.access(session);
 		const input = parse(codePreview, body);
-		return json(200, await services.codeMode.preview(host, await pageEditing(session, scope), input));
+		// The building area's frame shows the page as it loads it there (both kinds of tags, BA-11).
+		const editing = await pageEditing(session, scope, false, inBuildingArea(request));
+		return json(200, await services.codeMode.preview(host, editing, input));
 	},
 	/** Saves markup to its Template's or Component's Draft, based on the version it was opened at. */
 	"code/save": async (services, session, body, _request, host) => {
