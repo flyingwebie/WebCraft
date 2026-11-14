@@ -165,6 +165,15 @@ export function Shell({ config }: { config: ShellConfig }) {
 				onExit={() => void exit()}
 				exiting={exiting}
 			/>
+			{/* Before the canvas in the Tab order, so the page (and whatever it holds) comes last; F6 still goes rail, page, bar. */}
+			<BottomBar
+				words={words}
+				language={config.language}
+				languages={shown?.languages ?? []}
+				onLanguage={(language) => frame.current?.navigate(language.path)}
+				staging={config.staging && shown ? `${config.staging}${shown.address}` : null}
+				draft={draftStateOf(saving, shown)}
+			/>
 			<main
 				id="wc-canvas"
 				tabIndex={-1}
@@ -191,14 +200,6 @@ export function Shell({ config }: { config: ShellConfig }) {
 					onSaving={onSaving}
 				/>
 			</main>
-			<BottomBar
-				words={words}
-				language={config.language}
-				languages={shown?.languages ?? []}
-				onLanguage={(language) => frame.current?.navigate(language.path)}
-				staging={config.staging && shown ? `${config.staging}${shown.address}` : null}
-				draft={draftStateOf(saving, shown)}
-			/>
 			<div className="sr-only" data-wc-messages="">
 				<p role="status" aria-live="polite" aria-atomic="true">
 					{message.urgent ? "" : message.text}

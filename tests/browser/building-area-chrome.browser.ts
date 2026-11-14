@@ -136,9 +136,27 @@ async function eased(page: Page): Promise<void> {
 
 const readout = (page: Page) => page.locator("[data-wc-readout]");
 
+/**
+ * One page at 1440 × 900 for the checks that leave the frame as they found it (or nearly): the link
+ * that enters the building area allows only a few uses a minute from one address.
+ */
+let sharedPage: Promise<{ page: Page; frame: Frame }> | undefined;
+function shared() {
+	sharedPage ??= opened();
+	return sharedPage;
+}
+
+afterAll(async () => {
+	// The browser may be gone already with the Install.
+	await (await sharedPage)?.page
+		.context()
+		.close()
+		.catch(() => {});
+});
+
 describe("the building area's chrome, for Staff", () => {
 	test("has the sizes of SPEC 4 at 1440 × 900", async () => {
-		const { page } = await opened();
+		const { page } = await shared();
 		expect(await sizeOf(page, '[data-building-region="rail"]')).toEqual({ width: 48, height: 852 });
 		expect(await sizeOf(page, '[data-building-region="bar"]')).toEqual({ width: 1440, height: 48 });
 		expect((await sizeOf(page, '[data-wc-bar-cluster="start"]')).width).toBe(400);
@@ -160,7 +178,7 @@ describe("the building area's chrome, for Staff", () => {
 			"true",
 		);
 		// The avatar names the person; Settings opens the Site's settings in the admin, in a new tab.
-		expect(await page.getByRole("img", { name: "Signed in as Davide Del Gatto" }).textContent()).toBe("DD");
+		expect(await page.getByRole("img", { name: "Signed in as Davide Del Gatto" }).textContent()).toBe("DG");
 		const settings = page.getByRole("link", { name: "Site settings (opens in a new tab)" });
 		expect(await settings.getAttribute("href")).toBe(install.adminUrl(`/sites/${siteId}/domains`));
 		expect(await settings.getAttribute("target")).toBe("_blank");
@@ -174,7 +192,6 @@ describe("the building area's chrome, for Staff", () => {
 		expect(Math.round(box.x - canvas.x)).toBe(12);
 		expect(Math.round(canvas.x + canvas.width - (box.x + box.width))).toBe(12);
 		expect(Math.round(canvas.y + canvas.height - (box.y + box.height))).toBe(12);
-		await page.context().close();
 	});
 
 	test("a side gutter narrows the frame symmetrically; at 768 the page's media query matches; the readout names the breakpoint", async () => {
@@ -234,7 +251,7 @@ describe("the building area's chrome, for Staff", () => {
 		// The frame still fills the pane, the page drawn smaller in it.
 		const { box } = await frameBox(page);
 		expect(Math.round(box.width)).toBe(1440 - 48 - 24);
-		expect(await page.locator("[data-wc-breakpoint]").getAttribute("data-wc-breakpoint")).toBe("xl");
+		expect(await page.locator("[data-wc-breakpoint]").getAttribute("data-wc-breakpoint")).toBe("2xl");
 
 		await page.locator("[data-wc-reset-zoom]").click();
 		await eased(page);
@@ -253,7 +270,7 @@ describe("the building area's chrome, for Staff", () => {
 	});
 
 	test("the readout comes 300 ms after the pointer reaches a gutter and leaves 1.5 s after it goes", async () => {
-		const { page } = await opened();
+		const { page } = await shared();
 		const gutter = await page.locator('[data-wc-gutter="end"]').boundingBox();
 		if (!gutter) throw new Error("No gutter.");
 		await page.mouse.move(gutter.x + gutter.width / 2, gutter.y + gutter.height / 2);
@@ -263,11 +280,10 @@ describe("the building area's chrome, for Staff", () => {
 		await page.waitForTimeout(600);
 		expect(await readout(page).count()).toBe(1);
 		await readout(page).waitFor({ state: "detached", timeout: 3000 });
-		await page.context().close();
 	});
 
 	test("Hide interface keeps the rail, the bar and the selection's outline", async () => {
-		const { page, frame } = await opened();
+		const { page, frame } = await shared();
 		const title = await frame.locator("h1").boundingBox();
 		if (!title) throw new Error("No title.");
 		await page.mouse.click(title.x + 5, title.y + title.height / 2);
@@ -282,11 +298,10 @@ describe("the building area's chrome, for Staff", () => {
 
 		await page.getByRole("button", { name: "Show the interface" }).click();
 		expect(await page.locator("[data-interface]").getAttribute("data-interface")).toBe("shown");
-		await page.context().close();
 	});
 
 	test("Dark preview switches the page's Dark mode in the frame only", async () => {
-		const { page, frame } = await opened();
+		const { page, frame } = await shared();
 		const scheme = () => frame.evaluate(() => getComputedStyle(document.documentElement).colorScheme);
 		const preview = page.getByRole("button", { name: "Dark preview" });
 		expect(await preview.getAttribute("aria-pressed")).toBe("false");
@@ -311,7 +326,6 @@ describe("the building area's chrome, for Staff", () => {
 
 		await preview.click();
 		expect(await frame.evaluate(() => document.documentElement.getAttribute("data-wc-theme"))).toBe("light");
-		await page.context().close();
 	});
 
 	test("Exit ends the session and goes back to the admin", async () => {

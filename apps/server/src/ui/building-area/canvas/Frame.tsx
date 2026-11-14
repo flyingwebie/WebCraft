@@ -336,6 +336,18 @@ export function Frame({
 
 	return (
 		<div ref={canvas} className="absolute inset-0 flex justify-center overflow-hidden" data-wc-canvas="">
+			{readoutShown && area ? (
+				<SizeReadout
+					size={size}
+					layout={layout}
+					pane={pane}
+					breakpoints={breakpoints}
+					words={words}
+					onSize={setByControl}
+					onPointerInside={(inside) => setPointerIn((was) => ({ ...was, readout: inside }))}
+					onFocusInside={(inside) => setFocusIn((was) => ({ ...was, readout: inside }))}
+				/>
+			) : null}
 			<div
 				className={`relative shrink-0 ${ease}`}
 				style={stageSize}
@@ -344,6 +356,10 @@ export function Frame({
 					if (event.target === event.currentTarget) setEasing(false);
 				}}
 			>
+				{/* The gutters before the frame in the Tab order: the page comes last. */}
+				{gutter("start")}
+				{gutter("end")}
+				{gutter("below")}
 				<div
 					className={`absolute start-3 end-3 top-0 bottom-3 overflow-hidden rounded-b-md bg-white ${drag ? "[&>iframe]:pointer-events-none" : ""}`}
 					data-wc-frame-box=""
@@ -375,22 +391,7 @@ export function Frame({
 						/>
 					) : null}
 				</div>
-				{gutter("start")}
-				{gutter("end")}
-				{gutter("below")}
 			</div>
-			{readoutShown && area ? (
-				<SizeReadout
-					size={size}
-					layout={layout}
-					pane={pane}
-					breakpoints={breakpoints}
-					words={words}
-					onSize={setByControl}
-					onPointerInside={(inside) => setPointerIn((was) => ({ ...was, readout: inside }))}
-					onFocusInside={(inside) => setFocusIn((was) => ({ ...was, readout: inside }))}
-				/>
-			) : null}
 		</div>
 	);
 }
