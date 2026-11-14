@@ -19,9 +19,12 @@ const buttonVariants = cva(
 				ghost:
 					"hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:hover:bg-muted/50",
 				// WebCraft: solid in light mode, where red text on a pale red fill falls short of 4.5:1;
-				// hover darkens, so the label keeps at least the contrast it has at rest.
+				// hover darkens, so the label keeps at least the contrast it has at rest. In dark the label is
+				// the lighter red step: the destructive red itself on its own tint falls under 4.5:1 on a
+				// card, a popover or a muted row and once hovered; the lighter step keeps 4.8:1 and more on
+				// the page, a card, a popover and a muted row, at rest and hovered.
 				destructive:
-					"bg-destructive focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:text-destructive dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40 text-white hover:bg-[color-mix(in_oklch,var(--destructive),black_12%)]",
+					"bg-destructive focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40 text-white hover:bg-[color-mix(in_oklch,var(--destructive),black_12%)] dark:text-red-300",
 				// WebCraft: `text-primary` is the primary colour's text step (`--primary-text` in globals.css),
 				// which keeps 4.5:1 on the page in dark as well; the fill's orange does not.
 				link: "text-primary underline-offset-4 hover:underline",
