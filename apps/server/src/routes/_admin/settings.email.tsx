@@ -20,7 +20,7 @@ import { useSensitiveAction } from "../../ui/identity-check.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 
 export const Route = createFileRoute("/_admin/settings/email")({
-	staticData: { crumb: "emailSettings.pageTitle" },
+	staticData: { crumb: "emailSettings.pageTitle", width: "form" },
 	loader: async ({ context }) => {
 		if (!context.shell.permissions.includes("install.manage")) return null;
 		const api = await getApi();

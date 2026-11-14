@@ -6,7 +6,7 @@ import { PlaceModules } from "../../ui/modules/PlaceModules.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 
 export const Route = createFileRoute("/_admin/workspaces/$workspaceId/modules")({
-	staticData: { crumb: "modules.place.pageTitle" },
+	staticData: { crumb: "modules.place.pageTitle", width: "form" },
 	loader: async ({ context, params }) => {
 		if (!context.place.permissions.includes("module.manage")) return null;
 		const api = await getApi();

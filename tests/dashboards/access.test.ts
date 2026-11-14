@@ -41,7 +41,10 @@ describe("who sees a Dashboard", () => {
 		const { siteId, dashboardId, widgetId } = await siteWithDashboard();
 		const owner = (await install.createMember({ workspaceId, role: "owner", sites: [siteId] })).browser;
 
-		expect((await owner.api.dashboards.list({ siteId })).dashboards.map((each) => each.name)).toEqual(["Client board"]);
+		expect((await owner.api.dashboards.list({ siteId })).dashboards.map((each) => each.name)).toEqual([
+			"Site analytics",
+			"Client board",
+		]);
 		expect((await owner.api.dashboards.get({ siteId, dashboardId })).dashboard.canManage).toBe(false);
 		expect((await owner.api.dashboards.widgets.data({ siteId, dashboardId, widgetId })).widget.problem).toBeNull();
 		await expect(owner.api.dashboards.create({ siteId, name: "Mine" })).rejects.toMatchObject({ code: "FORBIDDEN" });

@@ -38,7 +38,7 @@ export function BaseStylesTab({ editing }: { editing: Editing }) {
 	const [target, setTarget] = useState(targets[0] ?? "body");
 	const { baseStyles, tokens } = editing.draft;
 	return (
-		<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+		<div className="grid gap-6 @4xl/page:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
 			<div className="grid content-start gap-4">
 				<p className="text-muted-foreground text-sm">{t("designSystem.base.intro")}</p>
 				<Field>
@@ -81,7 +81,7 @@ export function CustomCssTab({ editing }: { editing: Editing }) {
 	const t = useT();
 	const id = useId();
 	return (
-		<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+		<div className="grid gap-6 @4xl/page:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
 			<Field>
 				<FieldLabel htmlFor={`${id}-css`}>{t("designSystem.css.label")}</FieldLabel>
 				<Textarea

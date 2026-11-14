@@ -1,6 +1,6 @@
 // Seam 2: a real browser on the real admin. Each browser Install is a test Install (its own
 // database, see ../harness) served by the production web process (`bun run build` first), with
-// Chromium driven through Playwright.
+// Chromium driven through Playwright. One check asks for the dev server instead (`devServer`).
 import { existsSync, mkdtempSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -8,6 +8,7 @@ import { join } from "node:path";
 import type { Subprocess } from "bun";
 import { type Browser, type BrowserContext, type Cookie, chromium, type Page } from "playwright";
 
+import { createTestBrowser, type TestBrowser } from "../harness/browser.ts";
 import {
 	createTestInstall,
 	TEST_INSTALL_ADDRESSES,
@@ -22,6 +23,8 @@ const ROOT = new URL("../../", import.meta.url).pathname;
 /** The production web process, started with the test suite's Modules (see web.ts). */
 const WEB = join(ROOT, "tests/browser/web.ts");
 const BUNDLE = join(ROOT, "apps/server/dist/server/server.js");
+/** Where `bun run dev` starts the web process: the dev server reads its config there. */
+const SERVER = join(ROOT, "apps/server");
 
 /** Chromium sends every `*.localhost` name to this machine, so the admin needs no DNS. */
 const ADMIN_HOST = "admin.localhost";
@@ -74,6 +77,12 @@ export type BrowserInstall = {
 	goLive(siteId: string): Promise<void>;
 	/** A URL on the Primary domain `goLive` gave a Site, such as `liveUrl("bakery", "/blog/fresh-bread")`. */
 	liveUrl(siteSlug: string, path: string): string;
+	/**
+	 * A person's browser with no page, on the web process's own admin: for what only the web process
+	 * answers with its own addresses (`editMode.open`'s link), where `install` would give the test
+	 * Install's. It isn't signed in (`api.session.signIn`).
+	 */
+	webBrowser(): TestBrowser;
 	/** The setup token the web process printed in its log when it started. */
 	setupToken(): string;
 	/** Creates the Superadmin without the wizard (as `webcraft admin create-superadmin` does). */
@@ -105,14 +114,22 @@ export type BrowserInstall = {
 	close(): Promise<void>;
 };
 
-/** Starts an Install with no Superadmin, served by the production web process, and a browser. */
-export async function startBrowserInstall(options: { backForwardCache?: boolean } = {}): Promise<BrowserInstall> {
-	if (!existsSync(BUNDLE)) {
+/**
+ * Starts an Install with no Superadmin, served by the production web process, and a browser. With
+ * `devServer`, the web process is the dev server instead, started as `bun run dev` starts it: for the
+ * one check of what only differs there (`dev-server.browser.ts`). It needs no build, loads this
+ * build's own Modules, and its admin is slow to open in a browser (nothing is bundled), so that check
+ * signs in with `webBrowser()`.
+ */
+export async function startBrowserInstall(
+	options: { backForwardCache?: boolean; devServer?: boolean } = {},
+): Promise<BrowserInstall> {
+	if (!options.devServer && !existsSync(BUNDLE)) {
 		throw new Error("The browser tests run the production web process: run `bun run build` first.");
 	}
 	// The web process runs on the real clock, so the data prepared in the test process (invites
 	// that expire, sessions) is made at the real time too.
-	const install = await createTestInstall({ now: new Date(), modules: TEST_MODULES });
+	const install = await createTestInstall({ now: new Date(), modules: options.devServer ? undefined : TEST_MODULES });
 	const port = await freePort();
 	const origin = `http://${ADMIN_HOST}:${port}`;
 	const logs: Record<string, unknown>[] = [];
@@ -130,8 +147,10 @@ export async function startBrowserInstall(options: { backForwardCache?: boolean 
 	};
 
 	try {
-		web = startWeb(install, port, logs);
-		await waitUntilReady(origin, web, logs);
+		web = options.devServer ? startDevWeb(install, port, logs) : startWeb(install, port, logs);
+		// The dev server reads the whole web process's code as its first request arrives.
+		if (options.devServer) await waitUntilReady(origin, web, logs, { tries: 1200, hint: "the dev server, `vite dev`" });
+		else await waitUntilReady(origin, web, logs, { tries: 100, hint: BUILD_HINT });
 		// Playwright disables the cache by default; real Back/Forward restoration needs full Chromium.
 		browser = await chromium.launch(
 			options.backForwardCache ? { channel: "chromium", ignoreDefaultArgs: ["--disable-back-forward-cache"] } : {},
@@ -150,6 +169,27 @@ export async function startBrowserInstall(options: { backForwardCache?: boolean 
 			await goLive(install, siteId, LIVE_DOMAIN);
 		},
 		liveUrl: (siteSlug, path) => new URL(path, `http://${siteSlug}.${LIVE_DOMAIN}:${port}`).toString(),
+		webBrowser: () =>
+			createTestBrowser({
+				adminOrigin: origin,
+				// Only a browser finds names under `.localhost` on this machine: the request goes to the
+				// loopback address, naming the host it is for.
+				async send(request) {
+					const url = new URL(request.url);
+					const headers = new Headers(request.headers);
+					headers.set("host", url.host);
+					const body = request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer();
+					return fetch(`http://127.0.0.1:${port}${url.pathname}${url.search}`, {
+						method: request.method,
+						headers,
+						body,
+						redirect: "manual",
+					});
+				},
+				async upgrade() {
+					throw new Error("A browser with no page opens no socket: open a page for that.");
+				},
+			}),
 		setupToken() {
 			const token = logs.findLast((entry) => typeof entry.setupToken === "string")?.setupToken;
 			if (typeof token !== "string") throw new Error("The web process printed no setup token.");
@@ -221,9 +261,28 @@ export async function startBrowserInstall(options: { backForwardCache?: boolean 
 }
 
 function startWeb(install: TestInstall, port: number, logs: Record<string, unknown>[]): Subprocess {
-	const web = Bun.spawn(["bun", WEB], {
-		// Bun loads `.env` from the directory it starts in; an empty one keeps the developer's out.
-		cwd: mkdtempSync(join(tmpdir(), "webcraft-browser-")),
+	// Bun loads `.env` from the directory it starts in; an empty one keeps the developer's out.
+	return spawnWeb(["bun", WEB], mkdtempSync(join(tmpdir(), "webcraft-browser-")), install, port, logs);
+}
+
+/**
+ * The web process as `bun run dev` starts it (`scripts/dev.ts`): `vite dev` on Bun, in the server's own
+ * folder (the repo's `.env` is one above it, so Bun doesn't load it). Vite listens on `localhost`,
+ * which may be the IPv6 loopback alone; the checks here ask the IPv4 one.
+ */
+function startDevWeb(install: TestInstall, port: number, logs: Record<string, unknown>[]): Subprocess {
+	return spawnWeb(["bun", "--bun", "vite", "dev", "--host", "127.0.0.1"], SERVER, install, port, logs);
+}
+
+function spawnWeb(
+	command: string[],
+	cwd: string,
+	install: TestInstall,
+	port: number,
+	logs: Record<string, unknown>[],
+): Subprocess {
+	const web = Bun.spawn(command, {
+		cwd,
 		env: {
 			PATH: process.env.PATH ?? "",
 			DATABASE_URL: install.databaseUrl,
@@ -261,8 +320,17 @@ async function collectLines(stream: ReadableStream<Uint8Array>, logs: Record<str
 	}
 }
 
-async function waitUntilReady(origin: string, web: Subprocess, logs: Record<string, unknown>[]): Promise<void> {
-	for (let attempt = 0; attempt < 100; attempt++) {
+/** What to try when the production web process doesn't start. */
+const BUILD_HINT =
+	"if the code changed since the last `bun run build`, build again: these tests serve the built bundle";
+
+async function waitUntilReady(
+	origin: string,
+	web: Subprocess,
+	logs: Record<string, unknown>[],
+	{ tries, hint }: { tries: number; hint: string },
+): Promise<void> {
+	for (let attempt = 0; attempt < tries; attempt++) {
 		if (web.exitCode !== null) break;
 		try {
 			const { host, port } = new URL(origin);
@@ -273,9 +341,7 @@ async function waitUntilReady(origin: string, web: Subprocess, logs: Record<stri
 		}
 		await Bun.sleep(100);
 	}
-	throw new Error(
-		`The web process didn't start (if the code changed since the last \`bun run build\`, build again: these tests serve the built bundle):\n${logs.map((entry) => JSON.stringify(entry)).join("\n")}`,
-	);
+	throw new Error(`The web process didn't start (${hint}):\n${logs.map((entry) => JSON.stringify(entry)).join("\n")}`);
 }
 
 async function freePort(): Promise<number> {

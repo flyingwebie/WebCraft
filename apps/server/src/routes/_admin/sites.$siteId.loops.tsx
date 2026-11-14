@@ -26,7 +26,7 @@ import { Forbidden } from "../../ui/PageHeader.tsx";
  * Members never see it: the sidebar hides the Structure group, and the page says they can't open it.
  */
 export const Route = createFileRoute("/_admin/sites/$siteId/loops")({
-	staticData: { crumb: "loops.pageTitle", wide: true },
+	staticData: { crumb: "loops.pageTitle", width: "wide" },
 	loader: async ({ context, params }) => {
 		if (!context.place.permissions.includes("structure.edit")) return { loops: null };
 		const api = await getApi();
@@ -45,7 +45,7 @@ function LoopsLayout() {
 	const linkClass =
 		"hover:bg-muted focus-visible:ring-ring/50 aria-[current=page]:bg-muted flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm outline-none focus-visible:ring-3 aria-[current=page]:font-medium";
 	return (
-		<div className="grid gap-8 lg:grid-cols-[14rem_minmax(0,1fr)]">
+		<div className="grid gap-8 @2xl/page:grid-cols-[14rem_minmax(0,1fr)]">
 			<nav aria-labelledby="loops-nav-heading" className="grid content-start gap-2">
 				<div className="flex items-center justify-between gap-2 px-2">
 					<h2 id="loops-nav-heading" className="font-semibold">

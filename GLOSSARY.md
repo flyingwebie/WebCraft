@@ -705,7 +705,7 @@ An ordered list of two to five Goals or page visits, showing how many visitors r
 _Avoid_: Journey, flow, path
 
 **Dashboard**:
-A grid of Widgets showing a Site's analytics, or all of a Workspace's Sites added together. Staff build dashboards; Owners view them.
+A grid of Widgets showing a Site's analytics, or all of a Workspace's Sites added together. Staff build dashboards; Owners view them. Every Site has a built-in one, "Site analytics", from the start: Staff arrange and rename it, nobody deletes it.
 _Avoid_: Report (that is the scheduled PDF), board, overview
 
 **Dashboard template**:

@@ -147,7 +147,7 @@ export function MediaLibrary({
 	};
 
 	return (
-		<div className="grid gap-8 lg:grid-cols-[14rem_minmax(0,1fr)] xl:grid-cols-[14rem_minmax(0,1fr)_20rem]">
+		<div className="grid gap-8 @2xl/page:grid-cols-[14rem_minmax(0,1fr)] @4xl/page:grid-cols-[14rem_minmax(0,1fr)_20rem]">
 			<FolderNav
 				siteId={siteId}
 				folders={folders}
@@ -860,7 +860,10 @@ function DetailsPanel({
 	]);
 
 	return (
-		<aside aria-labelledby="media-details-heading" className="grid content-start gap-5 xl:border-s xl:ps-6">
+		<aside
+			aria-labelledby="media-details-heading"
+			className="grid content-start gap-5 @4xl/page:border-s @4xl/page:ps-6"
+		>
 			<div className="flex items-center justify-between gap-2">
 				<h2 id="media-details-heading" className="text-lg font-semibold tracking-tight">
 					{t("media.details.heading")}

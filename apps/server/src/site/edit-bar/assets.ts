@@ -47,6 +47,20 @@ export type EditBarAssets = {
 	byName: ReadonlyMap<string, EditAsset>;
 };
 
+/**
+ * How the editing bar's script and Code mode's load a module by its address: the browser's own
+ * `import()`, handed to each as its last argument.
+ *
+ * It is written here as text, never inside the functions those scripts are made of. `bun run dev`
+ * runs this process's code through the dev server's module transform, which rewrites what only a
+ * module may hold (`import()`, `import.meta`) into helpers that exist on the server alone
+ * (`__vite_ssr_dynamic_import__`, …). A function's source text would carry that name into the
+ * browser, where nothing answers to it; the production build leaves both as they are, so only the dev
+ * server would show it. Text is never rewritten. `tests/edit-mode/served-scripts.test.ts` puts the
+ * served scripts through that transform and fails on anything else it would rewrite.
+ */
+const LOAD_MODULE = "(address) => import(address)";
+
 let assets: Promise<EditBarAssets> | undefined;
 
 /**
@@ -85,14 +99,14 @@ async function makeAssets(): Promise<EditBarAssets> {
 	};
 	// The bar and its parts, each a self-contained function, in one file: the parts are made by the bar.
 	const parts = `{ images: ${imageTools.toString()}, loops: ${loopTools.toString()}, details: ${pageDetailsPanel.toString()}, accessibility: ${editorAccessibility.toString()} }`;
-	const source = `(${editingBar.toString()})(${JSON.stringify(config)}, ${parts});\n`;
+	const source = `(${editingBar.toString()})(${JSON.stringify(config)}, ${parts}, ${LOAD_MODULE});\n`;
 	const script = await asset("bar", "js", source, "text/javascript; charset=utf-8");
 	const codeStyles = await asset("code", "css", `${await panelsStyles()}\n${CODE_STYLES}`, "text/css; charset=utf-8");
 	const panels = await asset("panels", "js", await panelsModule(drafts.path), "text/javascript; charset=utf-8");
 	const codeConfig: CodeModeConfig = { styles: codeStyles.path, panels: panels.path, widths: EDITOR_WIDTHS };
 	// The window-width rules shared with the Builder, each a self-contained function.
 	const fitting = `{ editorFit: ${editorFit.toString()}, focusInto: ${focusInto.toString()} }`;
-	const codeSource = `(${codeMode.toString()})(${JSON.stringify(codeConfig)}, ${componentScriptSettings.toString()}, ${renderedRanges.toString()}, ${editorAccessibility.toString()}, ${codeKeyEdit.toString()}, ${fitting}, { declare: ${declareMissingProp.toString()}, blockAt: ${propsBlockAt.toString()} });\n`;
+	const codeSource = `(${codeMode.toString()})(${JSON.stringify(codeConfig)}, ${componentScriptSettings.toString()}, ${renderedRanges.toString()}, ${editorAccessibility.toString()}, ${codeKeyEdit.toString()}, ${fitting}, { declare: ${declareMissingProp.toString()}, blockAt: ${propsBlockAt.toString()} }, ${LOAD_MODULE});\n`;
 	const codeScript = await asset("code", "js", codeSource, "text/javascript; charset=utf-8");
 	return {
 		script,

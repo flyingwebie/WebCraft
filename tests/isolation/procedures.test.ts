@@ -2043,6 +2043,10 @@ describe("Dashboards", () => {
 		both((api, place, board) => api.dashboards.widgets.add({ ...place, dashboardId: board.dashboardId, kind: "note" })),
 	);
 	isolation.refuses(
+		"dashboards.widgets.duplicate",
+		both((api, place, board) => api.dashboards.widgets.duplicate({ ...place, ...board })),
+	);
+	isolation.refuses(
 		"dashboards.widgets.update",
 		both((api, place, board) => api.dashboards.widgets.update({ ...place, ...board, settings: { text: "Ours" } })),
 	);

@@ -9,7 +9,7 @@ import { pageTitle, useT } from "../../ui/i18n.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 
 export const Route = createFileRoute("/_admin/sites/$siteId/email")({
-	staticData: { crumb: "siteEmail.pageTitle" },
+	staticData: { crumb: "siteEmail.pageTitle", width: "form" },
 	loader: async ({ context, params }) => {
 		if (!context.place.permissions.includes("structure.edit")) return null;
 		const api = await getApi();

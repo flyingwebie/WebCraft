@@ -1,0 +1,91 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "c3745bd8-004c-4520-9683-047c73198ae5",
+  "prevIds": [
+    "747a8c84-b23e-4463-a105-3e3ae14af4c5"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "dashboards",
+        "built_in"
+      ],
+      "writes": [
+        "s|col|public.dashboards.built_in",
+        "n|col|public.dashboards.built_in",
+        "e|col|public.dashboards.built_in"
+      ],
+      "reads": [
+        "n|tbl|public.dashboards",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "dashboards",
+        "dashboards_built_in_site_idx"
+      ],
+      "writes": [
+        "s|idx|public.dashboards_built_in_site_idx",
+        "n|idx|public.dashboards_built_in_site_idx",
+        "e|idx|public.dashboards_built_in_site_idx",
+        "n|rel|public.dashboards_built_in_site_idx"
+      ],
+      "reads": [
+        "n|tbl|public.dashboards",
+        "n|sch|public",
+        "n|col|public.dashboards.site_id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "dashboards",
+        "name": "built_in",
+        "type": "boolean",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "false",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "dashboards",
+        "name": "dashboards_built_in_site_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "site_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": true,
+        "where": "\"built_in\"",
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    }
+  ]
+}

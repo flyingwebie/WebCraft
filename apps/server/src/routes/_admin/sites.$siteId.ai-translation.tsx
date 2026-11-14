@@ -6,7 +6,7 @@ import { Forbidden } from "../../ui/PageHeader.tsx";
 import { AiTranslationSettings } from "../../ui/translations/AiTranslationSettings.tsx";
 
 export const Route = createFileRoute("/_admin/sites/$siteId/ai-translation")({
-	staticData: { crumb: "aiTranslation.pageTitle" },
+	staticData: { crumb: "aiTranslation.pageTitle", width: "form" },
 	loader: async ({ params, context }) => {
 		if (!context.place.permissions.includes("translation.manage") || context.place.level !== "site") return null;
 		const api = await getApi();

@@ -8,7 +8,8 @@ import type { AdminPlace } from "../../ui/shell/levels.ts";
  * The Site level: every page below is about one Site. Loads the Site, its Workspace, the person's
  * Permissions on it, its Post Types (the sidebar lists their Entries), its Forms and languages, how
  * many of its Drafts they may publish (Publish all in the top bar) and how many Reviews wait for them
- * (the Overview item), and the Workspace's other Sites they reach (for the context switcher). A Site the person can't reach is "not found".
+ * (the Overview row), the Dashboards they see (Analytics), and the Workspace's other Sites they reach
+ * (for the context switcher). A Site the person can't reach is "not found".
  */
 export const Route = createFileRoute("/_admin/sites/$siteId")({
 	beforeLoad: async ({ params }) => {
@@ -32,11 +33,13 @@ export const Route = createFileRoute("/_admin/sites/$siteId")({
 				permissions.includes("structure.edit") || permissions.includes("formEmails.edit")
 					? (await api.forms.list({ siteId: params.siteId })).forms.map(({ id, name }) => ({ id, name }))
 					: [];
-			// Dashboards: Staff and Owners see them all; others only those shown to everyone.
+			// Analytics lists the Dashboards the person sees by name (Staff and Owners see them all, others
+			// only those shown to everyone); nobody who neither sees one nor builds them gets the row.
+			const { dashboards: listed } = await api.dashboards.list({ siteId: params.siteId });
 			const dashboards =
-				permissions.includes("dashboard.view") ||
-				permissions.includes("dashboard.manage") ||
-				(await api.dashboards.list({ siteId: params.siteId })).dashboards.length > 0;
+				permissions.includes("dashboard.view") || permissions.includes("dashboard.manage") || listed.length > 0
+					? listed.map(({ id, name }) => ({ id, name }))
+					: null;
 			const place: AdminPlace = {
 				level: "site",
 				workspace,

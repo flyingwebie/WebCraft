@@ -27,7 +27,7 @@ const search = z.object({
 });
 
 export const Route = createFileRoute("/_admin/sites/$siteId/forms/$formId")({
-	staticData: { wide: true },
+	staticData: { width: "wide" },
 	validateSearch: search,
 	loader: async ({ context, params }) => {
 		const permissions = context.place.permissions;
