@@ -356,6 +356,8 @@ for (const theme of THEMES) {
 			// no Components.
 			await page.keyboard.press("ControlOrMeta+p");
 			await menu.getByRole("option").first().waitFor();
+			// The Pages and Entries come first; the page's Placements arrive after them: wait for their group.
+			await menu.getByRole("listbox").getByRole("group", { name: "Placements on this page" }).waitFor();
 			expect(await search.getAttribute("aria-label")).toBe("Go to a page or a Placement");
 			expect(await groups(menu)).toEqual(["Pages", "Stories", "Placements on this page"]);
 			expect(await options(menu)).toEqual([
