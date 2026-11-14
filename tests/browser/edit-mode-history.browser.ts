@@ -8,6 +8,7 @@ import type { Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
+import { chooseEditOnSite } from "./edit-on-site.ts";
 import {
 	type BrowserInstall,
 	forgetPageErrors,
@@ -139,7 +140,7 @@ async function enter(
 	await options.prepare?.(page);
 	await install.signIn(page, account);
 	await page.goto(install.adminUrl(`/sites/${siteId}`));
-	await page.getByRole("button", { name: "Edit on site" }).click();
+	await chooseEditOnSite(page);
 	await page.waitForURL((url) => url.hostname !== new URL(install.adminUrl("/")).hostname);
 	await (options.loaded ?? ((page) => layoutButton(page).waitFor()))(page);
 	return page;

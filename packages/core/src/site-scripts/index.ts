@@ -64,6 +64,7 @@ export {
 	type CspMode,
 	editModePolicy,
 	FILE_POLICY,
+	framedEditModePolicy,
 	HostInvalidError,
 	MEDIA_POLICY,
 	mediaPolicy,
