@@ -1,7 +1,6 @@
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { LoaderIcon, ReplaceIcon } from "lucide-react";
 import { useRef, useState } from "react";
-import { toast } from "sonner";
 
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
@@ -27,10 +26,10 @@ export function ReplaceButton({
 		setBusy(true);
 		try {
 			await (await host.api()).replace({ siteId, mediaId: item.id, file });
-			toast.success(t("media.replace.replaced", { name: file.name }));
+			host.notify("success", t("media.replace.replaced", { name: file.name }));
 			await onChanged();
 		} catch (failure) {
-			toast.error(t("media.replace.failed", { name: file.name, reason: t(errorMessage(failure)) }));
+			host.notify("error", t("media.replace.failed", { name: file.name, reason: t(errorMessage(failure)) }));
 		} finally {
 			setBusy(false);
 		}

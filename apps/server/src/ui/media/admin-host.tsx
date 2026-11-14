@@ -1,12 +1,13 @@
 import { Link } from "@tanstack/react-router";
+import { toast } from "sonner";
 
-import type { MediaUseLink } from "./host.tsx";
+import { ADMIN_MEDIA_HOST, type MediaHost, type MediaUseLink } from "./host.tsx";
 
 /**
  * The admin's link to a place a file is used in: an Entry, the Globals for everyone; a Loop and the
  * SEO settings for Staff (Structure). Other places are words.
  */
-export const AdminUseLink: MediaUseLink = ({ siteId, use, structure, className, children }) => {
+const AdminUseLink: MediaUseLink = ({ siteId, use, structure, className, children }) => {
 	switch (use.kind) {
 		case "entry":
 			return (
@@ -43,4 +44,11 @@ export const AdminUseLink: MediaUseLink = ({ siteId, use, structure, className, 
 		default:
 			return <span>{children}</span>;
 	}
+};
+
+/** The admin's host for the shared Media parts: its own API, links to its own screens, and its toasts. */
+export const ADMIN_HOST: MediaHost = {
+	...ADMIN_MEDIA_HOST,
+	UseLink: AdminUseLink,
+	notify: (kind, text) => (kind === "success" ? toast.success(text) : toast.error(text)),
 };

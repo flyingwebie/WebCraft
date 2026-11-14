@@ -57,6 +57,11 @@ export type MediaHost = {
 	choose: ((request: { siteId: string; current: string | null }) => Promise<MediaItem | null>) | null;
 	/** Where focus goes once the control a dialog came from is gone (a file moved to the Trash). */
 	focusMain(): void;
+	/**
+	 * Says how a change went, as a toast: the admin's (`sonner`), or the shell's own (its document's
+	 * policy refuses the style block that library adds, so the shell never loads it).
+	 */
+	notify(kind: "success" | "error", text: string): void;
 };
 
 let adminClient: ApiClient | undefined;
@@ -67,13 +72,17 @@ async function adminMedia(): Promise<MediaApi> {
 	return adminClient.media;
 }
 
-/** The admin's host: its own Management API, previews through the admin, links left to the screen that knows its routes. */
+/**
+ * The admin's Management API and previews, where no host is given (a media Field's picker). The
+ * admin's Media screen gives the whole host (`admin-host.tsx`): its links and its toasts.
+ */
 export const ADMIN_MEDIA_HOST: MediaHost = {
 	api: adminMedia,
 	site: false,
 	UseLink: null,
 	choose: null,
 	focusMain: () => document.getElementById("main")?.focus(),
+	notify: () => {},
 };
 
 const MediaHostContext = createContext<MediaHost>(ADMIN_MEDIA_HOST);

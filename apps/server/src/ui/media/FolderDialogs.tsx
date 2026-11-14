@@ -19,7 +19,6 @@ import { Field, FieldError, FieldLabel } from "@webcraft/ui/components/field.tsx
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { EllipsisIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { type FormEvent, type RefObject, useRef, useState } from "react";
-import { toast } from "sonner";
 
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
@@ -128,10 +127,10 @@ export function FolderNameDialog({
 			const api = await host.api();
 			if (folder) {
 				await api.folders.rename({ siteId, folderId: folder.id, name: name.trim() });
-				toast.success(t("media.folders.renamed"));
+				host.notify("success", t("media.folders.renamed"));
 			} else {
 				await api.folders.create({ siteId, name: name.trim() });
-				toast.success(t("media.folders.created", { name: name.trim() }));
+				host.notify("success", t("media.folders.created", { name: name.trim() }));
 				setName("");
 			}
 			onOpenChange(false);
@@ -209,12 +208,12 @@ export function DeleteFolderDialog({
 		try {
 			const api = await host.api();
 			await api.folders.delete({ siteId, folderId: folder.id });
-			toast.success(t("media.folders.deleted", { name: folder.name }));
+			host.notify("success", t("media.folders.deleted", { name: folder.name }));
 			onOpenChange(false);
 			await onChanged();
 			host.focusMain();
 		} catch (failure) {
-			toast.error(t(errorMessage(failure)));
+			host.notify("error", t(errorMessage(failure)));
 		} finally {
 			setBusy(false);
 		}

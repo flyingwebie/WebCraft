@@ -50,10 +50,10 @@ import {
 	SecondaryTitle,
 	secondaryRowClass,
 } from "../shell/SecondarySidebar.tsx";
-import { AdminUseLink } from "./AdminUseLink.tsx";
+import { ADMIN_HOST } from "./admin-host.tsx";
 import { type FocalPoint, FocalPointPicker } from "./FocalPointPicker.tsx";
 import { FolderActions, FolderNameDialog, type MediaFolder } from "./FolderDialogs.tsx";
-import { ADMIN_MEDIA_HOST, MediaHostProvider } from "./host.tsx";
+import { MediaHostProvider } from "./host.tsx";
 import { ImportDialog } from "./ImportDialog.tsx";
 import { formatBytes, imagePreview, KIND_ICONS, type ListedMediaItem, type MediaItem, previewPath } from "./preview.ts";
 import { ReplaceButton } from "./ReplaceButton.tsx";
@@ -304,9 +304,6 @@ export function MediaLibrary({
 		</MediaHostProvider>
 	);
 }
-
-/** The admin's host for the shared Media parts: its own API, and links to its own screens. */
-const ADMIN_HOST = { ...ADMIN_MEDIA_HOST, UseLink: AdminUseLink };
 
 /** Upload, and beside it a menu with Import from URL. */
 function UploadButton({

@@ -34,6 +34,8 @@ export function Place({
 	actions,
 	children,
 	place,
+	shape = "ruled",
+	sidebarFoot,
 }: {
 	words: Words;
 	/** The place's name ("Content"). */
@@ -50,6 +52,14 @@ export function Place({
 	children: ReactNode;
 	/** The place's address, for tests and styles (`content/pages`). */
 	place: string;
+	/**
+	 * `ruled` (Content, `places-content/01`): a 256 sidebar ruled off from the pane, the header in a
+	 * 53 px band. `card` (Media, `places-assets/01`): a 300 column and the place's own card beside it,
+	 * 8 apart and 8 from the edges, the header 40 high with no rule.
+	 */
+	shape?: "ruled" | "card";
+	/** What sits at the foot of the sidebar, below its rows (Media's file count and storage). */
+	sidebarFoot?: ReactNode;
 }) {
 	const back = useRef<HTMLButtonElement>(null);
 	const latest = useRef(onBack);
@@ -79,7 +89,9 @@ export function Place({
 		// The header is 40 high (SPEC 4); heading a sidebar, it sits in a 53 px band ruled off below, as
 		// `places-content/01` draws it, level with the pane's first row.
 		<div
-			className={`flex shrink-0 items-center ${sidebar ? "border-chrome-line h-[53px] border-b px-3" : "mt-1 px-4"}`}
+			className={`flex shrink-0 items-center ${
+				shape === "card" ? "px-1" : sidebar ? "border-chrome-line h-[53px] border-b px-3" : "mt-1 px-4"
+			}`}
 		>
 			<div className="flex h-10 min-w-0 grow items-center gap-2.5" data-wc-place-header="">
 				<span className="group relative inline-flex shrink-0">
@@ -109,15 +121,19 @@ export function Place({
 		<section
 			aria-label={title}
 			data-wc-place-frame={place}
-			className="bg-chrome text-chrome-text absolute inset-0 z-10 flex min-h-0 min-w-0"
+			className={`bg-chrome text-chrome-text absolute inset-0 z-10 flex min-h-0 min-w-0 ${shape === "card" ? "gap-2 p-2" : ""}`}
 		>
 			{sidebar ? (
 				<>
-					<div className="border-chrome-line flex w-64 shrink-0 flex-col border-e" data-wc-place-sidebar="">
+					<div
+						className={`flex shrink-0 flex-col ${shape === "card" ? "w-[300px]" : "border-chrome-line w-64 border-e"}`}
+						data-wc-place-sidebar=""
+					>
 						{header}
 						<nav aria-label={sidebarLabel ?? title} className="min-h-0 grow overflow-y-auto">
 							{sidebar}
 						</nav>
+						{sidebarFoot}
 					</div>
 					<div className="flex min-h-0 min-w-0 grow flex-col" data-wc-place-pane="">
 						{children}

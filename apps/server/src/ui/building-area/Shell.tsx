@@ -13,6 +13,7 @@ import type { SavingStatus } from "./canvas/regions.ts";
 import { type RegionCycle, regionCycle } from "./keyboard.ts";
 import { NarrowNotice } from "./NarrowNotice.tsx";
 import { useOpenDocument } from "./open-document.ts";
+import { MediaShellHost } from "./places/media/Picker.tsx";
 import { PLACE_EVENT, PLACE_KEYS, type PlaceKey, placeEntry, placeKeyOf, reopenPlace } from "./places/registry.ts";
 import { Rail } from "./rail/Rail.tsx";
 
@@ -308,6 +309,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 				</p>
 			</div>
 			<NarrowNotice covered={fit.covered} words={words} back={config.returnTo} />
+			{/* The Media picker (`pickMedia()`) and the toasts of the Media parts (BA-22). */}
+			<MediaShellHost config={config} />
 		</div>
 	);
 }

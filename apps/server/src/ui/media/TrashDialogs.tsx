@@ -11,7 +11,6 @@ import {
 import { FieldError } from "@webcraft/ui/components/field.tsx";
 import { LoaderIcon, RotateCcwIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
-import { toast } from "sonner";
 
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
@@ -72,7 +71,7 @@ function TwoStepDialog<Answer extends { confirmation: string }>({
 		setBusy(true);
 		try {
 			await go(asked.confirmation);
-			toast.success(done);
+			host.notify("success", done);
 			setOpen(false);
 			await after();
 			host.focusMain();
@@ -190,10 +189,10 @@ export function RestoreButton({
 				setBusy(true);
 				try {
 					await (await host.api()).restore({ siteId, mediaId: item.id });
-					toast.success(t("media.trash.restored", { name: item.fileName }));
+					host.notify("success", t("media.trash.restored", { name: item.fileName }));
 					await onRestored();
 				} catch (failure) {
-					toast.error(t(errorMessage(failure)));
+					host.notify("error", t(errorMessage(failure)));
 				} finally {
 					setBusy(false);
 				}

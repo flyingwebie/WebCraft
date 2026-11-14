@@ -1570,6 +1570,16 @@
 			"files": "{count, plural, one {file} other {file}}",
 			"used": "usati",
 			"of": "su {quota}"
+		},
+		"selection": {
+			"label": "File selezionati",
+			"clear": "Annulla la selezione",
+			"count": "{count} selezionati",
+			"move": "Sposta nella cartella",
+			"moved": "{count, plural, one {# file spostato} other {# file spostati}} in {folder}.",
+			"deleteTitle": "Eliminare {count, plural, one {# file} other {# file}}?",
+			"usedWarning": "{count, plural, one {# di questi è usato} other {# di questi sono usati}} nel sito; quei punti non mostrano nulla finché il file non viene ripristinato:",
+			"deleted": "{count, plural, one {# file spostato} other {# file spostati}} nel Cestino."
 		}
 	},
 	"invite": {
@@ -8679,6 +8689,43 @@
 				"required": "Obbligatorio",
 				"saveFailed": "Impossibile salvare {field}: {reason}"
 			}
+		},
+		"media": {
+			"lists": "Cartelle dei Media",
+			"search": "Cerca nei media",
+			"loading": "Lettura della libreria Media…",
+			"loadFailed": "Non è stato possibile leggere la libreria Media ({reason}).",
+			"storage": "Spazio Media usato",
+			"folderActions": "Azioni per la cartella {name}",
+			"actions": "Azioni",
+			"select": "Seleziona {name}",
+			"selectAll": "Seleziona tutto",
+			"addAlt": "aggiungi un testo alternativo…",
+			"copyAddress": "Copia l'indirizzo di {name}",
+			"copied": "L'indirizzo di {name} è stato copiato.",
+			"copyFailed": "Non è stato possibile copiare l'indirizzo.",
+			"moveOne": "Sposta {name} in una cartella",
+			"moveTo": "Sposta nella cartella",
+			"moveFailed": "{name} non è stato spostato: {reason}",
+			"deleteOne": "Elimina {name}",
+			"restoreOne": "Ripristina {name}",
+			"uploaded": "File caricati: {count}",
+			"open": "Aperto: {name}",
+			"closeFile": "Chiudi i dettagli di {name}",
+			"languageAlt": "Testo alternativo in {language}",
+			"languageNoAlt": "Testo alternativo in {language}, non ancora scritto",
+			"saveFailed": "La modifica non è stata salvata ({reason}).",
+			"picker": {
+				"titleImage": "Scegli un'immagine dei Media",
+				"title": "Scegli un file dei Media",
+				"select": "Seleziona",
+				"cancel": "Annulla",
+				"close": "Chiudi",
+				"chosen": "Scelto",
+				"files": "File",
+				"folders": "Cartelle della libreria Media"
+			},
+			"closeToast": "Chiudi il messaggio"
 		}
 	},
 	"auth": {
