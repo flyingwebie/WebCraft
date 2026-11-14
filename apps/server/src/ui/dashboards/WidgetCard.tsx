@@ -265,7 +265,7 @@ export function WidgetCard({
 			aria-labelledby={`${id}-title`}
 			data-widget={widget.id}
 			className={cn(
-				"bg-card text-card-foreground group/card @container/widget relative flex min-w-0 flex-col rounded-[14px] border shadow-xs @3xl/page:[grid-column:var(--wc-x)_/_span_var(--wc-w)] @3xl/page:[grid-row:var(--wc-y)_/_span_var(--wc-h)]",
+				"bg-card text-card-foreground group/card @container/widget relative flex min-w-0 flex-col rounded-[14px] border shadow-xs @2xl/page:[grid-column:var(--wc-x)_/_span_var(--wc-w)] @2xl/page:[grid-row:var(--wc-y)_/_span_var(--wc-h)]",
 				arranging && "select-none",
 				(lifted || picked) && "border-primary ring-primary/80 z-20 shadow-lg ring-1",
 				lifted && "pointer-events-none",
@@ -418,7 +418,7 @@ export function WidgetCard({
 				<>
 					<span
 						aria-hidden="true"
-						className="absolute inset-y-4 end-0 hidden w-3 cursor-ew-resize touch-none items-center justify-center @3xl/page:flex"
+						className="absolute inset-y-4 end-0 hidden w-3 cursor-ew-resize touch-none items-center justify-center @2xl/page:flex"
 						onPointerDown={(event) => onResize(event, "width")}
 					>
 						<span
@@ -430,7 +430,7 @@ export function WidgetCard({
 					</span>
 					<span
 						aria-hidden="true"
-						className="absolute inset-x-4 bottom-0 hidden h-3 cursor-ns-resize touch-none items-center justify-center @3xl/page:flex"
+						className="absolute inset-x-4 bottom-0 hidden h-3 cursor-ns-resize touch-none items-center justify-center @2xl/page:flex"
 						onPointerDown={(event) => onResize(event, "height")}
 					>
 						<span
@@ -442,7 +442,7 @@ export function WidgetCard({
 					</span>
 					<span
 						aria-hidden="true"
-						className="text-muted-foreground hover:text-primary absolute -end-0.5 -bottom-0.5 hidden cursor-nwse-resize touch-none p-1 @3xl/page:block"
+						className="text-muted-foreground hover:text-primary absolute -end-0.5 -bottom-0.5 hidden cursor-nwse-resize touch-none p-1 @2xl/page:block"
 						onPointerDown={(event) => onResize(event, "both")}
 					>
 						<svg width="10" height="10" viewBox="0 0 10 10" className="rtl:-scale-x-100" aria-hidden="true">

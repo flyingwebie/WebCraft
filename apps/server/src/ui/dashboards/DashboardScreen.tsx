@@ -829,7 +829,7 @@ export function DashboardScreen({
 					{arranging ? (
 						<div
 							aria-hidden="true"
-							className="pointer-events-none absolute inset-0 hidden grid-cols-12 gap-4 @3xl/page:grid"
+							className="pointer-events-none absolute inset-0 hidden grid-cols-12 gap-4 @2xl/page:grid"
 						>
 							{Array.from({ length: GRID_COLUMNS }, (_, index) => (
 								// biome-ignore lint/suspicious/noArrayIndexKey: the grid's columns, in a fixed order.
@@ -840,7 +840,7 @@ export function DashboardScreen({
 					<ul
 						ref={grid}
 						aria-label={t("dashboards.gridLabel", { name: dashboard.name })}
-						className="relative grid grid-cols-1 content-start gap-4 @3xl/page:auto-rows-[minmax(5rem,auto)] @3xl/page:grid-cols-12"
+						className="relative grid grid-cols-1 content-start gap-4 @2xl/page:auto-rows-[minmax(5rem,auto)] @2xl/page:grid-cols-12"
 						style={arranging ? { minHeight: (bottom + 4) * (ROW_HEIGHT + GRID_GAP) - GRID_GAP } : undefined}
 					>
 						{ordered.map((widget) => (
