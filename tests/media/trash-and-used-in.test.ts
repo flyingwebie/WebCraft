@@ -24,6 +24,9 @@ type MediaView = Awaited<ReturnType<TestBrowser["api"]["media"]["get"]>>["media"
 
 const onSite = (path: string) => `https://bakery.live.test${path}`;
 
+/** The Site's organisation, for its structured data, with `logo` its logo. */
+const ORGANIZATION = (logo: string | null) => ({ kind: "organization" as const, name: "Acme Bakery Ltd", logo });
+
 beforeAll(async () => {
 	install = await createTestInstall();
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
@@ -138,6 +141,11 @@ describe("Used in", () => {
 		// A file nothing uses is used nowhere.
 		const unused = await uploadImage(editor, "unused.jpg");
 		expect((await editor.api.media.usage({ siteId, mediaId: unused.id })).usedIn).toEqual([]);
+
+		// The library's list counts the same places for each file ("Used").
+		const { items } = await editor.api.media.list({ siteId });
+		expect(items.find((item) => item.id === image.id)?.uses).toBe(usedIn.length);
+		expect(items.find((item) => item.id === unused.id)?.uses).toBe(0);
 	});
 
 	test("names the Templates that show a file", async () => {
@@ -150,7 +158,22 @@ describe("Used in", () => {
 		expect(usedIn).toEqual([
 			{ kind: "template", id: template.id, templateKind: "site", postType: null, versions: ["draft"] },
 		]);
+		const { items } = await editor.api.media.list({ siteId, search: "banner" });
+		expect(items.map((item) => item.uses)).toEqual([1]);
 		await staff.api.templates.saveSiteTemplateMarkup({ siteId, markup: "<main>{{@outlet}}</main>" });
+	});
+
+	test("counts the SEO settings as one place, whichever of their images the file is", async () => {
+		const image = await uploadImage(editor, "storefront.jpg");
+		await staff.api.seoSettings.update({ siteId, defaultImage: image.id, organization: ORGANIZATION(image.id) });
+
+		const { usedIn } = await editor.api.media.usage({ siteId, mediaId: image.id });
+		expect(usedIn).toEqual([
+			{ kind: "seoSettings", settings: ["defaultImage", "organizationLogo"], versions: ["published"] },
+		]);
+		const { items } = await editor.api.media.list({ siteId, search: "storefront" });
+		expect(items.map((item) => item.uses)).toEqual([1]);
+		await staff.api.seoSettings.update({ siteId, defaultImage: null, organization: ORGANIZATION(null) });
 	});
 });
 

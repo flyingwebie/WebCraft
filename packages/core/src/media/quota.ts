@@ -40,6 +40,17 @@ export async function workspaceMediaBytes(db: Executor, workspaceId: string): Pr
 	return Number(row?.used ?? 0);
 }
 
+/** The bytes one Site's Media takes in storage, counted as `workspaceMediaBytes` counts its Workspace's. */
+export async function siteMediaBytes(db: Executor, siteId: string): Promise<number> {
+	const stored = db
+		.selectDistinctOn([mediaFiles.storage, mediaFiles.key], { size: mediaFiles.sizeBytes })
+		.from(mediaFiles)
+		.where(eq(mediaFiles.siteId, siteId))
+		.as("stored");
+	const [row] = await db.select({ used: sql<string>`coalesce(sum(${stored.size}), 0)` }).from(stored);
+	return Number(row?.used ?? 0);
+}
+
 /**
  * Ties uploads to quota changes, across processes: uploads hold it shared, so they still run side by
  * side, and a quota change holds it alone. Locking the quota row isn't enough while a Workspace has

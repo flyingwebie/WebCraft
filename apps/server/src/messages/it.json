@@ -1548,6 +1548,7 @@
 				"attribute": "attributi che non si possono tenere"
 			}
 		},
+		"countAndSize": "{count, plural, one {# file} other {# file}} · {size}",
 		"count": "{count, plural, one {# file} other {# file}}",
 		"uploadMore": "Altri modi di aggiungere file",
 		"uploadingOne": "Caricamento {done} di {total}: {name}",
@@ -1564,7 +1565,8 @@
 			"pixels": "Pixel",
 			"size": "Peso",
 			"added": "Aggiunto",
-			"deleted": "Eliminato"
+			"deleted": "Eliminato",
+			"used": "Usato"
 		},
 		"noAlt": "Ancora nessun testo alternativo",
 		"noAltShort": "Senza testo alternativo",

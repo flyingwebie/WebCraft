@@ -166,6 +166,9 @@ describe("a Workspace's storage quota", () => {
 			warning: false,
 			full: false,
 		});
+		// Each Site's own files, counted the same way, for the library's header.
+		expect((await admin.api.media.overview({ siteId: bakery })).siteBytes).toBe(300_000);
+		expect((await admin.api.media.overview({ siteId: cafe })).siteBytes).toBe(200_000);
 	});
 
 	test("at 80% the Workspace's Owners and Staff are told once; an upload that would pass 100% is refused", async () => {
