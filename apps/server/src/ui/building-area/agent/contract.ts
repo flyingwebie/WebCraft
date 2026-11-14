@@ -47,7 +47,11 @@ export type AgentEventKind =
 	| "beforeinput"
 	/** The caret or the selected text moved (on the document): the text toolbar shows what is pressed. */
 	| "selectionchange"
-	| "scroll";
+	| "scroll"
+	/** Something dragged over the page, out of an element, or dropped: a file dropped on a photo (BA-15). */
+	| "dragover"
+	| "dragleave"
+	| "drop";
 
 /** The shell's half, which the agent calls. */
 export type AgentHost = {

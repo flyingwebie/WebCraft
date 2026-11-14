@@ -24,6 +24,8 @@ import { CLIENT_PLACES, type ClientPlace, ClientRail } from "./ClientRail.tsx";
 import { HelpCard } from "./HelpCard.tsx";
 import { type ClientMode, clientEditing } from "./marks.ts";
 import { PageSwitcher } from "./PageSwitcher.tsx";
+import { regionPopovers } from "./popovers.ts";
+import { RegionPopover } from "./RegionPopover.tsx";
 import { SidePanel } from "./SidePanel.tsx";
 
 /** What the `state` edit request says beyond what Staff's shell reads: whether it may publish, and a Page layout. */
@@ -141,6 +143,21 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 	);
 	useEffect(() => () => undoHistory.destroy(), [undoHistory]);
 	const refreshRef = useRef<() => void>(() => {});
+	const savingRef = useRef<(status: SavingStatus) => void>(() => {});
+	// The photo and link popovers (BA-15): what they change shows in the Draft's state and the page's dots.
+	const popovers = useMemo(
+		() =>
+			regionPopovers({
+				token: config.token,
+				words,
+				announce: (text, urgent) => announceRef.current(text, urgent),
+				refresh: () => refreshRef.current(),
+				saving: (status) => savingRef.current(status),
+			}),
+		[config.token, words],
+	);
+	useEffect(() => () => popovers.destroy(), [popovers]);
+	const goTo = useCallback(() => api.builder.commandMenu({ siteId: config.site.id }), [api, config.site.id]);
 	const editing = useMemo(() => {
 		const inner = pageEditing({
 			token: config.token,
@@ -157,8 +174,9 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 			announce: (text, urgent) => announceRef.current(text, urgent),
 			// Escape in the page closes the panel and leaves focus where it is, in the page.
 			closePanel: () => closePanel(false),
+			popovers,
 		});
-	}, [config.token, config.site.id, words, undoHistory, closePanel]);
+	}, [config.token, config.site.id, words, undoHistory, closePanel, popovers]);
 	useEffect(() => () => editing.destroy(), [editing]);
 	useEffect(() => editing.setMode(mode), [editing, mode]);
 
@@ -217,6 +235,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 		},
 		[refreshState],
 	);
+	savingRef.current = onSaving;
 	useEffect(() => () => window.clearTimeout(savedTimer.current), []);
 
 	// What Publish covers is read again whenever the page's state or a save changes (BA-12).
@@ -446,6 +465,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 						) : null}
 						{/* Before the frame in the Tab order: the page stays the last stop. */}
 						{opened.shown?.status === "shown" ? <TextToolbar editing={editing} words={words} /> : null}
+						{opened.shown?.status === "shown" ? <RegionPopover popovers={popovers} words={words} goTo={goTo} /> : null}
 						{opened.shown?.status === "shown" ? (
 							// 12 from the rail, the panel and the bar: the frame keeps 12 left, right and below.
 							<div className="absolute inset-x-0 top-3 bottom-0">

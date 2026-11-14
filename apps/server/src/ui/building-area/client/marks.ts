@@ -1,8 +1,9 @@
-import { TEXT_REGION } from "../agent/contract.ts";
-import { fill, type Words } from "../api.ts";
+import { LINK_REGION, PHOTO_REGION, TEXT_REGION } from "../agent/contract.ts";
+import { fill, type PageState, type Words } from "../api.ts";
 import { nameOf, type Overlay, type OverlayMark } from "../canvas/overlay.ts";
 import type { RegionSaving } from "../canvas/regions.ts";
 import type { PageEditing } from "../editing/editing.ts";
+import type { RegionPopovers } from "./popovers.ts";
 
 /**
  * Client editing's marks and keys (SPEC 13.2, 13.3 and 13.9; BA-14): what "easy to see" means on the
@@ -20,6 +21,10 @@ import type { PageEditing } from "../editing/editing.ts";
  *
  * The Staff's outlines and chip (`canvas/overlay.ts`) are switched off; everything else of the frame
  * (saving, the toolbar, the history, Presence) is the page editing it wraps, unchanged.
+ *
+ * Photos and links (BA-15) are marked too: a click, or Enter (Space on a photo) once one has focus,
+ * opens its popover (`popovers.ts`) instead of typing, which names it, so its outline has no chip; a
+ * file dragged over a photo outlines it to drop on.
  */
 export type ClientEditing = PageEditing & {
 	/** Edit (the marks, typing) or Preview (no mark, nothing editable; links are followed). */
@@ -28,8 +33,11 @@ export type ClientEditing = PageEditing & {
 
 export type ClientMode = "edit" | "preview";
 
-/** What a Member may change on the page now: its text regions (photos, Loop items and sections come later). */
-export const MARKED = TEXT_REGION;
+/**
+ * What a Member may change on the page now: its text regions, photos and links (Loop items and sections
+ * come later).
+ */
+export const MARKED = `${TEXT_REGION}, ${PHOTO_REGION}, ${LINK_REGION}`;
 
 /** The parts of a page that are the same on every page (the Site template's), which a Member can't change. */
 const LOCKED = "header, footer, [role='banner'], [role='contentinfo']";
@@ -60,8 +68,10 @@ export function clientEditing(options: {
 	announce(text: string, urgent?: boolean): void;
 	/** Escape with nothing left to finish: closes the side panel. Answers whether one was open. */
 	closePanel(): boolean;
+	/** The photo and link popovers (BA-15). */
+	popovers: RegionPopovers;
 }): ClientEditing {
-	const { inner, words, announce } = options;
+	const { inner, words, announce, popovers } = options;
 	const said = words.client.marks;
 
 	let parts: { frame: HTMLIFrameElement; overlay: Overlay; saving: RegionSaving } | null = null;
@@ -81,6 +91,10 @@ export function clientEditing(options: {
 	let people: OverlayMark[] = [];
 	/** What contenteditable each region had before Preview took it away. */
 	const editable = new WeakMap<Element, string>();
+	/** The page's changes not published, by item and key (the photos' and links' amber dots). */
+	let changes = new Set<string>();
+	/** The photos and links given what Edit needs of them (a way to reach them, their name), and what they had. */
+	const prepared = new Map<HTMLElement, Map<string, string | null>>();
 
 	let layer: HTMLDivElement | null = null;
 	const stops: (() => void)[] = [];
@@ -100,6 +114,11 @@ export function clientEditing(options: {
 		return part && !part.closest("main, article") ? part : null;
 	};
 	const editingNow = (): HTMLElement | null => inner.snapshot().region?.element ?? null;
+	/** The photo or link whose popover is open now. */
+	const poppedNow = (): HTMLElement | null => popovers.snapshot().open?.element ?? null;
+	/** A region's name for people: its Field's label (a photo's or a link's too). */
+	const labelOf = (region: Element) =>
+		(!region.matches(TEXT_REGION) && region.getAttribute("data-wc-label")) || nameOf(region, words);
 	const redraw = () => parts?.overlay.schedule();
 
 	/** Starts editing an area: the page editing takes it as if focus had just come (its toolbar, its Draft). */
@@ -121,7 +140,7 @@ export function clientEditing(options: {
 	const arm = (region: HTMLElement, tell: boolean) => {
 		armed = region;
 		doc?.getSelection()?.removeAllRanges();
-		if (tell) announce(fill(said.armed, { name: nameOf(region, words) }));
+		if (tell) announce(fill(said.armed, { name: labelOf(region) }));
 		redraw();
 	};
 
@@ -154,10 +173,52 @@ export function clientEditing(options: {
 		return all.find((each) => isPageStart || following(each)) ?? null;
 	};
 
+	/**
+	 * Photos and links in Edit: each can be reached with Tab and says what it opens (a photo is a button
+	 * there, unless it sits in a link or a button), and an empty one shows its words to be found. Preview
+	 * gives each back what it had.
+	 */
+	const preparePopped = () => {
+		if (!doc) return;
+		const set = (element: HTMLElement, name: string, value: string) => {
+			let kept = prepared.get(element);
+			if (!kept) {
+				kept = new Map();
+				prepared.set(element, kept);
+			}
+			if (!kept.has(name)) kept.set(name, element.getAttribute(name));
+			if (element.getAttribute(name) !== value) element.setAttribute(name, value);
+		};
+		if (mode === "preview") {
+			for (const [element, kept] of prepared) {
+				for (const [name, value] of kept) {
+					if (value === null) element.removeAttribute(name);
+					else element.setAttribute(name, value);
+				}
+			}
+			prepared.clear();
+			return;
+		}
+		for (const [element] of prepared) if (!element.isConnected) prepared.delete(element);
+		for (const region of doc.querySelectorAll<HTMLElement>(`${PHOTO_REGION}, ${LINK_REGION}`)) {
+			const name = labelOf(region);
+			set(region, "aria-haspopup", "dialog");
+			if (region.matches(LINK_REGION)) {
+				set(region, "data-wc-empty-label", words.client.link.empty);
+				continue;
+			}
+			set(region, "data-wc-empty-label", words.client.photo.empty);
+			set(region, "tabindex", "0");
+			set(region, "aria-label", fill(words.client.photo.region, { name }));
+			if (!region.parentElement?.closest("a, button, [role='button']")) set(region, "role", "button");
+		}
+	};
+
 	/** Preview takes editing away from the page's regions; Edit gives it back as it was. */
 	const applyMode = () => {
 		if (!doc) return;
-		for (const region of doc.querySelectorAll(MARKED)) {
+		preparePopped();
+		for (const region of doc.querySelectorAll(TEXT_REGION)) {
 			const now = region.getAttribute("contenteditable");
 			if (mode === "preview") {
 				if (now === "false") continue;
@@ -242,7 +303,12 @@ export function clientEditing(options: {
 		const toolbar = inner.snapshot().toolbar;
 		const pointed = hovered?.isConnected ? hovered : null;
 		const focused = armed?.isConnected ? armed : null;
-		const strong = new Set([editingRegion, focused, pointed].filter(Boolean));
+		// A photo or link with its popover open, and a photo a file is dragged over (BA-15).
+		const popped = poppedNow();
+		const drop = popovers.snapshot().drop;
+		const strong = new Set([editingRegion, focused, pointed, popped, drop].filter(Boolean));
+		// Photos and links shown since (a new photo, a Site script's part) are given what Edit needs.
+		preparePopped();
 
 		// At rest: every area that may change, dashed.
 		let rest = 0;
@@ -251,9 +317,14 @@ export function clientEditing(options: {
 			const box = outer(region);
 			if (box) outline(`rest:${rest++}`, box, "rest");
 		}
-		// The dots of what changed, on the outline's corner.
+		// The dots of what changed, on the outline's corner: text from the page editing, photos and links here.
 		let dots = 0;
-		for (const region of changed) {
+		const poppedChanged = [...doc.querySelectorAll<HTMLElement>(`${PHOTO_REGION}, ${LINK_REGION}`)].filter((region) =>
+			changes.has(
+				`${region.getAttribute("data-wc-item")}|${(region.getAttribute("data-wc-field") ?? "").split(".")[0]}`,
+			),
+		);
+		for (const region of [...changed, ...poppedChanged]) {
 			if (!region.isConnected) continue;
 			const box = outer(region);
 			if (!box) continue;
@@ -271,18 +342,21 @@ export function clientEditing(options: {
 				chip(box, { icon: "lock", name, hint: said.sameEverywhere, colour: LOCK_CHIP, kind: "locked" });
 			}
 		}
-		// Under the pointer, with focus, being edited: solid, with the chip (unless a toolbar names it).
-		for (const region of new Set([pointed, focused, editingRegion])) {
+		// Under the pointer, with focus, being edited: solid, with the chip (unless a toolbar or a popover
+		// names it). A photo a file is dragged over: as under the pointer, saying it takes the file.
+		for (const region of new Set([pointed, focused, editingRegion, popped, drop])) {
 			if (!region?.matches(MARKED) || !region.isConnected) continue;
 			const box = outer(region);
 			if (!box) continue;
-			const isEditing = region === editingRegion;
-			const isHover = region === pointed && !isEditing && region !== focused;
+			const isEditing = region === editingRegion || region === popped;
+			const isDrop = region === drop && !isEditing;
+			const isHover = (region === pointed || isDrop) && !isEditing && region !== focused;
 			const kind = isEditing ? "editing" : isHover ? "hover" : "focus";
 			outline(kind, box, kind);
-			if (isEditing && toolbar) continue;
-			const hint = isEditing ? null : isHover ? said.clickToEdit : said.enterToEdit;
-			chip(box, { icon: "type", name: nameOf(region, words), hint, colour: MARK, kind });
+			if (region === popped || (isEditing && toolbar)) continue;
+			const hint = isEditing ? null : isDrop ? said.dropHere : isHover ? said.clickToEdit : said.enterToEdit;
+			const shape = region.matches(PHOTO_REGION) ? "image" : region.matches(LINK_REGION) ? "link" : "type";
+			chip(box, { icon: shape, name: labelOf(region), hint, colour: MARK, kind });
 		}
 		prune();
 	};
@@ -300,7 +374,7 @@ export function clientEditing(options: {
 
 	const chip = (
 		box: Box,
-		look: { icon: "type" | "lock"; name: string; hint: string | null; colour: string; kind: string },
+		look: { icon: ChipIcon; name: string; hint: string | null; colour: string; kind: string },
 	) => {
 		const drawn = take(
 			`chip:${look.kind}`,
@@ -357,7 +431,9 @@ export function clientEditing(options: {
 				},
 			};
 			const disconnect = inner.connect({ ...next, overlay });
+			const disconnectPopovers = popovers.connect({ frame: next.frame, overlay: next.overlay });
 			return () => {
+				disconnectPopovers();
 				disconnect();
 				for (const stop of stops.splice(0)) stop();
 				layer?.remove();
@@ -372,7 +448,16 @@ export function clientEditing(options: {
 			hovered = null;
 			armed = null;
 			changed = [];
+			changes = new Set();
+			prepared.clear();
+			popovers.page(document);
 			inner.page(document, address, isPage);
+		},
+		pageState(state: PageState) {
+			changes = new Set(state.changes.map((change) => `${change.item}|${change.key}`));
+			popovers.pageState(state);
+			inner.pageState(state);
+			redraw();
 		},
 		ready(document) {
 			inner.ready(document);
@@ -385,6 +470,8 @@ export function clientEditing(options: {
 				// Nothing is edited in Preview: the history's keys and F6 still work.
 				return kind === "keydown" ? inner.event(kind, event) : false;
 			}
+			// A file dragged over the page: a photo takes it (BA-15).
+			if (kind === "dragover" || kind === "dragleave" || kind === "drop") return popovers.drag(kind, event);
 			switch (kind) {
 				case "pointermove": {
 					const region = regionOf(event.target);
@@ -406,9 +493,22 @@ export function clientEditing(options: {
 					window.setTimeout(() => {
 						pointing = false;
 					}, 0);
-					// A click on the area that has focus starts editing it, where the click puts the caret.
 					const region = regionOf(event.target);
-					if (region && region === armed) startEditing(region, false);
+					// A press anywhere else in the page closes the popover open now.
+					const popped = poppedNow();
+					if (popped && region !== popped) popovers.close(false);
+					// A click on the area that has focus starts editing it, where the click puts the caret.
+					if (region && region === armed && !popovers.kindOf(region)) startEditing(region, false);
+					break;
+				}
+				case "click": {
+					// A photo or a link opens its popover; the page's own scripts don't see the click.
+					const region = regionOf(event.target);
+					if (region && popovers.kindOf(region)) {
+						armed = null;
+						popovers.open(region);
+						return true;
+					}
 					break;
 				}
 				case "focusin": {
@@ -451,6 +551,7 @@ export function clientEditing(options: {
 		},
 		setMode(next) {
 			if (next === mode) return;
+			popovers.close(false);
 			const editingRegion = editingNow();
 			// What is being edited is saved first.
 			if (next === "preview" && editingRegion) inner.tools.left(null);
@@ -483,7 +584,15 @@ export function clientEditing(options: {
 				moveTo(next);
 				return true;
 			}
+			case " ":
 			case "Enter": {
+				// A photo or a link with focus opens its popover (a photo also with Space, as a button).
+				if (region && popovers.kindOf(region) && (key.key === "Enter" || region.matches(PHOTO_REGION))) {
+					armed = null;
+					popovers.open(region);
+					return true;
+				}
+				if (key.key === " ") return false;
 				if (region && region === armed) {
 					startEditing(region, true);
 					return true;
@@ -519,13 +628,24 @@ function place(target: HTMLElement, box: Box): void {
 	target.style.setProperty("height", `${box.height}px`);
 }
 
-/** The icon set's "type" and "lock", drawn in the shell's document at 13 px. */
-const ICONS: Record<"type" | "lock", string[]> = {
+type ChipIcon = "type" | "lock" | "image" | "link";
+
+/** The icon set's "type", "lock", "image" and "link", drawn in the shell's document at 13 px. */
+const ICONS: Record<ChipIcon, string[]> = {
 	type: ["M12 4v16", "M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2", "M9 20h6"],
+	image: [
+		"M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z",
+		"M9 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z",
+		"m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21",
+	],
+	link: [
+		"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71",
+		"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71",
+	],
 	lock: ["M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z", "M7 11V7a5 5 0 0 1 10 0v4"],
 };
 
-function icon(doc: Document, name: "type" | "lock"): SVGSVGElement {
+function icon(doc: Document, name: ChipIcon): SVGSVGElement {
 	const svg = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
 	for (const [attribute, value] of [
 		["viewBox", "0 0 24 24"],
