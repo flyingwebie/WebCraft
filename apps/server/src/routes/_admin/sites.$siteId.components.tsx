@@ -104,6 +104,16 @@ function ComponentsPage() {
 												{t("templates.open")}
 												<span className="sr-only">{t("templates.openNamed", { name: component.name })}</span>
 											</Link>
+											<Link
+												to="/sites/$siteId/build"
+												params={{ siteId }}
+												search={{ open: `/component/${component.id}`, returnTo: `/sites/${siteId}/components` }}
+												className={buttonVariants({ variant: "outline", size: "sm" })}
+												data-building-area=""
+											>
+												{t("buildingArea.documents.openIn")}
+												<span className="sr-only">{t("templates.openNamed", { name: component.name })}</span>
+											</Link>
 										</span>
 									)}
 								</TableCell>

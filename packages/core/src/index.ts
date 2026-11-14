@@ -125,6 +125,8 @@ export * from "./domains/index.ts";
 export {
 	BUILDING_AREA_PAGE_PATH,
 	BUILDING_AREA_PATH,
+	BUILDING_AREA_STAND_IN_PATH,
+	type BuildingDocument,
 	buildingAreaPageAddress,
 	CODE_MODE_SCRIPT_PATH,
 	CODE_MODE_STYLESHEET_PATH,
@@ -152,9 +154,14 @@ export {
 	type PageChange,
 	type PageState,
 	pageOfBuildingAddress,
+	parseBuildingDocument,
+	printBuildingDocument,
 	type RegionChange,
 	type SavedImage,
 	type SavedRegion,
+	type StandInDocument,
+	standInAddress,
+	standInDocumentOf,
 } from "./edit-mode/index.ts";
 export * from "./email/index.ts";
 export {

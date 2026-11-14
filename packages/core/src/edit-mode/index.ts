@@ -70,10 +70,17 @@ export type { BodyEditing, BodyRegion } from "./body.ts";
 export {
 	BUILDING_AREA_PAGE_PATH,
 	BUILDING_AREA_PATH,
+	BUILDING_AREA_STAND_IN_PATH,
+	type BuildingDocument,
 	buildingAreaPageAddress,
 	isAdminReturnPath,
 	isBuildingDocument,
 	pageOfBuildingAddress,
+	parseBuildingDocument,
+	printBuildingDocument,
+	type StandInDocument,
+	standInAddress,
+	standInDocumentOf,
 } from "./building.ts";
 export {
 	EditFieldInvalidError,
