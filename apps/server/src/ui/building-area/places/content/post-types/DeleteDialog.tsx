@@ -101,11 +101,18 @@ export function DeleteDialog({
 		};
 	}, [api, siteId, postType.id]);
 
+	/** Closes the modal first, so what is under it can take focus again, then tells the caller. */
+	const close = () => {
+		dialog.current?.close();
+		onClose();
+	};
+
 	const confirm = async () => {
 		if (state.kind !== "ready" || busy) return;
 		setBusy(true);
 		try {
 			await api.postTypes.delete({ siteId, postTypeId: postType.id, confirmation: state.confirmation });
+			dialog.current?.close();
 			onDeleted();
 		} catch (error) {
 			setBusy(false);
@@ -157,11 +164,11 @@ export function DeleteDialog({
 				// The dialog closes; the place under it stays (its own Escape goes back to the canvas).
 				event.preventDefault();
 				event.stopPropagation();
-				onClose();
+				close();
 			}}
 			onCancel={(event) => {
 				event.preventDefault();
-				onClose();
+				close();
 			}}
 			className="bg-chrome-menu text-chrome-text border-chrome-hover m-auto w-[440px] max-w-[calc(100vw-32px)] rounded-[10px] border p-4 shadow-[0_24px_64px_rgba(0,0,0,0.6)] backdrop:bg-black/50"
 			data-wc-delete-post-type={postType.id}
@@ -197,7 +204,7 @@ export function DeleteDialog({
 					<button
 						ref={cancel}
 						type="button"
-						onClick={onClose}
+						onClick={close}
 						className={`${buttonLook("outline")} w-[90px]`}
 						data-wc-dialog-cancel=""
 					>

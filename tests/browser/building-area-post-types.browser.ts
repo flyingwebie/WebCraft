@@ -15,7 +15,7 @@ import type { Page } from "playwright";
 import type { TestAccount, TestBrowser } from "../harness/index.ts";
 import { announced, enterBuildingArea } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
-import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
+import { type BrowserInstall, forgetPageErrors, pageErrors, startBrowserInstall, THEMES } from "./harness.ts";
 
 let install: BrowserInstall;
 let staff: TestAccount;
@@ -61,10 +61,10 @@ beforeAll(async () => {
 		urlPattern: "/blog/{slug}",
 		fields: [
 			{ key: "excerpt", label: "Excerpt", type: "text", translatable: true },
-			{ key: "author", label: "Author", type: "relationship", postTypes: ["team"] },
+			{ key: "writer", label: "Writer", type: "relationship", postTypes: ["team"] },
 			{
-				key: "seo",
-				label: "SEO",
+				key: "meta",
+				label: "Meta",
 				type: "group",
 				fields: [{ key: "meta_title", label: "Meta title", type: "text" }],
 			},
@@ -111,6 +111,14 @@ async function eventually(read: () => Promise<unknown>, expected: unknown): Prom
 		await new Promise((resolve) => setTimeout(resolve, 100));
 	}
 	expect(await read()).toEqual(expected);
+}
+
+/**
+ * Forgets the refusals the browser logged as errors since `from`: the ones a test expects (a taken
+ * key, an empty label, a Post Type in use), which the place shows in its own words.
+ */
+function forgetRefusals(page: Page, from: number): void {
+	forgetPageErrors(page, from, (error) => /status of (400|409)/.test(error));
 }
 
 /** The rows of the Fields list, by path, in order. */
@@ -176,6 +184,7 @@ describe("Post Types and Fields, for Staff", () => {
 	});
 
 	test("a refused Post Type says why at the create row, and nothing is made", async () => {
+		const reported = pageErrors(page).length;
 		await go(page, placed("content/post-types"));
 		await page.locator("[data-wc-post-types-grid]").waitFor();
 		await page.locator("[data-wc-new-post-type-name]").fill("Bakers");
@@ -187,6 +196,7 @@ describe("Post Types and Fields, for Staff", () => {
 		expect((await superadmin.api.postTypes.list({ siteId })).postTypes.map((type) => type.name)).not.toContain(
 			"Bakers",
 		);
+		forgetRefusals(page, reported);
 	});
 
 	test("Fields: added, renamed, required, reordered with the arrows and by dragging, and deleted with a second click", async () => {
@@ -195,22 +205,22 @@ describe("Post Types and Fields, for Staff", () => {
 		// The tabs: Fields is the open one; the Blog posts row is the sidebar's.
 		expect(await page.locator('[data-wc-post-type-tab-button="fields"]').getAttribute("aria-current")).toBe("page");
 		expect(await page.locator(`[data-wc-content-row="${blogId}"]`).getAttribute("aria-current")).toBe("page");
-		expect(await rowPaths(page)).toEqual(["excerpt", "author", "seo", "seo.meta_title"]);
+		expect(await rowPaths(page)).toEqual(["excerpt", "writer", "meta", "meta.meta_title"]);
 		// A Field inside a Group is 22 px further in; rows are 36 high, the details panel 320 wide.
-		const outer = await page.locator('[data-wc-field-row="seo"] [data-wc-field-grip]').boundingBox();
-		const inner = await page.locator('[data-wc-field-row="seo.meta_title"] [data-wc-field-grip]').boundingBox();
+		const outer = await page.locator('[data-wc-field-row="meta"] [data-wc-field-grip]').boundingBox();
+		const inner = await page.locator('[data-wc-field-row="meta.meta_title"] [data-wc-field-grip]').boundingBox();
 		expect((inner?.x ?? 0) - (outer?.x ?? 0)).toBe(22);
 		expect((await page.locator('[data-wc-field-row="excerpt"] > div').boundingBox())?.height).toBe(36);
 		expect((await page.locator("[data-wc-field-panel]").boundingBox())?.width).toBe(320);
 		expect(await page.locator('[data-wc-field-row="excerpt"]').textContent()).toContain("Translatable");
 
 		// Choosing a Field shows its details and puts it in the address.
-		await page.locator('[data-wc-field-choose="author"]').click();
-		await page.locator('[data-wc-field-details="author"]').waitFor();
-		expect(new URL(page.url()).searchParams.get("wc-view")).toBe("field=author");
-		const details = (await page.locator('[data-wc-field-details="author"]').textContent()) ?? "";
+		await page.locator('[data-wc-field-choose="writer"]').click();
+		await page.locator('[data-wc-field-details="writer"]').waitFor();
+		expect(new URL(page.url()).searchParams.get("wc-view")).toBe("field=writer");
+		const details = (await page.locator('[data-wc-field-details="writer"]').textContent()) ?? "";
 		expect(details).toContain("Relationship Field");
-		expect(details).toContain("Keyauthor");
+		expect(details).toContain("Keywriter");
 		expect(await page.locator('[data-wc-field-points-at] input[type="checkbox"]:checked').count()).toBe(1);
 
 		// A new Field at the end: Number.
@@ -220,12 +230,12 @@ describe("Post Types and Fields, for Staff", () => {
 		await page.locator("[data-wc-new-field-kind]").selectOption("number");
 		await page.locator("[data-wc-new-field-add]").click();
 		await page.locator('[data-wc-field-details="price"]').waitFor();
-		await eventually(() => fieldPaths(blogId), ["excerpt", "author", "seo", "seo.meta_title", "price"]);
+		await eventually(() => fieldPaths(blogId), ["excerpt", "writer", "meta", "meta.meta_title", "price"]);
 
 		// Renamed (saved when the label is left) and made required (at once).
 		await page.locator('[data-wc-field-details="price"] [data-wc-field-setting="label"]').fill("Price in euro");
 		await page.locator('[data-wc-field-details="price"] [data-wc-field-setting="label"]').press("Tab");
-		await page.locator('[data-wc-field-details="price"] [role="switch"]').first().click();
+		await page.locator('[data-wc-field-details="price"] [data-wc-field-setting="required"]').click();
 		const read = async () => {
 			const { postType } = await superadmin.api.postTypes.get({ siteId, postTypeId: blogId });
 			const price = postType.fields.find((field) => field.key === "price");
@@ -238,7 +248,7 @@ describe("Post Types and Fields, for Staff", () => {
 		await page.locator('[data-wc-field-grip="price"]').focus();
 		await page.keyboard.press("ArrowUp");
 		await page.keyboard.press("ArrowUp");
-		await eventually(() => fieldPaths(blogId), ["excerpt", "price", "author", "seo", "seo.meta_title"]);
+		await eventually(() => fieldPaths(blogId), ["excerpt", "price", "writer", "meta", "meta.meta_title"]);
 		expect(await page.evaluate(() => document.activeElement?.getAttribute("data-wc-field-grip"))).toBe("price");
 		expect(await announced(page)).toContain("Price in euro moved to place 2 of 4");
 
@@ -246,8 +256,8 @@ describe("Post Types and Fields, for Staff", () => {
 		await page.locator('[data-wc-field-grip="price"]').dragTo(page.locator('[data-wc-field-row="excerpt"]'), {
 			targetPosition: { x: 40, y: 4 },
 		});
-		await eventually(() => fieldPaths(blogId), ["price", "excerpt", "author", "seo", "seo.meta_title"]);
-		expect(await rowPaths(page)).toEqual(["price", "excerpt", "author", "seo", "seo.meta_title"]);
+		await eventually(() => fieldPaths(blogId), ["price", "excerpt", "writer", "meta", "meta.meta_title"]);
+		expect(await rowPaths(page)).toEqual(["price", "excerpt", "writer", "meta", "meta.meta_title"]);
 
 		// A Group starts with its first Field.
 		await page.locator("[data-wc-field-new]").click();
@@ -262,7 +272,7 @@ describe("Post Types and Fields, for Staff", () => {
 		await page.locator('[data-wc-field-details="credits"]').waitFor();
 		await eventually(
 			() => fieldPaths(blogId),
-			["price", "excerpt", "author", "seo", "seo.meta_title", "credits", "credits.photographer"],
+			["price", "excerpt", "writer", "meta", "meta.meta_title", "credits", "credits.photographer"],
 		);
 
 		// Delete Field asks for a second click.
@@ -273,13 +283,14 @@ describe("Post Types and Fields, for Staff", () => {
 		await page.locator("[data-wc-field-delete]").click();
 		await eventually(
 			() => fieldPaths(blogId),
-			["excerpt", "author", "seo", "seo.meta_title", "credits", "credits.photographer"],
+			["excerpt", "writer", "meta", "meta.meta_title", "credits", "credits.photographer"],
 		);
 		expect(await page.locator('[data-wc-field-row="price"]').count()).toBe(0);
 		expect(new URL(page.url()).searchParams.get("wc-view")).toBeNull();
 	});
 
 	test("a refused change shows its problem at the setting, and keeps it on screen", async () => {
+		const reported = pageErrors(page).length;
 		await go(page, placed(`content/${blogId}/fields`, "field=excerpt"));
 		await page.locator('[data-wc-field-details="excerpt"]').waitFor();
 		const label = page.locator('[data-wc-field-details="excerpt"] [data-wc-field-setting="label"]');
@@ -297,6 +308,7 @@ describe("Post Types and Fields, for Staff", () => {
 		await label.fill("Summary");
 		await label.press("Enter");
 		await page.locator('[data-wc-field-details="excerpt"] [role="alert"]').waitFor({ state: "detached" });
+		forgetRefusals(page, reported);
 	});
 
 	test("Settings rename a Post Type, and the tabs go between its Entries, Fields and Settings", async () => {
@@ -319,6 +331,7 @@ describe("Post Types and Fields, for Staff", () => {
 	});
 
 	test("deleting: the dialog names what goes and starts on Cancel; it is refused while a Relationship points at it", async () => {
+		const reported = pageErrors(page).length;
 		await go(page, placed("content/post-types"));
 		await page.locator("[data-wc-post-types-grid]").waitFor();
 
@@ -327,7 +340,7 @@ describe("Post Types and Fields, for Staff", () => {
 		const dialog = page.locator("[data-wc-delete-post-type]");
 		await dialog.locator("[data-wc-used-in]").waitFor();
 		expect(await dialog.textContent()).toContain("Our team can't be deleted yet");
-		expect(await dialog.locator("[data-wc-used-in]").textContent()).toBe("Blog posts › author: a Relationship Field");
+		expect(await dialog.locator("[data-wc-used-in]").textContent()).toBe("Blog posts › writer: a Relationship Field");
 		expect(await dialog.locator("[data-wc-dialog-delete]").count()).toBe(0);
 		await page.keyboard.press("Escape");
 		await dialog.waitFor({ state: "detached" });
@@ -355,6 +368,7 @@ describe("Post Types and Fields, for Staff", () => {
 		await expect(superadmin.api.postTypes.get({ siteId, postTypeId: blogId })).rejects.toMatchObject({
 			code: "POST_TYPE_NOT_FOUND",
 		});
+		forgetRefusals(page, reported);
 	});
 
 	for (const theme of THEMES) {
@@ -368,9 +382,9 @@ describe("Post Types and Fields, for Staff", () => {
 			await go(page, placed(`content/${teamId}/fields`));
 			await page.locator('[data-wc-fields="team"]').waitFor();
 			await page.locator("[data-wc-field-new]").click();
-			await page.locator("[data-wc-new-field-label]").fill("Role");
+			await page.locator("[data-wc-new-field-label]").fill(`Role ${theme}`);
 			await page.locator("[data-wc-new-field-add]").click();
-			await page.locator('[data-wc-field-details="role"]').waitFor();
+			await page.locator(`[data-wc-field-details="role_${theme}"]`).waitFor();
 			await expectAccessibleScreen(page, `building area, a Post Type's Fields (${theme})`);
 			await page.emulateMedia({ colorScheme: "light" });
 		});

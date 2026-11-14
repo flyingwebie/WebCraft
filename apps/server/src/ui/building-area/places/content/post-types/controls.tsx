@@ -107,6 +107,7 @@ export function Switch({
 	words,
 	disabled,
 	describedBy,
+	data,
 }: {
 	id?: string;
 	checked: boolean;
@@ -114,6 +115,7 @@ export function Switch({
 	words: { on: string; off: string };
 	disabled?: boolean;
 	describedBy?: string;
+	data?: Record<`data-${string}`, string>;
 }) {
 	return (
 		<span className="flex items-center justify-between gap-2">
@@ -128,6 +130,7 @@ export function Switch({
 				aria-describedby={describedBy}
 				disabled={disabled}
 				onClick={() => onChange(!checked)}
+				{...data}
 				className={`relative inline-flex h-4 w-7 shrink-0 items-center rounded-full disabled:opacity-50 ${
 					checked ? "bg-primary" : "bg-chrome-hover"
 				} ${CHROME_EASE} ${FOCUS_RING}`}

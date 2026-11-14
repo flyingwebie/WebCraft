@@ -128,6 +128,7 @@ export function FieldDetails({
 								checked={field.required}
 								words={shown}
 								onChange={(checked) => set("required", checked)}
+								data={{ "data-wc-field-setting": "required" }}
 							/>
 						</Card>
 					) : null}
@@ -143,6 +144,7 @@ export function FieldDetails({
 								checked={field.translatable}
 								words={shown}
 								onChange={(checked) => set("translatable", checked)}
+								data={{ "data-wc-field-setting": "translatable" }}
 							/>
 						</Card>
 					) : null}
