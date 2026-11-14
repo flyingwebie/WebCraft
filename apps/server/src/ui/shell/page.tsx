@@ -77,15 +77,17 @@ export function PageHeader({
 	badge?: ReactNode;
 }) {
 	return (
+		// The actions stay on the H1's line, and the line about the page wraps under the H1 only. When the
+		// column is too narrow for both (a phone), the actions move under the text.
 		<div className="mb-6 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-			<div className="min-w-0 space-y-1">
+			<div className="min-w-0 flex-1 basis-64 space-y-1">
 				<div className="flex flex-wrap items-center gap-x-3 gap-y-1">
 					<h1 className="text-2xl font-semibold tracking-tight">{heading}</h1>
 					{badge}
 				</div>
 				{children ? <p className="text-muted-foreground text-base">{children}</p> : null}
 			</div>
-			{action ? <div className="flex shrink-0 flex-wrap items-center gap-2">{action}</div> : null}
+			{action ? <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">{action}</div> : null}
 		</div>
 	);
 }
@@ -262,13 +264,15 @@ export function PageSheet({
 	const t = useT();
 	const { cover } = usePageRegions();
 	return (
-		<Sheet open={open} onOpenChange={onOpenChange}>
+		// The page card is there once the shell has rendered in the browser: a sheet that is open from
+		// the start (the screen's address names it) opens as soon as the card it covers is there.
+		<Sheet open={open && cover !== null} onOpenChange={onOpenChange}>
 			<SheetContent
 				container={cover}
 				finalFocus={finalFocus}
 				closeLabel={t("shell.sheet.close")}
 				// Inside the page card, not the window: the layer and the sheet cover the card under the top bar.
-				overlayClassName="absolute z-30 bg-black/40 duration-0 supports-backdrop-filter:backdrop-blur-none"
+				overlayClassName="absolute z-30 bg-black/40 duration-0"
 				className={cn(
 					"absolute z-30 w-full gap-0 duration-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md",
 					className,

@@ -1,13 +1,14 @@
 // The admin shell in a real browser: the inset frame, the short navigation of each level with its
 // secondary sidebars (one current row per level), the parts that open over a page (the context
-// switcher, the person's menu, Search), the theme in the person's menu, the settings foot bar and its
-// guard, the line under the top bar while a page loads, "Edit on site" for the page on screen, and the
-// top bar at phone width; in light and dark, with the keyboard and axe.
+// switcher, the person's menu, Search), the theme in the person's menu, the page header, a sheet its
+// screen's address opens, the settings foot bar and its guard (a dialog that dims without a blur), the
+// line under the top bar while a page loads, "Edit on site" for the page on screen, and the top bar at
+// phone width; in light and dark, with the keyboard and axe.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
-import { expectAccessibleScreen, expectOverlayUsable } from "./checks.ts";
+import { expectAccessibleScreen, expectNoAxeViolations, expectOverlayUsable } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
 
 let install: BrowserInstall;
@@ -200,6 +201,38 @@ for (const theme of THEMES) {
 			);
 		});
 
+		test("the page header keeps its actions on the H1's line, and the line about the page under the H1", async () => {
+			const page = await install.newPage(theme);
+			await open(page, `/sites/${siteId}/filters`);
+			const heading = await page.getByRole("heading", { level: 1, name: "Filters" }).boundingBox();
+			const action = await page.getByRole("button", { name: "New Filter" }).boundingBox();
+			const intro = await page.getByText(/^The controls visitors use to narrow/).boundingBox();
+			if (!heading || !action || !intro) throw new Error("The page header is not on screen.");
+			// The action starts on the H1's line, and the long line about the page wraps beside it, under the H1.
+			expect(action.y).toBeLessThan(heading.y + heading.height);
+			expect(intro.y).toBeGreaterThanOrEqual(heading.y + heading.height - 1);
+			expect(intro.x + intro.width).toBeLessThanOrEqual(action.x);
+			expect(intro.height).toBeGreaterThan(30);
+		});
+
+		test("a sheet the address opens shows as the page loads, over the page card under a dark layer", async () => {
+			const page = await install.newPage(theme);
+			await open(page, `/sites/${siteId}?publishAll=1`);
+			const sheet = page.getByRole("dialog", { name: "Publish all" });
+			await sheet.waitFor();
+			const layer = await page.locator('[data-slot="sheet-overlay"]').evaluate((element) => {
+				const style = getComputedStyle(element);
+				return { background: style.backgroundColor, blur: style.backdropFilter };
+			});
+			expect(layer.background).toMatch(/0\.4\)$/);
+			expect(layer.blur).toBe("none");
+			await expectNoAxeViolations(page, `Publish all, opened by its address (${theme})`, ["region"]);
+			// Focus is in the sheet, and Escape closes it.
+			expect(await sheet.evaluate((element) => element.contains(document.activeElement))).toBe(true);
+			await page.keyboard.press("Escape");
+			await sheet.waitFor({ state: "hidden" });
+		});
+
 		test("the settings foot bar: Save waits for a change, and leaving with changes asks first", async () => {
 			const page = await install.newPage(theme);
 			await open(page, "/settings/general");
@@ -219,6 +252,13 @@ for (const theme of THEMES) {
 				.click();
 			const guard = page.getByRole("dialog", { name: "Leave without saving?" });
 			await guard.waitFor();
+			// A dialog dims the page behind it, without blurring it.
+			const layer = await page.locator('[data-slot="dialog-overlay"]').evaluate((element) => {
+				const style = getComputedStyle(element);
+				return { background: style.backgroundColor, blur: style.backdropFilter };
+			});
+			expect(layer.background).toMatch(/0\.5\)$/);
+			expect(layer.blur).toBe("none");
 			// Focus lands on "Keep editing", the choice that loses nothing.
 			await page.waitForFunction(() => document.activeElement?.textContent === "Keep editing", undefined, {
 				timeout: 2000,

@@ -39,7 +39,7 @@ function RootDocument() {
 					<IdentityCheckProvider>
 						<SkipLink />
 						<Outlet />
-						<Toaster theme={shell.theme} position="bottom-right" />
+						<Toaster theme={shell.theme} />
 					</IdentityCheckProvider>
 				</AdminIntl>
 				<Scripts />

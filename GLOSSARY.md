@@ -716,6 +716,14 @@ _Avoid_: Preset, layout, theme
 One chart, table, number or note on a Dashboard, chosen from WebCraft's built-in set, with its own date range and filters.
 _Avoid_: Card, tile, panel, block (a Block belongs to a Body field)
 
+**Arranging**:
+Changing a Dashboard in place: adding Widgets, moving and resizing them, removing them and changing their settings, each step saved as it is made and undone with Undo. Only Staff arrange a Dashboard.
+_Avoid_: Edit mode (that is editing a Site's pages), customising, layout mode
+
+**Widget library**:
+The kinds of Widget, in groups and with a search, that Staff add to a Dashboard from while arranging it. It takes the secondary sidebar's place, so nothing on the page moves.
+_Avoid_: Palette, gallery
+
 **Report**:
 A PDF made from a Dashboard on a schedule and emailed to its recipients, with AI-written explanations and suggestions.
 _Avoid_: Export, digest, summary
