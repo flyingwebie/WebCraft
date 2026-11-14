@@ -1,8 +1,10 @@
 // Forms in a real browser, in the device's light and dark themes: a Form on a Site's page, the same
 // page sent back with errors, and the message once it is sent (without JavaScript: the forms script's
 // own flow is in form-steps.browser.ts), each checked with axe-core and the keyboard; the error summary takes focus and its links move focus to their fields. Then the Form
-// builder in the admin, from the keyboard; a Form's Submissions and Emails tabs as an Owner sees
-// them, reading Submissions from the keyboard; and Site › Email (SMTP).
+// builder in the admin, from the keyboard; a Form's Submissions mailbox (with its Spam folder and its
+// export) and Emails tabs as an Owner sees them, reading Submissions from the keyboard and its keys
+// (J, K, U, Delete), the sidebar's counts of new Submissions following without a reload; and Site ›
+// Email (SMTP).
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import forms from "@webcraft/module-forms";
 
@@ -23,6 +25,18 @@ let formId: string;
 let submissionId: string;
 const slug = "bakery";
 const PAGE = "/visit/contact";
+
+/** A Submission, sent by a visitor through the test process's own handler on the same database. */
+async function send(fields: Record<string, string>, spam = false): Promise<void> {
+	const visitor = formVisitor(install.install);
+	const page = await visitor.open(install.liveUrl(slug, PAGE));
+	const sent = await visitor.send(
+		page,
+		{ venue: "hotel", consent: "yes", ...fields },
+		{ hidden: spam ? { "wc-website": "https://spam.example" } : {} },
+	);
+	expect(sent.status).toBe(303);
+}
 
 beforeAll(async () => {
 	install = await startBrowserInstall();
@@ -123,17 +137,6 @@ beforeAll(async () => {
 		},
 	});
 	await api.forms.publishEmails({ siteId, formId });
-	// Submissions, sent by visitors through the test process's own handler on the same database.
-	const send = async (fields: Record<string, string>, spam = false) => {
-		const visitor = formVisitor(local);
-		const page = await visitor.open(install.liveUrl(slug, PAGE));
-		const sent = await visitor.send(
-			page,
-			{ venue: "hotel", consent: "yes", ...fields },
-			{ hidden: spam ? { "wc-website": "https://spam.example" } : {} },
-		);
-		expect(sent.status).toBe(303);
-	};
 	await send({
 		name: "Siobhán Murphy",
 		email: "siobhan@example.ie",
@@ -171,7 +174,12 @@ for (const theme of THEMES) {
 			await install.signIn(page, owner);
 			await page.goto(install.adminUrl(`/sites/${siteId}/forms/${formId}?tab=submissions&submission=${submissionId}`));
 			await page.getByRole("heading", { name: "Luca Bianchi" }).waitFor();
-			await page.getByRole("heading", { name: "Delivery log" }).waitFor();
+			await page.getByRole("heading", { name: "What happened next" }).waitFor();
+			await page
+				.getByText("Notification sent to orders@acmebakery.example")
+				.or(page.getByText("Notification to orders@acmebakery.example"))
+				.first()
+				.waitFor();
 
 			await expectAccessibleScreen(page, `Site › Form, Submissions (${theme})`);
 		});
@@ -183,6 +191,8 @@ for (const theme of THEMES) {
 			await page.getByRole("button", { name: /^Spam/ }).click();
 			await page.getByRole("button", { name: /Spam Bot/ }).click();
 			await page.getByRole("button", { name: "Not spam" }).waitFor();
+			await page.getByText("Kept for 30 days, then removed. Nobody was notified.").waitFor();
+			await page.getByText("A hidden field was filled in").waitFor();
 
 			await expectAccessibleScreen(page, `Site › Form, Spam folder (${theme})`);
 		});
@@ -341,13 +351,103 @@ describe("reading Submissions from the keyboard", () => {
 		await page.goto(install.adminUrl(`/sites/${siteId}/forms/${formId}?tab=emails`));
 		await page.getByRole("heading", { name: "Notifications" }).waitFor();
 
+		// What the Emails tab says it holds, beside Publish emails in the page header.
+		await page.getByText("Published", { exact: true }).waitFor();
 		await page.getByRole("button", { name: "Add Notification" }).focus();
 		await page.keyboard.press("Enter");
 		const sendTo = page.getByLabel("Send to").last();
 		await sendTo.focus();
 		await page.keyboard.type("bakers@acmebakery.example");
+		await page.keyboard.press("Enter");
+		await page.getByRole("button", { name: "Remove bakers@acmebakery.example" }).waitFor();
 		await page.getByLabel("Route by a field").last().selectOption({ label: "Cake" });
 		await page.getByLabel("When Cake is Tiered").last().waitFor();
 		expect(await page.getByText("Unsaved changes").isVisible()).toBe(true);
+		expect(await page.getByText("Draft · 1 change").isVisible()).toBe(true);
+		await expect(page.getByRole("button", { name: "Save Draft" }).isEnabled()).resolves.toBe(true);
+	});
+
+	test("the counts of new Submissions follow, without a reload, as Submissions are opened and marked unread", async () => {
+		await send({ name: "Aoife Kelly", email: "aoife@example.ie", message: "Two dozen cupcakes, please." });
+		const page = await install.newPage("light");
+		await install.signIn(page, owner);
+		const reader = moduleApi<typeof forms>(await install.install.signIn(owner), "forms");
+		const before = (await reader.submissions.list({ siteId, formId, read: "unread" })).total;
+		await page.goto(install.adminUrl(`/sites/${siteId}/forms/${formId}`));
+		const formsRow = page.getByRole("link", { name: new RegExp(`^Forms\\s*${before} new$`) });
+		const formRow = page.getByRole("link", { name: new RegExp(`^Wedding cake enquiry\\s*${before}$`) });
+		await formsRow.waitFor();
+		await formRow.waitFor();
+		await page.getByRole("tab", { name: new RegExp(`^Submissions\\s*${before}$`) }).waitFor();
+
+		// Opening it marks it read for everyone: both counts go down by one.
+		await page.getByRole("button", { name: /Aoife Kelly/ }).click();
+		await page.getByRole("heading", { name: "Aoife Kelly" }).waitFor();
+		const after = before - 1;
+		if (after > 0) {
+			await page.getByRole("link", { name: new RegExp(`^Forms\\s*${after} new$`) }).waitFor();
+			await page.getByRole("link", { name: new RegExp(`^Wedding cake enquiry\\s*${after}$`) }).waitFor();
+		} else {
+			await page.getByRole("link", { name: /^Forms$/ }).waitFor();
+		}
+
+		// U marks it unread again, and the counts come back.
+		await page.locator("body").press("u");
+		await page.getByRole("button", { name: "Mark as read" }).waitFor();
+		await formsRow.waitFor();
+		await formRow.waitFor();
+	});
+
+	test("J and K move through the list, and Delete asks before it removes", async () => {
+		const page = await install.newPage("light");
+		await install.signIn(page, owner);
+		await page.goto(install.adminUrl(`/sites/${siteId}/forms/${formId}?tab=submissions`));
+		const rows = page.locator("[data-submission]");
+		await rows.first().waitFor();
+
+		await page.locator("body").press("j");
+		await expect(rows.nth(0).getAttribute("aria-current")).resolves.toBe("true");
+		await page.locator("body").press("j");
+		await expect(rows.nth(1).getAttribute("aria-current")).resolves.toBe("true");
+		await page.locator("body").press("k");
+		await expect(rows.nth(0).getAttribute("aria-current")).resolves.toBe("true");
+		// The keys act on the Submission open once it has come.
+		const first = (await rows.nth(0).locator(".truncate").first().textContent()) ?? "";
+		await page.getByRole("heading", { name: first, exact: true }).waitFor();
+
+		await page.locator("body").press("Delete");
+		const dialog = page.getByRole("dialog");
+		await dialog.getByText("Delete for good?").waitFor();
+		await dialog.getByText("Its files are deleted with it. This cannot be undone.").waitFor();
+		await page.keyboard.press("Escape");
+		await dialog.waitFor({ state: "hidden" });
+		await expect(rows.nth(0).getAttribute("aria-current")).resolves.toBe("true");
+	});
+
+	test("Export asks what the file holds", async () => {
+		const page = await install.newPage("light");
+		await install.signIn(page, owner);
+		await page.goto(install.adminUrl(`/sites/${siteId}/forms/${formId}?tab=submissions`));
+		await page.locator("[data-submission]").first().waitFor();
+
+		await expectOverlayUsable(
+			page,
+			page.getByRole("button", { name: "Export", exact: true }),
+			"dialog",
+			"exporting Submissions (light)",
+		);
+		await page.getByRole("button", { name: "Export", exact: true }).click();
+		const dialog = page.getByRole("dialog", { name: "Export this list as CSV" });
+		await expect(dialog.getByRole("checkbox", { name: "Every answer" }).isChecked()).resolves.toBe(true);
+		await dialog.getByRole("checkbox", { name: "Every answer" }).click();
+		const [download] = await Promise.all([
+			page.waitForEvent("download"),
+			dialog.getByRole("button", { name: "Export", exact: true }).click(),
+		]);
+		const csv = await Bun.file((await download.path()) ?? "").text();
+		const header = csv.replace(/^\uFEFF/, "").split("\r\n")[0] ?? "";
+		expect(header).toContain('"Your name"');
+		expect(header).toContain('"Received (UTC)"');
+		expect(header).not.toContain('"Message"');
 	});
 });

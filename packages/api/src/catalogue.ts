@@ -48,6 +48,8 @@ export const PROCEDURES = {
 	"passwordReset.complete": internal(),
 	"shell.context": internal(),
 	"me.updatePreferences": internal(),
+	"me.editorPreferences": internal(),
+	"me.saveEditorPreferences": internal(),
 	"me.sessions.list": internal(),
 	"me.sessions.revoke": internal(),
 	"me.sessions.revokeOthers": internal(),

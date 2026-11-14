@@ -18,9 +18,18 @@ import type { HistoryPage } from "../history/model.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import type { MediaItem } from "../media/preview.ts";
 import { ReviewStatus, SubmitForReview } from "../review/Review.tsx";
+import { SettingsCard } from "../settings/layout.tsx";
+import { PageHeader } from "../shell/page.tsx";
 import { DraftStatusCard, LanguageTabs, SaveErrorBanner, StatusBadge, useDraftPublish } from "./DraftParts.tsx";
 import { FieldValueList, type ValueContext } from "./FieldValues.tsx";
-import type { FieldValues, GlobalsView, Json, Problem } from "./model.ts";
+import {
+	type FieldDefinition,
+	type FieldValues,
+	type GlobalsView,
+	groupValues,
+	type Json,
+	type Problem,
+} from "./model.ts";
 
 /**
  * The Globals editor: the Site's site-wide values (phone, address, footer text), which every Template
@@ -86,6 +95,12 @@ export function GlobalsEditor({
 		markShared: true,
 	};
 
+	const change = (part: Record<string, Json>) => {
+		setRefused([]);
+		setSaveError(null);
+		coEdited.change(part);
+	};
+
 	/** Reads the Globals again: their status and Review. */
 	const refresh = async () => {
 		const api = await getApi();
@@ -106,18 +121,17 @@ export function GlobalsEditor({
 	});
 
 	return (
-		<div className="grid gap-8 @4xl/page:grid-cols-[minmax(0,1fr)_20rem]">
+		<div className="grid gap-8 @4xl/page:grid-cols-[minmax(0,45rem)_20rem]">
 			<div className="grid min-w-0 content-start gap-6">
-				<div className="grid gap-1">
-					<div className="flex flex-wrap items-center gap-3">
-						<h1 className="text-2xl font-semibold tracking-tight">{t("globals.heading")}</h1>
-						<StatusBadge status={globals.status} />
-					</div>
-					<p className="text-muted-foreground flex flex-wrap items-center gap-x-2 text-sm">
-						<span>{t("globals.intro")}</span>
-						<span aria-hidden="true">·</span>
-						<SharedDraftStatus status={shared.status} editable={shared.editable} publishedBy={coEdited.publishedBy} />
-					</p>
+				{/* The column's gap already parts the header from the tabs. */}
+				<div className="[&>div]:mb-0">
+					<PageHeader heading={t("globals.heading")} badge={<StatusBadge status={globals.status} />}>
+						<span className="flex flex-wrap items-center gap-x-2">
+							<span>{t("globals.intro")}</span>
+							<span aria-hidden="true">·</span>
+							<SharedDraftStatus status={shared.status} editable={shared.editable} publishedBy={coEdited.publishedBy} />
+						</span>
+					</PageHeader>
 				</div>
 
 				<LanguageTabs
@@ -152,22 +166,39 @@ export function GlobalsEditor({
 						) : null}
 					</div>
 				) : (
-					<fieldset disabled={locked} className="min-w-0" {...tracking}>
-						<FieldValueList
-							fields={globals.fields}
-							values={values}
-							onChange={(key, value) => {
-								setRefused([]);
-								setSaveError(null);
-								coEdited.change({ [key]: value });
-							}}
-							context={context}
-							wrap={(field, control) => (
-								<PresenceOutline place={field.key} participants={shared.participants}>
-									{control}
+					<fieldset disabled={locked} className="grid min-w-0 gap-6" {...tracking}>
+						{cardsOf(globals.fields).map((card) =>
+							card.group ? (
+								<PresenceOutline key={card.group.key} place={card.group.key} participants={shared.participants}>
+									<SettingsCard title={card.group.label} description={card.group.help ?? undefined}>
+										<FieldValueList
+											fields={card.group.fields}
+											values={groupValues(values[card.group.key] ?? null)}
+											at={`fields.${card.group.key}.`}
+											onChange={(key, value) => {
+												const group = card.group?.key ?? "";
+												change({ [group]: { ...groupValues(values[group] ?? null), [key]: value } });
+											}}
+											context={context}
+										/>
+									</SettingsCard>
 								</PresenceOutline>
-							)}
-						/>
+							) : (
+								<SettingsCard key={card.fields[0]?.key ?? "values"} title={t("globals.valuesHeading")}>
+									<FieldValueList
+										fields={card.fields}
+										values={values}
+										onChange={(key, value) => change({ [key]: value })}
+										context={context}
+										wrap={(field, control) => (
+											<PresenceOutline place={field.key} participants={shared.participants}>
+												{control}
+											</PresenceOutline>
+										)}
+									/>
+								</SettingsCard>
+							),
+						)}
 					</fieldset>
 				)}
 			</div>
@@ -207,4 +238,20 @@ export function GlobalsEditor({
 			</div>
 		</div>
 	);
+}
+
+type GroupField = Extract<FieldDefinition, { type: "group" }>;
+
+/**
+ * The Globals' cards, as a settings screen has them: each Group of Fields on a card of its own, named
+ * by it, and the Fields between Groups together on a card.
+ */
+function cardsOf(fields: readonly FieldDefinition[]): { group: GroupField | null; fields: FieldDefinition[] }[] {
+	const cards: { group: GroupField | null; fields: FieldDefinition[] }[] = [];
+	for (const field of fields) {
+		if (field.type === "group") cards.push({ group: field, fields: [] });
+		else if (cards.at(-1)?.group === null) cards.at(-1)?.fields.push(field);
+		else cards.push({ group: null, fields: [field] });
+	}
+	return cards;
 }

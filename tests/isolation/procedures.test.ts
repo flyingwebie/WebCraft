@@ -2596,3 +2596,13 @@ describe("Page layouts", () => {
 		return api.pageLayouts.save({ siteId: target.siteId, entryId, basedOn: state.version, layout: state.layout });
 	});
 });
+
+// The person's own editor preferences, asked for by the building area of one Site.
+isolation.refuses("me.editorPreferences", (api, { siteId }) => api.me.editorPreferences({ siteId }), {
+	as: ["staff", "owner", "editor", "author"],
+});
+isolation.refuses(
+	"me.saveEditorPreferences",
+	(api, { siteId }) => api.me.saveEditorPreferences({ siteId, preferences: { version: 1, hintSeen: true } }),
+	{ as: ["staff", "owner", "editor", "author"] },
+);

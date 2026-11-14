@@ -1,7 +1,11 @@
+import type { LucideIcon } from "lucide-react";
 import { type KeyboardEvent, type ReactNode, useRef, useState } from "react";
 
-/** One tab: its id (unique on the page), its name, a short count beside it (`badge`), and its panel. */
-export type TabSpec = { id: string; label: string; badge?: string; panel: ReactNode };
+/**
+ * One tab: its id (unique on the page), its name, an icon before it, a short count beside it
+ * (`badge`), and its panel.
+ */
+export type TabSpec = { id: string; label: string; icon?: LucideIcon; badge?: string; panel: ReactNode };
 
 /**
  * Tabs, as the ARIA tabs pattern has them: a tab list (one tab stop; the arrow keys, Home and End move
@@ -82,6 +86,7 @@ export function Tabs({
 						onKeyDown={onKeyDown}
 						className="focus-visible:ring-ring/50 aria-selected:border-primary aria-selected:text-foreground text-muted-foreground -mb-px rounded-t-sm border-b-2 border-transparent px-1 pb-2 text-sm font-medium outline-none focus-visible:ring-3"
 					>
+						{tab.icon ? <tab.icon className="me-1.5 inline size-4 align-[-3px]" aria-hidden="true" /> : null}
 						{tab.label}
 						{tab.badge ? (
 							<span className="bg-muted text-muted-foreground ms-1.5 rounded-full px-1.5 py-0.5 text-xs font-medium">

@@ -1,0 +1,76 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "c19bfbda-1417-4f87-9dc8-32a1a57c0b4b",
+  "prevIds": [
+    "8e0ea32c-16f7-412d-b1a2-20fbc0cc6910"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "people",
+        "editor_preferences"
+      ],
+      "writes": [
+        "s|col|public.people.editor_preferences",
+        "n|col|public.people.editor_preferences",
+        "e|col|public.people.editor_preferences"
+      ],
+      "reads": [
+        "n|tbl|public.people",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_check",
+      "statementTarget": [
+        "table",
+        "public",
+        "people"
+      ],
+      "writes": [
+        "s|ck|public.people.people_editor_preferences_object",
+        "n|ck|public.people.people_editor_preferences_object",
+        "e|ck|public.people.people_editor_preferences_object",
+        "n|con|public.people.people_editor_preferences_object"
+      ],
+      "reads": [
+        "n|tbl|public.people",
+        "n|sch|public",
+        "n|col|public.people.editor_preferences"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "people",
+        "name": "editor_preferences",
+        "type": "jsonb",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'{}'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "people",
+        "name": "people_editor_preferences_object",
+        "value": "jsonb_typeof(\"editor_preferences\") = 'object'",
+        "entityType": "checks"
+      }
+    }
+  ]
+}

@@ -389,7 +389,7 @@ export function ReviewBadge({ status }: { status: ReviewView["status"] }) {
 }
 
 /** Where an item under review is edited in the admin. */
-function itemLink(siteId: string, review: ReviewView) {
+export function reviewItemLink(siteId: string, review: ReviewView) {
 	if (review.item.kind === "entry") {
 		return {
 			to: "/sites/$siteId/entries/$postTypeId/$entryId" as const,
@@ -442,7 +442,7 @@ export function WaitingForReview({
 							<li key={review.id} className="grid gap-1 rounded-lg border p-3 text-sm">
 								<div className="flex flex-wrap items-center gap-2">
 									<Link
-										{...itemLink(siteId, review)}
+										{...reviewItemLink(siteId, review)}
 										className="focus-visible:ring-ring/50 rounded-sm font-medium underline underline-offset-4 outline-none focus-visible:ring-3"
 									>
 										{reviewItemName(t, review)}
