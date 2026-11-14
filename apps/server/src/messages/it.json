@@ -1156,15 +1156,15 @@
 	"members": {
 		"pageTitle": "Membri",
 		"heading": "Membri",
-		"intro": "Le persone di {workspace} che possono accedere a questo Workspace. Ogni Membership ha un ruolo e raggiunge tutti i Site o quelli scelti.",
-		"invite": "Invita un Membro",
+		"intro": "Le persone con accesso a {workspace} e ai suoi siti.",
+		"invite": "Invita un membro",
 		"search": "Cerca tra i Membri",
 		"roleFilter": "Mostra ruolo",
 		"allRoles": "Tutti i ruoli",
 		"columns": {
 			"member": "Membro",
 			"role": "Ruolo",
-			"sites": "Accesso ai Site",
+			"sites": "Siti",
 			"actions": "Azioni",
 			"twoFactor": "2FA"
 		},
@@ -1208,32 +1208,29 @@
 		},
 		"sheet": {
 			"inviteTitle": "Invita un Membro",
-			"inviteDescription": "Ricevono un'email nella loro lingua dell'admin con un link valido per 7 giorni.",
 			"email": "Email",
 			"role": "Ruolo",
-			"roleHelp": {
-				"owner": "Gestisce i Membri, modifica e pubblica i Contenuti dei Site che raggiunge.",
-				"editor": "Modifica e pubblica i Contenuti dei Site che raggiunge.",
-				"author": "Modifica i Contenuti e salva Bozze; non può pubblicare."
-			},
-			"access": "Accesso ai Site",
-			"all": "Tutti i Site",
-			"allHelp": "Compresi i Site creati in seguito.",
-			"chosen": "Site scelti",
-			"chosenHelp": "Solo i Site selezionati qui sotto.",
-			"chooseLegend": "Site",
 			"notReached": "Non puoi offrire questo Site con questo ruolo.",
 			"noSites": "Non ci sono ancora Site che puoi offrire.",
 			"chooseSite": "Scegli almeno un Site.",
-			"limitNote": "Non puoi concedere più accesso di quello che hai. Un Owner può offrire solo i Site che raggiunge.",
-			"send": "Invia invito",
+			"send": "Invia l'invito",
 			"cancel": "Annulla",
 			"close": "Chiudi",
 			"sent": "Invito inviato a {email}.",
 			"changeTitle": "Cambia ruolo e Site",
 			"changeDescription": "Cosa può fare {name} in questo Workspace. La modifica vale subito.",
 			"save": "Salva",
-			"saved": "Salvato."
+			"saved": "Salvato.",
+			"emailPlaceholder": "nome@esempio.it",
+			"linkNote": "Riceve un'email con un link valido per 7 giorni.",
+			"roleName": "{role}:",
+			"roleLine": {
+				"owner": "gestisce i membri e può pubblicare",
+				"editor": "modifica e pubblica",
+				"author": "modifica e salva bozze, non può pubblicare"
+			},
+			"reach": "Siti che può raggiungere",
+			"allLater": "Tutti i siti, anche quelli aggiunti in seguito"
 		},
 		"removeDialog": {
 			"title": "Rimuovere {name}?",
@@ -1242,7 +1239,8 @@
 			"cancel": "Annulla",
 			"close": "Chiudi",
 			"removed": "{name} è stato rimosso da {workspace}."
-		}
+		},
+		"siteCount": "{count, plural, one {# sito} other {# siti}}"
 	},
 	"sites": {
 		"pageTitle": "Site",

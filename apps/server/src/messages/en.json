@@ -1156,15 +1156,15 @@
 	"members": {
 		"pageTitle": "Members",
 		"heading": "Members",
-		"intro": "People from {workspace} who can sign in to this Workspace. Each Membership has one role and reaches all Sites or chosen ones.",
-		"invite": "Invite Member",
+		"intro": "People with access to {workspace} and its Sites.",
+		"invite": "Invite a Member",
 		"search": "Search Members",
 		"roleFilter": "Show role",
 		"allRoles": "All roles",
 		"columns": {
 			"member": "Member",
 			"role": "Role",
-			"sites": "Site access",
+			"sites": "Sites",
 			"actions": "Actions",
 			"twoFactor": "2FA"
 		},
@@ -1208,32 +1208,29 @@
 		},
 		"sheet": {
 			"inviteTitle": "Invite a Member",
-			"inviteDescription": "They get an email in their Admin language with a link valid for 7 days.",
 			"email": "Email",
 			"role": "Role",
-			"roleHelp": {
-				"owner": "Manages Members, edits and publishes Content on the Sites they reach.",
-				"editor": "Edits and publishes Content on the Sites they reach.",
-				"author": "Edits Content and saves Drafts; can't publish."
-			},
-			"access": "Site access",
-			"all": "All Sites",
-			"allHelp": "Including Sites created later.",
-			"chosen": "Chosen Sites",
-			"chosenHelp": "Only the Sites ticked below.",
-			"chooseLegend": "Sites",
 			"notReached": "You can't offer this Site with this role.",
 			"noSites": "There are no Sites you can offer yet.",
 			"chooseSite": "Choose at least one Site.",
-			"limitNote": "You can't grant more access than you hold. An Owner can only offer the Sites they reach.",
-			"send": "Send invite",
+			"send": "Send invitation",
 			"cancel": "Cancel",
 			"close": "Close",
 			"sent": "Invite sent to {email}.",
 			"changeTitle": "Change role and Sites",
 			"changeDescription": "What {name} can do in this Workspace. The change takes effect at once.",
 			"save": "Save",
-			"saved": "Saved."
+			"saved": "Saved.",
+			"emailPlaceholder": "name@example.com",
+			"linkNote": "They get an email with a link that works for 7 days.",
+			"roleName": "{role}:",
+			"roleLine": {
+				"owner": "manages Members and can publish",
+				"editor": "edits and publishes",
+				"author": "edits and saves Drafts, cannot publish"
+			},
+			"reach": "Sites they can reach",
+			"allLater": "All Sites, also those added later"
 		},
 		"removeDialog": {
 			"title": "Remove {name}?",
@@ -1242,7 +1239,8 @@
 			"cancel": "Cancel",
 			"close": "Close",
 			"removed": "{name} was removed from {workspace}."
-		}
+		},
+		"siteCount": "{count, plural, one {# Site} other {# Sites}}"
 	},
 	"sites": {
 		"pageTitle": "Sites",
