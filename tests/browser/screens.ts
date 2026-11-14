@@ -28,6 +28,8 @@ export type ScreenFixture = {
 	mediaId: string;
 	/** A document in the Site's Trash. */
 	trashedMediaId: string;
+	/** The Site's built-in "Site analytics" Dashboard. */
+	analyticsDashboardId: string;
 };
 
 export const ADMIN_SCREENS: readonly Screen[] = [
@@ -97,7 +99,13 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 	{ name: "Workspace › Members (Owner)", path: ({ workspaceId }) => `/workspaces/${workspaceId}/members`, as: "owner" },
 	{ name: "Workspace › Dashboards", path: ({ workspaceId }) => `/workspaces/${workspaceId}/dashboards`, as: "staff" },
 	{ name: "Site › Overview", path: ({ siteId }) => `/sites/${siteId}`, as: "staff" },
-	{ name: "Site › Dashboards", path: ({ siteId }) => `/sites/${siteId}/dashboards`, as: "staff" },
+	// The list's address opens the first Dashboard with New Dashboard over it for Staff (checked in
+	// dashboards.browser.ts); here the Dashboard itself.
+	{
+		name: "Site › Site analytics Dashboard",
+		path: ({ siteId, analyticsDashboardId }) => `/sites/${siteId}/dashboards/${analyticsDashboardId}`,
+		as: "staff",
+	},
 	{ name: "Site › Dashboards (Owner)", path: ({ siteId }) => `/sites/${siteId}/dashboards`, as: "owner" },
 	{ name: "Site › Media", path: ({ siteId }) => `/sites/${siteId}/media`, as: "staff" },
 	{ name: "Site › Imports, none yet (Staff)", path: ({ siteId }) => `/sites/${siteId}/imports`, as: "staff" },
