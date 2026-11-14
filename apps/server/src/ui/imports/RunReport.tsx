@@ -12,15 +12,7 @@ import {
 } from "@webcraft/ui/components/dialog.tsx";
 import { FieldError } from "@webcraft/ui/components/field.tsx";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
-import {
-	ArrowLeftIcon,
-	ExternalLinkIcon,
-	ListIcon,
-	LoaderIcon,
-	RefreshCwIcon,
-	SquareIcon,
-	Undo2Icon,
-} from "lucide-react";
+import { ExternalLinkIcon, ListIcon, LoaderIcon, RefreshCwIcon, SquareIcon, Undo2Icon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -33,7 +25,7 @@ import { ProblemList } from "./CsvMapping.tsx";
 import { StatusBadge } from "./ImportsList.tsx";
 import { isGoing, type RunReport } from "./model.ts";
 import { Note } from "./Note.tsx";
-import { Stepper } from "./Stepper.tsx";
+import { ImportHeader } from "./Stepper.tsx";
 
 /** How often a running run's progress is asked for again. */
 const POLL_MS = 2000;
@@ -69,30 +61,18 @@ export function RunReportPage({ siteId, initial }: { siteId: string; initial: Ru
 
 	return (
 		<div className="grid gap-8">
-			<header className="flex flex-wrap items-center gap-x-6 gap-y-4 border-b pb-6">
-				<Button
-					variant="ghost"
-					size="icon"
-					render={<Link to="/sites/$siteId/imports" params={{ siteId }} />}
-					aria-label={t("imports.flow.backToList")}
-				>
-					<ArrowLeftIcon className="rtl:rotate-180" aria-hidden="true" />
-				</Button>
-				<div className="grid min-w-48 flex-1 gap-1">
-					<h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold tracking-tight outline-none">
-						{going ? run.importName : t("imports.report.title", { name: run.importName })}
-					</h1>
-					<p className="text-muted-foreground text-sm">
-						{t("imports.report.started", {
-							number: run.number,
-							at: formatUtc(run.startedAt),
-							name: run.startedBy?.name ?? "—",
-						})}
-					</p>
-				</div>
-				<Stepper current={going ? "run" : "report"} />
-				<div className="flex items-center gap-2">
-					{going ? (
+			<ImportHeader
+				siteId={siteId}
+				current={going ? "run" : "report"}
+				headingRef={heading}
+				heading={going ? run.importName : t("imports.report.title", { name: run.importName })}
+				line={t("imports.report.started", {
+					number: run.number,
+					at: formatUtc(run.startedAt),
+					name: run.startedBy?.name ?? "—",
+				})}
+				actions={
+					going ? (
 						<StopButton siteId={siteId} run={run} onStopped={setRun} />
 					) : (
 						<>
@@ -114,9 +94,9 @@ export function RunReportPage({ siteId, initial }: { siteId: string; initial: Ru
 								{t("imports.report.runAgain")}
 							</Button>
 						</>
-					)}
-				</div>
-			</header>
+					)
+				}
+			/>
 			{run.warnings.includes("restCustomFields") ? (
 				<p role="note" className="bg-muted rounded-lg p-4">
 					{t("imports.live.customFields")}

@@ -1,7 +1,7 @@
 // Imports in a browser, in light and dark: the Import list, the steps of a new Import (Source, Map,
 // Preview) driven from the keyboard, a run in progress (Run), an Import report (Report) with its
 // Undo dialog, and the CSV side sheet an Owner opens from a Post Type's Entries.
-import { afterAll, beforeAll, describe, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
@@ -73,6 +73,11 @@ async function open(page: Page, account: TestAccount, path: string) {
 	await page.waitForLoadState("networkidle");
 }
 
+/** The step the steps beside the page mark as the current one. */
+function currentStep(page: Page) {
+	return page.getByRole("complementary", { name: "Import steps" }).locator('[aria-current="step"]').textContent();
+}
+
 /** Presses a button from the keyboard. */
 async function press(page: Page, name: string) {
 	const button = page.getByRole("button", { name, exact: true });
@@ -93,6 +98,7 @@ for (const theme of THEMES) {
 		test("the steps of a new Import: Source, Map and Preview, from the keyboard", async () => {
 			const page = await install.newPage(theme);
 			await open(page, superadmin, `/sites/${siteId}/imports/new`);
+			expect(await currentStep(page)).toContain("Source");
 			await expectAccessibleScreen(page, `New Import, Source (${theme})`);
 
 			await page.locator("input[type=file]").setInputFiles({
@@ -106,6 +112,7 @@ for (const theme of THEMES) {
 
 			await press(page, "Continue to mapping");
 			await page.getByRole("heading", { name: "Columns" }).waitFor();
+			expect(await currentStep(page)).toContain("Map");
 			await page.getByText(/Will create/).waitFor();
 			await expectAccessibleScreen(page, `New Import, Map (${theme})`);
 
@@ -128,6 +135,7 @@ for (const theme of THEMES) {
 			const page = await install.newPage(theme);
 			await open(page, superadmin, `/sites/${siteId}/imports/${importId}/runs/${doneRunId}`);
 			await page.getByRole("tab", { name: "Problem rows (1)" }).waitFor();
+			expect(await currentStep(page)).toContain("Report");
 			await expectAccessibleScreen(page, `Import report (${theme})`);
 
 			const created = page.getByRole("tab", { name: "Created (3)" });

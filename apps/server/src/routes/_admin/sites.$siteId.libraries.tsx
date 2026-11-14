@@ -1,24 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import type { Library } from "@webcraft/core";
-import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import {
-	Card,
-	CardAction,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@webcraft/ui/components/card.tsx";
-import {
-	Dialog,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@webcraft/ui/components/dialog.tsx";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -36,8 +18,7 @@ import {
 } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { RadioGroup, RadioGroupItem } from "@webcraft/ui/components/radio-group.tsx";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
-import { ArrowUpCircleIcon, DownloadIcon, EllipsisIcon, RefreshCwIcon, TrashIcon } from "lucide-react";
+import { ArrowUpCircleIcon, DownloadIcon, EllipsisIcon, PlusIcon, RefreshCwIcon, TrashIcon } from "lucide-react";
 import { type FormEvent, type RefObject, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -47,9 +28,12 @@ import { formatUtc } from "../../ui/format.ts";
 import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
 import { formatBytes } from "../../ui/media/preview.ts";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
+import { ConfirmDialog } from "../../ui/settings/confirm.tsx";
+import { SettingsCard, SettingsListRow, SettingsRows, StateBadge } from "../../ui/settings/layout.tsx";
+import { PageSheet } from "../../ui/shell/page.tsx";
 
 export const Route = createFileRoute("/_admin/sites/$siteId/libraries")({
-	staticData: { crumb: "libraries.pageTitle" },
+	staticData: { crumb: "libraries.pageTitle", width: "form" },
 	loader: async ({ context, params }) => {
 		if (!context.place.permissions.includes("structure.edit")) return null;
 		const api = await getApi();
@@ -86,15 +70,18 @@ function refusalText(failure: unknown): MessageKey {
 /**
  * Site › Libraries (Structure, Staff only; ADR 0023): the script packages this Site loads on every
  * page, before the Site script, each kept at a fixed version and served from the Site's own domain.
- * Staff add one by package and version (from the npm registry) or by address; WebCraft downloads it
- * once and checks it. Checking for updates says which have newer versions; nothing updates until
- * Staff update it.
+ * Staff add one by package and version (from the npm registry) or by address, in a sheet; WebCraft
+ * downloads it once and checks it. Checking for updates says which have newer versions; nothing
+ * updates until Staff update it. Drawn as a settings list (as Site › Outside scripts): a row per
+ * Library with its state and its menu.
  */
 function LibrariesPage() {
 	const t = useT();
 	const data = Route.useLoaderData();
 	const { siteId } = Route.useParams();
 	const router = useRouter();
+	const addButton = useRef<HTMLButtonElement>(null);
+	const [adding, setAdding] = useState(false);
 	const [checking, setChecking] = useState(false);
 	if (!data) return <Forbidden heading={t("forbidden.heading")} body={t("forbidden.body")} />;
 	const { libraries } = data;
@@ -120,78 +107,94 @@ function LibrariesPage() {
 	return (
 		<>
 			<PageHeader heading={t("libraries.heading")}>{t("libraries.intro")}</PageHeader>
-			<div className="grid max-w-4xl gap-8">
-				<Card>
-					<CardHeader>
-						<CardTitle>
-							<h2>{t("libraries.listTitle")}</h2>
-						</CardTitle>
-						<CardDescription>
-							{lastChecked ? t("libraries.checkedAt", { time: formatUtc(lastChecked) }) : t("libraries.listIntro")}
-						</CardDescription>
-						{fromRegistry ? (
-							<CardAction>
-								<Button variant="outline" size="sm" onClick={check} disabled={checking}>
+			<div className="grid gap-6">
+				<SettingsCard
+					title={t("libraries.listTitle")}
+					description={
+						lastChecked ? (
+							<>
+								{t("libraries.listIntro")} {t("libraries.checkedAt", { time: formatUtc(lastChecked) })}
+							</>
+						) : (
+							t("libraries.listIntro")
+						)
+					}
+					action={
+						<>
+							{fromRegistry ? (
+								<Button variant="outline" onClick={check} disabled={checking}>
 									<RefreshCwIcon aria-hidden="true" />
 									{checking ? t("libraries.checking") : t("libraries.check")}
 								</Button>
-							</CardAction>
-						) : null}
-					</CardHeader>
-					<CardContent>
-						{libraries.length === 0 ? (
-							<p className="text-muted-foreground text-sm">{t("libraries.none")}</p>
-						) : (
-							<Table>
-								<TableHeader>
-									<TableRow>
-										<TableHead>{t("libraries.library")}</TableHead>
-										<TableHead>{t("libraries.version")}</TableHead>
-										<TableHead>{t("libraries.size")}</TableHead>
-										<TableHead>{t("libraries.licence")}</TableHead>
-										<TableHead>
-											<span className="sr-only">{t("libraries.actions")}</span>
-										</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{libraries.map((library) => (
-										<TableRow key={library.id}>
-											<TableCell className="max-w-72">
-												<div className="font-medium">{library.name}</div>
-												<div className="text-muted-foreground truncate font-mono text-xs">
-													{library.file ?? library.url}
-												</div>
-											</TableCell>
-											<TableCell>
-												<div className="flex flex-wrap items-center gap-2">
-													<span>{library.version ?? t("libraries.byAddress")}</span>
-													{library.newerVersion ? (
-														<Badge variant="secondary">{t("libraries.newer", { version: library.newerVersion })}</Badge>
-													) : null}
-												</div>
-											</TableCell>
-											<TableCell className="whitespace-nowrap">{formatBytes(library.size)}</TableCell>
-											<TableCell>{library.licence ?? "—"}</TableCell>
-											<TableCell className="text-end">
-												<LibraryActions siteId={siteId} library={library} />
-											</TableCell>
-										</TableRow>
-									))}
-								</TableBody>
-							</Table>
-						)}
-					</CardContent>
-				</Card>
-				<AddLibrary siteId={siteId} />
+							) : null}
+							<Button ref={addButton} variant="outline" onClick={() => setAdding(true)}>
+								<PlusIcon aria-hidden="true" />
+								{t("libraries.addButton")}
+							</Button>
+						</>
+					}
+				>
+					{libraries.length === 0 ? (
+						<p className="text-muted-foreground text-sm">{t("libraries.none")}</p>
+					) : (
+						<SettingsRows>
+							{libraries.map((library) => (
+								<SettingsListRow
+									key={library.id}
+									badge={<LibraryState library={library} />}
+									detail={
+										<div className="space-y-0.5">
+											<p className="truncate font-mono" title={library.file ?? library.url ?? undefined}>
+												{library.file ?? library.url}
+											</p>
+											<p>
+												{[
+													`${t("libraries.version")}: ${library.version ?? t("libraries.byAddress")}`,
+													`${t("libraries.size")}: ${formatBytes(library.size)}`,
+													`${t("libraries.licence")}: ${library.licence ?? "—"}`,
+												].join(" · ")}
+											</p>
+										</div>
+									}
+									actions={<LibraryActions siteId={siteId} library={library} />}
+								>
+									<span className="min-w-0 break-all">{library.name}</span>
+								</SettingsListRow>
+							))}
+						</SettingsRows>
+					)}
+				</SettingsCard>
 				<p className="text-muted-foreground text-sm">{t("libraries.appliesAtOnce")}</p>
 			</div>
+			{adding ? <AddLibrarySheet siteId={siteId} onClose={() => setAdding(false)} finalFocus={addButton} /> : null}
 		</>
 	);
 }
 
-/** Adding a Library: a package of the npm registry at a version (and a file of it), or an https address. */
-function AddLibrary({ siteId }: { siteId: string }) {
+/**
+ * A Library's state in words: a newer version waiting, on its newest version (once checked), or a
+ * fixed copy of an address.
+ */
+function LibraryState({ library }: { library: Library }) {
+	const t = useT();
+	if (library.newerVersion) {
+		return <StateBadge tone="warning">{t("libraries.newer", { version: library.newerVersion })}</StateBadge>;
+	}
+	if (library.source === "url") return <StateBadge>{t("libraries.byAddress")}</StateBadge>;
+	if (library.checkedAt) return <StateBadge tone="success">{t("libraries.newest")}</StateBadge>;
+	return null;
+}
+
+/** Adding a Library, in a sheet: a package of the npm registry at a version (and a file of it), or an https address. */
+function AddLibrarySheet({
+	siteId,
+	onClose,
+	finalFocus,
+}: {
+	siteId: string;
+	onClose: () => void;
+	finalFocus: RefObject<HTMLElement | null>;
+}) {
 	const t = useT();
 	const router = useRouter();
 	const id = useId();
@@ -204,6 +207,7 @@ function AddLibrary({ siteId }: { siteId: string }) {
 	const ready = source === "npm" ? packageName.trim() !== "" && version.trim() !== "" : url.trim() !== "";
 	const submit = async (event: FormEvent) => {
 		event.preventDefault();
+		if (!ready) return;
 		setBusy(true);
 		try {
 			const api = await getApi();
@@ -213,10 +217,7 @@ function AddLibrary({ siteId }: { siteId: string }) {
 					source === "npm" ? { source, packageName, version, ...(file.trim() ? { file } : {}) } : { source, url },
 			});
 			toast.success(t("libraries.added", { name: library.name, version: library.version ?? "" }));
-			setPackageName("");
-			setVersion("");
-			setFile("");
-			setUrl("");
+			onClose();
 			await router.invalidate();
 		} catch (failure) {
 			toast.error(t(refusalText(failure)));
@@ -225,15 +226,27 @@ function AddLibrary({ siteId }: { siteId: string }) {
 		}
 	};
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("libraries.addTitle")}</h2>
-				</CardTitle>
-				<CardDescription>{t("libraries.addIntro")}</CardDescription>
-			</CardHeader>
-			<CardContent>
-				<form onSubmit={submit} noValidate className="grid gap-6">
+		<PageSheet
+			open
+			onOpenChange={(open) => !open && onClose()}
+			title={t("libraries.addTitle")}
+			description={t("libraries.addIntro")}
+			finalFocus={finalFocus}
+			className="data-[side=right]:sm:max-w-lg"
+			footer={
+				<>
+					<Button type="button" variant="outline" onClick={onClose}>
+						{t("libraries.cancel")}
+					</Button>
+					<Button type="submit" form={`${id}-form`} disabled={busy || !ready}>
+						<DownloadIcon aria-hidden="true" />
+						{busy ? t("libraries.adding") : t("libraries.add")}
+					</Button>
+				</>
+			}
+		>
+			<form id={`${id}-form`} onSubmit={submit} noValidate>
+				<FieldGroup className="gap-6">
 					<FieldSet>
 						<FieldLegend variant="label">{t("libraries.source")}</FieldLegend>
 						<RadioGroup value={source} onValueChange={(value) => setSource(value as "npm" | "url")}>
@@ -254,7 +267,7 @@ function AddLibrary({ siteId }: { siteId: string }) {
 						</RadioGroup>
 					</FieldSet>
 					{source === "npm" ? (
-						<FieldGroup className="grid gap-6 sm:grid-cols-2">
+						<>
 							<Field>
 								<FieldLabel htmlFor={`${id}-package`}>{t("libraries.package")}</FieldLabel>
 								<Input
@@ -281,7 +294,7 @@ function AddLibrary({ siteId }: { siteId: string }) {
 								/>
 								<FieldDescription id={`${id}-version-help`}>{t("libraries.versionHelp")}</FieldDescription>
 							</Field>
-							<Field className="sm:col-span-2">
+							<Field>
 								<FieldLabel htmlFor={`${id}-file`}>{t("libraries.fileOptional")}</FieldLabel>
 								<Input
 									id={`${id}-file`}
@@ -295,7 +308,7 @@ function AddLibrary({ siteId }: { siteId: string }) {
 								/>
 								<FieldDescription id={`${id}-file-help`}>{t("libraries.fileHelp")}</FieldDescription>
 							</Field>
-						</FieldGroup>
+						</>
 					) : (
 						<Field>
 							<FieldLabel htmlFor={`${id}-address`}>{t("libraries.address")}</FieldLabel>
@@ -314,15 +327,9 @@ function AddLibrary({ siteId }: { siteId: string }) {
 							<FieldDescription id={`${id}-address-help`}>{t("libraries.addressHelp")}</FieldDescription>
 						</Field>
 					)}
-					<div>
-						<Button type="submit" disabled={busy || !ready}>
-							<DownloadIcon aria-hidden="true" />
-							{busy ? t("libraries.adding") : t("libraries.add")}
-						</Button>
-					</div>
-				</form>
-			</CardContent>
-		</Card>
+				</FieldGroup>
+			</form>
+		</PageSheet>
 	);
 }
 
@@ -402,34 +409,25 @@ function RemoveLibraryDialog({
 }) {
 	const t = useT();
 	const router = useRouter();
-	const [busy, setBusy] = useState(false);
-	const remove = async () => {
-		setBusy(true);
-		try {
-			const api = await getApi();
-			await api.libraries.remove({ siteId, libraryId: library.id });
-			toast.success(t("libraries.removed", { name: library.name }));
-			onClose();
-			await router.invalidate();
-		} catch (failure) {
-			toast.error(t(errorMessage(failure)));
-			setBusy(false);
-		}
-	};
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent closeLabel={t("libraries.close")} finalFocus={finalFocus}>
-				<DialogHeader>
-					<DialogTitle>{t("libraries.removeTitle", { name: library.name })}</DialogTitle>
-					<DialogDescription>{t("libraries.removeText")}</DialogDescription>
-				</DialogHeader>
-				<DialogFooter>
-					<DialogClose render={<Button variant="outline" />}>{t("libraries.cancel")}</DialogClose>
-					<Button variant="destructive" onClick={remove} disabled={busy}>
-						{t("libraries.remove")}
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
+		<ConfirmDialog
+			open
+			onOpenChange={(open) => !open && onClose()}
+			title={t("libraries.removeTitle", { name: library.name })}
+			confirm={t("libraries.remove")}
+			finalFocus={finalFocus}
+			onConfirm={async () => {
+				try {
+					const api = await getApi();
+					await api.libraries.remove({ siteId, libraryId: library.id });
+					toast.success(t("libraries.removed", { name: library.name }));
+					await router.invalidate();
+				} catch (failure) {
+					toast.error(t(errorMessage(failure)));
+				}
+			}}
+		>
+			{t("libraries.removeText")}
+		</ConfirmDialog>
 	);
 }
