@@ -2,11 +2,13 @@ import type { ComponentType } from "react";
 
 import type { ShellConfig, Words } from "../api.ts";
 import type { BuildingDocument, Documents } from "../documents.ts";
+import { ComponentsPlace } from "./components/ComponentsPlace.tsx";
 import { ContentPlace } from "./content/ContentPlace.tsx";
 import { type PlaceKey, placeKeyOf } from "./keys.ts";
 import { MediaPlace } from "./media/MediaPlace.tsx";
 import { leftAt } from "./memory.ts";
 import { StylesPlace } from "./styles/StylesPlace.tsx";
+import { TemplatesPlace } from "./templates/TemplatesPlace.tsx";
 
 export { PLACE_KEYS } from "./keys.ts";
 export { type PlaceKey, placeKeyOf };
@@ -49,7 +51,9 @@ export type PlaceEntry = {
 const PLACES: Partial<Record<PlaceKey, PlaceEntry>> = {
 	content: { key: "content", first: "content/pages", component: ContentPlace },
 	media: { key: "media", first: "media", component: MediaPlace },
+	templates: { key: "templates", first: "templates", component: TemplatesPlace },
 	styles: { key: "styles", first: "styles/classes", component: StylesPlace },
+	components: { key: "components", first: "components", component: ComponentsPlace },
 };
 
 /** The place registered for a rail button, if it exists yet. */

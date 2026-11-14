@@ -36,6 +36,7 @@ export {
 	type ModuleComponent,
 	type NewComponent,
 	NO_MODULE_COMPONENTS,
+	type PlacedComponentDeletion,
 	readComponentMarkup,
 	renameComponent,
 	type SavedComponentMarkup,

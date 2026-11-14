@@ -552,7 +552,8 @@ export async function createInstallServices(
 			saveMarkup: (scope, componentId, input, base) =>
 				saveComponentMarkup(scope, componentId, input, componentSources, base),
 			rename: (scope, componentId, name) => renameComponent(scope, componentId, name, componentSources),
-			delete: (scope, componentId, confirmation) => deleteComponent(scope, componentId, confirmation, componentSources),
+			delete: (scope, componentId, confirmation, placements) =>
+				deleteComponent(scope, componentId, confirmation, componentSources, placements),
 		},
 		popups: createPopups(componentSources),
 		forms: createForms({
