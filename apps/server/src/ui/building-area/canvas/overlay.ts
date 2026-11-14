@@ -33,6 +33,11 @@ export type Overlay = {
 	boxOf(element: Element): DOMRect | null;
 	/** Called after each drawing (the frame scrolled, resized or changed): what follows the page draws again. */
 	onDraw(listener: () => void): () => void;
+	/**
+	 * Whether the hover and selection outlines and the selection's chip are drawn (BA-14): not for a
+	 * Member, whose marks client editing draws itself (`client/marks.ts`). The marks still are.
+	 */
+	outlines(shown: boolean): void;
 };
 
 /** A mark on an element of the page (`Overlay.marks`). */
@@ -84,6 +89,7 @@ export function createOverlay(options: {
 	canvas.append(layer);
 	let drawnMarks: { mark: OverlayMark; parts: HTMLElement[] }[] = [];
 	let chipShown = true;
+	let outlinesShown = true;
 	const drawListeners = new Set<() => void>();
 
 	let hovered: Element | null = null;
@@ -124,10 +130,10 @@ export function createOverlay(options: {
 		layer.style.setProperty("top", `${clip.top}px`);
 		layer.style.setProperty("width", `${clip.width}px`);
 		layer.style.setProperty("height", `${clip.height}px`);
-		place(hoverBox, hovered && hovered !== chosen ? hovered : null, geometry, clip);
+		place(hoverBox, outlinesShown && hovered && hovered !== chosen ? hovered : null, geometry, clip);
 		placeMarks(geometry, clip);
 		for (const listener of drawListeners) listener();
-		const shown = place(selectedBox, chosen, geometry, clip);
+		const shown = place(selectedBox, outlinesShown ? chosen : null, geometry, clip);
 		if (!shown || !chosen || !chipShown) {
 			chip.classList.add("hidden");
 			return;
@@ -299,6 +305,11 @@ export function createOverlay(options: {
 			return () => {
 				drawListeners.delete(listener);
 			};
+		},
+		outlines(shown) {
+			if (shown === outlinesShown) return;
+			outlinesShown = shown;
+			schedule();
 		},
 	};
 }

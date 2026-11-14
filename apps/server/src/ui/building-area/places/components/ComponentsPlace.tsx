@@ -3,6 +3,7 @@ import { type FormEvent, type ReactNode, useCallback, useEffect, useId, useMemo,
 
 import { fill, type Words } from "../../api.ts";
 import { CHROME_EASE, FOCUS_RING } from "../../controls.tsx";
+import { useOnPublished, usePublishSources } from "../../publish/sources.ts";
 import { Badge, buttonLook } from "../content/ui.tsx";
 import { rememberPlace, rememberScroll, scrollOf } from "../memory.ts";
 import { Place } from "../Place.tsx";
@@ -63,6 +64,9 @@ export function ComponentsPlace(props: PlaceProps) {
 	const visible = ready ? viewComponents(items, current, ready.allowed) : [];
 	const chosen =
 		(current.component ? items.find((each) => each.id === current.component) : undefined) ?? visible[0] ?? null;
+	// The bar's Publish covers the chosen Component (BA-12); its statuses are read again once published.
+	usePublishSources(chosen ? [{ kind: "component", id: chosen.id }] : []);
+	useOnPublished(() => void reload());
 
 	const create = useCallback(
 		async (name: string): Promise<string | null> => {

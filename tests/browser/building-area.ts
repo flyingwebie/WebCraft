@@ -2,6 +2,7 @@
 // its frame, the overlay drawn over it. Its checks run in Chromium, Firefox and WebKit, since editing
 // across the frame's edge is where the engines differ most.
 import { expect } from "bun:test";
+import { EDITOR_LAYOUT_VERSION } from "@webcraft/core";
 import { type Browser, type BrowserType, chromium, type Frame, firefox, type Page, webkit } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
@@ -60,7 +61,9 @@ export function enginePages(install: BrowserInstall) {
 /**
  * Enters the building area as the admin's way in does: asks for a link that opens it (as the person,
  * from their admin session) and follows it in the page, on the Site's address the web process serves.
- * Waits until the frame shows the page and the agent has made its regions editable.
+ * Waits until the frame shows the page and the agent has made its regions editable. Unless
+ * `firstVisit`, the person has seen client editing's first-visit card already (BA-14), so it covers
+ * nothing a check points at.
  */
 export async function enterBuildingArea(
 	install: BrowserInstall,
@@ -72,9 +75,16 @@ export async function enterBuildingArea(
 		open?: string;
 		returnTo?: string;
 		safeMode?: boolean;
+		firstVisit?: boolean;
 	},
 ): Promise<Frame> {
 	const admin = await install.install.signIn(options.as);
+	if (!options.firstVisit) {
+		await admin.api.me.saveEditorPreferences({
+			siteId: options.siteId,
+			preferences: { version: EDITOR_LAYOUT_VERSION, hintSeen: true },
+		});
+	}
 	const { url } = await admin.api.editMode.open({
 		siteId: options.siteId,
 		building: true,

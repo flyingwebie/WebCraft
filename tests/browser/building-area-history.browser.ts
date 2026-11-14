@@ -107,13 +107,13 @@ async function framedAt(page: Page, path: string): Promise<Frame> {
 	throw new Error(`The frame never showed ${path}.`);
 }
 
-/** Opens another page of the Site in the shell, as following its link does with the interface hidden (no reload). */
+/** Opens another page of the Site in the shell, as following its link does in a Member's Preview (no reload). */
 async function openThrough(page: Page, frame: Frame, path: string): Promise<Frame> {
-	await page.getByRole("button", { name: "Hide the interface" }).click();
+	await page.locator('[data-wc-segment="preview"]').click();
 	await frame.locator(`nav a[href="${path}"]`).click();
 	await page.waitForURL((url) => url.pathname === `/_webcraft/build/page${path}`);
 	const shown = await framedAt(page, path);
-	await page.getByRole("button", { name: "Show the interface" }).click();
+	await page.locator('[data-wc-segment="edit"]').click();
 	return shown;
 }
 

@@ -461,7 +461,7 @@ describe("the Forms place, for Staff", () => {
 		const { form } = await superadmin.api.forms.get({ siteId, formId: cakeId });
 		expect(form.published?.fields).toEqual(form.draft.fields);
 		expect(form.emails.published).toBeNull();
-		await page.locator('[data-wc-publish="done"]').waitFor();
+		await page.locator('[data-wc-publish="published"]').waitFor();
 		// Label, progress and result share one cell: the button never changes width.
 		expect((await publish.boundingBox())?.width).toBe(width);
 		expect(await state.textContent()).toContain("Saved");
@@ -521,9 +521,14 @@ describe("the Forms place, for a Member", () => {
 		await page?.context().close();
 	});
 
-	test("a Member builds no Forms, even at the place's address", async () => {
-		await go(page, placed(`forms/${cakeId}`));
-		await page.locator("[data-wc-place-pane]", { hasText: "only Staff build them" }).waitFor();
+	test("a Member builds no Forms, even at the place's address: the page opens (client editing, BA-14)", async () => {
+		await page.locator("[data-wc-client-rail]").waitFor();
+		expect(await page.locator('[data-wc-place="more"], [data-wc-place="forms"]').count()).toBe(0);
+		// Not `go`: it waits for the place, which a Member doesn't get.
+		await page.goto(install.siteUrl(slug, `/_webcraft/build${placed(`forms/${cakeId}`)}`));
+		await page.locator("iframe[data-wc-frame]").waitFor();
+		await page.locator("[data-wc-client-rail]").waitFor();
+		expect(await page.locator("[data-wc-place-frame]").count()).toBe(0);
 		expect(await page.locator("[data-wc-form-row]").count()).toBe(0);
 		expect(await page.locator("[data-wcb-sheet]").count()).toBe(0);
 	});

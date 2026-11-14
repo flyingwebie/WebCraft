@@ -515,6 +515,12 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 	/** Publishes the page's changes. */
 	publish: async (services, session, body, _request, host) =>
 		json(200, await services.editMode.publish(session, host, parse(pagePath, body).path)),
+	/**
+	 * What the building area's Publish shows and publishes (BA-12): the page's changes, and for Staff the
+	 * Structure it shows, with what the shell names besides. It reads; publishing is Publish all's.
+	 */
+	"publish/items": async (services, session, body, _request, host) =>
+		json(200, await services.editMode.documentPublish(session, host, parse(publishItems, body))),
 	/** Submits the page's changes for Review, with an optional note (GLOSSARY.md › Review). */
 	"review/submit": async (services, session, body, _request, host) =>
 		json(200, await services.editMode.submitForReview(session, host, parse(reviewSubmission, body))),
@@ -550,6 +556,20 @@ const pagePath = z.object({ path: z.string().max(2000) });
 /** The Undo history as its editor hands it to the next page, and the token that claims it there. */
 const historyTransfer = z.object({ payload: z.string().max(HISTORY_TRANSFER_MAX_LENGTH) });
 const historyClaim = z.object({ token: z.string().max(100) });
+
+/** What the building area's Publish asks about: the page the frame shows (none: null) and what the shell names besides. */
+const publishItems = z.object({
+	path: z.string().max(2000).nullable(),
+	sources: z
+		.array(
+			z.discriminatedUnion("kind", [
+				z.object({ kind: z.enum(["siteTemplate", "searchTemplate", "designSystem", "globals"]) }),
+				z.object({ kind: z.enum(["entryTemplate", "archiveTemplate"]), postTypeId: z.string().uuid() }),
+				z.object({ kind: z.enum(["component", "loop"]), id: z.string().uuid() }),
+			]),
+		)
+		.max(20),
+});
 
 /** The page submitted for Review, with an optional note. */
 const reviewSubmission = z.object({

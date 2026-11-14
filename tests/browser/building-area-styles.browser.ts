@@ -426,13 +426,17 @@ describe("the Styles place, for Staff", () => {
 });
 
 describe("the Styles place, for a Member", () => {
-	test("is refused: the Design system is Staff's", async () => {
+	test("isn't theirs: no rail button, and its address opens the page (client editing, BA-14)", async () => {
 		const page = await install.newPage("light");
 		await page.setViewportSize({ width: 1440, height: 900 });
 		await enterBuildingArea(install, page, { as: editor, siteId, slug, open: "/page/menu" });
+		await page.locator("[data-wc-client-rail]").waitFor();
+		expect(await page.locator('[data-wc-place="styles"]').count()).toBe(0);
 		await go(page, placed("styles/classes"));
-		await page.locator("[data-wc-styles-loading] [role='alert']").waitFor();
-		expect(await page.locator("[data-wc-styles-loading]").textContent()).toContain("Only Staff may change the Styles.");
+		await page.locator("iframe[data-wc-frame]").waitFor();
+		await page.locator("[data-wc-client-rail]").waitFor();
+		expect(await page.locator("[data-wc-place-frame]").count()).toBe(0);
+		expect(await page.locator("[data-wc-styles-loading]").count()).toBe(0);
 		await page.context().close();
 	});
 });
