@@ -18,6 +18,7 @@ import { type BrowserInstall, startBrowserInstall, THEMES, type Theme } from "./
 
 let install: BrowserInstall;
 let staff: TestAccount;
+let superadmin: TestAccount;
 let staffBrowser: TestBrowser;
 let owner: TestAccount;
 let workspaceId: string;
@@ -28,7 +29,7 @@ let workspaceDashboardId: string;
 
 beforeAll(async () => {
 	install = await startBrowserInstall();
-	await install.createSuperadmin();
+	superadmin = await install.createSuperadmin();
 	const local = install.install;
 	// The web process counts by the real clock: the visits come now too.
 	await local.clock.set(new Date());
@@ -145,14 +146,15 @@ for (const theme of THEMES) {
 		};
 
 		test("a Site that has counted nothing yet says so in its Widgets", async () => {
+			// A Workspace of its own, so the other checks' Workspace keeps its one Site.
 			const local = install.install;
-			const quiet = (await local.createSite(workspaceId, { name: `Quiet ${theme}`, slug: `quiet-${theme}` })).id;
+			const admin = await local.superadmin();
+			const elsewhere = (await local.createWorkspace(`Quiet Ltd ${theme}`)).id;
+			const quiet = (await local.createSite(elsewhere, { name: `Quiet ${theme}`, slug: `quiet-${theme}` })).id;
 			await install.goLive(quiet);
-			await (await local.superadmin()).api.modules.setOnSite({ siteId: quiet, moduleId: "site-analytics", on: true });
-			const builtIn = (await staffBrowser.api.dashboards.list({ siteId: quiet })).dashboards.find(
-				(each) => each.builtIn,
-			);
-			const page = await open(`/sites/${quiet}/dashboards/${builtIn?.id}`);
+			await admin.api.modules.setOnSite({ siteId: quiet, moduleId: "site-analytics", on: true });
+			const builtIn = (await admin.api.dashboards.list({ siteId: quiet })).dashboards.find((each) => each.builtIn);
+			const page = await open(`/sites/${quiet}/dashboards/${builtIn?.id}`, superadmin);
 			await page.getByText("Nothing counted yet").first().waitFor();
 			await page.getByText("Starts after the Consent banner is accepted.").first().waitFor();
 			await expectAccessibleScreen(page, `Dashboard of a Site that counted nothing yet (${theme})`);
