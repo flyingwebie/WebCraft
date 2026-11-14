@@ -228,8 +228,22 @@ describe("the Forms place, for Staff", () => {
 		// The Site's Form hooks style it: a grid, two half fields side by side.
 		const form = page.locator("[data-wcb-list]");
 		expect(await form.evaluate((element) => getComputedStyle(element).display)).toBe("grid");
-		const name = await page.locator('[data-wcb-index="1"]').boundingBox();
-		const email = await page.locator('[data-wcb-index="2"]').boundingBox();
+		// Both read at one moment, once the sheet has settled (it lays out again for a frame or two after
+		// the Site's styles arrive, and two reads apart could straddle that).
+		const [name, email] = await form.evaluate(async (list) => {
+			let last = "";
+			for (let frame = 0; frame < 60; frame++) {
+				await new Promise((done) => requestAnimationFrame(done));
+				const boxes = [1, 2].map((index) => list.querySelector(`[data-wcb-index="${index}"]`)?.getBoundingClientRect());
+				const now = JSON.stringify(boxes);
+				if (now === last) break;
+				last = now;
+			}
+			return [1, 2].map((index) => {
+				const box = list.querySelector(`[data-wcb-index="${index}"]`)?.getBoundingClientRect();
+				return box ? { x: box.x, y: box.y, width: box.width } : null;
+			});
+		});
 		expect(Math.abs((name?.y ?? 0) - (email?.y ?? 1))).toBeLessThan(1);
 		expect((email?.x ?? 0) > (name?.x ?? 0) + (name?.width ?? 0)).toBe(true);
 		// The shell's own styles stop at the sheet: its body text isn't the chrome's.
