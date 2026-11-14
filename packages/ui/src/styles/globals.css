@@ -37,6 +37,16 @@
 	--color-chart-3: var(--chart-3);
 	--color-chart-2: var(--chart-2);
 	--color-chart-1: var(--chart-1);
+	--color-series-1: var(--series-1);
+	--color-series-2: var(--series-2);
+	--color-series-3: var(--series-3);
+	--color-series-4: var(--series-4);
+	--color-series-5: var(--series-5);
+	--color-series-6: var(--series-6);
+	--color-series-before: var(--series-before);
+	--color-series-wash: var(--series-wash);
+	--color-series-good: var(--series-good);
+	--color-series-critical: var(--series-critical);
 	--color-ring: var(--ring);
 	--color-input: var(--input);
 	--color-border: var(--border);
@@ -113,6 +123,22 @@
 	--chart-3: oklch(0.666 0.179 58.318);
 	--chart-4: oklch(0.555 0.163 48.998);
 	--chart-5: oklch(0.473 0.137 46.201);
+	/*
+	 * Chart series (SPEC 14.2, D12), in their fixed order: orange, blue, teal, violet, yellow, magenta,
+	 * checked for colour-blind readers on white and on #18181b. The period compared with is grey, never
+	 * a second hue; the wash under the first line is its orange, faint. Text never takes these colours.
+	 */
+	--series-1: #f54900;
+	--series-2: #2a78d6;
+	--series-3: #1baf7a;
+	--series-4: #6250d6;
+	--series-5: #eda100;
+	--series-6: #e87ba4;
+	--series-before: #a1a1aa;
+	/* A change for the better or the worse beside its arrow and sign (never said by colour alone). */
+	--series-good: #0ca30c;
+	--series-critical: #d03b3b;
+	--series-wash: color-mix(in oklab, var(--series-1) 12%, transparent);
 	--radius: 0.625rem;
 	--sidebar: oklch(0.985 0 0);
 	--sidebar-foreground: oklch(0.141 0.005 285.823);
@@ -173,6 +199,14 @@
 	--success: oklch(0.266 0.065 152.934);
 	--success-foreground: oklch(0.925 0.084 155.995);
 	--success-border: oklch(0.448 0.119 151.328);
+	--series-1: #f54900;
+	--series-2: #3987e5;
+	--series-3: #199e70;
+	--series-4: #9085e9;
+	--series-5: #c98500;
+	--series-6: #d55181;
+	--series-before: #71717a;
+	--series-wash: color-mix(in oklab, var(--series-1) 18%, transparent);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -211,6 +245,14 @@
 		--success: oklch(0.266 0.065 152.934);
 		--success-foreground: oklch(0.925 0.084 155.995);
 		--success-border: oklch(0.448 0.119 151.328);
+		--series-1: #f54900;
+		--series-2: #3987e5;
+		--series-3: #199e70;
+		--series-4: #9085e9;
+		--series-5: #c98500;
+		--series-6: #d55181;
+		--series-before: #71717a;
+		--series-wash: color-mix(in oklab, var(--series-1) 18%, transparent);
 	}
 }
 
