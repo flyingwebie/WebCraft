@@ -14,9 +14,16 @@ import { useT } from "../i18n.tsx";
 import { Tabs } from "../Tabs.tsx";
 import { ClassesTab } from "./ClassesTab.tsx";
 import { BaseStylesTab, CustomCssTab } from "./CssTabs.tsx";
-import { ExportMenu, ImportDialog } from "./ImportExport.tsx";
 import { type Editing, useDesignSystemEditing } from "./editing.ts";
-import { type DesignSystemView, type Draft, type EditableClass, type Preview, type Problem, problemsOf } from "./model.ts";
+import { ExportMenu, ImportDialog } from "./ImportExport.tsx";
+import {
+	type DesignSystemView,
+	type Draft,
+	type EditableClass,
+	type Preview,
+	type Problem,
+	problemsOf,
+} from "./model.ts";
 import { TokensTab } from "./TokensTab.tsx";
 
 export type DesignSystemTab = "tokens" | "classes" | "base" | "css";
@@ -61,15 +68,7 @@ export function DesignSystemScreen({
 	);
 
 	// The admin's own Management API client: the same editing the building area's Styles place does with its own.
-	const {
-		editing,
-		view,
-		setView,
-		replaceAll,
-		status,
-		flush,
-		previewProblems,
-	} = useDesignSystemEditing({
+	const { editing, view, setView, replaceAll, status, flush, previewProblems } = useDesignSystemEditing({
 		siteId,
 		api: getApi,
 		designSystem,
