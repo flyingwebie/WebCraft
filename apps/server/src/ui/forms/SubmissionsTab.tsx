@@ -169,7 +169,7 @@ export function SubmissionsTab({
 				event.preventDefault();
 				choose(target.id);
 				const row = list.current?.querySelector<HTMLButtonElement>(`[data-submission="${target.id}"]`);
-				row?.scrollIntoView({ block: "nearest" });
+				row?.scrollIntoView({ block: "nearest", inline: "nearest" });
 				if (list.current?.contains(document.activeElement)) row?.focus();
 			} else if (key === "u") {
 				if (!actions.current) return;
@@ -208,11 +208,11 @@ export function SubmissionsTab({
 	return (
 		<div
 			ref={root}
-			className="grid overflow-hidden rounded-[10px] border @4xl/page:h-[calc(100dvh-15.5rem)] @4xl/page:min-h-[30rem] @4xl/page:grid-cols-[400px_minmax(0,1fr)]"
+			className="grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-[10px] border @3xl/page:h-[calc(100dvh-15.5rem)] @3xl/page:min-h-[30rem] @3xl/page:grid-cols-[400px_minmax(0,1fr)]"
 		>
 			<section
 				aria-label={t("submissions.listLabel")}
-				className="flex min-h-0 flex-col gap-3 border-b p-4 @4xl/page:border-e @4xl/page:border-b-0"
+				className="flex min-h-0 min-w-0 flex-col gap-3 border-b p-4 @3xl/page:border-e @3xl/page:border-b-0"
 			>
 				<Segmented
 					label={t("submissions.folders")}
@@ -290,7 +290,7 @@ export function SubmissionsTab({
 					</Button>
 				</div>
 
-				<div className="-mx-1 max-h-[28rem] min-h-0 flex-1 overflow-y-auto px-1 @4xl/page:max-h-none">
+				<div className="-mx-1 max-h-[28rem] min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-1 @3xl/page:max-h-none">
 					{listed && items.length === 0 ? (
 						filtered ? (
 							<p className="text-muted-foreground p-6 text-center text-sm">{t("submissions.noMatch")}</p>
@@ -318,7 +318,11 @@ export function SubmissionsTab({
 						</p>
 					) : null}
 					{items.length > 0 ? (
-						<ul ref={list} className="grid gap-0.5 py-1" aria-label={t("submissions.tableLabel")}>
+						<ul
+							ref={list}
+							className="grid grid-cols-[minmax(0,1fr)] gap-0.5 py-1"
+							aria-label={t("submissions.tableLabel")}
+						>
 							{items.map((submission) => (
 								<Row
 									key={submission.id}
@@ -413,7 +417,7 @@ function Row({
 				aria-current={current ? "true" : undefined}
 				aria-keyshortcuts="J K"
 				onClick={onOpen}
-				className="hover:bg-muted aria-[current=true]:bg-accent focus-visible:ring-ring/50 grid w-full gap-1 rounded-lg px-2.5 py-2 text-start outline-none focus-visible:ring-3"
+				className="hover:bg-muted aria-[current=true]:bg-accent focus-visible:ring-ring/50 grid w-full min-w-0 grid-cols-[minmax(0,1fr)] gap-1 rounded-lg px-2.5 py-2 text-start outline-none focus-visible:ring-3"
 			>
 				<span className="flex items-center gap-2">
 					<span

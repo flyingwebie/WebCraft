@@ -290,7 +290,11 @@ function KeyValue({
 			</label>
 			<div className="grid min-w-0 gap-1.5">
 				{children}
-				{help ? <FieldDescription id={`${id}-help`}>{help}</FieldDescription> : null}
+				{help ? (
+					<FieldDescription id={`${id}-help`} className="sr-only">
+						{help}
+					</FieldDescription>
+				) : null}
 				{problems.length > 0 ? (
 					<FieldError id={`${id}-error`}>{problems.map((problem) => problem.message).join(" ")}</FieldError>
 				) : null}
@@ -349,7 +353,7 @@ function Recipients({
 			</label>
 			{/* biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: a click on the box's empty part puts the caret in its text box, which the keyboard reaches on its own. */}
 			<div
-				className="border-input dark:bg-input/30 focus-within:border-ring focus-within:ring-ring/50 aria-invalid:border-destructive flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border px-1.5 py-1 focus-within:ring-3"
+				className="border-input dark:bg-input/30 focus-within:border-ring aria-invalid:border-destructive flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border px-1.5 py-1"
 				aria-invalid={problems.length > 0 ? true : undefined}
 				onClick={(event) => {
 					if (event.target === event.currentTarget) box.current?.focus();
@@ -376,7 +380,7 @@ function Recipients({
 					id={id}
 					type="text"
 					inputMode="email"
-					className="placeholder:text-muted-foreground h-7 min-w-40 flex-1 bg-transparent px-1 text-sm outline-none"
+					className="placeholder:text-muted-foreground focus-visible:ring-ring/50 h-7 min-w-40 flex-1 rounded-sm bg-transparent px-1 text-sm outline-none focus-visible:ring-3"
 					value={text}
 					spellCheck={false}
 					autoComplete="off"
@@ -396,7 +400,11 @@ function Recipients({
 					aria-describedby={described || undefined}
 				/>
 			</div>
-			{help ? <FieldDescription id={`${id}-help`}>{help}</FieldDescription> : null}
+			{help ? (
+				<FieldDescription id={`${id}-help`} className="sr-only">
+					{help}
+				</FieldDescription>
+			) : null}
 			{problems.length > 0 ? (
 				<FieldError id={`${id}-error`}>{problems.map((problem) => problem.message).join(" ")}</FieldError>
 			) : null}
@@ -433,27 +441,29 @@ function NotificationCard({
 
 	return (
 		<section aria-labelledby={`${id}-title`} className="@container/card grid gap-2.5 rounded-[10px] border p-3.5">
-			<div className="flex items-center justify-between gap-2">
-				<h3 id={`${id}-title`} className="text-muted-foreground text-xs font-medium">
-					{t("formEmails.notifications.title", { number })}
-				</h3>
+			<h3 id={`${id}-title`} className="sr-only">
+				{t("formEmails.notifications.title", { number })}
+			</h3>
+			<div className="flex items-start gap-2">
+				<div className="min-w-0 flex-1">
+					<Recipients
+						id={`${id}-recipients`}
+						label={t("formEmails.notifications.recipients")}
+						help={t("formEmails.notifications.recipientsHelp", { max: FORM_EMAIL_LIMITS.recipients })}
+						value={notification.recipients}
+						problems={problemsAt(`${at}.recipients`)}
+						onChange={(recipients) => onChange({ ...notification, recipients })}
+					/>
+				</div>
 				<Button
 					variant="ghost"
-					size="icon-sm"
+					size="icon"
 					aria-label={t("formEmails.notifications.remove", { number })}
 					onClick={() => onChange(null)}
 				>
 					<TrashIcon aria-hidden="true" />
 				</Button>
 			</div>
-			<Recipients
-				id={`${id}-recipients`}
-				label={t("formEmails.notifications.recipients")}
-				help={t("formEmails.notifications.recipientsHelp", { max: FORM_EMAIL_LIMITS.recipients })}
-				value={notification.recipients}
-				problems={problemsAt(`${at}.recipients`)}
-				onChange={(recipients) => onChange({ ...notification, recipients })}
-			/>
 			<p className="text-muted-foreground flex items-center gap-1.5 text-xs">
 				<LockIcon className="size-3.5 shrink-0" aria-hidden="true" />
 				{t("formEmails.recipients.password")}
@@ -481,7 +491,10 @@ function NotificationCard({
 						</NativeSelectOption>
 					))}
 				</NativeSelect>
-				<p id={`${id}-routing-help`} className="text-muted-foreground w-full text-xs">
+				<p
+					id={`${id}-routing-help`}
+					className={choiceFields.length === 0 ? "text-muted-foreground w-full text-xs" : "sr-only"}
+				>
 					{choiceFields.length === 0
 						? t("formEmails.notifications.routingNoField")
 						: t("formEmails.notifications.routingHelp")}
@@ -672,7 +685,7 @@ function AutoReplyCard({
 						))}
 					</NativeSelect>
 				</div>
-				<FieldDescription id={`${id}-field-help`}>
+				<FieldDescription id={`${id}-field-help`} className={emailFields.length === 0 ? undefined : "sr-only"}>
 					{emailFields.length === 0 ? t("formEmails.autoReply.noEmailField") : t("formEmails.autoReply.fieldHelp")}
 				</FieldDescription>
 				{fieldProblems.length > 0 ? (

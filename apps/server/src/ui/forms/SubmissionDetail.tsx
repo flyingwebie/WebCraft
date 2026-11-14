@@ -26,6 +26,7 @@ import { formatUtc } from "../format.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { ConfirmDialog } from "../settings/confirm.tsx";
 import {
+	dateAnswer,
 	detailTime,
 	filesOf,
 	formsApi,
@@ -254,11 +255,11 @@ export function SubmissionDetail({
 
 			<Separator className="my-2" />
 
-			<dl className={`grid gap-x-6 gap-y-3 ${spam ? "" : "@md/detail:grid-cols-2"}`}>
+			<dl className={`grid gap-x-6 gap-y-3 ${spam ? "" : "@sm/detail:grid-cols-2"}`}>
 				{submission.values.map((value) => (
 					<div
 						key={value.key}
-						className={`grid min-w-0 content-start gap-1 ${value.type === "textarea" ? "@md/detail:col-span-2" : ""}`}
+						className={`grid min-w-0 content-start gap-1 ${value.type === "textarea" ? "@sm/detail:col-span-2" : ""}`}
 					>
 						<dt className="text-muted-foreground text-xs font-medium wrap-anywhere">{value.label}</dt>
 						<dd className="min-w-0 text-sm leading-5 wrap-anywhere whitespace-pre-line">
@@ -353,6 +354,7 @@ function Answer({
 	language: string;
 }) {
 	const t = useT();
+	const locale = useLocale();
 	const files = filesOf(value);
 	if (files) return <Files files={files} />;
 	const raw = value.value;
@@ -360,6 +362,7 @@ function Answer({
 		return <span className="text-muted-foreground">{t("submissions.notGiven")}</span>;
 	}
 	if (typeof raw === "boolean") return <>{raw ? t("submissions.yes") : t("submissions.no")}</>;
+	if (value.type === "date" && typeof raw === "string") return <>{dateAnswer(raw, locale)}</>;
 	const options = fields.find((field) => field.key === value.key)?.options ?? [];
 	const label = (choice: string) => {
 		const option = options.find((candidate) => candidate.value === choice);

@@ -48,13 +48,12 @@ function typed(value: SubmissionValue | undefined): string | null {
 
 /**
  * The value that says who sent a Submission: its first text field (a name), else its first email
- * address, else its first value at all; undefined when they left them all empty.
+ * address; undefined when they gave neither ("No name given").
  */
 export function senderValueOf(submission: Submission): SubmissionValue | undefined {
 	return (
 		submission.values.find((value) => value.type === "text" && typed(value)) ??
-		submission.values.find((value) => value.type === "email" && typed(value)) ??
-		submission.values.find((value) => typed(value))
+		submission.values.find((value) => value.type === "email" && typed(value))
 	);
 }
 
@@ -107,12 +106,29 @@ export function rowTime(
 ): string {
 	const date = new Date(value);
 	const days = dayOf(now) - dayOf(date);
-	if (days <= 0) {
-		return new Intl.DateTimeFormat(language, { hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(date);
-	}
+	if (days <= 0) return clock(date, language);
 	if (days === 1) return words.yesterday;
 	if (days < 7) return words.daysAgo(days);
-	return new Intl.DateTimeFormat(language, {
+	return day(date, now, language);
+}
+
+/** When a Submission came, as its detail says it: "13 November, 10:42" (UTC), its year when another. */
+export function detailTime(value: Date | string, now: Date, language: string): string {
+	const date = new Date(value);
+	return `${day(date, now, language)}, ${clock(date, language)}`;
+}
+
+/**
+ * The locale dates are written in: the Admin language, English as in Ireland and Britain (day before
+ * month, a 24-hour clock).
+ */
+function localeOf(language: string): string {
+	return language === "en" ? "en-IE" : language;
+}
+
+/** A day: "10 November", with its year when it isn't this year's. */
+function day(date: Date, now: Date, language: string): string {
+	return new Intl.DateTimeFormat(localeOf(language), {
 		day: "numeric",
 		month: "long",
 		year: date.getUTCFullYear() === now.getUTCFullYear() ? undefined : "numeric",
@@ -120,15 +136,25 @@ export function rowTime(
 	}).format(date);
 }
 
-/** When a Submission came, as its detail says it: "13 November, 10:42" (UTC), its year when another. */
-export function detailTime(value: Date | string, now: Date, language: string): string {
-	const date = new Date(value);
-	return new Intl.DateTimeFormat(language, {
+/** A date someone gave ("2026-12-06") as people read it: "6 December 2026"; anything else as it came. */
+export function dateAnswer(value: string, language: string): string {
+	if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+	const date = new Date(`${value}T00:00:00Z`);
+	if (Number.isNaN(date.getTime())) return value;
+	return new Intl.DateTimeFormat(localeOf(language), {
 		day: "numeric",
 		month: "long",
-		year: date.getUTCFullYear() === now.getUTCFullYear() ? undefined : "numeric",
+		year: "numeric",
+		timeZone: "UTC",
+	}).format(date);
+}
+
+/** A time of day on a 24-hour clock: "9:05", "10:42". */
+function clock(date: Date, language: string): string {
+	return new Intl.DateTimeFormat(localeOf(language), {
 		hour: "numeric",
 		minute: "2-digit",
+		hourCycle: "h23",
 		timeZone: "UTC",
 	}).format(date);
 }
