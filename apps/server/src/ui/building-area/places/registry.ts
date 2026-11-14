@@ -4,6 +4,7 @@ import type { ShellConfig, Words } from "../api.ts";
 import type { BuildingDocument, Documents } from "../documents.ts";
 import { ContentPlace } from "./content/ContentPlace.tsx";
 import { type PlaceKey, placeKeyOf } from "./keys.ts";
+import { LoopsPlace } from "./loops/LoopsPlace.tsx";
 import { MediaPlace } from "./media/MediaPlace.tsx";
 import { leftAt } from "./memory.ts";
 
@@ -48,6 +49,7 @@ export type PlaceEntry = {
 const PLACES: Partial<Record<PlaceKey, PlaceEntry>> = {
 	content: { key: "content", first: "content/pages", component: ContentPlace },
 	media: { key: "media", first: "media", component: MediaPlace },
+	loops: { key: "loops", first: "loops", component: LoopsPlace },
 };
 
 /** The place registered for a rail button, if it exists yet. */

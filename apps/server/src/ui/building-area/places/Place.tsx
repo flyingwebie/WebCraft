@@ -55,9 +55,11 @@ export function Place({
 	/**
 	 * `ruled` (Content, `places-content/01`): a 256 sidebar ruled off from the pane, the header in a
 	 * 53 px band. `card` (Media, `places-assets/01`): a 300 column and the place's own card beside it,
-	 * 8 apart and 8 from the edges, the header 40 high with no rule.
+	 * 8 apart and 8 from the edges, the header 40 high with no rule. `columns` (Loops, `places-assets/08`):
+	 * as `card`, but the sidebar's rows take only their height and what follows them (`sidebarFoot`)
+	 * comes right under them.
 	 */
-	shape?: "ruled" | "card";
+	shape?: "ruled" | "card" | "columns";
 	/** What sits at the foot of the sidebar, below its rows (Media's file count and storage). */
 	sidebarFoot?: ReactNode;
 }) {
@@ -90,7 +92,7 @@ export function Place({
 		// `places-content/01` draws it, level with the pane's first row.
 		<div
 			className={`flex shrink-0 items-center ${
-				shape === "card" ? "px-1" : sidebar ? "border-chrome-line h-[53px] border-b px-3" : "mt-1 px-4"
+				shape !== "ruled" ? "px-1" : sidebar ? "border-chrome-line h-[53px] border-b px-3" : "mt-1 px-4"
 			}`}
 		>
 			<div className="flex h-10 min-w-0 grow items-center gap-2.5" data-wc-place-header="">
@@ -121,16 +123,19 @@ export function Place({
 		<section
 			aria-label={title}
 			data-wc-place-frame={place}
-			className={`bg-chrome text-chrome-text absolute inset-0 z-10 flex min-h-0 min-w-0 ${shape === "card" ? "gap-2 p-2" : ""}`}
+			className={`bg-chrome text-chrome-text absolute inset-0 z-10 flex min-h-0 min-w-0 ${shape !== "ruled" ? "gap-2 p-2" : ""}`}
 		>
 			{sidebar ? (
 				<>
 					<div
-						className={`flex shrink-0 flex-col ${shape === "card" ? "w-[300px]" : "border-chrome-line w-64 border-e"}`}
+						className={`flex shrink-0 flex-col ${shape !== "ruled" ? "w-[300px]" : "border-chrome-line w-64 border-e"}`}
 						data-wc-place-sidebar=""
 					>
 						{header}
-						<nav aria-label={sidebarLabel ?? title} className="min-h-0 grow overflow-y-auto">
+						<nav
+							aria-label={sidebarLabel ?? title}
+							className={`min-h-0 overflow-y-auto ${shape === "columns" ? "shrink" : "grow"}`}
+						>
 							{sidebar}
 						</nav>
 						{sidebarFoot}
