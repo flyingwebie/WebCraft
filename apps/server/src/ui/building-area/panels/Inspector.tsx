@@ -1,4 +1,11 @@
-import { type ElementNode, parseAttributeText, printAttributeText, type TreeNode } from "@webcraft/renderer/builder";
+import {
+	type AttributePart,
+	type ElementNode,
+	isValuePath,
+	readFormat,
+	type TreeNode,
+	writeFormat,
+} from "@webcraft/renderer/builder";
 import { ComponentIcon, PlusIcon, XIcon } from "lucide-react";
 import { type ReactNode, useEffect, useId, useState, useSyncExternalStore } from "react";
 
@@ -151,6 +158,47 @@ function CommitInput({
 	);
 }
 
+/**
+ * An attribute's value as the Inspector shows it: fixed text, and each value as `{{ path }}` (with its
+ * formatter, `{{ path | date: long }}`); a literal `{{` is written `\{{`. Read back the same way. The
+ * Template markup parser would do this too, but it is large for the shell's bundle; the server checks
+ * every tree it saves either way.
+ */
+function printParts(parts: readonly AttributePart[]): string {
+	return parts
+		.map((part) =>
+			part.type === "text"
+				? part.text.replaceAll("{{", "\\{{")
+				: `{{ ${part.path}${part.format ? ` | ${writeFormat(part.format)}` : ""} }}`,
+		)
+		.join("");
+}
+
+/** Reads what `printParts` writes; the problem is the value it couldn't read, or its formatter's problem. */
+function readParts(text: string): { parts: AttributePart[] } | { problem: string } {
+	const parts: AttributePart[] = [];
+	let literal = "";
+	let at = 0;
+	for (const match of text.matchAll(/\\\{\{|\{\{([^}]*)\}\}/g)) {
+		literal += text.slice(at, match.index);
+		at = match.index + match[0].length;
+		if (match[0] === "\\{{") {
+			literal += "{{";
+			continue;
+		}
+		const [path = "", format] = (match[1] ?? "").split("|").map((piece) => piece.trim());
+		if (!isValuePath(path)) return { problem: match[0] };
+		const read = format === undefined ? null : readFormat(format);
+		if (read && "problem" in read) return { problem: read.problem };
+		if (literal) parts.push({ type: "text", text: literal });
+		literal = "";
+		parts.push({ type: "value", path, ...(read ? { format: read.format } : {}) });
+	}
+	literal += text.slice(at);
+	if (literal) parts.push({ type: "text", text: literal });
+	return { parts };
+}
+
 /** What an element holds, as its Template's markup says it (read only here: the HTML pane and the page change it). */
 function contentOf(node: ElementNode): string {
 	return node.children
@@ -241,15 +289,15 @@ function ElementInspector({
 
 	const attributeText = (attributeName: string) => {
 		const found = node.attributes.find((attribute) => attribute.name === attributeName);
-		return found ? printAttributeText(found.value) : "";
+		return found ? printParts(found.value) : "";
 	};
 
 	const setAttribute = (attributeName: string, text: string, label: string) => {
 		const others = node.attributes.filter((attribute) => attribute.name !== attributeName);
 		if (text === "") return update({ ...node, attributes: others }, label);
-		const parsed = parseAttributeText(text);
+		const parsed = readParts(text);
 		if ("problem" in parsed) {
-			setProblem(parsed.problem);
+			setProblem(fill(said.inspector.badValue, { value: parsed.problem }));
 			return false;
 		}
 		const at = node.attributes.findIndex((attribute) => attribute.name === attributeName);
@@ -437,7 +485,7 @@ function ElementInspector({
 					<CommitInput
 						mono
 						label={fill(said.inspector.attributeValue, { name: attribute.name })}
-						value={printAttributeText(attribute.value)}
+						value={printParts(attribute.value)}
 						disabled={readOnly}
 						onCommit={(value) =>
 							setAttribute(attribute.name, value, fill(said.steps.attribute, { attribute: attribute.name, name }))

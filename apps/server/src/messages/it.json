@@ -9526,7 +9526,8 @@
 				"removeAttribute": "Togli {name}",
 				"inside": "Dentro il Component {name}",
 				"placementOf": "Una Placement di {name}",
-				"notOpen": "Il Template o il Component di questo elemento non è aperto qui: selezionalo di nuovo quando la pagina è caricata."
+				"notOpen": "Il Template o il Component di questo elemento non è aperto qui: selezionalo di nuovo quando la pagina è caricata.",
+				"badValue": "Questo non è un valore: {value}. Scrivilo come {{ path }}."
 			}
 		}
 	},

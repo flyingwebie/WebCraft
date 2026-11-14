@@ -215,13 +215,17 @@ export function Frame({
 		/** Tells the shell what is selected (the docks' panels follow it). */
 		const tellSelected = (chosen: Element | null) =>
 			latest.current.onSelect?.(chosen ? { element: chosen, name: chipName(chosen, latest.current.words) } : null);
+		/** What is selected now, by its Structure reference: a drawing in place selects it again, whenever it lands. */
+		let chosenRef: string | null = null;
 		const overlay: Overlay = {
 			...drawn,
 			select(chosen) {
+				chosenRef = chosen?.getAttribute("data-wc-code") ?? null;
 				drawn.select(chosen);
 				tellSelected(chosen);
 			},
 			attach(document) {
+				chosenRef = null;
 				drawn.attach(document);
 				tellSelected(null);
 			},
@@ -250,16 +254,17 @@ export function Frame({
 					view.location.replace(`${view.location.pathname}${view.location.search}`);
 					return;
 				}
-				const chosen = drawn.selected()?.getAttribute("data-wc-code") ?? null;
 				const swapped = await swapPage(element);
 				if (!swapped) return;
 				saving.track(swapped);
 				latest.current.editing?.ready(swapped);
 				latest.current.onReady?.(swapped);
 				drawn.hover(null);
-				drawn.select(chosen ? swapped.querySelector(`[data-wc-code="${CSS.escape(chosen)}"]`) : null);
+				// What is selected by the time the page is drawn, not what was when it was asked for.
+				drawn.select(chosenRef ? swapped.querySelector(`[data-wc-code="${CSS.escape(chosenRef)}"]`) : null);
 			},
 			select(ref) {
+				chosenRef = ref;
 				const page = element.contentDocument;
 				// An element by its reference, or a source's first element (a Placement's root, by the Placement).
 				const found =

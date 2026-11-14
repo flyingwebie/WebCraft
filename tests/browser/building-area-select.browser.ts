@@ -270,6 +270,33 @@ describe("Staff select, arrange and change elements of Templates and Components"
 		expect(await stillTheSameWindow(page)).toBe(true);
 	});
 
+	test("the id and other attributes change in the Inspector, values written as {{ path }}", async () => {
+		const { page } = await shared();
+		const frame = await frameOf(page);
+		await clickIn(page, frame, "p.lead");
+		await inspector(page).getByLabel("id").fill("lead-text");
+		await page.keyboard.press("Enter");
+		await (await frameOf(page)).locator("p#lead-text").waitFor();
+		await inspector(page).getByRole("button", { name: "Add attribute" }).click();
+		await inspector(page).getByLabel("Attribute name").fill("title");
+		await inspector(page).getByLabel("Value", { exact: true }).fill("Fresh: {{ title }}");
+		await page.keyboard.press("Enter");
+		await (await frameOf(page)).locator('p.lead[title="Fresh: Fresh bread today"]').waitFor();
+		expect(await inspector(page).getByLabel("Value of title").inputValue()).toBe("Fresh: {{ title }}");
+		expect(await eventually(entryTemplateMarkup, (markup) => markup.includes("{{ title }}"))).toMatch(
+			/<p[^>]* id="lead-text"[^>]* title="Fresh: \{\{ title \}\}"/,
+		);
+		// A value that isn't one is refused in words, and nothing changes.
+		await inspector(page).getByLabel("Value of title").fill("{{ not a path }}");
+		await page.keyboard.press("Enter");
+		expect(await inspector(page).getByRole("alert").textContent()).toContain("This isn't a value: {{ not a path }}");
+		// Each was one step.
+		await page.getByRole("button", { name: "Undo" }).first().click();
+		await (await frameOf(page)).locator("p.lead:not([title])").waitFor();
+		await page.getByRole("button", { name: "Undo" }).first().click();
+		await (await frameOf(page)).locator("p.lead:not([id])").waitFor();
+	});
+
 	test("two changes made one after the other both land: a late answer keeps the newer work", async () => {
 		const { page } = await shared();
 		const frame = await frameOf(page);
