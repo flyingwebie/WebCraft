@@ -44,7 +44,7 @@ export function TwoFactorStep({ isLast, onDone }: StepPanelProps) {
 	};
 
 	return (
-		<div className="flex flex-1 flex-col gap-8">
+		<div className="flex flex-1 flex-col gap-5">
 			<StepHeader heading={t("setup.steps.twoFactor.heading")}>
 				<p>{t("setup.steps.twoFactor.intro")}</p>
 				<p>{t("setup.steps.twoFactor.recommend")}</p>

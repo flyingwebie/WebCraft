@@ -53,7 +53,7 @@ export function TokenStep({ token, linkedToken, onDone }: StepPanelProps) {
 	};
 
 	return (
-		<form onSubmit={submit} className="flex flex-1 flex-col gap-8" noValidate>
+		<form onSubmit={submit} className="flex flex-1 flex-col gap-5" noValidate>
 			<StepHeader heading={t("setup.steps.token.heading")}>
 				<p>{t("setup.steps.token.intro")}</p>
 			</StepHeader>

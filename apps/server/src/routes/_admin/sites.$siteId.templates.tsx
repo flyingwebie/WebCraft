@@ -90,6 +90,16 @@ function TemplatesPage() {
 											) : null}
 											{target ? <BuilderNavigation siteId={siteId} target={target} list /> : null}
 											<Link
+												to="/sites/$siteId/build"
+												params={{ siteId }}
+												search={{ open: `/${splat}`, returnTo: `/sites/${siteId}/templates` }}
+												className={buttonVariants({ variant: "outline", size: "sm" })}
+												data-building-area=""
+											>
+												{t("buildingArea.documents.openIn")}
+												<span className="sr-only">{t("templates.openNamed", { name })}</span>
+											</Link>
+											<Link
 												to="/builder/$siteId/$"
 												params={{ siteId, _splat: splat }}
 												className={buttonVariants({ variant: "outline", size: "sm" })}

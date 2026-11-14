@@ -49,7 +49,7 @@ export function EmailStep({ isLast, onDone, onBack }: StepPanelProps) {
 	};
 
 	return (
-		<div className="flex flex-1 flex-col gap-8">
+		<div className="flex flex-1 flex-col gap-5">
 			<StepHeader heading={t("setup.steps.email.heading")}>
 				<p>{t("setup.steps.email.intro")}</p>
 				<p>{t("setup.steps.email.later")}</p>

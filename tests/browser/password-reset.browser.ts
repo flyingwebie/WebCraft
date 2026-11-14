@@ -37,10 +37,10 @@ for (const theme of THEMES) {
 
 			await page.goto(install.adminUrl("/sign-in"));
 			await page.getByRole("link", { name: "Forgot your password?" }).click();
-			await page.getByRole("heading", { level: 1, name: "Reset your password" }).waitFor();
+			await page.getByRole("heading", { level: 1, name: "Forgot your password" }).waitFor();
 			await expectAccessibleScreen(page, `asking for a reset link (${theme})`);
 
-			await page.getByRole("button", { name: "Email me a link" }).click();
+			await page.getByRole("button", { name: "Send the link" }).click();
 			await page.locator("#forgot-password-error").waitFor();
 			expect(await page.locator("#forgot-password-error").textContent()).toBe("Enter your email address.");
 			await expectAccessibleScreen(page, `asking for a reset link, no address (${theme})`);
@@ -84,11 +84,49 @@ for (const theme of THEMES) {
 		test("a link that doesn't work says so and offers a new one", async () => {
 			const page = await install.newPage(theme);
 			await page.goto(install.adminUrl("/reset-password?token=not-a-link-anyone-was-sent"));
-			await page.getByRole("heading", { level: 1, name: "This reset link doesn't work" }).waitFor();
+			await page.getByRole("heading", { level: 1, name: "This link is no longer good" }).waitFor();
 			await expectAccessibleScreen(page, `a reset link that doesn't work (${theme})`);
 
-			await page.getByRole("link", { name: "Ask for a new link" }).click();
-			await page.getByRole("heading", { level: 1, name: "Reset your password" }).waitFor();
+			await page.getByRole("link", { name: "Ask for a new one" }).click();
+			await page.getByRole("heading", { level: 1, name: "Forgot your password" }).waitFor();
 		});
 	});
 }
+
+// Last in the file: the wrong passwords below stop sign-in from this machine for a while.
+describe("wrong passwords on the sign-in page", () => {
+	test('one message that never says which, then "Too many tries" with a new password as the way on', async () => {
+		for (const theme of THEMES) {
+			const person = await install.install.createMember({ workspaceId, role: "editor" });
+			const page = await install.newPage(theme);
+			await page.goto(install.adminUrl("/sign-in"));
+			await page.locator("#sign-in-email").fill(person.account.email);
+			const tooMany = page.getByRole("heading", { level: 1, name: "Too many tries" });
+
+			for (let attempt = 0; attempt < 12 && !(await tooMany.isVisible()); attempt++) {
+				await page.locator("#sign-in-password").fill("not the right password");
+				await page.locator("form button[type=submit]").click();
+				// The answer is in: the button works again, or the card says to stop.
+				await page.waitForFunction(() => {
+					const submit = document.querySelector("form button[type=submit]");
+					return (
+						(submit && !submit.hasAttribute("disabled")) ||
+						document.querySelector("h1")?.textContent === "Too many tries"
+					);
+				});
+				if (attempt === 0 && theme === "light") {
+					// One message whether the email or the password was wrong: it never says which.
+					expect(await page.locator("#sign-in-error").textContent()).toStartWith("The email or password is wrong.");
+					expect(await page.locator("#sign-in-email").getAttribute("aria-invalid")).toBe("true");
+					await expectAccessibleScreen(page, `sign-in, a wrong password (${theme})`);
+				}
+			}
+
+			await tooMany.waitFor();
+			expect(await page.evaluate(() => document.activeElement?.tagName)).toBe("H1");
+			await expectAccessibleScreen(page, `sign-in, too many tries (${theme})`);
+			await page.getByRole("link", { name: "Or choose a new password." }).click();
+			await page.getByRole("heading", { level: 1, name: "Forgot your password" }).waitFor();
+		}
+	});
+});

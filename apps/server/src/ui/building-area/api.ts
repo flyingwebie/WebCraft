@@ -7,8 +7,12 @@ export type Words = (typeof en)["buildingArea"];
 export type ShellConfig = {
 	/** The Edit mode session's header token, which every edit request carries. */
 	token: string;
-	/** The page the frame opens: its path on the Site, with its query. */
-	page: string;
+	/**
+	 * The page the address opens, when it opens a page: its path on the Site, with its query (null for
+	 * a Template, a Component or a Form, and when it opens nothing). The shell reads its document from
+	 * its own address (`documents.ts`), which Back and Forward change too.
+	 */
+	page: string | null;
 	/** Where the logo tile goes back to: an address on the admin. */
 	returnTo: string;
 	/** The person's Admin language, and the shell's words in it. */
