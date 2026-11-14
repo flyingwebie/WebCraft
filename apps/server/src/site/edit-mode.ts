@@ -837,7 +837,7 @@ async function uploadMedia(services: InstallServices, session: EditSession, requ
  * (when it says) calls it same-origin. Browsers send `Origin` with every `POST`, so a request without
  * one doesn't come from a page in Edit mode.
  */
-function fromSitePages(request: Request): boolean {
+export function fromSitePages(request: Request): boolean {
 	const fetchSite = request.headers.get("sec-fetch-site");
 	if (fetchSite !== null && fetchSite !== "same-origin") return false;
 	const origin = request.headers.get("origin");
