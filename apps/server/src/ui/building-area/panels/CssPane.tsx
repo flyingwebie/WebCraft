@@ -5,7 +5,6 @@ import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 
 import { editorHistory, type HistoryResult } from "../../builder/editor-history.ts";
 import { replaceAt } from "../../builder/tree.ts";
-import { useCodeFormat } from "../../code-format/FormatControl.tsx";
 import { fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING, Tip } from "../controls.tsx";
 import { connect } from "../editing/drafts.ts";
@@ -18,7 +17,7 @@ import type { QuickTokens, StepSizes } from "../places/styles/view.ts";
 import { CodeWell } from "./CodeWell.tsx";
 import { chooseClass, chosenClassOf, subscribeChosenClass } from "./chosen-class.ts";
 import type { CodePanesDeps } from "./code-panes.tsx";
-import { FormatButton, type FormatSlot, formatSlot, type PaneSettings, useFormatSlot } from "./pane-parts.tsx";
+import { FormatButton, type FormatSlot, formatSlot, type PaneSettings, useBoxFormat, useFormatSlot } from "./pane-parts.tsx";
 import { type PaneStore, paneStore, usePane } from "./pane-store.ts";
 
 /**
@@ -491,7 +490,7 @@ export function CssBody({ pane, words, settings }: { pane: CssPane; words: Words
 	const area = useRef<HTMLTextAreaElement>(null);
 	const noteId = useId();
 	const editable = state.editable && state.status === "ready" && state.classId !== null;
-	const formatting = useCodeFormat("css", area, state.text, editable);
+	const formatting = useBoxFormat("css", area, state.text, editable);
 	useFormatSlot(pane.format, formatting, editable);
 	const [favourites, toggleFavourite] = useFavourites(pane.siteId);
 	const read = state.design ? piecesOf(state.text, state.name, state.design.breakpoints) : null;

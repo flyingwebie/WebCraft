@@ -1,8 +1,12 @@
 import { BracesIcon, CheckIcon, LoaderCircleIcon, Maximize2Icon, Minimize2Icon } from "lucide-react";
-import { useEffect } from "react";
+import { type KeyboardEvent, type RefObject, useCallback, useEffect, useRef, useState } from "react";
 
 import { ariaKeys, shortcutText } from "../../builder/shortcuts.ts";
-import type { CodeFormat } from "../../code-format/FormatControl.tsx";
+import { editorHistory } from "../../builder/editor-history.ts";
+import { FORMAT_SHOWN_MS, FORMAT_SPINNER_MS, formatTextArea, isFormatKey } from "../../code-format/box.ts";
+import type { CodeFormat, FormatNote } from "../../code-format/FormatControl.tsx";
+import { type CodeLanguage, format } from "../../code-format/format.ts";
+import { registerFormatTarget } from "../../code-format/targets.ts";
 import type { Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING, Tip } from "../controls.tsx";
 import { type PaneStore, paneStore, usePane } from "./pane-store.ts";
@@ -12,6 +16,111 @@ import { type PaneStore, paneStore, usePane } from "./pane-store.ts";
  * `builder/10`: at rest, a spinner after 150 ms, a check for 2 s, red when the code is broken), the
  * Expand button after it, and the boxes' settings from the pane's menu.
  */
+
+/**
+ * Format for one code pane's box (SPEC 5.1): what UI-15's `useCodeFormat` does (the selected lines or
+ * all of it, one edit typed in so it is one Undo step, the caret on its word; ⇧⌥F; the Command menu's
+ * "Format HTML/CSS/JS" reach it while it can be edited), without the admin's words and their library,
+ * which the shell doesn't carry: the panes' words are the shell's own.
+ */
+export function useBoxFormat(
+	language: CodeLanguage,
+	area: RefObject<HTMLTextAreaElement | null>,
+	value: string,
+	editable: boolean,
+): CodeFormat {
+	const [phase, setPhase] = useState<CodeFormat["phase"]>("rest");
+	const [note, setNote] = useState<FormatNote | null>(null);
+	const [problemLine, setProblemLine] = useState<number | null>(null);
+	const timers = useRef<number[]>([]);
+	const working = useRef(false);
+	const failedOn = useRef<string | null>(null);
+	const clearTimers = useCallback(() => {
+		for (const timer of timers.current) window.clearTimeout(timer);
+		timers.current = [];
+	}, []);
+	useEffect(() => clearTimers, [clearTimers]);
+	// A problem stays marked until the text changes.
+	useEffect(() => {
+		if (failedOn.current !== null && value !== failedOn.current) {
+			failedOn.current = null;
+			setProblemLine(null);
+			setNote((shown) => (shown?.kind === "problem" ? null : shown));
+			setPhase((shown) => (shown === "failed" ? "rest" : shown));
+		}
+	}, [value]);
+
+	const run = useCallback(async () => {
+		const element = area.current;
+		if (!element || element.readOnly || working.current) return;
+		working.current = true;
+		clearTimers();
+		timers.current.push(window.setTimeout(() => setPhase("working"), FORMAT_SPINNER_MS));
+		const history = editorHistory();
+		history.boundary();
+		let result: Awaited<ReturnType<typeof formatTextArea>>;
+		try {
+			result = await formatTextArea(element, language, format);
+		} catch {
+			result = null;
+			setNote({ kind: "unavailable" });
+		} finally {
+			history.boundary();
+			working.current = false;
+			clearTimers();
+		}
+		if (!result) {
+			setPhase("rest");
+			return;
+		}
+		if (result.ok) {
+			setProblemLine(null);
+			setNote(result.changedLines ? { kind: "changed", count: result.changedLines } : { kind: "tidy" });
+			setPhase("done");
+			timers.current.push(
+				window.setTimeout(() => {
+					setPhase("rest");
+					setNote(null);
+				}, FORMAT_SHOWN_MS),
+			);
+		} else {
+			failedOn.current = element.value;
+			setProblemLine(result.line);
+			setNote({ kind: "problem", line: result.line, reason: result.reason });
+			setPhase("failed");
+		}
+	}, [area, language, clearTimers]);
+
+	const latest = useRef(run);
+	latest.current = run;
+	useEffect(
+		() => (editable ? registerFormatTarget(language, () => latest.current()) : undefined),
+		[editable, language],
+	);
+	const onKeyDown = useCallback(
+		(event: KeyboardEvent<HTMLTextAreaElement>) => {
+			if (!isFormatKey(event.nativeEvent)) return false;
+			event.preventDefault();
+			void run();
+			return true;
+		},
+		[run],
+	);
+	const goToLine = useCallback(
+		(line: number) => {
+			const element = area.current;
+			if (!element) return;
+			const offset = element.value
+				.split("\n")
+				.slice(0, line - 1)
+				.reduce((sum, each) => sum + each.length + 1, 0);
+			element.focus();
+			element.setSelectionRange(offset, offset);
+		},
+		[area],
+	);
+	return { run, onKeyDown, phase, note, problemLine, goToLine };
+}
 
 /** A box's Format as its header button sees it: the phase, and how to run it (none while the box can't be formatted). */
 export type FormatSlot = PaneStore<{ phase: CodeFormat["phase"]; run: (() => Promise<void>) | null }>;

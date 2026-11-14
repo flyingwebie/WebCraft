@@ -1,7 +1,6 @@
 import { CircleAlertIcon, InfoIcon, PlayIcon, TrashIcon, TriangleAlertIcon } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useRef, useSyncExternalStore } from "react";
 
-import { useCodeFormat } from "../../code-format/FormatControl.tsx";
 import { fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING, Tip } from "../controls.tsx";
 import { sourceOf } from "../editing/selection.ts";
@@ -11,7 +10,7 @@ import { ConflictDialog } from "./ConflictDialog.tsx";
 import type { CodePanesDeps } from "./code-panes.tsx";
 import { type CodeRequests, offsetAt } from "./code-requests.ts";
 import { type ConsoleLine, consoleLog } from "./console-log.ts";
-import { FormatButton, type FormatSlot, formatSlot, type PaneSettings, useFormatSlot } from "./pane-parts.tsx";
+import { FormatButton, type FormatSlot, formatSlot, type PaneSettings, useBoxFormat, useFormatSlot } from "./pane-parts.tsx";
 import { type PaneStore, paneStore, usePane } from "./pane-store.ts";
 
 /**
@@ -376,7 +375,7 @@ export function JsBody({ pane, words, settings }: { pane: JsPane; words: Words; 
 			(tab === "page" && Boolean(state.scripts?.page)) ||
 			(tab === "component" && Boolean(component?.editable)));
 	const text = state.texts[tab];
-	const formatting = useCodeFormat("js", area, text, editable);
+	const formatting = useBoxFormat("js", area, text, editable);
 	useFormatSlot(pane.format, formatting, editable);
 	const lines = useSyncExternalStore(consoleLog.subscribe, consoleLog.lines);
 	const shownLines = state.path ? lines.filter((line) => line.page.split("?")[0] === state.path) : lines;

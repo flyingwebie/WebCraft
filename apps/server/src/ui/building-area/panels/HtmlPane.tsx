@@ -5,7 +5,6 @@ import { type KeyboardEvent, useId, useRef } from "react";
 
 import { editorHistory } from "../../builder/editor-history.ts";
 import { matches } from "../../builder/shortcuts.ts";
-import { useCodeFormat } from "../../code-format/FormatControl.tsx";
 import { fill, type Words } from "../api.ts";
 import { FOCUS_RING } from "../controls.tsx";
 import { keyOf, type StructureSelection, type StructureSource } from "../editing/selection.ts";
@@ -15,7 +14,7 @@ import { CodeWell, type LineRange } from "./CodeWell.tsx";
 import { ConflictDialog } from "./ConflictDialog.tsx";
 import type { CodePanesDeps } from "./code-panes.tsx";
 import { type CodeRequests, lineAt, type MarkupProblem, offsetAt, problemsOf } from "./code-requests.ts";
-import { FormatButton, type FormatSlot, formatSlot, type PaneSettings, useFormatSlot } from "./pane-parts.tsx";
+import { FormatButton, type FormatSlot, formatSlot, type PaneSettings, useBoxFormat, useFormatSlot } from "./pane-parts.tsx";
 import { type PaneStore, paneStore, usePane } from "./pane-store.ts";
 
 /**
@@ -453,7 +452,7 @@ export function HtmlBody({ pane, words, settings }: { pane: HtmlPane; words: Wor
 	const area = useRef<HTMLTextAreaElement>(null);
 	const noteId = useId();
 	const editable = state.editable && state.status === "ready";
-	const formatting = useCodeFormat("html", area, state.text, editable);
+	const formatting = useBoxFormat("html", area, state.text, editable);
 	useFormatSlot(pane.format, formatting, editable);
 	const shown = words.code.html;
 
