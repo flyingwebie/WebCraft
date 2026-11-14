@@ -1254,7 +1254,6 @@
 			"body": "I Site di un Workspace li crea lo Staff.",
 			"bodyStaff": "Crea il primo sito web di questo Workspace."
 		},
-		"slugLabel": "Slug",
 		"dialog": {
 			"title": "Nuovo Site",
 			"description": "Un sito web di {workspace}. I domini li aggiungerai dopo.",
@@ -1266,20 +1265,42 @@
 			"cancel": "Annulla",
 			"close": "Chiudi"
 		},
-		"created": "Site {name} creato."
+		"created": "Site {name} creato.",
+		"card": {
+			"changes": "{count, plural, one {# modifica non pubblicata} other {# modifiche non pubblicate}}",
+			"address": "Indirizzo"
+		}
 	},
 	"site": {
 		"pageTitle": "Panoramica",
 		"intro": "Un Site di {workspace}.",
-		"details": "Dettagli",
-		"name": "Nome",
-		"slug": "Slug",
-		"workspace": "Workspace",
-		"created": "Creato",
 		"editOnSite": "Modifica sul sito",
 		"editOptions": "Altri modi di aprire la modalità modifica",
 		"editInSafeMode": "Modifica in modalità sicura",
-		"editInSafeModeHelp": "Senza eseguire nessuno script del sito"
+		"editInSafeModeHelp": "Senza eseguire nessuno script del sito",
+		"overview": {
+			"requested": "{name} ha chiesto la revisione di “{title}”",
+			"draftsHeading": "Bozze e modifiche",
+			"draftsReady": "{count, plural, one {# modifica pronta da pubblicare.} other {# modifiche pronte da pubblicare.}}",
+			"draftsNone": "È tutto pubblicato.",
+			"activityHeading": "Attività recente",
+			"activityNone": "Su questo Site non è ancora successo nulla.",
+			"activityLine": "{who}: {action}",
+			"activitySubject": "{who}: {action}, “{subject}”",
+			"quickHeading": "Azioni rapide",
+			"newIn": "Nuovo in {name}",
+			"uploadMedia": "Carica Media",
+			"editHome": "Modifica la home page sul sito",
+			"siteHeading": "Site",
+			"domain": "Dominio",
+			"live": "Online",
+			"noDomain": "Ancora nessun dominio",
+			"languages": "Lingue",
+			"staging": "Staging",
+			"noStaging": "Nessuno",
+			"activityOn": "{line} · {site}",
+			"noDomainBadge": "Nessun dominio"
+		}
 	},
 	"publishAll": {
 		"changedVia": "{person} tramite {client}",
@@ -1348,11 +1369,10 @@
 	"media": {
 		"pageTitle": "Media",
 		"heading": "Media",
-		"intro": "{count, plural, one {# file} other {# file}} · immagini, documenti, video e audio",
 		"folders": {
 			"heading": "Cartelle",
-			"all": "Tutti i media",
-			"none": "Fuori dalle cartelle",
+			"all": "Tutti i file",
+			"none": "Senza cartella",
 			"new": "Nuova cartella",
 			"actionsOf": "Azioni per {name}",
 			"rename": "Rinomina",
@@ -1375,14 +1395,13 @@
 		"search": "Cerca per nome o testo alternativo",
 		"kinds": {
 			"label": "Tipo di file",
-			"all": "Tutti",
 			"image": "Immagini",
 			"document": "Documenti",
 			"video": "Video",
-			"audio": "Audio"
+			"audio": "Audio",
+			"allTypes": "Tutti i tipi"
 		},
 		"upload": "Carica",
-		"uploading": "Caricamento di {count, plural, one {# file} other {# file}}…",
 		"uploaded": "{name} caricato.",
 		"uploadFailed": "{name} non è stato caricato: {reason}",
 		"dropHint": "Trascina qui i file per caricarli",
@@ -1394,18 +1413,8 @@
 		"failed": "Non leggibile",
 		"details": {
 			"heading": "Dettagli",
-			"close": "Chiudi i dettagli",
-			"size": "Dimensione",
-			"dimensions": "Misure",
 			"dimensionsValue": "{width} × {height}",
-			"type": "Tipo",
-			"uploaded": "Caricato",
 			"uploadedBy": "{date} da {name}",
-			"address": "Indirizzo",
-			"sizes": "Formati",
-			"sizesValue": "{count, plural, one {# larghezza} other {# larghezze}} in AVIF e WebP",
-			"translatable": "Traducibile",
-			"language": "Testi in {language}",
 			"title": "Titolo",
 			"alt": "Testo alternativo",
 			"altHelp": "Descrivi cosa mostra l'immagine, per chi non può vederla.",
@@ -1414,7 +1423,13 @@
 			"save": "Salva",
 			"saved": "Salvato. Le pagine che mostrano questo file cambiano subito.",
 			"readOnly": "Solo chi ha caricato questo file, gli Editor, gli Owner e lo Staff possono modificarlo.",
-			"processingHelp": "WebCraft sta rimuovendo dalla foto la posizione e i dati della fotocamera e ne prepara le misure. Compare qui quando è pronta."
+			"processingHelp": "WebCraft sta rimuovendo dalla foto la posizione e i dati della fotocamera e ne prepara le misure. Compare qui quando è pronta.",
+			"file": "File",
+			"copy": "Copia l'indirizzo",
+			"copied": "Indirizzo copiato.",
+			"languages": "Testi in",
+			"sizesMade": "Dimensioni create al caricamento",
+			"download": "Scarica"
 		},
 		"importUrl": "Importa da URL",
 		"import": {
@@ -1519,6 +1534,31 @@
 				"element": "parti che non si possono tenere",
 				"attribute": "attributi che non si possono tenere"
 			}
+		},
+		"count": "{count, plural, one {# file} other {# file}}",
+		"uploadMore": "Altri modi di aggiungere file",
+		"uploadingOne": "Caricamento {done} di {total}: {name}",
+		"shownOf": "I {shown} file più recenti su {total}. Cerca o scegli una cartella per trovare gli altri.",
+		"view": {
+			"label": "Mostra i file come",
+			"list": "Elenco",
+			"grid": "Griglia"
+		},
+		"columns": {
+			"name": "Nome",
+			"alt": "Testo alternativo ({language})",
+			"type": "Tipo",
+			"pixels": "Pixel",
+			"size": "Peso",
+			"added": "Aggiunto",
+			"deleted": "Eliminato"
+		},
+		"noAlt": "Ancora nessun testo alternativo",
+		"noAltShort": "Senza testo alternativo",
+		"tiles": {
+			"files": "{count, plural, one {file} other {file}}",
+			"used": "usati",
+			"of": "su {quota}"
 		}
 	},
 	"invite": {
@@ -2822,6 +2862,28 @@
 			"moved": "Riga {from} spostata al posto {to} di {count}.",
 			"removed": "Riga {row} rimossa.",
 			"added": "Riga {row} aggiunta."
+		},
+		"when": {
+			"now": "Adesso",
+			"minutes": "{count, plural, one {# minuto fa} other {# minuti fa}}",
+			"hours": "{count, plural, one {# ora fa} other {# ore fa}}",
+			"yesterday": "Ieri",
+			"day": "{day} {month}",
+			"dayYear": "{day} {month} {year}",
+			"months": {
+				"jan": "gen",
+				"feb": "feb",
+				"mar": "mar",
+				"apr": "apr",
+				"may": "mag",
+				"jun": "giu",
+				"jul": "lug",
+				"aug": "ago",
+				"sep": "set",
+				"oct": "ott",
+				"nov": "nov",
+				"dec": "dic"
+			}
 		}
 	},
 	"body": {
@@ -3006,16 +3068,32 @@
 			"languagesOf": "Lingue di {title}",
 			"empty": "Ancora nessun elemento in {name}.",
 			"noMatch": "Nessun contenuto corrisponde.",
-			"toFix": "{count, plural, one {# da correggere} other {# da correggere}}"
+			"toFix": "{count, plural, one {# da correggere} other {# da correggere}}",
+			"inReview": "In revisione {count}",
+			"actions": "Azioni",
+			"edit": "Modifica",
+			"emptyCreate": "Ancora nessun elemento in {name}. Scrivi un titolo nella riga qui sopra per creare il primo.",
+			"shown": "{shown} di {total}",
+			"showMore": "Mostra altri",
+			"hidden": "(nascosto)",
+			"hiddenIn": "{language}: nascosto",
+			"language": "Lingua",
+			"languageAll": "Lingua: tutte",
+			"languageOne": "Lingua: {language}",
+			"loading": "Caricamento dell'elenco…"
 		},
 		"create": {
-			"open": "Nuovo in {name}",
 			"title": "Nuovo in {name}",
 			"intro": "Dagli un titolo; il resto lo scrivi nell'editor, salvato come bozza mentre scrivi.",
 			"titleRequired": "Dagli un titolo.",
 			"submit": "Crea",
 			"cancel": "Annulla",
-			"close": "Chiudi"
+			"close": "Chiudi",
+			"newPage": "Nuova pagina",
+			"newEntry": "Nuovo contenuto",
+			"rowPage": "Titolo di una nuova pagina…",
+			"rowEntry": "Titolo di un nuovo contenuto…",
+			"rowHelp": "Invio crea una bozza e la apre"
 		},
 		"editor": {
 			"back": "Torna a {name}",
@@ -3041,7 +3119,9 @@
 			"toFix": "{count, plural, one {# cosa impedisce} other {# cose impediscono}} di pubblicare:",
 			"liveAt": "I visitatori lo trovano a",
 			"detailsHeading": "Dettagli",
-			"linkedFrom": "Collegato da"
+			"linkedFrom": "Collegato da",
+			"basicsHeading": "Titolo e indirizzo",
+			"fieldsHeading": "Campi"
 		},
 		"delete": {
 			"open": "Elimina",
@@ -3219,7 +3299,8 @@
 		"empty": "Questo sito non ha ancora valori globali.",
 		"defineFields": "Definisci i campi globali",
 		"publishHelp": "Pubblicare mette subito online questi valori su ogni pagina.",
-		"published": "I valori globali sono online."
+		"published": "I valori globali sono online.",
+		"valuesHeading": "Valori"
 	},
 	"loops": {
 		"pageTitle": "Loop",
