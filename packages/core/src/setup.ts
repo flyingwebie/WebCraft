@@ -139,18 +139,23 @@ export function createInstallSetup({ database, auth, config, clock, log }: Setup
 	 * Creates the Superadmin in one transaction, after `check` passes, holding the setup lock, and
 	 * records it in the Audit log as `action`.
 	 */
-	const createInLock = (
+	const createInLock = async (
 		account: SuperadminAccount,
-		check: (tx: Transaction) => Promise<void>,
+		check: (executor: Database["db"] | Transaction) => Promise<void>,
 		finished: boolean,
 		audit: { action: string; via: AuditVia },
-	) =>
-		db.transaction(async (tx) => {
+	) => {
+		// What would refuse it says so before the password is looked at; the password is checked and
+		// hashed before the transaction, since its checks read Install settings and may call out.
+		if (await superadminExists(db)) throw new SetupClosedError();
+		await check(db);
+		const password = await auth.newPassword(account.password);
+		return db.transaction(async (tx) => {
 			await tx.execute(SETUP_LOCK);
 			if (await superadminExists(tx)) throw new SetupClosedError();
 			await check(tx);
 			const now = clock.now();
-			const { personId } = await auth.createPerson(tx, account);
+			const { personId } = await auth.createPerson(tx, { ...account, password });
 			await tx.insert(installRoles).values({ personId, role: SUPERADMIN_ROLE, createdAt: now });
 			await tx.delete(setupTokens);
 			await writeSettingsRow(tx, {
@@ -167,6 +172,7 @@ export function createInstallSetup({ database, auth, config, clock, log }: Setup
 			});
 			return { personId };
 		});
+	};
 
 	const newSetupLink = async () => {
 		if (await superadminExists(db)) return null;
@@ -213,8 +219,8 @@ export function createInstallSetup({ database, auth, config, clock, log }: Setup
 		async claim(token, account, via) {
 			const result = await createInLock(
 				account,
-				async (tx) => {
-					if (!(await tokenWorks(tx, token))) throw new SetupTokenInvalidError();
+				async (executor) => {
+					if (!(await tokenWorks(executor, token))) throw new SetupTokenInvalidError();
 				},
 				false,
 				{ action: "install.claim", via },

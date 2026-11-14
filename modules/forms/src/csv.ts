@@ -1,4 +1,4 @@
-import { isSubmissionFiles, type SubmissionValue } from "@webcraft/module-sdk";
+import { isSubmissionFiles, type SubmissionDelivery, type SubmissionValue } from "@webcraft/module-sdk";
 
 /**
  * Submissions as a CSV file for spreadsheets: UTF-8 with a byte order mark (so spreadsheet programs
@@ -14,10 +14,23 @@ export type CsvSubmission = {
 	language: string;
 	page: string | null;
 	values: readonly SubmissionValue[];
+	/** What was sent for it, when the file holds the delivery log. */
+	deliveries?: readonly SubmissionDelivery[];
 };
 
-/** The words of the file's own columns and of yes and no, in the reader's language. */
-export type CsvWords = { received: string; language: string; page: string; yes: string; no: string };
+/** The words of the file's own columns, of yes and no, and of the delivery log, in the reader's language. */
+export type CsvWords = {
+	received: string;
+	language: string;
+	page: string;
+	yes: string;
+	no: string;
+	deliveryLog: string;
+	/** What each delivery was, before its address or Webhook's name. */
+	kinds: Readonly<Record<SubmissionDelivery["kind"], string>>;
+	/** Where each delivery stands. */
+	statuses: Readonly<Record<SubmissionDelivery["status"], string>>;
+};
 
 const BOM = "﻿";
 
@@ -33,11 +46,22 @@ export function csvCell(value: string): string {
 	return `"${safe.replace(/"/g, '""')}"`;
 }
 
+/** One delivery, as the delivery log cell says it: "Notification to a@example.com: Sent (Last answer)". */
+function deliveryText(delivery: SubmissionDelivery, words: CsvWords): string {
+	const problem = delivery.status === "sent" || !delivery.problem ? "" : ` (${delivery.problem})`;
+	return `${words.kinds[delivery.kind]} ${delivery.to}: ${words.statuses[delivery.status]}${problem}`;
+}
+
 /**
  * The file: the time each came (UTC), its language and page, then one column per field, in the
- * order fields first appear (newest Submissions first), headed by the field's label.
+ * order fields first appear (newest Submissions first), headed by the field's label; with
+ * `deliveryLog`, a last column saying what was sent for each, oldest first.
  */
-export function submissionsCsv(rows: readonly CsvSubmission[], words: CsvWords): string {
+export function submissionsCsv(
+	rows: readonly CsvSubmission[],
+	words: CsvWords,
+	options: { deliveryLog?: boolean } = {},
+): string {
 	const columns: { key: string; label: string }[] = [];
 	for (const row of rows) {
 		for (const value of row.values) {
@@ -53,13 +77,24 @@ export function submissionsCsv(rows: readonly CsvSubmission[], words: CsvWords):
 		return String(value);
 	};
 	const lines = [
-		[words.received, words.language, words.page, ...columns.map((column) => column.label)].map(csvCell).join(","),
+		[
+			words.received,
+			words.language,
+			words.page,
+			...columns.map((column) => column.label),
+			...(options.deliveryLog ? [words.deliveryLog] : []),
+		]
+			.map(csvCell)
+			.join(","),
 		...rows.map((row) =>
 			[
 				row.receivedAt.toISOString().slice(0, 19).replace("T", " "),
 				row.language,
 				row.page ?? "",
 				...columns.map((column) => text(row.values.find((value) => value.key === column.key)?.value)),
+				...(options.deliveryLog
+					? [(row.deliveries ?? []).map((delivery) => deliveryText(delivery, words)).join("; ")]
+					: []),
 			]
 				.map(csvCell)
 				.join(","),

@@ -2,7 +2,10 @@ import type { ApiClient } from "@webcraft/api";
 import { FileTextIcon, ImageIcon, MusicIcon, VideoIcon } from "lucide-react";
 
 /** A file of the Media library as the Management API answers it. */
-export type MediaItem = Awaited<ReturnType<ApiClient["media"]["list"]>>["items"][number];
+export type MediaItem = Awaited<ReturnType<ApiClient["media"]["get"]>>["media"];
+
+/** A file as the library's list answers it: with how many places use it. */
+export type ListedMediaItem = Awaited<ReturnType<ApiClient["media"]["list"]>>["items"][number];
 
 /** Where `/_media/` files are shown inside the admin: through the admin host, to people who reach the Site. */
 export function previewPath(siteId: string, url: string): string {

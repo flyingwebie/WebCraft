@@ -21,23 +21,30 @@ import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
 import { type DashboardPlace, dashboardsApi, type TemplateView } from "./model.ts";
 
+/** The grid's columns, as Dashboards lay Widgets out. */
+const COLUMNS = 12;
+
 /**
- * A small picture of a layout: blocks on a grid, the first across the width and the rest two by two,
- * as many as the template holds Widgets (up to six). Blank is an empty frame.
+ * A small picture of a layout: each Widget a block where it sits on the grid, the grid's 12 columns
+ * across the picture and its rows scaled to its height. Blank is an empty frame.
  */
-function LayoutPicture({ widgets }: { widgets: number }) {
-	const blocks = Math.min(widgets, 6);
+function LayoutPicture({ layout }: { layout: readonly { x: number; y: number; w: number; h: number }[] }) {
+	const rows = Math.max(1, ...layout.map((each) => each.y + each.h));
+	const share = (part: number, of: number) => `${(part / of) * 100}%`;
 	return (
-		<span
-			aria-hidden="true"
-			className="bg-muted grid h-10 w-19 grid-cols-2 gap-0.5 overflow-hidden rounded-[4px] p-0.5"
-		>
-			{Array.from({ length: blocks }, (_, index) => (
+		<span aria-hidden="true" className="bg-muted relative block h-10 w-19 overflow-hidden rounded-[4px]">
+			{layout.map((each, index) => (
 				<span
 					// biome-ignore lint/suspicious/noArrayIndexKey: blocks of a picture, in a fixed order.
 					key={index}
-					className={cn("rounded-[2px]", index === 0 && blocks > 2 && "col-span-2")}
-					style={{ background: "color-mix(in oklab, var(--series-1) 45%, transparent)" }}
+					className="absolute rounded-[2px]"
+					style={{
+						left: `calc(${share(each.x, COLUMNS)} + 1px)`,
+						top: `calc(${share(each.y, rows)} + 1px)`,
+						width: `calc(${share(each.w, COLUMNS)} - 2px)`,
+						height: `calc(${share(each.h, rows)} - 2px)`,
+						background: "color-mix(in oklab, var(--series-1) 45%, transparent)",
+					}}
 				/>
 			))}
 		</span>
@@ -199,7 +206,7 @@ export function NewDashboardDialog({
 							<div className="flex flex-wrap gap-2">
 								<ChoiceCard name={`${id}-from`} value="blank" checked={from === "blank"} onChange={setFrom}>
 									<span className="flex w-24 flex-col items-center gap-2 p-2">
-										<LayoutPicture widgets={0} />
+										<LayoutPicture layout={[]} />
 										<span className="text-xs font-medium">{t("dashboards.blankShort")}</span>
 									</span>
 								</ChoiceCard>
@@ -212,7 +219,7 @@ export function NewDashboardDialog({
 											onChange={setFrom}
 										>
 											<span className="flex w-24 flex-col items-center gap-2 p-2">
-												<LayoutPicture widgets={template.widgets} />
+												<LayoutPicture layout={template.layout} />
 												<span className="w-full truncate text-center text-xs font-medium" title={template.name}>
 													{template.name}
 												</span>

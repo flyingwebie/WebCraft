@@ -199,6 +199,10 @@ for (const theme of THEMES) {
 			await page.getByRole("heading", { name: "Waiting for review" }).waitFor();
 			await page.getByRole("link", { name: /^Overview\s*\d+ to review$/ }).waitFor();
 			await expectAccessibleScreen(page, `Site overview with Reviews waiting (${theme})`);
+			// Each line opens its Review's sheet over the Overview.
+			await page.getByRole("link", { name: /requested review on “Spring menu/ }).click();
+			await page.getByRole("dialog", { name: "Review: Spring menu" }).waitFor();
+			expect(new URL(page.url()).searchParams.get("review")).not.toBeNull();
 		});
 
 		test("the Entries list marks what is In review and what was sent back", async () => {

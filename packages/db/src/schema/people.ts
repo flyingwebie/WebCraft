@@ -46,6 +46,8 @@ export const people = pgTable(
 		 * holds no role anywhere until reactivated. The row stays, so what they made stays theirs.
 		 */
 		deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
+		/** When a session of theirs last started (a sign-in, after the second step when there is one); null: never since this was kept. */
+		lastSignedInAt: timestamp("last_signed_in_at", { withTimezone: true }),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},

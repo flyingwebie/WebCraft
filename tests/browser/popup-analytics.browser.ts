@@ -8,7 +8,7 @@ beforeAll(async () => {
 	install = await startBrowserInstall();
 	const { api } = await install.install.superadmin();
 	await api.modules.approve({ moduleId: "popups", version: "1.0.0" });
-	await api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
+	await api.modules.approve({ moduleId: "site-analytics", version: "1.2.0" });
 });
 afterAll(async () => {
 	await install.close();

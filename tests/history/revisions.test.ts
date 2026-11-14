@@ -75,6 +75,35 @@ async function publishAll(api: TestBrowser["api"], siteId: string, items: Histor
 	await api.publishing.publishAll({ siteId, items, confirmation: preview.confirmation.id });
 }
 
+describe("whether an item is live", () => {
+	test("an Entry is live once published and not after it is unpublished, which keeps its Revisions", async () => {
+		const { siteId, postTypeId, editor } = site;
+		const { entry } = await editor.api.entries.create({ siteId, postTypeId, title: "Seasonal loaf" });
+		const item = { kind: "entry", id: entry.id } as const;
+		expect((await editor.api.history.list({ siteId, item })).live).toBe(false);
+
+		await editor.api.entries.publish({ siteId, entryId: entry.id });
+		expect((await editor.api.history.list({ siteId, item })).live).toBe(true);
+
+		const at = new Date(install.clock.now().getTime() + 2 * 60_000);
+		await editor.api.publishing.scheduleUnpublish({ siteId, entryId: entry.id, at });
+		await install.clock.advance(2 * 60_000);
+		await install.drainJobs();
+
+		const history = await editor.api.history.list({ siteId, item });
+		expect(history.live).toBe(false);
+		expect(history.copies.filter((copy) => copy.type === "revision")).toHaveLength(1);
+	});
+
+	test("the Globals are live once first published", async () => {
+		const { siteId, staff } = site;
+		const item = { kind: "globals" } as const;
+		expect((await staff.api.history.list({ siteId, item })).live).toBe(false);
+		await staff.api.globals.publish({ siteId });
+		expect((await staff.api.history.list({ siteId, item })).live).toBe(true);
+	});
+});
+
 describe("every publishable item", () => {
 	test("saves one Revision each time it is published, through Publish all too: Content and Structure", async () => {
 		const own = await historySite(install);

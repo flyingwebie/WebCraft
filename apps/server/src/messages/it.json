@@ -1162,8 +1162,10 @@
 			"role": "Ruolo",
 			"sites": "Siti",
 			"actions": "Azioni",
+			"lastSeen": "Ultimo accesso",
 			"twoFactor": "2FA"
 		},
+		"neverSignedIn": "Mai",
 		"allSites": "Tutti i Site",
 		"noSites": "Nessun Site",
 		"someSites": "{names}",
@@ -1542,6 +1544,7 @@
 				"attribute": "attributi che non si possono tenere"
 			}
 		},
+		"countAndSize": "{count, plural, one {# file} other {# file}} · {size}",
 		"count": "{count, plural, one {# file} other {# file}}",
 		"uploadMore": "Altri modi di aggiungere file",
 		"uploadingOne": "Caricamento {done} di {total}: {name}",
@@ -1558,7 +1561,8 @@
 			"pixels": "Pixel",
 			"size": "Peso",
 			"added": "Aggiunto",
-			"deleted": "Eliminato"
+			"deleted": "Eliminato",
+			"used": "Usato"
 		},
 		"noAlt": "Ancora nessun testo alternativo",
 		"noAltShort": "Senza testo alternativo",
@@ -5298,7 +5302,8 @@
 		"exportPart": {
 			"sender": "Mittente",
 			"received": "Ricevuto",
-			"answers": "Tutte le risposte"
+			"answers": "Tutte le risposte",
+			"deliveries": "Registro degli invii"
 		},
 		"exportButton": "Esporta",
 		"exported": "{count, plural, one {# invio esportato} other {# invii esportati}}.",
@@ -5832,6 +5837,8 @@
 		"lineBefore": "{line}, prima",
 		"before": "Prima",
 		"readoutHelp": "Le frecce si spostano tra i giorni; il riquadro elenca ogni linea in quel giorno.",
+		"nothingCountedYet": "Ancora nessun dato",
+		"countingStarts": "Il conteggio parte quando il Banner del consenso viene accettato.",
 		"nothingInRange": "Niente in questo periodo",
 		"needsModule": "Serve il suo modulo",
 		"ownDays": "giorni propri: {days}",
@@ -5966,6 +5973,11 @@
 			"FUNNELS_TOO_MANY": "Un sito ha al massimo 50 funnel.",
 			"FUNNEL_NOT_FOUND": "Quel funnel non è più qui."
 		},
+		"whereUsed": "Dove è usato",
+		"usedWidgets": "{count, plural, one {# widget} other {# widget}}",
+		"usedTemplates": "{count, plural, one {# modello di dashboard} other {# modelli di dashboard}}",
+		"usedFunnels": "{count, plural, one {# Funnel} other {# Funnel}}",
+		"notUsed": "Non ancora usato",
 		"reached": "Raggiunti (30 g)",
 		"newFunnel": "Nuovo funnel",
 		"stepCount": "{count, plural, one {# passo} other {# passi}}",

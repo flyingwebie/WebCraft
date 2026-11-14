@@ -27,7 +27,7 @@ beforeAll(async () => {
 	const local = install.install;
 	const { api } = await local.superadmin();
 	await api.modules.approve({ moduleId: "popups", version: "1.0.0" });
-	await api.modules.approve({ moduleId: "forms", version: "1.3.0" });
+	await api.modules.approve({ moduleId: "forms", version: "1.4.0" });
 	const ws = await local.createWorkspace();
 	siteId = (await local.createSite(ws.id, { slug })).id;
 	await install.goLive(siteId);

@@ -46,6 +46,8 @@ export type Member = SiteAccess & {
 	manageable: boolean;
 	/** Their account is deactivated: they can't sign in and reach nothing until it is reactivated. */
 	deactivated: boolean;
+	/** When they last signed in, or null when they haven't since WebCraft kept it. */
+	lastSignedInAt: Date | null;
 };
 
 export type MemberInvite = SiteAccess & {
@@ -267,6 +269,7 @@ export function createMembers({ database, email }: { database: Database; email: 
 						allSites: memberships.allSites,
 						since: memberships.createdAt,
 						deactivatedAt: people.deactivatedAt,
+						lastSignedInAt: people.lastSignedInAt,
 					})
 					.from(memberships)
 					.innerJoin(people, eq(people.id, memberships.personId))
@@ -317,6 +320,7 @@ export function createMembers({ database, email }: { database: Database; email: 
 					since: row.since,
 					manageable: holdsAccess(actor, workspaceId, access),
 					deactivated: row.deactivatedAt !== null,
+					lastSignedInAt: row.lastSignedInAt,
 				};
 			});
 
@@ -461,7 +465,12 @@ export function createMembers({ database, email }: { database: Database; email: 
 				return { membership, to };
 			});
 			const [person] = await db
-				.select({ name: people.name, email: people.email, deactivatedAt: people.deactivatedAt })
+				.select({
+					name: people.name,
+					email: people.email,
+					deactivatedAt: people.deactivatedAt,
+					lastSignedInAt: people.lastSignedInAt,
+				})
 				.from(people)
 				.where(eq(people.id, personId));
 			return {
@@ -473,6 +482,7 @@ export function createMembers({ database, email }: { database: Database; email: 
 				since: membership.createdAt,
 				manageable: true,
 				deactivated: Boolean(person?.deactivatedAt),
+				lastSignedInAt: person?.lastSignedInAt ?? null,
 			};
 		},
 

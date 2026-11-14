@@ -1162,8 +1162,10 @@
 			"role": "Role",
 			"sites": "Sites",
 			"actions": "Actions",
+			"lastSeen": "Last seen",
 			"twoFactor": "2FA"
 		},
+		"neverSignedIn": "Never",
 		"allSites": "All Sites",
 		"noSites": "No Sites",
 		"someSites": "{names}",
@@ -1542,6 +1544,7 @@
 				"attribute": "attributes that can't be kept"
 			}
 		},
+		"countAndSize": "{count, plural, one {# file} other {# files}} · {size}",
 		"count": "{count, plural, one {# file} other {# files}}",
 		"uploadMore": "More ways to add files",
 		"uploadingOne": "Uploading {done} of {total}: {name}",
@@ -1558,7 +1561,8 @@
 			"pixels": "Pixels",
 			"size": "Size",
 			"added": "Added",
-			"deleted": "Deleted"
+			"deleted": "Deleted",
+			"used": "Used"
 		},
 		"noAlt": "No alt text yet",
 		"noAltShort": "No alt text",
@@ -5298,7 +5302,8 @@
 		"exportPart": {
 			"sender": "Sender",
 			"received": "Received",
-			"answers": "Every answer"
+			"answers": "Every answer",
+			"deliveries": "Delivery log"
 		},
 		"exportButton": "Export",
 		"exported": "{count, plural, one {# Submission} other {# Submissions}} exported.",
@@ -5832,6 +5837,8 @@
 		"lineBefore": "{line}, before",
 		"before": "Before",
 		"readoutHelp": "The arrow keys move along the days; the readout lists every line at that day.",
+		"nothingCountedYet": "Nothing counted yet",
+		"countingStarts": "Starts after the Consent banner is accepted.",
 		"nothingInRange": "Nothing in this range",
 		"needsModule": "Needs its Module",
 		"ownDays": "its own days: {days}",
@@ -5966,6 +5973,11 @@
 			"FUNNELS_TOO_MANY": "A Site has at most 50 Funnels.",
 			"FUNNEL_NOT_FOUND": "That Funnel is no longer here."
 		},
+		"whereUsed": "Where it is used",
+		"usedWidgets": "{count, plural, one {# Widget} other {# Widgets}}",
+		"usedTemplates": "{count, plural, one {# Dashboard template} other {# Dashboard templates}}",
+		"usedFunnels": "{count, plural, one {# Funnel} other {# Funnels}}",
+		"notUsed": "Not used yet",
 		"reached": "Reached (30d)",
 		"newFunnel": "New Funnel",
 		"stepCount": "{count, plural, one {# step} other {# steps}}",

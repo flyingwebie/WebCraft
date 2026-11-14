@@ -47,6 +47,8 @@ import {
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
+import { analyticsApi } from "../analytics/GoalsScreen.tsx";
+import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
 import { ShareLinksDialog } from "../reports/ShareLinksDialog.tsx";
@@ -188,6 +190,7 @@ export function DashboardScreen({
 	const grid = useRef<HTMLUListElement>(null);
 	const isWorkspace = "workspaceId" in place;
 	const kindOf = (widget: WidgetView) => catalog?.find((kind) => kind.kind === widget.kind);
+	const neverCounted = useNeverCounted(place);
 
 	// The layout as last saved: what a failed step goes back to, and what Undo starts from.
 	const saved = useRef(dashboard.widgets);
@@ -865,6 +868,7 @@ export function DashboardScreen({
 								selected={settingsFor !== null && idOf(settingsFor) === widget.id}
 								flash={flash === widget.id}
 								readout={readout?.id === widget.id ? readout.text : null}
+								neverCounted={neverCounted}
 								onPreview={(rect) => setPreview(rect ? { id: widget.id, rect } : null)}
 								onMove={(rect) => move(widget, rect)}
 								onAnnounce={setAnnouncement}
@@ -1236,4 +1240,31 @@ function DeleteDialog({
 			</DialogContent>
 		</Dialog>
 	);
+}
+
+/**
+ * Whether the Site has never counted anything (Site analytics' `coverage`): then a Widget with nothing
+ * to show says so, rather than "Nothing in this range". False for a Workspace, while it is asked, and
+ * for people who may not ask it (they see only the Widgets' own states).
+ */
+function useNeverCounted(place: DashboardPlace): boolean {
+	const siteId = "siteId" in place ? place.siteId : null;
+	const [never, setNever] = useState(false);
+	useEffect(() => {
+		setNever(false);
+		if (!siteId) return;
+		let current = true;
+		void getApi()
+			.then((api) => analyticsApi(api).stats.coverage({ siteId }))
+			.then(
+				(coverage) => {
+					if (current) setNever(!coverage.counted);
+				},
+				() => {},
+			);
+		return () => {
+			current = false;
+		};
+	}, [siteId]);
+	return never;
 }

@@ -6,7 +6,9 @@ import { chmodSync } from "node:fs";
 import { join } from "node:path";
 import { samplePing } from "@webcraft/core";
 
-import { pdf, upload } from "../harness/images.ts";
+import { openBuildingArea } from "../harness/building-area.ts";
+import { buildingAreaApi } from "../harness/building-area-api.ts";
+import { pdf, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
 import { goLive } from "../harness/staging.ts";
@@ -98,6 +100,34 @@ describe("failures in requests", () => {
 		});
 		expect(failure?.message).toContain("EACCES");
 		expect(install.logs.find((entry) => entry.requestId === requestId && entry.level === "error")).toBeDefined();
+	});
+
+	test("a failure in the building area, an Edit mode session acting for a person, lands with its Site", async () => {
+		const workspace = await install.createWorkspace("Acme Ltd");
+		const site = await install.createSite(workspace.id, { name: "Acme Studio", slug: "studio" });
+		await goLive(install, site.id);
+		await admin.api.media.upload({ siteId: site.id, file: upload(pdf("Menu"), "menu.pdf") });
+		const area = await openBuildingArea(install, admin, site.id);
+		const { api } = buildingAreaApi(install, area);
+		// The Site's folder can't be written any more: storing the upload fails in a way nothing expects.
+		const folder = join(install.storageDir, workspace.id, site.id);
+		chmodSync(folder, 0o000);
+		try {
+			await expect(
+				api.media.upload({ siteId: site.id, file: upload(await photo({ width: 20, height: 10 }), "loaf.jpg") }),
+			).rejects.toMatchObject({ status: 500 });
+		} finally {
+			chmodSync(folder, 0o755);
+		}
+
+		const failure = (await groups()).find((group) => group.source.name === "media.upload");
+		expect(failure).toMatchObject({
+			count: 1,
+			source: { kind: "request", name: "media.upload" },
+			places: [{ workspace: { id: workspace.id }, site: { id: site.id, name: "Acme Studio" }, count: 1 }],
+		});
+		const { group } = await admin.api.errorLog.resolve({ groupId: failure?.id ?? "" });
+		expect(group.resolvedBy).toEqual({ id: expect.any(String), name: "Sam Superadmin" });
 	});
 
 	test("refusals aren't failures: a wrong input or a missing Permission leaves the Error log as it was", async () => {

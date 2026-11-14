@@ -25,7 +25,7 @@ const day = (text: string) => new Date(`${text}T00:00:00Z`);
 beforeAll(async () => {
 	// A Monday at 09:00 UTC. The visits are sent with the clock set back to when each happened.
 	install = await createTestInstall({ now: new Date("2026-03-16T09:00:00Z") });
-	await (await install.superadmin()).api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
+	await (await install.superadmin()).api.modules.approve({ moduleId: "site-analytics", version: "1.2.0" });
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 	const site = await liveSite(install, staff, workspaceId, "before.example");
