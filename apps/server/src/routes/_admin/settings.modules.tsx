@@ -27,7 +27,7 @@ import { ConsentDetails, type ModuleView } from "../../ui/modules/ConsentDetails
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 
 export const Route = createFileRoute("/_admin/settings/modules")({
-	staticData: { crumb: "modules.pageTitle" },
+	staticData: { crumb: "modules.pageTitle", width: "form" },
 	loader: async ({ context }) => {
 		if (!context.shell.permissions.includes("module.approve")) return null;
 		const api = await getApi();

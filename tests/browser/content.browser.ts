@@ -316,7 +316,7 @@ for (const theme of THEMES) {
 }
 
 describe("Members see Content only", () => {
-	test("an Owner's sidebar has no Structure group, and Post Types & Fields says they can't open it", async () => {
+	test("an Owner's sidebar has no Structure row, and Post Types & Fields says they can't open it", async () => {
 		const page = await install.newPage("light");
 		await open(page, owner, `/sites/${siteId}`);
 		const navigation = page.getByRole("navigation", { name: "Admin" });
@@ -330,11 +330,13 @@ describe("Members see Content only", () => {
 		await expectNoAxeViolations(page, "Post Types & Fields as an Owner");
 	});
 
-	test("Staff see the Structure group", async () => {
+	test("Staff see Structure, one row whose secondary sidebar holds Post Types & Fields", async () => {
 		const page = await install.newPage("light");
 		await open(page, staff, `/sites/${siteId}`);
 		const navigation = page.getByRole("navigation", { name: "Admin" });
 
-		await navigation.getByRole("link", { name: "Post Types & Fields" }).waitFor();
+		await navigation.getByRole("link", { name: /^Structure/ }).click();
+		const structure = page.getByRole("navigation", { name: "Structure" });
+		await structure.getByRole("link", { name: "Post Types & Fields" }).waitFor();
 	});
 });

@@ -27,7 +27,7 @@ import { PageHeader } from "../../ui/PageHeader.tsx";
 const search = z.object({ language: z.string().min(2).max(35).optional().catch(undefined) });
 
 export const Route = createFileRoute("/_admin/sites/$siteId/consent-banner")({
-	staticData: { crumb: "consentBanner.pageTitle", wide: true },
+	staticData: { crumb: "consentBanner.pageTitle", width: "wide" },
 	validateSearch: search,
 	loaderDeps: ({ search: { language } }) => ({ language }),
 	loader: async ({ params, deps }) => {

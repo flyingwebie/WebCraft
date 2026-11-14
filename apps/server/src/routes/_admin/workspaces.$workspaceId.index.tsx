@@ -28,7 +28,7 @@ import type { AdminPlace } from "../../ui/shell/levels.ts";
 import { slugFrom } from "../../ui/site-slug.ts";
 
 export const Route = createFileRoute("/_admin/workspaces/$workspaceId/")({
-	staticData: { crumb: "sites.pageTitle" },
+	staticData: { crumb: "sites.pageTitle", width: "wide" },
 	loader: async ({ params }) => {
 		const api = await getApi();
 		return { storage: await api.workspaces.storage({ workspaceId: params.workspaceId }) };
@@ -81,7 +81,7 @@ function SitesPage() {
 					</EmptyHeader>
 				</Empty>
 			) : (
-				<ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+				<ul className="grid gap-4 sm:grid-cols-2 @2xl/page:grid-cols-3">
 					{place.sites.map((site) => (
 						<li key={site.id}>
 							<Card className="relative h-full overflow-hidden pt-0">

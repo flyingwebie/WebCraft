@@ -4,7 +4,7 @@ import { getApi } from "../../ui/api.ts";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 export const Route = createFileRoute("/_admin/sites/$siteId/accessibility-statement")({
-	staticData: { crumb: "statement.heading" },
+	staticData: { crumb: "statement.heading", width: "form" },
 	loader: async ({ params, context }) =>
 		context.place.permissions.includes("structure.edit")
 			? (await getApi()).accessibilityStatement.get({ siteId: params.siteId })

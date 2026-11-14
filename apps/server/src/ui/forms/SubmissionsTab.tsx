@@ -179,7 +179,7 @@ export function SubmissionsTab({
 	const total = listed?.total ?? 0;
 
 	return (
-		<div className="grid gap-6 xl:grid-cols-[12rem_minmax(0,1fr)_22rem]">
+		<div className="grid gap-6 @4xl/page:grid-cols-[12rem_minmax(0,1fr)_22rem]">
 			<nav aria-label={t("submissions.folders")} className="grid content-start gap-2">
 				{(["inbox", "spam"] as const).map((each) => (
 					<Button

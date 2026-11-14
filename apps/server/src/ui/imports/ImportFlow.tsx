@@ -378,7 +378,7 @@ function CsvImportFlow({
 			) : null}
 
 			{step === "source" ? (
-				<div className="grid gap-8 lg:grid-cols-[16rem_minmax(0,1fr)_18rem]">
+				<div className="grid gap-8 @2xl/page:grid-cols-[16rem_minmax(0,1fr)_18rem]">
 					{chooser}
 					<section aria-labelledby={`${ids}-csv`} className="grid content-start gap-6 rounded-lg border p-6">
 						<div className="grid gap-1">
