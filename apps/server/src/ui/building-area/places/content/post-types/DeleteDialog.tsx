@@ -205,7 +205,8 @@ export function DeleteDialog({
 						ref={cancel}
 						type="button"
 						onClick={close}
-						className={`${buttonLook("outline")} w-[90px]`}
+						// Focus starts here when the dialog opens, by any means: its ring shows then too (SPEC 10).
+						className={`${buttonLook("outline")} focus:ring-chrome-focus focus:ring-offset-chrome w-[90px] focus:ring-2 focus:ring-offset-1`}
 						data-wc-dialog-cancel=""
 					>
 						{ready || state.kind === "asking" ? shown.cancel : shown.close}
