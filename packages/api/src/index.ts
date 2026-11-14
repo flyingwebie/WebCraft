@@ -3,6 +3,14 @@
  * admin host; the public ones are also served to API tokens under `/api/v1` with an OpenAPI
  * document, and the MCP server and the CLI are generated from them (ADR 0030).
  */
+export {
+	BUILDING_AREA_API_PREFIX,
+	type BuildingAreaApiClient,
+	type BuildingAreaCall,
+	type BuildingAreaRouter,
+	createBuildingAreaApi,
+} from "./building-area.ts";
+export { BUILDING_AREA_PROCEDURES, type BuildingAreaProcedure } from "./building-area-list.ts";
 export { type Exposure, exposureOf, PROCEDURES, type ProcedurePath } from "./catalogue.ts";
 export {
 	type ApiContext,
