@@ -114,7 +114,7 @@ async function openContent(page: Page): Promise<void> {
 /** Waits until the place is gone and the canvas is back. */
 async function placeLeft(page: Page): Promise<void> {
 	await placeFrame(page).waitFor({ state: "detached" });
-	expect(await canvas(page).isVisible()).toBe(true);
+	await canvas(page).waitFor({ state: "visible", timeout: 5_000 });
 	expect(params(page).get("wc-place")).toBeNull();
 }
 
@@ -151,7 +151,7 @@ describe("the Content place, for Staff", () => {
 		expect(await announced(page)).toBe("Content opened");
 		// The place takes the canvas's room; the rail and the bar stay, with no insert row and no Panels.
 		expect(await canvas(page).isVisible()).toBe(false);
-		expect(await page.locator("[data-wc-canvas]").getAttribute("inert")).not.toBeNull();
+		expect(await page.locator("[data-wc-under-place]").getAttribute("inert")).not.toBeNull();
 		// Inside the shell's main part, which the skip link and F6 reach.
 		expect(await page.locator("main [data-wc-place-frame]").count()).toBe(1);
 		expect(await page.locator("[data-building-region='rail']").isVisible()).toBe(true);
@@ -268,7 +268,9 @@ describe("the Content place, for Staff", () => {
 
 		await page.goBack();
 		await page.waitForURL((url) => url.searchParams.get("wc-view") === "status=draft");
-		expect((await titles(page))[0]).toBe("Bake number 40");
+		// Back to the default order (newest first), the filter kept.
+		await page.locator('[data-wc-sort="-updated"]').waitFor();
+		expect((await titles(page)).length).toBe(20);
 		await page.goBack();
 		await page.waitForURL((url) => url.searchParams.get("wc-view") === null);
 		expect((await titles(page)).length).toBe(40);

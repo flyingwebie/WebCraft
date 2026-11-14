@@ -263,7 +263,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 				className="relative col-start-2 row-start-1 min-h-0 min-w-0"
 			>
 				{/* While a place is open the canvas stays as it was (its page, selection and panels), hidden and inert. */}
-				<div className={`contents ${place ? "invisible" : ""}`} inert={place ? true : undefined} data-wc-canvas="">
+				<div className={`contents ${place ? "invisible" : ""}`} inert={place ? true : undefined} data-wc-under-place="">
 					{opened.shown?.status === "missing" || opened.shown?.status === "later" ? (
 						<NoDocument words={words} why={opened.shown.status} />
 					) : null}
