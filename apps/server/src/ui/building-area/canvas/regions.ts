@@ -117,9 +117,10 @@ export function regionSaving(options: {
 				return;
 			}
 			saved.set(region, value);
-			watching?.saved(answer.data);
 			if (running === 0) status?.("saved");
 			announce(words.saved);
+			// After "Saved": what the save found (a problem) is the last thing said.
+			watching?.saved(answer.data);
 		})();
 		saving.set(region, run);
 		await run;

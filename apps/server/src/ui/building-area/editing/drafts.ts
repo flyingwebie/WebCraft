@@ -5,6 +5,7 @@ import {
 	EDIT_TOKEN_PROTOCOL_PREFIX,
 	type Json,
 	type Participant,
+	reverseChange,
 	type ServerMessage,
 } from "@webcraft/core/draft-document";
 
@@ -53,6 +54,26 @@ function socketUrl(item: string): URL | null {
 
 /** How long to wait before opening a dropped connection again, attempt by attempt. */
 const RECONNECT_MS = [1000, 2000, 4000, 8000, 15_000];
+
+/**
+ * How long a step waits for the shell's copy of its Draft to hold the step's own change before it is
+ * taken back. The change was saved over HTTP (`save`), so it reaches the copy as the server's, a
+ * moment later: Undo pressed while still typing would otherwise find it missing and skip it.
+ */
+const CATCH_UP_MS = 1500;
+
+/** Waits until the copy holds `from` where the step changed it (or the wait is over). */
+async function caughtUp(client: DraftClient, from: Json, to: Json): Promise<void> {
+	const started = Date.now();
+	while (Date.now() - started < CATCH_UP_MS) {
+		try {
+			reverseChange(from, to, client.draft());
+			return;
+		} catch {
+			await new Promise((resolve) => setTimeout(resolve, 25));
+		}
+	}
+}
 
 /** Close codes after which opening again can't help: the session ended or access was lost. */
 const FINAL_CLOSES = new Set([4401, 4403]);
@@ -165,6 +186,7 @@ export function pageDrafts(options: {
 		entry.stop = connect(entry.client, url, options.token);
 		entry.unregister = options.register(draftResource(options.siteId, item), {
 			reverse: async (from, to) => {
+				await caughtUp(entry.client, from, to);
 				const result = await entry.client.reverse(from, to);
 				if (result.ok) options.onRemote(item, entry.client.draft(), true);
 				return result;

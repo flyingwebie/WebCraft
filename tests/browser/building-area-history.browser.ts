@@ -305,6 +305,8 @@ describe("the Undo history, for a Member", () => {
 		);
 		expect(await page.locator('[data-wc-messages] [role="alert"]').textContent()).toContain("Skipped Edit Tagline");
 		expect((await read()).tagline).toBe("Staff's");
+		// The pointer off the bar: a tooltip under it shows its keys beside the name (the chrome's, BA-04).
+		await page.mouse.move(700, 400);
 		await expectAccessibleScreen(page, "building area Undo history");
 	});
 });

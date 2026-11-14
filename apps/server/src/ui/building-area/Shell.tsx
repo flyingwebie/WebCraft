@@ -367,6 +367,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 						{opened.shown?.status === "missing" || opened.shown?.status === "later" ? (
 							<NoDocument words={words} why={opened.shown.status} />
 						) : null}
+						{/* Before the frame in the Tab order: the page stays the last stop. */}
+						{opened.shown?.status === "shown" ? <TextToolbar editing={editing} words={words} /> : null}
 						{opened.shown?.status === "shown" ? (
 							<Frame
 								address={opened.shown.frame}
@@ -385,7 +387,6 @@ export function Shell({ config }: { config: ShellConfig }) {
 								editing={editing}
 							/>
 						) : null}
-						{opened.shown?.status === "shown" ? <TextToolbar editing={editing} words={words} /> : null}
 					</div>
 					{place && opened.address.place ? (
 						<place.component

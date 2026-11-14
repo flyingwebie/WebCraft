@@ -199,7 +199,7 @@ describe("content typed in place, for a Member", () => {
 		await caretAtEnd(page, frame, "h1");
 		await page.keyboard.type(" today");
 		await page.keyboard.press("Tab");
-		await caretAtEnd(page, frame, "article p");
+		await caretAtEnd(page, frame, 'article [data-wc-field="subtitle"]');
 		// Saved 0.8 s after typing stops, without leaving.
 		await page.keyboard.type(", every day");
 		await selectAllIn(page, frame, 'footer [data-wc-field="tagline"]');
@@ -243,11 +243,12 @@ describe("content typed in place, for a Member", () => {
 		if (!region || !drawn) throw new Error("No toolbar or region.");
 		expect(overlaps(region, drawn)).toBe(false);
 		// The selection's chip is not drawn while the toolbar names the region.
-		expect(await page.locator("[data-wc-chip]").isHidden()).toBe(true);
+		await page.locator("[data-wc-chip]").waitFor({ state: "hidden" });
 
-		// Select the last word, then reach the toolbar from the text.
+		// Select the first word (plain so far), then reach the toolbar from the text.
+		await page.keyboard.press("Home");
 		await page.keyboard.down("Shift");
-		for (let index = 0; index < 2; index++) await page.keyboard.press("ArrowLeft");
+		for (let index = 0; index < 9; index++) await page.keyboard.press("ArrowRight");
 		await page.keyboard.up("Shift");
 		await page.keyboard.press("Alt+F10");
 		await onTool(page, "bold");
@@ -321,7 +322,18 @@ describe("content typed in place, for a Member", () => {
 	});
 
 	test("the Draft state says Saved, Saving…, Draft · N changes, In review and Could not save", async () => {
+		// The Rye loaf's page shows the Globals too: with them published, it has no change at all.
+		const { api } = await install.install.superadmin();
+		await api.globals.publish({ siteId });
 		frame = await openThrough(page, frame, "/blog/rye-loaf");
+		try {
+			await draftStateCase();
+		} finally {
+			frame = await openThrough(page, frame, "/blog/fresh-bread");
+		}
+	});
+
+	async function draftStateCase() {
 		await expect(draftState(page).getAttribute("data-wc-draft-state")).resolves.toBe("saved");
 		expect(await draftState(page).textContent()).toContain("Saved");
 
@@ -347,7 +359,7 @@ describe("content typed in place, for a Member", () => {
 		// Sent for Review: the page's state says so with its next change.
 		const { api } = await install.install.superadmin();
 		await api.reviews.submit({ siteId, items: [{ kind: "entry", id: ryeId }] });
-		await caretAtEnd(page, frame, "article p");
+		await caretAtEnd(page, frame, 'article [data-wc-field="subtitle"]');
 		await page.keyboard.type("!");
 		await page.keyboard.press("Tab");
 		await page.locator('[data-wc-draft-state="review"]').waitFor({ timeout: 6000 });
@@ -368,8 +380,7 @@ describe("content typed in place, for a Member", () => {
 		await page.keyboard.type(".");
 		await page.keyboard.press("Tab");
 		await page.locator('[data-wc-draft-state="review"]').waitFor({ timeout: 6000 });
-		frame = await openThrough(page, frame, "/blog/fresh-bread");
-	});
+	}
 
 	test("two people on one page see each other's text arrive, and their name on the region they are in", async () => {
 		const other = await install.newPage("light");
@@ -425,7 +436,7 @@ describe("content typed in place, for a Member", () => {
 });
 
 for (const theme of THEMES) {
-	test(`the shell with a region being edited passes the accessibility checks (${theme})`, async () => {
+	test(`the text toolbar and the shell pass the accessibility checks (${theme})`, async () => {
 		const page = await install.newPage(theme);
 		await page.setViewportSize({ width: 1440, height: 900 });
 		await page.context().addCookies(cookies);
@@ -434,7 +445,10 @@ for (const theme of THEMES) {
 		await caretAtEnd(page, frame, 'article [data-wc-field="intro"]');
 		await toolbar(page).waitFor();
 		await expectNoAxeViolations(page, `building area text toolbar (${theme})`);
-		await expectAccessibleScreen(page, `building area, editing text (${theme})`);
+		// The toolbar is there while the text has focus: the keyboard's walk starts outside it.
+		await page.keyboard.press("Tab");
+		await toolbar(page).waitFor({ state: "detached" });
+		await expectAccessibleScreen(page, `building area, after editing text (${theme})`);
 		await page.context().close();
 	});
 }
