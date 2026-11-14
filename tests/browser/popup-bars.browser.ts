@@ -48,6 +48,38 @@ async function scene(barPosition: "top" | "bottom", barBehavior: "push" | "overl
 	return { api, siteId, popupId: popup.id, workspaceId: workspace.id, url: install.liveUrl(slug, "/offers/today") };
 }
 
+/**
+ * How far the page's height is from its main content plus the open Bar (or nothing once none is open),
+ * once that stops changing: the space a push Bar keeps follows its size a frame or two after it mounts
+ * or goes. Waits up to 5 s for the gap to close, then answers it.
+ */
+async function settledGap(page: Page): Promise<number> {
+	const gap = () =>
+		page.evaluate(() => {
+			const dialog = document.querySelector<HTMLDialogElement>("dialog[open]");
+			const main = document.querySelector("main");
+			return Math.abs(
+				document.body.scrollHeight - (main?.getBoundingClientRect().height ?? 0) - (dialog?.offsetHeight ?? 0),
+			);
+		});
+	await page
+		.waitForFunction(
+			() => {
+				const dialog = document.querySelector<HTMLDialogElement>("dialog[open]");
+				const main = document.querySelector("main");
+				return (
+					Math.abs(
+						document.body.scrollHeight - (main?.getBoundingClientRect().height ?? 0) - (dialog?.offsetHeight ?? 0),
+					) < 1
+				);
+			},
+			undefined,
+			{ timeout: 5000 },
+		)
+		.catch(() => undefined);
+	return gap();
+}
+
 const flow = (page: Page) =>
 	page.evaluate(() => ({
 		top: (document.querySelector("h1")?.getBoundingClientRect().top ?? 0) + scrollY,
@@ -123,14 +155,11 @@ test("a push Bar follows content size and releases its space before the next Bar
 	await first.evaluate((element) => element.remove());
 	const next = page.getByRole("dialog", { name: "Next offer", exact: true });
 	await next.waitFor();
-	const nextBox = await next.boundingBox();
-	const main = page.getByRole("main");
-	expect(
-		Math.abs((await flow(page)).height - ((await main.boundingBox())?.height ?? 0) - (nextBox?.height ?? 0)),
-	).toBeLessThan(1);
+	// The page makes room for the Bar once it has its size: wait for the layout to settle, then measure.
+	expect(await settledGap(page)).toBeLessThan(1);
 	await page.keyboard.press("Escape");
 	await next.waitFor({ state: "detached" });
-	expect(Math.abs((await flow(page)).height - ((await main.boundingBox())?.height ?? 0))).toBeLessThan(1);
+	expect(await settledGap(page)).toBeLessThan(1);
 	await page.goto("about:blank");
 	expect(await page.getByRole("dialog").count()).toBe(0);
 	expect(pageErrors(page)).toEqual([]);

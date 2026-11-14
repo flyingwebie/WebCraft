@@ -245,9 +245,7 @@
 	},
 	"setup": {
 		"pageTitle": "Configurazione",
-		"title": "Configura WebCraft",
 		"stepsLabel": "Passaggi della configurazione",
-		"stepCount": "Passaggio {current} di {total}",
 		"stepDone": "Completato",
 		"stepCurrent": "Passaggio attuale",
 		"lockNote": "Questa configurazione guidata si chiude per sempre quando è finita.",
@@ -256,8 +254,6 @@
 		"steps": {
 			"token": {
 				"title": "Token di configurazione",
-				"hint": "Dal log del processo web",
-				"doneHint": "Verificato dal log del server",
 				"heading": "Inserisci il token di configurazione",
 				"intro": "All'avvio di WebCraft, il processo web ha scritto nel suo log un token di configurazione monouso. Copialo da lì per dimostrare che gestisci questo server.",
 				"label": "Token di configurazione",
@@ -265,8 +261,7 @@
 				"required": "Inserisci il token di configurazione."
 			},
 			"account": {
-				"title": "Account del Superadmin",
-				"hint": "Chi gestisce questa Install",
+				"title": "Il tuo account",
 				"heading": "Crea l'account del Superadmin",
 				"intro": "Questa persona amministra tutta l'Install: ogni Workspace, tutto lo Staff e le impostazioni dell'Install.",
 				"name": "Nome e cognome",
@@ -280,8 +275,7 @@
 				"nameRequired": "Inserisci un nome."
 			},
 			"twoFactor": {
-				"title": "Autenticazione a due fattori",
-				"hint": "Passkey o app di autenticazione",
+				"title": "Due fattori",
 				"heading": "Proteggi il tuo account con l'autenticazione a due fattori",
 				"intro": "Una password da sola può essere indovinata o rubata. Con una passkey o un'app di autenticazione, per accedere serve anche qualcosa che hai solo tu.",
 				"recommend": "Il Superadmin può raggiungere tutto in questa Install, quindi la consigliamo vivamente.",
@@ -290,8 +284,7 @@
 				"skip": "Salta per ora"
 			},
 			"email": {
-				"title": "Email dell'Install (SMTP)",
-				"hint": "Invia inviti ed email di sicurezza",
+				"title": "Email",
 				"heading": "Configura l'email dell'Install",
 				"intro": "WebCraft invia inviti, reimpostazioni della password e avvisi di sicurezza tramite un server SMTP, come quello del tuo provider email o di un servizio di invio.",
 				"later": "Per ora puoi saltare questo passo: finché non c'è un SMTP, queste email vengono scritte nel log web. Puoi configurarlo più tardi in Impostazioni dell'Install › Email (SMTP).",
@@ -301,7 +294,6 @@
 			},
 			"modules": {
 				"title": "Moduli",
-				"hint": "Funzioni incluse da approvare",
 				"heading": "Approva i Moduli",
 				"intro": "I Moduli sono funzioni incluse in WebCraft, come i Form o le statistiche dei Site. Ciascuno funziona solo dopo che hai approvato ciò che chiede. Sono selezionati: deseleziona quelli che non vuoi ancora.",
 				"later": "Potrai approvare o ritirare i Moduli più tardi in Impostazioni dell'Install › Moduli.",
@@ -314,7 +306,6 @@
 			},
 			"firstClient": {
 				"title": "Il tuo primo cliente",
-				"hint": "Un Workspace, e il suo primo Site, da cui partire",
 				"heading": "Aggiungi il tuo primo cliente",
 				"intro": "Un Workspace raccoglie un'organizzazione cliente: i suoi Site, le sue persone e i suoi Media. Crea ora il primo, e il suo primo Site, e l'admin si aprirà lì, pronto per iniziare a costruire.",
 				"later": "Per ora puoi saltare questo passo e creare i Workspace più tardi nella pagina Workspace.",
@@ -336,7 +327,6 @@
 	"signIn": {
 		"pageTitle": "Accedi",
 		"heading": "Accedi",
-		"headingNamed": "Accedi a {name}",
 		"email": "Email",
 		"password": "Password",
 		"submit": "Accedi",
@@ -345,28 +335,35 @@
 		"withPasskey": "Accedi con una passkey",
 		"passkeyCancelled": "Nessuna passkey è stata usata. Riprova quando vuoi.",
 		"secondStep": {
-			"heading": "Verifica in due passaggi",
-			"authenticatorBody": "Inserisci il codice che la tua app di autenticazione mostra per questo account.",
+			"heading": "Inserisci il codice",
+			"authenticatorBody": "Inserisci il codice di 6 cifre della tua app di autenticazione.",
 			"backupCodeBody": "Inserisci uno dei codici di backup che hai salvato. Ognuno funziona una volta.",
 			"passkeyBody": "Usa la tua passkey per completare l'accesso.",
 			"code": "Codice dell'app",
-			"codeHelp": "Le 6 cifre che l'app mostra ora.",
 			"backupCode": "Codice di backup",
 			"backupCodeHelp": "Ad esempio abcde-23456.",
 			"submit": "Verifica",
 			"usePasskey": "Usa una passkey",
 			"useBackupCode": "Usa invece un codice di backup",
 			"useAuthenticator": "Usa invece l'app di autenticazione",
-			"startOver": "Accedi di nuovo"
+			"startOver": "Accedi di nuovo",
+			"backupCodeHeading": "Inserisci un codice di backup",
+			"passkeyHeading": "Usa la tua passkey"
+		},
+		"invited": "Hai ricevuto un invito? Usa il link nella tua email.",
+		"tooMany": {
+			"heading": "Troppi tentativi",
+			"newPassword": "Oppure scegli una nuova password.",
+			"tryAgain": "Torna all'accesso"
 		}
 	},
 	"forgotPassword": {
-		"pageTitle": "Reimposta la password",
-		"heading": "Reimposta la password",
-		"body": "Inserisci l'indirizzo email con cui accedi. Ti invieremo un link per scegliere una nuova password.",
+		"pageTitle": "Password dimenticata",
+		"heading": "Password dimenticata",
+		"body": "Ti invieremo via email un link per sceglierne una nuova.",
 		"email": "Email",
 		"emailRequired": "Inserisci il tuo indirizzo email.",
-		"submit": "Inviami un link",
+		"submit": "Invia il link",
 		"backToSignIn": "Torna all'accesso",
 		"sent": {
 			"heading": "Controlla la posta",
@@ -380,7 +377,6 @@
 		"heading": "Scegli una nuova password",
 		"body": "Verrai disconnesso ovunque, poi accederai con la nuova password.",
 		"password": "Nuova password",
-		"passwordHelp": "Almeno 12 caratteri.",
 		"submit": "Cambia password",
 		"done": {
 			"heading": "La password è stata cambiata",
@@ -388,9 +384,9 @@
 			"signIn": "Accedi"
 		},
 		"invalid": {
-			"heading": "Questo link di reimpostazione non funziona",
+			"heading": "Questo link non è più valido",
 			"body": "È già stato usato, è stato sostituito da un link più recente oppure ha più di 30 minuti.",
-			"again": "Chiedi un nuovo link"
+			"again": "Chiedine uno nuovo"
 		}
 	},
 	"shell": {
@@ -1156,15 +1152,15 @@
 	"members": {
 		"pageTitle": "Membri",
 		"heading": "Membri",
-		"intro": "Le persone di {workspace} che possono accedere a questo Workspace. Ogni Membership ha un ruolo e raggiunge tutti i Site o quelli scelti.",
-		"invite": "Invita un Membro",
+		"intro": "Le persone con accesso a {workspace} e ai suoi siti.",
+		"invite": "Invita un membro",
 		"search": "Cerca tra i Membri",
 		"roleFilter": "Mostra ruolo",
 		"allRoles": "Tutti i ruoli",
 		"columns": {
 			"member": "Membro",
 			"role": "Ruolo",
-			"sites": "Accesso ai Site",
+			"sites": "Siti",
 			"actions": "Azioni",
 			"twoFactor": "2FA"
 		},
@@ -1208,32 +1204,29 @@
 		},
 		"sheet": {
 			"inviteTitle": "Invita un Membro",
-			"inviteDescription": "Ricevono un'email nella loro lingua dell'admin con un link valido per 7 giorni.",
 			"email": "Email",
 			"role": "Ruolo",
-			"roleHelp": {
-				"owner": "Gestisce i Membri, modifica e pubblica i Contenuti dei Site che raggiunge.",
-				"editor": "Modifica e pubblica i Contenuti dei Site che raggiunge.",
-				"author": "Modifica i Contenuti e salva Bozze; non può pubblicare."
-			},
-			"access": "Accesso ai Site",
-			"all": "Tutti i Site",
-			"allHelp": "Compresi i Site creati in seguito.",
-			"chosen": "Site scelti",
-			"chosenHelp": "Solo i Site selezionati qui sotto.",
-			"chooseLegend": "Site",
 			"notReached": "Non puoi offrire questo Site con questo ruolo.",
 			"noSites": "Non ci sono ancora Site che puoi offrire.",
 			"chooseSite": "Scegli almeno un Site.",
-			"limitNote": "Non puoi concedere più accesso di quello che hai. Un Owner può offrire solo i Site che raggiunge.",
-			"send": "Invia invito",
+			"send": "Invia l'invito",
 			"cancel": "Annulla",
 			"close": "Chiudi",
 			"sent": "Invito inviato a {email}.",
 			"changeTitle": "Cambia ruolo e Site",
 			"changeDescription": "Cosa può fare {name} in questo Workspace. La modifica vale subito.",
 			"save": "Salva",
-			"saved": "Salvato."
+			"saved": "Salvato.",
+			"emailPlaceholder": "nome@esempio.it",
+			"linkNote": "Riceve un'email con un link valido per 7 giorni.",
+			"roleName": "{role}:",
+			"roleLine": {
+				"owner": "gestisce i membri e può pubblicare",
+				"editor": "modifica e pubblica",
+				"author": "modifica e salva bozze, non può pubblicare"
+			},
+			"reach": "Siti che può raggiungere",
+			"allLater": "Tutti i siti, anche quelli aggiunti in seguito"
 		},
 		"removeDialog": {
 			"title": "Rimuovere {name}?",
@@ -1242,7 +1235,8 @@
 			"cancel": "Annulla",
 			"close": "Chiudi",
 			"removed": "{name} è stato rimosso da {workspace}."
-		}
+		},
+		"siteCount": "{count, plural, one {# sito} other {# siti}}"
 	},
 	"sites": {
 		"pageTitle": "Site",
@@ -1306,12 +1300,11 @@
 		"changedVia": "{person} tramite {client}",
 		"button": "Pubblica tutto",
 		"changesCounted": "{count, plural, one {modifica} other {modifiche}}",
-		"title": "Pubblica tutte le modifiche",
+		"title": "Pubblica tutto",
 		"close": "Chiudi",
 		"loading": "Ricerca delle bozze del sito…",
 		"none": "È tutto pubblicato: questo sito non ha bozze.",
-		"intro": "{count, plural, one {# elemento è diverso} other {# elementi sono diversi}} tra l'indirizzo di staging e ciò che vedono i visitatori. Scegli cosa va online.",
-		"selected": "{selected} di {total} selezionati",
+		"intro": "{count, plural, one {# bozza} other {# bozze}} su questo sito. I visitatori le vedono quando pubblichi.",
 		"content": "Contenuti",
 		"structure": "Struttura",
 		"staffOnly": "Solo Staff",
@@ -1321,9 +1314,8 @@
 		"viewLabel": "Vedi {name} sull'indirizzo di staging",
 		"untitled": "Senza titolo",
 		"changes": "Modificato: {list}",
-		"cacheNote": "La pubblicazione svuota la cache delle pagine di questo sito.",
 		"cancel": "Annulla",
-		"publish": "Pubblica {count, plural, one {# elemento} other {# elementi}}",
+		"publish": "Pubblica {count}",
 		"published": "{count, plural, one {Pubblicato # elemento} other {Pubblicati # elementi}}.",
 		"refused": "Non è stato pubblicato nulla: {name} non può ancora essere pubblicato. {reason}",
 		"kinds": {
@@ -1359,7 +1351,22 @@
 			"notifications": "Notifiche",
 			"autoReply": "Risposta automatica"
 		},
-		"inReview": "{count, plural, one {# bozza attende} other {# bozze attendono}} una revisione. Pubblicarla chiude la revisione e lo dice a chi l'ha inviata."
+		"inReview": "{count, plural, one {# bozza attende} other {# bozze attendono}} una revisione. Pubblicarla chiude la revisione e lo dice a chi l'ha inviata.",
+		"selectAll": "Seleziona tutto",
+		"groups": {
+			"formEmails": "Email dei moduli",
+			"templatesAndComponents": "Template e componenti",
+			"globals": "Globali",
+			"consentBanner": "Banner del consenso",
+			"forms": "Moduli"
+		},
+		"checksOpen": "{count, plural, one {# controllo è aperto} other {# controlli sono aperti}} su questi elementi",
+		"seeChecks": "Vedili",
+		"checksNeverStop": "I controlli non bloccano mai la pubblicazione.",
+		"later": "Pubblica più tardi",
+		"laterHelp": "Scegli un giorno e un'ora invece di adesso.",
+		"changesMore": "Modificato: {list} e altri {count}",
+		"openReview": "In revisione: apri la revisione di {name}"
 	},
 	"staging": {
 		"button": "Staging",
@@ -1563,31 +1570,35 @@
 	},
 	"invite": {
 		"pageTitle": "Accetta l'invito",
-		"heading": "Unisciti a {install} come Staff",
-		"intro": "{inviter} ha invitato {email}. Scegli il tuo nome e una password per creare il tuo account.",
-		"introNoInviter": "Sei stato invitato come {email}. Scegli il tuo nome e una password per creare il tuo account.",
-		"name": "Nome e cognome",
+		"heading": "{inviter} ti ha invitato su {install} come Staff",
+		"name": "Il tuo nome",
 		"nameRequired": "Inserisci un nome.",
 		"password": "Password",
-		"passwordHelp": "Almeno 12 caratteri.",
-		"submit": "Crea account",
+		"submit": "Entra in {name}",
 		"invalid": {
-			"heading": "Questo link di invito non funziona",
+			"heading": "Questo link non è più valido",
 			"body": "È già stato usato, è stato ritirato o ha più di 7 giorni. Chiedi un nuovo invito a chi ti ha invitato.",
 			"signIn": "Vai all'accesso"
 		},
-		"memberHeading": "Entra in {workspace} come {role}",
-		"memberIntro": "{inviter} ha invitato {email} in {workspace} su {install}. Scegli il tuo nome e una password per creare il tuo account.",
-		"memberIntroNoInviter": "Sei stato invitato in {workspace} su {install} come {email}. Scegli il tuo nome e una password per creare il tuo account.",
+		"memberHeading": "{inviter} ti ha invitato in {workspace} come {role}",
 		"join": {
-			"intro": "{inviter} ha invitato {email} in {workspace} su {install}. Hai già un account: accedi per entrare.",
-			"introNoInviter": "Sei stato invitato in {workspace} su {install} come {email}. Hai già un account: accedi per entrare.",
 			"signedInAs": "Hai effettuato l'accesso come {email}.",
 			"otherAccount": "Hai effettuato l'accesso come {current}. Accedendo qui sotto passi a {email}.",
 			"password": "Password",
 			"signIn": "Accedi ed entra",
-			"submit": "Entra in {workspace}"
-		}
+			"submit": "Entra in {workspace}",
+			"haveAccount": "Hai già un account come {email}. Accedi per entrare."
+		},
+		"headingNoInviter": "Sei stato invitato su {install} come Staff",
+		"memberHeadingNoInviter": "Sei stato invitato in {workspace} come {role}",
+		"roleHelp": {
+			"owner": "Gli Owner gestiscono i Membri, modificano e pubblicano i Contenuti.",
+			"editor": "Gli Editor modificano i Contenuti e li pubblicano.",
+			"author": "Gli Author modificano i Contenuti e salvano Bozze; li pubblica un Editor o un Owner.",
+			"staff": "Lo Staff costruisce e cura i Site dei Workspace a cui è assegnato."
+		},
+		"sites": "Raggiungerai {count, plural, one {questo Site} other {questi Site}}: {sites}.",
+		"sitesAll": "Raggiungerai tutti i Site di {workspace}."
 	},
 	"modules": {
 		"pageTitle": "Moduli",
@@ -5383,17 +5394,14 @@
 	"translations": {
 		"pageTitle": "Traduzioni",
 		"heading": "Traduzioni",
-		"intro": "Lingua predefinita: {language}. La traduzione AI riempie le altre lingue; i valori scritti da una persona non vengono mai sovrascritti.",
 		"settings": "Impostazioni di traduzione AI",
 		"translateNow": "Traduci ora",
 		"queued": "{count, plural, =0 {Niente da tradurre: nessuna lingua è Automatica o In revisione.} one {# elemento in coda per la traduzione AI.} other {# elementi in coda per la traduzione AI.}}",
 		"oneLanguage": "Questo Sito ha una lingua sola. Aggiungi lingue in Impostazioni del Sito › Lingue per tradurlo.",
-		"percent": "{percent}%",
 		"progressOf": "Quanto di {language} è tradotto",
 		"mode": "Modalità di traduzione",
 		"modeOf": "Modalità di traduzione di {language}",
 		"modeSaved": "{language} ora è {mode}.",
-		"countsOf": "A che punto è {language}",
 		"toReview": "{count} da rivedere",
 		"outdated": "{count} superate",
 		"missing": "{count} mancanti",
@@ -5424,37 +5432,35 @@
 			"capNear": "Uso AI di questo mese: {percent}% del limite. Al limite la traduzione AI si ferma e il lavoro in attesa riprende il mese prossimo o quando il limite viene alzato."
 		},
 		"queue": {
-			"heading": "Coda di revisione",
-			"intro": "Valori scritti dall'AI che attendono una persona, e Traduzioni superate la cui origine è cambiata dopo che una persona le ha scritte.",
-			"language": "Lingua",
-			"allLanguages": "Tutte le lingue",
 			"approveAll": "Approva tutte ({count})",
-			"empty": "Nulla attende una revisione.",
-			"item": "Elemento",
-			"field": "Campo",
-			"writtenBy": "Scritta da",
-			"status": "Stato",
 			"untitled": "Senza titolo",
-			"ai": "AI",
-			"aPerson": "Una persona",
-			"statusToReview": "Da rivedere",
 			"statusOutdated": "Superata",
-			"source": "Origine",
 			"oldSource": "Origine quando è stata tradotta",
 			"newSource": "Origine adesso",
-			"translation": "Traduzione",
-			"aiTranslation": "Traduzione AI",
-			"personTranslation": "Scritta da una persona",
 			"approve": "Approva",
 			"confirm": "Conferma",
-			"edit": "Modifica",
-			"retranslate": "Ritraduci"
+			"edit": "Modifica"
 		},
 		"editor": {
 			"heading": "{count, plural, one {# Traduzione superata} other {# Traduzioni superate}}",
 			"intro": "La loro origine nella Lingua predefinita è cambiata dopo che una persona le ha scritte. Aggiorna una traduzione, conferma che è ancora giusta, o falla tradurre di nuovo all'AI.",
 			"translation": "Traduzione"
-		}
+		},
+		"screen": {
+			"description": "Cosa è tradotto, obsoleto o in attesa della tua revisione, in ogni lingua.",
+			"languages": "Lingue",
+			"upToDate": "Aggiornata",
+			"translated": "{percent}% tradotto",
+			"nothingWaits": "Non c'è nulla in attesa in {language}.",
+			"waiting": "Cosa è in attesa in {language}",
+			"aiLine": "Tradotto dall'IA, ti aspetta",
+			"outdatedLine": "Obsoleto: il testo in {language} è cambiato",
+			"byAi": "Tradotto dall'IA",
+			"byPerson": "Scritto da una persona",
+			"translateAgain": "Traduci di nuovo",
+			"protected": "«{term}» è un termine protetto, resta come scritto."
+		},
+		"percent": "{percent}%"
 	},
 	"aiTranslation": {
 		"pageTitle": "Traduzione AI",
@@ -6176,36 +6182,36 @@
 			"kept": "Le revisioni salvate prima si conservano {days} giorni, e le {kept} più recenti di ogni elemento comunque. I checkpoint continuano a essere salvati."
 		},
 		"copies": {
-			"heading": "Copie salvate",
-			"older": "Mostra le più vecchie"
+			"older": "Mostra le più vecchie",
+			"revisions": "Revisioni",
+			"checkpoints": "Checkpoint"
 		},
 		"compare": {
 			"none": "Non c'è ancora niente di salvato da confrontare con la bozza.",
-			"heading": "{copy}, accanto alla bozza",
 			"publishedBy": "Pubblicata da {by}",
 			"changedBy": "La bozza come l'ha lasciata {by} alle {time}",
 			"languages": "Lingue confrontate",
 			"changes": "{count, plural, =0 {Nessuna modifica} one {# modifica} other {# modifiche}}",
 			"same": "Niente di diverso: la bozza contiene quello che contiene questa copia.",
-			"differ": "{count, plural, one {# parte è diversa} other {# parti sono diverse}} dalla bozza.",
-			"showAll": "Mostra tutte le parti",
 			"showChanged": "Mostra solo ciò che è diverso",
-			"revisionSide": "Questa revisione",
-			"checkpointSide": "Questo checkpoint",
-			"draftSide": "La bozza ora",
 			"shared": "Condiviso da tutte le lingue",
-			"partChangedBy": "Modificato nella bozza da {by} · {time}"
+			"partChangedBy": "Modificato nella bozza da {by} · {time}",
+			"title": "{type, select, revision {La bozza confrontata con la revisione di {time}} other {La bozza confrontata con il checkpoint di {time}}}",
+			"revisionColumn": "Revisione",
+			"checkpointColumn": "Checkpoint",
+			"draftColumn": "Bozza",
+			"sameFields": "{count, plural, one {# campo è uguale} other {# campi sono uguali}}",
+			"sameParts": "{count, plural, one {# parte è uguale} other {# parti sono uguali}}"
 		},
 		"restore": {
-			"revision": "Ripristina questa revisione",
-			"checkpoint": "Ripristina questo checkpoint",
 			"close": "Chiudi",
 			"titleRevision": "Ripristinare questa revisione nella bozza?",
 			"titleCheckpoint": "Ripristinare questo checkpoint nella bozza?",
 			"body": "Ciò che conteneva alle {time} sostituisce la bozza. La bozza com'è ora si conserva prima come checkpoint, così puoi tornare indietro. Non si pubblica niente: i visitatori lo vedono quando l'elemento viene pubblicato.",
 			"cancel": "Annulla",
 			"confirm": "Ripristina nella bozza",
-			"done": "Ripristinato nella bozza. Non è stato pubblicato niente."
+			"done": "Ripristinato nella bozza. Non è stato pubblicato niente.",
+			"never": "Il ripristino non pubblica mai."
 		},
 		"postType": {
 			"label": "Salva una revisione ogni volta che si pubblica un contenuto di {name}",
@@ -6215,7 +6221,14 @@
 		},
 		"link": "Cronologia",
 		"linkNamed": ": {name}",
-		"emailsLink": "Cronologia delle email"
+		"emailsLink": "Cronologia delle email",
+		"liveNow": "Online ora",
+		"time": {
+			"today": "Oggi, {time}",
+			"yesterday": "Ieri, {time}",
+			"day": "{day} {month}, {time}",
+			"dayYear": "{day} {month} {year}, {time}"
+		}
 	},
 	"historySettings": {
 		"pageTitle": "Revisioni",
@@ -7448,7 +7461,24 @@
 		},
 		"authorHelp": "Le tue modifiche sono salvate come bozza. Inviale in revisione quando sono pronte: le pubblica un Editor o un Owner.",
 		"inReviewHelp": "È in revisione. Puoi continuare a modificarlo; chi lo rivede vede cosa è cambiato dopo l'invio.",
-		"navBadge": "{count} da rivedere"
+		"navBadge": "{count} da rivedere",
+		"sheet": {
+			"title": "Revisione: {name}",
+			"loading": "Caricamento della revisione…",
+			"sent": "{name} l'ha inviato: {when}",
+			"decided": "Qualcuno ha già agito su questa revisione.",
+			"open": "Apri la pagina",
+			"whatChanged": "Cosa è cambiato",
+			"new": "Nuovo",
+			"newLine": "Mai pubblicato: è tutto nuovo",
+			"changedLine": "Modificato nella bozza",
+			"noDetail": "La bozza è diversa da ciò che vedono i visitatori.",
+			"commentFor": "Commento per {name}",
+			"commentPlaceholder": "Aggiungi un commento (facoltativo)",
+			"commentHelp": "Per rimandarlo indietro serve: {name} lo vede accanto alla bozza.",
+			"publish": "Pubblica",
+			"openReview": "Apri la revisione"
+		}
 	},
 	"contentApi": {
 		"heading": "Content API",
@@ -8146,7 +8176,28 @@
 			"search": "Template dei risultati di ricerca",
 			"designSystem": "Sistema di design"
 		},
-		"popupPhoneEarly": "Su telefono, attendi almeno 5 secondi prima di aprire un Popup."
+		"popupPhoneEarly": "Su telefono, attendi almeno 5 secondi prima di aprire un Popup.",
+		"screen": {
+			"description": "Cose da sistemare. Non bloccano mai la pubblicazione.",
+			"counts": "Controlli aperti per tipo",
+			"kinds": {
+				"accessibility": "Accessibilità",
+				"search": "Ricerca",
+				"words": "Parole e link"
+			},
+			"filter": "Mostra i controlli di un tipo",
+			"all": "Tutti {count}",
+			"kindCount": "{kind} {count}",
+			"search": "Cerca nei controlli",
+			"noneFound": "Nessun controllo aperto corrisponde.",
+			"open": "Apri",
+			"items": {
+				"page": "Pagina",
+				"entry": "Voce",
+				"component": "Componente",
+				"popup": "Popup"
+			}
+		}
 	},
 	"statement": {
 		"heading": "Dichiarazione di accessibilità",
@@ -8465,6 +8516,14 @@
 			"formLaterTitle": "I Form si aprono nel luogo Form",
 			"formLaterText": "Il luogo Form arriva con una parte successiva dell'area di costruzione. Fino ad allora, crea i Form nell'admin.",
 			"openIn": "Apri nell'area di costruzione"
+		}
+	},
+	"auth": {
+		"madeWith": "Realizzato con WebCraft",
+		"passwordRules": {
+			"length": "Almeno 12 caratteri",
+			"met": "fatto",
+			"notMet": "non ancora"
 		}
 	}
 }

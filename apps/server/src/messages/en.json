@@ -245,9 +245,7 @@
 	},
 	"setup": {
 		"pageTitle": "Setup",
-		"title": "Set up WebCraft",
 		"stepsLabel": "Setup steps",
-		"stepCount": "Step {current} of {total}",
 		"stepDone": "Done",
 		"stepCurrent": "Current step",
 		"lockNote": "This wizard locks for good once setup is finished.",
@@ -256,8 +254,6 @@
 		"steps": {
 			"token": {
 				"title": "Setup token",
-				"hint": "From the web process's log",
-				"doneHint": "Verified from the server log",
 				"heading": "Enter the setup token",
 				"intro": "When WebCraft started, the web process wrote a one-time setup token in its log. Copy it from there to show that you run this server.",
 				"label": "Setup token",
@@ -265,8 +261,7 @@
 				"required": "Enter the setup token."
 			},
 			"account": {
-				"title": "Superadmin account",
-				"hint": "Who runs this Install",
+				"title": "Your account",
 				"heading": "Create the Superadmin account",
 				"intro": "This person administers the whole Install: every Workspace, all Staff and the Install settings.",
 				"name": "Full name",
@@ -280,8 +275,7 @@
 				"nameRequired": "Enter a name."
 			},
 			"twoFactor": {
-				"title": "Two-factor authentication",
-				"hint": "Passkey or authenticator app",
+				"title": "Two-factor",
 				"heading": "Protect your account with two-factor authentication",
 				"intro": "A password alone can be guessed or stolen. With a passkey or an authenticator app, signing in also needs something only you have.",
 				"recommend": "The Superadmin can reach everything on this Install, so we strongly recommend it.",
@@ -290,8 +284,7 @@
 				"skip": "Skip for now"
 			},
 			"email": {
-				"title": "Install email (SMTP)",
-				"hint": "Sends invites and security email",
+				"title": "Email",
 				"heading": "Set up the Install email",
 				"intro": "WebCraft sends invites, password resets and security notices through an SMTP server, such as your email provider's or a sending service's.",
 				"later": "You can skip this for now: until an SMTP is set, these emails are written to the web log. You can set it later in Install settings › Email (SMTP).",
@@ -301,7 +294,6 @@
 			},
 			"modules": {
 				"title": "Modules",
-				"hint": "Built-in features to approve",
 				"heading": "Approve the Modules",
 				"intro": "Modules are features that come with WebCraft, such as Forms or Site analytics. Each runs only once you approve what it asks for. They are ticked: untick any you don't want yet.",
 				"later": "You can approve or withdraw Modules later in Install settings › Modules.",
@@ -314,7 +306,6 @@
 			},
 			"firstClient": {
 				"title": "Your first client",
-				"hint": "A Workspace, and its first Site, to start in",
 				"heading": "Add your first client",
 				"intro": "A Workspace holds one client organisation: its Sites, its people and its Media. Create the first one now, and its first Site, and the admin opens there, ready for you to start building.",
 				"later": "You can skip this for now and create Workspaces later on the Workspaces page.",
@@ -336,7 +327,6 @@
 	"signIn": {
 		"pageTitle": "Sign in",
 		"heading": "Sign in",
-		"headingNamed": "Sign in to {name}",
 		"email": "Email",
 		"password": "Password",
 		"submit": "Sign in",
@@ -345,34 +335,41 @@
 		"withPasskey": "Sign in with a passkey",
 		"passkeyCancelled": "No passkey was used. Try again when you're ready.",
 		"secondStep": {
-			"heading": "Two-step verification",
-			"authenticatorBody": "Enter the code your authenticator app shows for this account.",
+			"heading": "Enter the code",
+			"authenticatorBody": "Enter the 6-digit code from your authenticator app.",
 			"backupCodeBody": "Enter one of the backup codes you saved. Each works once.",
 			"passkeyBody": "Use your passkey to finish signing in.",
 			"code": "Code from the app",
-			"codeHelp": "The 6 digits the app shows now.",
 			"backupCode": "Backup code",
 			"backupCodeHelp": "Such as abcde-23456.",
 			"submit": "Verify",
 			"usePasskey": "Use a passkey",
 			"useBackupCode": "Use a backup code instead",
 			"useAuthenticator": "Use your authenticator app instead",
-			"startOver": "Sign in again"
+			"startOver": "Sign in again",
+			"backupCodeHeading": "Enter a backup code",
+			"passkeyHeading": "Use your passkey"
+		},
+		"invited": "Invited? Use the link in your email.",
+		"tooMany": {
+			"heading": "Too many tries",
+			"newPassword": "Or choose a new password.",
+			"tryAgain": "Back to sign in"
 		}
 	},
 	"forgotPassword": {
-		"pageTitle": "Reset your password",
-		"heading": "Reset your password",
-		"body": "Enter the email address you sign in with. We'll email you a link to choose a new password.",
+		"pageTitle": "Forgot your password",
+		"heading": "Forgot your password",
+		"body": "We will email you a link to choose a new one.",
 		"email": "Email",
 		"emailRequired": "Enter your email address.",
-		"submit": "Email me a link",
+		"submit": "Send the link",
 		"backToSignIn": "Back to sign in",
 		"sent": {
 			"heading": "Check your email",
 			"body": "If {email} has an account here, a link to choose a new password is on its way. It works once, for 30 minutes.",
 			"help": "Nothing after a few minutes? Check your spam folder, or ask whoever runs this Install.",
-			"again": "Use another address"
+			"again": "Use a different address"
 		}
 	},
 	"resetPassword": {
@@ -380,7 +377,6 @@
 		"heading": "Choose a new password",
 		"body": "You'll be signed out everywhere, then you sign in with the new password.",
 		"password": "New password",
-		"passwordHelp": "At least 12 characters.",
 		"submit": "Change password",
 		"done": {
 			"heading": "Your password is changed",
@@ -388,9 +384,9 @@
 			"signIn": "Sign in"
 		},
 		"invalid": {
-			"heading": "This reset link doesn't work",
+			"heading": "This link is no longer good",
 			"body": "It was already used, replaced by a newer link, or is more than 30 minutes old.",
-			"again": "Ask for a new link"
+			"again": "Ask for a new one"
 		}
 	},
 	"shell": {
@@ -1156,15 +1152,15 @@
 	"members": {
 		"pageTitle": "Members",
 		"heading": "Members",
-		"intro": "People from {workspace} who can sign in to this Workspace. Each Membership has one role and reaches all Sites or chosen ones.",
-		"invite": "Invite Member",
+		"intro": "People with access to {workspace} and its Sites.",
+		"invite": "Invite a Member",
 		"search": "Search Members",
 		"roleFilter": "Show role",
 		"allRoles": "All roles",
 		"columns": {
 			"member": "Member",
 			"role": "Role",
-			"sites": "Site access",
+			"sites": "Sites",
 			"actions": "Actions",
 			"twoFactor": "2FA"
 		},
@@ -1208,32 +1204,29 @@
 		},
 		"sheet": {
 			"inviteTitle": "Invite a Member",
-			"inviteDescription": "They get an email in their Admin language with a link valid for 7 days.",
 			"email": "Email",
 			"role": "Role",
-			"roleHelp": {
-				"owner": "Manages Members, edits and publishes Content on the Sites they reach.",
-				"editor": "Edits and publishes Content on the Sites they reach.",
-				"author": "Edits Content and saves Drafts; can't publish."
-			},
-			"access": "Site access",
-			"all": "All Sites",
-			"allHelp": "Including Sites created later.",
-			"chosen": "Chosen Sites",
-			"chosenHelp": "Only the Sites ticked below.",
-			"chooseLegend": "Sites",
 			"notReached": "You can't offer this Site with this role.",
 			"noSites": "There are no Sites you can offer yet.",
 			"chooseSite": "Choose at least one Site.",
-			"limitNote": "You can't grant more access than you hold. An Owner can only offer the Sites they reach.",
-			"send": "Send invite",
+			"send": "Send invitation",
 			"cancel": "Cancel",
 			"close": "Close",
 			"sent": "Invite sent to {email}.",
 			"changeTitle": "Change role and Sites",
 			"changeDescription": "What {name} can do in this Workspace. The change takes effect at once.",
 			"save": "Save",
-			"saved": "Saved."
+			"saved": "Saved.",
+			"emailPlaceholder": "name@example.com",
+			"linkNote": "They get an email with a link that works for 7 days.",
+			"roleName": "{role}:",
+			"roleLine": {
+				"owner": "manages Members and can publish",
+				"editor": "edits and publishes",
+				"author": "edits and saves Drafts, cannot publish"
+			},
+			"reach": "Sites they can reach",
+			"allLater": "All Sites, also those added later"
 		},
 		"removeDialog": {
 			"title": "Remove {name}?",
@@ -1242,7 +1235,8 @@
 			"cancel": "Cancel",
 			"close": "Close",
 			"removed": "{name} was removed from {workspace}."
-		}
+		},
+		"siteCount": "{count, plural, one {# Site} other {# Sites}}"
 	},
 	"sites": {
 		"pageTitle": "Sites",
@@ -1306,12 +1300,11 @@
 		"changedVia": "{person} via {client}",
 		"button": "Publish all",
 		"changesCounted": "{count, plural, one {change} other {changes}}",
-		"title": "Publish all changes",
+		"title": "Publish all",
 		"close": "Close",
 		"loading": "Looking for the Site's Drafts…",
 		"none": "Everything is published: this Site has no Drafts.",
-		"intro": "{count, plural, one {# item differs} other {# items differ}} between the Staging address and what visitors see. Choose what goes live.",
-		"selected": "{selected} of {total} selected",
+		"intro": "{count, plural, one {# Draft} other {# Drafts}} on this Site. Visitors see them once you publish.",
 		"content": "Content",
 		"structure": "Structure",
 		"staffOnly": "Staff only",
@@ -1321,9 +1314,8 @@
 		"viewLabel": "View {name} on the Staging address",
 		"untitled": "Untitled",
 		"changes": "Changed: {list}",
-		"cacheNote": "Publishing clears this Site's page cache.",
 		"cancel": "Cancel",
-		"publish": "Publish {count, plural, one {# item} other {# items}}",
+		"publish": "Publish {count}",
 		"published": "Published {count, plural, one {# item} other {# items}}.",
 		"refused": "Nothing was published: {name} can't be published yet. {reason}",
 		"kinds": {
@@ -1359,7 +1351,22 @@
 			"notifications": "Notifications",
 			"autoReply": "Auto-reply"
 		},
-		"inReview": "{count, plural, one {# Draft is} other {# Drafts are}} waiting for review. Publishing one ends its Review and tells its Author."
+		"inReview": "{count, plural, one {# Draft is} other {# Drafts are}} waiting for review. Publishing one ends its Review and tells its Author.",
+		"selectAll": "Select all",
+		"groups": {
+			"formEmails": "Emails of Forms",
+			"templatesAndComponents": "Templates and Components",
+			"globals": "Globals",
+			"consentBanner": "Consent banner",
+			"forms": "Forms"
+		},
+		"checksOpen": "{count, plural, one {# Check is} other {# Checks are}} open on these",
+		"seeChecks": "See them",
+		"checksNeverStop": "Checks never stop publishing.",
+		"later": "Publish later",
+		"laterHelp": "Choose a day and a time instead of now.",
+		"changesMore": "Changed: {list} and {count} more",
+		"openReview": "In review: open the Review of {name}"
 	},
 	"staging": {
 		"button": "Staging",
@@ -1563,31 +1570,35 @@
 	},
 	"invite": {
 		"pageTitle": "Accept your invite",
-		"heading": "Join {install} as Staff",
-		"intro": "{inviter} invited {email}. Choose your name and a password to create your account.",
-		"introNoInviter": "You were invited as {email}. Choose your name and a password to create your account.",
-		"name": "Full name",
+		"heading": "{inviter} invited you to {install} as Staff",
+		"name": "Your name",
 		"nameRequired": "Enter a name.",
 		"password": "Password",
-		"passwordHelp": "At least 12 characters.",
-		"submit": "Create account",
+		"submit": "Join {name}",
 		"invalid": {
-			"heading": "This invite link doesn't work",
+			"heading": "This link is no longer good",
 			"body": "It was already used, was withdrawn, or is more than 7 days old. Ask the person who invited you for a new invite.",
 			"signIn": "Go to sign in"
 		},
-		"memberHeading": "Join {workspace} as {role}",
-		"memberIntro": "{inviter} invited {email} to {workspace} on {install}. Choose your name and a password to create your account.",
-		"memberIntroNoInviter": "You were invited to {workspace} on {install} as {email}. Choose your name and a password to create your account.",
+		"memberHeading": "{inviter} invited you to {workspace} as an {role}",
 		"join": {
-			"intro": "{inviter} invited {email} to {workspace} on {install}. You already have an account: sign in to join.",
-			"introNoInviter": "You were invited to {workspace} on {install} as {email}. You already have an account: sign in to join.",
 			"signedInAs": "You're signed in as {email}.",
 			"otherAccount": "You're signed in as {current}. Signing in below switches to {email}.",
 			"password": "Password",
 			"signIn": "Sign in and join",
-			"submit": "Join {workspace}"
-		}
+			"submit": "Join {workspace}",
+			"haveAccount": "You already have an account as {email}. Sign in to join."
+		},
+		"headingNoInviter": "You're invited to {install} as Staff",
+		"memberHeadingNoInviter": "You're invited to {workspace} as an {role}",
+		"roleHelp": {
+			"owner": "Owners manage Members, and edit and publish Content.",
+			"editor": "Editors can edit Content and publish it.",
+			"author": "Authors edit Content and save Drafts; an Editor or Owner publishes them.",
+			"staff": "Staff build and look after the Sites of the Workspaces they're assigned to."
+		},
+		"sites": "You will reach {count, plural, one {this Site} other {these Sites}}: {sites}.",
+		"sitesAll": "You will reach every Site of {workspace}."
 	},
 	"modules": {
 		"pageTitle": "Modules",
@@ -5383,17 +5394,14 @@
 	"translations": {
 		"pageTitle": "Translations",
 		"heading": "Translations",
-		"intro": "Default language: {language}. AI translation fills the other languages; values a person wrote are never overwritten.",
 		"settings": "AI translation settings",
 		"translateNow": "Translate now",
 		"queued": "{count, plural, =0 {Nothing to translate: no language is Automatic or Review.} one {# item queued for AI translation.} other {# items queued for AI translation.}}",
 		"oneLanguage": "This Site has one language. Add languages in Site settings › Languages to translate it.",
-		"percent": "{percent}%",
 		"progressOf": "How much of {language} is translated",
 		"mode": "Translation mode",
 		"modeOf": "Translation mode of {language}",
 		"modeSaved": "{language} is now {mode}.",
-		"countsOf": "Where {language} stands",
 		"toReview": "{count} to review",
 		"outdated": "{count} outdated",
 		"missing": "{count} missing",
@@ -5424,37 +5432,35 @@
 			"capNear": "AI usage this month: {percent}% of the cap. At the cap, AI translation stops and waiting work goes on next month or once the cap is raised."
 		},
 		"queue": {
-			"heading": "Review queue",
-			"intro": "AI-written values waiting for a person, and Outdated translations whose source changed after a person wrote them.",
-			"language": "Language",
-			"allLanguages": "All languages",
 			"approveAll": "Approve all {count}",
-			"empty": "Nothing waits for review.",
-			"item": "Item",
-			"field": "Field",
-			"writtenBy": "Written by",
-			"status": "Status",
 			"untitled": "Untitled",
-			"ai": "AI",
-			"aPerson": "A person",
-			"statusToReview": "To review",
 			"statusOutdated": "Outdated",
-			"source": "Source",
 			"oldSource": "Source when it was translated",
 			"newSource": "Source now",
-			"translation": "Translation",
-			"aiTranslation": "AI translation",
-			"personTranslation": "Written by a person",
 			"approve": "Approve",
 			"confirm": "Confirm",
-			"edit": "Edit",
-			"retranslate": "Re-translate"
+			"edit": "Edit"
 		},
 		"editor": {
 			"heading": "{count, plural, one {# Outdated translation} other {# Outdated translations}}",
 			"intro": "Their source in the Default language changed after a person wrote them. Update a translation, confirm it is still right, or have the AI translate it again.",
 			"translation": "Translation"
-		}
+		},
+		"screen": {
+			"description": "What is translated, outdated, or waits for your review, in each language.",
+			"languages": "Languages",
+			"upToDate": "Up to date",
+			"translated": "{percent}% translated",
+			"nothingWaits": "Nothing waits in {language}.",
+			"waiting": "What waits in {language}",
+			"aiLine": "Translated by AI, waits for you",
+			"outdatedLine": "Outdated: the {language} changed",
+			"byAi": "Translated by AI",
+			"byPerson": "Written by a person",
+			"translateAgain": "Translate again",
+			"protected": "“{term}” is a Protected term, it stays as written."
+		},
+		"percent": "{percent}%"
 	},
 	"aiTranslation": {
 		"pageTitle": "AI translation",
@@ -6176,36 +6182,36 @@
 			"kept": "Revisions saved before are kept {days} days, and each item's newest {kept} however old. Checkpoints are still saved."
 		},
 		"copies": {
-			"heading": "Saved copies",
-			"older": "Show older"
+			"older": "Show older",
+			"revisions": "Revisions",
+			"checkpoints": "Checkpoints"
 		},
 		"compare": {
 			"none": "Nothing is saved to compare with the Draft yet.",
-			"heading": "{copy}, next to the Draft",
 			"publishedBy": "Published by {by}",
 			"changedBy": "The Draft as {by} left it at {time}",
 			"languages": "Languages compared",
 			"changes": "{count, plural, =0 {No changes} one {# change} other {# changes}}",
 			"same": "Nothing differs: the Draft holds what this holds.",
-			"differ": "{count, plural, one {# part differs} other {# parts differ}} from the Draft.",
-			"showAll": "Show every part",
 			"showChanged": "Show only what differs",
-			"revisionSide": "This Revision",
-			"checkpointSide": "This Checkpoint",
-			"draftSide": "The Draft now",
 			"shared": "Shared by every language",
-			"partChangedBy": "Changed in the Draft by {by} · {time}"
+			"partChangedBy": "Changed in the Draft by {by} · {time}",
+			"title": "{type, select, revision {The Draft compared with the Revision of {time}} other {The Draft compared with the Checkpoint of {time}}}",
+			"revisionColumn": "Revision",
+			"checkpointColumn": "Checkpoint",
+			"draftColumn": "Draft",
+			"sameFields": "{count, plural, one {# Field is the same} other {# Fields are the same}}",
+			"sameParts": "{count, plural, one {# part is the same} other {# parts are the same}}"
 		},
 		"restore": {
-			"revision": "Restore this Revision",
-			"checkpoint": "Restore this Checkpoint",
 			"close": "Close",
 			"titleRevision": "Restore this Revision into the Draft?",
 			"titleCheckpoint": "Restore this Checkpoint into the Draft?",
 			"body": "What it held at {time} replaces the Draft. The Draft as it is now is kept as a Checkpoint first, so you can go back. Nothing is published: visitors see it once the item is published.",
 			"cancel": "Cancel",
 			"confirm": "Restore into the Draft",
-			"done": "Restored into the Draft. Nothing was published."
+			"done": "Restored into the Draft. Nothing was published.",
+			"never": "Restoring never publishes."
 		},
 		"postType": {
 			"label": "Save a Revision each time an Entry of {name} is published",
@@ -6215,7 +6221,14 @@
 		},
 		"link": "History",
 		"linkNamed": ": {name}",
-		"emailsLink": "Emails' history"
+		"emailsLink": "Emails' history",
+		"liveNow": "Live now",
+		"time": {
+			"today": "Today, {time}",
+			"yesterday": "Yesterday, {time}",
+			"day": "{day} {month}, {time}",
+			"dayYear": "{day} {month} {year}, {time}"
+		}
 	},
 	"historySettings": {
 		"pageTitle": "Revisions",
@@ -7448,7 +7461,24 @@
 		},
 		"authorHelp": "Your changes are saved as a Draft. Submit them for review when they're ready: an Editor or Owner publishes them.",
 		"inReviewHelp": "It's In review. You can go on editing; the reviewer sees what changed since you submitted it.",
-		"navBadge": "{count} to review"
+		"navBadge": "{count} to review",
+		"sheet": {
+			"title": "Review: {name}",
+			"loading": "Loading the Review…",
+			"sent": "{name} sent this {when}",
+			"decided": "Someone already acted on this Review.",
+			"open": "Open the page",
+			"whatChanged": "What changed",
+			"new": "New",
+			"newLine": "Never published: all of it is new",
+			"changedLine": "Changed in the Draft",
+			"noDetail": "The Draft differs from what visitors see.",
+			"commentFor": "Comment for {name}",
+			"commentPlaceholder": "Add a comment (optional)",
+			"commentHelp": "Sending it back needs one: {name} sees it beside the Draft.",
+			"publish": "Publish",
+			"openReview": "Open the Review"
+		}
 	},
 	"contentApi": {
 		"heading": "Content API",
@@ -8146,7 +8176,28 @@
 			"search": "Search results template",
 			"designSystem": "Design system"
 		},
-		"popupPhoneEarly": "On phones, wait at least 5 seconds before opening a Popup."
+		"popupPhoneEarly": "On phones, wait at least 5 seconds before opening a Popup.",
+		"screen": {
+			"description": "Things worth fixing. They never stop publishing.",
+			"counts": "Open Checks by kind",
+			"kinds": {
+				"accessibility": "Accessibility",
+				"search": "Search",
+				"words": "Words and links"
+			},
+			"filter": "Show Checks of a kind",
+			"all": "All {count}",
+			"kindCount": "{kind} {count}",
+			"search": "Search checks",
+			"noneFound": "No open Check matches.",
+			"open": "Open",
+			"items": {
+				"page": "Page",
+				"entry": "Entry",
+				"component": "Component",
+				"popup": "Popup"
+			}
+		}
 	},
 	"statement": {
 		"heading": "Accessibility statement",
@@ -8465,6 +8516,14 @@
 			"formLaterTitle": "Forms open in the Forms place",
 			"formLaterText": "The Forms place comes with a later part of the building area. Until then, build Forms in the admin.",
 			"openIn": "Open in the building area"
+		}
+	},
+	"auth": {
+		"madeWith": "Made with WebCraft",
+		"passwordRules": {
+			"length": "At least 12 characters",
+			"met": "met",
+			"notMet": "not met yet"
 		}
 	}
 }

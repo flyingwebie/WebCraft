@@ -1,13 +1,17 @@
 import { type AdminLanguageCode, adminLanguageDirection } from "@webcraft/core/admin-languages";
-import { CheckIcon, LockIcon } from "lucide-react";
+import { Separator } from "@webcraft/ui/components/separator.tsx";
+import { cn } from "@webcraft/ui/lib/utils.ts";
+import { CheckIcon } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
+import { AuthPage } from "../auth/AuthPage.tsx";
 import { AdminIntl, useT } from "../i18n.tsx";
 import type { ShellContext } from "../shell/context.ts";
 import { WIZARD_STEPS, type WizardStep } from "./steps.tsx";
 
 /**
- * The setup wizard. Before the Superadmin exists it is open to whoever holds the setup token; once
+ * The setup wizard, on the card the sign-in pages use (WebCraft's mark above it: the agency has no
+ * name yet): the steps down the left, the current one at the right. Before the Superadmin exists it is open to whoever holds the setup token; once
  * the account is created it goes on, signed in as the Superadmin, until the last step finishes setup.
  */
 export function SetupWizard({ shell, linkedToken }: { shell: ShellContext; linkedToken?: string }) {
@@ -67,62 +71,44 @@ function Wizard({
 	const { Panel } = step;
 
 	return (
-		<main
-			id="main"
-			tabIndex={-1}
-			className="bg-muted flex min-h-svh items-center justify-center p-4 outline-none md:p-10"
-		>
-			<div className="bg-card text-card-foreground grid w-full max-w-5xl overflow-hidden rounded-xl border shadow-sm md:min-h-[36rem] md:grid-cols-[19rem_1fr]">
-				<div className="bg-sidebar flex flex-col gap-8 border-b p-6 md:border-e md:border-b-0 md:p-8">
-					<p className="flex items-center gap-3 text-lg font-semibold">
-						<span
-							className="bg-foreground text-background flex size-9 items-center justify-center rounded-md"
-							aria-hidden="true"
-						>
-							W
-						</span>
-						{t("setup.title")}
-					</p>
-					<ol aria-label={t("setup.stepsLabel")} className="flex flex-col gap-5">
+		<AuthPage mark="webcraft" width="wide" below={t("setup.lockNote")} className="gap-0 p-0">
+			<div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-stretch sm:gap-8 sm:p-8">
+				<div className="sm:w-44 sm:shrink-0">
+					<ol aria-label={t("setup.stepsLabel")} className="flex flex-col gap-1">
 						{WIZARD_STEPS.map((item, position) => {
 							const done = position < index;
 							const current = position === index;
 							return (
-								<li key={item.id} aria-current={current ? "step" : undefined} className="flex items-start gap-3">
+								<li
+									key={item.id}
+									aria-current={current ? "step" : undefined}
+									className="flex items-center gap-2.5 text-sm"
+								>
 									<span
-										className={`flex size-7 shrink-0 items-center justify-center rounded-full border text-sm font-medium ${
+										className={cn(
+											"flex size-[22px] shrink-0 items-center justify-center rounded-full text-xs font-semibold",
 											done
-												? "bg-primary text-primary-foreground border-transparent"
+												? "bg-green-700 text-white dark:bg-green-600"
 												: current
-													? "bg-foreground text-background border-transparent"
-													: "text-muted-foreground"
-										}`}
+													? "bg-primary text-primary-foreground"
+													: "text-muted-foreground border",
+										)}
 										aria-hidden="true"
 									>
-										{done ? <CheckIcon className="size-4" /> : position + 1}
+										{done ? <CheckIcon className="size-[13px]" strokeWidth={3} /> : position + 1}
 									</span>
-									<span className="flex flex-col">
-										<span className={current || done ? "font-medium" : "text-muted-foreground"}>
-											{t(item.title)}
-											{done ? <span className="sr-only"> ({t("setup.stepDone")})</span> : null}
-										</span>
-										<span className="text-muted-foreground text-sm">
-											{t(done && item.doneHint ? item.doneHint : item.hint)}
-										</span>
+									<span className={current ? "font-semibold" : done ? undefined : "text-muted-foreground"}>
+										{t(item.title)}
+										{done ? <span className="sr-only"> ({t("setup.stepDone")})</span> : null}
 									</span>
 								</li>
 							);
 						})}
 					</ol>
-					<p className="text-muted-foreground mt-auto flex items-start gap-2 text-sm">
-						<LockIcon className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-						{t("setup.lockNote")}
-					</p>
 				</div>
-				<div ref={panel} className="flex flex-col gap-6 p-6 md:p-10">
-					<p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
-						{t("setup.stepCount", { current: index + 1, total: WIZARD_STEPS.length })}
-					</p>
+				<Separator orientation="vertical" className="hidden sm:block" />
+				<Separator className="sm:hidden" />
+				<div ref={panel} className="flex min-w-0 flex-1 flex-col">
 					<Panel
 						key={step.id}
 						token={token}
@@ -138,7 +124,7 @@ function Wizard({
 					/>
 				</div>
 			</div>
-		</main>
+		</AuthPage>
 	);
 }
 

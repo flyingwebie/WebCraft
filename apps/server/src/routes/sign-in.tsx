@@ -2,11 +2,12 @@ import { createFileRoute, Link, redirect, useRouter } from "@tanstack/react-rout
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
-import { KeyRoundIcon } from "lucide-react";
+import { KeyRoundIcon, LockIcon } from "lucide-react";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { z } from "zod";
-
 import { getApi } from "../ui/api.ts";
+import { AuthHeading, AuthLead, AuthPage, FormAlert } from "../ui/auth/AuthPage.tsx";
+import { CodeInput } from "../ui/auth/CodeInput.tsx";
 import { errorCode, errorMessage } from "../ui/errors.ts";
 import { type MessageKey, pageTitle, useT } from "../ui/i18n.tsx";
 import { localPath } from "../ui/local-path.ts";
@@ -27,6 +28,15 @@ export const Route = createFileRoute("/sign-in")({
 
 type SecondStepMethod = "authenticator" | "backupCode" | "passkey";
 
+/** What the card shows: the password form, the second step, or "Too many tries" with its message. */
+type View =
+	| { step: "password" }
+	| { step: "second"; methods: SecondStepMethod[] }
+	| { step: "locked"; message: MessageKey };
+
+/** The answers that mean "too many tries": a locked account, or the per-address limit. */
+const TOO_MANY = new Set(["ACCOUNT_LOCKED", "TOO_MANY_REQUESTS"]);
+
 /**
  * Signing in: email and password, then, for a person with two-factor authentication, the second
  * step (a code from their authenticator app, a backup code, or a passkey). A passkey alone signs in
@@ -35,9 +45,8 @@ type SecondStepMethod = "authenticator" | "backupCode" | "passkey";
 function SignInPage() {
 	const t = useT();
 	const router = useRouter();
-	const { shell } = Route.useRouteContext();
 	const search = Route.useSearch();
-	const [secondStep, setSecondStep] = useState<SecondStepMethod[] | null>(null);
+	const [view, setView] = useState<View>({ step: "password" });
 
 	const signedIn = async () => {
 		// Every navigation reloads the shell context, so the admin knows who signed in.
@@ -45,29 +54,33 @@ function SignInPage() {
 	};
 
 	return (
-		<main id="main" tabIndex={-1} className="bg-muted flex min-h-svh items-center justify-center p-4 outline-none">
-			<div className="bg-card text-card-foreground w-full max-w-sm rounded-xl border p-8 shadow-sm">
-				{secondStep ? (
-					<SecondStep methods={secondStep} onSignedIn={signedIn} onStartOver={() => setSecondStep(null)} />
-				) : (
-					<>
-						<h1 className="mb-6 text-2xl font-semibold tracking-tight">
-							{shell.install.name ? t("signIn.headingNamed", { name: shell.install.name }) : t("signIn.heading")}
-						</h1>
-						<PasswordStep onSignedIn={signedIn} onSecondStep={setSecondStep} />
-					</>
-				)}
-			</div>
-		</main>
+		<AuthPage below={view.step === "password" ? t("signIn.invited") : undefined}>
+			{view.step === "second" ? (
+				<SecondStep methods={view.methods} onSignedIn={signedIn} onStartOver={() => setView({ step: "password" })} />
+			) : view.step === "locked" ? (
+				<TooManyTries message={view.message} onStartOver={() => setView({ step: "password" })} />
+			) : (
+				<>
+					<AuthHeading size="large">{t("signIn.heading")}</AuthHeading>
+					<PasswordStep
+						onSignedIn={signedIn}
+						onSecondStep={(methods) => setView({ step: "second", methods })}
+						onTooMany={(message) => setView({ step: "locked", message })}
+					/>
+				</>
+			)}
+		</AuthPage>
 	);
 }
 
 function PasswordStep({
 	onSignedIn,
 	onSecondStep,
+	onTooMany,
 }: {
 	onSignedIn(): Promise<void>;
 	onSecondStep(methods: SecondStepMethod[]): void;
+	onTooMany(message: MessageKey): void;
 }) {
 	const t = useT();
 	const canUsePasskeys = usePasskeysAvailable();
@@ -75,6 +88,12 @@ function PasswordStep({
 	const [password, setPassword] = useState("");
 	const [error, setError] = useState<MessageKey | null>(null);
 	const [busy, setBusy] = useState(false);
+
+	const fail = (failure: unknown) => {
+		setBusy(false);
+		if (TOO_MANY.has(String(errorCode(failure)))) return onTooMany(errorMessage(failure));
+		setError(failure instanceof PasskeyCancelledError ? "signIn.passkeyCancelled" : errorMessage(failure));
+	};
 
 	const submit = async (event: FormEvent) => {
 		event.preventDefault();
@@ -89,8 +108,7 @@ function PasswordStep({
 			}
 			await onSignedIn();
 		} catch (failure) {
-			setError(errorMessage(failure));
-			setBusy(false);
+			fail(failure);
 		}
 	};
 
@@ -103,16 +121,17 @@ function PasswordStep({
 			await api.session.signInWithPasskey({ credential: await getPasskey(options) });
 			await onSignedIn();
 		} catch (failure) {
-			setError(failure instanceof PasskeyCancelledError ? "signIn.passkeyCancelled" : errorMessage(failure));
-			setBusy(false);
+			fail(failure);
 		}
 	};
 
 	return (
-		<div className="grid gap-6">
+		<>
 			<form onSubmit={submit} noValidate>
-				<FieldGroup className="gap-5">
-					<Field data-invalid={error ? true : undefined}>
+				<FieldGroup className="gap-4">
+					{/* One message for a wrong email or password: it never says which. */}
+					{error ? <FormAlert id="sign-in-error">{t(error)}</FormAlert> : null}
+					<Field className="gap-2">
 						<FieldLabel htmlFor="sign-in-email">{t("signIn.email")}</FieldLabel>
 						<Input
 							id="sign-in-email"
@@ -125,8 +144,13 @@ function PasswordStep({
 							aria-describedby={error ? "sign-in-error" : undefined}
 						/>
 					</Field>
-					<Field data-invalid={error ? true : undefined}>
-						<FieldLabel htmlFor="sign-in-password">{t("signIn.password")}</FieldLabel>
+					<Field className="gap-2">
+						<div className="flex items-center justify-between gap-3">
+							<FieldLabel htmlFor="sign-in-password">{t("signIn.password")}</FieldLabel>
+							<Button variant="link" size="sm" className="-my-2" render={<Link to="/forgot-password" />}>
+								{t("signIn.forgotPassword")}
+							</Button>
+						</div>
 						<PasswordInput
 							id="sign-in-password"
 							value={password}
@@ -137,18 +161,14 @@ function PasswordStep({
 							aria-describedby={error ? "sign-in-error" : undefined}
 						/>
 					</Field>
-					{error ? <FieldError id="sign-in-error">{t(error)}</FieldError> : null}
 					<Button type="submit" disabled={busy} className="w-full">
 						{t("signIn.submit")}
 					</Button>
 				</FieldGroup>
 			</form>
-			<Link to="/forgot-password" className="justify-self-start text-sm underline underline-offset-4">
-				{t("signIn.forgotPassword")}
-			</Link>
 			{canUsePasskeys ? (
 				<>
-					<p className="text-muted-foreground flex items-center gap-3 text-xs uppercase before:h-px before:flex-1 before:bg-current/20 after:h-px after:flex-1 after:bg-current/20">
+					<p className="text-muted-foreground -my-1 flex items-center gap-3 text-xs uppercase before:h-px before:flex-1 before:bg-current/20 after:h-px after:flex-1 after:bg-current/20">
 						{t("signIn.or")}
 					</p>
 					<Button type="button" variant="outline" className="w-full" onClick={withPasskey} disabled={busy}>
@@ -157,6 +177,36 @@ function PasswordStep({
 					</Button>
 				</>
 			) : null}
+		</>
+	);
+}
+
+/**
+ * Too many wrong passwords or codes (the account is locked a while), or too many tries from here:
+ * what happened and how long, with a new password or another try as the way on.
+ */
+function TooManyTries({ message, onStartOver }: { message: MessageKey; onStartOver(): void }) {
+	const t = useT();
+	const heading = useRef<HTMLHeadingElement>(null);
+
+	// The page changed under the keyboard: focus moves to the new heading, read out first.
+	useEffect(() => heading.current?.focus(), []);
+
+	return (
+		<div className="grid gap-3">
+			<AuthHeading ref={heading}>{t("signIn.tooMany.heading")}</AuthHeading>
+			<p className="text-muted-foreground flex items-start gap-2.5 text-sm" role="alert">
+				<LockIcon className="mt-0.5 size-[18px] shrink-0" aria-hidden="true" />
+				{t(message)}
+			</p>
+			<div className="flex flex-wrap items-center justify-between gap-2">
+				<Button variant="link" size="sm" className="px-2.5" render={<Link to="/forgot-password" />}>
+					{t("signIn.tooMany.newPassword")}
+				</Button>
+				<Button type="button" variant="ghost" size="sm" onClick={onStartOver}>
+					{t("signIn.tooMany.tryAgain")}
+				</Button>
+			</div>
 		</div>
 	);
 }
@@ -226,45 +276,86 @@ function SecondStep({
 		setError(null);
 	};
 
+	const describedBy = (help?: string) =>
+		[help, error ? "sign-in-code-error" : null].filter(Boolean).join(" ") || undefined;
+
 	return (
-		<div className="grid gap-6">
-			<div className="grid gap-2">
-				<h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold tracking-tight outline-none">
-					{t("signIn.secondStep.heading")}
-				</h1>
-				<p className="text-muted-foreground text-sm">
+		<>
+			<div className="grid gap-4">
+				<AuthHeading ref={heading}>
+					{method === "authenticator"
+						? t("signIn.secondStep.heading")
+						: method === "backupCode"
+							? t("signIn.secondStep.backupCodeHeading")
+							: t("signIn.secondStep.passkeyHeading")}
+				</AuthHeading>
+				<AuthLead id="sign-in-code-lead">
 					{method === "authenticator"
 						? t("signIn.secondStep.authenticatorBody")
 						: method === "backupCode"
 							? t("signIn.secondStep.backupCodeBody")
 							: t("signIn.secondStep.passkeyBody")}
-				</p>
+				</AuthLead>
 			</div>
 			{method ? (
 				<form onSubmit={submit} noValidate>
-					<FieldGroup className="gap-5">
-						<Field data-invalid={error ? true : undefined}>
-							<FieldLabel htmlFor="sign-in-code">
-								{method === "authenticator" ? t("signIn.secondStep.code") : t("signIn.secondStep.backupCode")}
-							</FieldLabel>
-							<Input
-								id="sign-in-code"
-								value={code}
-								onChange={(event) => setCode(event.target.value)}
-								inputMode={method === "authenticator" ? "numeric" : "text"}
-								autoComplete="one-time-code"
-								autoCapitalize="none"
-								spellCheck={false}
-								maxLength={32}
-								required
-								aria-invalid={error ? true : undefined}
-								aria-describedby={["sign-in-code-help", error ? "sign-in-code-error" : null].filter(Boolean).join(" ")}
-							/>
-							<FieldDescription id="sign-in-code-help">
-								{method === "authenticator" ? t("signIn.secondStep.codeHelp") : t("signIn.secondStep.backupCodeHelp")}
-							</FieldDescription>
-							{error ? <FieldError id="sign-in-code-error">{t(error)}</FieldError> : null}
-						</Field>
+					<FieldGroup className="gap-4">
+						{method === "authenticator" ? (
+							<Field className="gap-2">
+								<FieldLabel htmlFor="sign-in-code" className="sr-only">
+									{t("signIn.secondStep.code")}
+								</FieldLabel>
+								<CodeInput
+									id="sign-in-code"
+									value={code}
+									onValueChange={setCode}
+									required
+									aria-invalid={error ? true : undefined}
+									aria-describedby={describedBy("sign-in-code-lead")}
+								/>
+								{error ? <FieldError id="sign-in-code-error">{t(error)}</FieldError> : null}
+							</Field>
+						) : (
+							<Field className="gap-2" data-invalid={error ? true : undefined}>
+								<FieldLabel htmlFor="sign-in-code">{t("signIn.secondStep.backupCode")}</FieldLabel>
+								<Input
+									id="sign-in-code"
+									value={code}
+									onChange={(event) => setCode(event.target.value)}
+									autoComplete="one-time-code"
+									autoCapitalize="none"
+									spellCheck={false}
+									maxLength={32}
+									required
+									aria-invalid={error ? true : undefined}
+									aria-describedby={describedBy("sign-in-code-help")}
+								/>
+								<FieldDescription id="sign-in-code-help">{t("signIn.secondStep.backupCodeHelp")}</FieldDescription>
+								{error ? <FieldError id="sign-in-code-error">{t(error)}</FieldError> : null}
+							</Field>
+						)}
+						{method === "authenticator" && methods.includes("backupCode") ? (
+							<Button
+								type="button"
+								variant="link"
+								size="sm"
+								className="self-start px-2.5"
+								onClick={() => switchTo("backupCode")}
+							>
+								{t("signIn.secondStep.useBackupCode")}
+							</Button>
+						) : null}
+						{method === "backupCode" && methods.includes("authenticator") ? (
+							<Button
+								type="button"
+								variant="link"
+								size="sm"
+								className="self-start px-2.5"
+								onClick={() => switchTo("authenticator")}
+							>
+								{t("signIn.secondStep.useAuthenticator")}
+							</Button>
+						) : null}
 						<Button type="submit" disabled={busy || code.trim() === "" || expired} className="w-full">
 							{t("signIn.secondStep.submit")}
 						</Button>
@@ -273,32 +364,35 @@ function SecondStep({
 			) : error ? (
 				<FieldError id="sign-in-code-error">{t(error)}</FieldError>
 			) : null}
-			<div className="grid gap-2">
-				{withPasskeys ? (
-					<Button type="button" variant="outline" onClick={withPasskey} disabled={busy || expired}>
-						<KeyRoundIcon aria-hidden="true" />
-						{t("signIn.secondStep.usePasskey")}
-					</Button>
-				) : null}
-				{method === "authenticator" && methods.includes("backupCode") ? (
-					<Button type="button" variant="ghost" onClick={() => switchTo("backupCode")}>
-						{t("signIn.secondStep.useBackupCode")}
-					</Button>
-				) : null}
-				{method !== "authenticator" && methods.includes("authenticator") ? (
-					<Button type="button" variant="ghost" onClick={() => switchTo("authenticator")}>
-						{t("signIn.secondStep.useAuthenticator")}
-					</Button>
-				) : null}
-				{method === null && methods.includes("backupCode") ? (
-					<Button type="button" variant="ghost" onClick={() => switchTo("backupCode")}>
-						{t("signIn.secondStep.useBackupCode")}
-					</Button>
-				) : null}
-				<Button type="button" variant="ghost" onClick={onStartOver}>
-					{t("signIn.secondStep.startOver")}
-				</Button>
-			</div>
-		</div>
+			{withPasskeys || (method === null && methods.includes("backupCode")) ? (
+				<div className="grid gap-2">
+					{withPasskeys ? (
+						<Button
+							type="button"
+							variant={method ? "outline" : "default"}
+							onClick={withPasskey}
+							disabled={busy || expired}
+						>
+							<KeyRoundIcon aria-hidden="true" />
+							{t("signIn.secondStep.usePasskey")}
+						</Button>
+					) : null}
+					{method === null && methods.includes("backupCode") ? (
+						<Button
+							type="button"
+							variant="link"
+							size="sm"
+							className="self-start px-2.5"
+							onClick={() => switchTo("backupCode")}
+						>
+							{t("signIn.secondStep.useBackupCode")}
+						</Button>
+					) : null}
+				</div>
+			) : null}
+			<Button type="button" variant="ghost" size="sm" className="-mt-2 self-center" onClick={onStartOver}>
+				{t("signIn.secondStep.startOver")}
+			</Button>
+		</>
 	);
 }

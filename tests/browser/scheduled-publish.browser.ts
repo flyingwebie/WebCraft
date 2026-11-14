@@ -136,7 +136,7 @@ for (const theme of THEMES) {
 			const trigger = page.getByRole("button", { name: /^Publish all/ });
 			await trigger.focus();
 			await page.keyboard.press("Enter");
-			const panel = page.getByRole("dialog", { name: "Publish all changes" });
+			const panel = page.getByRole("dialog", { name: "Publish all" });
 			await panel.getByRole("heading", { name: "Scheduled" }).waitFor();
 			await panel.getByText("Changed since scheduled").first().waitFor();
 			await expectNoAxeViolations(page, `Publish all with Scheduled publishes (${theme}, open)`, ["region"]);
@@ -153,16 +153,15 @@ for (const theme of THEMES) {
 			await dialog.waitFor({ state: "hidden" });
 			expect({ backOnChange: await change.evaluate(focusedSoon) }).toEqual({ backOnChange: true });
 
-			// "Publish all at…" opens its own dialog over the panel.
-			const at = panel.getByRole("button", { name: /^Publish \d+ items? at…/ });
-			await at.focus();
-			await page.keyboard.press("Enter");
-			const scheduling = page.getByRole("dialog", { name: "Publish all at a time" });
-			await scheduling.getByLabel("Date").waitFor();
-			await page.waitForTimeout(250);
-			await expectNoAxeViolations(page, `Publish all at… (${theme}, open)`, ["region"]);
-			await page.keyboard.press("Escape");
-			await scheduling.waitFor({ state: "hidden" });
+			// "Publish later", a switch, opens the date and the time in the panel, and the button says so.
+			const later = panel.getByRole("switch", { name: "Publish later" });
+			await later.focus();
+			await page.keyboard.press("Space");
+			await panel.getByLabel("Date", { exact: true }).waitFor();
+			await panel.getByRole("button", { name: /^Schedule \d+ items?$/ }).waitFor();
+			await expectNoAxeViolations(page, `Publish all, Publish later on (${theme}, open)`, ["region"]);
+			await page.keyboard.press("Space");
+			await panel.getByLabel("Date", { exact: true }).waitFor({ state: "hidden" });
 		});
 	});
 }

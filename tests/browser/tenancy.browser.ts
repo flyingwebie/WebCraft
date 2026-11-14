@@ -88,21 +88,24 @@ for (const theme of THEMES) {
 			await expectNoAxeViolations(page, `New Site, slug taken (${theme})`, ["region"]);
 		});
 
-		test("the Invite Member panel opens and closes from the keyboard, and its Site list passes axe", async () => {
+		test("the Invite a Member dialog opens and closes from the keyboard, and its Site list passes axe", async () => {
 			const page = await install.newPage(theme);
 			await install.signIn(page, superadmin);
 			await page.goto(install.adminUrl(`/workspaces/${workspaceId}/members`));
 			await page.waitForLoadState("networkidle");
-			const trigger = page.getByRole("button", { name: "Invite Member" });
+			const trigger = page.getByRole("button", { name: "Invite a Member" });
 
-			await expectOverlayUsable(page, trigger, "dialog", `Invite Member (${theme})`);
+			await expectOverlayUsable(page, trigger, "dialog", `Invite a Member (${theme})`);
 
 			await trigger.click();
-			await page.getByRole("radio", { name: "Chosen Sites" }).click();
-			await page.getByRole("checkbox", { name: "Acme Bakery" }).waitFor();
-			await page.getByRole("dialog").locator("button[type=submit]").click();
+			// Unticking "All Sites" ticks every Site, to untick the ones not wanted: here, all of them.
+			await page.getByRole("checkbox", { name: "All Sites, also those added later" }).click();
+			const dialog = page.getByRole("dialog");
+			for (const box of await dialog.getByRole("checkbox", { checked: true }).all()) await box.click();
+			await dialog.getByRole("checkbox", { name: "Acme Bakery", checked: false }).waitFor();
+			await dialog.getByRole("button", { name: "Send invitation" }).click();
 			await page.getByText("Choose at least one Site.").waitFor();
-			await expectNoAxeViolations(page, `Invite Member, chosen Sites (${theme})`, ["region"]);
+			await expectNoAxeViolations(page, `Invite a Member, chosen Sites (${theme})`, ["region"]);
 		});
 
 		test("a Member's menu, its Change role and Sites panel and its Remove dialog work from the keyboard", async () => {
@@ -193,7 +196,16 @@ describe("accepting a Member invite", () => {
 		const page = await install.newPage("light");
 
 		await page.goto(install.adminUrl(`/invite${link.search}`));
-		await page.getByRole("heading", { level: 1, name: "Join Acme Ltd as Author" }).waitFor();
+		await page
+			.getByRole("heading", { level: 1, name: "Sam Superadmin invited you to Acme Ltd as an Author" })
+			.waitFor();
+		// Under the card, the Sites the Membership reaches.
+		await page.getByText("You will reach this Site: Acme Bakery.").waitFor();
+		await page.locator("#invite-password").fill("too short");
+		await expect(page.locator("#invite-password-rules").textContent()).resolves.toContain("not met yet");
+		await page.locator("#invite-password").fill("a long enough password");
+		await expect(page.locator("#invite-password-rules").textContent()).resolves.not.toContain("not met yet");
+		await expectAccessibleScreen(page, "Accept a Member invite, the password rule met");
 		await page.locator("#invite-name").fill("Niamh Walsh");
 		await page.locator("#invite-password").fill("a long enough password");
 		await page.locator("form button[type=submit]").click();

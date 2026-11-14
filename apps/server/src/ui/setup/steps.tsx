@@ -27,10 +27,8 @@ export type StepPanelProps = {
 
 export type WizardStep = {
 	id: string;
+	/** Its name in the list of steps down the card's left side. */
 	title: MessageKey;
-	hint: MessageKey;
-	/** Shown under the title once the step is done; `hint` otherwise. */
-	doneHint?: MessageKey;
 	/**
 	 * `claim`: before the Superadmin exists, open to whoever holds the setup token.
 	 * `continue`: signed in as the new Superadmin.
@@ -48,43 +46,36 @@ export const WIZARD_STEPS: readonly WizardStep[] = [
 	{
 		id: "token",
 		title: "setup.steps.token.title",
-		hint: "setup.steps.token.hint",
-		doneHint: "setup.steps.token.doneHint",
 		stage: "claim",
 		Panel: TokenStep,
 	},
 	{
 		id: "account",
 		title: "setup.steps.account.title",
-		hint: "setup.steps.account.hint",
 		stage: "claim",
 		Panel: AccountStep,
 	},
 	{
 		id: "two-factor",
 		title: "setup.steps.twoFactor.title",
-		hint: "setup.steps.twoFactor.hint",
 		stage: "continue",
 		Panel: TwoFactorStep,
 	},
 	{
 		id: "email",
 		title: "setup.steps.email.title",
-		hint: "setup.steps.email.hint",
 		stage: "continue",
 		Panel: EmailStep,
 	},
 	{
 		id: "modules",
 		title: "setup.steps.modules.title",
-		hint: "setup.steps.modules.hint",
 		stage: "continue",
 		Panel: ModulesStep,
 	},
 	{
 		id: "first-client",
 		title: "setup.steps.firstClient.title",
-		hint: "setup.steps.firstClient.hint",
 		stage: "continue",
 		Panel: FirstClientStep,
 	},

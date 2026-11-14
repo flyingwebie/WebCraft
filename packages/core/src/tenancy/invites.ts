@@ -7,10 +7,11 @@ import {
 	inviteWorkspaces,
 	memberships as membershipsTable,
 	people,
+	sites as sitesTable,
 	staffWorkspaces,
 	workspaces,
 } from "@webcraft/db/schema";
-import { and, eq, gt } from "drizzle-orm";
+import { and, asc, eq, gt } from "drizzle-orm";
 
 import type { AdminLanguageCode } from "../admin-languages.ts";
 import { type AuditVia, recordAudit } from "../audit.ts";
@@ -42,6 +43,11 @@ export type InviteDetails = {
 	expiresAt: Date;
 	/** The Workspace a Member invite is for; null for a Staff invite. */
 	workspace: { name: string } | null;
+	/**
+	 * The Sites a Member invite lets the person reach: `all` of the Workspace's, or the names of the
+	 * chosen ones, by name. Null for a Staff invite.
+	 */
+	sites: "all" | string[] | null;
 	/**
 	 * Whether someone already signs in with the invite's address: they sign in and join the
 	 * Workspace (`join`), rather than creating an account (`accept`).
@@ -213,6 +219,18 @@ export function createInvites(options: InvitesOptions): InvitesService {
 					: Promise.resolve([]),
 				db.select({ id: people.id }).from(people).where(eq(people.email, invite.email)),
 			]);
+			const sites = !invite.workspaceId
+				? null
+				: invite.allSites
+					? ("all" as const)
+					: (
+							await db
+								.select({ name: sitesTable.name })
+								.from(inviteSites)
+								.innerJoin(sitesTable, eq(sitesTable.id, inviteSites.siteId))
+								.where(eq(inviteSites.inviteId, invite.id))
+								.orderBy(asc(sitesTable.name))
+						).map((row) => row.name);
 			return {
 				email: invite.email,
 				role: invite.role,
@@ -220,6 +238,7 @@ export function createInvites(options: InvitesOptions): InvitesService {
 				invitedBy: inviter?.name ?? null,
 				expiresAt: invite.expiresAt,
 				workspace: workspace ? { name: workspace.name } : null,
+				sites,
 				hasAccount: account !== undefined,
 			};
 		},
