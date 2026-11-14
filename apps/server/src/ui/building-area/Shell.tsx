@@ -189,7 +189,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 			  the canvas). The docks come before the canvas in the Tab order, so the page is still the last stop.
 			*/}
 			<div
-				className="relative col-start-2 row-start-1 grid min-h-0 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)_auto] [grid-template-areas:'left_canvas_right''left_bottom_right']"
+				className="relative col-start-2 row-start-1 grid min-h-0 min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] grid-rows-[minmax(0,1fr)_auto] [grid-template-areas:'left_canvas_right'_'left_bottom_right']"
 				data-wc-work=""
 			>
 				<DockArea

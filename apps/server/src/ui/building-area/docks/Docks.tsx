@@ -568,7 +568,7 @@ function Dock({
 				}
 			}}
 			style={placeStyle}
-			className={`bg-chrome relative flex min-h-0 min-w-0 p-2 ${across ? "flex-col" : "flex-row"} ${
+			className={`bg-chrome relative flex min-h-0 min-w-0 p-2 ${across ? "flex-col" : "flex-row overflow-hidden"} ${
 				drawer
 					? `absolute inset-y-0 z-30 shadow-[0_12px_32px_rgba(0,0,0,0.55)] ${side === "left" ? "start-0" : "end-0"}`
 					: ""
@@ -624,6 +624,12 @@ function Dock({
 								<Separator
 									orientation={across ? "horizontal" : "vertical"}
 									label={fill(words.docks.between, { first: name, second: panelName(words, next.placement.id) })}
+									value={{
+										// The panel before it: its share of the dock's open length, in per cent (none when collapsed).
+										now: placement.collapsed ? 0 : weightOf(placement.id) * 100,
+										min: 0,
+										max: 100,
+									}}
 									onMove={(delta, from) => {
 										if (from === "key" || !base.current) base.current = { layout, length, lengths: measure() };
 										const grow = !across && rtl() ? -delta : delta;

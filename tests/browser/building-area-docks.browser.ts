@@ -355,8 +355,13 @@ describe("the building area's docks and panels", () => {
 		await between.focus();
 		await page.keyboard.press("ArrowDown");
 		await settled(page);
-		expect((await boxOf(page, '[data-wc-panel="layers"]')).height).toBe(layers.height + 10);
-		expect((await boxOf(page, '[data-wc-panel="inspector"]')).height).toBe(inspector.height - 10);
+		// Within a pixel: shares are kept to four places.
+		expect(Math.abs((await boxOf(page, '[data-wc-panel="layers"]')).height - (layers.height + 10))).toBeLessThanOrEqual(
+			1,
+		);
+		expect(
+			Math.abs((await boxOf(page, '[data-wc-panel="inspector"]')).height - (inspector.height - 10)),
+		).toBeLessThanOrEqual(1);
 		await clearSelection(page, frame);
 		await resetLayout(page);
 	});
