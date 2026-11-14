@@ -118,10 +118,11 @@ for (const theme of THEMES) {
 
 		test("a Revision next to the Draft: the parts that differ, then every part", async () => {
 			const page = await open(theme, staff, entryHistory());
-			await page.getByText("4 parts differ from the Draft.").waitFor();
+			await page.getByRole("heading", { name: /^The Draft compared with the Revision of / }).waitFor();
+			expect(await page.locator("[data-side=removed]").count()).toBe(4);
 			await expectAccessibleScreen(page, `History, a Revision compared (${theme})`);
 
-			await page.getByRole("link", { name: "Show every part" }).click();
+			await page.getByRole("link", { name: /Fields? (is|are) the same$/ }).click();
 			await page.getByRole("link", { name: "Show only what differs" }).waitFor();
 			await expectAccessibleScreen(page, `History, every part (${theme})`);
 		});
@@ -130,7 +131,9 @@ for (const theme of THEMES) {
 			const page = await open(theme, staff, entryHistory());
 			await page.getByRole("link", { name: /Français/ }).focus();
 			await page.keyboard.press("Enter");
-			await page.getByText("1 part differs from the Draft.").waitFor();
+			await page.locator("a[aria-current=page]", { hasText: "Français" }).waitFor();
+			await page.waitForLoadState("networkidle");
+			expect(await page.locator("[data-side=removed]").count()).toBe(1);
 			await expectAccessibleScreen(page, `History, in French (${theme})`);
 		});
 
@@ -148,7 +151,7 @@ for (const theme of THEMES) {
 			const page = await open(theme, staff, entryHistory());
 			await expectOverlayUsable(
 				page,
-				page.getByRole("button", { name: "Restore this Revision" }),
+				page.getByRole("button", { name: "Restore into the Draft" }),
 				"dialog",
 				`History, Restore (${theme})`,
 			);
@@ -171,7 +174,7 @@ for (const theme of THEMES) {
 describe("restoring from the keyboard", () => {
 	test("puts the Revision into the Draft, keeps the Draft as a Checkpoint and publishes nothing", async () => {
 		const page = await open("light", staff, entryHistory());
-		await page.getByRole("button", { name: "Restore this Revision" }).focus();
+		await page.getByRole("button", { name: "Restore into the Draft" }).focus();
 		await page.keyboard.press("Enter");
 		const dialog = page.getByRole("dialog");
 		await dialog.getByRole("button", { name: "Restore into the Draft" }).focus();

@@ -6182,36 +6182,36 @@
 			"kept": "Le revisioni salvate prima si conservano {days} giorni, e le {kept} più recenti di ogni elemento comunque. I checkpoint continuano a essere salvati."
 		},
 		"copies": {
-			"heading": "Copie salvate",
-			"older": "Mostra le più vecchie"
+			"older": "Mostra le più vecchie",
+			"revisions": "Revisioni",
+			"checkpoints": "Checkpoint"
 		},
 		"compare": {
 			"none": "Non c'è ancora niente di salvato da confrontare con la bozza.",
-			"heading": "{copy}, accanto alla bozza",
 			"publishedBy": "Pubblicata da {by}",
 			"changedBy": "La bozza come l'ha lasciata {by} alle {time}",
 			"languages": "Lingue confrontate",
 			"changes": "{count, plural, =0 {Nessuna modifica} one {# modifica} other {# modifiche}}",
 			"same": "Niente di diverso: la bozza contiene quello che contiene questa copia.",
-			"differ": "{count, plural, one {# parte è diversa} other {# parti sono diverse}} dalla bozza.",
-			"showAll": "Mostra tutte le parti",
 			"showChanged": "Mostra solo ciò che è diverso",
-			"revisionSide": "Questa revisione",
-			"checkpointSide": "Questo checkpoint",
-			"draftSide": "La bozza ora",
 			"shared": "Condiviso da tutte le lingue",
-			"partChangedBy": "Modificato nella bozza da {by} · {time}"
+			"partChangedBy": "Modificato nella bozza da {by} · {time}",
+			"title": "{type, select, revision {La bozza confrontata con la revisione di {time}} other {La bozza confrontata con il checkpoint di {time}}}",
+			"revisionColumn": "Revisione",
+			"checkpointColumn": "Checkpoint",
+			"draftColumn": "Bozza",
+			"sameFields": "{count, plural, one {# campo è uguale} other {# campi sono uguali}}",
+			"sameParts": "{count, plural, one {# parte è uguale} other {# parti sono uguali}}"
 		},
 		"restore": {
-			"revision": "Ripristina questa revisione",
-			"checkpoint": "Ripristina questo checkpoint",
 			"close": "Chiudi",
 			"titleRevision": "Ripristinare questa revisione nella bozza?",
 			"titleCheckpoint": "Ripristinare questo checkpoint nella bozza?",
 			"body": "Ciò che conteneva alle {time} sostituisce la bozza. La bozza com'è ora si conserva prima come checkpoint, così puoi tornare indietro. Non si pubblica niente: i visitatori lo vedono quando l'elemento viene pubblicato.",
 			"cancel": "Annulla",
 			"confirm": "Ripristina nella bozza",
-			"done": "Ripristinato nella bozza. Non è stato pubblicato niente."
+			"done": "Ripristinato nella bozza. Non è stato pubblicato niente.",
+			"never": "Il ripristino non pubblica mai."
 		},
 		"postType": {
 			"label": "Salva una revisione ogni volta che si pubblica un contenuto di {name}",
@@ -6221,7 +6221,14 @@
 		},
 		"link": "Cronologia",
 		"linkNamed": ": {name}",
-		"emailsLink": "Cronologia delle email"
+		"emailsLink": "Cronologia delle email",
+		"liveNow": "Online ora",
+		"time": {
+			"today": "Oggi, {time}",
+			"yesterday": "Ieri, {time}",
+			"day": "{day} {month}, {time}",
+			"dayYear": "{day} {month} {year}, {time}"
+		}
 	},
 	"historySettings": {
 		"pageTitle": "Revisioni",
