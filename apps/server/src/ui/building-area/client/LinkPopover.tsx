@@ -161,7 +161,8 @@ export function LinkPopover({
 	const confirmTimer = useRef<number | undefined>(undefined);
 	const [targets, setTargets] = useState<Target[] | null>(null);
 	const [query, setQuery] = useState("");
-	const [active, setActive] = useState(0);
+	/** The result the keys are on (-1: none yet; typing a search puts them on the first). */
+	const [active, setActive] = useState(-1);
 	const wordsId = useId();
 	const addressId = useId();
 	const problemId = useId();
@@ -265,7 +266,10 @@ export function LinkPopover({
 		if (event.key === "ArrowDown" || event.key === "ArrowUp") {
 			event.preventDefault();
 			if (shown.length === 0) return;
-			setActive((at) => (at + (event.key === "ArrowDown" ? 1 : -1) + shown.length) % shown.length);
+			const down = event.key === "ArrowDown";
+			setActive((at) =>
+				at < 0 ? (down ? 0 : shown.length - 1) : (at + (down ? 1 : -1) + shown.length) % shown.length,
+			);
 		} else if (event.key === "Enter") {
 			const target = shown[active];
 			if (!target) return;
@@ -360,7 +364,7 @@ export function LinkPopover({
 								aria-expanded="true"
 								aria-autocomplete="list"
 								aria-activedescendant={shown[active] ? `${listId}-${active}` : undefined}
-								placeholder={said.search}
+								placeholder={said.searchPlaceholder}
 								autoComplete="off"
 								value={query}
 								className={`${INPUT} h-10 ps-9`}
@@ -431,7 +435,7 @@ export function LinkPopover({
 										aria-selected={chosen}
 										tabIndex={-1}
 										className={`flex h-[34px] w-full shrink-0 cursor-pointer items-center gap-2.5 rounded-[7px] px-2.5 ${
-											chosen || index === active ? "bg-chrome-hover" : "hover:bg-chrome-raised"
+											chosen ? "bg-chrome-hover" : index === active ? "bg-chrome-raised" : "hover:bg-chrome-raised"
 										} ${CHROME_EASE}`}
 										data-wc-link-target={target.path}
 										onPointerDown={(event) => event.preventDefault()}

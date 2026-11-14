@@ -186,7 +186,7 @@ export function PopoverButton({
 	return (
 		<button
 			type="button"
-			className={`inline-flex h-10 items-center justify-center gap-2 rounded-[9px] px-3.5 text-[13px] font-semibold disabled:opacity-50 aria-disabled:opacity-50 ${look} ${CHROME_EASE} ${FOCUS_RING} ${className}`}
+			className={`inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-[9px] px-3 text-[13px] font-semibold disabled:opacity-50 aria-disabled:opacity-50 ${look} ${CHROME_EASE} ${FOCUS_RING} ${className}`}
 			{...rest}
 		>
 			{IconShown ? <IconShown className="size-4 shrink-0" aria-hidden="true" /> : null}

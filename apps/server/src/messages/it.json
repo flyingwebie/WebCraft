@@ -9845,6 +9845,7 @@
 					"file": "File"
 				},
 				"search": "Cerca Pagine e Voci",
+				"searchPlaceholder": "Cerca per titolo",
 				"results": "Pagine e Voci",
 				"noResults": "Nessun risultato.",
 				"loadingPages": "Caricamento di Pagine e Voci…",

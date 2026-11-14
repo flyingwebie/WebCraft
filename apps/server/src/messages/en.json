@@ -9845,6 +9845,7 @@
 					"file": "File"
 				},
 				"search": "Search Pages and Entries",
+				"searchPlaceholder": "Search by title",
 				"results": "Pages and Entries",
 				"noResults": "Nothing matches.",
 				"loadingPages": "Loading Pages and Entries…",
