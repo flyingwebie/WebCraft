@@ -11,11 +11,10 @@ import {
 import { FieldError } from "@webcraft/ui/components/field.tsx";
 import { LoaderIcon, RotateCcwIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
-import { toast } from "sonner";
 
-import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
+import { useMediaHost } from "./host.tsx";
 import type { MediaItem } from "./preview.ts";
 import { type MediaUses, UsedInList } from "./UsedIn.tsx";
 
@@ -50,6 +49,7 @@ function TwoStepDialog<Answer extends { confirmation: string }>({
 	children?(state: { asked: Answer | null; failed: boolean }): ReactNode;
 }) {
 	const t = useT();
+	const host = useMediaHost();
 	const trigger = useRef<HTMLButtonElement>(null);
 	const [open, setOpen] = useState(false);
 	const [asked, setAsked] = useState<Answer | null>(null);
@@ -71,10 +71,10 @@ function TwoStepDialog<Answer extends { confirmation: string }>({
 		setBusy(true);
 		try {
 			await go(asked.confirmation);
-			toast.success(done);
+			host.notify("success", done);
 			setOpen(false);
 			await after();
-			document.getElementById("main")?.focus();
+			host.focusMain();
 		} catch (failure) {
 			setError(errorMessage(failure));
 		} finally {
@@ -129,6 +129,7 @@ export function DeleteDialog({
 	onDeleted(): Promise<void>;
 }) {
 	const t = useT();
+	const host = useMediaHost();
 	return (
 		<TwoStepDialog<Asked>
 			label={t("media.delete.button")}
@@ -137,11 +138,11 @@ export function DeleteDialog({
 			confirmLabel={t("media.delete.confirm")}
 			done={t("media.delete.deleted", { name: item.fileName })}
 			ask={async () => {
-				const answer = await (await getApi()).media.delete({ siteId, mediaId: item.id });
+				const answer = await (await host.api()).delete({ siteId, mediaId: item.id });
 				if (answer.trashed) throw new Error("It was moved without asking.");
 				return { usedIn: answer.usedIn, confirmation: answer.confirmation.id };
 			}}
-			go={async (confirmation) => (await getApi()).media.delete({ siteId, mediaId: item.id, confirmation })}
+			go={async (confirmation) => (await host.api()).delete({ siteId, mediaId: item.id, confirmation })}
 			after={onDeleted}
 		>
 			{({ asked, failed }) => (
@@ -178,6 +179,7 @@ export function RestoreButton({
 	onRestored(): Promise<void>;
 }) {
 	const t = useT();
+	const host = useMediaHost();
 	const [busy, setBusy] = useState(false);
 	return (
 		<Button
@@ -186,11 +188,11 @@ export function RestoreButton({
 			onClick={async () => {
 				setBusy(true);
 				try {
-					await (await getApi()).media.restore({ siteId, mediaId: item.id });
-					toast.success(t("media.trash.restored", { name: item.fileName }));
+					await (await host.api()).restore({ siteId, mediaId: item.id });
+					host.notify("success", t("media.trash.restored", { name: item.fileName }));
 					await onRestored();
 				} catch (failure) {
-					toast.error(t(errorMessage(failure)));
+					host.notify("error", t(errorMessage(failure)));
 				} finally {
 					setBusy(false);
 				}
@@ -213,6 +215,7 @@ export function DeleteForeverDialog({
 	onDeleted(): Promise<void>;
 }) {
 	const t = useT();
+	const host = useMediaHost();
 	return (
 		<TwoStepDialog<Asked>
 			label={t("media.trash.deleteForever")}
@@ -221,11 +224,11 @@ export function DeleteForeverDialog({
 			confirmLabel={t("media.trash.deleteForever")}
 			done={t("media.trash.deletedForever", { name: item.fileName })}
 			ask={async () => {
-				const answer = await (await getApi()).media.deleteForever({ siteId, mediaId: item.id });
+				const answer = await (await host.api()).deleteForever({ siteId, mediaId: item.id });
 				if (answer.deleted) throw new Error("It was deleted without asking.");
 				return { usedIn: answer.usedIn, confirmation: answer.confirmation.id };
 			}}
-			go={async (confirmation) => (await getApi()).media.deleteForever({ siteId, mediaId: item.id, confirmation })}
+			go={async (confirmation) => (await host.api()).deleteForever({ siteId, mediaId: item.id, confirmation })}
 			after={onDeleted}
 		/>
 	);
@@ -234,6 +237,7 @@ export function DeleteForeverDialog({
 /** Empty Trash: every file in it deleted for good, in two steps. */
 export function EmptyTrashDialog({ siteId, onEmptied }: { siteId: string; onEmptied(): Promise<void> }) {
 	const t = useT();
+	const host = useMediaHost();
 	return (
 		<TwoStepDialog<{ count: number; confirmation: string }>
 			label={t("media.trash.emptyTrash")}
@@ -242,11 +246,11 @@ export function EmptyTrashDialog({ siteId, onEmptied }: { siteId: string; onEmpt
 			confirmLabel={t("media.trash.emptyConfirm")}
 			done={t("media.trash.emptied")}
 			ask={async () => {
-				const answer = await (await getApi()).media.emptyTrash({ siteId });
+				const answer = await (await host.api()).emptyTrash({ siteId });
 				if (answer.emptied) throw new Error("It was emptied without asking.");
 				return { count: answer.count, confirmation: answer.confirmation.id };
 			}}
-			go={async (confirmation) => (await getApi()).media.emptyTrash({ siteId, confirmation })}
+			go={async (confirmation) => (await host.api()).emptyTrash({ siteId, confirmation })}
 			after={onEmptied}
 		/>
 	);

@@ -53,16 +53,16 @@ export type ShellAddress = {
 const ID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
 /**
- * The places (plan 1.4): Content (Pages, a Post Type's Entries, Post Types, the Globals or one Group
- * of them), Templates, Media (a folder), Styles (its four tabs), Loops (one Loop), Components, Forms
- * (a Form and its tab).
+ * The places (plan 1.4): Content (Pages, a Post Type's Entries, Fields or Settings, Post Types, the
+ * Globals or one Group of them), Templates, Media (a folder, Unfiled or the Trash), Styles (its four
+ * tabs), Loops (one Loop), Components, Forms (a Form and its tab).
  */
 const PLACE = new RegExp(
 	[
-		`content/(?:pages|post-types|${ID}|globals(?:/[a-z][A-Za-z0-9_]{0,63})?)`,
+		`content/(?:pages|post-types|${ID}(?:/(?:fields|settings))?|globals(?:/[a-z][A-Za-z0-9_]{0,63})?)`,
 		"templates",
 		"components",
-		`media(?:/${ID})?`,
+		`media(?:/(?:${ID}|unfiled|trash))?`,
 		"styles/(?:classes|tokens|site-css|breakpoints)",
 		`loops(?:/${ID})?`,
 		`forms(?:/${ID}(?:/[a-z][a-z-]{0,31})?)?`,

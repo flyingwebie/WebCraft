@@ -216,10 +216,10 @@ describe("anything not on the list", () => {
 	test("is not there, and never runs", async () => {
 		const unlisted: [string, unknown][] = [
 			// Site procedures left off the list.
-			["postTypes.create", { siteId: site.siteId, name: "Recipes", urlPattern: "/recipes/{slug}" }],
+			["languages.add", { siteId: site.siteId, code: "it" }],
 			["entries.delete", { siteId: site.siteId, entryId: site.entryId }],
 			["entries.saveDraft", { siteId: site.siteId, entryId: site.entryId, title: "Changed" }],
-			["media.deleteForever", { siteId: site.siteId, mediaId: crypto.randomUUID() }],
+			["media.suggestAltText", { siteId: site.siteId, mediaId: crypto.randomUUID() }],
 			["domains.list", { siteId: site.siteId }],
 			["sites.get", { siteId: site.siteId }],
 			["builder.transferHistory", { siteId: site.siteId, payload: "x" }],
@@ -241,8 +241,8 @@ describe("anything not on the list", () => {
 			expect({ path, refusal }).toMatchObject({ path, refusal: { status: 404, code: "NOT_FOUND" } });
 		}
 
-		const { postTypes } = await staff.api.postTypes.list({ siteId: site.siteId });
-		expect(postTypes.map((postType) => postType.name)).not.toContain("Recipes");
+		const { settings } = await staff.api.languages.list({ siteId: site.siteId });
+		expect(settings.languages.map((language) => language.code)).toEqual(["en"]);
 		expect(await titles(site)).toEqual(["Fresh bread"]);
 		const { entry } = await staff.api.entries.get({ siteId: site.siteId, entryId: site.entryId });
 		expect(entry.draft.title).toBe("Fresh bread");

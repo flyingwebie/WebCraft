@@ -188,11 +188,14 @@ export function PlaceIconButton({
 	expanded,
 	controls,
 	buttonRef,
+	tone,
 }: {
 	icon: Icon;
 	label: string;
 	onClick?(): void;
 	size?: 24 | 30;
+	/** A destructive action (a bin): drawn in the danger colour. */
+	tone?: "danger";
 	/** Shown, but not for now: says so in its name and tooltip. */
 	unavailable?: string;
 	data?: Record<`data-${string}`, string>;
@@ -212,7 +215,7 @@ export function PlaceIconButton({
 				aria-expanded={expanded}
 				aria-controls={controls}
 				onClick={unavailable ? undefined : onClick}
-				className={`text-chrome-muted inline-grid shrink-0 place-items-center rounded-[5px] ${
+				className={`${tone === "danger" ? "text-chrome-danger" : "text-chrome-muted"} inline-grid shrink-0 place-items-center rounded-[5px] ${
 					size === 30 ? "size-[30px]" : "size-6"
 				} ${unavailable ? "cursor-default opacity-50" : "hover:bg-chrome-hover hover:text-chrome-strong"} ${CHROME_EASE} ${FOCUS_RING}`}
 				{...data}

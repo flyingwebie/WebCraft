@@ -4,12 +4,22 @@ import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
 
+import packageJson from "./package.json" with { type: "json" };
 import { ADMIN_DRAFTS_PREFIX, EDIT_DRAFTS_PREFIX } from "./src/co-editing/paths.ts";
+
+/**
+ * The repo's server packages (`@webcraft/core`, `@webcraft/api`, the Modules…): everything the web
+ * process depends on in the repo except the admin's components (`@webcraft/ui`, which needs the
+ * dev server's JSX and CSS handling) and the shared settings.
+ */
+const SERVER_PACKAGES = Object.keys(packageJson.dependencies).filter(
+	(name) => name.startsWith("@webcraft/") && name !== "@webcraft/ui",
+);
 
 // `vite dev` is the web process in development: TanStack Start sends every request Vite doesn't
 // serve itself to src/server.ts, which routes it by hostname. `vite build` bundles the same entry
 // for production (see src/serve.ts).
-export default defineConfig({
+export default defineConfig(({ command }) => ({
 	server: {
 		port: Number(process.env.PORT ?? 3000),
 		strictPort: true,
@@ -22,6 +32,15 @@ export default defineConfig({
 	},
 	environments: {
 		ssr: {
+			resolve: {
+				// Under `vite dev` only, the server packages load once per process, as in production, and
+				// not through the dev server's module runner. The web process opens the Install's services
+				// once (`startWebServices`, kept on `globalThis`), but the runner evaluates the server entry
+				// and everything it imports again after every change, so its copies of the packages would
+				// hold other classes than the ones the services throw: `instanceof` then fails, and a
+				// refusal such as a wrong password became a 500. Changes to these packages take a restart.
+				external: command === "serve" ? SERVER_PACKAGES : undefined,
+			},
 			build: {
 				rolldownOptions: {
 					// @webcraft/db finds its migration files next to its own source, so the production
@@ -33,7 +52,7 @@ export default defineConfig({
 		},
 	},
 	plugins: [tailwindcss(), tanstackStart(), viteReact(), draftSockets()],
-});
+}));
 
 /**
  * Co-editing's WebSockets in development (ADR 0025): the dev server hands the upgrades of Drafts'

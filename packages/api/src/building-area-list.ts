@@ -22,6 +22,12 @@ export const BUILDING_AREA_PROCEDURES = [
 	"globals.get",
 	// The Content place's Globals form (Members as Staff: `entry.edit`, as in the admin).
 	"globals.saveDraft",
+	// The Content place's Post Types and Fields (Staff only: `structure.edit`, as in the admin, so a
+	// Member's call is FORBIDDEN). Deleting takes its two calls (the first only says what would go),
+	// and is refused for the Page Post Type and while other Structure names the Post Type.
+	"postTypes.create",
+	"postTypes.update",
+	"postTypes.delete",
 	// The Media library: reads and uploads.
 	"media.list",
 	"media.overview",
@@ -29,6 +35,22 @@ export const BUILDING_AREA_PROCEDURES = [
 	"media.usage",
 	"media.folders.list",
 	"media.upload",
+	// The Media place and its picker (BA-22): a file's texts, folder and Focal point, Replace file, Import
+	// from URL, the folders and the Trash, as the admin's Media screen does them (`media.upload` for
+	// one's own uploads, `media.manage` for everyone's and the folders). Moving to the Trash, deleting for
+	// good and emptying the Trash each take two calls, the second with the confirmation the first
+	// answered, for everyone; Import from URL keeps its guarded fetcher and its limits per person and per
+	// Site. Suggest alt text (an AI provider's cost) stays the admin's.
+	"media.update",
+	"media.replace",
+	"media.importUrl",
+	"media.delete",
+	"media.restore",
+	"media.deleteForever",
+	"media.emptyTrash",
+	"media.folders.create",
+	"media.folders.rename",
+	"media.folders.delete",
 	// The Design system.
 	"designSystem.get",
 	"designSystem.saveDraft",
@@ -72,6 +94,9 @@ export const BUILDING_AREA_PROCEDURES = [
 	"components.getScript",
 	"components.saveScriptDraft",
 	"components.rename",
+	// Deleting takes its two calls (the first only says what would go); the Components place asks for
+	// a placed Component's Placements to go with it (`placements: "remove"`), Draft and published, as
+	// its dialog says. A Popup or the accessibility statement showing it still refuses it.
 	"components.delete",
 	// The Builder's services the canvas and the panels use (not the Undo history's hand-over).
 	"builder.open",
@@ -92,6 +117,10 @@ export const BUILDING_AREA_PROCEDURES = [
 	"loops.publish",
 	// Page layouts, as Members arrange them.
 	"pageLayouts.settings",
+	// The Components place's "Allowed for Members" switch: which Components Members may add to a Page
+	// (Staff only, `structure.edit` checked again in core whatever opened the Site, so a Member's call
+	// is FORBIDDEN). It replaces the whole list, as the admin's Page layout settings do.
+	"pageLayouts.configure",
 	"pageLayouts.get",
 	"pageLayouts.save",
 	// Publish in the bottom bar.

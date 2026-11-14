@@ -3,6 +3,7 @@ import {
 	BUILDING_AREA_PAGE_PATH,
 	BUILDING_AREA_PATH,
 	BUILDING_AREA_STAND_IN_PATH,
+	can,
 	type InstallServices,
 	parseBuildingDocument,
 	type SiteHost,
@@ -12,7 +13,7 @@ import {
 import en from "../../messages/en.json" with { type: "json" };
 import it from "../../messages/it.json" with { type: "json" };
 import { plainText } from "../../responses.ts";
-import type { ShellConfig } from "../../ui/building-area/api.ts";
+import { type AdminMessages, SHELL_PERMISSIONS, type ShellConfig } from "../../ui/building-area/api.ts";
 import { buildingAreaCookieOf } from "../cookies.ts";
 import { editSessionOf, safeModeOf } from "../edit-mode.ts";
 import { buildingAreaAssets } from "./assets.ts";
@@ -21,6 +22,19 @@ import { standInEndpoint } from "./stand-in.ts";
 
 /** The building area's words, by Admin language (`buildingArea` in the admin's message files). */
 const WORDS: Record<AdminLanguageCode, typeof en.buildingArea> = { en: en.buildingArea, it: it.buildingArea };
+
+/** The admin's own words for the admin parts the shell reuses (the Media library's, BA-22), by Admin language. */
+const ADMIN_MESSAGES: Record<AdminLanguageCode, AdminMessages> = { en: adminMessagesOf(en), it: adminMessagesOf(it) };
+
+function adminMessagesOf(messages: typeof en): AdminMessages {
+	return {
+		media: messages.media,
+		errors: messages.errors,
+		popups: { title: messages.popups.title },
+		content: { media: messages.content.media },
+		editBar: { codeMode: { errors: messages.editBar.codeMode.errors } },
+	};
+}
 
 /**
  * The building area (ADR 0037) on a Site's own address, `/_webcraft/build/…`: the shell for a browser
@@ -61,6 +75,8 @@ export async function buildingAreaEndpoint(
 	const designSystem = (await services.designSystem.get(edit.session.scope)).draft;
 	const staging = stagingUrl(services.config, host.site.slug);
 	const siteLanguages = await services.languages.get(edit.session.scope);
+	const { site } = edit.session.scope;
+	const resource = { level: "site", workspaceId: site.workspaceId, siteId: site.id } as const;
 	const preferences = await services.people.editorPreferences(edit.session.personId);
 	const config: ShellConfig = {
 		token: edit.session.headerToken,
@@ -82,6 +98,8 @@ export async function buildingAreaEndpoint(
 			default: siteLanguages.defaultLanguage,
 			all: siteLanguages.languages.map(({ code, name }) => ({ code, name })),
 		},
+		permissions: SHELL_PERMISSIONS.filter((permission) => can(edit.session.scope.access.actor, permission, resource)),
+		adminMessages: ADMIN_MESSAGES[language],
 		layout: preferences.layout,
 	};
 	const files = await buildingAreaAssets();

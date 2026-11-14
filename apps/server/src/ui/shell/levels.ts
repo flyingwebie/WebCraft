@@ -488,6 +488,11 @@ function siteNavigation(place: Extract<AdminPlace, { level: "site" }>): { groups
 							place.newSubmissions !== undefined && place.newSubmissions > 0
 								? { tone: "info", label: "shell.nav.newCount", count: place.newSubmissions }
 								: undefined,
+						// With no Form yet, a client still gets the row: it opens the Forms page, which says their
+						// agency has not built one. Staff make the first one under Structure › Forms.
+						...(place.forms.length === 0
+							? { to: "/sites/$siteId/forms", exact: true, requires: "formEmails.edit", unless: "structure.edit" }
+							: {}),
 						sections: [
 							{
 								id: "forms",
