@@ -30,6 +30,7 @@ function ShellFailed({ words }: { words: Words }) {
 	return (
 		<main className="bg-chrome text-chrome-text grid h-dvh place-items-center p-8 font-sans text-[13px]">
 			<div className="flex max-w-md flex-col items-center gap-3 text-center" data-wc-shell-failed="">
+				<h1 className="text-chrome-strong m-0 text-[16px] font-semibold">{words.pageTitle}</h1>
 				<p role="alert" className="m-0">
 					{words.shellFailed}
 				</p>

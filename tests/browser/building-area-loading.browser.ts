@@ -340,15 +340,22 @@ describe("a place's code that can't be fetched", () => {
 	test("the shell itself that can't be fetched says so, and Reload draws it", async () => {
 		const shellFile = /\/shell-Shell-[0-9a-f]{16}\.js$/;
 		await page.route(shellFile, offline);
-		await go(page, "/page/menu");
-		const failed = page.locator("[data-wc-shell-failed]");
-		await failed.waitFor();
-		expect(await failed.getByRole("alert").textContent()).toBe(
-			"The building area couldn't be loaded. Check the connection, then reload the page.",
-		);
-		await expectNoAxeViolations(page, "building area, the shell that couldn't load");
-		await page.unroute(shellFile, offline);
-		await failed.getByRole("button", { name: "Reload the page" }).click();
+		try {
+			await go(page, "/page/menu");
+			const failed = page.locator("[data-wc-shell-failed]");
+			await failed.waitFor();
+			expect(await failed.getByRole("heading", { level: 1 }).textContent()).toBe("Building area");
+			expect(await failed.getByRole("alert").textContent()).toBe(
+				"The building area couldn't be loaded. Check the connection, then reload the page.",
+			);
+			for (const theme of THEMES) {
+				await page.emulateMedia({ colorScheme: theme });
+				await expectNoAxeViolations(page, `building area, the shell that couldn't load (${theme})`);
+			}
+		} finally {
+			await page.unroute(shellFile, offline);
+		}
+		await page.locator("[data-wc-shell-failed]").getByRole("button", { name: "Reload the page" }).click();
 		await page.locator('[data-wc-place="content"]').waitFor();
 	});
 
