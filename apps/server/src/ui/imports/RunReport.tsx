@@ -164,7 +164,7 @@ function Progress({ run }: { run: RunReport }) {
 	const { done, total } = run.progress;
 	const percent = total === 0 ? 0 : Math.floor((done / total) * 100);
 	return (
-		<div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+		<div className="grid gap-6 @2xl/page:grid-cols-[minmax(0,1fr)_20rem]">
 			<Card>
 				<CardHeader>
 					<CardTitle>
@@ -229,7 +229,7 @@ function Report({
 					? "imports.report.undone"
 					: "imports.report.done";
 	return (
-		<div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+		<div className="grid gap-6 @2xl/page:grid-cols-[minmax(0,1fr)_20rem]">
 			<div className="grid content-start gap-6">
 				<p className="flex flex-wrap items-center gap-2" role="status">
 					<StatusBadge status={run.status} />
@@ -338,7 +338,7 @@ function Counts({ run }: { run: RunReport }) {
 					{ key: "imports.report.counts.redirects", value: run.redirects.count },
 				];
 	return (
-		<dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
+		<dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 @4xl/page:grid-cols-6">
 			{items.map((item) => (
 				<div key={item.key} className="grid gap-1 rounded-lg border p-3">
 					<dt className="text-muted-foreground text-sm">{t(item.key)}</dt>

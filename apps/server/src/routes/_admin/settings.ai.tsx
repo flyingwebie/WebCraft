@@ -6,7 +6,7 @@ import { pageTitle, useT } from "../../ui/i18n.tsx";
 import { Forbidden } from "../../ui/PageHeader.tsx";
 
 export const Route = createFileRoute("/_admin/settings/ai")({
-	staticData: { crumb: "sharedAiKeys.pageTitle" },
+	staticData: { crumb: "sharedAiKeys.pageTitle", width: "form" },
 	loader: async ({ context }) => {
 		if (!context.shell.permissions.includes("install.manage")) return null;
 		const api = await getApi();

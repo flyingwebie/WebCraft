@@ -6,7 +6,7 @@ import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 import { CrawlersSettings } from "../../ui/seo/CrawlersSettings.tsx";
 
 export const Route = createFileRoute("/_admin/sites/$siteId/crawlers")({
-	staticData: { crumb: "shell.nav.crawlers" },
+	staticData: { crumb: "shell.nav.crawlers", width: "form" },
 	loader: async ({ params, context }) => {
 		if (!context.place.permissions.includes("aiCrawlers.manage")) return null;
 		const api = await getApi();

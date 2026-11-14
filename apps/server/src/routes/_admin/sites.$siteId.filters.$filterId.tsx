@@ -28,7 +28,7 @@ const search = z.object({
 });
 
 export const Route = createFileRoute("/_admin/sites/$siteId/filters/$filterId")({
-	staticData: { wide: true },
+	staticData: { width: "wide" },
 	validateSearch: search,
 	loader: async ({ context, params }) => {
 		if (!context.place.permissions.includes("structure.edit")) return { details: null, crumb: "" };

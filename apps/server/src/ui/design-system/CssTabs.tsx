@@ -1,8 +1,9 @@
 import { Field, FieldDescription, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { Textarea } from "@webcraft/ui/components/textarea.tsx";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 
+import { FormatButton, FormatNoteLine, useCodeFormat } from "../code-format/FormatControl.tsx";
 import { useT } from "../i18n.tsx";
 import { DeclarationsEditor } from "./DeclarationsEditor.tsx";
 import type { Editing } from "./DesignSystemScreen.tsx";
@@ -38,7 +39,7 @@ export function BaseStylesTab({ editing }: { editing: Editing }) {
 	const [target, setTarget] = useState(targets[0] ?? "body");
 	const { baseStyles, tokens } = editing.draft;
 	return (
-		<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+		<div className="grid gap-6 @4xl/page:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
 			<div className="grid content-start gap-4">
 				<p className="text-muted-foreground text-sm">{t("designSystem.base.intro")}</p>
 				<Field>
@@ -80,18 +81,29 @@ export function BaseStylesTab({ editing }: { editing: Editing }) {
 export function CustomCssTab({ editing }: { editing: Editing }) {
 	const t = useT();
 	const id = useId();
+	const area = useRef<HTMLTextAreaElement>(null);
+	const formatting = useCodeFormat("css", area, editing.draft.customCss);
 	return (
-		<div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+		<div className="grid gap-6 @4xl/page:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
 			<Field>
-				<FieldLabel htmlFor={`${id}-css`}>{t("designSystem.css.label")}</FieldLabel>
+				<div className="flex items-center justify-between gap-2">
+					<FieldLabel htmlFor={`${id}-css`}>{t("designSystem.css.label")}</FieldLabel>
+					<FormatButton format={formatting} withWord />
+				</div>
 				<Textarea
+					ref={area}
 					id={`${id}-css`}
 					value={editing.draft.customCss}
 					onChange={(event) => editing.setSection("customCss", event.target.value)}
+					onKeyDown={(event) => {
+						formatting.onKeyDown(event);
+					}}
 					className="min-h-80 font-mono text-xs"
 					spellCheck={false}
+					aria-invalid={formatting.problemLine ? true : undefined}
 					aria-describedby={`${id}-css-help`}
 				/>
+				<FormatNoteLine format={formatting} />
 				<FieldDescription id={`${id}-css-help`}>{t("designSystem.css.help")}</FieldDescription>
 			</Field>
 			<StylePreview

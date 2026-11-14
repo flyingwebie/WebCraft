@@ -176,6 +176,13 @@ export const SHORTCUTS = [
 		scope: "code",
 	},
 	{
+		id: "editor.format",
+		area: "editor",
+		chords: [{ key: "f", shift: true, alt: true }],
+		label: "codeFormat.format",
+		scope: "code",
+	},
+	{
 		id: "tree.moveUp",
 		area: "tree",
 		chords: [{ key: "ArrowUp", alt: true }],
@@ -372,7 +379,7 @@ export function withKeys(label: string, id: ShortcutId): string {
 
 /** Whether a key press is one of the shortcut's chords. Ctrl and ⌘ both count as `mod`. */
 export function matches(
-	event: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | "altKey">,
+	event: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "shiftKey" | "altKey"> & { code?: string },
 	id: ShortcutId,
 ) {
 	const mod = event.ctrlKey || event.metaKey;
@@ -383,7 +390,9 @@ export function matches(
 			(chord.key === "Letter"
 				? /^\p{L}$/u.test(event.key)
 				: chord.key.length === 1
-					? event.key.toLowerCase() === chord.key
+					? event.key.toLowerCase() === chord.key ||
+						// ⌥ turns a letter into another character on some keyboards (⌥F is ƒ): its key still says F.
+						(!!chord.alt && /^[a-z]$/.test(chord.key) && event.code === `Key${chord.key.toUpperCase()}`)
 					: event.key === chord.key) &&
 			(!!chord.shift === event.shiftKey || ["/", "*", "Letter"].includes(chord.key)),
 	);

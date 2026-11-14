@@ -151,7 +151,8 @@ for (const theme of THEMES) {
 				await expectOverlayUsable(
 					page,
 					page.getByRole("button", { name: /Switch Workspace or Site/ }),
-					"menu",
+					// A popover in two columns (Workspaces, and the Sites of one), not a menu.
+					"dialog",
 					`context switcher, ${level} level (${theme})`,
 				);
 			}

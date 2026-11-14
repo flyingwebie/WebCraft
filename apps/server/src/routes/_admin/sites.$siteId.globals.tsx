@@ -11,7 +11,7 @@ import { pageTitle } from "../../ui/i18n.tsx";
 const search = z.object({ language: z.string().min(2).max(35).optional().catch(undefined) });
 
 export const Route = createFileRoute("/_admin/sites/$siteId/globals")({
-	staticData: { crumb: "globals.pageTitle", wide: true },
+	staticData: { crumb: "globals.pageTitle", width: "wide" },
 	validateSearch: search,
 	loaderDeps: ({ search: { language } }) => ({ language }),
 	loader: async ({ params, deps }) => {

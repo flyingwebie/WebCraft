@@ -19,7 +19,7 @@ import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 import { PasswordInput } from "../../ui/PasswordInput.tsx";
 
 export const Route = createFileRoute("/_admin/settings/backups")({
-	staticData: { crumb: "backupSettings.pageTitle" },
+	staticData: { crumb: "backupSettings.pageTitle", width: "form" },
 	loader: async ({ context }) => {
 		if (!context.shell.permissions.includes("install.manage")) return null;
 		return (await getApi()).install.backups.get();

@@ -29,6 +29,7 @@ import { roleLabel, type SignedInPerson } from "../../ui/shell/context.ts";
 import { TwoFactorCard } from "../../ui/two-factor/TwoFactorCard.tsx";
 
 export const Route = createFileRoute("/_admin/account/")({
+	staticData: { width: "form" },
 	loader: async () => {
 		const api = await getApi();
 		const [{ emails }, { sessions }, twoFactor] = await Promise.all([

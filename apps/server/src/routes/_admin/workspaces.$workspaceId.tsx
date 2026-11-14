@@ -17,10 +17,12 @@ export const Route = createFileRoute("/_admin/workspaces/$workspaceId")({
 				api.workspaces.get({ workspaceId: params.workspaceId }),
 				api.sites.list({ workspaceId: params.workspaceId }),
 			]);
+			// Analytics lists the Workspace Dashboards the person sees by name.
+			const { dashboards: listed } = await api.dashboards.list({ workspaceId: params.workspaceId });
 			const dashboards =
-				permissions.includes("dashboard.view") ||
-				permissions.includes("dashboard.manage") ||
-				(await api.dashboards.list({ workspaceId: params.workspaceId })).dashboards.length > 0;
+				permissions.includes("dashboard.view") || permissions.includes("dashboard.manage") || listed.length > 0
+					? listed.map(({ id, name }) => ({ id, name }))
+					: null;
 			const place: AdminPlace = {
 				level: "workspace",
 				workspace: { id: workspace.id, name: workspace.name },

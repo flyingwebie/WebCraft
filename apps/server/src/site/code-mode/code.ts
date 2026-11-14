@@ -7,11 +7,26 @@ import type { EditorDrawer, EditorFit, editorFit, focusInto } from "../../ui/bui
 import type { EditorHistory } from "../../ui/builder/editor-history.ts";
 import type { declareMissingProp } from "../../ui/builder/prop-quick-fix.ts";
 import type { renderedRanges } from "../../ui/builder/rendered-ranges.ts";
+import type { formatTextArea, isFormatKey } from "../../ui/code-format/box.ts";
+import type { FormatEngine } from "../../ui/code-format/format.ts";
 /**
- * What Code mode's script is given when it is made: the address of its own stylesheet and of the
- * shared panels, and the window widths it needs (`EDITOR_WIDTHS`, #138).
+ * What Code mode's script is given when it is made: the address of its own stylesheet, of the shared
+ * panels and of Format's engine (Prettier, loaded the first time Format is used), and the window
+ * widths it needs (`EDITOR_WIDTHS`, #138).
  */
-export type CodeModeConfig = { styles: string; panels: string; widths: { min: number; full: number } };
+export type CodeModeConfig = {
+	styles: string;
+	panels: string;
+	format: string;
+	widths: { min: number; full: number };
+};
+/** Format in a code box (SPEC 5.1): the shared helpers, each self-contained, and how long its states show. */
+export type CodeModeFormatting = {
+	formatTextArea: typeof formatTextArea;
+	isFormatKey: typeof isFormatKey;
+	shownMs: number;
+	spinnerMs: number;
+};
 /** The window-width rules Code mode shares with the Builder (`editor-fit.ts`), each self-contained. */
 export type CodeModeFitting = {
 	editorFit: typeof editorFit;
@@ -22,7 +37,8 @@ export type CodeModeFitting = {
  * Code mode's panels (ADR 0016): WebCraft's own script on a page in Code mode, loaded only there (a
  * page in Content editing never loads it). It is served as a file from the Site's domain, made of
  * this function's source text and its config (`assets.ts` beside the editing bar's), so the function
- * must use nothing from outside itself.
+ * must use nothing from outside itself, `import()` included: the shared panels are loaded with
+ * `loadModule`, which `assets.ts` writes after the function (`LOAD_MODULE` there says why).
  *
  * Clicking an element of the page (every element carries `data-wc-code`, where it comes from) opens
  * its Template or Component in the HTML panel, its Classes and the Site CSS in the CSS panel (the
@@ -41,6 +57,8 @@ export function codeMode(
 	editCodeKey: typeof codeKeyEdit,
 	fitting: CodeModeFitting,
 	propFix: { declare: typeof declareMissingProp; blockAt: typeof propsBlockAt },
+	formatting: CodeModeFormatting,
+	loadModule: (address: string) => Promise<unknown>,
 ): void {
 	type Words = { [key: string]: string | Words };
 	type Answer = { ok: true; data: unknown } | { ok: false; code: string; data: Record<string, unknown> };
@@ -104,6 +122,8 @@ export function codeMode(
 		get(): string;
 		set(text: string, keepCaret?: boolean): void;
 		problems(lines: readonly number[]): void;
+		/** Marks the line Format couldn't read, until the text changes (null: none). */
+		formatProblem(line: number | null): void;
 		mark(line: number | null, through?: number): void;
 		reveal(offset: number): void;
 		readOnly(on: boolean): void;
@@ -168,33 +188,10 @@ export function codeMode(
 		expand: ["m6 9 6 6 6-6"],
 		play: ["M6 3l14 9-14 9z"],
 		check: ["M20 6 9 17l-5-5"],
+		spinner: ["M21 12a9 9 0 1 1-6.219-8.56"],
 		x: ["M18 6 6 18", "m6 6 12 12"],
 		command: ["M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"],
 	};
-	/** Elements whose content Format may put on lines of its own: block containers. */
-	const CONTAINERS = new Set(
-		"address article aside blockquote details dialog div dl fieldset figure footer form header hgroup li main menu nav ol search section ul".split(
-			" ",
-		),
-	);
-	/** Elements a browser lays out as blocks by default: whitespace next to them never shows. */
-	const BLOCK = new Set([...CONTAINERS, ..."p h1 h2 h3 h4 h5 h6 hr pre table figcaption dd dt".split(" ")]);
-	/** Elements with no end tag, as HTML reads them. */
-	const VOID = new Set([
-		"area",
-		"base",
-		"br",
-		"col",
-		"embed",
-		"hr",
-		"img",
-		"input",
-		"link",
-		"meta",
-		"source",
-		"track",
-		"wbr",
-	]);
 	const JS_KEYWORDS = new Set(
 		"const let var function return if else for while do switch case break continue new class extends import export from async await try catch finally throw typeof instanceof in of this null undefined true false default delete void yield".split(
 			" ",
@@ -237,7 +234,15 @@ export function codeMode(
 	let html: Editor;
 	let htmlTitle: HTMLElement;
 	let htmlSave: HTMLButtonElement;
-	let htmlFormat: HTMLButtonElement;
+	/** Format in the HTML and JS panels: each one's button, the line under it, and what it shows now. */
+	type FormatControl = {
+		button: HTMLButtonElement;
+		note: HTMLElement;
+		working: boolean;
+		timers: number[];
+	};
+	const formatControls: Partial<Record<"html" | "js", FormatControl>> = {};
+	let formatEngine: Promise<FormatEngine> | undefined;
 	let htmlProblems: HTMLElement;
 	let checksList: HTMLElement;
 	let checksPanel: HTMLDetailsElement;
@@ -402,7 +407,9 @@ export function codeMode(
 		const selectionHash = new URLSearchParams(win.location.hash.slice(1)).get("wc-selection");
 		if (selectionHash || historyToken) win.history.replaceState(null, "", win.location.pathname + win.location.search);
 		await Promise.all([open(selectionHash), loadScripts()]);
-		const module = await import(config.panels);
+		// Never `import()` here: this function is served as its source text, and `bun run dev` would
+		// rewrite it into a helper only the server has (see `LOAD_MODULE` in `edit-bar/assets.ts`).
+		const module = (await loadModule(config.panels)) as { mount(bridge: object): typeof panelsAdapter };
 		panelsAdapter = module.mount({
 			historyToken,
 			root,
@@ -516,6 +523,8 @@ export function codeMode(
 				bar(action: "publish" | "safeMode" | "preview" | "leave") {
 					doc.dispatchEvent(new CustomEvent("webcraft:edit-command", { detail: { action } }));
 				},
+				format: (language: "html" | "js") => formatPanel(language),
+				formattable,
 			},
 		});
 		doc.addEventListener(
@@ -1081,8 +1090,7 @@ export function codeMode(
 	function buildHtmlPanel(): HTMLElement {
 		const heading = newId("html");
 		htmlTitle = el("span", { class: "panel-sub" });
-		htmlFormat = button({ class: "small secondary", title: word("formatHint") }, word("format"));
-		htmlFormat.addEventListener("click", () => format());
+		const htmlFormat = formatControl("html");
 		htmlSave = button({ class: "small primary" }, word("save"));
 		htmlSave.addEventListener("click", () => void saveHtml(null));
 		htmlProblems = el("ul", {
@@ -1120,8 +1128,9 @@ export function codeMode(
 		return el(
 			"section",
 			{ class: "panel", "aria-labelledby": heading, "data-editor-region": "html" },
-			panelHeader(heading, word("html"), "code", htmlTitle, htmlFormat, htmlSave),
+			panelHeader(heading, word("html"), "code", htmlTitle, htmlFormat.button, htmlSave),
 			html.root,
+			htmlFormat.note,
 			htmlProblems,
 			checks,
 		);
@@ -1151,6 +1160,7 @@ export function codeMode(
 		jsSave.addEventListener("click", () => void saveScript(null));
 		jsRun = button({ class: "small primary", title: word("runHint") }, icon("play"), word("run"));
 		jsRun.addEventListener("click", () => void run());
+		const jsFormat = formatControl("js");
 		jsNote = el("p", { class: "note", hidden: "" });
 		jsUsage = el("p", { class: "usage", hidden: "" });
 		scriptSettings = makeScriptSettings({
@@ -1193,6 +1203,7 @@ export function codeMode(
 					jsSiteTab,
 					jsComponentTab,
 				),
+				jsFormat.button,
 				jsSave,
 				jsRun,
 			),
@@ -1200,6 +1211,7 @@ export function codeMode(
 			jsSettings,
 			jsNote,
 			jsEditor.root,
+			jsFormat.note,
 			el(
 				"section",
 				{ class: "console", "aria-labelledby": consoleHeading },
@@ -1493,7 +1505,7 @@ export function codeMode(
 		html.readOnly(!editable);
 		htmlSave.disabled = !editable;
 		openBuilderButton.disabled = !editable || !panelsAdapter || openingBuilder;
-		htmlFormat.disabled = !editable;
+		if (formatControls.html) formatControls.html.button.hidden = !opened?.source.editable;
 	}
 
 	function renderBreadcrumb(): void {
@@ -1651,64 +1663,138 @@ export function codeMode(
 		announce(word("notSaved", { reason }), "interrupt");
 	}
 
-	/** Puts each block element of the HTML panel on its own line, changing nothing else (see `formatMarkup`). */
-	function format(): void {
-		if (!opened?.source.editable) return;
-		const text = html.get();
-		const formatted = formatMarkup(text);
-		if (formatted !== text) html.insert(formatted, 0, text.length);
-		html.area.focus();
+	// ---------------------------------------------------------------------------------------------
+	// Format (SPEC 5.1): Prettier, in the house style, in the HTML and JS panels (the CSS panel is the
+	// shared one, with its own). Loaded the first time it is used, from the Site's domain.
+
+	/** The `{ }` button in a panel's header and the line under its box. */
+	function formatControl(panel: "html" | "js"): FormatControl {
+		const apple = /mac|iphone|ipad|ipod/i.test(win.navigator.platform || win.navigator.userAgent);
+		const keys = apple ? "⌥⇧F" : "Shift+Alt+F";
+		const control: FormatControl = {
+			button: button(
+				{
+					class: "tool format-button",
+					"data-format-button": "",
+					"data-format-phase": "rest",
+					"aria-label": word("format"),
+					"aria-keyshortcuts": "Alt+Shift+F",
+					title: word("formatTitle", { keys }),
+				},
+				icon("braces"),
+			),
+			note: el("p", { class: "format-note", role: "status", "data-format-note": "" }),
+			working: false,
+			timers: [],
+		};
+		// Keeps the selection: Format works on the selected lines.
+		control.button.addEventListener("mousedown", (event) => event.preventDefault());
+		control.button.addEventListener("click", () => void formatPanel(panel));
+		formatControls[panel] = control;
+		return control;
 	}
 
-	/**
-	 * Template markup with line breaks and indentation between tags where whitespace never shows on
-	 * the page: next to a block boundary (the start or end of a block container, before or after a
-	 * block element), where CSS drops spaces at the start and end of lines. Only between two tags
-	 * (elements or Components), never next to text, values or commands (so an element showing one
-	 * value alone stays editable in place), and never inside `<pre>`. Nothing else changes, so the
-	 * markup saves to the same elements and reads back exactly as formatted.
-	 */
-	function formatMarkup(text: string): string {
-		const tag =
-			/<!--[\s\S]*?-->|\\\{\{|\{\{[\s\S]*?\}\}|<\/([A-Za-z][\w-]*)\s*>|<([A-Za-z][\w-]*)(?:[^>"']|"[^"]*"|'[^']*')*?(\/?)>/g;
-		type Token = { kind: "start" | "end" | "component" | "other"; name: string };
-		const stack: string[] = [];
-		let out = "";
-		let last = 0;
-		let previous: Token | null = null;
-		for (const match of text.matchAll(tag)) {
-			const at = match.index ?? 0;
-			const between = text.slice(last, at);
-			const current: Token = match[1]
-				? { kind: "end", name: match[1].toLowerCase() }
-				: match[2]
-					? /^[A-Z]/.test(match[2])
-						? { kind: "component", name: match[2] }
-						: { kind: "start", name: match[2].toLowerCase() }
-					: { kind: "other", name: "" };
-			const tags = previous !== null && previous.kind !== "other" && current.kind !== "other";
-			const blockBefore =
-				previous !== null &&
-				((previous.kind === "end" && BLOCK.has(previous.name)) ||
-					(previous.kind === "start" && CONTAINERS.has(previous.name)));
-			const blockAfter =
-				(current.kind === "start" && BLOCK.has(current.name)) ||
-				(current.kind === "end" && CONTAINERS.has(current.name));
-			const preformatted = stack.some((name) => name === "pre" || name === "textarea");
-			if (tags && (blockBefore || blockAfter) && !preformatted && /^\s*$/.test(between)) {
-				const depth = current.kind === "end" ? stack.length - 1 : stack.length;
-				out += `\n${"  ".repeat(Math.max(0, depth))}`;
-			} else out += between;
-			out += match[0];
-			if (current.kind === "start" && match[3] !== "/" && !VOID.has(current.name)) stack.push(current.name);
-			if (current.kind === "end") {
-				const open = stack.lastIndexOf(current.name);
-				if (open >= 0) stack.length = open;
-			}
-			previous = current;
-			last = at + match[0].length;
+	function formatPhase(control: FormatControl, phase: "rest" | "working" | "done" | "failed"): void {
+		control.button.dataset.formatPhase = phase;
+		control.button.replaceChildren(icon(phase === "working" ? "spinner" : phase === "done" ? "check" : "braces"));
+		if (phase === "working") control.button.setAttribute("aria-busy", "true");
+		else control.button.removeAttribute("aria-busy");
+	}
+
+	function formatNote(control: FormatControl, kind: string, ...children: (Node | string)[]): void {
+		control.note.dataset.formatNote = kind;
+		control.note.replaceChildren(...children);
+	}
+
+	/** Whether a panel can be formatted now: it shows something that can be edited. */
+	function formattable(panel: "html" | "js"): boolean {
+		const target = panel === "html" ? html : jsEditor;
+		if (!target || target.area.readOnly) return false;
+		return panel === "html" ? !!opened?.source.editable : currentScript() !== null;
+	}
+
+	/** Formats a panel's box: the selected lines, or all of it, as one Undo step. */
+	async function formatPanel(panel: "html" | "js"): Promise<void> {
+		const control = formatControls[panel];
+		const target = panel === "html" ? html : jsEditor;
+		if (!control || control.working || !formattable(panel)) return;
+		control.working = true;
+		for (const timer of control.timers) cancel(timer);
+		control.timers = [later(() => formatPhase(control, "working"), formatting.spinnerMs)];
+		const history = panelsAdapter?.history;
+		// What was typed reaches the Draft first, as its own step, so Undo after Format brings it back.
+		if (panel === "html" && panelsAdapter) await panelsAdapter.save().catch(() => false);
+		history?.boundary();
+		let result: Awaited<ReturnType<typeof formatting.formatTextArea>> | undefined;
+		try {
+			result = await formatting.formatTextArea(target.area, panel, async (text, language, options) => {
+				formatEngine ??= (loadModule(config.format) as Promise<FormatEngine>).catch((failure: unknown) => {
+					formatEngine = undefined;
+					throw failure;
+				});
+				return (await formatEngine).formatCode(text, language, options);
+			});
+		} catch {
+			result = undefined;
+		} finally {
+			history?.boundary();
+			control.working = false;
+			for (const timer of control.timers) cancel(timer);
+			control.timers = [];
 		}
-		return out + text.slice(last);
+		if (result === undefined) {
+			formatPhase(control, "failed");
+			formatNote(control, "unavailable", icon("warning"), word("formatUnavailable"));
+			return;
+		}
+		if (result === null) {
+			formatPhase(control, "rest");
+			return;
+		}
+		if (result.ok) {
+			target.formatProblem(null);
+			formatPhase(control, "done");
+			formatNote(
+				control,
+				result.changedLines ? "changed" : "tidy",
+				icon("check"),
+				result.changedLines === 0
+					? word("tidy")
+					: result.changedLines === 1
+						? word("formattedOne")
+						: word("formattedOther", { count: result.changedLines }),
+			);
+			control.timers.push(
+				later(() => {
+					formatPhase(control, "rest");
+					formatNote(control, "");
+				}, formatting.shownMs),
+			);
+			return;
+		}
+		const line = result.line;
+		target.formatProblem(line);
+		formatPhase(control, "failed");
+		const goTo = el(
+			"button",
+			{ type: "button", class: "link-button" },
+			word("cantFormat", { reason: result.reason, line }),
+		);
+		goTo.addEventListener("click", () => {
+			const offset = offsetOf(target.area.value, line, 1);
+			target.area.focus();
+			target.area.setSelectionRange(offset, offset);
+		});
+		formatNote(control, "problem", icon("warning"), goTo);
+	}
+
+	/** The text changed: a problem Format found is no longer marked. */
+	function formatTextChanged(panel: "html" | "js"): void {
+		const control = formatControls[panel];
+		if (!control) return;
+		if (control.button.dataset.formatPhase !== "failed") return;
+		formatPhase(control, "rest");
+		formatNote(control, "");
 	}
 
 	function conflict(): Promise<string> {
@@ -1908,6 +1994,8 @@ export function codeMode(
 		const editable = !onComponent || component.editable;
 		jsEditor.readOnly(!editable);
 		jsSave.disabled = !editable;
+		// A box that can't be edited has no Format.
+		if (formatControls.js) formatControls.js.button.hidden = !editable || !script;
 		jsEditor.area.setAttribute(
 			"placeholder",
 			word(onComponent ? "componentPlaceholder" : jsKind === "site" ? "sitePlaceholder" : "pagePlaceholder"),
@@ -2496,6 +2584,7 @@ export function codeMode(
 		const surface = el("div", { class: "surface" }, highlightLayer, caretLine, area);
 		const rootElement = el("div", { class: `editor language-${options.language}` }, gutter, surface);
 		let problemLines = new Set<number>();
+		let formatLine: number | null = null;
 		let marked: number | null = null;
 		let markedThrough = 0;
 
@@ -2509,7 +2598,7 @@ export function codeMode(
 					const number = index + 1;
 					const classes = [
 						"line",
-						problemLines.has(number) ? "has-problem" : "",
+						problemLines.has(number) || formatLine === number ? "has-problem" : "",
 						marked !== null && number >= marked && number <= markedThrough ? "marked" : "",
 						hoverLine === number ? "hovered" : "",
 					];
@@ -2522,11 +2611,12 @@ export function codeMode(
 					return el(
 						"span",
 						{
-							class: problemLines.has(number)
-								? "has-problem"
-								: marked !== null && number >= marked && number <= markedThrough
-									? "marked"
-									: "",
+							class:
+								problemLines.has(number) || formatLine === number
+									? "has-problem"
+									: marked !== null && number >= marked && number <= markedThrough
+										? "marked"
+										: "",
 						},
 						String(number),
 					);
@@ -2550,6 +2640,10 @@ export function codeMode(
 			options.onCaret(area.selectionStart);
 		};
 		area.addEventListener("input", () => {
+			if (formatLine !== null) {
+				formatLine = null;
+				formatTextChanged(options.language === "markup" ? "html" : "js");
+			}
 			paint();
 			options.onInput();
 			const context = options.suggest(area.value, area.selectionStart, false);
@@ -2625,6 +2719,11 @@ export function codeMode(
 				options.save();
 				return;
 			}
+			if (formatting.isFormatKey(event)) {
+				event.preventDefault();
+				void formatPanel(options.language === "markup" ? "html" : "js");
+				return;
+			}
 			const edit = editCodeKey(event, area);
 			if (edit) {
 				event.preventDefault();
@@ -2645,6 +2744,10 @@ export function codeMode(
 			},
 			problems(lines) {
 				problemLines = new Set(lines);
+				paint();
+			},
+			formatProblem(line) {
+				formatLine = line;
 				paint();
 			},
 			mark(line, through = line ?? 0) {

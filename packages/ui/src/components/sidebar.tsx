@@ -120,7 +120,12 @@ function SidebarProvider({
 						...style,
 					} as React.CSSProperties
 				}
-				className={cn("group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full", className)}
+				// WebCraft: with the inset variant the window takes the sidebar's colour and never scrolls:
+				// the page is a card that stays put (`SidebarInset`), and what is long scrolls inside it.
+				className={cn(
+					"group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full has-data-[variant=inset]:h-svh has-data-[variant=inset]:overflow-hidden",
+					className,
+				)}
 				{...props}
 			>
 				{children}
@@ -163,27 +168,32 @@ function Sidebar({
 
 	if (isMobile) {
 		return (
-			<Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
-				<SheetContent
-					dir={dir}
-					data-sidebar="sidebar"
-					data-slot="sidebar"
-					data-mobile="true"
-					className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
-					style={
-						{
-							"--sidebar-width": SIDEBAR_WIDTH_MOBILE,
-						} as React.CSSProperties
-					}
-					side={side}
-				>
-					<SheetHeader className="sr-only">
-						<SheetTitle>{mobileTitle}</SheetTitle>
-						{mobileDescription ? <SheetDescription>{mobileDescription}</SheetDescription> : null}
-					</SheetHeader>
-					<div className="flex h-full w-full flex-col">{children}</div>
-				</SheetContent>
-			</Sheet>
+			<>
+				{/* WebCraft: the sheet is in the page only while open; this keeps the variant known to the wrapper and the inset. */}
+				<div className="peer hidden" data-slot="sidebar-marker" data-variant={variant} />
+				<Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
+					<SheetContent
+						dir={dir}
+						data-sidebar="sidebar"
+						data-slot="sidebar"
+						data-mobile="true"
+						className="bg-sidebar text-sidebar-foreground w-(--sidebar-width) p-0 [&>button]:hidden"
+						style={
+							{
+								"--sidebar-width": SIDEBAR_WIDTH_MOBILE,
+							} as React.CSSProperties
+						}
+						side={side}
+					>
+						<SheetHeader className="sr-only">
+							<SheetTitle>{mobileTitle}</SheetTitle>
+							{mobileDescription ? <SheetDescription>{mobileDescription}</SheetDescription> : null}
+						</SheetHeader>
+						{/* WebCraft: the inset variant keeps its 8 px around the content in the sheet too. */}
+						<div className={cn("flex h-full w-full flex-col", variant === "inset" && "p-2")}>{children}</div>
+					</SheetContent>
+				</Sheet>
+			</>
 		);
 	}
 
@@ -287,13 +297,19 @@ function SidebarRail({ className, label, ...props }: React.ComponentProps<"butto
 	);
 }
 
-/** WebCraft: a plain container, so the page inside can have its own header and `main` landmarks. */
+/**
+ * WebCraft: a plain container, so the page inside can have its own header and `main` landmarks.
+ * Beside an inset sidebar it is the page card: 8 px from the top, right and bottom edge (and from the
+ * left one while the sidebar is closed), rounded, with a small shadow. The card has the window's
+ * height and clips to its corners, so it stays put and the page scrolls inside it; on a phone it is
+ * edge to edge.
+ */
 function SidebarInset({ className, ...props }: React.ComponentProps<"div">) {
 	return (
 		<div
 			data-slot="sidebar-inset"
 			className={cn(
-				"bg-background relative flex w-full flex-1 flex-col md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ms-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ms-2",
+				"bg-background relative flex w-full min-w-0 flex-1 flex-col peer-data-[variant=inset]:min-h-0 peer-data-[variant=inset]:overflow-hidden md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ms-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow-sm md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ms-2",
 				className,
 			)}
 			{...props}

@@ -8,7 +8,7 @@ import { PageHeader } from "../../ui/PageHeader.tsx";
 import { WaitingForReview } from "../../ui/review/Review.tsx";
 
 export const Route = createFileRoute("/_admin/sites/$siteId/")({
-	staticData: { crumb: "site.pageTitle" },
+	staticData: { crumb: "site.pageTitle", width: "wide" },
 	loader: async ({ params }) => {
 		const api = await getApi();
 		return { reviews: (await api.reviews.list({ siteId: params.siteId })).reviews };

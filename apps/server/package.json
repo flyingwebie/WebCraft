@@ -14,7 +14,9 @@
 		"./editor/edit-tools": "./src/ui/edit-mode/tools.ts",
 		"./editor/edit-history": "./src/ui/edit-history/edit-mode.ts",
 		"./building-area/shell": "./src/ui/building-area/main.tsx",
-		"./building-area/agent": "./src/ui/building-area/agent/agent.ts"
+		"./building-area/agent": "./src/ui/building-area/agent/agent.ts",
+		"./code-format": "./src/ui/code-format/format.ts",
+		"./editor/code-format": "./src/ui/code-format/engine.ts"
 	},
 	"scripts": {
 		"dev": "bun --bun vite dev",
@@ -42,6 +44,7 @@
 		"@webcraft/ui": "workspace:*",
 		"drizzle-orm": "catalog:",
 		"lucide-react": "^1.41.0",
+		"prettier": "^3.9.10",
 		"react": "^19.3.0",
 		"react-dom": "^19.3.0",
 		"sonner": "catalog:",

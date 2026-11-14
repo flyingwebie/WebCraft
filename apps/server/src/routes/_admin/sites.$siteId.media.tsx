@@ -23,7 +23,7 @@ const search = z.object({
 export type MediaSearch = z.infer<typeof search>;
 
 export const Route = createFileRoute("/_admin/sites/$siteId/media")({
-	staticData: { crumb: "media.pageTitle", wide: true },
+	staticData: { crumb: "media.pageTitle", width: "wide" },
 	validateSearch: search,
 	loaderDeps: ({ search: { folder, q, kind, file, trash } }) => ({ folder, q, kind, file, trash }),
 	loader: async ({ params, deps }) => {
