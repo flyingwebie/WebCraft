@@ -43,7 +43,10 @@ const page = reportPage({
 				widgetId: "8c5f4b8e-7c0e-4b8e-9b1e-2c1a5f0e9a11",
 				title: "Totals",
 				range: { from: new Date("2026-03-02T00:00:00Z"), to: new Date("2026-03-09T00:00:00Z"), interval: "day" },
-				data: { shape: "number", values: [{ key: "pageviews", label: "Page views", count: 120, of: null }] },
+				data: {
+					shape: "number",
+					values: [{ key: "pageviews", label: "Page views", count: 120, of: null, points: null }],
+				},
 				problem: null,
 				countedFrom: null,
 				sites: null,
