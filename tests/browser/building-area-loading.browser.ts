@@ -270,7 +270,8 @@ describe("the shell loads each place when it is opened, for a Member", () => {
 		expectFirstLoad(requests, "ClientShell");
 
 		await openFromRail(page, "content");
-		expect(await page.locator("[data-wc-place-back]").textContent()).toBe("Back to Menu");
+		// The place names the page once its data has arrived.
+		await page.locator("[data-wc-place-back]", { hasText: "Back to Menu" }).waitFor();
 		expect(placeFiles(requests)).toEqual([expect.stringMatching(/^shell-ContentPlace-[0-9a-f]{16}\.js$/)]);
 	});
 });
