@@ -78,9 +78,11 @@ afterAll(async () => {
 });
 
 /** A page in Chromium in the building area, on the post, `width` × `height`. */
-async function opened(options: { width?: number; height?: number; returnTo?: string } = {}) {
+async function opened(options: { width?: number; height?: number; returnTo?: string; signedIn?: boolean } = {}) {
 	const page = await install.newPage("light");
 	await page.setViewportSize({ width: options.width ?? 1440, height: options.height ?? 900 });
+	// Signed in to the admin too, for the way back to land on the admin's screen.
+	if (options.signedIn) await install.signIn(page, staff);
 	const frame = await enterBuildingArea(install, page, {
 		as: staff,
 		siteId,
@@ -314,7 +316,7 @@ describe("the building area's chrome, for Staff", () => {
 
 	test("Exit ends the session and goes back to the admin", async () => {
 		const returnTo = `/sites/${siteId}/media`;
-		const { page } = await opened({ returnTo });
+		const { page } = await opened({ returnTo, signedIn: true });
 		const token = await page.evaluate(
 			() =>
 				(JSON.parse(document.getElementById("webcraft-building-area-config")?.textContent ?? "{}") as { token: string })
@@ -322,6 +324,9 @@ describe("the building area's chrome, for Staff", () => {
 		);
 		const site = new URL(page.url());
 		const held = await page.context().cookies(site.origin);
+		// A second tab on the Site's address, to send an edit request from once the first has left.
+		const other = await page.context().newPage();
+		await other.goto(page.url());
 
 		await page.getByRole("button", { name: "Exit" }).click();
 		await page.waitForURL((url) => url.href === install.adminUrl(returnTo));
@@ -331,9 +336,8 @@ describe("the building area's chrome, for Staff", () => {
 
 		// The next edit request, even with the cookies the browser held, finds the session ended: it was
 		// ended on the server, not only forgotten by the browser.
-		await page.goto(new URL("/_webcraft/build/page/", site.origin).toString());
 		await page.context().addCookies(held);
-		const answer = await page.evaluate(
+		const answer = await other.evaluate(
 			async ({ path, token }) => {
 				const response = await fetch("/_webcraft/edit/api/state", {
 					method: "POST",
