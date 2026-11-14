@@ -51,7 +51,7 @@ export function OutdatedTranslations({
 	return (
 		<section
 			aria-labelledby="outdated-translations-heading"
-			className="grid gap-4 rounded-lg border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
+			className="border-warning-border bg-warning text-warning-foreground grid gap-4 rounded-xl border p-4"
 		>
 			<h2 id="outdated-translations-heading" className="flex items-center gap-2 font-semibold">
 				<TriangleAlertIcon className="size-4" aria-hidden="true" />
@@ -98,7 +98,7 @@ export function OutdatedTranslations({
 								onClick={() => void act("retranslate", outdated.at, outdated.block)}
 							>
 								<RefreshCwIcon aria-hidden="true" />
-								{t("translations.queue.retranslate")}
+								{t("translations.screen.translateAgain")}
 							</Button>
 						</div>
 					</li>

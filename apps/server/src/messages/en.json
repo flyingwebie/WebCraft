@@ -5395,17 +5395,14 @@
 	"translations": {
 		"pageTitle": "Translations",
 		"heading": "Translations",
-		"intro": "Default language: {language}. AI translation fills the other languages; values a person wrote are never overwritten.",
 		"settings": "AI translation settings",
 		"translateNow": "Translate now",
 		"queued": "{count, plural, =0 {Nothing to translate: no language is Automatic or Review.} one {# item queued for AI translation.} other {# items queued for AI translation.}}",
 		"oneLanguage": "This Site has one language. Add languages in Site settings › Languages to translate it.",
-		"percent": "{percent}%",
 		"progressOf": "How much of {language} is translated",
 		"mode": "Translation mode",
 		"modeOf": "Translation mode of {language}",
 		"modeSaved": "{language} is now {mode}.",
-		"countsOf": "Where {language} stands",
 		"toReview": "{count} to review",
 		"outdated": "{count} outdated",
 		"missing": "{count} missing",
@@ -5436,37 +5433,35 @@
 			"capNear": "AI usage this month: {percent}% of the cap. At the cap, AI translation stops and waiting work goes on next month or once the cap is raised."
 		},
 		"queue": {
-			"heading": "Review queue",
-			"intro": "AI-written values waiting for a person, and Outdated translations whose source changed after a person wrote them.",
-			"language": "Language",
-			"allLanguages": "All languages",
 			"approveAll": "Approve all {count}",
-			"empty": "Nothing waits for review.",
-			"item": "Item",
-			"field": "Field",
-			"writtenBy": "Written by",
-			"status": "Status",
 			"untitled": "Untitled",
-			"ai": "AI",
-			"aPerson": "A person",
-			"statusToReview": "To review",
 			"statusOutdated": "Outdated",
-			"source": "Source",
 			"oldSource": "Source when it was translated",
 			"newSource": "Source now",
-			"translation": "Translation",
-			"aiTranslation": "AI translation",
-			"personTranslation": "Written by a person",
 			"approve": "Approve",
 			"confirm": "Confirm",
-			"edit": "Edit",
-			"retranslate": "Re-translate"
+			"edit": "Edit"
 		},
 		"editor": {
 			"heading": "{count, plural, one {# Outdated translation} other {# Outdated translations}}",
 			"intro": "Their source in the Default language changed after a person wrote them. Update a translation, confirm it is still right, or have the AI translate it again.",
 			"translation": "Translation"
-		}
+		},
+		"screen": {
+			"description": "What is translated, outdated, or waits for your review, in each language.",
+			"languages": "Languages",
+			"upToDate": "Up to date",
+			"translated": "{percent}% translated",
+			"nothingWaits": "Nothing waits in {language}.",
+			"waiting": "What waits in {language}",
+			"aiLine": "Translated by AI, waits for you",
+			"outdatedLine": "Outdated: the {language} changed",
+			"byAi": "Translated by AI",
+			"byPerson": "Written by a person",
+			"translateAgain": "Translate again",
+			"protected": "“{term}” is a Protected term, it stays as written."
+		},
+		"percent": "{percent}%"
 	},
 	"aiTranslation": {
 		"pageTitle": "AI translation",

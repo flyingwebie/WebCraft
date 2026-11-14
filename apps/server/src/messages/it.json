@@ -5395,17 +5395,14 @@
 	"translations": {
 		"pageTitle": "Traduzioni",
 		"heading": "Traduzioni",
-		"intro": "Lingua predefinita: {language}. La traduzione AI riempie le altre lingue; i valori scritti da una persona non vengono mai sovrascritti.",
 		"settings": "Impostazioni di traduzione AI",
 		"translateNow": "Traduci ora",
 		"queued": "{count, plural, =0 {Niente da tradurre: nessuna lingua è Automatica o In revisione.} one {# elemento in coda per la traduzione AI.} other {# elementi in coda per la traduzione AI.}}",
 		"oneLanguage": "Questo Sito ha una lingua sola. Aggiungi lingue in Impostazioni del Sito › Lingue per tradurlo.",
-		"percent": "{percent}%",
 		"progressOf": "Quanto di {language} è tradotto",
 		"mode": "Modalità di traduzione",
 		"modeOf": "Modalità di traduzione di {language}",
 		"modeSaved": "{language} ora è {mode}.",
-		"countsOf": "A che punto è {language}",
 		"toReview": "{count} da rivedere",
 		"outdated": "{count} superate",
 		"missing": "{count} mancanti",
@@ -5436,37 +5433,35 @@
 			"capNear": "Uso AI di questo mese: {percent}% del limite. Al limite la traduzione AI si ferma e il lavoro in attesa riprende il mese prossimo o quando il limite viene alzato."
 		},
 		"queue": {
-			"heading": "Coda di revisione",
-			"intro": "Valori scritti dall'AI che attendono una persona, e Traduzioni superate la cui origine è cambiata dopo che una persona le ha scritte.",
-			"language": "Lingua",
-			"allLanguages": "Tutte le lingue",
 			"approveAll": "Approva tutte ({count})",
-			"empty": "Nulla attende una revisione.",
-			"item": "Elemento",
-			"field": "Campo",
-			"writtenBy": "Scritta da",
-			"status": "Stato",
 			"untitled": "Senza titolo",
-			"ai": "AI",
-			"aPerson": "Una persona",
-			"statusToReview": "Da rivedere",
 			"statusOutdated": "Superata",
-			"source": "Origine",
 			"oldSource": "Origine quando è stata tradotta",
 			"newSource": "Origine adesso",
-			"translation": "Traduzione",
-			"aiTranslation": "Traduzione AI",
-			"personTranslation": "Scritta da una persona",
 			"approve": "Approva",
 			"confirm": "Conferma",
-			"edit": "Modifica",
-			"retranslate": "Ritraduci"
+			"edit": "Modifica"
 		},
 		"editor": {
 			"heading": "{count, plural, one {# Traduzione superata} other {# Traduzioni superate}}",
 			"intro": "La loro origine nella Lingua predefinita è cambiata dopo che una persona le ha scritte. Aggiorna una traduzione, conferma che è ancora giusta, o falla tradurre di nuovo all'AI.",
 			"translation": "Traduzione"
-		}
+		},
+		"screen": {
+			"description": "Cosa è tradotto, obsoleto o in attesa della tua revisione, in ogni lingua.",
+			"languages": "Lingue",
+			"upToDate": "Aggiornata",
+			"translated": "{percent}% tradotto",
+			"nothingWaits": "Non c'è nulla in attesa in {language}.",
+			"waiting": "Cosa è in attesa in {language}",
+			"aiLine": "Tradotto dall'IA, ti aspetta",
+			"outdatedLine": "Obsoleto: il testo in {language} è cambiato",
+			"byAi": "Tradotto dall'IA",
+			"byPerson": "Scritto da una persona",
+			"translateAgain": "Traduci di nuovo",
+			"protected": "«{term}» è un termine protetto, resta come scritto."
+		},
+		"percent": "{percent}%"
 	},
 	"aiTranslation": {
 		"pageTitle": "Traduzione AI",
