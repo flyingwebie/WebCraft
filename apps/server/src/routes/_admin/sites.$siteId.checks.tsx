@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { getApi } from "../../ui/api.ts";
-import { Checks } from "../../ui/Checks.tsx";
-import { pageTitle, useT } from "../../ui/i18n.tsx";
-import { PageHeader } from "../../ui/PageHeader.tsx";
+import { ChecksScreen } from "../../ui/checks/ChecksScreen.tsx";
+import { pageTitle } from "../../ui/i18n.tsx";
+
+/** Site › Checks: the Site's open Checks, by kind. */
 export const Route = createFileRoute("/_admin/sites/$siteId/checks")({
 	staticData: { crumb: "shell.nav.checks" },
 	loader: async ({ params }) => (await getApi()).checks.list({ siteId: params.siteId }),
@@ -10,12 +11,7 @@ export const Route = createFileRoute("/_admin/sites/$siteId/checks")({
 	component: Page,
 });
 function Page() {
-	const t = useT();
 	const { checks } = Route.useLoaderData();
-	return (
-		<>
-			<PageHeader heading={t("checks.heading")} />
-			<Checks checks={checks} />
-		</>
-	);
+	const { place } = Route.useRouteContext();
+	return <ChecksScreen checks={checks} postTypes={place.level === "site" ? place.postTypes : []} />;
 }

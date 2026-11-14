@@ -1152,15 +1152,15 @@
 	"members": {
 		"pageTitle": "Members",
 		"heading": "Members",
-		"intro": "People from {workspace} who can sign in to this Workspace. Each Membership has one role and reaches all Sites or chosen ones.",
-		"invite": "Invite Member",
+		"intro": "People with access to {workspace} and its Sites.",
+		"invite": "Invite a Member",
 		"search": "Search Members",
 		"roleFilter": "Show role",
 		"allRoles": "All roles",
 		"columns": {
 			"member": "Member",
 			"role": "Role",
-			"sites": "Site access",
+			"sites": "Sites",
 			"actions": "Actions",
 			"twoFactor": "2FA"
 		},
@@ -1204,32 +1204,29 @@
 		},
 		"sheet": {
 			"inviteTitle": "Invite a Member",
-			"inviteDescription": "They get an email in their Admin language with a link valid for 7 days.",
 			"email": "Email",
 			"role": "Role",
-			"roleHelp": {
-				"owner": "Manages Members, edits and publishes Content on the Sites they reach.",
-				"editor": "Edits and publishes Content on the Sites they reach.",
-				"author": "Edits Content and saves Drafts; can't publish."
-			},
-			"access": "Site access",
-			"all": "All Sites",
-			"allHelp": "Including Sites created later.",
-			"chosen": "Chosen Sites",
-			"chosenHelp": "Only the Sites ticked below.",
-			"chooseLegend": "Sites",
 			"notReached": "You can't offer this Site with this role.",
 			"noSites": "There are no Sites you can offer yet.",
 			"chooseSite": "Choose at least one Site.",
-			"limitNote": "You can't grant more access than you hold. An Owner can only offer the Sites they reach.",
-			"send": "Send invite",
+			"send": "Send invitation",
 			"cancel": "Cancel",
 			"close": "Close",
 			"sent": "Invite sent to {email}.",
 			"changeTitle": "Change role and Sites",
 			"changeDescription": "What {name} can do in this Workspace. The change takes effect at once.",
 			"save": "Save",
-			"saved": "Saved."
+			"saved": "Saved.",
+			"emailPlaceholder": "name@example.com",
+			"linkNote": "They get an email with a link that works for 7 days.",
+			"roleName": "{role}:",
+			"roleLine": {
+				"owner": "manages Members and can publish",
+				"editor": "edits and publishes",
+				"author": "edits and saves Drafts, cannot publish"
+			},
+			"reach": "Sites they can reach",
+			"allLater": "All Sites, also those added later"
 		},
 		"removeDialog": {
 			"title": "Remove {name}?",
@@ -1238,7 +1235,8 @@
 			"cancel": "Cancel",
 			"close": "Close",
 			"removed": "{name} was removed from {workspace}."
-		}
+		},
+		"siteCount": "{count, plural, one {# Site} other {# Sites}}"
 	},
 	"sites": {
 		"pageTitle": "Sites",
@@ -1302,12 +1300,11 @@
 		"changedVia": "{person} via {client}",
 		"button": "Publish all",
 		"changesCounted": "{count, plural, one {change} other {changes}}",
-		"title": "Publish all changes",
+		"title": "Publish all",
 		"close": "Close",
 		"loading": "Looking for the Site's Drafts…",
 		"none": "Everything is published: this Site has no Drafts.",
-		"intro": "{count, plural, one {# item differs} other {# items differ}} between the Staging address and what visitors see. Choose what goes live.",
-		"selected": "{selected} of {total} selected",
+		"intro": "{count, plural, one {# Draft} other {# Drafts}} on this Site. Visitors see them once you publish.",
 		"content": "Content",
 		"structure": "Structure",
 		"staffOnly": "Staff only",
@@ -1317,9 +1314,8 @@
 		"viewLabel": "View {name} on the Staging address",
 		"untitled": "Untitled",
 		"changes": "Changed: {list}",
-		"cacheNote": "Publishing clears this Site's page cache.",
 		"cancel": "Cancel",
-		"publish": "Publish {count, plural, one {# item} other {# items}}",
+		"publish": "Publish {count}",
 		"published": "Published {count, plural, one {# item} other {# items}}.",
 		"refused": "Nothing was published: {name} can't be published yet. {reason}",
 		"kinds": {
@@ -1355,7 +1351,22 @@
 			"notifications": "Notifications",
 			"autoReply": "Auto-reply"
 		},
-		"inReview": "{count, plural, one {# Draft is} other {# Drafts are}} waiting for review. Publishing one ends its Review and tells its Author."
+		"inReview": "{count, plural, one {# Draft is} other {# Drafts are}} waiting for review. Publishing one ends its Review and tells its Author.",
+		"selectAll": "Select all",
+		"groups": {
+			"formEmails": "Emails of Forms",
+			"templatesAndComponents": "Templates and Components",
+			"globals": "Globals",
+			"consentBanner": "Consent banner",
+			"forms": "Forms"
+		},
+		"checksOpen": "{count, plural, one {# Check is} other {# Checks are}} open on these",
+		"seeChecks": "See them",
+		"checksNeverStop": "Checks never stop publishing.",
+		"later": "Publish later",
+		"laterHelp": "Choose a day and a time instead of now.",
+		"changesMore": "Changed: {list} and {count} more",
+		"openReview": "In review: open the Review of {name}"
 	},
 	"staging": {
 		"button": "Staging",
@@ -5383,17 +5394,14 @@
 	"translations": {
 		"pageTitle": "Translations",
 		"heading": "Translations",
-		"intro": "Default language: {language}. AI translation fills the other languages; values a person wrote are never overwritten.",
 		"settings": "AI translation settings",
 		"translateNow": "Translate now",
 		"queued": "{count, plural, =0 {Nothing to translate: no language is Automatic or Review.} one {# item queued for AI translation.} other {# items queued for AI translation.}}",
 		"oneLanguage": "This Site has one language. Add languages in Site settings › Languages to translate it.",
-		"percent": "{percent}%",
 		"progressOf": "How much of {language} is translated",
 		"mode": "Translation mode",
 		"modeOf": "Translation mode of {language}",
 		"modeSaved": "{language} is now {mode}.",
-		"countsOf": "Where {language} stands",
 		"toReview": "{count} to review",
 		"outdated": "{count} outdated",
 		"missing": "{count} missing",
@@ -5424,37 +5432,35 @@
 			"capNear": "AI usage this month: {percent}% of the cap. At the cap, AI translation stops and waiting work goes on next month or once the cap is raised."
 		},
 		"queue": {
-			"heading": "Review queue",
-			"intro": "AI-written values waiting for a person, and Outdated translations whose source changed after a person wrote them.",
-			"language": "Language",
-			"allLanguages": "All languages",
 			"approveAll": "Approve all {count}",
-			"empty": "Nothing waits for review.",
-			"item": "Item",
-			"field": "Field",
-			"writtenBy": "Written by",
-			"status": "Status",
 			"untitled": "Untitled",
-			"ai": "AI",
-			"aPerson": "A person",
-			"statusToReview": "To review",
 			"statusOutdated": "Outdated",
-			"source": "Source",
 			"oldSource": "Source when it was translated",
 			"newSource": "Source now",
-			"translation": "Translation",
-			"aiTranslation": "AI translation",
-			"personTranslation": "Written by a person",
 			"approve": "Approve",
 			"confirm": "Confirm",
-			"edit": "Edit",
-			"retranslate": "Re-translate"
+			"edit": "Edit"
 		},
 		"editor": {
 			"heading": "{count, plural, one {# Outdated translation} other {# Outdated translations}}",
 			"intro": "Their source in the Default language changed after a person wrote them. Update a translation, confirm it is still right, or have the AI translate it again.",
 			"translation": "Translation"
-		}
+		},
+		"screen": {
+			"description": "What is translated, outdated, or waits for your review, in each language.",
+			"languages": "Languages",
+			"upToDate": "Up to date",
+			"translated": "{percent}% translated",
+			"nothingWaits": "Nothing waits in {language}.",
+			"waiting": "What waits in {language}",
+			"aiLine": "Translated by AI, waits for you",
+			"outdatedLine": "Outdated: the {language} changed",
+			"byAi": "Translated by AI",
+			"byPerson": "Written by a person",
+			"translateAgain": "Translate again",
+			"protected": "“{term}” is a Protected term, it stays as written."
+		},
+		"percent": "{percent}%"
 	},
 	"aiTranslation": {
 		"pageTitle": "AI translation",
@@ -5867,11 +5873,10 @@
 	},
 	"analyticsGoals": {
 		"goalsHeading": "Goals",
-		"goalsIntro": "What counts as a result on this Site. Goals count only visitors who accepted Analytics.",
+		"goalsIntro": "What matters on this Site, and how often it happens.",
 		"funnelsHeading": "Funnels",
-		"funnelsIntro": "How many visitors reach each step, in order, within one day.",
+		"funnelsIntro": "Steps a visitor must complete in order, within one day.",
 		"addGoal": "Add Goal",
-		"addFunnel": "Add Funnel",
 		"noGoals": "No Goals yet.",
 		"noFunnels": "No Funnels yet.",
 		"name": "Name",
@@ -5886,9 +5891,9 @@
 		"save": "Save",
 		"kind": "What counts",
 		"kinds": {
-			"form": "A Form Submission",
-			"page": "A page visit",
-			"link": "A link click",
+			"form": "A Form is sent",
+			"page": "A page is visited",
+			"link": "A link is clicked",
 			"event": "A custom event"
 		},
 		"linkKinds": {
@@ -5898,15 +5903,14 @@
 			"mailto": "Email link"
 		},
 		"describe": {
-			"form": "{form} sent",
-			"page": "A visit to {path}",
-			"pagePrefix": "A visit to {path} or a page under it",
-			"link": "A click on any {link}",
-			"linkTo": "A click on a {link} to {target}",
-			"event": "The custom event {event}"
+			"form": "A Form is sent · {form}",
+			"page": "A page is visited · {path}",
+			"pagePrefix": "A page is visited · {path} and the pages under it",
+			"link": "A link is clicked · any {link}",
+			"linkTo": "A link is clicked · {link} to {target}",
+			"event": "A custom event · {event}"
 		},
 		"unknownForm": "a Form no longer here",
-		"addGoalTitle": "Add a Goal",
 		"editGoalTitle": "Change {name}",
 		"goalDialogIntro": "Widgets, templates and Workspace Dashboards find Goals by their names: after a rename, choose the Goal again in their Widgets.",
 		"form": "Form",
@@ -5932,7 +5936,6 @@
 		"deleteGoalTitle": "Delete {name}?",
 		"deleteGoalIntro": "Widgets naming it count nothing until a Goal has its name again. What it counted stays in Site analytics.",
 		"goalDeletedToast": "{name} deleted.",
-		"addFunnelTitle": "Add a Funnel",
 		"editFunnelTitle": "Change {name}",
 		"funnelDialogIntro": "Two to five steps, each a Goal or a page visit. A visitor reaches a step after reaching the one before, the same day.",
 		"stepN": "Step {n}",
@@ -5940,7 +5943,7 @@
 		"stepGoal": "A Goal",
 		"stepPage": "A page visit",
 		"goal": "Goal",
-		"addStep": "Add a step",
+		"addStep": "Add step",
 		"removeStep": "Remove step {n}",
 		"moveUp": "Move step {n} up",
 		"moveDown": "Move step {n} down",
@@ -5953,7 +5956,6 @@
 		"deleteFunnelTitle": "Delete {name}?",
 		"deleteFunnelIntro": "Widgets naming it count nothing until a Funnel has its name again.",
 		"funnelDeletedToast": "{name} deleted.",
-		"formStepNote": "A Form Submission step counts Submissions linked to the sender's visit: sent with Analytics accepted, during a visit counted on the Site.",
 		"problems": {
 			"GOAL_NAME_TAKEN": "This Site already has a Goal of that name.",
 			"GOAL_IN_FUNNEL": "A Funnel uses this Goal: change the Funnel first.",
@@ -5963,7 +5965,17 @@
 			"FUNNEL_STEP_INVALID": "A step names a Goal this Site doesn't have.",
 			"FUNNELS_TOO_MANY": "A Site has at most 50 Funnels.",
 			"FUNNEL_NOT_FOUND": "That Funnel is no longer here."
-		}
+		},
+		"reached": "Reached (30d)",
+		"newFunnel": "New Funnel",
+		"stepCount": "{count, plural, one {# step} other {# steps}}",
+		"stepPageBadge": "Page",
+		"stepGoalBadge": "Goal",
+		"stepsLimit": "Up to 5 steps per Funnel.",
+		"addStepIntro": "It becomes the Funnel's last step, saved at once.",
+		"lastThirtyDays": "The last 30 days",
+		"lastThirtyDaysOf": "{name}, the last 30 days",
+		"notCounted": "The steps could not be counted just now."
 	},
 	"toolsets": {
 		"legend": "Toolsets",
@@ -6170,36 +6182,36 @@
 			"kept": "Revisions saved before are kept {days} days, and each item's newest {kept} however old. Checkpoints are still saved."
 		},
 		"copies": {
-			"heading": "Saved copies",
-			"older": "Show older"
+			"older": "Show older",
+			"revisions": "Revisions",
+			"checkpoints": "Checkpoints"
 		},
 		"compare": {
 			"none": "Nothing is saved to compare with the Draft yet.",
-			"heading": "{copy}, next to the Draft",
 			"publishedBy": "Published by {by}",
 			"changedBy": "The Draft as {by} left it at {time}",
 			"languages": "Languages compared",
 			"changes": "{count, plural, =0 {No changes} one {# change} other {# changes}}",
 			"same": "Nothing differs: the Draft holds what this holds.",
-			"differ": "{count, plural, one {# part differs} other {# parts differ}} from the Draft.",
-			"showAll": "Show every part",
 			"showChanged": "Show only what differs",
-			"revisionSide": "This Revision",
-			"checkpointSide": "This Checkpoint",
-			"draftSide": "The Draft now",
 			"shared": "Shared by every language",
-			"partChangedBy": "Changed in the Draft by {by} · {time}"
+			"partChangedBy": "Changed in the Draft by {by} · {time}",
+			"title": "{type, select, revision {The Draft compared with the Revision of {time}} other {The Draft compared with the Checkpoint of {time}}}",
+			"revisionColumn": "Revision",
+			"checkpointColumn": "Checkpoint",
+			"draftColumn": "Draft",
+			"sameFields": "{count, plural, one {# Field is the same} other {# Fields are the same}}",
+			"sameParts": "{count, plural, one {# part is the same} other {# parts are the same}}"
 		},
 		"restore": {
-			"revision": "Restore this Revision",
-			"checkpoint": "Restore this Checkpoint",
 			"close": "Close",
 			"titleRevision": "Restore this Revision into the Draft?",
 			"titleCheckpoint": "Restore this Checkpoint into the Draft?",
 			"body": "What it held at {time} replaces the Draft. The Draft as it is now is kept as a Checkpoint first, so you can go back. Nothing is published: visitors see it once the item is published.",
 			"cancel": "Cancel",
 			"confirm": "Restore into the Draft",
-			"done": "Restored into the Draft. Nothing was published."
+			"done": "Restored into the Draft. Nothing was published.",
+			"never": "Restoring never publishes."
 		},
 		"postType": {
 			"label": "Save a Revision each time an Entry of {name} is published",
@@ -6209,7 +6221,14 @@
 		},
 		"link": "History",
 		"linkNamed": ": {name}",
-		"emailsLink": "Emails' history"
+		"emailsLink": "Emails' history",
+		"liveNow": "Live now",
+		"time": {
+			"today": "Today, {time}",
+			"yesterday": "Yesterday, {time}",
+			"day": "{day} {month}, {time}",
+			"dayYear": "{day} {month} {year}, {time}"
+		}
 	},
 	"historySettings": {
 		"pageTitle": "Revisions",
@@ -6458,27 +6477,26 @@
 		}
 	},
 	"reports": {
-		"heading": "Reports of {name}",
-		"intro": "Each Report sends this Dashboard as a PDF on its schedule, comparing its days with the ones before, with plain-language AI text when the Workspace has an AI key.",
-		"backToDashboard": "Back to {name}",
+		"heading": "Reports",
+		"intro": "Scheduled summaries of {name}, sent by email.",
 		"new": "New Report",
 		"empty": "This Dashboard has no Reports yet.",
 		"emptyStaff": "This Dashboard has no Reports yet. Set one up to send it to the client every week or month.",
 		"listLabel": "Reports",
 		"columns": {
-			"name": "Report",
-			"schedule": "Schedule",
+			"name": "Name",
+			"schedule": "How often",
 			"language": "Language",
 			"recipients": "Recipients",
-			"next": "Goes out next",
-			"actions": "Actions"
+			"next": "Next",
+			"actions": "Actions",
+			"active": "Active"
 		},
 		"schedules": {
 			"weekly": "Weekly, on Mondays",
 			"monthly": "Monthly, on the 1st"
 		},
 		"reviewBadge": "Review first",
-		"nobody": "Nobody yet",
 		"off": "Off",
 		"menu": "Actions for {name}",
 		"edit": "Edit",
@@ -6489,23 +6507,14 @@
 		"deleted": "{name} was deleted.",
 		"deleteTitle": "Delete {name}?",
 		"deleteIntro": "It stops going out, and its history and PDFs are deleted.",
-		"historyOf": "History of {name}",
-		"historyIntro": "Each Report made, newest first, with its PDF for 400 days.",
 		"noHistory": "Nothing was sent yet.",
-		"historyColumns": {
-			"made": "Made",
-			"days": "Days",
-			"status": "State",
-			"ai": "AI text",
-			"recipients": "Sent to"
-		},
 		"test": "Test",
 		"statuses": {
 			"preparing": "Being made",
-			"review": "Waiting for review",
+			"review": "Waiting for your review",
 			"rendering": "Making its PDF",
 			"sent": "Sent",
-			"failed": "Failed",
+			"failed": "Could not send",
 			"discarded": "Discarded"
 		},
 		"ai": {
@@ -6515,19 +6524,10 @@
 			"failed": "None: the AI provider didn't answer",
 			"none": "None needed"
 		},
-		"mailStatuses": {
-			"queued": "Queued",
-			"retrying": "Retrying",
-			"sent": "Sent",
-			"failed": "Failed",
-			"logged": "Written to the log",
-			"waiting": "Not sent yet"
-		},
 		"review": "Review",
-		"download": "PDF",
-		"downloadLabel": "Download the PDF made {day}",
+		"downloadLabel": "Download PDF for {period}",
 		"resend": "Send again",
-		"resendLabel": "Send again the Report made {day}",
+		"resendLabel": "Send again the Report for {period}",
 		"resent": "It is being sent again.",
 		"close": "Close",
 		"cancel": "Cancel",
@@ -6552,8 +6552,8 @@
 		"holdForReview": "Wait for someone to review the AI text",
 		"holdForReviewHelp": "Staff are emailed when it is ready; it goes out once one of them approves it.",
 		"active": "Send it on its schedule",
-		"reviewTitle": "Review the AI text",
-		"reviewIntro": "Check what the AI wrote from this Report's totals. Change anything, then approve to send it, or discard it.",
+		"reviewTitle": "Review before it goes",
+		"reviewIntro": "The AI's draft for {period}.",
 		"whatHappened": "What happened",
 		"aboutWidget": "About {title}",
 		"suggestions": "Suggestions",
@@ -6566,20 +6566,65 @@
 		"discarded": "The Report was discarded: it won't go out.",
 		"approve": "Approve and send",
 		"approved": "Approved: the Report is being sent.",
-		"forbiddenWorkspace": "A Workspace Dashboard's Reports add up every Site of the Workspace, so only people who see every Site open them."
+		"forbiddenWorkspace": "A Workspace Dashboard's Reports add up every Site of the Workspace, so only people who see every Site open them.",
+		"howOften": {
+			"weekly": "Weekly",
+			"monthly": "Monthly"
+		},
+		"recipientCount": "{count, plural, =0 {Nobody yet} one {# recipient} other {# recipients}}",
+		"activeLabel": "Send {name} on its schedule",
+		"turnedOn": "{name} goes out on its schedule again.",
+		"turnedOff": "{name} no longer goes out on its schedule.",
+		"sent": "Sent",
+		"sentColumns": {
+			"period": "Period",
+			"made": "Made",
+			"state": "State",
+			"action": "Action"
+		},
+		"aiNote": "AI text: {state}",
+		"months": {
+			"jan": "January",
+			"feb": "February",
+			"mar": "March",
+			"apr": "April",
+			"may": "May",
+			"jun": "June",
+			"jul": "July",
+			"aug": "August",
+			"sep": "September",
+			"oct": "October",
+			"nov": "November",
+			"dec": "December"
+		},
+		"period": {
+			"sameMonth": "{fromDay}–{toDay} {month} {year}",
+			"sameYear": "{fromDay} {fromMonth} – {toDay} {toMonth} {year}",
+			"other": "{fromDay} {fromMonth} {fromYear} – {toDay} {toMonth} {toYear}"
+		},
+		"made": {
+			"today": "Today",
+			"yesterday": "Yesterday",
+			"day": "{day} {month}",
+			"dayYear": "{day} {month} {year}"
+		},
+		"downloadPdf": "Download PDF",
+		"reviewLabel": "Review the Report for {period}",
+		"perWidget": "Per Widget",
+		"changeText": "Change the text"
 	},
 	"shareLinks": {
 		"title": "Share links",
-		"intro": "Anyone holding a Share link explores this Dashboard without an account: they change its days and filters, nothing else. Links are never indexed by search engines.",
+		"intro": "A Share link lets someone without an account look at this Dashboard and change nothing.",
 		"loading": "Loading the links…",
 		"empty": "No Share links yet.",
 		"listLabel": "Share links",
 		"states": {
-			"active": "Works",
+			"active": "Active",
 			"expired": "Expired",
 			"revoked": "Revoked"
 		},
-		"withPassword": "Password",
+		"withPassword": "Password set",
 		"withoutPassword": "No password",
 		"expires": "Expires {day}",
 		"noExpiry": "Never expires",
@@ -6588,24 +6633,34 @@
 		"revoke": "Revoke",
 		"revokeLabel": "Revoke {name}",
 		"revoked": "{name} no longer works.",
-		"new": "New Share link",
 		"newTitle": "New Share link",
 		"name": "Name",
-		"nameHelp": "For you to tell links apart, such as who it was sent to.",
-		"password": "Password (optional)",
-		"passwordHelp": "8 to 200 characters. People give it once on the link's page; it is kept only as a hash.",
-		"expiry": "Expires on (optional)",
+		"password": "Password",
+		"passwordHelp": "Optional.",
+		"expiry": "Expires",
 		"expiryHelp": "The link stops working at the end of that day (UTC).",
-		"language": "Language of its page",
-		"make": "Make link",
-		"cancel": "Cancel",
-		"close": "Close",
+		"language": "Language",
+		"make": "Create",
 		"made": "{name} is ready.",
 		"address": "Its address",
-		"shownOnce": "Copy it now: it isn't shown again.",
+		"shownOnce": "Shown once. Copy it now.",
 		"copy": "Copy",
 		"copied": "The address was copied.",
-		"copyFailed": "The address couldn't be copied: select it and copy it yourself."
+		"copyFailed": "The address couldn't be copied: select it and copy it yourself.",
+		"endsIn": "…ends in {hint}",
+		"revokeSure": "Revoke for good",
+		"revokeAgain": "Revoke {name} for good: it stops working",
+		"namePlaceholder": "e.g. For the agency",
+		"passwordPlaceholder": "None",
+		"expiries": {
+			"in7": "In 7 days",
+			"in30": "In 30 days",
+			"in90": "In 90 days",
+			"in365": "In a year",
+			"never": "Never",
+			"day": "On a day…"
+		},
+		"expiryDay": "The last day it works"
 	},
 	"branding": {
 		"installPageTitle": "Report branding",
@@ -7406,7 +7461,24 @@
 		},
 		"authorHelp": "Your changes are saved as a Draft. Submit them for review when they're ready: an Editor or Owner publishes them.",
 		"inReviewHelp": "It's In review. You can go on editing; the reviewer sees what changed since you submitted it.",
-		"navBadge": "{count} to review"
+		"navBadge": "{count} to review",
+		"sheet": {
+			"title": "Review: {name}",
+			"loading": "Loading the Review…",
+			"sent": "{name} sent this {when}",
+			"decided": "Someone already acted on this Review.",
+			"open": "Open the page",
+			"whatChanged": "What changed",
+			"new": "New",
+			"newLine": "Never published: all of it is new",
+			"changedLine": "Changed in the Draft",
+			"noDetail": "The Draft differs from what visitors see.",
+			"commentFor": "Comment for {name}",
+			"commentPlaceholder": "Add a comment (optional)",
+			"commentHelp": "Sending it back needs one: {name} sees it beside the Draft.",
+			"publish": "Publish",
+			"openReview": "Open the Review"
+		}
 	},
 	"contentApi": {
 		"heading": "Content API",
@@ -8104,7 +8176,28 @@
 			"search": "Search results template",
 			"designSystem": "Design system"
 		},
-		"popupPhoneEarly": "On phones, wait at least 5 seconds before opening a Popup."
+		"popupPhoneEarly": "On phones, wait at least 5 seconds before opening a Popup.",
+		"screen": {
+			"description": "Things worth fixing. They never stop publishing.",
+			"counts": "Open Checks by kind",
+			"kinds": {
+				"accessibility": "Accessibility",
+				"search": "Search",
+				"words": "Words and links"
+			},
+			"filter": "Show Checks of a kind",
+			"all": "All {count}",
+			"kindCount": "{kind} {count}",
+			"search": "Search checks",
+			"noneFound": "No open Check matches.",
+			"open": "Open",
+			"items": {
+				"page": "Page",
+				"entry": "Entry",
+				"component": "Component",
+				"popup": "Popup"
+			}
+		}
 	},
 	"statement": {
 		"heading": "Accessibility statement",
@@ -8332,6 +8425,67 @@
 			"pageTitle": "Open the building area from the admin",
 			"text": "This browser isn't editing this Site, or its editing session has ended. Open the building area again from the admin.",
 			"link": "Go to the admin"
+		},
+		"places": {
+			"content": "Content",
+			"templates": "Templates",
+			"media": "Media",
+			"styles": "Styles",
+			"loops": "Loops",
+			"components": "Components",
+			"more": "More places"
+		},
+		"unavailable": "not available yet",
+		"darkPreview": "Dark preview",
+		"noDarkMode": "the Site has no Dark mode",
+		"panels": "Panels",
+		"hideInterface": "Hide the interface",
+		"showInterface": "Show the interface",
+		"settings": "Site settings (opens in a new tab)",
+		"exit": "Exit",
+		"exiting": "Leaving the building area…",
+		"exitFailed": "Couldn't end Edit mode: {reason}",
+		"signedInAs": "Signed in as {name}",
+		"undo": "Undo",
+		"redo": "Redo",
+		"undoStep": "Undo {step}",
+		"redoStep": "Redo {step}",
+		"language": "Language",
+		"viewOnStaging": "View on Staging (opens in a new tab)",
+		"draftState": {
+			"label": "Draft state",
+			"saved": "Saved",
+			"saving": "Saving…",
+			"changes": {
+				"one": "Draft · {count} change",
+				"other": "Draft · {count} changes"
+			},
+			"review": "In review",
+			"failed": "Could not save"
+		},
+		"publish": "Publish",
+		"publishLater": "Publish comes with a later part of the building area",
+		"size": {
+			"readout": "Frame size",
+			"presets": "Device width",
+			"desktop": "Desktop",
+			"tablet": "Tablet",
+			"phone": "Phone",
+			"width": "Page width in pixels",
+			"height": "× {height} px",
+			"zoom": "Zoom",
+			"zoomedOut": "Zoomed out to {zoom} % to fit the width",
+			"fullWidth": "Back to full width",
+			"breakpoint": "Breakpoint {name}",
+			"gutterStart": "Page width, left edge",
+			"gutterEnd": "Page width, right edge",
+			"gutterBelow": "Page height",
+			"widthNow": "{width} px wide",
+			"heightNow": "{height} px high"
+		},
+		"narrow": {
+			"title": "The building area needs a window at least 1024 px wide",
+			"text": "Make the window wider to carry on: nothing is closed or lost."
 		}
 	},
 	"auth": {

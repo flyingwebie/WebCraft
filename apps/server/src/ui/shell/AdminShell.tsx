@@ -21,6 +21,7 @@ import { type ReactNode, useEffect, useState } from "react";
 
 import { useT } from "../i18n.tsx";
 import { PublishAllButton } from "../publishing/PublishAll.tsx";
+import { ReviewFromAddress } from "../review/Review.tsx";
 import { AdminSearch } from "./AdminSearch.tsx";
 import { BackupFailingBanner } from "./BackupFailingBanner.tsx";
 import { Breadcrumbs } from "./Breadcrumbs.tsx";
@@ -60,15 +61,19 @@ export function AdminShell({
 	place: AdminPlace;
 	children: ReactNode;
 }) {
+	const pageRegions = usePageRegionsState();
 	return (
 		<SidebarProvider>
 			<NavigationProvider place={place} shell={shell}>
 				<AdminSidebar shell={shell} person={person} place={place} />
 				<SidebarInset>
-					<TopBar shell={shell} place={place} />
-					<PageCard shell={shell} place={place}>
-						{children}
-					</PageCard>
+					{/* The top bar's Publish all opens a sheet over the page card too. */}
+					<PageRegionsProvider value={pageRegions.regions}>
+						<TopBar shell={shell} place={place} />
+						<PageCard shell={shell} place={place} regions={pageRegions}>
+							{children}
+						</PageCard>
+					</PageRegionsProvider>
 				</SidebarInset>
 			</NavigationProvider>
 		</SidebarProvider>
@@ -103,6 +108,8 @@ function TopBar({ shell, place }: { shell: ShellContext; place: AdminPlace }) {
 						<SiteActionsMenu siteId={place.site.id} staging={mayStage} edit={mayEdit} className="@3xl/bar:hidden" />
 					) : null}
 					{mayPublish ? <PublishAllButton siteId={place.site.id} count={place.drafts} open={publishAllAsked} /> : null}
+					{/* A Review opens over any screen of the Site, from `?review=<id>`. */}
+					<ReviewFromAddress siteId={place.site.id} />
 				</div>
 			) : null}
 			<RouteProgress />
@@ -144,48 +151,53 @@ function RouteProgress() {
  * place), then the page's column, which scrolls, with the banners above the page and a settings
  * form's foot bar below what scrolls. Sheets cover all of it (not the top bar) under a dark layer.
  */
-function PageCard({ shell, place, children }: { shell: ShellContext; place: AdminPlace; children: ReactNode }) {
+function PageCard({
+	shell,
+	place,
+	regions: { setCover, setFoot, setAside, asideClaimed },
+	children,
+}: {
+	shell: ShellContext;
+	place: AdminPlace;
+	regions: ReturnType<typeof usePageRegionsState>;
+	children: ReactNode;
+}) {
 	const { position } = useNavigation();
 	const width = useRouteWidth();
-	const { regions, setCover, setFoot, setAside, asideClaimed } = usePageRegionsState();
 	const parent = position.parent;
 	return (
-		<PageRegionsProvider value={regions}>
-			<div ref={setCover} className="relative flex min-h-0 flex-1">
-				<div ref={setAside} className="contents" />
-				{parent && !asideClaimed ? <NavigationSecondary parent={parent} current={position.secondary} /> : null}
-				<main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">
-					{parent && !asideClaimed ? <NavigationSecondaryMenu parent={parent} current={position.secondary} /> : null}
-					<div className="min-h-0 flex-1 overflow-y-auto" data-slot="page-scroll">
-						{shell.impersonation ? (
-							<ImpersonationBanner key={String(shell.impersonation.endsAt)} impersonation={shell.impersonation} />
-						) : null}
-						{shell.banners.health && shell.banners.health.failing.length > 0 ? (
-							<HealthBanner failing={shell.banners.health.failing} />
-						) : null}
-						{/* Install health's banner says it once the Install SMTP's failure makes that part Failing. */}
-						{shell.banners.smtpFailing && !shell.banners.health?.failing.includes("smtp") ? (
-							<SmtpFailingBanner />
-						) : null}
-						{shell.banners.masterKey ? <MasterKeyBanner /> : null}
-						{/* Install health's banner says it once the last Backup's failure makes that part Failing. */}
-						{shell.banners.backupFailing && !shell.banners.health?.failing.includes("backups") ? (
-							<BackupFailingBanner />
-						) : null}
-						{shell.twoFactor?.reminder ? <TwoFactorReminderBanner /> : null}
-						{shell.banners.update && place.level === "install" ? <UpdateBanner update={shell.banners.update} /> : null}
-						{/*
-						 * The page's own breakpoints follow this area, not the window: a screen's columns
-						 * (`@2xl/page:`, `@4xl/page:`, `@6xl/page:`) fit whether a secondary sidebar is there.
-						 */}
-						<div className="@container/page p-4 md:p-8">
-							<PageColumn width={width}>{children}</PageColumn>
-						</div>
+		<div ref={setCover} className="relative flex min-h-0 flex-1">
+			<div ref={setAside} className="contents" />
+			{parent && !asideClaimed ? <NavigationSecondary parent={parent} current={position.secondary} /> : null}
+			<main id="main" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">
+				{parent && !asideClaimed ? <NavigationSecondaryMenu parent={parent} current={position.secondary} /> : null}
+				<div className="min-h-0 flex-1 overflow-y-auto" data-slot="page-scroll">
+					{shell.impersonation ? (
+						<ImpersonationBanner key={String(shell.impersonation.endsAt)} impersonation={shell.impersonation} />
+					) : null}
+					{shell.banners.health && shell.banners.health.failing.length > 0 ? (
+						<HealthBanner failing={shell.banners.health.failing} />
+					) : null}
+					{/* Install health's banner says it once the Install SMTP's failure makes that part Failing. */}
+					{shell.banners.smtpFailing && !shell.banners.health?.failing.includes("smtp") ? <SmtpFailingBanner /> : null}
+					{shell.banners.masterKey ? <MasterKeyBanner /> : null}
+					{/* Install health's banner says it once the last Backup's failure makes that part Failing. */}
+					{shell.banners.backupFailing && !shell.banners.health?.failing.includes("backups") ? (
+						<BackupFailingBanner />
+					) : null}
+					{shell.twoFactor?.reminder ? <TwoFactorReminderBanner /> : null}
+					{shell.banners.update && place.level === "install" ? <UpdateBanner update={shell.banners.update} /> : null}
+					{/*
+					 * The page's own breakpoints follow this area, not the window: a screen's columns
+					 * (`@2xl/page:`, `@4xl/page:`, `@6xl/page:`) fit whether a secondary sidebar is there.
+					 */}
+					<div className="@container/page p-4 md:p-8">
+						<PageColumn width={width}>{children}</PageColumn>
 					</div>
-					<div ref={setFoot} className="shrink-0 empty:hidden" data-slot="page-foot" />
-				</main>
-			</div>
-		</PageRegionsProvider>
+				</div>
+				<div ref={setFoot} className="shrink-0 empty:hidden" data-slot="page-foot" />
+			</main>
+		</div>
 	);
 }
 

@@ -84,6 +84,67 @@ function suggestedTime(): Date {
 	return value;
 }
 
+/** The date and time boxes' state: what they hold, and the time they name (null while unreadable). */
+export function useScheduleBoxes(initial?: Date | string) {
+	const [boxes, setBoxes] = useState(() => boxesOf(initial ? new Date(initial) : suggestedTime()));
+	return { boxes, setBoxes, chosen: timeOf(boxes.date, boxes.time) };
+}
+
+/** Why a time can't be scheduled before anything is sent (none chosen, or in the past); null when it can. */
+export function scheduleProblem(t: ReturnType<typeof useT>, chosen: Date | null): string | null {
+	if (!chosen) return t("schedule.chooseTime");
+	if (chosen.getTime() <= Date.now()) return t("schedule.inPast");
+	return null;
+}
+
+/**
+ * The date box and the time box in the person's own time zone (named under them), and what that is in
+ * UTC as the admin shows times, said again as it changes: the schedule dialog's, and Publish all's
+ * when it publishes later.
+ */
+export function ScheduleFields({ state }: { state: ReturnType<typeof useScheduleBoxes> }) {
+	const t = useT();
+	const id = useId();
+	const zone = useTimeZone();
+	const { boxes, setBoxes, chosen } = state;
+	return (
+		<>
+			<FieldGroup className="grid gap-4 sm:grid-cols-2">
+				<Field>
+					<FieldLabel htmlFor={`${id}-date`}>{t("schedule.date")}</FieldLabel>
+					<Input
+						id={`${id}-date`}
+						type="date"
+						required
+						value={boxes.date}
+						onChange={(event) => setBoxes({ ...boxes, date: event.target.value })}
+						aria-describedby={`${id}-zone`}
+					/>
+				</Field>
+				<Field>
+					<FieldLabel htmlFor={`${id}-time`}>{t("schedule.time")}</FieldLabel>
+					<Input
+						id={`${id}-time`}
+						type="time"
+						step={60}
+						required
+						value={boxes.time}
+						onChange={(event) => setBoxes({ ...boxes, time: event.target.value })}
+						aria-describedby={`${id}-zone`}
+					/>
+				</Field>
+			</FieldGroup>
+			<FieldDescription id={`${id}-zone`}>
+				{zone ? t("schedule.zone", { zone }) : t("schedule.zoneUnknown")}
+			</FieldDescription>
+			<p className="flex items-center gap-2 text-sm" aria-live="polite">
+				<CalendarClockIcon aria-hidden="true" className="text-muted-foreground size-4 shrink-0" />
+				{chosen ? t("schedule.runsAt", { time: formatUtc(chosen) }) : t("schedule.chooseTime")}
+			</p>
+		</>
+	);
+}
+
 /**
  * Chooses a time for a Scheduled publish: a date box and a time box in the person's own time zone
  * (named under them), what that is in UTC as the admin shows times, said again as it changes, and
@@ -113,22 +174,17 @@ export function ScheduleDialog({
 	children?: ReactNode;
 }) {
 	const t = useT();
-	const id = useId();
-	const zone = useTimeZone();
-	const [boxes, setBoxes] = useState(() => boxesOf(initial ? new Date(initial) : suggestedTime()));
+	const state = useScheduleBoxes(initial);
 	const [busy, setBusy] = useState(false);
 	const [problem, setProblem] = useState<string | null>(null);
-	const chosen = timeOf(boxes.date, boxes.time);
+	const { chosen } = state;
 
 	const submit = async (event: React.FormEvent) => {
 		event.preventDefault();
 		setProblem(null);
-		if (!chosen) {
-			setProblem(t("schedule.chooseTime"));
-			return;
-		}
-		if (chosen.getTime() <= Date.now()) {
-			setProblem(t("schedule.inPast"));
+		const refused = scheduleProblem(t, chosen);
+		if (refused || !chosen) {
+			setProblem(refused);
 			return;
 		}
 		setBusy(true);
@@ -150,38 +206,7 @@ export function ScheduleDialog({
 						<DialogDescription>{description}</DialogDescription>
 					</DialogHeader>
 					{children}
-					<FieldGroup className="grid gap-4 sm:grid-cols-2">
-						<Field>
-							<FieldLabel htmlFor={`${id}-date`}>{t("schedule.date")}</FieldLabel>
-							<Input
-								id={`${id}-date`}
-								type="date"
-								required
-								value={boxes.date}
-								onChange={(event) => setBoxes({ ...boxes, date: event.target.value })}
-								aria-describedby={`${id}-zone`}
-							/>
-						</Field>
-						<Field>
-							<FieldLabel htmlFor={`${id}-time`}>{t("schedule.time")}</FieldLabel>
-							<Input
-								id={`${id}-time`}
-								type="time"
-								step={60}
-								required
-								value={boxes.time}
-								onChange={(event) => setBoxes({ ...boxes, time: event.target.value })}
-								aria-describedby={`${id}-zone`}
-							/>
-						</Field>
-					</FieldGroup>
-					<FieldDescription id={`${id}-zone`}>
-						{zone ? t("schedule.zone", { zone }) : t("schedule.zoneUnknown")}
-					</FieldDescription>
-					<p className="flex items-center gap-2 text-sm" aria-live="polite">
-						<CalendarClockIcon aria-hidden="true" className="text-muted-foreground size-4 shrink-0" />
-						{chosen ? t("schedule.runsAt", { time: formatUtc(chosen) }) : t("schedule.chooseTime")}
-					</p>
+					<ScheduleFields state={state} />
 					{problem ? (
 						<p role="alert" className="text-destructive text-sm">
 							{problem}
