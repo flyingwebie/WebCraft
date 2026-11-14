@@ -77,15 +77,17 @@ export function PageHeader({
 	badge?: ReactNode;
 }) {
 	return (
+		// The actions stay on the H1's line, and the line about the page wraps under the H1 only. When the
+		// column is too narrow for both (a phone), the actions move under the text.
 		<div className="mb-6 flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
-			<div className="min-w-0 space-y-1">
+			<div className="min-w-0 flex-1 basis-64 space-y-1">
 				<div className="flex flex-wrap items-center gap-x-3 gap-y-1">
 					<h1 className="text-2xl font-semibold tracking-tight">{heading}</h1>
 					{badge}
 				</div>
 				{children ? <p className="text-muted-foreground text-base">{children}</p> : null}
 			</div>
-			{action ? <div className="flex shrink-0 flex-wrap items-center gap-2">{action}</div> : null}
+			{action ? <div className="flex max-w-full shrink-0 flex-wrap items-center gap-2">{action}</div> : null}
 		</div>
 	);
 }

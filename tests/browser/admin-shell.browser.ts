@@ -1,8 +1,9 @@
 // The admin shell in a real browser: the inset frame, the short navigation of each level with its
 // secondary sidebars (one current row per level), the parts that open over a page (the context
-// switcher, the person's menu, Search), the theme in the person's menu, the settings foot bar and its
-// guard, the line under the top bar while a page loads, "Edit on site" for the page on screen, and the
-// top bar at phone width; in light and dark, with the keyboard and axe.
+// switcher, the person's menu, Search), the theme in the person's menu, the page header, a sheet its
+// screen's address opens, the settings foot bar and its guard (a dialog that dims without a blur), the
+// line under the top bar while a page loads, "Edit on site" for the page on screen, and the top bar at
+// phone width; in light and dark, with the keyboard and axe.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Page } from "playwright";
 
@@ -198,6 +199,20 @@ for (const theme of THEMES) {
 				"dialog",
 				`Master key help (${theme})`,
 			);
+		});
+
+		test("the page header keeps its actions on the H1's line, and the line about the page under the H1", async () => {
+			const page = await install.newPage(theme);
+			await open(page, `/sites/${siteId}/filters`);
+			const heading = await page.getByRole("heading", { level: 1, name: "Filters" }).boundingBox();
+			const action = await page.getByRole("button", { name: "New Filter" }).boundingBox();
+			const intro = await page.getByText(/^The controls visitors use to narrow/).boundingBox();
+			if (!heading || !action || !intro) throw new Error("The page header is not on screen.");
+			// The action starts on the H1's line, and the long line about the page wraps beside it, under the H1.
+			expect(action.y).toBeLessThan(heading.y + heading.height);
+			expect(intro.y).toBeGreaterThanOrEqual(heading.y + heading.height - 1);
+			expect(intro.x + intro.width).toBeLessThanOrEqual(action.x);
+			expect(intro.height).toBeGreaterThan(30);
 		});
 
 		test("the settings foot bar: Save waits for a change, and leaving with changes asks first", async () => {
