@@ -817,6 +817,8 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 		kept: submissionKept,
 		deliveries: async (site, submissionId) =>
 			(await hostOptions.submissionActions?.deliveries(site, submissionId)) ?? [],
+		deliveriesOf: async (site, submissionIds) =>
+			(await hostOptions.submissionActions?.deliveriesOf(site, submissionIds)) ?? new Map(),
 	};
 
 	return {

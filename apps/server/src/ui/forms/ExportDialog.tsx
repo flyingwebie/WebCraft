@@ -18,18 +18,20 @@ import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
 import { type Folder, formsApi, type ReadFilter } from "./mailbox.ts";
 
-/** The parts of the file a person can leave out. */
-type Part = "sender" | "received" | "answers";
-const PARTS: readonly Part[] = ["sender", "received", "answers"];
+/** The parts of the file a person can leave out; the delivery log is out unless ticked. */
+type Part = "sender" | "received" | "answers" | "deliveries";
+const PARTS: readonly Part[] = ["sender", "received", "answers", "deliveries"];
+const TICKED: readonly Part[] = ["sender", "received", "answers"];
 
 /** The file's own columns, before one column per field: when it came, its language, its page. */
 const OWN_COLUMNS = 3;
 
 /**
  * "Export this list as CSV": the Submissions the list shows (its folder, search, filter and language),
- * as a CSV file, with who sent each, when and where it came, and every other answer, each part ticked
- * or not. The Forms Module writes the file (and records the export in the Audit log); the parts left
- * out are taken out of it here.
+ * as a CSV file, with who sent each, when and where it came, every other answer and, when ticked, the
+ * delivery log (what was sent for each), each part ticked or not. The Forms Module writes the file
+ * (and records the export in the Audit log), with the delivery log only when asked for; the other
+ * parts left out are taken out of it here.
  */
 export function ExportDialog({
 	open,
@@ -49,17 +51,18 @@ export function ExportDialog({
 }) {
 	const t = useT();
 	const id = useId();
-	const [parts, setParts] = useState<ReadonlySet<Part>>(() => new Set(PARTS));
+	const [parts, setParts] = useState<ReadonlySet<Part>>(() => new Set(TICKED));
 	const [busy, setBusy] = useState(false);
 
 	const exportCsv = async () => {
 		setBusy(true);
 		try {
 			const api = formsApi(await getApi());
-			const { filename, csv, count } = await api.submissions.export({ siteId, formId, ...filters });
+			const deliveryLog = parts.has("deliveries");
+			const { filename, csv, count } = await api.submissions.export({ siteId, formId, ...filters, deliveryLog });
 			const link = document.createElement("a");
 			link.href = URL.createObjectURL(
-				new Blob([withParts(csv, parts, senderLabels)], { type: "text/csv;charset=utf-8" }),
+				new Blob([withParts(csv, parts, senderLabels, deliveryLog)], { type: "text/csv;charset=utf-8" }),
 			);
 			link.download = filename;
 			link.click();
@@ -113,14 +116,29 @@ export function ExportDialog({
 	);
 }
 
-/** The file with only the parts ticked: its own columns for "received", the sender's for "sender". */
-function withParts(csv: string, parts: ReadonlySet<Part>, senderLabels: ReadonlySet<string>): string {
-	if (parts.size === PARTS.length) return csv;
+/**
+ * The file with only the parts ticked: its own columns for "received", the sender's for "sender", and
+ * its last column for "deliveries" when the Module added the delivery log.
+ */
+function withParts(
+	csv: string,
+	parts: ReadonlySet<Part>,
+	senderLabels: ReadonlySet<string>,
+	deliveryLog: boolean,
+): string {
+	if (TICKED.every((part) => parts.has(part))) return csv;
 	const rows = parseCsv(csv.replace(/^﻿/, ""));
 	const header = rows[0] ?? [];
 	const kept = header
 		.map((label, index) => {
-			const part: Part = index < OWN_COLUMNS ? "received" : senderLabels.has(label) ? "sender" : "answers";
+			const part: Part =
+				index < OWN_COLUMNS
+					? "received"
+					: deliveryLog && index === header.length - 1
+						? "deliveries"
+						: senderLabels.has(label)
+							? "sender"
+							: "answers";
 			return parts.has(part) ? index : -1;
 		})
 		.filter((index) => index >= 0);

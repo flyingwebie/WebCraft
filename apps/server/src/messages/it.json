@@ -5300,7 +5300,8 @@
 		"exportPart": {
 			"sender": "Mittente",
 			"received": "Ricevuto",
-			"answers": "Tutte le risposte"
+			"answers": "Tutte le risposte",
+			"deliveries": "Registro degli invii"
 		},
 		"exportButton": "Esporta",
 		"exported": "{count, plural, one {# invio esportato} other {# invii esportati}}.",

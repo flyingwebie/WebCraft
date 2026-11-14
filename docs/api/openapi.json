@@ -23495,6 +23495,10 @@
 										"type": "string",
 										"maxLength": 35
 									},
+									"deliveryLog": {
+										"type": "boolean",
+										"default": false
+									},
 									"siteId": {
 										"type": "string",
 										"format": "uuid"

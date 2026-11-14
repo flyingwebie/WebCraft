@@ -102,6 +102,8 @@ export type SubmissionDelivery = {
 	kind: "notification" | "autoReply" | "webhook";
 	id: string;
 	to: string;
+	/** The Webhook a call went to (SDK 1.15); null for an email. */
+	webhookId: string | null;
 	/** `logged`: no SMTP was set, so the email was written to the log instead. */
 	status: "queued" | "retrying" | "sent" | "failed" | "logged";
 	attempts: number;
@@ -127,6 +129,11 @@ export type ModuleSubmissions = {
 	kept(submission: KeptSubmission): Promise<void>;
 	/** What WebCraft sent for a Submission: its emails and Webhook calls, oldest first. */
 	deliveries(submissionId: string): Promise<SubmissionDelivery[]>;
+	/**
+	 * What WebCraft sent for each of these Submissions, as `deliveries` answers one (SDK 1.15): for an
+	 * export of many. A Submission that set off nothing is left out.
+	 */
+	deliveriesOf(submissionIds: readonly string[]): Promise<Record<string, SubmissionDelivery[]>>;
 	/**
 	 * Deletes the Form uploads of these Submissions (SDK 1.11): call it wherever Submissions are
 	 * deleted, in the same transaction, so a Submission's files never outlive it. Answers how many

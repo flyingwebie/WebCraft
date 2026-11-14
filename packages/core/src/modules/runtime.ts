@@ -54,6 +54,7 @@ export type RuntimeDeps = {
 	submissions?: {
 		kept(site: Site, submission: KeptSubmission, sender: FormSender | null): Promise<void>;
 		deliveries(site: Site, submissionId: string): Promise<SubmissionDelivery[]>;
+		deliveriesOf(site: Site, submissionIds: readonly string[]): Promise<Map<string, SubmissionDelivery[]>>;
 	};
 	/**
 	 * Form uploads, for the Module keeping Submissions (`context.submissions.removeUploads` and
@@ -263,6 +264,13 @@ export function moduleContext(
 				const site = keepingSite();
 				if (typeof submissionId !== "string") return [];
 				return (await deps.submissions?.deliveries(site, submissionId)) ?? [];
+			},
+			async deliveriesOf(submissionIds) {
+				const site = keepingSite();
+				if (!Array.isArray(submissionIds)) return {};
+				const ids = submissionIds.filter((id): id is string => typeof id === "string");
+				const logs = (await deps.submissions?.deliveriesOf(site, ids)) ?? new Map();
+				return Object.fromEntries(logs);
 			},
 			async removeUploads(submissionIds) {
 				const site = keepingSite();

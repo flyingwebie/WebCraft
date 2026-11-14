@@ -5300,7 +5300,8 @@
 		"exportPart": {
 			"sender": "Sender",
 			"received": "Received",
-			"answers": "Every answer"
+			"answers": "Every answer",
+			"deliveries": "Delivery log"
 		},
 		"exportButton": "Export",
 		"exported": "{count, plural, one {# Submission} other {# Submissions}} exported.",
