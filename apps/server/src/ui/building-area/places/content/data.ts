@@ -32,6 +32,8 @@ export type ContentState = {
 	reload(): Promise<ReadonlyMap<string, string>>;
 	/** Takes the Globals as a save answered them. */
 	setGlobals(globals: GlobalsData): void;
+	/** Takes a Post Type as a save answered it (its Fields or settings changed). */
+	setPostType(postType: PostTypeRow): void;
 	api: BuildingAreaApiClient;
 };
 
@@ -118,5 +120,13 @@ export function useContentData(token: string, siteId: string): ContentState {
 		setData((current) => (current ? { ...current, globals } : current));
 	}, []);
 
-	return { data, failed, reload: read, setGlobals, api };
+	const setPostType = useCallback((postType: PostTypeRow) => {
+		setData((current) =>
+			current
+				? { ...current, postTypes: current.postTypes.map((each) => (each.id === postType.id ? postType : each)) }
+				: current,
+		);
+	}, []);
+
+	return { data, failed, reload: read, setGlobals, setPostType, api };
 }
