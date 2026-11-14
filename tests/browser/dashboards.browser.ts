@@ -370,9 +370,7 @@ for (const theme of THEMES) {
 				.evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().left)));
 			expect(new Set(lefts).size).toBe(1);
 			expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-			// The shell's secondary menu above the page (not this screen's) names itself "Analytics: Site
-			// analytics" while showing the two words apart; that is left to the shell.
-			await expectNoAxeViolations(page, `Dashboard on a phone (${theme})`, ["label-content-name-mismatch"]);
+			await expectNoAxeViolations(page, `Dashboard on a phone (${theme})`);
 		});
 
 		test("a Workspace Dashboard adding up its Sites", async () => {

@@ -109,7 +109,8 @@ export function NavigationSecondary({ parent, current }: { parent: NavRow; curre
 
 /**
  * The same rows on a phone, where the secondary sidebar has no room beside the page: one control
- * above the page that names the current row and opens the others as a menu.
+ * above the page that names the current row and opens the others as a menu. Its words name it
+ * ("Structure: Popups", the colon for screen readers only), so what it says is what it is called.
  */
 export function NavigationSecondaryMenu({ parent, current }: { parent: NavRow; current: NavRow | null }) {
 	const label = useRowLabel();
@@ -117,11 +118,11 @@ export function NavigationSecondaryMenu({ parent, current }: { parent: NavRow; c
 	return (
 		<div className="bg-background shrink-0 border-b px-4 py-2 md:hidden" data-slot="secondary-menu">
 			<DropdownMenu>
-				<DropdownMenuTrigger
-					className="border-input focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 flex h-9 w-full items-center gap-2 rounded-md border px-2.5 text-start text-sm shadow-xs outline-none focus-visible:ring-3"
-					aria-label={current ? `${title}: ${label(current.label)}` : title}
-				>
-					<span className="text-muted-foreground shrink-0">{title}</span>
+				<DropdownMenuTrigger className="border-input focus-visible:border-ring focus-visible:ring-ring/50 dark:bg-input/30 flex h-9 w-full items-center gap-2 rounded-md border px-2.5 text-start text-sm shadow-xs outline-none focus-visible:ring-3">
+					<span className="text-muted-foreground shrink-0">
+						{title}
+						{current ? <span className="sr-only">: </span> : null}
+					</span>
 					<span className="min-w-0 flex-1 truncate font-medium">{current ? label(current.label) : null}</span>
 					<ChevronsUpDownIcon className="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
 				</DropdownMenuTrigger>
