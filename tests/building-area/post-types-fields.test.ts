@@ -26,14 +26,17 @@ const POST_TYPE = "6f1c2d3e-4a5b-4c6d-8e7f-8091a2b3c4d5";
 
 const text = (key: string): FieldDefinition => made("text", key, key, "");
 
+/** A Group or Repeater holding `fields`. */
+function holding(type: "group" | "repeater", key: string, fields: FieldDefinition[]): FieldDefinition {
+	const field = made(type, key, key, "first");
+	return field.type === "group" || field.type === "repeater" ? { ...field, fields } : field;
+}
+
 const FIELDS: FieldDefinition[] = [
 	text("title"),
 	made("relationship", "author", "Author", ""),
-	{
-		...made("repeater", "gallery", "Gallery", "Image"),
-		fields: [made("media", "image", "Image", ""), text("caption")],
-	},
-	{ ...made("group", "seo", "SEO", "Meta title"), fields: [text("meta_title"), text("meta_description")] },
+	holding("repeater", "gallery", [made("media", "image", "Image", ""), text("caption")]),
+	holding("group", "seo", [text("meta_title"), text("meta_description")]),
 ];
 
 const paths = (fields: readonly FieldDefinition[]) => rowsOf(fields).map((row) => row.path);
@@ -101,7 +104,7 @@ describe("the Fields as the place lists them", () => {
 		expect(offeredKinds(FIELDS, "seo", false)).not.toContain("body");
 		expect(offeredKinds([...FIELDS, made("body", "body", "Body", "")], null, false)).not.toContain("body");
 		expect(offeredKinds(FIELDS, "seo", false)).toContain("group");
-		const deep = [{ ...made("group", "a", "A", "x"), fields: [{ ...made("group", "b", "B", "y") }] }];
+		const deep = [holding("group", "a", [made("group", "b", "B", "y")])];
 		expect(offeredKinds(deep, "a.b", false)).not.toContain("group");
 		expect(offeredKinds(deep, "a.b", false)).not.toContain("repeater");
 	});
@@ -131,7 +134,7 @@ describe("the addresses of a Post Type's Fields and Settings", () => {
 			`?wc-place=content%2F${POST_TYPE}%2Ffields&wc-view=${encodeURIComponent(viewOfField("seo.meta_title") ?? "")}`,
 		);
 		expect(address.place).toBe(`content/${POST_TYPE}/fields`);
-		expect(fieldOfView(address.view)).toBe("seo.meta_title");
+		expect(fieldOfView(address.view ?? null)).toBe("seo.meta_title");
 		expect(
 			readAddress(
 				new URL(printAddress(address), "https://x.test").pathname,
