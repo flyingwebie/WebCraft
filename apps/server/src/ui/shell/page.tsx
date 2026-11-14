@@ -264,7 +264,9 @@ export function PageSheet({
 	const t = useT();
 	const { cover } = usePageRegions();
 	return (
-		<Sheet open={open} onOpenChange={onOpenChange}>
+		// The page card is there once the shell has rendered in the browser: a sheet that is open from
+		// the start (the screen's address names it) opens as soon as the card it covers is there.
+		<Sheet open={open && cover !== null} onOpenChange={onOpenChange}>
 			<SheetContent
 				container={cover}
 				finalFocus={finalFocus}

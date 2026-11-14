@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
-import { expectAccessibleScreen, expectOverlayUsable } from "./checks.ts";
+import { expectAccessibleScreen, expectNoAxeViolations, expectOverlayUsable } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
 
 let install: BrowserInstall;
@@ -213,6 +213,24 @@ for (const theme of THEMES) {
 			expect(intro.y).toBeGreaterThanOrEqual(heading.y + heading.height - 1);
 			expect(intro.x + intro.width).toBeLessThanOrEqual(action.x);
 			expect(intro.height).toBeGreaterThan(30);
+		});
+
+		test("a sheet the address opens shows as the page loads, over the page card under a dark layer", async () => {
+			const page = await install.newPage(theme);
+			await open(page, `/sites/${siteId}?publishAll=1`);
+			const sheet = page.getByRole("dialog", { name: "Publish all" });
+			await sheet.waitFor();
+			const layer = await page.locator('[data-slot="sheet-overlay"]').evaluate((element) => {
+				const style = getComputedStyle(element);
+				return { background: style.backgroundColor, blur: style.backdropFilter };
+			});
+			expect(layer.background).toMatch(/0\.4\)$/);
+			expect(layer.blur).toBe("none");
+			await expectNoAxeViolations(page, `Publish all, opened by its address (${theme})`, ["region"]);
+			// Focus is in the sheet, and Escape closes it.
+			expect(await sheet.evaluate((element) => element.contains(document.activeElement))).toBe(true);
+			await page.keyboard.press("Escape");
+			await sheet.waitFor({ state: "hidden" });
 		});
 
 		test("the settings foot bar: Save waits for a change, and leaving with changes asks first", async () => {
