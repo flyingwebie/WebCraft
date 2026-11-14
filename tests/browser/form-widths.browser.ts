@@ -2,7 +2,7 @@
 // device's light and dark themes: halves and thirds side by side from the Design system's smallest
 // breakpoint up, wrapping onto the next line, in the Form itself, in a section and in a step; every
 // field whole under that width; the same without JavaScript; and the Site's own CSS laying them out
-// another way. Each page is checked with axe-core and the keyboard.
+// another way. Each page the browser runs scripts on is checked with axe-core and the keyboard.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import forms from "@webcraft/module-forms";
 
@@ -197,6 +197,19 @@ const ORDER_FIELDS = [
 	"consent",
 ] as const;
 
+/** The order Form's fields in the Form itself, then those in its section (inset by the section's own box). */
+const IN_FORM = ORDER_FIELDS.slice(0, ORDER_FIELDS.indexOf("cake"));
+const IN_SECTION = ORDER_FIELDS.slice(ORDER_FIELDS.indexOf("cake"));
+
+/** Under the breakpoint: every field whole, one under the other, in the Form and in its section. */
+async function expectEveryFieldWhole(page: Page, where: string): Promise<void> {
+	const boxes = await boxesOf(page, ORDER_FIELDS);
+	expectStacked(boxes, IN_FORM, `${where}, in the Form`);
+	expectStacked(boxes, IN_SECTION, `${where}, in a section`);
+	const [lastInForm, firstInSection] = [boxes.date as Box, boxes.cake as Box];
+	expect(firstInSection.top).toBeGreaterThanOrEqual(lastInForm.bottom);
+}
+
 /** What the order Form looks like from the breakpoint up. */
 async function expectSideBySide(page: Page, where: string): Promise<void> {
 	const boxes = await boxesOf(page, ORDER_FIELDS);
@@ -264,7 +277,7 @@ for (const theme of THEMES) {
 			await page.goto(install.liveUrl(slug, ORDER));
 			await page.waitForLoadState("load");
 
-			expectStacked(await boxesOf(page, ORDER_FIELDS), ORDER_FIELDS, `phone (${theme})`);
+			await expectEveryFieldWhole(page, `phone (${theme})`);
 			await expectAccessibleScreen(page, `a Form with widths, phone (${theme})`);
 		});
 
@@ -296,7 +309,8 @@ for (const theme of THEMES) {
 			const every = await boxesOf(plain, ["first_name", "last_name", "day", "guests", "table"]);
 			expectOneLine(every, ["first_name", "last_name"], `no JavaScript (${theme})`);
 			expectOneLine(every, ["day", "guests", "table"], `no JavaScript (${theme})`);
-			await expectAccessibleScreen(plain, `a Form with widths, without JavaScript (${theme})`);
+			// Not checked with axe: it runs as a page script, which this browser doesn't run. The same
+			// Form, with the same markup, was checked above.
 		});
 	});
 }
@@ -308,7 +322,7 @@ describe("where narrow ends, and the Site's own CSS", () => {
 		await page.goto(install.liveUrl(slug, ORDER));
 		await page.waitForLoadState("load");
 
-		expectStacked(await boxesOf(page, ORDER_FIELDS), ORDER_FIELDS, "767 px");
+		await expectEveryFieldWhole(page, "767 px");
 
 		await page.setViewportSize({ width: 768, height: 900 });
 		await expectSideBySide(page, "768 px");
