@@ -128,8 +128,12 @@ async function shellStylesheet(theme: string, fonts: readonly BuildingAreaAsset[
 	const css = `${(await Bun.file(theme).text()).replace('@import "@fontsource-variable/inter";', "")}\n${chrome}`;
 	const compiled = await compile(css, { base: dirname(theme), onDependency() {} });
 	// The shell's own sources, and the admin's parts it reuses as they are (the Media library's, BA-22,
-	// with the shared components they draw with).
-	const reused = [join(dirname(shellEntry), "..", "media"), join(dirname(theme), "..", "components")];
+	// a Form field's settings, BA-26, with the shared components they draw with).
+	const reused = [
+		join(dirname(shellEntry), "..", "media"),
+		join(dirname(shellEntry), "..", "forms"),
+		join(dirname(theme), "..", "components"),
+	];
 	const scanner = new Scanner({
 		sources: [dirname(shellEntry), ...reused].map((base) => ({ base, pattern: "**/*.{ts,tsx}", negated: false })),
 	});

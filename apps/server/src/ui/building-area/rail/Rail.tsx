@@ -13,11 +13,12 @@ import {
 	SettingsIcon,
 	SunIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useId, useRef, useState } from "react";
 
 import { fill, type ShellConfig } from "../api.ts";
+import { ChoiceMenu } from "../ChoiceMenu.tsx";
 import { FOCUS_RING, type Icon, IconButton, IconLink, Tip } from "../controls.tsx";
-import { type PlaceKey, placeEntry } from "../places/registry.ts";
+import { morePlaces, type PlaceKey, placeEntry } from "../places/registry.ts";
 
 /** The rail's places (SPEC 2), each unavailable until it is in the places' registry (`places/registry.ts`). */
 const PLACES = [
@@ -107,14 +108,7 @@ export function Rail({
 					);
 				})}
 				<li className="flex">
-					<IconButton
-						icon={EllipsisIcon}
-						label={words.places.more}
-						unavailable={words.unavailable}
-						side="end"
-						className="text-chrome-muted"
-						data={{ "data-wc-place": "more" }}
-					/>
+					<MorePlaces config={config} place={place ?? null} onPlace={onPlace} />
 				</li>
 			</ul>
 			<div className="min-h-2 grow" />
@@ -169,5 +163,76 @@ export function Rail({
 				</span>
 			</div>
 		</nav>
+	);
+}
+
+/**
+ * "more" (SPEC 2): the places Modules add, behind one button: a menu of them (Forms, SPEC 15.2),
+ * drawn as the open place while one of them is open. Unavailable while none exists.
+ */
+function MorePlaces({
+	config,
+	place,
+	onPlace,
+}: {
+	config: ShellConfig;
+	place: PlaceKey | null;
+	onPlace?(key: PlaceKey): void;
+}) {
+	const { words } = config;
+	const [open, setOpen] = useState(false);
+	const button = useRef<HTMLButtonElement>(null);
+	const id = useId();
+	const places = morePlaces();
+	const inOne = places.some((each) => each.key === place);
+	if (places.length === 0) {
+		return (
+			<IconButton
+				icon={EllipsisIcon}
+				label={words.places.more}
+				unavailable={words.unavailable}
+				side="end"
+				className="text-chrome-muted"
+				data={{ "data-wc-place": "more" }}
+			/>
+		);
+	}
+	return (
+		<span className="relative flex">
+			<IconButton
+				ref={button}
+				icon={EllipsisIcon}
+				label={words.places.more}
+				side="end"
+				on={inOne}
+				popup={{ open, id }}
+				onClick={() => setOpen((was) => !was)}
+				className={inOne ? undefined : "text-chrome-muted"}
+				data={{ "data-wc-place": "more" }}
+			/>
+			{open ? (
+				<ChoiceMenu
+					id={id}
+					label={words.places.more}
+					groups={[
+						{
+							label: null,
+							choices: places.map((each) => ({
+								key: each.key,
+								label: words.places[each.key],
+								current: each.key === place,
+							})),
+						},
+					]}
+					button={button}
+					side="end"
+					onChoose={(choice) => onPlace?.(choice.key as PlaceKey)}
+					onClose={(focusButton) => {
+						setOpen(false);
+						if (focusButton) button.current?.focus();
+					}}
+				/>
+			) : null}
+		</span>
 	);
 }

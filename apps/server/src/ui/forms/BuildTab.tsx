@@ -7,34 +7,14 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@webcraft/ui/components/dropdown-menu.tsx";
-import {
-	ArrowDownIcon,
-	ArrowUpIcon,
-	AtSignIcon,
-	CalendarIcon,
-	CircleDotIcon,
-	CopyIcon,
-	EllipsisIcon,
-	EyeOffIcon,
-	FootprintsIcon,
-	GroupIcon,
-	HashIcon,
-	LinkIcon,
-	ListChecksIcon,
-	type LucideIcon,
-	PaperclipIcon,
-	PhoneIcon,
-	SquareCheckIcon,
-	SquareChevronDownIcon,
-	TextIcon,
-	TrashIcon,
-	TypeIcon,
-} from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, CopyIcon, EllipsisIcon, TrashIcon } from "lucide-react";
 import { useState } from "react";
 
 import { useT } from "../i18n.tsx";
 import { FieldPanel } from "./FieldPanel.tsx";
+import { FIELD_ICONS } from "./icons.ts";
 import {
+	depthOf,
 	duplicateField,
 	type FormFieldType,
 	type FormProblem,
@@ -44,24 +24,7 @@ import {
 	newField,
 } from "./model.ts";
 
-/** The icon of each type of field, in the palette and the list. */
-export const FIELD_ICONS: Record<FormFieldType, LucideIcon> = {
-	text: TypeIcon,
-	email: AtSignIcon,
-	phone: PhoneIcon,
-	url: LinkIcon,
-	textarea: TextIcon,
-	number: HashIcon,
-	date: CalendarIcon,
-	select: SquareChevronDownIcon,
-	radio: CircleDotIcon,
-	checkboxes: ListChecksIcon,
-	consent: SquareCheckIcon,
-	hidden: EyeOffIcon,
-	file: PaperclipIcon,
-	section: GroupIcon,
-	step: FootprintsIcon,
-};
+export { FIELD_ICONS };
 
 /**
  * The Build tab: a palette of the field types (each button adds one at the end), the Form's fields
@@ -217,21 +180,4 @@ export function BuildTab({
 			</section>
 		</div>
 	);
-}
-
-/** How deep an item sits: inside a step (1), and inside a section of a step or of the Form (one more). */
-function depthOf(fields: readonly FormVersion["fields"][number][], index: number): number {
-	const item = fields[index];
-	if (!item) return 0;
-	let step = false;
-	let section = false;
-	for (const each of fields.slice(0, index)) {
-		if (each.type === "step") {
-			step = true;
-			section = false;
-		} else if (each.type === "section") section = true;
-	}
-	if (item.type === "step") return 0;
-	if (item.type === "section") return step ? 1 : 0;
-	return (step ? 1 : 0) + (section ? 1 : 0);
 }

@@ -9,7 +9,10 @@ import { CHROME_EASE, FOCUS_RING } from "../../controls.tsx";
  * policy (`style-src 'self'`) would refuse. Successes are said politely, failures at once.
  */
 
-type Toast = { id: number; kind: "success" | "error"; text: string };
+type Toast = { id: number; kind: "success" | "error"; text: string; action?: ToastAction };
+
+/** What a toast offers to do (Undo, after a field was removed): its words, and what it does. */
+export type ToastAction = { label: string; run(): void };
 
 /** How long a toast stays, unless the pointer is on it. */
 const SHOWN_MS = 4000;
@@ -39,9 +42,9 @@ function schedule(id: number): void {
 	);
 }
 
-/** Shows a toast. */
-export function notify(kind: "success" | "error", text: string): void {
-	const toast = { id: ++next, kind, text };
+/** Shows a toast, with an action when it offers one. */
+export function notify(kind: "success" | "error", text: string, action?: ToastAction): void {
+	const toast = { id: ++next, kind, text, action };
 	publish([...shown, toast].slice(-4));
 	if (!paused) schedule(toast.id);
 }
@@ -80,6 +83,19 @@ export function Toasts({ closeLabel }: { closeLabel: string }) {
 						className={`mt-px size-4 shrink-0 ${toast.kind === "success" ? "text-chrome-ok" : "text-chrome-danger"}`}
 					/>
 					<span className="min-w-0 grow">{toast.text}</span>
+					{toast.action ? (
+						<button
+							type="button"
+							onClick={() => {
+								dismiss(toast.id);
+								toast.action?.run();
+							}}
+							className={`text-chrome-accent hover:text-chrome-strong -my-0.5 shrink-0 rounded-[4px] px-1.5 py-0.5 text-[12px] font-semibold ${CHROME_EASE} ${FOCUS_RING}`}
+							data-wc-toast-action=""
+						>
+							{toast.action.label}
+						</button>
+					) : null}
 					<button
 						type="button"
 						aria-label={closeLabel}
