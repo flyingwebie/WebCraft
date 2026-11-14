@@ -8459,6 +8459,8 @@
 		"openHelp": "The new editor, while it is being built",
 		"opening": "Opening the building area…",
 		"skipToContent": "Skip to main content",
+		"shellFailed": "The building area couldn't be loaded. Check the connection, then reload the page.",
+		"shellReload": "Reload the page",
 		"rail": "Building area",
 		"backToAdmin": "Back to the admin",
 		"canvas": "Page",
@@ -8848,7 +8850,10 @@
 			"left": "Back to the canvas",
 			"laterTitle": "Not here yet",
 			"laterText": "This part of the place comes with a later part of the building area. Until then, use the admin.",
-			"openAdmin": "Open the admin (new tab)"
+			"openAdmin": "Open the admin (new tab)",
+			"loading": "Loading {place}…",
+			"loadFailed": "{place} couldn't be loaded. Check the connection, then try again.",
+			"tryAgain": "Try again"
 		},
 		"content": {
 			"sections": "Content",
@@ -9168,7 +9173,8 @@
 				"files": "Files",
 				"folders": "Folders of the Media library"
 			},
-			"closeToast": "Dismiss"
+			"closeToast": "Dismiss",
+			"pickerFailed": "The Media picker couldn't be loaded. Check the connection, then try again."
 		},
 		"loops": {
 			"savedLoops": "Saved Loops",
