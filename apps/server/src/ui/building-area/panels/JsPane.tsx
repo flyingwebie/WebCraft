@@ -388,7 +388,7 @@ export function JsBody({ pane, words, settings }: { pane: JsPane; words: Words; 
 	const lines = useSyncExternalStore(consoleLog.subscribe, consoleLog.lines);
 	const shownLines = state.path ? lines.filter((line) => line.page.split("?")[0] === state.path) : lines;
 	const errors = shownLines.filter((line) => line.level === "error").length;
-	const log = useRef<HTMLOListElement>(null);
+	const log = useRef<HTMLDivElement>(null);
 
 	// A console line chosen: its script shows with the caret on its line.
 	useEffect(() => {
@@ -494,19 +494,21 @@ export function JsBody({ pane, words, settings }: { pane: JsPane; words: Words; 
 						{state.running ? shown.running : shown.run}
 					</button>
 				</div>
-				<ol
+				<div
 					ref={log}
 					role="log"
 					aria-label={shown.console}
-					className="m-0 flex min-h-0 grow list-none flex-col overflow-y-auto p-0 font-mono text-[11px] leading-[18px]"
+					className="min-h-0 grow overflow-y-auto font-mono text-[11px] leading-[18px]"
 					data-wc-console-lines=""
 				>
-					{shownLines.length === 0 ? (
-						<li className="text-chrome-muted px-1.5 font-sans">{shown.empty}</li>
-					) : (
-						shownLines.map((line) => <ConsoleRow key={line.id} line={line} pane={pane} words={words} />)
-					)}
-				</ol>
+					<ul className="m-0 flex list-none flex-col p-0">
+						{shownLines.length === 0 ? (
+							<li className="text-chrome-muted px-1.5 font-sans">{shown.empty}</li>
+						) : (
+							shownLines.map((line) => <ConsoleRow key={line.id} line={line} pane={pane} words={words} />)
+						)}
+					</ul>
+				</div>
 			</section>
 			{state.conflict ? (
 				<ConflictDialog

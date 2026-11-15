@@ -411,13 +411,13 @@ export function CssActions({ pane, words }: { pane: CssPane; words: Words }) {
 	};
 	return (
 		<>
-			<div className="flex min-w-0 grow items-center gap-1 overflow-hidden ps-2" data-wc-css-classes="">
+			<div className="flex min-w-0 grow-[6] basis-0 items-center gap-1.5 overflow-x-auto py-px" data-wc-css-classes="">
 				{state.classes.map((each) => {
 					const on = state.classId === each.id;
 					return (
 						<span
 							key={each.id}
-							className={`inline-flex h-6 max-w-40 shrink-0 items-center rounded-[4px] border font-mono text-[11px] ${
+							className={`inline-flex h-[26px] max-w-40 shrink-0 items-center rounded-[4px] border font-mono text-[11px] ${
 								on ? "text-chrome-strong border-[#6366f1] bg-[#6366f1]/20" : "border-chrome-line text-chrome-text"
 							}`}
 							data-wc-css-class={each.name}

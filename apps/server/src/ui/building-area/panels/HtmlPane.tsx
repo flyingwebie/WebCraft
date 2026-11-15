@@ -171,6 +171,7 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 		if (!path) return;
 		const asked = ++run;
 		shownTree = source.tree;
+		const typedBefore = store.get().text;
 		store.set((state) => ({
 			status: state.source === source.ref && state.status === "ready" ? "ready" : "loading",
 			ref: selection.ref,
@@ -190,6 +191,9 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 			draft: { tree: source.tree },
 		});
 		if (asked !== run) return;
+		// Typed over meanwhile (just after a save): what was typed stays, against the source as it was.
+		const now = store.get();
+		if (now.dirty && now.text !== typedBefore && now.source === source.ref) return;
 		if (!answer.ok) {
 			store.set({ status: "failed", failure: fill(words().code.notRead, { reason: answer.code }) });
 			return;
@@ -295,8 +299,10 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 		if (!state.source || !path) return;
 		const asked = ++previewRun;
 		if (!state.dirty) {
+			// Back to the Draft's markup: nothing to show or to report.
+			store.set({ problems: [], failure: null });
 			if (state.previewing) {
-				store.set({ previewing: false, problems: [] });
+				store.set({ previewing: false });
 				await deps().frame.current?.rerender();
 			}
 			return;

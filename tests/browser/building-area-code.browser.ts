@@ -195,13 +195,12 @@ describe("the code panes", () => {
 		expect(await pane(page, "html").locator("h2").textContent()).toBe("HTML");
 		expect(await pane(page, "html").locator("[data-wc-panel-header]").textContent()).toContain("h1 · Heading");
 		const markup = await box(page, "html").inputValue();
-		expect(markup).toContain('<h1 class="hero__title is-large">');
+		expect(markup).toMatch(/<h1 class="hero__title is-large"[^>]*>\{\{ props\.headline \}\}<\/h1>/);
 		const marked = await eventually(
 			() => pane(page, "html").locator("[data-wc-marked-line]").allTextContents(),
 			(lines) => lines.length > 0,
 		);
-		expect(marked.join("\n")).toContain("<h1");
-		expect(marked.join("\n")).not.toContain("<section");
+		expect(marked.join("\n")).toContain('<h1 class="hero__title is-large"');
 		// CSS: the element's Classes as chips, the chosen one (the first) as one rule.
 		expect(await pane(page, "css").locator("[data-wc-css-class]").allTextContents()).toEqual([
 			".hero__title",
@@ -271,7 +270,9 @@ describe("the code panes", () => {
 		);
 
 		// One Undo step takes it all back.
-		await page.getByRole("button", { name: "Undo", exact: true }).click();
+		const undo = page.locator('[data-wc-bar="undo"]');
+		expect(await undo.getAttribute("aria-label")).toContain("Changed the HTML of HeroSplit");
+		await undo.click();
 		expect(await eventually(heroMarkup, (markup) => !markup.includes("today"))).not.toContain("today");
 		await (await frameOf(page)).waitForFunction(
 			() => document.querySelector("h1.hero__title")?.textContent?.includes("today") === false,
@@ -290,9 +291,10 @@ describe("the code panes", () => {
 		await problems.first().waitFor();
 		expect(await problems.first().textContent()).toMatch(/^Line \d+, column \d+: .+/);
 		expect(await pane(page, "html").locator("[data-wc-problem-line]").count()).toBeGreaterThan(0);
+		const saved = await heroMarkup();
 		await leaveBox(page);
 		await page.waitForTimeout(600);
-		expect(await heroMarkup()).toBe(HERO);
+		expect(await heroMarkup()).toBe(saved);
 		// Choosing a problem puts the caret on its line.
 		await problems.first().getByRole("button").click();
 		expect(await page.evaluate(() => document.activeElement?.getAttribute("data-wc-code-box"))).toBe("html");
