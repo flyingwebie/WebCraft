@@ -1,8 +1,8 @@
-import { XIcon } from "lucide-react";
+import { ArrowLeftIcon, XIcon } from "lucide-react";
 import { type ReactNode, useEffect, useRef } from "react";
 
 import { fill, type Words } from "../api.ts";
-import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
+import { CHROME_EASE, FOCUS_RING, type Icon } from "../controls.tsx";
 
 /**
  * Client editing's side panel (SPEC 13.1, `client-flows/03`): 360 wide on the right, one at a time,
@@ -18,6 +18,9 @@ export function SidePanel({
 	onClose,
 	children,
 	kind,
+	icon: Glyph,
+	back,
+	foot,
 }: {
 	id: string;
 	words: Words;
@@ -29,6 +32,12 @@ export function SidePanel({
 	children: ReactNode;
 	/** Which panel, for tests and styles. */
 	kind: string;
+	/** The panel's icon before its name (Sections, `client/06`). */
+	icon?: Icon;
+	/** A way back before its name, to the view the panel came from (the Sections picker, `client/07`). */
+	back?: { label: string; onBack(): void } | null;
+	/** What stays at its foot under what scrolls ("Add section"). */
+	foot?: ReactNode;
 }) {
 	const heading = useRef<HTMLHeadingElement>(null);
 	// Focus goes into the panel as it opens: its heading, so the panel is read from the top.
@@ -49,6 +58,19 @@ export function SidePanel({
 			data-wc-side-panel={kind}
 		>
 			<header className="flex shrink-0 items-start gap-2 px-4 pt-3.5 pb-3">
+				{back ? (
+					<button
+						type="button"
+						aria-label={back.label}
+						onClick={back.onBack}
+						className={`bg-chrome-raised text-chrome-text hover:bg-chrome-hover hover:text-chrome-strong grid size-8 shrink-0 place-items-center rounded-lg ${CHROME_EASE} ${FOCUS_RING}`}
+						data-wc-side-panel-back=""
+					>
+						<ArrowLeftIcon aria-hidden="true" className="size-4" />
+					</button>
+				) : Glyph ? (
+					<Glyph aria-hidden="true" className="text-chrome-text mt-0.5 size-[18px] shrink-0" />
+				) : null}
 				<div className="flex min-w-0 grow flex-col">
 					<h2
 						ref={heading}
@@ -71,6 +93,7 @@ export function SidePanel({
 				</button>
 			</header>
 			<div className="min-h-0 grow overflow-y-auto px-4 pb-4 text-[14px]">{children}</div>
+			{foot ? <div className="border-chrome-line shrink-0 border-t px-4 py-3">{foot}</div> : null}
 		</aside>
 	);
 }

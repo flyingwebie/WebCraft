@@ -5,6 +5,7 @@ import { formIdOf, formNameOf, onFormNames, PLACED_FORM, placedFormOf } from "..
 import type { RegionSaving } from "../canvas/regions.ts";
 import type { PageEditing } from "../editing/editing.ts";
 import type { RegionPopovers } from "./popovers.ts";
+import { PLACEMENT_PROP } from "./sections.ts";
 
 /**
  * Client editing's marks and keys (SPEC 13.2, 13.3 and 13.9; BA-14): what "easy to see" means on the
@@ -45,11 +46,11 @@ const OWN = `:not(${IN_ITEM})`;
 const POPPED = `${PHOTO_REGION}${OWN}, ${LINK_REGION}${OWN}`;
 
 /**
- * What a Member may change on the page in place: its text regions, photos and links, and a body as
- * one area of Blocks (BA-18, `body-in-place.ts`; sections come later). Loop items are marked and
- * changed as items (`loop-items.ts`).
+ * What a Member may change on the page in place: its text regions, photos and links, a body as
+ * one area of Blocks (BA-18, `body-in-place.ts`), and the text Props of the page's sections typed in
+ * place (BA-17). Loop items are marked and changed as items (`loop-items.ts`).
  */
-export const MARKED = `${TEXT_REGION}${OWN}, ${POPPED}, ${BODY_REGION}`;
+export const MARKED = `${TEXT_REGION}${OWN}, ${POPPED}, ${BODY_REGION}, ${PLACEMENT_PROP}`;
 
 /** The parts of a page that are the same on every page (the Site template's), which a Member can't change. */
 const LOCKED = "header, footer, [role='banner'], [role='contentinfo']";
