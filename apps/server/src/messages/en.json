@@ -9793,6 +9793,30 @@
 				"creating": "Creating…",
 				"none": "Nothing here yet."
 			},
+			"body": {
+				"choices": {
+					"paragraph": "Text",
+					"heading2": "Heading",
+					"heading3": "Heading 3",
+					"heading4": "Heading 4",
+					"bulleted": "List",
+					"numbered": "Numbered list",
+					"quote": "Quote",
+					"image": "Photo",
+					"video": "Video",
+					"table": "Table",
+					"callout": "Callout",
+					"code": "Code",
+					"divider": "Divider",
+					"toggle": "Fold-out"
+				},
+				"filter": "Type to filter",
+				"agencyMade": "Sections your agency made",
+				"fillIn": "Asks for {props}",
+				"nothingToFill": "Ready to place",
+				"close": "Close",
+				"loadFailed": "{name} couldn't be made editable. Reload the page to try again."
+			},
 			"marks": {
 				"clickToEdit": "Click to edit",
 				"enterToEdit": "Press Enter to edit",
@@ -9801,7 +9825,8 @@
 				"sameEverywhere": "Same on every page",
 				"armed": "{name}. Press Enter to edit it.",
 				"finished": "Finished editing {name}",
-				"dropHere": "Drop to use this photo"
+				"dropHere": "Drop to use this photo",
+				"blocks": "Blocks"
 			},
 			"photo": {
 				"region": "{name}: change the photo",

@@ -1,4 +1,4 @@
-import { LINK_REGION, PHOTO_REGION, TEXT_REGION } from "../agent/contract.ts";
+import { BODY_REGION, LINK_REGION, PHOTO_REGION, TEXT_REGION } from "../agent/contract.ts";
 import { fill, type PageState, type Words } from "../api.ts";
 import { nameOf, type Overlay, type OverlayMark } from "../canvas/overlay.ts";
 import type { RegionSaving } from "../canvas/regions.ts";
@@ -44,10 +44,11 @@ const OWN = `:not(${IN_ITEM})`;
 const POPPED = `${PHOTO_REGION}${OWN}, ${LINK_REGION}${OWN}`;
 
 /**
- * What a Member may change on the page in place: its text regions, photos and links (sections come
- * later). Loop items are marked and changed as items (`loop-items.ts`).
+ * What a Member may change on the page in place: its text regions, photos and links, and a body as
+ * one area of Blocks (BA-18, `body-in-place.ts`; sections come later). Loop items are marked and
+ * changed as items (`loop-items.ts`).
  */
-export const MARKED = `${TEXT_REGION}${OWN}, ${POPPED}`;
+export const MARKED = `${TEXT_REGION}${OWN}, ${POPPED}, ${BODY_REGION}`;
 
 /** The parts of a page that are the same on every page (the Site template's), which a Member can't change. */
 const LOCKED = "header, footer, [role='banner'], [role='contentinfo']";
@@ -80,6 +81,8 @@ export function clientEditing(options: {
 	closePanel(): boolean;
 	/** The photo and link popovers (BA-15). */
 	popovers: RegionPopovers;
+	/** The body whose Blocks are being written now (BA-18), drawn as being edited with its chip. */
+	bodies?: { editing(): HTMLElement | null };
 }): ClientEditing {
 	const { inner, words, announce, popovers } = options;
 	const said = words.client.marks;
@@ -309,7 +312,8 @@ export function clientEditing(options: {
 			};
 		};
 
-		const editingRegion = editingNow();
+		// A body being written is drawn as being edited too, its chip saying it is written in Blocks.
+		const editingRegion = editingNow() ?? options.bodies?.editing() ?? null;
 		const toolbar = inner.snapshot().toolbar;
 		const pointed = hovered?.isConnected ? hovered : null;
 		const focused = armed?.isConnected ? armed : null;
@@ -364,8 +368,23 @@ export function clientEditing(options: {
 			const kind = isEditing ? "editing" : isHover ? "hover" : "focus";
 			outline(kind, box, kind);
 			if (region === popped || (isEditing && toolbar)) continue;
-			const hint = isEditing ? null : isDrop ? said.dropHere : isHover ? said.clickToEdit : said.enterToEdit;
-			const shape = region.matches(PHOTO_REGION) ? "image" : region.matches(LINK_REGION) ? "link" : "type";
+			const body = region.matches(BODY_REGION);
+			const hint = isEditing
+				? body
+					? said.blocks
+					: null
+				: isDrop
+					? said.dropHere
+					: isHover
+						? said.clickToEdit
+						: said.enterToEdit;
+			const shape = region.matches(PHOTO_REGION)
+				? "image"
+				: region.matches(LINK_REGION)
+					? "link"
+					: body
+						? "blocks"
+						: "type";
 			chip(box, { icon: shape, name: labelOf(region), hint, colour: MARK, kind });
 		}
 		prune();
@@ -638,11 +657,12 @@ function place(target: HTMLElement, box: Box): void {
 	target.style.setProperty("height", `${box.height}px`);
 }
 
-type ChipIcon = "type" | "lock" | "image" | "link";
+type ChipIcon = "type" | "lock" | "image" | "link" | "blocks";
 
-/** The icon set's "type", "lock", "image" and "link", drawn in the shell's document at 13 px. */
+/** The icon set's "type", "lock", "image", "link" and "pilcrow" (a body), drawn in the shell's document at 13 px. */
 const ICONS: Record<ChipIcon, string[]> = {
 	type: ["M12 4v16", "M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2", "M9 20h6"],
+	blocks: ["M13 4v16", "M17 4v16", "M19 4H9.5a4.5 4.5 0 0 0 0 9H13"],
 	image: [
 		"M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z",
 		"M9 11a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z",

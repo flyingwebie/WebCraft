@@ -6,7 +6,7 @@ import { fill, type PageState, type Words } from "../api.ts";
 import { nameOf, type Overlay, type OverlayMark } from "../canvas/overlay.ts";
 import type { RegionSaving, SavedAnswer, SaveWatch } from "../canvas/regions.ts";
 import { PUBLISH_OPEN_EVENT } from "../publish/sources.ts";
-import { type PageDrafts, pageDrafts } from "./drafts.ts";
+import { type PageDrafts, pageDrafts, type SharedDraft } from "./drafts.ts";
 import type { ShellHistory } from "./history.ts";
 import { displayName, peopleIn, presenceMarks, regionPlace } from "./presence.ts";
 
@@ -54,6 +54,13 @@ export type PageEditing = {
 	onMove(listener: () => void): () => void;
 	/** The page's shared Drafts (its Entry's, the Globals'), as BA-09's Page layout changes them. */
 	drafts(): PageDrafts;
+	/**
+	 * One of the page's shared Drafts (`entry:<id>`, `globals`), for a part of the page that changes it
+	 * directly (a body's Blocks, BA-18), once it is open; null before or without it.
+	 */
+	shared(item: string): SharedDraft | null;
+	/** Says where the person is in the page's Drafts (Presence) for such a part: an item's value, or nowhere. */
+	place(item: string | null, at: string | null): void;
 	/** Stops for good: closes the page's Drafts. */
 	destroy(): void;
 };
@@ -516,6 +523,8 @@ export function pageEditing(options: {
 		},
 		tools,
 		boxOf: (element) => parts?.overlay.boxOf(element) ?? null,
+		shared: (item) => drafts.shared(item),
+		place: (item, at) => drafts.place(item, at),
 		onMove(listener) {
 			moves.add(listener);
 			return () => {
