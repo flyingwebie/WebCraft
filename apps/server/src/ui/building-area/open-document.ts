@@ -86,6 +86,10 @@ export function useOpenDocument(
 	const asked = useRef<string | null>(null);
 	// What the frame showed last.
 	const lastFramed = useRef<string | null>(null);
+	// Back or Forward went to another document: the browser puts the frame back where it was then by
+	// itself (its place in the history goes with the shell's), before the shell has found where the
+	// document shows. That load is the shell's own, not the page going somewhere (BA-34).
+	const popped = useRef(false);
 	const latest = useRef({ address, shown, framedPage, announce, leaving });
 	latest.current = { address, shown, framedPage, announce, leaving };
 
@@ -102,7 +106,14 @@ export function useOpenDocument(
 		});
 	}, []);
 
-	useEffect(() => documents.subscribe((next) => setAddress(next)), [documents]);
+	useEffect(
+		() =>
+			documents.subscribe((next, change) => {
+				if (change === "pop") popped.current = true;
+				setAddress(next);
+			}),
+		[documents],
+	);
 
 	// Something changed what the page shows (a place published a Loop it lists): the frame reads the
 	// same page again, as a load the shell asked for, so the document, the place and history stay.
@@ -157,6 +168,8 @@ export function useOpenDocument(
 			if (found.status === "shown") {
 				// The frame loads it, unless it shows it already (and then nothing loads).
 				asked.current = found.frame === lastFramed.current ? null : found.frame;
+				// Shown already (put back by Back or Forward): nothing is left to load for it.
+				if (asked.current === null) popped.current = false;
 				// An Entry template previews an Entry: the address names it, so a reload shows the same one.
 				if (document.kind === "entryTemplate" && document.entryId === null && found.entryId) {
 					documents.replace({ ...document, entryId: found.entryId });
@@ -210,8 +223,12 @@ export function useOpenDocument(
 
 	const framed = useCallback(
 		(frameAddress: string, state: Promise<EditAnswer<unknown>>) => {
-			// A load the shell asked for (perhaps redirected on the way), or one the page made itself.
-			const ours = asked.current !== null;
+			// A load the shell asked for (perhaps redirected on the way), or one the page made itself. The
+			// page the open document is shown on, loaded again (by a redraw, the browser's own Back), is
+			// never the page going somewhere by itself (BA-34).
+			const now = latest.current.shown;
+			const ours = asked.current !== null || popped.current || (now?.status === "shown" && now.frame === frameAddress);
+			popped.current = false;
 			asked.current = null;
 			lastFramed.current = frameAddress;
 			const standIn = frameAddress.startsWith(`${BUILDING_STAND_IN_PREFIX}/`);
