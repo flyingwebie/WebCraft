@@ -3,11 +3,20 @@ import { ComponentIcon, PlusIcon, XIcon } from "lucide-react";
 import { type ReactNode, useEffect, useId, useMemo, useState, useSyncExternalStore } from "react";
 
 import { replaceAt } from "../../builder/tree.ts";
-import { fill, type Words } from "../api.ts";
+import { editRequests, fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
+import {
+	askAbout,
+	excerpt,
+	type FixedTextAsk,
+	fixedTexts,
+	fixedTextsIn,
+	fixedTextTarget,
+} from "../editing/fixed-text.ts";
 import type { PageLayoutEditor } from "../editing/page-layout.ts";
 import type { Structure, StructureSelection, StructureSource } from "../editing/selection.ts";
 import { useChosenClass } from "./chosen-class.ts";
+import { FixedTextDialog } from "./FixedTextDialog.tsx";
 import { printParts, readParts, type ValueChoice, CommitInput as ValueInput } from "./inputs.tsx";
 import { ConditionPanel, itemValues, LoopPanel, loopAround, useLoopFacts } from "./LoopPanel.tsx";
 import { PropsPanel } from "./Props.tsx";
@@ -140,6 +149,7 @@ export function Inspector({
 		<ElementInspector
 			key={selection.ref}
 			structure={structure}
+			token={token}
 			words={words}
 			selection={selection}
 			node={node}
@@ -171,6 +181,9 @@ export function Inspector({
 		</div>
 	);
 }
+
+/** Classes made from the Inspector in this tab, by id: the open sources' catalogues don't know them yet. */
+const MADE_CLASSES = new Map<string, string>();
 
 /** What a node that has no panel of its own is called (a Form, a Popup, pagination). */
 function nodeTitle(node: TreeNode, source: StructureSource): string {
@@ -283,6 +296,7 @@ function contentOf(node: ElementNode): string {
 
 function ElementInspector({
 	structure,
+	token,
 	words,
 	selection,
 	node,
@@ -292,6 +306,8 @@ function ElementInspector({
 	onOpenComponent,
 }: {
 	structure: Structure;
+	/** The Edit mode session's header token (fixed text made a Field or a Global, BA-33). */
+	token: string;
 	words: Words;
 	/** What `{{` offers in its values. */
 	values: readonly ValueChoice[];
@@ -316,6 +332,14 @@ function ElementInspector({
 	const [className, setClassName] = useState("");
 	const [newAttribute, setNewAttribute] = useState<{ name: string; value: string } | null>(null);
 	const [problem, setProblem] = useState<string | null>(null);
+	// Fixed text made a Prop, a Field or a Global (BA-33): the question asked about one piece.
+	const texts = useMemo(
+		() => fixedTexts({ structure, request: editRequests(token), words }),
+		[structure, token, words],
+	);
+	const [asking, setAsking] = useState<FixedTextAsk | null>(null);
+	const fixedTarget = fixedTextTarget(source);
+	const fixed = selection.path ? fixedTextsIn(node, selection.path) : [];
 
 	/** Changes the element; says why not when refused. */
 	const update = (next: ElementNode, label: string) => {
@@ -328,6 +352,7 @@ function ElementInspector({
 	const classNameOf = (id: string) =>
 		source.catalogue.classes.find((each) => each.id === id)?.name ??
 		source.catalogue.utilities.find((each) => each.id === id)?.name ??
+		MADE_CLASSES.get(id) ??
 		id;
 
 	const addClass = async (typed: string) => {
@@ -344,6 +369,8 @@ function ElementInspector({
 				return;
 			}
 			id = made.id;
+			// The source's catalogue was read before the Class was made: its name is kept here (BA-33).
+			MADE_CLASSES.set(made.id, made.name);
 		}
 		if (node.classes.includes(id)) {
 			setAdding(false);
@@ -520,6 +547,35 @@ function ElementInspector({
 					{contentOf(node) || <span className="text-chrome-muted font-sans">{said.inspector.noContent}</span>}
 				</p>
 			</Field>
+			{fixed.length > 0 ? (
+				<Field label={words.fixedText.heading}>
+					<p className="text-chrome-muted m-0 text-[11px]">{words.fixedText.help}</p>
+					<ul className="m-0 flex list-none flex-col gap-1 p-0" data-wc-fixed-texts="">
+						{fixed.map((piece) => (
+							<li
+								key={piece.path.join(".")}
+								className="flex min-w-0 items-center gap-2 rounded-[5px] border border-dashed border-[#f59e0b]/60 px-1.5 py-1"
+							>
+								<span className="text-chrome-strong min-w-0 grow truncate text-[12px]">{`“${excerpt(piece.text, 60)}”`}</span>
+								{fixedTarget ? (
+									<button
+										type="button"
+										onClick={() => {
+											const ask = askAbout(source, piece.path);
+											if (ask) setAsking(ask);
+										}}
+										className={`border-chrome-line text-chrome-strong hover:bg-chrome-hover h-6 shrink-0 rounded-[4px] border px-1.5 text-[11px] font-medium ${CHROME_EASE} ${FOCUS_RING}`}
+										data-wc-make-editable={fixedTarget}
+									>
+										{words.fixedText.make[fixedTarget]}
+									</button>
+								) : null}
+							</li>
+						))}
+					</ul>
+				</Field>
+			) : null}
+			{asking ? <FixedTextDialog words={words} ask={asking} texts={texts} onDone={() => setAsking(null)} /> : null}
 			<Field label={said.inspector.id} htmlFor={ids.id}>
 				<CommitInput
 					id={ids.id}
