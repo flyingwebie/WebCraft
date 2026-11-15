@@ -3,7 +3,7 @@ import type { ElementNode, ElementTree } from "@webcraft/renderer/builder";
 import { PaintbrushIcon, PlusIcon, XIcon } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 
-import { editorHistory, type HistoryResult } from "../../builder/editor-history.ts";
+import type { HistoryResult } from "../../builder/editor-history.ts";
 import { matches } from "../../builder/shortcuts.ts";
 import { nodeAt, pathOfId, replaceAt } from "../../builder/tree.ts";
 import { fill, type Words } from "../api.ts";
@@ -153,6 +153,9 @@ const IDLE: CssState = {
 	renaming: null,
 };
 
+/** A save's place among the person's steps, kept from the moment the save starts (UI-21). */
+type HistoryPlace = ReturnType<CodePanesDeps["history"]["reserve"]>;
+
 /** A selection's element, when it is one in an open source. */
 function elementOf(selection: StructureSelection | null): ElementNode | null {
 	return selection?.node?.type === "element" ? selection.node : null;
@@ -169,9 +172,24 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 	let chooseMade: { ref: string; before: string[] } | null = null;
 	let oneOffTimer: number | undefined;
 	let oneOffSaving: Promise<void> | null = null;
+	let oneOffSerial = 0;
 	let saveTimer: number | undefined;
 	let reading: Promise<void> | null = null;
 	let saving: Promise<void> | null = null;
+
+	/**
+	 * When the Draft the pane shows was saved (UI-21): an answer read or saved before it (a slow read, a
+	 * save answered after a newer read) is older, and never replaces it.
+	 */
+	let adoptedAt = Number.NEGATIVE_INFINITY;
+	/** Shows a Draft the server answered, unless the pane shows a newer one already. Answers whether it did. */
+	const adopt = (view: { draft: unknown; updatedAt: Date | string | null }, sizes: StepSizes): boolean => {
+		const at = view.updatedAt ? new Date(view.updatedAt).getTime() : 0;
+		if (at < adoptedAt) return false;
+		adoptedAt = at;
+		store.set({ design: designOf(view.draft, sizes) });
+		return true;
+	};
 
 	/** Reads the Design system's Draft: its Classes, breakpoints and tokens, and the scales' sizes. */
 	const read = async () => {
@@ -183,13 +201,17 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 						.designSystem.preview({ siteId: siteId() })
 						.catch(() => null),
 				]);
-				const draft = got.designSystem.draft;
 				const sizes: StepSizes = preview
 					? Object.fromEntries(
 							[...preview.preview.scales.space, ...preview.preview.scales.text].map((step) => [step.id, step.size]),
 						)
 					: (store.get().design?.sizes ?? {});
-				store.set({ design: designOf(draft, sizes), status: "ready" });
+				if (!adopt(got.designSystem, sizes)) {
+					// Older than what the pane shows: only the scales' sizes are taken.
+					const shown = store.get().design;
+					if (shown) store.set({ design: { ...shown, sizes } });
+				}
+				store.set({ status: "ready" });
 			} catch {
 				store.set({ status: "failed", failure: words().code.css.notRead });
 			} finally {
@@ -356,13 +378,31 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 			return;
 		}
 		store.set({ saving: true, problem: null });
+		// The save keeps its place among the person's steps from now: Undo waits for it (UI-21).
+		const place = deps().history.reserve();
+		try {
+			await saveRule(state, design, pieces.pieces, overwrite, place);
+		} finally {
+			place.settle();
+		}
+	};
+
+	/** Saves the chosen Class's rule as typed; its step is recorded in the place the save took. */
+	const saveRule = async (
+		state: CssState,
+		design: Design,
+		pieces: Extract<ReturnType<typeof piecesOf>, { ok: true }>["pieces"],
+		overwrite: boolean,
+		place: HistoryPlace,
+	) => {
 		// Someone saved this Class since its rule was shown: theirs or mine, never silently over theirs.
 		if (!overwrite && shownClass) {
 			try {
 				const fresh = await api().designSystem.get({ siteId: siteId() });
 				const now = (fresh.designSystem.draft.classes as DesignClass[]).find((each) => each.id === state.classId);
 				if (now && !sameClass(now, shownClass)) {
-					store.set({ saving: false, conflict: true, design: designOf(fresh.designSystem.draft, design.sizes) });
+					adopt(fresh.designSystem, design.sizes);
+					store.set({ saving: false, conflict: true });
 					deps().announce(fill(words().code.conflict.text, { name: `.${state.name}` }), true);
 					return;
 				}
@@ -370,17 +410,19 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 				// Unread, the save goes ahead and the server still checks it.
 			}
 		}
-		const wasGenerated = Boolean(design.classes.find((each) => each.id === state.classId)?.generated);
+		const classId = state.classId;
+		if (!classId) return;
+		const wasGenerated = Boolean(design.classes.find((each) => each.id === classId)?.generated);
 		try {
 			const saved = await api().designSystem.updateClass({
 				siteId: siteId(),
-				classId: state.classId,
-				styles: pieces.pieces.styles,
-				css: pieces.pieces.css,
-				breakpoints: pieces.pieces.breakpoints,
+				classId,
+				styles: pieces.styles,
+				css: pieces.css,
+				breakpoints: pieces.breakpoints,
 			});
 			const label = fill(words().code.css.step, { name: state.name });
-			editorHistory().record({
+			place.record({
 				resource: resource(),
 				before: saved.history.before as unknown as Json,
 				after: saved.history.after as unknown as Json,
@@ -388,11 +430,12 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 				location: { siteId: siteId(), panel: "css", ref: state.ref ?? undefined, title: label },
 			});
 			const typedSince = store.get().text !== state.text;
-			const nextDesign = designOf(saved.designSystem.draft, design.sizes);
-			store.set({ design: nextDesign, dirty: typedSince, failure: null });
-			shownClass = nextDesign.classes.find((each) => each.id === state.classId) ?? null;
+			// A newer Draft read meanwhile already holds this save: it stays.
+			adopt(saved.designSystem, design.sizes);
+			store.set({ dirty: typedSince, failure: null });
+			const now = store.get().design?.classes.find((each) => each.id === classId) ?? null;
+			shownClass = now;
 			// A generated Class whose rule changed is a normal one now: the pane offers to name it.
-			const now = nextDesign.classes.find((each) => each.id === state.classId);
 			if (wasGenerated && now && !now.generated) store.set({ renaming: { classId: now.id, name: now.name } });
 			follow();
 			await deps().frame.current?.rerender();
@@ -442,7 +485,7 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 			[...(store.get().design?.classes ?? []), ...catalogue].filter((each) => each.generated).map((each) => each.id),
 		);
 
-	const saveOneOff = async (attempt = 0): Promise<void> => {
+	const saveOneOff = async (place: HistoryPlace, attempt = 0): Promise<void> => {
 		const pending = store.get().oneOff;
 		if (!pending?.dirty) return;
 		const said = words().oneOff;
@@ -509,20 +552,15 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 				// Someone saved it between the reading and the save: printed again from their version, once.
 				if (code === "CHANGED_MEANWHILE" && attempt === 0) {
 					await new Promise((resolve) => setTimeout(resolve, 300));
-					return saveOneOff(1);
+					return saveOneOff(place, 1);
 				}
 				deps().announce(fill(said.notSaved, { reason: code }), true);
 				return;
 			}
-			const [first, ...rest] = answer.data.history;
-			if (first) {
-				const step = editorHistory().record({
-					...first,
-					label: said.applied,
-					location: { siteId: siteId(), panel: "css", ref: pending.ref, title: said.applied },
-				});
-				for (const change of rest) editorHistory().attach(step, change);
-			}
+			// Recorded one after the other under one group of their own, the receipts make one step.
+			const group = `one-off:${++oneOffSerial}`;
+			const location = { siteId: siteId(), panel: "css" as const, ref: pending.ref, title: said.applied };
+			for (const change of answer.data.history) place.record({ ...change, label: said.applied, location, group });
 			chooseMade = { ref: pending.ref, before: [...node.classes] };
 			if (store.get().oneOff?.text === pending.text) store.set({ oneOff: null });
 			deps().announce(said.applied);
@@ -536,10 +574,13 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 	const flushOneOff = async () => {
 		window.clearTimeout(oneOffTimer);
 		if (oneOffSaving) await oneOffSaving;
-		oneOffSaving = saveOneOff();
+		// The save keeps its place among the person's steps from now: Undo waits for it (UI-21).
+		const place = deps().history.reserve();
+		oneOffSaving = saveOneOff(place);
 		try {
 			await oneOffSaving;
 		} finally {
+			place.settle();
 			oneOffSaving = null;
 		}
 	};
@@ -679,6 +720,7 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 				store.set({ renaming: null });
 				return null;
 			}
+			const place = deps().history.reserve();
 			try {
 				const saved = await api().designSystem.updateClass({
 					siteId: siteId(),
@@ -686,14 +728,15 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 					name: wanted,
 				});
 				const label = fill(words().oneOff.renameStep, { from: renaming.name, name: wanted });
-				editorHistory().record({
+				place.record({
 					resource: resource(),
 					before: saved.history.before as unknown as Json,
 					after: saved.history.after as unknown as Json,
 					label,
 					location: { siteId: siteId(), panel: "css", ref: store.get().ref ?? undefined, title: label },
 				});
-				store.set({ renaming: null, design: designOf(saved.designSystem.draft, store.get().design?.sizes ?? {}) });
+				adopt(saved.designSystem, store.get().design?.sizes ?? {});
+				store.set({ renaming: null });
 				follow();
 				showRule();
 				deps().announce(fill(words().oneOff.renamed, { name: wanted }));
@@ -704,6 +747,8 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 				return problems?.length
 					? problems.map((each) => each.message).join(" ")
 					: fill(words().code.notSaved, { reason: (error as { code?: string }).code ?? "generic" });
+			} finally {
+				place.settle();
 			}
 		},
 		flush: async () => {
