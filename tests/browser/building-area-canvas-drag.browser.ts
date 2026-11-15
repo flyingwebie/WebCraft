@@ -72,6 +72,8 @@ function shared() {
 		await enterBuildingArea(install, page, { as: staff, siteId, slug, open: `/page${path}` });
 		await settled(page);
 		await page.getByRole("tree", { name: "Elements of the page" }).getByRole("treeitem").first().waitFor();
+		// The Templates' shared Drafts connect as the page opens: a change waits for them.
+		await page.waitForTimeout(1500);
 		return page;
 	})();
 	return sharedPage;
@@ -130,22 +132,33 @@ async function clickIn(page: Page, selector: string): Promise<void> {
  * pausing over it so the shell can draw where it lands; answers what the drop line said meanwhile.
  */
 async function drag(page: Page, from: Locator, selector: string, at: number): Promise<string | null> {
-	await (await frameOf(page)).locator(selector).first().scrollIntoViewIfNeeded();
-	await settled(page);
-	const start = await from.boundingBox();
-	const target = await (await frameOf(page)).locator(selector).first().boundingBox();
-	if (!start || !target) throw new Error("Nothing to drag from or to.");
-	await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
-	await page.mouse.down();
-	await page.mouse.move(target.x + 20, target.y + target.height * at, { steps: 12 });
-	await settled(page);
-	const line = await page
-		.locator("[data-wc-drop-line]:not(.hidden)")
-		.getAttribute("data-wc-drop-line")
-		.catch(() => null);
-	await page.mouse.up();
-	await settled(page);
-	return line;
+	// What the last change drew settles first (the page is drawn again in place once its Draft saved).
+	await page.waitForTimeout(800);
+	for (let attempt = 0; ; attempt++) {
+		try {
+			const element = (await frameOf(page)).locator(selector).first();
+			await element.scrollIntoViewIfNeeded({ timeout: 5000 });
+			await settled(page);
+			const start = await from.boundingBox();
+			const target = await element.boundingBox();
+			if (!start || !target) throw new Error("Nothing to drag from or to.");
+			await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+			await page.mouse.down();
+			await page.mouse.move(target.x + 20, target.y + target.height * at, { steps: 12 });
+			await settled(page);
+			const line = await page
+				.locator("[data-wc-drop-line]:not(.hidden)")
+				.getAttribute("data-wc-drop-line")
+				.catch(() => null);
+			await page.mouse.up();
+			await settled(page);
+			return line;
+		} catch (failure) {
+			await page.mouse.up().catch(() => {});
+			if (attempt >= 2) throw failure;
+			await page.waitForTimeout(300);
+		}
+	}
 }
 
 describe("dragging on the canvas", () => {
