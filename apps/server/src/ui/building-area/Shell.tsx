@@ -1,17 +1,23 @@
+import { type ElementTree, readExpression, type TreeNode } from "@webcraft/renderer/builder";
 import { PencilIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useEditorFit } from "../builder/editor-fit.ts";
+import { editorHistory } from "../builder/editor-history.ts";
+import { childLists, newElement, withNewIds } from "../builder/tree.ts";
 import { BUILDING_STAND_IN_PREFIX } from "./agent/contract.ts";
 import { type EditAnswer, editRequests, fill, type PageState, type ShellConfig } from "./api.ts";
 import { BottomBar } from "./bottom-bar/BottomBar.tsx";
 import { DocumentNav } from "./bottom-bar/DocumentNav.tsx";
 import { draftStateOf } from "./bottom-bar/DraftState.tsx";
+import { InsertRow, KIND_ICONS } from "./bottom-bar/InsertRow.tsx";
 import type { PageLanguage } from "./bottom-bar/LanguageMenu.tsx";
 import { Frame, type FrameHandle, type PageTheme } from "./canvas/Frame.tsx";
 import { NoDocument } from "./canvas/NoDocument.tsx";
 import { tagName } from "./canvas/overlay.ts";
 import { chosenRefOf, readFormNames } from "./canvas/placed-form.ts";
 import type { SavingStatus } from "./canvas/regions.ts";
+import type { MenuHost } from "./command-menu/host.ts";
+import { CommandMenuHost, useCommandMenu } from "./command-menu/loader.tsx";
 import { DocumentSwitcher, titleText } from "./DocumentSwitcher.tsx";
 import { DockArea, useDocks } from "./docks/Docks.tsx";
 import { PanelButton } from "./docks/PanelFrame.tsx";
@@ -21,6 +27,9 @@ import { componentInPlace, type InPlaceTarget, rootsOf } from "./editing/compone
 import { reverseElsewhere } from "./editing/drafts.ts";
 import { pageEditing } from "./editing/editing.ts";
 import { shellHistory } from "./editing/history.ts";
+import { InsertLine } from "./editing/InsertLine.tsx";
+import { anchorName, type DocumentKind, KIND_TAGS, inserter as makeInserter } from "./editing/insert.ts";
+import { layerOps } from "./editing/layer-ops.ts";
 import { pageLayoutEditor } from "./editing/page-layout.ts";
 import { refOf, type StructureSnapshot, structure } from "./editing/selection.ts";
 import { TextToolbar } from "./editing/TextToolbar.tsx";
@@ -28,14 +37,17 @@ import { type RegionCycle, regionCycle } from "./keyboard.ts";
 import { managementApi } from "./management.ts";
 import { NarrowNotice } from "./NarrowNotice.tsx";
 import { useOpenDocument } from "./open-document.ts";
+import { ComponentNameDialog, type ComponentNameRequest } from "./panels/ComponentNameDialog.tsx";
 import { AddPropButton, ComponentPanel } from "./panels/ComponentPanel.tsx";
 import { codePaneParts, useCodePanes } from "./panels/code-panes.tsx";
+import { EmptyPage } from "./panels/EmptyPage.tsx";
 import { EntryPanel, EntryPanelActions, useEntryPanelView } from "./panels/EntryFields.tsx";
 import { FormPanel, FormPanelHeading } from "./panels/FormPanel.tsx";
 import { Inspector } from "./panels/Inspector.tsx";
 import { Layers } from "./panels/Layers.tsx";
 import { conditionName, loopAround } from "./panels/LoopPanel.tsx";
 import { MediaShellHost } from "./places/media/host.tsx";
+import { pickMedia } from "./places/media/pick.ts";
 import { PlaceLoader } from "./places/PlaceLoader.tsx";
 import {
 	PLACE_EVENT,
@@ -48,6 +60,7 @@ import {
 } from "./places/registry.ts";
 import { BreakpointLines } from "./places/styles/BreakpointLines.tsx";
 import { Publish } from "./publish/Publish.tsx";
+import { PUBLISH_OPEN_EVENT } from "./publish/sources.ts";
 import { Rail } from "./rail/Rail.tsx";
 
 /**
@@ -115,6 +128,21 @@ function inPlaceTargetOf(snapshot: StructureSnapshot): InPlaceTarget | null {
 	const source = `${selection.source}/${node.id}`;
 	const name = placementName(snapshot, selection.ref) ?? node.component;
 	return { source, componentId: node.component, name, placement: selection.ref };
+}
+
+/** The reference of the Site template's element that holds the outlet (where a Page's content goes), or null. */
+function outletHolder(tree: ElementTree | undefined): string | null {
+	const visit = (nodes: readonly TreeNode[], owner: TreeNode | null): string | null => {
+		for (const node of nodes) {
+			if (node.type === "outlet") return owner && "id" in owner ? `site#${owner.id}` : null;
+			for (const list of childLists(node)) {
+				const found = visit(list, node);
+				if (found !== null || list.some((each) => each.type === "outlet")) return found;
+			}
+		}
+		return null;
+	};
+	return tree ? visit(tree.nodes, null) : null;
 }
 
 /** What Done selects for a Component's source on the page: a Page's Placement, or the Placement node in its Template. */
@@ -267,6 +295,64 @@ export function Shell({ config }: { config: ShellConfig }) {
 		announce(fill(words.placements.component.ended, { name: was.name }));
 		pageStructure.select(was.placement);
 	}, [inPlace, pageStructure, announce, words]);
+	// Inserting (BA-10): the insert row, the Command menu's Insert and the empty Page, one rule
+	// (`editing/insert.ts`); the tree row's menu and the menu's Actions on the selection (`layer-ops.ts`).
+	const documentKind = useRef<DocumentKind>(null);
+	const editInPlaceRef = useRef(editInPlace);
+	editInPlaceRef.current = editInPlace;
+	const insert = useMemo(
+		() =>
+			makeInserter({
+				token: config.token,
+				siteId: config.site.id,
+				words,
+				structure: pageStructure,
+				layout: layoutEditor,
+				document: () => documentKind.current,
+				announce: (text, urgent) => announceRef.current(text, urgent),
+				editInPlace: (target) => editInPlaceRef.current(target),
+				pick: async (kind) => {
+					const item = await pickMedia({ kind });
+					return item ? { id: item.id } : null;
+				},
+			}),
+		[config.token, config.site.id, words, pageStructure, layoutEditor],
+	);
+	const ops = useMemo(
+		() =>
+			layerOps({
+				token: config.token,
+				siteId: config.site.id,
+				words,
+				structure: pageStructure,
+				layout: layoutEditor,
+				announce: (text, urgent) => announceRef.current(text, urgent),
+			}),
+		[config.token, config.site.id, words, pageStructure, layoutEditor],
+	);
+	// The Command menu (BA-10): ⌘K, ⌘P and ⌘I; its own file loads the first time it opens.
+	const menu = useCommandMenu({ tabs: ["actions", "goTo", "insert"], announce });
+	/** The name dialog of Make Component and New Component, while one asks. */
+	const [naming, setNaming] = useState<ComponentNameRequest | null>(null);
+	/** Make Component (the tree row's menu, Actions): the selection's name, in PascalCase, as the suggestion. */
+	const makeComponent = () => {
+		const snapshot = pageStructure.snapshot();
+		const selected = snapshot.selection;
+		if (!selected?.node) return;
+		const name = anchorName(snapshot, selected.ref);
+		const words_ = name
+			.split(/[^A-Za-z0-9]+/)
+			.filter(Boolean)
+			.map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+			.join("")
+			.replace(/^[^A-Za-z]+/, "");
+		setNaming({
+			kind: "make",
+			suggested: /[a-z]/.test(words_) ? words_ : "NewComponent",
+			text: fill(words.componentDialog.makeText, { name }),
+			submit: (chosen) => ops.makeComponent(chosen),
+		});
+	};
 	/** What the canvas selected last: its name as its chip says it, and its reference when it has one. */
 	const [canvasSelection, setCanvasSelection] = useState<{ ref: string | null; name: string } | null>(null);
 
@@ -437,6 +523,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 	// The open document is a page for now (documents come with a later part of the building area).
 	// What the panels' rules read: the selection and the open document's kind (a Template of any kind is a Template).
 	const kind = opened.address.document?.kind ?? null;
+	documentKind.current = kind;
 	const chosen = structureNow.selection;
 	const chosenNode = chosen?.node;
 	const panelSelection = useMemo<PanelContext["selection"]>(() => {
@@ -553,7 +640,18 @@ export function Shell({ config }: { config: ShellConfig }) {
 			),
 			...(staff
 				? {
-						layers: <Layers structure={pageStructure} words={words} layout={layoutEditor} />,
+						layers: (
+							<Layers
+								structure={pageStructure}
+								words={words}
+								layout={layoutEditor}
+								menu={{
+									ops,
+									makeComponent,
+									ask: (question) => menu.setRequest({ tab: "insert", step: question }),
+								}}
+							/>
+						),
 						inspector: (
 							// A placed Form is one thing: its own panel (BA-27); anything else, the Inspector.
 							<FormPanel
@@ -616,6 +714,99 @@ export function Shell({ config }: { config: ShellConfig }) {
 		window.location.assign(config.returnTo);
 	};
 
+	/** New Component (Actions, Insert): placed where Insert would put it, then opened to build it. */
+	const newComponent = () => {
+		const landing = insert.landing("component");
+		const anchor =
+			landing.kind !== "refused" && landing.anchor ? anchorName(pageStructure.snapshot(), landing.anchor) : null;
+		setNaming({
+			kind: "new",
+			suggested: "NewComponent",
+			text: fill(words.componentDialog.newText, {
+				where: anchor ? fill(words.insert.whereAfter, { name: anchor }) : words.insert.wherePage,
+			}),
+			submit: async (name) => {
+				try {
+					const { component } = await managementApi(config.token).components.create({ siteId: config.site.id, name });
+					const at = insert.landing("component");
+					if (at.kind === "page") await insert.placeComponent(component.id, at);
+					else if (at.kind === "tree") {
+						const source = pageStructure.snapshot().sources.get(at.source);
+						const placed = { type: "component", id: "new", component: component.id, props: [] } as TreeNode;
+						if (source) insert.insertNodes(withNewIds(source.tree, [placed]), name, at);
+					}
+					announce(fill(words.componentDialog.made, { name }));
+					opened.open({ kind: "component", componentId: component.id });
+					return null;
+				} catch (error) {
+					return fill(words.componentDialog.refused, {
+						reason: error instanceof Error ? error.message : String(error),
+					});
+				}
+			},
+		});
+	};
+	const selectedPlacement = staff
+		? (structureNow.layout?.find((each) => `content/${each.id}` === structureNow.selection?.ref) ?? null)
+		: null;
+	const menuHost: MenuHost = {
+		config,
+		words,
+		announce,
+		history: {
+			undo: () => undoHistory.undo(),
+			redo: () => undoHistory.redo(),
+			state: () => editorHistory().state(),
+		},
+		publish: () => document.dispatchEvent(new CustomEvent(PUBLISH_OPEN_EVENT)),
+		places: PLACE_KEYS.filter((key) => placeEntry(key)).map((key) => ({ key, name: words.places[key] })),
+		place: placeKey,
+		openPlace: (key) => openPlace(key as PlaceKey),
+		leavePlace,
+		open: opened.open,
+		exit: () => void exit(),
+		hidden: { on: hidden, set: setHidden },
+		staff: staff
+			? {
+					structure: pageStructure,
+					ops,
+					inserter: insert,
+					editComponent: editTarget && !inPlaceTarget ? () => editInPlace(editTarget) : null,
+					toggleHidden: selectedPlacement
+						? {
+								hidden: selectedPlacement.hidden,
+								run: () => {
+									const refused = layoutEditor.hide(structureNow.layout ?? [], selectedPlacement.id);
+									if (refused) announce(refused, true);
+								},
+							}
+						: null,
+					makeComponent,
+					newComponent,
+					parts: {
+						icons: KIND_ICONS,
+						tags: KIND_TAGS,
+						anchorName,
+						childLists,
+						newElement,
+						withNewIds,
+						readExpression,
+					},
+				}
+			: undefined,
+	};
+	const siteSource = structureNow.sources.get("site");
+	const isPage = Boolean(siteSource?.pageLayout) && kind !== "siteTemplate";
+	// An empty Page says how to start (`builder/04`), on a Page that shows nothing yet.
+	const emptyPage =
+		staff &&
+		isPage &&
+		kind === "page" &&
+		structureNow.layout?.length === 0 &&
+		!place &&
+		!inPlaceTarget &&
+		opened.shown?.status === "shown";
+
 	return (
 		<div
 			className="bg-chrome text-chrome-text grid h-dvh w-full grid-cols-[48px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_48px] overflow-hidden font-sans text-[12px]"
@@ -665,6 +856,17 @@ export function Shell({ config }: { config: ShellConfig }) {
 					)
 				}
 				insertRow={!place}
+				insert={
+					staff ? (
+						<InsertRow
+							words={words}
+							inserter={insert}
+							onMenu={menu.setRequest}
+							onPage={isPage}
+							template={kind === "siteTemplate" && Boolean(siteSource?.catalogue.commands.includes("outlet"))}
+						/>
+					) : null
+				}
 				staging={config.staging && shown && !inPlaceTarget ? `${config.staging}${shown.address}` : null}
 				onUndo={() => void undoHistory.undo()}
 				onRedo={() => void undoHistory.redo()}
@@ -739,6 +941,16 @@ export function Shell({ config }: { config: ShellConfig }) {
 						{opened.shown?.status === "missing" || opened.shown?.status === "later" ? (
 							<NoDocument words={words} why={opened.shown.status} />
 						) : null}
+						{/* An empty Page says how to start (`builder/04`); before the frame, so the page stays the last stop. */}
+						{emptyPage ? (
+							<EmptyPage
+								words={words}
+								frame={frame}
+								outlet={outletHolder(siteSource?.tree)}
+								onAddComponent={() => menu.setRequest({ tab: "insert", only: "components" })}
+								onNewSection={() => void insert.newSection(0)}
+							/>
+						) : null}
 						{/* Before the frame in the Tab order: the page stays the last stop. */}
 						{opened.shown?.status === "shown" ? <TextToolbar editing={editing} words={words} /> : null}
 						{opened.shown?.status === "shown" ? (
@@ -805,6 +1017,9 @@ export function Shell({ config }: { config: ShellConfig }) {
 				</p>
 			</div>
 			<NarrowNotice covered={fit.covered} words={words} back={config.returnTo} />
+			{staff ? <InsertLine inserter={insert} frame={frame} /> : null}
+			<CommandMenuHost host={menuHost} request={menu.request} onRequest={menu.setRequest} />
+			{naming ? <ComponentNameDialog words={words} request={naming} onDone={() => setNaming(null)} /> : null}
 			{/* The Media picker (`pickMedia()`) and the toasts of the Media parts (BA-22). */}
 			<MediaShellHost config={config} />
 		</div>

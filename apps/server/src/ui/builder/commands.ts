@@ -11,8 +11,11 @@ type T = ReturnType<typeof useT>;
 /** The two canvases of the one editor (ADR 0035): Code mode on the live page, and the Builder. */
 export type EditorCanvas = "code" | "builder";
 
-/** Where the Command menu shows: the editor's canvases, and Edit mode, where Members get it too (#139). */
-export type Canvas = EditorCanvas | "edit";
+/**
+ * Where the Command menu shows: the editor's canvases, Edit mode, where Members get it too (#139), and
+ * the building area (BA-10, ADR 0037), whose menu draws its own rows from these types and rules.
+ */
+export type Canvas = EditorCanvas | "edit" | "building";
 
 /** The Command menu's tabs, each with its own key. */
 export type CommandTab = "actions" | "goTo" | "insert";
