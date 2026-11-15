@@ -1,12 +1,12 @@
 import type {
 	Answer,
 	BarKit,
+	SharedDraft as BarSharedDraft,
 	BarState,
+	Words as BarWords,
 	BodyChooserLook,
 	BodyTools,
 	MediaChoice,
-	SharedDraft as BarSharedDraft,
-	Words as BarWords,
 } from "../../../site/edit-bar/kit.ts";
 import { loadBodyEditor } from "../agent/body.ts";
 import { BODY_REGION } from "../agent/contract.ts";
@@ -87,7 +87,8 @@ const CLASSES: Readonly<Record<string, string>> = {
 	primary: `inline-flex h-10 items-center justify-center rounded-[9px] bg-white px-3.5 text-[13px] font-semibold text-[#121214] disabled:opacity-50 ${RING}`,
 	secondary: `inline-flex h-10 items-center justify-center rounded-[9px] bg-chrome-raised px-3.5 text-[13px] font-semibold text-chrome-strong hover:bg-chrome-hover disabled:opacity-50 ${RING}`,
 	small: "",
-	"check-field": "flex min-h-10 items-center gap-2.5 text-[13px] text-chrome-strong [&>input]:size-4 [&>input]:accent-[#6366f1]",
+	"check-field":
+		"flex min-h-10 items-center gap-2.5 text-[13px] text-chrome-strong [&>input]:size-4 [&>input]:accent-[#6366f1]",
 	"media-row": "flex items-center gap-2.5",
 	"media-name": "text-[13px] text-chrome-muted",
 	chooser: "flex flex-col gap-2",
@@ -111,7 +112,7 @@ const CLASSES: Readonly<Record<string, string>> = {
 };
 
 /** The "Add a Block" tool, the indigo square of `client-flows/01`. */
-const ADD_TOOL = "!bg-[#4f46e5] !text-white hover:!bg-[#4338ca] [&>svg]:!size-3.5";
+const ADD_TOOL = "bg-[#4f46e5]! text-white! hover:bg-[#4338ca]! [&>svg]:size-3.5!";
 
 /** What an event's target is in the page: an element of its realm, or nothing. */
 function pageElement(view: Window | null | undefined, target: EventTarget | null): Element | null {
@@ -218,7 +219,8 @@ export function bodyInPlace(options: {
 		let found: unknown = own[key];
 		if (found === undefined) {
 			found = (state as (PageState & { words?: BarWords }) | null)?.words;
-			for (const part of key.split(".")) found = found && typeof found === "object" ? (found as BarWords)[part] : undefined;
+			for (const part of key.split("."))
+				found = found && typeof found === "object" ? (found as BarWords)[part] : undefined;
 		}
 		const text = typeof found === "string" ? found : key;
 		return text.replace(/\{(\w+)\}/g, (match, name: string) => (name in values ? String(values[name]) : match));
@@ -336,7 +338,8 @@ export function bodyInPlace(options: {
 			const pageHeight = frame.offsetHeight;
 			// The Block's tools go under it, start-aligned, as `client-flows/01` draws them on the line; its
 			// notes under the tools.
-			const wanted = panel.classList.contains("body-toolbar") || panel.classList.contains("body-notes") ? "below" : prefer;
+			const wanted =
+				panel.classList.contains("body-toolbar") || panel.classList.contains("body-notes") ? "below" : prefer;
 			const above = box.top - gap - height;
 			const below = box.top + box.height + gap;
 			let top = wanted === "above" ? (above >= EDGE ? above : below) : below;
@@ -348,12 +351,14 @@ export function bodyInPlace(options: {
 		};
 
 		/** A sheet along the bottom of a phone-wide page: a title, Close, and what it holds. */
-		const sheet = (sheetOptions: { title: string; from: HTMLElement | null; content: HTMLElement; onClose?(): void }) => {
+		const sheet = (sheetOptions: {
+			title: string;
+			from: HTMLElement | null;
+			content: HTMLElement;
+			onClose?(): void;
+		}) => {
 			const heading = el("h2", { class: "panel-title" }, sheetOptions.title);
-			const close = button(
-				{ class: "tool", "aria-label": said.close, title: said.close },
-				icon("close"),
-			);
+			const close = button({ class: "tool", "aria-label": said.close, title: said.close }, icon("close"));
 			const dialog = el(
 				"div",
 				{
