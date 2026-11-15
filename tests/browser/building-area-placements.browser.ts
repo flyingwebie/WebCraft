@@ -427,6 +427,59 @@ describe("a Page's Placements, for Staff", () => {
 			await page.emulateMedia({ colorScheme: "light" });
 		}
 	});
+
+	test("a Prop typed in while its declaration is replaced is saved into the new one: nothing is dropped unsaid", async () => {
+		const { page } = await shared();
+		const { api } = await install.install.superadmin();
+		const { component } = await api.components.create({
+			siteId,
+			name: "Notice",
+			props: [{ key: "first", label: "First", type: "text", default: "Baseline" }],
+		});
+		const markup = "<section><h2>{{ props.first }}</h2></section>";
+		await api.components.saveMarkup({ siteId, componentId: component.id, markup });
+		await api.components.publish({ siteId, componentId: component.id });
+		const notice = (await api.components.get({ siteId, componentId: component.id })).component;
+		const pagesId = (await api.postTypes.list({ siteId })).postTypes.find((type) => type.builtIn === "page")?.id ?? "";
+		const { entry } = await api.entries.create({ siteId, postTypeId: pagesId, title: "Notices", slug: "notices" });
+		const state = await api.pageLayouts.get({ siteId, entryId: entry.id });
+		await api.pageLayouts.save({
+			siteId,
+			entryId: entry.id,
+			basedOn: state.version,
+			layout: { placements: [{ id: "notice", component: notice.id, props: notice.draft.props, values: {} }] },
+		});
+		await api.entries.publish({ siteId, entryId: entry.id });
+
+		await openPage(page, "/notices", /^Notice/);
+		await tree(page)
+			.getByRole("treeitem", { name: /^Notice/ })
+			.click();
+		const first = inspector(page).getByLabel("First");
+		await first.fill("Old declaration input");
+		// Someone declares `first` again, as a new Prop with the same key, while it is typed in.
+		const replacement = crypto.randomUUID();
+		await api.components.saveMarkup({
+			siteId,
+			componentId: component.id,
+			markup: `{{@props}}\nfirst: text id="${replacement}" default="Replacement"\n{{/props}}\n${markup}`,
+		});
+		await api.components.publish({ siteId, componentId: component.id });
+		await first.press("Enter");
+
+		// Staff's Draft holds the new declaration by the time the value is written (publishing moves the
+		// Page's Draft to it): what was typed is saved into it and shows, so there is nothing to tell.
+		await (await frameOf(page)).locator("main h2", { hasText: "Old declaration input" }).waitFor();
+		const placement = (
+			await eventually(
+				() => api.pageLayouts.get({ siteId, entryId: entry.id }),
+				(read) => JSON.stringify(read.layout.placements[0]?.values ?? {}).includes("Old declaration input"),
+			)
+		).layout.placements[0];
+		expect(placement?.props[0]?.id).toBe(replacement);
+		expect(placement?.values).toEqual({ first: { en: "Old declaration input" } });
+		expect(await announced(page)).not.toContain("wasn't kept");
+	});
 });
 
 describe("Placements, Loops and Conditions of a Template, for Staff", () => {

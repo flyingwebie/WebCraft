@@ -806,7 +806,7 @@ describe("Sections, for an Editor", () => {
 		await closeSections(peer);
 	});
 
-	test("a Prop typed in while Staff replace its declaration isn't saved into the new one, which is kept", async () => {
+	test("a Prop typed in while Staff replace its declaration isn't saved into the new one, which is kept, and the person is told", async () => {
 		const { component } = await api.components.create({
 			siteId,
 			name: "Notice",
@@ -833,8 +833,9 @@ describe("Sections, for an Editor", () => {
 		await api.components.publish({ siteId, componentId: component.id });
 		await frame.locator("main h2").filter({ hasText: "Replacement" }).waitFor({ timeout: 10_000 });
 		await closeSections(page);
+		// The person is told that what they typed wasn't kept, in words.
+		await said(page, "What you typed wasn't kept: someone changed this section's settings at the same moment.");
 		// What was typed for the old declaration isn't saved into the new one; the new one is kept.
-		await page.waitForTimeout(1500);
 		const placement = (await layoutOf(entryId)).placements[0];
 		expect(placement?.props[0]?.id).toBe(replacement);
 		expect(JSON.stringify(placement?.values ?? {})).not.toContain("Old declaration input");

@@ -5,6 +5,10 @@ import { readFieldValues, type ValueLanguages, writeField } from "../co-editing/
 import type { LayoutState } from "./controller.ts";
 
 type Layout = LayoutState["layout"];
+/** Whether `props` still declare `field`, matched as the server reads a Placement's values: by its id. */
+function declares(props: readonly FieldDefinition[], field: FieldDefinition): boolean {
+	return props.some((each) => (field.id ? each.id === field.id : !each.id && each.key === field.key));
+}
 export function draftLayout(draft: unknown): Layout {
 	return (draft as { layout?: Layout } | null)?.layout ?? { placements: [] };
 }
@@ -124,5 +128,16 @@ export function propsInput(shared: SharedDraft, id: string, languages: ValueLang
 			return stage.commit();
 		},
 		cancel: stage.cancel,
+		/**
+		 * The Props typed in here whose declaration the Placement no longer has in `layout` (the Page
+		 * layout as the server reads it): Staff replaced or removed it while the person typed. What was
+		 * typed can't be kept (the new declaration is another Prop), so the person is told.
+		 */
+		replaced(layout: Layout): FieldDefinition[] {
+			const now = layout.placements.find((p) => p.id === id);
+			if (!now) return [];
+			// What is typed is written under `field`: `commit` refuses it unless the Draft declares it so.
+			return authored.map((change) => change.field).filter((field) => !declares(now.props, field));
+		},
 	};
 }
