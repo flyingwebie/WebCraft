@@ -158,7 +158,14 @@ describe("choosing an image", () => {
 		});
 
 		expect(response.status).toBe(200);
-		expect(await json(response)).toEqual({ status: "changed", media: site.rolls, problems: [] });
+		const saved = await json(response);
+		expect(saved).toMatchObject({ status: "changed", media: site.rolls, problems: [] });
+		// Its Undo receipt: the photo's own value before and after, as a typed value's save answers it.
+		expect(saved.history).toEqual({
+			resource: `draft:${site.siteId}:entry:${site.entryId}`,
+			before: { values: { photo: expect.anything() } },
+			after: { values: { photo: expect.anything() } },
+		});
 		const { entry } = await editor.api.entries.get({ siteId: site.siteId, entryId: site.entryId });
 		expect(entry.draft.fields.photo).toBe(site.rolls);
 		expect(entry.published?.fields.photo).toBe(site.loaf);
@@ -184,7 +191,10 @@ describe("choosing an image", () => {
 	test("changes the Globals' image the same way", async () => {
 		const response = await editing.edit("image", { item: "globals", field: "logo", media: site.rolls });
 
-		expect(await json(response)).toMatchObject({ media: site.rolls });
+		expect(await json(response)).toMatchObject({
+			media: site.rolls,
+			history: { resource: `draft:${site.siteId}:globals` },
+		});
 		const { globals } = await editor.api.globals.get({ siteId: site.siteId });
 		expect(globals.draft.logo).toBe(site.rolls);
 		expect(globals.published?.logo).toBe(site.loaf);
