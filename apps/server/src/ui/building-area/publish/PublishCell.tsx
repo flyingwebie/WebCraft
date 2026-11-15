@@ -6,7 +6,8 @@ import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
 
 /**
  * Publish's one cell (SPEC 4 and 10, `docking/08`, `client-flows/05`): the label with its count,
- * "Publishing…", "Published" for 2 s, "Try again"; all in one cell that never changes width. Staff's
+ * "Publishing…", "Published" for 2 s, "Try again"; all in one cell that never changes width, its words
+ * at least 4.5:1 on its colour in every state. Staff's
  * bar draws it 112 × 32; the client bar 132 × 40 (BA-14). An Author's is "Send for review", 164 wide.
  */
 export type CellState =
@@ -143,6 +144,10 @@ export function PublishCell({
 		}
 	}
 	const keys = publishKeys();
+	// The words, icons and badge take the cell's colour as it changes, never easing on their own: with
+	// reduced motion each element eases every property for 0.01 ms (globals.css), so a word would keep
+	// the last state's colour on the new state's for a frame, a long one on a busy machine.
+	const inner = "[&_*]:transition-none";
 	return (
 		<button
 			ref={ref}
@@ -157,7 +162,7 @@ export function PublishCell({
 			aria-busy={state.kind === "publishing" ? true : undefined}
 			className={`inline-flex shrink-0 items-center justify-center font-semibold whitespace-nowrap aria-disabled:cursor-default ${
 				state.kind === "review" ? look.author : look.box
-			} ${look.text} ${face.colours} ${CHROME_EASE} ${FOCUS_RING}`}
+			} ${look.text} ${face.colours} ${CHROME_EASE} ${inner} ${FOCUS_RING}`}
 			data-wc-publish={state.kind}
 		>
 			{face.content}
