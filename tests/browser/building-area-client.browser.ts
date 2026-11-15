@@ -366,7 +366,8 @@ describe("client editing, for an Editor", () => {
 			const sheet = document.querySelector("[data-wc-frame-box]")?.getBoundingClientRect();
 			return sheet !== undefined && sheet.right === 1068 && sheet.left === 88;
 		});
-		expect(await page.evaluate(() => document.activeElement?.textContent)).toBe("Page details");
+		// Focus is on the panel's heading, which names it once the page's Entry is read: Post details on a post.
+		await page.waitForFunction(() => document.activeElement?.textContent === "Post details");
 		await page.keyboard.press("Escape");
 		await panel.waitFor({ state: "detached" });
 		expect(await page.evaluate(() => document.activeElement?.getAttribute("data-wc-bar"))).toBe("page-details");

@@ -89,6 +89,8 @@ export type Docks = {
 	setDrawer(side: DockSide | null): void;
 	/** A panel whose menu button takes focus once the docks have drawn (after a move from its menu). */
 	focusLater(id: string | null): void;
+	/** The actions each panel's header shows beside its title (BA-13: the Entry panel's Find and Collapse). */
+	panelActions: Partial<Record<PanelKey, ReactNode>>;
 };
 
 /** The window's size, following it. */
@@ -118,12 +120,14 @@ export function useDocks({
 	headings = {},
 	bodies = {},
 	announce,
+	panelActions = {},
 }: {
 	config: ShellConfig;
 	context: PanelContext;
 	headings?: Partial<Record<PanelKey, ReactNode>>;
 	bodies?: Partial<Record<PanelKey, ReactNode>>;
 	announce(text: string, urgent?: boolean): void;
+	panelActions?: Partial<Record<PanelKey, ReactNode>>;
 }): Docks {
 	const { words } = config;
 	const [stored, setStored] = useState<Layout | null>(config.layout);
@@ -306,6 +310,7 @@ export function useDocks({
 		drawer,
 		setDrawer,
 		focusLater: setFocusTarget,
+		panelActions,
 	};
 }
 
@@ -631,6 +636,7 @@ function Dock({
 								kind={across ? "side" : "bottom"}
 								title={titleOf(shownPanel, docks)}
 								sub={placement.id === "inspector" ? docks.context.selection?.name : undefined}
+								actions={docks.panelActions[placement.id as PanelKey]}
 								heading={docks.headings[placement.id as PanelKey]}
 								collapsed={Boolean(placement.collapsed)}
 								labels={{

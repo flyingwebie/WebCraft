@@ -717,6 +717,8 @@ const detailsChange = detailsItem.extend({
 		})
 		.optional(),
 	summary: z.string().max(200_000).nullable().optional(),
+	/** Other Fields' values by key, as `entries.saveDraft` takes them (the building area's Entry panel; not a Body). */
+	fields: z.record(z.string().max(100), z.unknown()).optional(),
 });
 
 /** A Loop's id and one of its own items, by id. */
