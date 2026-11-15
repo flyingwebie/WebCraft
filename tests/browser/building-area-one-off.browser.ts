@@ -315,15 +315,24 @@ describe("one-off styles and generated Classes", () => {
 		await selectParagraph(page, "First words");
 		const html = box(page, "html");
 		await html.waitFor();
-		const before = await html.inputValue();
-		await html.fill(before.replace("<h1>", '<h1 style="color: purple">'));
-		await page.locator('[data-wc-rail="panels"]').focus();
-		await eventually(entryMarkup, (text) => /<h1 class="style-/.test(text));
-		await selectParagraph(page, "First words");
-		await eventually(
+		// The peers' changes of the checks above are in the box first (else saving asks Reload or Overwrite).
+		const before = await eventually(
 			() => html.inputValue(),
-			(text) => /<h1 class="style-/.test(text),
+			(text) => text.includes("Second words, by a peer") && text.includes("Sixth words, by a peer"),
 		);
+		// The box prints each element with its id (`<h1 data-wc-id="…">`): a style is added after the tag.
+		const styled = before.replace(/<h1\b/, '<h1 style="color: purple"');
+		expect(styled).not.toBe(before);
+		await html.fill(styled);
+		await page.locator('[data-wc-rail="panels"]').focus();
+		expect(await eventually(entryMarkup, (text) => /<h1 class="style-/.test(text))).toMatch(/<h1 class="style-/);
+		await selectParagraph(page, "First words");
+		expect(
+			await eventually(
+				() => html.inputValue(),
+				(text) => /<h1 class="style-/.test(text),
+			),
+		).toMatch(/<h1 class="style-/);
 		const again = await html.inputValue();
 		// The second save is held on its way, and Undo is pressed while it is (BA-33's one run: Undo
 		// took back the first save while the second was still being answered).
@@ -335,7 +344,9 @@ describe("one-off styles and generated Classes", () => {
 			await route.continue();
 		});
 		try {
-			await html.fill(again.replace('<p class="intro">', '<p class="intro" style="color: teal">'));
+			const teal = again.replace('<p class="intro"', '<p class="intro" style="color: teal"');
+			expect(teal).not.toBe(again);
+			await html.fill(teal);
 			await page.locator('[data-wc-rail="panels"]').focus();
 			await held.promise;
 			await page.getByRole("button", { name: "Undo" }).first().click();

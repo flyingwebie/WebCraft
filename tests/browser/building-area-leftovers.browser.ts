@@ -1,5 +1,6 @@
 // What BA-33 and BA-27 left open in Staff's editing (UI-21), in Chromium:
-// - a Class's colour saved from the CSS pane shows on the page once the pane leaves it, and after every
+// - a Class's colour saved from the CSS pane shows on the page once the pane leaves it, and after its
+//   step is taken back (not what was typed), and after every
 //   redraw: a change to the Structure (BA-08's `rerender`), a one-off style saved from the HTML pane,
 //   and the Class renamed in the Styles place (UI-19's redraw on rename, BA-24's stylesheet swap);
 // - the page with a saved Class colour passes the accessibility checks, light and dark;
@@ -31,7 +32,7 @@ beforeAll(async () => {
 	const workspaceId = (await local.createWorkspace("Acme Ltd")).id;
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
 	staff = (await local.createStaff({ workspaces: [workspaceId], name: "Sam Staff" })).account;
-	for (const name of ["lead", "note"]) await api.designSystem.createClass({ siteId, name });
+	for (const name of ["lead", "note", "card"]) await api.designSystem.createClass({ siteId, name });
 	const site = await api.templates.saveSiteTemplateMarkup({ siteId, markup: "<main>{{@outlet}}</main>" });
 	await api.templates.publish({ siteId, templateId: site.template.id });
 	// A Component with a link and an image, and a Media Prop already there.
@@ -44,7 +45,7 @@ beforeAll(async () => {
 	await api.components.saveMarkup({
 		siteId,
 		componentId: cardId,
-		markup: `<div class="card"><a href="/about">About us</a><img src="${PIXEL}" alt="A cake"></div>`,
+		markup: `<div class="card"><a href="/about">About us</a><img src="${PIXEL}" alt="A cake" width="48" height="48"></div>`,
 	});
 	await api.components.publish({ siteId, componentId: cardId });
 	const { postType } = await api.postTypes.create({ siteId, name: "Blog posts", urlPattern: "/blog/{slug}" });
@@ -180,11 +181,34 @@ describe("a saved Class colour on the page", () => {
 		expect(await colourOf(page, "p.lead", RED)).toBe(RED);
 	});
 
+	test("Undo of a saved rule shows the Draft's rule again, not what was typed", async () => {
+		const page = await shared();
+		await select(page, "p.lead");
+		await box(page, "css").fill(".lead {\n  color: rgb(0, 100, 0);\n}");
+		expect(
+			await eventually(
+				async () => (await draftClass("lead"))?.styles ?? "",
+				(styles) => styles.includes("rgb(0, 100, 0)"),
+			),
+		).toContain("rgb(0, 100, 0)");
+		expect(await colourOf(page, "p.lead", "rgb(0, 100, 0)")).toBe("rgb(0, 100, 0)");
+		// Still selected: the step is taken back, and the page shows the Draft's rule, not the typed one.
+		await page.locator('[data-wc-bar="undo"]').click();
+		expect(
+			await eventually(
+				async () => (await draftClass("lead"))?.styles ?? "",
+				(styles) => styles.includes(RED),
+			),
+		).toContain(RED);
+		expect(await colourOf(page, "p.lead", RED)).toBe(RED);
+	});
+
 	test("shows after the page is drawn again for a change to its Structure", async () => {
 		const page = await shared();
 		await select(page, "p.note");
 		const html = box(page, "html");
 		const before = await html.inputValue();
+		expect(before).toContain("A note</p>");
 		await html.fill(before.replace("A note</p>", "A longer note</p>"));
 		await page.locator('[data-wc-rail="panels"]').focus();
 		await (await frameOf(page)).locator("p.note", { hasText: "A longer note" }).waitFor();
@@ -196,9 +220,17 @@ describe("a saved Class colour on the page", () => {
 		await select(page, "p.note");
 		const html = box(page, "html");
 		const before = await html.inputValue();
-		await html.fill(before.replace("<p>Plain words", '<p style="color: rgb(0, 0, 200)">Plain words'));
+		// The box prints each element with its id (`<p data-wc-id="…">`): a style is added after the tag.
+		const styled = before.replace(
+			/<p((?: data-wc-id="[^"]*")?)>Plain words/,
+			'<p$1 style="color: rgb(0, 0, 200)">Plain words',
+		);
+		expect(styled).not.toBe(before);
+		await html.fill(styled);
 		await page.locator('[data-wc-rail="panels"]').focus();
-		await eventually(entryMarkup, (text) => /<p class="style-[0-9a-f]{8}">Plain words/.test(text));
+		expect(await eventually(entryMarkup, (text) => /<p class="style-[0-9a-f]{8}">Plain words/.test(text))).toMatch(
+			/<p class="style-[0-9a-f]{8}">Plain words/,
+		);
 		expect(await colourOf(page, "p:text-is('Plain words')", "rgb(0, 0, 200)")).toBe("rgb(0, 0, 200)");
 		expect(await colourOf(page, "p.lead", RED)).toBe(RED);
 	});
@@ -210,7 +242,7 @@ describe("a saved Class colour on the page", () => {
 		await page.goto(
 			install.siteUrl(
 				slug,
-				`/_webcraft/build/page${path}?wc-place=${encodeURIComponent("styles/classes")}&class=${lead.id}`,
+				`/_webcraft/build/page${path}?wc-place=${encodeURIComponent("styles/classes")}&wc-view=${encodeURIComponent(`class=${lead.id}`)}`,
 			),
 		);
 		await page.locator('[data-wc-class-rule="lead"]').waitFor();
@@ -255,6 +287,14 @@ const focused = (page: Page) =>
 			: null,
 	);
 
+/** Waits until focus is on the row whose name matches (focus moves on the next frame), and answers its name. */
+async function focusOn(page: Page, name: RegExp): Promise<string | null> {
+	return eventually(
+		() => focused(page),
+		(now) => now !== null && name.test(now),
+	);
+}
+
 async function announces(page: Page, words: string): Promise<void> {
 	expect(
 		await eventually(
@@ -264,34 +304,40 @@ async function announces(page: Page, words: string): Promise<void> {
 	).toContain(words);
 }
 
+/** Selects an element on the page, and puts focus on its row in Layers. */
+async function focusSelected(page: Page, selector: string): Promise<void> {
+	await select(page, selector);
+	const selected = tree(page).getByRole("treeitem", { selected: true });
+	await selected.waitFor();
+	await selected.focus();
+}
+
 describe("Layers: typeahead and *", () => {
 	test("typing a name moves to the next row it starts, and selects it", async () => {
 		const page = await shared();
-		await row(page, /^h1\b/).click();
-		await row(page, /^h1\b/).focus();
+		await focusSelected(page, "h1");
 		await page.keyboard.press("p");
-		expect(await focused(page)).toMatch(/^p \.(intro|lead)\b/);
+		expect(await focusOn(page, /^p \.(intro|lead)\b/)).toMatch(/^p \.(intro|lead)\b/);
 		expect(await row(page, /^p \.(intro|lead)\b/).getAttribute("aria-selected")).toBe("true");
 		// (The rename in the Styles place above made `.lead` `.intro`.) The same letter again goes on to the next row it starts.
 		await page.keyboard.press("p");
-		expect(await focused(page)).toMatch(/^p \.note/);
+		expect(await focusOn(page, /^p \.note/)).toMatch(/^p \.note/);
 		// Letters typed one after the other add up; from the last row, the search goes round.
 		await page.waitForTimeout(800);
 		await page.keyboard.press("s");
-		expect(await focused(page)).toMatch(/^section/);
+		expect(await focusOn(page, /^section/)).toMatch(/^section/);
 		await page.waitForTimeout(800);
 		await page.keyboard.press("a");
 		await page.keyboard.press("r");
-		expect(await focused(page)).toMatch(/^article/);
+		expect(await focusOn(page, /^article/)).toMatch(/^article/);
 		await page.waitForTimeout(800);
 		await page.keyboard.press("m");
-		expect(await focused(page)).toMatch(/^main/);
+		expect(await focusOn(page, /^main/)).toMatch(/^main/);
 	});
 
 	test("* opens every row beside the one at focus", async () => {
 		const page = await shared();
-		await row(page, /^h1\b/).click();
-		await row(page, /^h1\b/).focus();
+		await focusSelected(page, "h1");
 		for (const name of [/^ul\b/, /^section\b/])
 			expect(await row(page, name).getAttribute("aria-expanded")).toBe("false");
 		await page.keyboard.press("*");
@@ -304,7 +350,7 @@ describe("Layers: typeahead and *", () => {
 			).toBe("true");
 		await row(page, /^li\b/).waitFor();
 		// Focus stays on its row.
-		expect(await focused(page)).toMatch(/^h1\b/);
+		expect(await focusOn(page, /^h1\b/)).toMatch(/^h1\b/);
 	});
 });
 
@@ -376,7 +422,7 @@ describe("Bind to Prop for a Component's link and image", () => {
 		const question = page.locator('[data-wc-bind-prop-dialog="media"]');
 		await question.waitFor();
 		await question.getByRole("radio", { name: "A Prop it has" }).check();
-		await question.getByLabel("Prop", { exact: true }).selectOption("photo");
+		await question.getByRole("combobox").selectOption("photo");
 		await question.getByRole("button", { name: "Bind to Prop" }).click();
 		await question.waitFor({ state: "detached" });
 		await announces(page, "Bound to {{ props.photo }}.");

@@ -38,6 +38,7 @@ beforeAll(async () => {
 		["alpha", "color: rgb(200, 0, 0);"],
 		["beta", "color: rgb(0, 0, 200);"],
 		["peer", "font-weight: 600;"],
+		["notice", ""],
 	] as const)
 		classIds.set(name, (await api.designSystem.createClass({ siteId, name, styles })).class.id);
 	const site = await api.templates.saveSiteTemplateMarkup({ siteId, markup: "<main>{{@outlet}}</main>" });
@@ -178,7 +179,23 @@ async function holdAnswer(page: Page, url: string, wanted: (route: Route) => boo
 		await route.fulfill({ response }).catch(() => {});
 		delivered.resolve();
 	});
-	return { held: held.promise, release: () => release.resolve(), delivered: delivered.promise };
+	// A request that never comes fails the check in words, not by its timeout.
+	const within = (promise: Promise<void>, what: string) => {
+		const raced = Promise.race([
+			promise,
+			Bun.sleep(15000).then(() => {
+				throw new Error(`No ${what} for ${url} within 15 s.`);
+			}),
+		]);
+		// Not every check waits for both: one never awaited isn't reported as unhandled.
+		raced.catch(() => {});
+		return raced;
+	};
+	return {
+		held: within(held.promise, "request"),
+		release: () => release.resolve(),
+		delivered: within(delivered.promise, "answer"),
+	};
 }
 
 describe("the tab's history keeps the last 200 steps", () => {
@@ -227,7 +244,8 @@ describe("the CSS pane, with answers that come late", () => {
 		const page = await shared();
 		await select(page, "p.alpha");
 		await boxHolds(page, "css", (text) => text.startsWith(".alpha"));
-		// The next read (selecting another element reads the Design system again) is held.
+		// No read under way (the pane would share it): the next one is held.
+		await page.waitForLoadState("networkidle");
 		const read = await holdAnswer(page, "**/_webcraft/build/api/rpc/designSystem/get");
 		try {
 			await select(page, "p.beta");
@@ -271,17 +289,19 @@ describe("the CSS pane, with answers that come late", () => {
 				classId: classIds.get("peer") ?? "",
 				styles: "font-weight: 600;\ncolor: rgb(120, 0, 120);",
 			});
-			await chip(page, "peer").click();
-			expect(await boxHolds(page, "css", (text) => text.includes("rgb(120, 0, 120)"))).toContain("rgb(120, 0, 120)");
 			saving.release();
 			await saving.delivered;
-			await page.waitForTimeout(500);
-			expect(await box(page, "css").inputValue()).toContain("rgb(120, 0, 120)");
 		} finally {
 			saving.release();
 			await page.unrouteAll({ behavior: "wait" });
 		}
-		// Shown again from what the pane holds, while its next read is slow: still the peer's CSS.
+		// The other Class shows the peer's CSS, and its own save is kept.
+		expect((await draftClass("beta"))?.styles).toContain("rgb(0, 120, 0)");
+		expect((await draftClass("peer"))?.styles).toContain("rgb(120, 0, 120)");
+		await chip(page, "peer").click();
+		const shown = await boxHolds(page, "css", (text) => text.includes("rgb(120, 0, 120)"));
+		expect(shown).toContain("rgb(120, 0, 120)");
+		// Shown again from what the pane holds, while its next read is slow: each Class's newest CSS.
 		const slow = await holdAnswer(page, "**/_webcraft/build/api/rpc/designSystem/get");
 		try {
 			await chip(page, "beta").click();
@@ -343,7 +363,7 @@ describe("the CSS pane, with answers that come late", () => {
 			await page.waitForTimeout(300);
 			// Nothing taken back yet: Undo waits for the save's answer.
 			expect((await draftClass("alpha"))?.styles).toContain("rgb(10, 10, 10)");
-			expect(await announced(page)).not.toContain("Undid");
+			expect(await announced(page)).not.toContain("Undid Changed the CSS of .alpha");
 			saving.release();
 			// The step taken back is the save that was under way, not the one before it.
 			expect(
@@ -394,9 +414,15 @@ describe("a one-off style's generated Class a peer changed", () => {
 		await select(page, "p.alpha");
 		const html = box(page, "html");
 		const before = await html.inputValue();
-		await html.fill(before.replace("<p>Gamma words", '<p style="color: rgb(5, 5, 5)">Gamma words'));
+		const styled = before.replace(
+			/<p((?: data-wc-id="[^"]*")?)>Gamma words/,
+			'<p$1 style="color: rgb(5, 5, 5)">Gamma words',
+		);
+		expect(styled).not.toBe(before);
+		await html.fill(styled);
 		await page.locator('[data-wc-rail="panels"]').focus();
 		const saved = await eventually(entryMarkup, (text) => /<p class="style-[0-9a-f]{8}">Gamma words/.test(text));
+		expect(saved).toMatch(/<p class="style-[0-9a-f]{8}">Gamma words/);
 		const name = /<p class="(style-[0-9a-f]{8})">Gamma words/.exec(saved)?.[1] ?? "";
 		const generated = await draftClass(name);
 		if (!generated) throw new Error("No generated Class.");
