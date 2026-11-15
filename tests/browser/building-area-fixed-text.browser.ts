@@ -103,6 +103,16 @@ const tree = (page: Page) => page.getByRole("tree", { name: "Elements of the pag
 const inspector = (page: Page) => page.locator('[data-wc-panel-body="inspector"]');
 const dialog = (page: Page) => page.locator("dialog[data-wc-fixed-text-dialog]");
 
+/** Opens every closed row of Layers, so each row can be found by its name. */
+async function openRows(page: Page): Promise<void> {
+	for (let pass = 0; pass < 40; pass++) {
+		const closed = tree(page).locator('[role="treeitem"][aria-expanded="false"]').first();
+		if ((await closed.count()) === 0) return;
+		await closed.locator("svg").first().click();
+		await settled(page);
+	}
+}
+
 /** What `read` gives once `done` accepts it, waiting up to 15 seconds (a busy machine is slow). */
 async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
 	const deadline = Date.now() + 15000;
@@ -152,12 +162,18 @@ async function clickIn(page: Page, selector: string): Promise<void> {
 
 async function entryMarkup(): Promise<string> {
 	const { api } = await install.install.superadmin();
-	return (await api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).markup?.draft ?? "";
+	return ((await api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).markup?.draft ?? "").replace(
+		/ data-wc-id="[^"]*"/g,
+		"",
+	);
 }
 
 async function siteMarkup(): Promise<string> {
 	const { api } = await install.install.superadmin();
-	return (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+	return ((await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "").replace(
+		/ data-wc-id="[^"]*"/g,
+		"",
+	);
 }
 
 /** A peer changes the Entry template's Draft tree (ids kept, as another editor's change would). */
@@ -184,8 +200,26 @@ async function ask(page: Page, button: string): Promise<Locator> {
 }
 
 describe("fixed text becomes a value clients edit", () => {
+	test("the shell with the question open passes the accessibility checks, light and dark", async () => {
+		const page = await shared();
+		await clickIn(page, "aside.notice p");
+		await says(inspector(page).locator("[data-wc-fixed-texts]"), "“Closed on Sundays”");
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.mouse.move(24, 460);
+			await page.waitForTimeout(1800);
+			await settled(page);
+			await expectAccessibleScreen(page, `fixed text in the Inspector (${theme})`);
+			const question = await ask(page, "Bind to Prop");
+			await expectNoAxeViolations(page, `the fixed text question (${theme})`);
+			await page.keyboard.press("Escape");
+			await question.waitFor({ state: "detached" });
+		}
+	});
+
 	test("Layers flags it, and in an Entry template it becomes a Field of the Post Type, one Undo step", async () => {
 		const page = await shared();
+		await openRows(page);
 		const lead = tree(page).getByRole("treeitem", { name: "p .lead Fixed text" });
 		await lead.waitFor();
 		expect(await lead.locator("[data-wc-fixed-text]").count()).toBe(1);
@@ -262,7 +296,10 @@ describe("fixed text becomes a value clients edit", () => {
 		await (await frameOf(page)).getByText("Closed on Sundays").first().waitFor();
 
 		const { api } = await install.install.superadmin();
-		const read = () => api.components.getMarkup({ siteId, componentId: noticeId });
+		const read = async () => {
+			const got = await api.components.getMarkup({ siteId, componentId: noticeId });
+			return { ...got, markup: { ...got.markup, draft: got.markup.draft.replace(/ data-wc-id="[^"]*"/g, "") } };
+		};
 		const saved = await eventually(read, (got) => got.markup.draft.includes("{{ props.message }}"));
 		expect(saved.markup.draft).toContain('<aside class="notice"><p>{{ props.message }}</p></aside>');
 		expect(saved.component.draft.props).toEqual([
@@ -365,22 +402,5 @@ describe("fixed text becomes a value clients edit", () => {
 		expect(read.component.draft.props).toEqual([
 			expect.objectContaining({ key: "askUsAt", default: "Ask us at the counter." }),
 		]);
-	});
-
-	test("the shell with the question open passes the accessibility checks, light and dark", async () => {
-		const page = await shared();
-		await clickIn(page, "aside.notice p");
-		await says(inspector(page).locator("[data-wc-fixed-texts]"), "“Closed on Sundays”");
-		for (const theme of ["light", "dark"] as const) {
-			await page.emulateMedia({ colorScheme: theme });
-			await page.mouse.move(24, 460);
-			await page.waitForTimeout(1800);
-			await settled(page);
-			await expectAccessibleScreen(page, `fixed text in the Inspector (${theme})`);
-			const question = await ask(page, "Bind to Prop");
-			await expectNoAxeViolations(page, `the fixed text question (${theme})`);
-			await page.keyboard.press("Escape");
-			await question.waitFor({ state: "detached" });
-		}
 	});
 });

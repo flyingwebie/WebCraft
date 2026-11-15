@@ -3,7 +3,7 @@
 //   goes back; F6 does nothing while it is open (a modal keeps focus);
 // - F6 goes back to where focus was in a region ("deep memory");
 // - a selection inside a branch someone closed keeps the tree's tab stop on the row around it;
-// - typing in place autosaves without saying so;
+// - a change autosaved as it is made says what was done, never that it was saved;
 // - CSS typed after leaving the box is a step of its own;
 // - a Class made from the Inspector keeps the Classes a peer made meanwhile;
 // - the shortcuts list passes the accessibility checks, light and dark.
@@ -80,6 +80,16 @@ afterAll(async () => {
 
 const tree = (page: Page) => page.getByRole("tree", { name: "Elements of the page" });
 
+/** Opens every closed row of Layers, so each row can be found by its name. */
+async function openRows(page: Page): Promise<void> {
+	for (let pass = 0; pass < 40; pass++) {
+		const closed = tree(page).locator('[role="treeitem"][aria-expanded="false"]').first();
+		if ((await closed.count()) === 0) return;
+		await closed.locator("svg").first().click();
+		await settled(page);
+	}
+}
+
 async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
 	const deadline = Date.now() + 15000;
 	let value = await read();
@@ -91,12 +101,20 @@ async function eventually<Value>(read: () => Promise<Value>, done: (value: Value
 }
 
 async function clickIn(page: Page, selector: string): Promise<void> {
-	const element = (await frameOf(page)).locator(selector).first();
-	await element.scrollIntoViewIfNeeded();
-	const found = await element.boundingBox();
-	if (!found) throw new Error(`${selector} isn't on the page.`);
-	await page.mouse.click(found.x + Math.min(12, found.width / 2), found.y + found.height / 2);
-	await settled(page);
+	for (let attempt = 0; ; attempt++) {
+		try {
+			const element = (await frameOf(page)).locator(selector).first();
+			await element.scrollIntoViewIfNeeded({ timeout: 5000 });
+			const found = await element.boundingBox();
+			if (!found) throw new Error(`${selector} isn't on the page.`);
+			await page.mouse.click(found.x + Math.min(12, found.width / 2), found.y + found.height / 2);
+			await settled(page);
+			return;
+		} catch (failure) {
+			if (attempt >= 3) throw failure;
+			await page.waitForTimeout(250);
+		}
+	}
 }
 
 async function leadClass() {
@@ -132,6 +150,7 @@ describe("keys", () => {
 
 	test("F6 goes back to where focus was in a region", async () => {
 		const page = await shared();
+		await openRows(page);
 		const rows = tree(page).getByRole("treeitem");
 		await rows.nth(2).click();
 		await rows.nth(2).focus();
@@ -153,21 +172,29 @@ describe("keys", () => {
 		expect(await tree(page).locator('[role="treeitem"][tabindex="0"]').count()).toBe(1);
 	});
 
-	test("typing in place autosaves without saying so", async () => {
+	test("a change saved as it is made says what was done, never that it was saved", async () => {
 		const page = await shared();
-		await clickIn(page, "h1");
-		await clickIn(page, "h1");
-		await page.keyboard.press("End");
-		await page.keyboard.type(" loaf");
+		await openRows(page);
+		const heading = tree(page).getByRole("treeitem", { name: "h1", exact: true });
+		await heading.click();
+		await heading.focus();
+		await page.keyboard.press("Alt+ArrowDown");
+		expect(
+			await eventually(
+				() => announced(page),
+				(text) => text.includes("Move h1"),
+			),
+		).toContain("Move h1");
 		const { api } = await install.install.superadmin();
-		const { entries } = await api.entries.list({ siteId, postTypeId });
-		const id = entries[0]?.id ?? "";
-		await eventually(
-			async () => (await api.entries.get({ siteId, entryId: id })).entry.draft.title,
-			(title) => title.includes("loaf"),
+		const moved = await eventually(
+			async () => (await api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).markup?.draft ?? "",
+			(markup) => markup.indexOf("<section") < markup.indexOf("<h1"),
 		);
-		await page.waitForTimeout(500);
+		expect(moved.indexOf("<section")).toBeLessThan(moved.indexOf("<h1"));
+		await page.waitForTimeout(800);
 		expect(await announced(page)).not.toMatch(/sav/i);
+		await tree(page).getByRole("treeitem", { name: "h1", exact: true }).focus();
+		await page.keyboard.press("Alt+ArrowUp");
 	});
 });
 

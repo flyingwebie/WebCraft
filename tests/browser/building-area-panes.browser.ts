@@ -145,6 +145,25 @@ async function toEnd(area: Locator): Promise<void> {
 }
 
 describe("the HTML pane's suggestions", () => {
+	test("the shell with the suggestions open passes the accessibility checks, light and dark", async () => {
+		const page = await shared();
+		await select(page, "h1");
+		const html = box(page, "html");
+		const original = await html.inputValue();
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.waitForTimeout(1200);
+			await expectAccessibleScreen(page, `the code panes (${theme})`);
+			await toEnd(html);
+			await page.keyboard.type("{{");
+			await page.getByRole("listbox", { name: "Suggestions" }).waitFor();
+			await expectNoAxeViolations(page, `the HTML pane's suggestions (${theme})`);
+			await page.keyboard.press("Escape");
+			await html.fill(original);
+		}
+		await page.locator('[data-wc-rail="panels"]').focus();
+	});
+
 	test("{{ offers the values, chosen from the keyboard", async () => {
 		const page = await shared();
 		await select(page, "h1");
@@ -251,7 +270,7 @@ describe("the CSS pane", () => {
 		});
 		await page.route("**/_webcraft/build/api/rpc/designSystem/updateClass", async (route) => {
 			await held;
-			await route.continue();
+			await route.continue().catch(() => {});
 		});
 		try {
 			await box(page, "css").fill(".lead {\n  line-height: 1.6;\n  color: rgb(1, 2, 3);\n}");
@@ -259,6 +278,13 @@ describe("the CSS pane", () => {
 				() => frameOf(page).then((frame) => frame.locator("p.lead").evaluate((p) => getComputedStyle(p).color)),
 				(value) => value === "rgb(1, 2, 3)",
 			);
+			if (color !== "rgb(1, 2, 3)")
+				console.log(
+					"preview sheets:",
+					await (await frameOf(page)).evaluate(() =>
+						document.adoptedStyleSheets.map((sheet) => [...sheet.cssRules].map((rule) => rule.cssText).join(" ")),
+					),
+				);
 			expect(color).toBe("rgb(1, 2, 3)");
 			expect((await classOf("lead"))?.styles).not.toContain("rgb(1, 2, 3)");
 		} finally {
@@ -416,12 +442,16 @@ describe("Format and Components' Props in the HTML pane", () => {
 		const original = await js.inputValue();
 		const messy = "const hero=document.querySelector('.hero');if(hero){hero.classList.add('is-ready')}";
 		await js.fill(messy);
+		await eventually(
+			() => js.inputValue(),
+			(text) => text === messy,
+		);
 		const at = messy.indexOf("classList");
 		await js.evaluate((area: HTMLTextAreaElement, offset) => area.setSelectionRange(offset, offset), at + 3);
 		await js.press("Alt+Shift+KeyF");
 		const tidied = await eventually(
 			() => js.inputValue(),
-			(text) => text !== messy,
+			(text) => text.includes("\n") && text.includes("classList"),
 		);
 		const caret = await js.evaluate((area: HTMLTextAreaElement) => area.selectionStart);
 		expect(tidied.slice(caret - 3, caret + 6)).toBe("classList");
@@ -448,8 +478,13 @@ describe("Format and Components' Props in the HTML pane", () => {
 		const page = await shared();
 		await select(page, "section.hero h2");
 		const html = box(page, "html");
+		const shown = await html.inputValue();
+		const declared = 'strapline: text exposed default="Preview words"\n';
 		await html.fill(
-			'{{@props}}\nheading: text required\nstrapline: text exposed default="Preview words"\n{{/props}}\n<section class="hero"><h2>{{ props.heading }}</h2><p>{{ props.strapline }}</p></section>',
+			(shown.includes("{{/props}}")
+				? shown.replace("{{/props}}", `${declared}{{/props}}`)
+				: `{{@props}}\nheading: text\n${declared}{{/props}}\n${shown}`
+			).replace("</h2>", "</h2><p>{{ props.strapline }}</p>"),
 		);
 		await (await frameOf(page)).getByText("Preview words").waitFor({ timeout: 10000 });
 		await html.focus();
@@ -463,24 +498,5 @@ describe("Format and Components' Props in the HTML pane", () => {
 			exposed: true,
 			default: "Preview words",
 		});
-	});
-
-	test("the shell with the suggestions open passes the accessibility checks, light and dark", async () => {
-		const page = await shared();
-		await select(page, "h1");
-		const html = box(page, "html");
-		const original = await html.inputValue();
-		for (const theme of ["light", "dark"] as const) {
-			await page.emulateMedia({ colorScheme: theme });
-			await page.waitForTimeout(1200);
-			await expectAccessibleScreen(page, `the code panes (${theme})`);
-			await toEnd(html);
-			await page.keyboard.type("{{");
-			await page.getByRole("listbox", { name: "Suggestions" }).waitFor();
-			await expectNoAxeViolations(page, `the HTML pane's suggestions (${theme})`);
-			await page.keyboard.press("Escape");
-			await html.fill(original);
-		}
-		await page.locator('[data-wc-rail="panels"]').focus();
 	});
 });

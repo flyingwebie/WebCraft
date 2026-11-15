@@ -96,7 +96,10 @@ async function eventually<Value>(read: () => Promise<Value>, done: (value: Value
 
 async function entryMarkup(): Promise<string> {
 	const { api } = await install.install.superadmin();
-	return (await api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).markup?.draft ?? "";
+	return ((await api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).markup?.draft ?? "").replace(
+		/ data-wc-id="[^"]*"/g,
+		"",
+	);
 }
 
 /** The article's markup without its tag (what the drags rearrange). */

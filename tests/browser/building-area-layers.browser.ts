@@ -106,6 +106,16 @@ afterAll(async () => {
 const tree = (page: Page) => page.getByRole("tree", { name: "Elements of the page" });
 const row = (page: Page, name: string | RegExp) => tree(page).getByRole("treeitem", { name }).first();
 
+/** Opens every closed row of Layers, so each row can be found by its name. */
+async function openRows(page: Page): Promise<void> {
+	for (let pass = 0; pass < 40; pass++) {
+		const closed = tree(page).locator('[role="treeitem"][aria-expanded="false"]').first();
+		if ((await closed.count()) === 0) return;
+		await closed.locator("svg").first().click();
+		await settled(page);
+	}
+}
+
 async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
 	const deadline = Date.now() + 15000;
 	let value = await read();
@@ -127,12 +137,18 @@ async function announces(page: Page, words: string): Promise<void> {
 
 async function entryMarkup(): Promise<string> {
 	const { api } = await install.install.superadmin();
-	return (await api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).markup?.draft ?? "";
+	return ((await api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).markup?.draft ?? "").replace(
+		/ data-wc-id="[^"]*"/g,
+		"",
+	);
 }
 
 async function siteMarkup(): Promise<string> {
 	const { api } = await install.install.superadmin();
-	return (await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "";
+	return ((await api.templates.getSiteTemplateMarkup({ siteId })).markup?.draft ?? "").replace(
+		/ data-wc-id="[^"]*"/g,
+		"",
+	);
 }
 
 /** The order of the article's elements in the Entry template's Draft, by their tag. */
@@ -144,6 +160,7 @@ async function order(): Promise<string[]> {
 
 /** Focuses a row (selecting it), as a click on it does. */
 async function focusRow(page: Page, name: string | RegExp): Promise<void> {
+	await openRows(page);
 	await row(page, name).click();
 	await row(page, name).focus();
 	await settled(page);
@@ -343,7 +360,9 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 			() => api.components.getMarkup({ siteId, componentId: cardId }),
 			(got) => got.markup.draft.includes("<h4>"),
 		);
-		expect(read.markup.draft).toContain('<div class="card"><h4>Card title</h4></div>');
+		expect(read.markup.draft.replace(/ data-wc-id="[^"]*"/g, "")).toContain(
+			'<div class="card"><h4>Card title</h4></div>',
+		);
 	});
 
 	test("Layers with its branches passes the accessibility checks, light and dark", async () => {

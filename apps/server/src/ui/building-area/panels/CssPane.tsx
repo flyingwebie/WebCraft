@@ -608,7 +608,8 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 				const made = await deps().structure.createClass(wanted);
 				if ("refused" in made) return made.refused;
 				id = made.id;
-				void read();
+				// The new Class is the Design system's now: read again, so its chip has its name.
+				await read();
 			}
 			if (element.classes.includes(id)) {
 				chooseClass(selection.ref, id);

@@ -131,7 +131,10 @@ async function selectParagraph(page: Page, words: string): Promise<void> {
 
 async function entryMarkup(): Promise<string> {
 	const { api } = await install.install.superadmin();
-	return (await api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).markup?.draft ?? "";
+	return ((await api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).markup?.draft ?? "").replace(
+		/ data-wc-id="[^"]*"/g,
+		"",
+	);
 }
 
 async function draftClasses() {
@@ -169,6 +172,19 @@ async function paragraph(words: string): Promise<string> {
 }
 
 describe("one-off styles and generated Classes", () => {
+	test("the one-off box and the rename offer pass the accessibility checks, light and dark", async () => {
+		const page = await shared();
+		await selectParagraph(page, "Sixth words");
+		await oneOffBox(page);
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.mouse.move(24, 460);
+			await page.waitForTimeout(1800);
+			await settled(page);
+			await expectAccessibleScreen(page, `the one-off box (${theme})`);
+		}
+	});
+
 	test("a Class added, a new one made, and a one-off style saved as a generated Class, one Undo step", async () => {
 		const page = await shared();
 		await selectParagraph(page, "Second words");
@@ -317,18 +333,5 @@ describe("one-off styles and generated Classes", () => {
 		const undone = await eventually(entryMarkup, (text) => !/<p class="intro style-/.test(text));
 		expect(undone).toContain('<p class="intro">First words</p>');
 		expect(undone).toMatch(/<h1 class="style-[0-9a-f]{8}">/);
-	});
-
-	test("the one-off box and the rename offer pass the accessibility checks, light and dark", async () => {
-		const page = await shared();
-		await selectParagraph(page, "Sixth words, by a peer");
-		await oneOffBox(page);
-		for (const theme of ["light", "dark"] as const) {
-			await page.emulateMedia({ colorScheme: theme });
-			await page.mouse.move(24, 460);
-			await page.waitForTimeout(1800);
-			await settled(page);
-			await expectAccessibleScreen(page, `the one-off box (${theme})`);
-		}
 	});
 });
