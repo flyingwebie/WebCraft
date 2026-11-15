@@ -117,8 +117,8 @@ beforeAll(async () => {
 			'<img src="{{ photo }}" width="320" height="240">',
 			"<div>{{ intro }}</div>",
 			'<p><a href="{{ cta.url }}">{{ cta.text }}</a></p>',
-			"<p>Every loaf is shaped by hand and baked on stone. ".repeat(12),
-			"</p></article>",
+			`<p>${"Every loaf is shaped by hand and baked on stone. ".repeat(12)}</p>`,
+			"</article>",
 		].join(""),
 	});
 	await api.templates.publish({ siteId, templateId: template.template.id });
@@ -206,8 +206,11 @@ async function open(page: Page, path: string): Promise<Frame> {
 		if (new URL(frame.url()).pathname === path) {
 			await frame.locator("[data-wc-item][contenteditable]").first().waitFor({ state: "attached" });
 			await bar(page).waitFor();
-			// The Draft's state has been read: Publish knows what it covers.
+			// The Draft's state has been read: Publish knows what it covers, the bar names the page.
 			await page.locator("[data-wc-publish]").waitFor();
+			await page.waitForFunction(
+				() => !document.querySelector("[data-wc-page-switcher]")?.textContent?.includes("Untitled"),
+			);
 			return frame;
 		}
 		await page.waitForTimeout(50);
@@ -321,7 +324,7 @@ describe("client editing on a phone", () => {
 			expect(rows).toEqual([
 				["mode", "Preview"],
 				["language", "LanguageEnglish"],
-				["page-details", "Page details"],
+				["page-details", "Post details"],
 				["redo", "Redo"],
 				["help", "Help"],
 				["exit", "Exit"],
@@ -397,10 +400,10 @@ describe("client editing on a phone", () => {
 		await page.emulateMedia({ colorScheme: "light" });
 		const frame = await open(page, bread);
 		await tagline(frame).tap();
-		await page.keyboard.press("End");
-		await page.keyboard.type(" and fresh");
+		await page.keyboard.press("ControlOrMeta+a");
+		await page.keyboard.type("Baked daily and fresh");
 		await tagline(frame).evaluate((region: HTMLElement) => region.blur());
-		await eventually(taglineNow, (now) => now === "Baked daily and fresh");
+		expect(await eventually(taglineNow, (now) => now === "Baked daily and fresh")).toBe("Baked daily and fresh");
 		await page.locator('[data-wc-publish="ready"]:not([aria-disabled])').waitFor();
 
 		await more(page).tap();
@@ -427,6 +430,29 @@ describe("client editing on a phone", () => {
 		await publish.waitFor({ state: "hidden" });
 	});
 
+	test("a tap edits at once: what is typed goes in, however long the finger stays down", async () => {
+		await page.emulateMedia({ colorScheme: "light" });
+		const frame = await open(page, bread);
+		const region = await box(tagline(frame));
+		const x = Math.round(region.x + region.width / 2);
+		const y = Math.round(region.y + region.height / 2);
+		// The tap's focus comes as the touch ends: here 150 ms after it began.
+		const cdp = await page.context().newCDPSession(page);
+		await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+		await page.waitForTimeout(150);
+		await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+		await cdp.detach();
+		await frame.waitForFunction(() => document.activeElement?.getAttribute("data-wc-field") === "tagline");
+		await page.keyboard.press("ControlOrMeta+a");
+		await page.keyboard.type("Tapped and typed");
+		expect(await tagline(frame).textContent()).toBe("Tapped and typed");
+		// No "Press Enter to edit": the region is being edited.
+		expect(await page.locator("[data-wc-messages]").textContent()).not.toContain("Press Enter to edit");
+		await tagline(frame).evaluate((element: HTMLElement) => element.blur());
+		await eventually(taglineNow, (now) => now === "Tapped and typed");
+		await api.globals.saveDraft({ siteId, fields: { tagline: "Baked daily" } });
+	});
+
 	test("Undo on the bar and Redo in More each name the step they would take", async () => {
 		await page.emulateMedia({ colorScheme: "light" });
 		const frame = await open(page, bread);
@@ -435,10 +461,24 @@ describe("client editing on a phone", () => {
 		await page.keyboard.type("Typed on a phone");
 		await tagline(frame).evaluate((region: HTMLElement) => region.blur());
 		const undo = page.locator('[data-wc-bar="undo"]');
-		await page.waitForFunction(() => {
-			const button = document.querySelector('[data-wc-bar="undo"]');
-			return button?.getAttribute("aria-label") === "Undo Edit Tagline" && !button.hasAttribute("aria-disabled");
-		});
+		try {
+			await page.waitForFunction(
+				() => {
+					const button = document.querySelector('[data-wc-bar="undo"]');
+					return button?.getAttribute("aria-label") === "Undo Edit Tagline" && !button.hasAttribute("aria-disabled");
+				},
+				undefined,
+				{ timeout: 10000 },
+			);
+		} catch (error) {
+			console.error({
+				undo: await undo.getAttribute("aria-label"),
+				page: await tagline(frame).textContent(),
+				draft: await taglineNow(),
+				said: await page.locator("[data-wc-messages]").textContent(),
+			});
+			throw error;
+		}
 		expect(await eventually(taglineNow, (now) => now === "Typed on a phone")).toBe("Typed on a phone");
 
 		await more(page).tap();
@@ -690,6 +730,17 @@ describe("client editing on a phone", () => {
 				);
 				expect(await page.getByRole("button", { name, exact: true }).count()).toBeGreaterThanOrEqual(1);
 			}
+			// The page's name and the Draft's state have room; under 900 px the widths give theirs.
+			expect(
+				await page.locator("[data-wc-page-switcher]").evaluate((button) => button.scrollWidth <= button.clientWidth),
+			).toBe(true);
+			// The Draft's state keeps its words ("No changes yet" whole; a longer state at least in part).
+			const state = page.locator("[data-wc-draft-state] span.truncate");
+			expect((await box(state)).width).toBeGreaterThanOrEqual(60);
+			if ((await state.textContent()) === "No changes yet")
+				expect(await state.evaluate((words) => words.scrollWidth <= words.clientWidth)).toBe(true);
+			expect(await page.getByRole("button", { name: "Language: English", exact: true }).count()).toBe(1);
+			expect(await page.locator("[data-wc-widths]").isVisible()).toBe(false);
 			// The Draft's state and Publish keep their words; nothing is wider than the window.
 			expect(await page.locator("[data-wc-publish]").textContent()).toBe("Publish");
 			expect(await overflow(page)).toEqual({ page: 0, bar: 0 });
@@ -713,8 +764,11 @@ describe("client editing on a phone", () => {
 			const shown = await box(panel);
 			expect(shown.width).toBe(360);
 			expect(shown.x + shown.width).toBe(768);
-			const sheet = await box(page.locator("[data-wc-frame-box]"));
-			expect(sheet.x + sheet.width).toBeLessThanOrEqual(shown.x - 12 + 0.5);
+			// The page narrows beside it (zoomed out under its 320 px), 12 from it.
+			await page.waitForFunction((left) => {
+				const sheet = document.querySelector("[data-wc-frame-box]")?.getBoundingClientRect();
+				return sheet !== undefined && sheet.right <= left - 12 + 0.5;
+			}, shown.x);
 		} finally {
 			await page.setViewportSize(PHONE);
 		}
