@@ -1,8 +1,7 @@
 import { BracesIcon, CheckIcon, LoaderCircleIcon, Maximize2Icon, Minimize2Icon } from "lucide-react";
 import { type KeyboardEvent, type RefObject, useCallback, useEffect, useRef, useState } from "react";
-
-import { ariaKeys, shortcutText } from "../../builder/shortcuts.ts";
 import { editorHistory } from "../../builder/editor-history.ts";
+import { ariaKeys, shortcutText } from "../../builder/shortcuts.ts";
 import { FORMAT_SHOWN_MS, FORMAT_SPINNER_MS, formatTextArea, isFormatKey } from "../../code-format/box.ts";
 import type { CodeFormat, FormatNote } from "../../code-format/FormatControl.tsx";
 import { type CodeLanguage, format } from "../../code-format/format.ts";
@@ -120,6 +119,20 @@ export function useBoxFormat(
 		[area],
 	);
 	return { run, onKeyDown, phase, note, problemLine, goToLine };
+}
+
+/**
+ * "Format when I leave the box" (SPEC 5.1): the box's text tidied as it is left, without taking focus
+ * back to it. Answers the tidied text, or null when it was tidy already or can't be formatted (it is
+ * then saved as typed).
+ */
+export async function formattedOnLeaving(text: string, language: CodeLanguage): Promise<string | null> {
+	try {
+		const result = await format(text, language);
+		return result.ok && result.changedLines > 0 ? result.text : null;
+	} catch {
+		return null;
+	}
 }
 
 /** A box's Format as its header button sees it: the phase, and how to run it (none while the box can't be formatted). */

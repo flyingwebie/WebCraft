@@ -14,7 +14,15 @@ import { CodeWell, type LineRange } from "./CodeWell.tsx";
 import { ConflictDialog } from "./ConflictDialog.tsx";
 import type { CodePanesDeps } from "./code-panes.tsx";
 import { type CodeRequests, lineAt, type MarkupProblem, offsetAt, problemsOf } from "./code-requests.ts";
-import { FormatButton, type FormatSlot, formatSlot, type PaneSettings, useBoxFormat, useFormatSlot } from "./pane-parts.tsx";
+import {
+	FormatButton,
+	type FormatSlot,
+	formatSlot,
+	formattedOnLeaving,
+	type PaneSettings,
+	useBoxFormat,
+	useFormatSlot,
+} from "./pane-parts.tsx";
 import { type PaneStore, paneStore, usePane } from "./pane-store.ts";
 
 /**
@@ -490,7 +498,9 @@ export function HtmlBody({ pane, words, settings }: { pane: HtmlPane; words: Wor
 					onBlur={() => {
 						if (!store(pane).dirty) return;
 						void (async () => {
-							if (settings.formatOnLeave && editable) await formatting.run();
+							const tidied =
+								settings.formatOnLeave && editable ? await formattedOnLeaving(store(pane).text, "html") : null;
+							if (tidied) pane.change(tidied);
 							await pane.save();
 						})();
 					}}

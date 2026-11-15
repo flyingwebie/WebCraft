@@ -17,7 +17,15 @@ import type { QuickTokens, StepSizes } from "../places/styles/view.ts";
 import { CodeWell } from "./CodeWell.tsx";
 import { chooseClass, chosenClassOf, subscribeChosenClass } from "./chosen-class.ts";
 import type { CodePanesDeps } from "./code-panes.tsx";
-import { FormatButton, type FormatSlot, formatSlot, type PaneSettings, useBoxFormat, useFormatSlot } from "./pane-parts.tsx";
+import {
+	FormatButton,
+	type FormatSlot,
+	formatSlot,
+	formattedOnLeaving,
+	type PaneSettings,
+	useBoxFormat,
+	useFormatSlot,
+} from "./pane-parts.tsx";
 import { type PaneStore, paneStore, usePane } from "./pane-store.ts";
 
 /**
@@ -546,7 +554,9 @@ export function CssBody({ pane, words, settings }: { pane: CssPane; words: Words
 				onBlur={() => {
 					if (!pane.store.get().dirty) return;
 					void (async () => {
-						if (settings.formatOnLeave && editable) await formatting.run();
+						const tidied =
+							settings.formatOnLeave && editable ? await formattedOnLeaving(pane.store.get().text, "css") : null;
+						if (tidied) pane.change(tidied);
 						await pane.flush();
 					})();
 				}}

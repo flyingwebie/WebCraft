@@ -10,7 +10,15 @@ import { ConflictDialog } from "./ConflictDialog.tsx";
 import type { CodePanesDeps } from "./code-panes.tsx";
 import { type CodeRequests, offsetAt } from "./code-requests.ts";
 import { type ConsoleLine, consoleLog } from "./console-log.ts";
-import { FormatButton, type FormatSlot, formatSlot, type PaneSettings, useBoxFormat, useFormatSlot } from "./pane-parts.tsx";
+import {
+	FormatButton,
+	type FormatSlot,
+	formatSlot,
+	formattedOnLeaving,
+	type PaneSettings,
+	useBoxFormat,
+	useFormatSlot,
+} from "./pane-parts.tsx";
 import { type PaneStore, paneStore, usePane } from "./pane-store.ts";
 
 /**
@@ -425,7 +433,10 @@ export function JsBody({ pane, words, settings }: { pane: JsPane; words: Words; 
 					onBlur={() => {
 						if (!pane.store.get().dirty[pane.store.get().tab]) return;
 						void (async () => {
-							if (settings.formatOnLeave && editable) await formatting.run();
+							const now = pane.store.get();
+							const tidied =
+								settings.formatOnLeave && editable ? await formattedOnLeaving(now.texts[now.tab], "js") : null;
+							if (tidied) pane.change(tidied);
 							await pane.flush();
 						})();
 					}}

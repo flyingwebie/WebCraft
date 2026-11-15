@@ -425,6 +425,8 @@ describe("the code panes", () => {
 			.click();
 		await page.locator('[data-wc-token-choice="At this width (768px)"]').click();
 		expect(await box(page, "css").inputValue()).toContain("@media (width < 768px) {");
+		// The caret is inside the new block.
+		await page.waitForFunction(() => document.activeElement?.getAttribute("data-wc-code-box") === "css");
 		await page.keyboard.insertText("font-size: 2rem;");
 		const { api } = await install.install.superadmin();
 		const css = await eventually(
