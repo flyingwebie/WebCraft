@@ -162,6 +162,7 @@ function shared(as: "staff" | "member"): Promise<Page> {
 	const make = async () => {
 		const page = await install.newPage("light");
 		await page.setViewportSize({ width: 1440, height: 900 });
+		await recordMessages(page);
 		try {
 			await enterBuildingArea(install, page, {
 				as: as === "staff" ? staff : member,
@@ -280,10 +281,27 @@ async function counterDraft(): Promise<string> {
 	return (await api.components.getScript({ siteId, componentId: counterId })).script?.draft.code ?? "";
 }
 
-/** Waits until the shell's live region says `text`. */
+/**
+ * Keeps every message the shell's live region says, in each document the page loads: a later message
+ * (the page announced as it loads again) can replace one before a check reads it.
+ */
+async function recordMessages(page: Page): Promise<void> {
+	await page.addInitScript(() => {
+		const kept: string[] = [];
+		(window as unknown as { wcSaid: string[] }).wcSaid = kept;
+		new MutationObserver(() => {
+			const text = document.querySelector("[data-wc-messages]")?.textContent ?? "";
+			if (text && kept.at(-1) !== text) kept.push(text);
+		}).observe(document, { subtree: true, childList: true, characterData: true });
+	});
+}
+
+/** Waits until the shell's live region has said `text` (in the document shown now). */
 async function said(page: Page, text: string): Promise<void> {
 	await page.waitForFunction(
-		(wanted) => (document.querySelector("[data-wc-messages]")?.textContent ?? "").includes(wanted),
+		(wanted) =>
+			((window as unknown as { wcSaid?: string[] }).wcSaid ?? []).some((each) => each.includes(wanted)) ||
+			(document.querySelector("[data-wc-messages]")?.textContent ?? "").includes(wanted),
 		text,
 	);
 }
