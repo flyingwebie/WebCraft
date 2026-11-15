@@ -40,6 +40,7 @@ export function BottomBar({
 	staging,
 	draft,
 	insertRow = true,
+	insert,
 	publish,
 	onUndo = () => void editorHistory().undo(),
 	onRedo = () => void editorHistory().redo(),
@@ -57,6 +58,8 @@ export function BottomBar({
 	draft: DraftState;
 	/** Whether the insert row has its place in the middle: none while a place is open (SPEC 8); the middle stays. */
 	insertRow?: boolean;
+	/** The insert row itself (`InsertRow.tsx`, BA-10), drawn in its place. */
+	insert?: ReactNode;
 	/** Publish (`publish/Publish.tsx`, BA-12): its cell, 112 × 32, and the sheet above it. */
 	publish?: ReactNode;
 	/** Undo and Redo: the shell's, which first saves what was typed (`editing/history.ts`). */
@@ -96,11 +99,13 @@ export function BottomBar({
 				/>
 				{nav}
 			</div>
-			{/* The insert row (BA-10) goes here, in the middle of the bar. */}
+			{/* The insert row (BA-10), in the middle of the bar. */}
 			<div
 				className="flex h-full min-w-0 grow items-center justify-center"
 				data-wc-insert-row={insertRow ? "" : undefined}
-			/>
+			>
+				{insertRow ? insert : null}
+			</div>
 			<div className="flex h-full w-[400px] shrink items-center justify-end gap-2" data-wc-bar-cluster="end">
 				{/* While the page runs none of the Site's own scripts: Safe mode, and Turn off (BA-32). */}
 				<SafeModeControl words={words} />
