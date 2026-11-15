@@ -408,7 +408,21 @@ export function Layers({
 	} | null>(null);
 	/** The row whose menu is open, and where (BA-10). */
 	const [rowMenu, setRowMenu] = useState<{ key: string; name: string; at: { x: number; y: number } } | null>(null);
-	const tabStop = (selectedRow ?? focusable.find((row) => row.key === focusKey) ?? focusable[0])?.key ?? null;
+	// The selection inside a branch someone closed (a caret in its text, BA-33): the nearest row shown
+	// around it keeps the tree's tab stop, so the tree is still reached where the selection is.
+	const aroundSelection = selectedRow
+		? undefined
+		: [...focusable]
+				.reverse()
+				.find((row) =>
+					row.kind === "node"
+						? holdsSelection(row.node, row.source, row.nested, selectedRef)
+						: row.kind === "placement"
+							? selectedRef !== null && within(sourceOf(selectedRef), `content/${row.placement.id}`)
+							: false,
+				);
+	const tabStop =
+		(selectedRow ?? aroundSelection ?? focusable.find((row) => row.key === focusKey) ?? focusable[0])?.key ?? null;
 
 	// The selected row is brought into view as the selection changes (from the canvas, Undo, the address).
 	useEffect(() => {

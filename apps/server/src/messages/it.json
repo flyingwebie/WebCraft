@@ -10983,6 +10983,43 @@
 			"utility": "Utility del token {name}: si può togliere, non modificare",
 			"columns": "Colonne",
 			"classes": "Class dell'elemento"
+		},
+		"shortcuts": {
+			"title": "Scorciatoie da tastiera",
+			"intro": "Cosa fanno i tasti qui. Sono elencate solo le cose che puoi fare.",
+			"close": "Chiudi",
+			"groups": {
+				"editor": "Ovunque",
+				"tree": "In Livelli",
+				"code": "Nei pannelli del codice"
+			},
+			"keys": {
+				"undo": "Annulla",
+				"redo": "Ripeti",
+				"actions": "Azioni",
+				"goTo": "Vai a",
+				"insert": "Inserisci",
+				"shortcuts": "Questo elenco",
+				"regions": "Passa da una zona all'altra",
+				"escape": "Togli la selezione, poi chiudi un luogo",
+				"toolbar": "Raggiungi la barra del testo",
+				"rows": "Muoviti tra i livelli",
+				"moveUp": "Sposta il livello su",
+				"moveDown": "Sposta il livello giù",
+				"moveIn": "Spostalo nel livello prima",
+				"moveOut": "Spostalo fuori dal suo contenitore",
+				"pick": "Prendi il livello, posalo",
+				"putBack": "Rimettilo dov'era",
+				"cut": "Taglia",
+				"copy": "Copia",
+				"paste": "Incolla",
+				"duplicate": "Duplica",
+				"delete": "Elimina",
+				"rename": "Rinomina",
+				"menu": "Apri il menu del livello",
+				"save": "Salva l'HTML",
+				"format": "Formatta"
+			}
 		}
 	},
 	"auth": {

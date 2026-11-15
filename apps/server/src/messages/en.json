@@ -10983,6 +10983,43 @@
 			"utility": "Token utility {name}: it can be removed, not edited",
 			"columns": "Columns",
 			"classes": "Classes of the element"
+		},
+		"shortcuts": {
+			"title": "Keyboard shortcuts",
+			"intro": "What the keys do here. Only what you may do is listed.",
+			"close": "Close",
+			"groups": {
+				"editor": "Everywhere",
+				"tree": "In Layers",
+				"code": "In the code panes"
+			},
+			"keys": {
+				"undo": "Undo",
+				"redo": "Redo",
+				"actions": "Actions",
+				"goTo": "Go to",
+				"insert": "Insert",
+				"shortcuts": "This list",
+				"regions": "Move between the regions",
+				"escape": "Clear the selection, then close a place",
+				"toolbar": "Reach a text's toolbar",
+				"rows": "Move between layers",
+				"moveUp": "Move the layer up",
+				"moveDown": "Move the layer down",
+				"moveIn": "Move it into the layer before",
+				"moveOut": "Move it out of its parent",
+				"pick": "Pick the layer up, put it down",
+				"putBack": "Put it back",
+				"cut": "Cut",
+				"copy": "Copy",
+				"paste": "Paste",
+				"duplicate": "Duplicate",
+				"delete": "Delete",
+				"rename": "Rename",
+				"menu": "Open the layer's menu",
+				"save": "Save the HTML",
+				"format": "Format"
+			}
 		}
 	},
 	"auth": {
