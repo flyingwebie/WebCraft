@@ -411,12 +411,18 @@ describe("documents across switches", () => {
 		await page.waitForFunction(() =>
 			document.querySelector<HTMLTextAreaElement>('textarea[data-wc-code-box="css"]')?.value.includes(".note"),
 		);
-		// A peer's change to the Class arrives first; mine, typed after it, leaves with the document.
+		// A peer's change to the Class arrives first: mine, typed over the rule as shown, asks (BA-33's
+		// Reload theirs or Overwrite with mine); overwritten, it is saved before the next document opens.
 		await api.designSystem.updateClass({ siteId, classId: noteClassId, styles: "color: rgb(7, 8, 9);" });
 		await typeInto(page, "css", ".note {\n  color: rgb(10, 11, 12);\n}");
+		const asked = page.getByRole("alertdialog", { name: "Someone saved a newer version" });
+		await asked.waitFor();
+		await asked.getByRole("button", { name: "Overwrite with mine" }).click();
+		await asked.waitFor({ state: "detached" });
+		await typeInto(page, "css", ".note {\n  color: rgb(10, 11, 12);\n  margin: 0;\n}");
 		await switchTo(page, /^Products · Archive template/);
 		await framedAt(page, "/shop");
-		expect(await eventually(noteStyles, (styles) => styles.includes("rgb(10, 11, 12)"))).toContain("rgb(10, 11, 12)");
+		expect(await eventually(noteStyles, (styles) => styles.includes("margin: 0"))).toContain("rgb(10, 11, 12)");
 
 		// Typed while the next document is still being found: kept, with its problem, for when it shows again.
 		await page.goBack();
