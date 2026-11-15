@@ -24,6 +24,7 @@ import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
 let install: BrowserInstall;
 let staff: TestAccount;
 let italian: TestAccount;
+let member: TestAccount;
 let siteId: string;
 let postTypeId: string;
 let heroId: string;
@@ -39,6 +40,7 @@ beforeAll(async () => {
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
 	staff = (await local.createStaff({ workspaces: [workspaceId], name: "Davide Del Gatto" })).account;
 	italian = (await local.createStaff({ workspaces: [workspaceId], name: "Giulia Romano" })).account;
+	member = (await local.createMember({ workspaceId, role: "editor", name: "Aoife Murphy" })).account;
 	await (await local.signIn(italian)).api.me.updatePreferences({ adminLanguage: "it" });
 
 	for (const name of ["site-header", "page", "hero", "card", "card__title", "more", "container"])
@@ -496,6 +498,40 @@ describe("the Command menu", () => {
 		await page.keyboard.press("ControlOrMeta+i");
 		await menu(page).getByRole("group", { name: "Sezioni" }).waitFor();
 		await expectNoAxeViolations(page, "the Command menu in Italian, dark");
+		await page.context().close();
+	});
+
+	test("a Member gets the shorter menu: their Actions and Go to, no Insert", async () => {
+		const page = await install.newPage("light");
+		await page.setViewportSize({ width: 1440, height: 900 });
+		// On a post: a Page's Sections for Members (BA-17) crash the client shell on `ui-overhaul` now (see the handoff).
+		await enterBuildingArea(install, page, { as: member, siteId, slug, open: `/page${post}` });
+		await page.locator("[data-wc-client]").waitFor();
+		await page.keyboard.press("ControlOrMeta+k");
+		await menu(page).waitFor();
+		const tabs = await menu(page).getByRole("tab").allTextContents();
+		expect(tabs.map((text) => text.replace(/[⌘⌃].*$|Ctrl.*$/, "").trim())).toEqual(["Actions", "Go to"]);
+		await menu(page)
+			.getByRole("option", { name: /^Preview/ })
+			.waitFor();
+		await menu(page)
+			.getByRole("option", { name: /^Page details/ })
+			.waitFor();
+		expect(
+			await menu(page)
+				.getByRole("option", { name: /^New Component/ })
+				.count(),
+		).toBe(0);
+		// The modal menu makes the shell and the page under it inert, out of the accessibility tree: their
+		// main landmark and the page's h1 aren't counted while it is open.
+		await expectNoAxeViolations(page, "a Member's Command menu", ["landmark-one-main", "page-has-heading-one"]);
+		await page.keyboard.press("ControlOrMeta+p");
+		await menu(page).getByRole("option", { name: /^Home/ }).waitFor();
+		await page.keyboard.press("ControlOrMeta+k");
+		await holds(menu(page).getByRole("tab", { name: /^Actions/ }), "aria-selected", "true");
+		await menu(page).getByRole("combobox").fill("open media");
+		await page.keyboard.press("Enter");
+		await page.locator('[data-place="media"]').waitFor();
 		await page.context().close();
 	});
 });

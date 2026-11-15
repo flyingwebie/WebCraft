@@ -1,15 +1,15 @@
-import type { TreeNode } from "@webcraft/renderer/builder";
+import { readExpression, type TreeNode } from "@webcraft/renderer/builder";
 import { PencilIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useEditorFit } from "../builder/editor-fit.ts";
 import { editorHistory } from "../builder/editor-history.ts";
-import { withNewIds } from "../builder/tree.ts";
+import { childLists, newElement, withNewIds } from "../builder/tree.ts";
 import { BUILDING_STAND_IN_PREFIX } from "./agent/contract.ts";
 import { type EditAnswer, editRequests, fill, type PageState, type ShellConfig } from "./api.ts";
 import { BottomBar } from "./bottom-bar/BottomBar.tsx";
 import { DocumentNav } from "./bottom-bar/DocumentNav.tsx";
 import { draftStateOf } from "./bottom-bar/DraftState.tsx";
-import { InsertRow } from "./bottom-bar/InsertRow.tsx";
+import { InsertRow, KIND_ICONS } from "./bottom-bar/InsertRow.tsx";
 import type { PageLanguage } from "./bottom-bar/LanguageMenu.tsx";
 import { Frame, type FrameHandle, type PageTheme } from "./canvas/Frame.tsx";
 import { NoDocument } from "./canvas/NoDocument.tsx";
@@ -28,7 +28,7 @@ import { reverseElsewhere } from "./editing/drafts.ts";
 import { pageEditing } from "./editing/editing.ts";
 import { shellHistory } from "./editing/history.ts";
 import { InsertLine } from "./editing/InsertLine.tsx";
-import { anchorName, type DocumentKind, inserter as makeInserter } from "./editing/insert.ts";
+import { anchorName, type DocumentKind, KIND_TAGS, inserter as makeInserter } from "./editing/insert.ts";
 import { layerOps } from "./editing/layer-ops.ts";
 import { pageLayoutEditor } from "./editing/page-layout.ts";
 import { refOf, type StructureSnapshot, structure } from "./editing/selection.ts";
@@ -768,6 +768,15 @@ export function Shell({ config }: { config: ShellConfig }) {
 						: null,
 					makeComponent,
 					newComponent,
+					parts: {
+						icons: KIND_ICONS,
+						tags: KIND_TAGS,
+						anchorName,
+						childLists,
+						newElement,
+						withNewIds,
+						readExpression,
+					},
 				}
 			: undefined,
 	};

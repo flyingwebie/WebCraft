@@ -37,7 +37,9 @@ export function useCommandMenu(options: { tabs: readonly MenuTab[]; announce(tex
 			setRequest(now?.tab === next.tab && !next.step && !next.only ? null : next);
 		};
 		const onKey = (event: KeyboardEvent) => {
-			if (event.isComposing || event.defaultPrevented) return;
+			// Caught first, on the window in the capture phase: the menu's keys win over what is focused
+			// (the code panes, a place's fields); text in the page keeps ⌘I through its agent.
+			if (event.isComposing) return;
 			// Another dialog keeps its own keys (the Media picker, a confirmation).
 			if (
 				event

@@ -485,7 +485,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 		member: {
 			preview: { on: mode === "preview", set: (on) => onMode(on ? "preview" : "edit") },
 			pageDetails: () => setPanel("pageDetails"),
-			sections: sections ? () => setPanel("sections") : null,
+			sections: arrangeable ? () => setPanel("sections") : null,
 			help: () => setCard("help"),
 		},
 	};

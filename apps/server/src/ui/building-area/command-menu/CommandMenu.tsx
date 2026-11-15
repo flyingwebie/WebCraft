@@ -1,5 +1,5 @@
 import type { BuilderCatalogue, CommandMenuData, Permission } from "@webcraft/core";
-import { readExpression, type TreeNode } from "@webcraft/renderer/builder";
+import type { TreeNode } from "@webcraft/renderer/builder";
 import {
 	ArrowLeftIcon,
 	CodeXmlIcon,
@@ -19,18 +19,16 @@ import { flushSync } from "react-dom";
 import type { Command } from "../../builder/commands.ts";
 import { recentCommands, rememberCommand, visibleCommands } from "../../builder/commands.ts";
 import { ariaKeys, chordText, type SpokenKey, shortcutSpoken, shortcutText } from "../../builder/shortcuts.ts";
-import { childLists, newElement, withNewIds } from "../../builder/tree.ts";
 import { formatTarget } from "../../code-format/targets.ts";
 import { fill } from "../api.ts";
-import { KIND_ICONS } from "../bottom-bar/InsertRow.tsx";
-import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
-import { anchorName, type InsertKind, KIND_TAGS, type Landing } from "../editing/insert.ts";
+import { CHROME_EASE, FOCUS_RING, type Icon } from "../controls.tsx";
+import type { InsertKind, Landing } from "../editing/insert.ts";
 import { managementApi } from "../management.ts";
 import type { MenuHost } from "./host.ts";
 import type { InsertQuestion, MenuRequest, MenuTab } from "./state.ts";
 
 /** A row of the menu: a command, with what the frame draws beside its name. */
-type Row = Command & { icon: LucideIcon | typeof KIND_ICONS.section; detail?: string; tag?: string };
+type Row = Command & { icon: LucideIcon | Icon; detail?: string; tag?: string };
 
 /** What Insert is asking now: which Loop or Form, or the Condition's test; to insert or to wrap the selection. */
 type Asking = { question: InsertQuestion; mode: "insert" | "wrap" };
@@ -67,6 +65,9 @@ export function CommandMenu({
 	onRequest(next: MenuRequest | null): void;
 }) {
 	const { words, staff } = host;
+	// The Structure's own helpers come with Staff's shell (their first file has them): a Member's menu
+	// never fetches the element tree's code.
+	const parts = staff?.parts;
 	const said = words.commandMenu;
 	const id = useId();
 	const dialog = useRef<HTMLDialogElement>(null);
@@ -163,9 +164,9 @@ export function CommandMenu({
 		const snapshot = staff.structure.snapshot();
 		if (sample.kind === "page")
 			return sample.anchor
-				? fill(words.insert.whereAfter, { name: anchorName(snapshot, sample.anchor) })
+				? fill(words.insert.whereAfter, { name: parts?.anchorName(snapshot, sample.anchor) ?? "" })
 				: words.insert.wherePage;
-		const name = sample.anchor ? anchorName(snapshot, sample.anchor) : "";
+		const name = sample.anchor ? (parts?.anchorName(snapshot, sample.anchor) ?? "") : "";
 		const text =
 			sample.position === "inside"
 				? fill(words.insert.whereInside, { name })
@@ -473,7 +474,7 @@ export function CommandMenu({
 								detail: node.tag,
 								run: () => staff.structure.select(`${ref}#${node.id}`),
 							});
-						for (const children of childLists(node)) visit(children);
+						for (const children of parts?.childLists(node) ?? []) visit(children);
 					}
 				};
 				visit(source.tree.nodes);
@@ -500,9 +501,9 @@ export function CommandMenu({
 					group: groupName(group),
 					label,
 					detail: kind === "section" && onPage ? items.section.page : items[kind].hint,
-					tag: KIND_TAGS[kind],
-					icon: KIND_ICONS[kind],
-					keywords: [kind, KIND_TAGS[kind]],
+					tag: parts?.tags[kind] ?? "",
+					icon: parts?.icons[kind] ?? CodeXmlIcon,
+					keywords: [kind, parts?.tags[kind] ?? ""],
 					permission: "structure.edit",
 					canvases: ALL_CANVASES as never,
 					run: ({ inverse }) => {
@@ -555,7 +556,7 @@ export function CommandMenu({
 							setProblem(at.kind === "refused" ? at.reason : words.insert.refusals.connecting);
 							return;
 						}
-						const nodes = withNewIds(source.tree, [
+						const nodes = staff.parts.withNewIds(source.tree, [
 							{ type: "component", id: "new", component: component.id, props: [] } as TreeNode,
 						]);
 						insertNodes(nodes, component.name, "component", inverse);
@@ -584,7 +585,7 @@ export function CommandMenu({
 							setProblem(at?.kind === "refused" ? at.reason : words.insert.refusals.page);
 							return;
 						}
-						insertNodes([newElement(source.tree, tag)], `<${tag}>`, "div", inverse);
+						insertNodes([staff.parts.newElement(source.tree, tag)], `<${tag}>`, "div", inverse);
 					},
 				});
 			}
@@ -620,7 +621,7 @@ export function CommandMenu({
 				tab: "insert",
 				group,
 				label: choice.label,
-				icon: KIND_ICONS[asking.question],
+				icon: parts?.icons[asking.question] ?? CodeXmlIcon,
 				tag: asking.question === "loop" ? `{{@loop ${choice.label}}}` : "{{@form}}",
 				keywords: [],
 				permission: "structure.edit",
@@ -692,7 +693,8 @@ export function CommandMenu({
 	};
 
 	const conditionTest = () => {
-		const read = readExpression(query);
+		if (!parts) return;
+		const read = parts.readExpression(query);
 		if ("problem" in read) {
 			setProblem(read.problem.message);
 			return;

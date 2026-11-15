@@ -1,8 +1,10 @@
+import type { ElementTree, Expression, TreeNode } from "@webcraft/renderer/builder";
 import type { ShellConfig, Words } from "../api.ts";
+import type { Icon } from "../controls.tsx";
 import type { BuildingDocument } from "../documents.ts";
-import type { Inserter } from "../editing/insert.ts";
+import type { Inserter, InsertKind } from "../editing/insert.ts";
 import type { LayerOps } from "../editing/layer-ops.ts";
-import type { Structure } from "../editing/selection.ts";
+import type { Structure, StructureSnapshot } from "../editing/selection.ts";
 
 /**
  * What the Command menu can do in the shell it opens in (BA-10): the shell gives it these, and the
@@ -52,5 +54,15 @@ export type MenuHost = {
 		makeComponent(): void;
 		/** Asks for a name, then places a new, empty Component where Insert would (New Component). */
 		newComponent(): void;
+		/** The element tree's helpers, from Staff's first file, so the menu's own file needn't carry them. */
+		parts: {
+			icons: Record<InsertKind, Icon>;
+			tags: Record<InsertKind, string>;
+			anchorName(snapshot: StructureSnapshot, ref: string): string;
+			childLists(node: TreeNode): readonly (readonly TreeNode[])[];
+			newElement(tree: ElementTree, tag: string): TreeNode;
+			withNewIds(tree: ElementTree, nodes: readonly TreeNode[]): TreeNode[];
+			readExpression(text: string): { expression: Expression } | { problem: { message: string } };
+		};
 	};
 };

@@ -6,7 +6,16 @@ import { fill, type Words } from "../api.ts";
 import type { BuildingDocument } from "../documents.ts";
 import { managementApi } from "../management.ts";
 import type { PageLayoutEditor } from "./page-layout.ts";
-import { type Structure, type StructureSnapshot, sourceOf } from "./selection.ts";
+import type { Structure, StructureSnapshot } from "./selection.ts";
+
+/**
+ * A reference's source part (everything before its `#`), as `selection.ts` reads it: kept here so the
+ * Command menu's file, which a Member fetches too, doesn't bring the Structure's code with it.
+ */
+function sourceOf(ref: string): string {
+	const at = ref.indexOf("#");
+	return at < 0 ? ref : ref.slice(0, at);
+}
 
 /**
  * Inserting (SPEC 6, BA-10; `builder/04`, `06`, `09`, `docking/07`): what the insert row, the Command
