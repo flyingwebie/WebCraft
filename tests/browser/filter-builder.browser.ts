@@ -325,7 +325,7 @@ describe("from the keyboard on the Site", () => {
 });
 
 describe("the visual builder", () => {
-	// The building area took the visual builder's place here (BA-34): `building-area-across` checks it in full.
+	// The building area took the visual builder's place here (BA-34): `building-area-switching` checks it in full.
 	test("Open in the building area opens the Template holding the Filter, the Filter selected", async () => {
 		const page = await openBuilder("light", "layout");
 		await page.getByRole("link", { name: "Open Products · Archive template in the building area" }).click();
