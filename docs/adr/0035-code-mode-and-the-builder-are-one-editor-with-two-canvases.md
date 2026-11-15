@@ -1,5 +1,7 @@
 # Code mode and the Builder are one editor with two canvases
 
+Status: Superseded by ADR 0037 (one building area on the Site's own address).
+
 Code mode on the live page and the full-screen Builder are one editor: the same layers tree, Inspector, Insert, Command menu, keys and layout (tree left, Inspector right, HTML, CSS and JS panels below). Only the canvas differs. Code mode shows the real page and is where anything visible on a page is built, including Page layouts, which never open in the Builder. The Builder shows a Template or Component with preview data, for things that have no page yet (an unplaced Component, a Search template, an Entry template with no Entries) or that Staff want to build on their own. Each links to the other ("Open in builder", "View on a page") in the same tab, keeping the selection, since both save to the same shared Draft.
 
 ## Considered Options
