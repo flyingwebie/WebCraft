@@ -839,12 +839,7 @@ export function memberSections(options: {
 		snapshot() {
 			// One object while nothing changed: React reads it on every render.
 			const value = snapshot();
-			const key = JSON.stringify({
-				...value,
-				props: undefined,
-				relationships: undefined,
-				components: value.components.length,
-			});
+			const key = JSON.stringify(value);
 			if (cached?.key !== key) cached = { key, value };
 			return cached.value;
 		},
