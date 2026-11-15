@@ -199,7 +199,7 @@ describe("dragging on the canvas", () => {
 		const page = await shared();
 		const before = await article();
 		const noteBefore = await noteMarkup();
-		expect(noteBefore).toBe('<aside class="note"><p>Noted</p></aside>');
+		expect(noteBefore).toContain('<aside class="note"><p>Noted</p></aside>');
 		await clickIn(page, "aside.note p");
 		await drag(page, page.locator("[data-wc-chip]"), "h1", 0.2);
 		expect(

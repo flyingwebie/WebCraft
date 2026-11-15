@@ -408,58 +408,64 @@ describe("the CSS pane", () => {
 	test("a slow answer for an element selected before never replaces the one selected now", async () => {
 		const page = await shared();
 		await select(page, "p:text-is('Plain words')");
-		// The first read (h1's) is held until p.grid-box has been selected and answered: it comes last.
+		// The pane reads the Design system again when the selection moves (someone may have changed a Class
+		// meanwhile), one read at a time. The one h1's selection sends is held until p.grid-box is selected,
+		// and a peer changes p.grid-box's Class before it is answered: the late answer is shown, and shown
+		// for p.grid-box, the element selected now.
+		const chips = () =>
+			pane(page, "css")
+				.locator("[data-wc-css-class]")
+				.evaluateAll((each) => each.map((chip) => chip.getAttribute("data-wc-css-class")));
 		let reads = 0;
 		let gridClicked = false;
 		let heldSentBeforeGrid: boolean | null = null;
+		const release = Promise.withResolvers<void>();
 		const lateAnswered = Promise.withResolvers<void>();
-		const gridAnswered = Promise.withResolvers<void>();
 		await page.route("**/_webcraft/build/api/rpc/designSystem/get", async (route) => {
 			reads++;
-			if (reads === 1) {
-				heldSentBeforeGrid = !gridClicked;
-				await gridAnswered.promise;
+			if (reads > 1) {
 				await route.continue().catch(() => {});
-				await route
-					.request()
-					.response()
-					.catch(() => null);
-				lateAnswered.resolve();
 				return;
 			}
+			heldSentBeforeGrid = !gridClicked;
+			await release.promise;
 			await route.continue().catch(() => {});
-			if (!gridClicked) return;
 			await route
 				.request()
 				.response()
 				.catch(() => null);
-			gridAnswered.resolve();
+			lateAnswered.resolve();
 		});
 		try {
 			await clickIn(page, "h1");
 			await eventually(
 				async () => reads,
 				(count) => count >= 1,
-				{ what: "The read for h1" },
+				{ what: "The read h1's selection sends" },
 			);
 			gridClicked = true;
 			await clickIn(page, "p.grid-box");
-			// Without a read of its own, h1's held one is let go after a few seconds (and the counts fail).
-			await Promise.race([gridAnswered.promise, Bun.sleep(5000)]);
-			await settled(page);
-			gridAnswered.resolve();
+			// Shown from what the pane holds while the read waits.
+			expect(await eventually(chips, (names) => names.join() === "grid-box")).toEqual(["grid-box"]);
+			const { api } = await install.install.superadmin();
+			const grid = await classOf("grid-box");
+			await api.designSystem.updateClass({
+				siteId,
+				classId: grid?.id ?? "",
+				styles: `${grid?.styles ?? ""}\ngap: 3rem;`,
+			});
+			release.resolve();
 			await lateAnswered.promise;
-			await settled(page);
-			await page.waitForTimeout(300);
-			// Two reads, h1's sent before p.grid-box was selected and answered after p.grid-box's: a race.
-			expect(reads).toBeGreaterThanOrEqual(2);
 			expect(heldSentBeforeGrid).toBe(true);
+			// The late answer reached the pane (the peer's gap shows) for the element selected now.
 			expect(
-				await pane(page, "css")
-					.locator("[data-wc-css-class]")
-					.evaluateAll((chips) => chips.map((chip) => chip.getAttribute("data-wc-css-class"))),
-			).toEqual(["grid-box"]);
-			expect(await box(page, "css").inputValue()).toStartWith(".grid-box");
+				await eventually(
+					() => box(page, "css").inputValue(),
+					(text) => text.includes("gap: 3rem"),
+				),
+			).toStartWith(".grid-box");
+			await settled(page);
+			expect(await chips()).toEqual(["grid-box"]);
 		} finally {
 			await page.unroute("**/_webcraft/build/api/rpc/designSystem/get");
 		}
@@ -505,10 +511,12 @@ describe("Format and Components' Props in the HTML pane", () => {
 			(text) => text.includes("\n  <h1"),
 			{ what: "Format's indented markup" },
 		);
-		// Format ran (the article's children indented) and left the Placement whole, its id kept.
-		expect(tidied).not.toContain("<Hero    ");
-		expect(tidied).toMatch(placed);
-		expect(tidied.match(placed)?.[1]).toBe(original.match(placed)?.[1]);
+		// Format ran (the article's children indented) and left the Placement whole: as it was typed, its
+		// id kept, not split, renamed or tidied into something else.
+		const typed = messy.match(/<Hero {4}heading="Welcome"( data-wc-id="[^"]*")?\/>/)?.[0] ?? "";
+		expect(typed).not.toBe("");
+		expect(tidied).toContain(typed);
+		expect(tidied.match(/<Hero\b/g)).toHaveLength(1);
 		await html.fill(original);
 		await page.locator('[data-wc-rail="panels"]').focus();
 	});

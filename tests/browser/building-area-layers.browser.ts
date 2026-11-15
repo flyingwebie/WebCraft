@@ -7,7 +7,7 @@
 // - a row under the pointer outlines its element on the canvas, and an element under the pointer marks
 //   its row, never changing the selection;
 // - the same Component placed twice changes in both places at once;
-// - a branch selected shows its Template's scripts in the JS pane, with no error (UI-21);
+// - a branch selected: the JS pane reads the scripts of the source it is in, with no error (UI-21);
 // - Layers with its branches passes the accessibility checks, light and dark.
 // The building area's own test of `builder` 171 and 196, `code-layers` 378 and 572, `code-selection`
 // 39 and 394, and `editor-concurrency` 443 and 497.
@@ -105,6 +105,8 @@ afterAll(async () => {
 });
 
 const tree = (page: Page) => page.getByRole("tree", { name: "Elements of the page" });
+/** The Entry template's plain paragraph (not the Site template's `p .source`, listed before it). */
+const entryP = /^p(?! \.source)\b/;
 const row = (page: Page, name: string | RegExp) => tree(page).getByRole("treeitem", { name }).first();
 
 /** Opens every closed row of Layers, so each row can be found by its name. */
@@ -171,7 +173,7 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 
 	test("cut, copy, paste, duplicate, delete and rename, each announced", async () => {
 		const page = await shared();
-		await focusRow(page, /^p\b/);
+		await focusRow(page, entryP);
 		await page.keyboard.press("ControlOrMeta+c");
 		await announces(page, "Copied p.");
 		await focusRow(page, "section .box");
@@ -186,7 +188,7 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 			"Card",
 			"Card",
 		]);
-		await focusRow(page, /^p\b/);
+		await focusRow(page, entryP);
 		await page.keyboard.press("ControlOrMeta+d");
 		await announces(page, "Duplicate p");
 		const paragraphs = (tags: string[]) => tags.filter((tag) => tag === "p").length;
@@ -325,7 +327,7 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 		expect(saved).toMatch(/\{\{@empty\}\}\s*<p class="source">Copied value<\/p>\s*\{\{\/loop\}\}/);
 	});
 
-	test("a branch selected: the JS pane shows the scripts of the Template it is in, with no error", async () => {
+	test("a branch selected: the JS pane reads the scripts of the source it is in, with no error", async () => {
 		const page = await shared();
 		const errors = pageErrors(page).length;
 		const js = page.locator('[data-wc-panel="js"]');
@@ -347,8 +349,9 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 			const answer = await read;
 			expect({ name, status: answer.status() }).toEqual({ name, status: 200 });
 			await js.locator('[data-wc-js-pane="ready"]').waitFor();
-			// A branch of the Site template: its scripts are the Site's, the tab shown.
-			expect(await js.locator('[data-wc-script-tab="site"]').getAttribute("aria-pressed")).toBe("true");
+			// Its scripts shown: the Site's tab is there, in the box, whichever tab the person keeps open.
+			expect(await js.locator('[data-wc-script-tab="site"]').count()).toBe(1);
+			await page.locator('textarea[data-wc-code-box="js"]').waitFor();
 			expect(await js.textContent()).not.toContain("Couldn't read it");
 		}
 		expect(pageErrors(page).slice(errors)).toEqual([]);
