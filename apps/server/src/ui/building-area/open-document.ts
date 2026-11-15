@@ -54,12 +54,25 @@ export type OpenDocument = {
  */
 export const PAGE_CHANGED_EVENT = "webcraft:page-changed";
 
+/** How long leaving a document waits for what was typed to be saved before it goes anyway, in milliseconds. */
+const LEAVE_WAIT_MS = 4000;
+
 /**
  * The open document (plan 1.4, BA-06): read from the shell's address, found where the frame can show
  * it, kept in step with the frame (a page the frame goes to by itself becomes the document), with
  * Back, Forward and reload all through the shell's own history.
+ *
+ * Before the shell opens another document (the switcher, Go to, "Back to {page}", "Rendered by", a
+ * link followed, another Entry in the picker), `leaving` saves what was typed and not saved yet (the
+ * page's regions, the code panes), as the old Builder did on its way out (BA-34). What can't be saved
+ * (markup that can't be read, a conflict waiting) stays where it was typed: the panes keep it for when
+ * the document shows again, and each document remembers its selection (`documents.ts`).
  */
-export function useOpenDocument(config: ShellConfig, announce: (text: string) => void): OpenDocument {
+export function useOpenDocument(
+	config: ShellConfig,
+	announce: (text: string) => void,
+	leaving: () => Promise<void> = async () => {},
+): OpenDocument {
 	const { words } = config;
 	const documents = useMemo(() => shellDocuments(), []);
 	const api = useMemo(() => managementApi(config.token), [config.token]);
@@ -73,10 +86,34 @@ export function useOpenDocument(config: ShellConfig, announce: (text: string) =>
 	const asked = useRef<string | null>(null);
 	// What the frame showed last.
 	const lastFramed = useRef<string | null>(null);
-	const latest = useRef({ address, shown, framedPage, announce });
-	latest.current = { address, shown, framedPage, announce };
+	// Back or Forward went to another document: the browser puts the frame back where it was then by
+	// itself (its place in the history goes with the shell's), before the shell has found where the
+	// document shows. That load is the shell's own, not the page going somewhere (BA-34).
+	const popped = useRef(false);
+	const latest = useRef({ address, shown, framedPage, announce, leaving });
+	latest.current = { address, shown, framedPage, announce, leaving };
 
-	useEffect(() => documents.subscribe((next) => setAddress(next)), [documents]);
+	/** Saves what can be saved, then goes: never waiting more than `LEAVE_WAIT_MS`, never stopped by a failure. */
+	const leave = useCallback((then: () => void) => {
+		const saved = latest.current.leaving().catch(() => {});
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const waited = new Promise<void>((resolve) => {
+			timer = setTimeout(resolve, LEAVE_WAIT_MS);
+		});
+		void Promise.race([saved, waited]).then(() => {
+			clearTimeout(timer);
+			then();
+		});
+	}, []);
+
+	useEffect(
+		() =>
+			documents.subscribe((next, change) => {
+				if (change === "pop") popped.current = true;
+				setAddress(next);
+			}),
+		[documents],
+	);
 
 	// Something changed what the page shows (a place published a Loop it lists): the frame reads the
 	// same page again, as a load the shell asked for, so the document, the place and history stay.
@@ -131,6 +168,8 @@ export function useOpenDocument(config: ShellConfig, announce: (text: string) =>
 			if (found.status === "shown") {
 				// The frame loads it, unless it shows it already (and then nothing loads).
 				asked.current = found.frame === lastFramed.current ? null : found.frame;
+				// Shown already (put back by Back or Forward): nothing is left to load for it.
+				if (asked.current === null) popped.current = false;
 				// An Entry template previews an Entry: the address names it, so a reload shows the same one.
 				if (document.kind === "entryTemplate" && document.entryId === null && found.entryId) {
 					documents.replace({ ...document, entryId: found.entryId });
@@ -176,15 +215,20 @@ export function useOpenDocument(config: ShellConfig, announce: (text: string) =>
 	const open = useCallback(
 		(document: BuildingDocument) => {
 			if (sameDocument(latest.current.address.document, document)) return;
-			documents.open(document, cameFrom());
+			const from = cameFrom();
+			leave(() => documents.open(document, from));
 		},
-		[documents, cameFrom],
+		[documents, cameFrom, leave],
 	);
 
 	const framed = useCallback(
 		(frameAddress: string, state: Promise<EditAnswer<unknown>>) => {
-			// A load the shell asked for (perhaps redirected on the way), or one the page made itself.
-			const ours = asked.current !== null;
+			// A load the shell asked for (perhaps redirected on the way), or one the page made itself. The
+			// page the open document is shown on, loaded again (by a redraw, the browser's own Back), is
+			// never the page going somewhere by itself (BA-34).
+			const now = latest.current.shown;
+			const ours = asked.current !== null || popped.current || (now?.status === "shown" && now.frame === frameAddress);
+			popped.current = false;
 			asked.current = null;
 			lastFramed.current = frameAddress;
 			const standIn = frameAddress.startsWith(`${BUILDING_STAND_IN_PREFIX}/`);
@@ -233,11 +277,12 @@ export function useOpenDocument(config: ShellConfig, announce: (text: string) =>
 				return true;
 			}
 			const went = readAddress(`/_webcraft/build/page${url.pathname}`, url.search);
-			if (went.document?.kind !== "page") return false;
-			documents.open(went.document, null);
+			const document = went.document;
+			if (document?.kind !== "page") return false;
+			leave(() => documents.open(document, null));
 			return true;
 		},
-		[documents],
+		[documents, leave],
 	);
 
 	// Announced as each document opens (pages say their title once Edit mode has described them).
@@ -254,7 +299,8 @@ export function useOpenDocument(config: ShellConfig, announce: (text: string) =>
 
 	const document = address.document;
 	const from = documents.cameFrom();
-	const back = from && document?.kind !== "page" ? { title: from.title, onBack: () => documents.back() } : null;
+	const back =
+		from && document?.kind !== "page" ? { title: from.title, onBack: () => leave(() => documents.back()) } : null;
 
 	let preview: OpenDocument["preview"] = null;
 	if (document?.kind === "entryTemplate") {
@@ -266,7 +312,7 @@ export function useOpenDocument(config: ShellConfig, announce: (text: string) =>
 		preview = {
 			entries,
 			current: document.entryId ?? (shown?.status === "shown" ? shown.entryId : null),
-			onChoose: (entry) => documents.replace({ ...document, entryId: entry.id }),
+			onChoose: (entry) => leave(() => documents.replace({ ...document, entryId: entry.id })),
 		};
 	}
 

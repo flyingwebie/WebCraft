@@ -12,12 +12,14 @@ import { PageHeader } from "../../ui/PageHeader.tsx";
  * the Site's own address (`editMode.open` with `building`), then follows it, so every admin screen
  * that opens the building area is a plain link here. `open` names the document (`/page/<path>`, the
  * home page unless given) and `returnTo` the admin path its logo tile goes back to (this Site's page
- * unless given); the server checks both.
+ * unless given); the server checks both. `filter` (a Filter's id, from the Filters screen) opens it
+ * with the element placing that Filter selected (BA-34).
  */
 export const Route = createFileRoute("/_admin/sites/$siteId/build")({
 	validateSearch: z.object({
 		open: z.string().max(4000).optional().catch(undefined),
 		returnTo: z.string().max(2000).optional().catch(undefined),
+		filter: z.uuid().optional().catch(undefined),
 	}),
 	head: ({ match }) => ({ meta: [{ title: pageTitle(match.context.shell.language.code, "buildingArea.pageTitle") }] }),
 	component: OpenBuildingArea,
@@ -26,17 +28,19 @@ export const Route = createFileRoute("/_admin/sites/$siteId/build")({
 function OpenBuildingArea() {
 	const t = useT();
 	const { siteId } = Route.useParams();
-	const { open, returnTo } = Route.useSearch();
+	const { open, returnTo, filter } = Route.useSearch();
 	const [problem, setProblem] = useState<string | null>(null);
 	useEffect(() => {
 		let cancelled = false;
 		(async () => {
 			try {
 				const api = await getApi();
+				// The Filter to select is the shell's own parameter, after the document (a Template or Component).
+				const opening = open && filter ? `${open}${open.includes("?") ? "&" : "?"}wc-filter=${filter}` : open;
 				const { url } = await api.editMode.open({
 					siteId,
 					building: true,
-					...(open ? { open } : {}),
+					...(opening ? { open: opening } : {}),
 					returnTo: returnTo ?? `/sites/${siteId}`,
 				});
 				if (!cancelled) window.location.replace(url);
@@ -47,7 +51,7 @@ function OpenBuildingArea() {
 		return () => {
 			cancelled = true;
 		};
-	}, [siteId, open, returnTo, t]);
+	}, [siteId, open, returnTo, filter, t]);
 	return (
 		<div className="grid gap-4">
 			<PageHeader heading={t("buildingArea.pageTitle")} />

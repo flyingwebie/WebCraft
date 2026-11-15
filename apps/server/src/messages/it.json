@@ -6457,7 +6457,7 @@
 			"placedHelp": "La pagina intorno al Filtro è del Template: aprilo nel visual builder per sistemarla, con il Filtro selezionato.",
 			"notPlaced": "Non ancora inserito. Inseriscilo in un Template o Componente accanto al suo Loop con",
 			"toTemplates": "Vai ai Template",
-			"openInBuilder": "Apri {place} nel visual builder",
+			"openInBuilder": "Apri {place} nell'area di costruzione",
 			"apart": "I controlli si possono anche inserire uno per uno in qualsiasi punto della pagina, come la casella di ricerca nell'intestazione: le impostazioni di ogni controllo ne mostrano il markup.",
 			"title": "Layout",
 			"intro": "Come i controlli del filtro stanno accanto al suo loop, e sui telefoni."
@@ -9546,6 +9546,14 @@
 			"others": {
 				"one": "{count} altra Bozza su questo sito",
 				"other": "{count} altre Bozze su questo sito"
+			},
+			"popup": {
+				"row": "Popup · {name}",
+				"changed": "modificato, non ancora online",
+				"unchanged": "come pubblicato",
+				"note": "Questo Componente è il layout del Popup. Va online con il Popup e le sue impostazioni (Trigger, regole di visualizzazione e layout): rivedile, poi pubblica il Popup.",
+				"review": "Rivedi e pubblica il Popup",
+				"reviewName": "Rivedi e pubblica il Popup nell'admin (si apre in una nuova scheda)"
 			},
 			"publishAll": "Pubblica tutto",
 			"publishAllName": "Pubblica tutto nell'amministrazione (si apre in una nuova scheda)",

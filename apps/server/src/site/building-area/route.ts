@@ -3,6 +3,7 @@ import {
 	BUILDING_AREA_PAGE_PATH,
 	BUILDING_AREA_PATH,
 	BUILDING_AREA_STAND_IN_PATH,
+	BUILDING_FILTER_PARAMETER,
 	can,
 	type InstallServices,
 	parseBuildingDocument,
@@ -154,8 +155,11 @@ function fromAnotherSitesPage(request: Request): boolean {
 	return request.headers.get("sec-fetch-mode") !== "navigate" || request.headers.get("sec-fetch-dest") !== "document";
 }
 
-/** The shell's own parameters, which belong to no document: the open place, its view and the selection. */
-const SHELL_PARAMETERS = ["wc-place", "wc-view", "wc-select"];
+/**
+ * The shell's own parameters, which belong to no document: the open place, its view, the selection,
+ * and a Filter to select (BA-34).
+ */
+const SHELL_PARAMETERS = ["wc-place", "wc-view", "wc-select", BUILDING_FILTER_PARAMETER];
 
 /**
  * The document part of a shell address (after `/_webcraft/build`, with the document's own query, the

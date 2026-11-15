@@ -10,10 +10,15 @@
  * - The shell's own parameters follow: `wc-place` (`content/pages`, `media/<folder>`, …), `wc-view`
  *   (how the open place shows its list: its search, filters and sorting, as the place reads it) and
  *   `wc-select` (what is selected). They carry a prefix so they never clash with a page's own query.
+ *   `wc-filter` (a Filter's id, from the admin's Filters screen) asks for the element placing that
+ *   Filter to be selected once the page shows it; the selection then takes its place (BA-34).
  * - Opening a document or a place adds a history entry; selecting replaces the current one.
+ * - Each document remembers what was selected in it for the shell's life, so switching to another
+ *   document and coming back (from the switcher, "Back to {page}", Back) selects it again (BA-34).
  */
 import {
 	BUILDING_AREA_PATH,
+	BUILDING_FILTER_PARAMETER,
 	type BuildingDocument,
 	parseBuildingDocument,
 	printBuildingDocument,
@@ -30,6 +35,9 @@ export const PLACE_PARAMETER = "wc-place";
 /** The shell's parameter for what is selected. */
 export const SELECT_PARAMETER = "wc-select";
 
+/** The shell's parameter for a Filter whose element is to be selected (BA-34): read once, then the selection. */
+export const FILTER_PARAMETER = BUILDING_FILTER_PARAMETER;
+
 /**
  * The shell's parameter for the open place's view: its search, filters and sorting, a query string
  * the place reads and prints (`places/content/view.ts`). It goes with the place: no place, no view.
@@ -41,16 +49,19 @@ const VIEW_MAX_LENGTH = 500;
 
 /**
  * Everything a shell address says: the document (null when it names none), the place, the place's
- * view (null for its default view), the selection.
+ * view (null for its default view), the selection, and a Filter whose element is to be selected.
  */
 export type ShellAddress = {
 	document: BuildingDocument | null;
 	place: string | null;
 	view?: string | null;
 	select: string | null;
+	filter?: string | null;
 };
 
 const ID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+
+const FILTER_ID = new RegExp(`^${ID}$`);
 
 /**
  * The places (plan 1.4): Content (Pages, a Post Type's Entries, Fields or Settings, Post Types, the
@@ -82,11 +93,13 @@ export function readAddress(pathname: string, search: string): ShellAddress {
 	const place = params.get(PLACE_PARAMETER);
 	const view = params.get(VIEW_PARAMETER);
 	const select = params.get(SELECT_PARAMETER);
+	const filter = params.get(FILTER_PARAMETER);
 	let documentSearch = search;
-	if (place !== null || view !== null || select !== null) {
+	if (place !== null || view !== null || select !== null || filter !== null) {
 		params.delete(PLACE_PARAMETER);
 		params.delete(VIEW_PARAMETER);
 		params.delete(SELECT_PARAMETER);
+		params.delete(FILTER_PARAMETER);
 		documentSearch = params.size ? `?${params.toString()}` : "";
 	}
 	const placed = place !== null && isPlace(place) ? place : null;
@@ -96,11 +109,14 @@ export function readAddress(pathname: string, search: string): ShellAddress {
 		: null;
 	// The view only when there is one: an address with none reads as it did before views.
 	const viewed = placed !== null && view !== null && isView(view) ? view : null;
+	// A Filter to select, likewise only when there is one.
+	const filtered = filter !== null && FILTER_ID.test(filter) ? filter : null;
 	return {
 		document,
 		place: placed,
 		...(viewed ? { view: viewed } : {}),
 		select: select !== null && isCodeSelection(select) ? select : null,
+		...(filtered ? { filter: filtered } : {}),
 	};
 }
 
@@ -111,6 +127,7 @@ export function printAddress(address: ShellAddress): string {
 	if (address.place) extra.set(PLACE_PARAMETER, address.place);
 	if (address.place && address.view) extra.set(VIEW_PARAMETER, address.view);
 	if (address.select) extra.set(SELECT_PARAMETER, address.select);
+	if (address.filter) extra.set(FILTER_PARAMETER, address.filter);
 	const joined = extra.size ? `${document.includes("?") ? "&" : "?"}${extra.toString()}` : "";
 	return `${BUILDING_AREA_PATH.slice(0, -1)}${document}${joined}`;
 }
@@ -123,8 +140,12 @@ function isView(view: string): boolean {
 /** Whether two documents are the same one (an Entry template previewing another Entry is the same document). */
 export function sameDocument(a: BuildingDocument | null, b: BuildingDocument | null): boolean {
 	if (!a || !b) return a === b;
-	if (a.kind === "entryTemplate" && b.kind === "entryTemplate") return a.postTypeId === b.postTypeId;
-	return printBuildingDocument(a) === printBuildingDocument(b);
+	return documentKey(a) === documentKey(b);
+}
+
+/** What tells one document from another: its address, an Entry template's without the Entry it previews. */
+export function documentKey(document: BuildingDocument): string {
+	return document.kind === "entryTemplate" ? `/entry-template/${document.postTypeId}` : printBuildingDocument(document);
 }
 
 /** The stand-in's address for a Template or Component that no page shows. */
@@ -167,8 +188,13 @@ export type Documents = {
 	 * view before, or in place (`replace`, as typing in a search does).
 	 */
 	setView(view: string | null, how?: "push" | "replace"): void;
-	/** Says what is selected (null: nothing), in place: a selection is never a history entry. */
+	/**
+	 * Says what is selected (null: nothing), in place: a selection is never a history entry. The open
+	 * document remembers it, and a Filter the address asked to select is done with.
+	 */
 	select(ref: string | null): void;
+	/** What was last selected in a document in this tab, if anything. */
+	remembered(document: BuildingDocument): string | null;
 	/** Goes back to where the open document was opened from: Back, when that is the entry before. */
 	back(): void;
 	/** Calls `listener` whenever the address changes, with why. */
@@ -179,6 +205,14 @@ export type Documents = {
 export function shellDocuments(win: Window = window): Documents {
 	const listeners = new Set<(address: ShellAddress, change: AddressChange) => void>();
 	const read = () => readAddress(win.location.pathname, win.location.search);
+	// What was selected in each document opened in this tab, by `documentKey`.
+	const selected = new Map<string, string>();
+	const remember = (address: ShellAddress) => {
+		if (!address.document) return;
+		if (address.select) selected.set(documentKey(address.document), address.select);
+		else selected.delete(documentKey(address.document));
+	};
+	const recall = (document: BuildingDocument) => selected.get(documentKey(document)) ?? null;
 	const stateOf = (): EntryState | null => {
 		const state = win.history.state as Partial<EntryState> | null;
 		return state?.webcraftBuilding ? (state as EntryState) : null;
@@ -199,7 +233,7 @@ export function shellDocuments(win: Window = window): Documents {
 		current: read,
 		cameFrom: () => stateOf()?.from ?? null,
 		open(document, from = null) {
-			write({ document, place: null, view: null, select: null }, "push", from, from !== null);
+			write({ document, place: null, view: null, select: recall(document) }, "push", from, from !== null);
 		},
 		replace(document, place) {
 			const now = read();
@@ -210,6 +244,7 @@ export function shellDocuments(win: Window = window): Documents {
 					place: place ?? (keep ? now.place : null),
 					view: !place && keep ? (now.view ?? null) : null,
 					select: keep ? now.select : null,
+					filter: keep ? (now.filter ?? null) : null,
 				},
 				"replace",
 				keep ? (stateOf()?.from ?? null) : null,
@@ -235,24 +270,26 @@ export function shellDocuments(win: Window = window): Documents {
 		},
 		select(ref) {
 			const now = read();
-			if (now.select === ref) return;
-			const next = printAddress({ ...now, select: ref });
-			// Not a history entry, and nothing to tell: the selection is already on screen.
+			// Nothing selected yet while a Filter waits to be: the Filter stays asked for.
+			if (now.select === ref && (!now.filter || ref === null)) return;
+			remember({ ...now, select: ref });
+			const next = printAddress({ ...now, select: ref, filter: null });
+			// Not a history entry, and nothing to tell: the selection is already on screen (but a Filter
+			// the address asked for is done with, which those following the address learn).
 			win.history.replaceState(stateOf() ?? { webcraftBuilding: true, from: null, previous: false }, "", next);
+			if (now.filter) tell("replace");
 		},
 		back() {
 			const state = stateOf();
 			if (!state?.from) return;
 			// The page it was opened from is the entry before: Back, which keeps Forward to the document.
 			if (state.previous) win.history.back();
-			else
-				write(
-					{ document: { kind: "page", page: state.from.page }, place: null, view: null, select: null },
-					"push",
-					null,
-					false,
-				);
+			else {
+				const page: BuildingDocument = { kind: "page", page: state.from.page };
+				write({ document: page, place: null, view: null, select: recall(page) }, "push", null, false);
+			}
 		},
+		remembered: recall,
 		subscribe(listener) {
 			listeners.add(listener);
 			return () => listeners.delete(listener);

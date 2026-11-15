@@ -70,6 +70,22 @@ describe("shell addresses", () => {
 		});
 	});
 
+	test("carry a Filter to select after a Template, beside the selection, and drop one that isn't an id (BA-34)", () => {
+		const address = `/_webcraft/build/archive-template/${POST_TYPE}?wc-filter=${ENTRY}`;
+		expect(read(address)).toEqual({
+			document: { kind: "archiveTemplate", postTypeId: POST_TYPE },
+			place: null,
+			select: null,
+			filter: ENTRY,
+		});
+		expect(printAddress(read(address))).toBe(address);
+		expect(read("/_webcraft/build/page/shop?q=bun&wc-filter=nope")).toEqual({
+			document: { kind: "page", page: "/shop?q=bun" },
+			place: null,
+			select: null,
+		});
+	});
+
 	test("know the places", () => {
 		for (const place of [
 			"content/pages",

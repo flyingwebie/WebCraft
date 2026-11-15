@@ -11,7 +11,7 @@ import type { FilterPlacement, FilterVersion } from "./model.ts";
 /**
  * The Layout tab: the layout preset (a sidebar, a top bar of dropdowns, or a drawer opened by a
  * "Filters" button), what it becomes on phones, and where the Filter is placed, each place opened in
- * the visual builder with the Filter selected there. A preset changes only WebCraft's own markup and
+ * the building area with the Filter selected there. A preset changes only WebCraft's own markup and
  * classes, which the Design system styles: the page around it is the Template's.
  */
 export function LayoutTab({
@@ -101,9 +101,13 @@ export function LayoutTab({
 							>
 								<span className="text-sm">{placementName(t, placement)}</span>
 								<Link
-									to="/builder/$siteId/$"
-									params={{ siteId, _splat: builderPath(placement) }}
-									search={{ filter: filterId }}
+									to="/sites/$siteId/build"
+									params={{ siteId }}
+									search={{
+										open: `/${builderPath(placement)}`,
+										filter: filterId,
+										returnTo: `/sites/${siteId}/filters/${filterId}?tab=layout`,
+									}}
 									className="focus-visible:ring-ring/50 inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium outline-none focus-visible:ring-3"
 								>
 									<PencilRulerIcon className="size-4" aria-hidden="true" />
