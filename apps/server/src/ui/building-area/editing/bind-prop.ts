@@ -1,9 +1,8 @@
 import type { FieldDefinition } from "@webcraft/core";
 import { FIELD_KEY } from "@webcraft/core/field-rules";
 import type { ElementNode, TreeNode } from "@webcraft/renderer/builder";
-
-import { nodeAt, pathOfId, replaceAt } from "../../editor/tree.ts";
 import { keyFromLabel, newField } from "../../content/field-drafts.ts";
+import { nodeAt, pathOfId, replaceAt } from "../../editor/tree.ts";
 import { fill, type Words } from "../api.ts";
 import type { Structure, StructureSource } from "./selection.ts";
 
