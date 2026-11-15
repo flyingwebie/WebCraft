@@ -109,17 +109,36 @@ async function drafts(wanted: Partial<Awaited<ReturnType<typeof read>>>): Promis
 	expect(seen).toEqual(wanted);
 }
 
-/** Waits until the frame shows `path` with its regions editable. */
+/** The title of each page this file opens, as the shell names it once it has read the page's state. */
+const TITLES: Record<string, string> = { "/blog/fresh-bread": "Fresh bread", "/blog/rye-loaf": "Rye loaf" };
+
+/**
+ * Waits until the frame shows `path` with its regions editable, and the shell has read the page's
+ * state (the page switcher names it): a step typed before that knows no page title to say "on" with.
+ */
 async function framedAt(page: Page, path: string): Promise<Frame> {
-	for (let attempt = 0; attempt < 100; attempt++) {
+	for (let attempt = 0; attempt < 300; attempt++) {
 		const frame = await frameOf(page);
 		if (new URL(frame.url()).pathname === path) {
 			await frame.locator("[data-wc-item][contenteditable]").first().waitFor();
+			await named(page, path);
 			return frame;
 		}
 		await page.waitForTimeout(50);
 	}
 	throw new Error(`The frame never showed ${path}.`);
+}
+
+/** Waits until the shell's page switcher names the page at `path` (its state has been read). */
+async function named(page: Page, path: string): Promise<void> {
+	const title = TITLES[path];
+	if (!title) return;
+	await page.waitForFunction(
+		(title) =>
+			document.querySelector("[data-wc-page-switcher]")?.getAttribute("aria-label")?.startsWith(`${title}:`) === true,
+		title,
+		{ timeout: 15000 },
+	);
 }
 
 /** Opens another page of the Site in the shell, as following its link does in a Member's Preview (no reload). */
@@ -193,6 +212,7 @@ describe("the Undo history, for a Member", () => {
 		page = await install.newPage("light");
 		await page.setViewportSize({ width: 1440, height: 900 });
 		frame = await enterBuildingArea(install, page, { as: editor, siteId, slug, open: "/page/blog/fresh-bread" });
+		await named(page, "/blog/fresh-bread");
 	});
 
 	afterAll(async () => {
