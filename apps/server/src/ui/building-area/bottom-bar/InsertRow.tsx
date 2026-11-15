@@ -16,10 +16,11 @@ import {
 	SquareDashedIcon,
 } from "lucide-react";
 import type { KeyboardEvent, MouseEvent, PointerEvent } from "react";
-import { useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { ariaKeys, shortcutText } from "../../builder/shortcuts.ts";
 import type { Words } from "../api.ts";
+import type { DropDetail } from "../canvas/Frame.tsx";
 import type { MenuRequest } from "../command-menu/state.ts";
 import { CHROME_EASE, FOCUS_RING, type Icon, Tip } from "../controls.tsx";
 import { type Inserter, type InsertKind, ROW_ELEMENTS } from "../editing/insert.ts";
@@ -85,6 +86,16 @@ export function InsertRow({
 	const items = words.insert.items;
 	// The landing line follows the store; the row itself needs nothing from it.
 	useSyncExternalStore(inserter.subscribe, inserter.current);
+	// A row's button dragged onto the page inserts there, and the selection's chip dragged moves it (BA-33).
+	useEffect(() => {
+		const onDrop = (event: Event) => {
+			const { source, target, fraction } = (event as CustomEvent<DropDetail>).detail;
+			if (source !== "move" && !source.startsWith("insert:")) return;
+			void inserter.dropAt(source, target?.getAttribute("data-wc-code") ?? null, fraction);
+		};
+		document.addEventListener("webcraft:drop", onDrop);
+		return () => document.removeEventListener("webcraft:drop", onDrop);
+	}, [inserter]);
 	const kinds: (InsertKind | "more")[] = [
 		...(template ? (["outlet"] as const) : []),
 		...ROW_ELEMENTS,
@@ -163,6 +174,8 @@ export function InsertRow({
 					TINTS[kind] ?? "text-chrome-text hover:bg-chrome-hover hover:text-chrome-strong"
 				} ${CHROME_EASE} ${FOCUS_RING}`}
 				data-wc-insert={kind}
+				// The plain elements and Section can be dragged onto the page, where they land (BA-33).
+				data-wc-drag={(ROW_ELEMENTS as readonly string[]).includes(kind) ? `insert:${kind}` : undefined}
 			>
 				<Glyph aria-hidden="true" className="size-4" />
 				<Tip label={label} keys={more ? shortcutText("menu.insert") : undefined} side="top" />

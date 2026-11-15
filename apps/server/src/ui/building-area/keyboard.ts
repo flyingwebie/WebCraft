@@ -25,6 +25,27 @@ export function regionCycle(options: {
 
 	const regionElement = (name: BuildingRegion) => doc.querySelector<HTMLElement>(`[data-building-region="${name}"]`);
 
+	// Each region remembers where focus last was in it (BA-33, "deep memory"): F6 goes back there.
+	const memory = new Map<BuildingRegion, HTMLElement>();
+	doc.addEventListener("focusin", (event) => {
+		const target = event.target;
+		if (!(target instanceof HTMLElement) || target instanceof HTMLIFrameElement) return;
+		const name = target.closest<HTMLElement>("[data-building-region]")?.dataset.buildingRegion;
+		const region = ORDER.find((each) => each === name);
+		if (region && region !== "canvas") memory.set(region, target);
+	});
+	/** The element focus was last on in a region, while it can still take focus there. */
+	const remembered = (name: BuildingRegion, region: HTMLElement): HTMLElement | null => {
+		const element = memory.get(name);
+		return element?.isConnected &&
+			region.contains(element) &&
+			element.checkVisibility() &&
+			!element.closest("[inert]") &&
+			!(element as HTMLButtonElement).disabled
+			? element
+			: null;
+	};
+
 	const current = (): BuildingRegion | null => {
 		const active = doc.activeElement;
 		if (active instanceof HTMLIFrameElement) return "canvas";
@@ -47,6 +68,11 @@ export function regionCycle(options: {
 		}
 		const region = regionElement(name);
 		if (!region) return;
+		const last = remembered(name, region);
+		if (last) {
+			last.focus();
+			return;
+		}
 		const first = [
 			...region.querySelectorAll<HTMLElement>("a[href], button:not(:disabled), input, select, textarea, [tabindex]"),
 		].find((element) => element.tabIndex >= 0 && element.checkVisibility());
@@ -62,6 +88,8 @@ export function regionCycle(options: {
 		key(event, from) {
 			if (event.key !== "F6" || event.altKey || event.ctrlKey || event.metaKey) return false;
 			event.preventDefault();
+			// A modal dialog keeps focus: F6 moves nowhere while one is open (BA-33).
+			if (doc.querySelector("dialog[open]:modal")) return true;
 			const at = from ?? current();
 			const order = present();
 			const index = at ? order.indexOf(at) : -1;

@@ -51,6 +51,7 @@ export function CodeWell({
 	readOnly,
 	wrap,
 	data,
+	aria,
 }: {
 	ref?: Ref<HTMLTextAreaElement>;
 	language: CodeLanguage;
@@ -70,6 +71,8 @@ export function CodeWell({
 	readOnly?: boolean;
 	wrap?: boolean;
 	data?: Record<`data-${string}`, string>;
+	/** ARIA states of the box itself (the HTML pane's suggestions: the option active, the list it controls). */
+	aria?: Record<`aria-${string}`, string | undefined>;
 }) {
 	const area = useRef<HTMLTextAreaElement | null>(null);
 	const layer = useRef<HTMLDivElement>(null);
@@ -213,6 +216,7 @@ export function CodeWell({
 				onScroll={follow}
 				className={`caret-chrome-strong focus-visible:outline-chrome-focus selection:bg-selection/40 absolute inset-y-0 start-8 end-0 m-0 resize-none overflow-auto border-0 bg-transparent px-3 py-2 font-mono text-[12px] leading-5 text-transparent outline-none [-webkit-text-fill-color:transparent] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-solid ${wrapping}`}
 				{...data}
+				{...aria}
 			/>
 		</div>
 	);

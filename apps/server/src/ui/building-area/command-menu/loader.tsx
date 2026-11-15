@@ -2,6 +2,7 @@ import { type ComponentType, useEffect, useRef, useState } from "react";
 
 import { matches } from "../../builder/shortcuts.ts";
 import type { MenuHost } from "./host.ts";
+import { ShortcutsList, toggleShortcuts } from "./Shortcuts.tsx";
 import { COMMAND_MENU_EVENT, type MenuRequest, type MenuTab } from "./state.ts";
 
 /** The menu's own file, once fetched. */
@@ -40,6 +41,16 @@ export function useCommandMenu(options: { tabs: readonly MenuTab[]; announce(tex
 			// Caught first, on the window in the capture phase: the menu's keys win over what is focused
 			// (the code panes, a place's fields); text in the page keeps ⌘I through its agent.
 			if (event.isComposing) return;
+			// ⌘/ opens and closes the Keyboard shortcuts list (BA-33), unless another dialog is open.
+			if (matches(event, "menu.shortcuts")) {
+				const other = document.querySelector("dialog[open]:not([data-wc-shortcuts])");
+				if (other || document.querySelector("[data-wc-narrow]")) return;
+				event.preventDefault();
+				event.stopPropagation();
+				setRequest(null);
+				toggleShortcuts();
+				return;
+			}
 			// Another dialog keeps its own keys (the Media picker, a confirmation).
 			if (
 				event
@@ -96,5 +107,10 @@ export function CommandMenuHost({
 			},
 		);
 	}, [request, Menu, onRequest, failed]);
-	return Menu ? <Menu host={host} request={request} onRequest={onRequest} /> : null;
+	return (
+		<>
+			{Menu ? <Menu host={host} request={request} onRequest={onRequest} /> : null}
+			<ShortcutsList words={host.words} staff={Boolean(host.staff)} />
+		</>
+	);
 }
