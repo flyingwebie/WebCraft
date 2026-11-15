@@ -152,8 +152,11 @@ export type Documents = {
 	cameFrom(): CameFrom | null;
 	/** Opens a document as the next history entry, remembering the page it was opened from. */
 	open(document: BuildingDocument, from?: CameFrom | null): void;
-	/** Shows another version of the open document in place (an Entry template's Entry, a page's real address). */
-	replace(document: BuildingDocument): void;
+	/**
+	 * Shows another version of the open document in place (an Entry template's Entry, a page's real
+	 * address); with `place`, that place open over it (a Form's address opens the Forms place, BA-27).
+	 */
+	replace(document: BuildingDocument, place?: string): void;
 	/**
 	 * Opens a place over the document (null: closes it), as the next history entry, showing `view`
 	 * (its default view when none).
@@ -198,14 +201,14 @@ export function shellDocuments(win: Window = window): Documents {
 		open(document, from = null) {
 			write({ document, place: null, view: null, select: null }, "push", from, from !== null);
 		},
-		replace(document) {
+		replace(document, place) {
 			const now = read();
 			const keep = sameDocument(now.document, document);
 			write(
 				{
 					document,
-					place: keep ? now.place : null,
-					view: keep ? (now.view ?? null) : null,
+					place: place ?? (keep ? now.place : null),
+					view: !place && keep ? (now.view ?? null) : null,
 					select: keep ? now.select : null,
 				},
 				"replace",

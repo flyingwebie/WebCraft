@@ -19,10 +19,14 @@ import { buttonLook } from "../content/ui.tsx";
 import { rememberPlace } from "../memory.ts";
 import { Place } from "../Place.tsx";
 import type { PlaceProps } from "../registry.ts";
+import { AfterSending } from "./after-sending/AfterSending.tsx";
 import { Build } from "./build-tab/Build.tsx";
 import { type FormListing, useFormsList, useOpenedForm } from "./data.ts";
 import { useFormEditor } from "./editor.ts";
+import { Emails } from "./emails/Emails.tsx";
 import { NewFormDialog } from "./NewFormDialog.tsx";
+import { Settings } from "./settings/Settings.tsx";
+import { Translations } from "./translations/Translations.tsx";
 import { FORM_TABS, type FormTab, formsAt, formsPlace, printBuildView, readBuildView } from "./view.ts";
 
 /** Each tab's icon (SPEC 8: tabs that are sections of a place carry an icon and a word). */
@@ -32,14 +36,6 @@ const TAB_ICONS: Record<FormTab, Icon> = {
 	emails: MailIcon,
 	translations: LanguagesIcon,
 	settings: SlidersHorizontalIcon,
-};
-
-/** Where the admin's Form page has what a later tab of the place will (BA-27). */
-const ADMIN_TABS: Record<Exclude<FormTab, "build">, string> = {
-	"after-sending": "settings",
-	emails: "emails",
-	translations: "translations",
-	settings: "settings",
 };
 
 /** "Placed in 2 places", in the person's language. */
@@ -54,10 +50,10 @@ function placedText(words: Words, count: number, language: string): string {
 /**
  * The Forms place (BA-26; SPEC 15.2, `forms-builder/01` to `03` and `06`), behind the rail's "more":
  * the Site's Forms in the inner sidebar (each Draft or Published, and where it is placed), New Form,
- * and the open Form's tabs with icons (Build · After sending · Emails · Translations · Settings). The
- * Build tab is here; the others come with a later part of the building area and link to the admin's
- * Form page meanwhile. The header holds Try it and the Form's Draft state; Publish on the bottom bar
- * publishes its fields. Forms are Structure: the place is Staff's.
+ * and the open Form's tabs with icons (Build · After sending · Emails · Translations · Settings; the
+ * last four BA-27's). The header holds the Form's Draft state (and Try it on Build); Publish on the
+ * bottom bar publishes its fields, and the Emails tab publishes its emails apart. Forms are
+ * Structure: the place is Staff's.
  */
 export function FormsPlace(props: PlaceProps) {
 	const { config, words, place, view, documents, leave, announce, onSaving, onBar } = props;
@@ -168,10 +164,10 @@ export function FormsPlace(props: PlaceProps) {
 			</div>
 		) : null;
 
-	const header =
-		editor && at.tab === "build" ? (
-			<div className="flex items-center gap-3">
-				{trying ? <span className="text-chrome-muted text-[12px]">{shown.tryIt.help}</span> : null}
+	const header = editor ? (
+		<div className="flex items-center gap-3">
+			{at.tab === "build" && trying ? <span className="text-chrome-muted text-[12px]">{shown.tryIt.help}</span> : null}
+			{at.tab === "build" ? (
 				<span className="flex items-center gap-2">
 					<span id={`${tabsId}-try`} className="text-chrome-strong text-[12px] font-medium">
 						{shown.tryIt.label}
@@ -196,13 +192,14 @@ export function FormsPlace(props: PlaceProps) {
 						/>
 					</button>
 				</span>
-				<DraftStateCell
-					state={draftStateOf(editor.saving, { changes: editor.changes, inReview: false })}
-					words={words}
-					language={config.language}
-				/>
-			</div>
-		) : null;
+			) : null}
+			<DraftStateCell
+				state={draftStateOf(editor.saving, { changes: editor.changes, inReview: false })}
+				words={words}
+				language={config.language}
+			/>
+		</div>
+	) : null;
 
 	let body: ReactNode;
 	if (!staff || forbidden) {
@@ -249,22 +246,41 @@ export function FormsPlace(props: PlaceProps) {
 					/>
 				</IntlProvider>
 			);
-		else
+		else if (at.tab === "after-sending")
+			content = <AfterSending config={config} words={words} editor={editor} formId={formId} />;
+		else if (at.tab === "translations")
 			content = (
-				<div className="grid grow place-items-center p-8" data-wc-place-later="">
-					<div className="flex max-w-md flex-col items-center gap-2 text-center">
-						<h2 className="text-chrome-strong m-0 text-[14px] font-semibold">{words.place.laterTitle}</h2>
-						<p className="text-chrome-muted m-0 text-[12px]">{shown.laterText}</p>
-						<a
-							href={`${config.admin}/forms/${formId}?tab=${ADMIN_TABS[at.tab]}`}
-							target="_blank"
-							rel="noopener noreferrer"
-							className={`text-chrome-accent rounded-sm text-[12px] font-medium underline-offset-2 hover:underline ${FOCUS_RING}`}
-						>
-							{shown.openInAdmin}
-						</a>
-					</div>
-				</div>
+				<Translations config={config} words={words} editor={editor} api={api} announce={announce} onTaken={takeForm} />
+			);
+		else if (at.tab === "emails" && opened.form)
+			content = (
+				<Emails
+					key={formId}
+					config={config}
+					words={words}
+					api={api}
+					form={opened.form.form}
+					fields={editor.version.fields}
+					announce={announce}
+					onTaken={takeForm}
+				/>
+			);
+		else if (at.tab === "settings" && opened.form)
+			content = (
+				<Settings
+					key={formId}
+					config={config}
+					words={words}
+					editor={editor}
+					api={api}
+					form={opened.form.form}
+					listing={listing}
+					announce={announce}
+					onRenamed={(form) => {
+						takeForm(form);
+						void reload();
+					}}
+				/>
 			);
 		body = (
 			<div className="flex min-h-0 grow flex-col gap-2.5">

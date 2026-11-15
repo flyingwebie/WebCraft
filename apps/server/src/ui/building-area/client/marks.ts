@@ -1,6 +1,7 @@
 import { BODY_REGION, LINK_REGION, PHOTO_REGION, TEXT_REGION } from "../agent/contract.ts";
 import { fill, type PageState, type Words } from "../api.ts";
 import { nameOf, type Overlay, type OverlayMark } from "../canvas/overlay.ts";
+import { formIdOf, formNameOf, onFormNames, PLACED_FORM, placedFormOf } from "../canvas/placed-form.ts";
 import type { RegionSaving } from "../canvas/regions.ts";
 import type { PageEditing } from "../editing/editing.ts";
 import type { RegionPopovers } from "./popovers.ts";
@@ -84,6 +85,8 @@ export function clientEditing(options: {
 	popovers: RegionPopovers;
 	/** The body whose Blocks are being written now (BA-18), drawn as being edited with its chip. */
 	bodies?: { editing(): HTMLElement | null };
+	/** A placed Form was clicked, or Enter pressed on it (BA-27): it is locked; this says why and links to its Submissions. */
+	onForm?(form: HTMLFormElement): void;
 }): ClientEditing {
 	const { inner, words, announce, popovers } = options;
 	const said = words.client.marks;
@@ -123,6 +126,9 @@ export function clientEditing(options: {
 	const lockedOf = (target: EventTarget | null): Element | null => {
 		const win = view();
 		if (!win || !(target instanceof win.Element)) return null;
+		// A Form the agency built is locked as one thing (BA-27).
+		const form = placedFormOf(target);
+		if (form) return form;
 		const part = target.closest(LOCKED);
 		// An Entry's own header or footer (inside the content) is the page's, not the Site's.
 		return part && !part.closest("main, article") ? part : null;
@@ -173,12 +179,24 @@ export function clientEditing(options: {
 		region.focus({ preventScroll: true });
 		arming = false;
 		region.scrollIntoView({ block: "nearest", inline: "nearest" });
-		arm(region, true);
+		// A placed Form says itself what it is (its name: locked, Enter for its Submissions).
+		arm(region, !region.matches(PLACED_FORM));
+	};
+
+	/** What Tab stops on: the marked areas and the placed Forms (locked, BA-27), in the page's order. */
+	const tabStops = (): HTMLElement[] => {
+		const forms = doc
+			? [...doc.querySelectorAll<HTMLElement>(PLACED_FORM)].filter((each) => each.getClientRects().length > 0)
+			: [];
+		if (forms.length === 0) return marked();
+		return [...marked(), ...forms].sort((a, b) =>
+			a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
+		);
 	};
 
 	/** The next marked area after (or before) where focus is in the page, in the page's order. */
 	const nextFrom = (from: Element, back: boolean): HTMLElement | null => {
-		const all = marked();
+		const all = tabStops();
 		const at = all.indexOf(from as HTMLElement);
 		if (at >= 0) return all[at + (back ? -1 : 1)] ?? null;
 		const following = (each: Element) => Boolean(from.compareDocumentPosition(each) & Node.DOCUMENT_POSITION_FOLLOWING);
@@ -214,6 +232,13 @@ export function clientEditing(options: {
 			return;
 		}
 		for (const [element] of prepared) if (!element.isConnected) prepared.delete(element);
+		// A placed Form is locked: reached with Tab as one thing that says so, Enter opening its popover.
+		for (const form of doc.querySelectorAll<HTMLElement>(PLACED_FORM)) {
+			const name = formNameOf(formIdOf(form)) ?? words.forms.onPage.unnamed;
+			set(form, "tabindex", "0");
+			set(form, "aria-haspopup", "dialog");
+			set(form, "aria-label", fill(words.forms.onPage.lockedRegion, { name }));
+		}
 		for (const region of doc.querySelectorAll<HTMLElement>(POPPED)) {
 			const name = labelOf(region);
 			set(region, "aria-haspopup", "dialog");
@@ -348,13 +373,20 @@ export function clientEditing(options: {
 			place(dot, { left: box.left - DOT_SIZE / 2, top: box.top - DOT_SIZE / 2, width: DOT_SIZE, height: DOT_SIZE });
 			dot.style.setProperty("background-color", CHANGED);
 		}
-		// Locked, under the pointer: a grey outline and the reason on a lock chip.
-		if (pointed && !pointed.matches(MARKED)) {
-			const box = outer(pointed);
+		// Locked, under the pointer (or a placed Form with focus): a grey outline and the reason on a lock chip.
+		const locked = pointed && !pointed.matches(MARKED) ? pointed : focused?.matches(PLACED_FORM) ? focused : null;
+		if (locked) {
+			const box = outer(locked);
 			if (box) {
 				outline("locked", box, "locked");
-				const name = pointed.matches("footer, [role='contentinfo']") ? said.footer : said.header;
-				chip(box, { icon: "lock", name, hint: said.sameEverywhere, colour: LOCK_CHIP, kind: "locked" });
+				if (locked.matches(PLACED_FORM)) {
+					const name = formNameOf(formIdOf(locked)) ?? words.forms.onPage.unnamed;
+					const hint = words.forms.onPage.locked;
+					chip(box, { icon: "lock", name, hint, colour: LOCK_CHIP, kind: "locked" });
+				} else {
+					const name = locked.matches("footer, [role='contentinfo']") ? said.footer : said.header;
+					chip(box, { icon: "lock", name, hint: said.sameEverywhere, colour: LOCK_CHIP, kind: "locked" });
+				}
 			}
 		}
 		// Under the pointer, with focus, being edited: solid, with the chip (unless a toolbar or a popover
@@ -450,6 +482,8 @@ export function clientEditing(options: {
 			layer.setAttribute("aria-hidden", "true");
 			canvas.append(layer);
 			stops.push(next.overlay.onDraw(draw));
+			// The placed Forms' chips and names, once their names are read (BA-27).
+			stops.push(onFormNames(redraw));
 			// The page editing asks the overlay for its marks: the dots are drawn here, on the outlines.
 			const overlay: Overlay = {
 				...next.overlay,
@@ -532,6 +566,14 @@ export function clientEditing(options: {
 					break;
 				}
 				case "click": {
+					// A placed Form is locked: a click says why, and never sends it (BA-27).
+					const win = view();
+					const form = win && event.target instanceof win.Element ? placedFormOf(event.target) : null;
+					if (form && options.onForm) {
+						armed = null;
+						options.onForm(form);
+						return true;
+					}
 					// A photo or a link opens its popover; the page's own scripts don't see the click.
 					const region = regionOf(event.target);
 					if (region && popovers.kindOf(region)) {
@@ -555,7 +597,7 @@ export function clientEditing(options: {
 				}
 				case "focusout": {
 					const region = regionOf(event.target);
-					if (region && region === armed) {
+					if ((region && region === armed) || (armed?.matches(PLACED_FORM) && event.target === armed)) {
 						armed = null;
 						redraw();
 					}
@@ -616,6 +658,13 @@ export function clientEditing(options: {
 			}
 			case " ":
 			case "Enter": {
+				// A placed Form with focus opens its popover (BA-27).
+				const win = view();
+				const form = win && key.target instanceof win.Element ? placedFormOf(key.target) : null;
+				if (form && form === key.target && options.onForm) {
+					options.onForm(form);
+					return true;
+				}
 				// A photo or a link with focus opens its popover (a photo also with Space, as a button).
 				if (region && popovers.kindOf(region) && (key.key === "Enter" || region.matches(PHOTO_REGION))) {
 					armed = null;

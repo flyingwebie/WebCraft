@@ -10,8 +10,9 @@ import type { PageLanguage } from "./bottom-bar/LanguageMenu.tsx";
 import { Frame, type FrameHandle, type PageTheme } from "./canvas/Frame.tsx";
 import { NoDocument } from "./canvas/NoDocument.tsx";
 import { tagName } from "./canvas/overlay.ts";
+import { chosenRefOf, readFormNames } from "./canvas/placed-form.ts";
 import type { SavingStatus } from "./canvas/regions.ts";
-import { DocumentSwitcher } from "./DocumentSwitcher.tsx";
+import { DocumentSwitcher, titleText } from "./DocumentSwitcher.tsx";
 import { DockArea, useDocks } from "./docks/Docks.tsx";
 import { PanelButton } from "./docks/PanelFrame.tsx";
 import { PanelsMenu } from "./docks/PanelsMenu.tsx";
@@ -24,11 +25,13 @@ import { pageLayoutEditor } from "./editing/page-layout.ts";
 import { refOf, type StructureSnapshot, structure } from "./editing/selection.ts";
 import { TextToolbar } from "./editing/TextToolbar.tsx";
 import { type RegionCycle, regionCycle } from "./keyboard.ts";
+import { managementApi } from "./management.ts";
 import { NarrowNotice } from "./NarrowNotice.tsx";
 import { useOpenDocument } from "./open-document.ts";
 import { AddPropButton, ComponentPanel } from "./panels/ComponentPanel.tsx";
 import { codePaneParts, useCodePanes } from "./panels/code-panes.tsx";
 import { EntryPanel, EntryPanelActions, useEntryPanelView } from "./panels/EntryFields.tsx";
+import { FormPanel, FormPanelHeading } from "./panels/FormPanel.tsx";
 import { Inspector } from "./panels/Inspector.tsx";
 import { Layers } from "./panels/Layers.tsx";
 import { conditionName, loopAround } from "./panels/LoopPanel.tsx";
@@ -335,6 +338,11 @@ export function Shell({ config }: { config: ShellConfig }) {
 	useEffect(() => {
 		if (!placeKey) setPlaceBar(null);
 	}, [placeKey]);
+	// A Form opened from the page it is placed on ("Edit this Form", BA-27): the bar says "Back to {page}".
+	const [formFrom, setFormFrom] = useState<string | null>(null);
+	useEffect(() => {
+		if (placeKey !== "forms") setFormFrom(null);
+	}, [placeKey]);
 	// The Command menu's way in and out of places (it comes with BA-10): `webcraft:place` on the shell's
 	// document, its detail the place to open (`{ place: "content" }`) or none to leave (`{ place: null }`).
 	useEffect(() => {
@@ -506,6 +514,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 		menus: codeParts?.menus,
 		wide: codePanes.wide,
 		headings: {
+			...(chosenNode?.type === "form" ? { inspector: <FormPanelHeading words={words} /> } : {}),
 			layers: (
 				<DocumentSwitcher
 					words={words}
@@ -546,26 +555,39 @@ export function Shell({ config }: { config: ShellConfig }) {
 				? {
 						layers: <Layers structure={pageStructure} words={words} layout={layoutEditor} />,
 						inspector: (
-							<Inspector
-								structure={pageStructure}
+							// A placed Form is one thing: its own panel (BA-27); anything else, the Inspector.
+							<FormPanel
+								config={config}
 								words={words}
-								token={config.token}
-								siteId={config.site.id}
-								layout={layoutEditor}
-								onOpenComponent={(componentId, source) => {
-									// Placed on this page: edited in place; else opened as the document.
-									const snapshot = pageStructure.snapshot();
-									const placed = snapshot.sources.get(source);
-									if (placed)
-										editInPlace({
-											source,
-											componentId,
-											name: placed.name ?? componentId,
-											placement: placementOfSource(snapshot, source),
-										});
-									else opened.open({ kind: "component", componentId });
+								structure={pageStructure}
+								announce={announce}
+								onEdit={(formId) => {
+									setFormFrom(opened.title.name || titleText(words, opened.title));
+									opened.documents.openPlace(`forms/${formId}`);
 								}}
-								onOpenLoop={(loopId) => opened.documents.openPlace(`loops/${loopId}`)}
+								fallback={
+									<Inspector
+										structure={pageStructure}
+										words={words}
+										token={config.token}
+										siteId={config.site.id}
+										layout={layoutEditor}
+										onOpenComponent={(componentId, source) => {
+											// Placed on this page: edited in place; else opened as the document.
+											const snapshot = pageStructure.snapshot();
+											const placed = snapshot.sources.get(source);
+											if (placed)
+												editInPlace({
+													source,
+													componentId,
+													name: placed.name ?? componentId,
+													placement: placementOfSource(snapshot, source),
+												});
+											else opened.open({ kind: "component", componentId });
+										}}
+										onOpenLoop={(loopId) => opened.documents.openPlace(`loops/${loopId}`)}
+									/>
+								}
 							/>
 						),
 						...(inPlaceTarget
@@ -629,7 +651,16 @@ export function Shell({ config }: { config: ShellConfig }) {
 				languages={place || inPlaceTarget ? [] : (shown?.languages ?? [])}
 				onLanguage={(language) => frame.current?.navigate(language.path)}
 				nav={
-					place ? null : (
+					place ? (
+						placeKey === "forms" && formFrom ? (
+							<DocumentNav
+								words={words}
+								back={{ title: formFrom, onBack: () => opened.documents.openPlace(null) }}
+								preview={null}
+								renderedBy={null}
+							/>
+						) : null
+					) : (
 						<DocumentNav words={words} back={opened.back} preview={opened.preview} renderedBy={opened.renderedBy} />
 					)
 				}
@@ -726,7 +757,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 								onSaving={onSaving}
 								onSelect={(selected) => {
 									setSelection(selected ? { kind: "element", name: selected.name } : null);
-									const ref = selected ? refOf(selected.element) : null;
+									const ref = selected ? (chosenRefOf(selected.element) ?? refOf(selected.element)) : null;
 									setCanvasSelection(selected ? { ref, name: selected.name } : null);
 									if (!staff) return;
 									// The canvas selected it: the Structure, the tree and the address follow.
@@ -738,6 +769,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 									if (staff) pageStructure.found(document);
 									// The Component edited in place stays locked and dimmed on the page as drawn now.
 									inPlace.page(document, frame.current?.overlay() ?? null);
+									readFormNames(document, () => managementApi(config.token).forms.list({ siteId: config.site.id }));
 								}}
 								editing={editing}
 							/>

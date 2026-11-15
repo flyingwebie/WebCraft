@@ -21,6 +21,16 @@ export type FormEditor = {
 	problems: readonly FormProblem[];
 	/** Changes the fields: one step of the shell's Undo history (`group` merges a run of typing). */
 	change(fields: FormField[], label: string, group?: string): void;
+	/**
+	 * Changes the rest of the Draft too (its button, what happens once it is sent, its spam limits, the
+	 * translations of its texts): one step of the shell's Undo history, saved after the pause.
+	 */
+	changeVersion(version: FormVersion, label: string, group?: string): void;
+	/**
+	 * Takes a Draft the server saved itself (AI translations filled in) as the Form now: one step of the
+	 * shell's Undo history, with nothing more to save.
+	 */
+	adopt(version: FormVersion, label: string): void;
 	/** Saves what waits now; answers whether the Draft holds it. */
 	flush(): Promise<boolean>;
 	/** Saves what waits, then publishes the Form's fields; answers whether they were published. */
@@ -138,15 +148,15 @@ export function useFormEditor({
 		[save],
 	);
 
-	/** Puts fields in the Form being edited, and saves them after the pause. */
-	const setFields = useCallback(
-		(formId: string, fields: FormField[]) => {
+	/** Puts a version in the Form being edited, and saves it after the pause (unless it is saved already). */
+	const setVersion = useCallback(
+		(formId: string, version: FormVersion, saved = false) => {
 			const now = latest.current.editing;
 			if (!now || now.formId !== formId) return false;
-			const version = { ...now.version, fields };
 			const next = { ...now, version };
 			latest.current.editing = next;
 			setEditing(next);
+			if (saved) return true;
 			pending.current = { formId, version };
 			schedule();
 			return true;
@@ -154,33 +164,63 @@ export function useFormEditor({
 		[schedule],
 	);
 
-	// The shell's Undo history takes a Form's fields back (and forward) through this.
+	// The shell's Undo history takes a Form's Draft back (and forward) through this: each step holds
+	// the parts of the Draft a save writes (`changeOf`), so the fields and the other tabs' settings go
+	// back the same way.
 	const formId = current?.formId ?? null;
 	useEffect(() => {
 		if (!formId) return;
 		return editorHistory().register(`form:${formId}`, {
-			reverse: async (from, to) =>
-				setFields(formId, to as unknown as FormField[])
+			reverse: async (from, to) => {
+				const now = latest.current.editing;
+				const parts = to as unknown as ReturnType<typeof changeOf>;
+				return now && setVersion(formId, { ...now.version, ...parts })
 					? { ok: true, before: from, after: to }
-					: { ok: false, code: "HISTORY_UNAVAILABLE" },
+					: { ok: false, code: "HISTORY_UNAVAILABLE" };
+			},
 		});
-	}, [formId, setFields]);
+	}, [formId, setVersion]);
 
-	const change = useCallback(
-		(fields: FormField[], label: string, group?: string) => {
+	/** Records one step of the shell's Undo history from the Form as it is to `version`. */
+	const record = useCallback(
+		(version: FormVersion, label: string, group?: string) => {
 			const now = latest.current.editing;
-			if (!now) return;
+			if (!now) return null;
 			editorHistory().record({
 				resource: `form:${now.formId}`,
-				before: now.version.fields as unknown as Json,
-				after: fields as unknown as Json,
+				before: changeOf(now.version) as unknown as Json,
+				after: changeOf(version) as unknown as Json,
 				label,
 				group,
 				location: { siteId, panel: "inspector", title: latest.current.name },
 			});
-			setFields(now.formId, fields);
+			return now.formId;
 		},
-		[siteId, setFields],
+		[siteId],
+	);
+
+	const changeVersion = useCallback(
+		(version: FormVersion, label: string, group?: string) => {
+			const id = record(version, label, group);
+			if (id) setVersion(id, version);
+		},
+		[record, setVersion],
+	);
+
+	const change = useCallback(
+		(fields: FormField[], label: string, group?: string) => {
+			const now = latest.current.editing;
+			if (now) changeVersion({ ...now.version, fields }, label, group);
+		},
+		[changeVersion],
+	);
+
+	const adopt = useCallback(
+		(version: FormVersion, label: string) => {
+			const id = record(version, label);
+			if (id) setVersion(id, version, true);
+		},
+		[record, setVersion],
 	);
 
 	const publish = useCallback(async (): Promise<boolean> => {
@@ -217,6 +257,8 @@ export function useFormEditor({
 		saving,
 		problems,
 		change,
+		changeVersion,
+		adopt,
 		flush,
 		publish,
 	};

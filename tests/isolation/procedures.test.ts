@@ -668,6 +668,25 @@ describe("Forms", () => {
 	isolation.refuses("forms.publish", async (api, target) =>
 		api.forms.publish({ siteId: target.siteId, formId: await formIn(target) }),
 	);
+	/** A Form in a target's Site, which has Italian too, with every text already in Italian (nothing for AI). */
+	const translatedFormIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		await api.languages.add({ siteId: target.siteId, code: "it" }).catch(() => {});
+		const formId = await formIn(target);
+		await api.forms.saveDraft({
+			siteId: target.siteId,
+			formId,
+			form: {
+				fields: [],
+				submitLabel: { text: "Send", translations: { it: "Invia" } },
+				success: { kind: "message", message: { text: "Thanks", translations: { it: "Grazie" } } },
+			},
+		});
+		return formId;
+	};
+	isolation.refuses("forms.translateMissing", async (api, target) =>
+		api.forms.translateMissing({ siteId: target.siteId, formId: await translatedFormIn(target), language: "it" }),
+	);
 	isolation.refuses("forms.rename", async (api, target) =>
 		api.forms.rename({ siteId: target.siteId, formId: await formIn(target), name: "Renamed" }),
 	);

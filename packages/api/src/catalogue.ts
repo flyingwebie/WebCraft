@@ -269,6 +269,7 @@ export const PROCEDURES = {
 	"forms.create": write("Creates a Form."),
 	"forms.saveDraft": write("Saves a Form's Draft: its fields, button, success and spam settings."),
 	"forms.publish": write("Publishes a Form's Draft (API clients confirm a preview first)."),
+	"forms.translateMissing": write("Fills a Form's missing translations in one language with AI, into its Draft."),
 	"forms.rename": write("Changes a Form's name or key."),
 	"forms.captcha.get": read("The Site's CAPTCHA settings for its Forms (never its secret key)."),
 	"forms.captcha.set": write("Sets the Site's CAPTCHA (Sensitive: admin only)."),
