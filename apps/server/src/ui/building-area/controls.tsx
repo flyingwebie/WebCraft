@@ -20,7 +20,11 @@ export type Icon = ComponentType<{ className?: string; "aria-hidden"?: boolean |
 export type TipSide = "end" | "top" | "bottom";
 export type TipAlign = "start" | "center" | "end";
 
-/** A tooltip's text, with the keys after it in the code face. */
+/**
+ * A tooltip's text, with the keys after it in the code face. The keys are drawn as generated content:
+ * they are a hint for the eye, which `aria-keyshortcuts` gives to screen readers, not part of the
+ * control's label, so the label people see under the pointer stays the control's name (WCAG 2.5.3).
+ */
 export function Tip({
 	label,
 	keys,
@@ -52,7 +56,7 @@ export function Tip({
 			}`}
 		>
 			{label}
-			{keys ? <span className="text-chrome-muted font-mono">{keys}</span> : null}
+			{keys ? <span data-keys={keys} className="text-chrome-muted font-mono after:content-[attr(data-keys)]" /> : null}
 		</span>
 	);
 }

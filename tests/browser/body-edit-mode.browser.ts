@@ -305,6 +305,13 @@ for (const theme of THEMES) {
 		await page.keyboard.press("/");
 		await page.getByRole("combobox", { name: "Blocks" }).fill("Note");
 		await page.getByRole("option", { name: "Note", exact: true }).waitFor();
+		// The list's items, one under the other, are each a target of at least 24 px (WCAG 2.5.8): axe
+		// judges them only when it finds them beside the chooser, so their size is read here too.
+		const items = await page
+			.getByRole("textbox", { name: /^Item \d+$/ })
+			.evaluateAll((all) => all.map((each) => Math.round(each.getBoundingClientRect().height)));
+		expect(items.length).toBe(2);
+		expect(items.filter((height) => height < 24)).toEqual([]);
 		await expectNoAxeViolations(page, `admin Component chooser (${theme})`);
 		await page.keyboard.press("Enter");
 		const form = page.getByRole("dialog", { name: "Note: Props" });

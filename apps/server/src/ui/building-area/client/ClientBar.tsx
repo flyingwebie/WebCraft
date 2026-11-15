@@ -99,15 +99,18 @@ function BarButton({
 	expanded,
 	controls,
 	data,
+	wordless,
 }: {
 	icon: Icon;
-	children: ReactNode;
+	children: string;
 	on?: boolean;
 	onClick(): void;
 	pressed?: boolean;
 	expanded?: boolean;
 	controls?: string;
 	data?: Record<`data-${string}`, string>;
+	/** Its word only in a tooltip (and its name): a tablet's narrower bar (BA-19). */
+	wordless?: boolean;
 }) {
 	return (
 		<button
@@ -116,13 +119,22 @@ function BarButton({
 			aria-pressed={pressed}
 			aria-expanded={expanded}
 			aria-controls={controls}
-			className={`flex h-9 shrink-0 items-center gap-[7px] rounded-lg px-3 text-[13px] font-medium ${
+			className={`group relative flex h-9 shrink-0 items-center justify-center gap-[7px] rounded-lg text-[13px] font-medium ${
+				wordless ? "w-9" : "px-3"
+			} ${
 				on ? "text-chrome-strong bg-[#3f3f46]" : "bg-chrome-raised text-chrome-text hover:bg-chrome-hover"
 			} ${CHROME_EASE} ${FOCUS_RING}`}
 			{...data}
 		>
 			<Glyph aria-hidden="true" className="size-4" />
-			<span>{children}</span>
+			{wordless ? (
+				<>
+					<span className="sr-only">{children}</span>
+					<Tip label={children} side="top" />
+				</>
+			) : (
+				<span>{children}</span>
+			)}
 		</button>
 	);
 }
@@ -217,6 +229,11 @@ function Segmented<Value extends string>({
  * word. Left: Undo, Redo, the page's name (the page switcher), the Draft's state in words. Centre:
  * Edit / Preview, then Desktop / Tablet / Phone. Right: the language, Sections (where the Site lets
  * Members arrange its Pages), Page details, and Publish (132 × 40; an Author's "Send for review", 164).
+ *
+ * `compact` (a tablet's window, 641 to 1023 px; BA-19): the same bar, keeping only the words it needs:
+ * Edit and Preview, Sections and Page details show their icons, their words in tooltips and names, and
+ * the page's name and the Draft's state take what room is left; under 900 px the widths go too (the
+ * page already shows at about a tablet's width there).
  */
 export function ClientBar({
 	words,
@@ -238,6 +255,7 @@ export function ClientBar({
 	onRedo,
 	place,
 	detailsLabel,
+	compact = false,
 }: {
 	words: Words;
 	/** The person's Admin language, for the plurals. */
@@ -264,6 +282,8 @@ export function ClientBar({
 	place: boolean;
 	/** The details button's word when it isn't "Page details": "Post details" on an Entry (`client-flows/01`, BA-18). */
 	detailsLabel?: string;
+	/** A tablet's narrower window: words only where they are needed. */
+	compact?: boolean;
 }) {
 	const said = words.client;
 	const history = useHistory();
@@ -278,7 +298,10 @@ export function ClientBar({
 			className="border-chrome-line bg-chrome focus-visible:ring-chrome-focus col-span-full col-start-1 row-start-2 flex h-14 min-w-0 items-center border-t px-3 outline-none focus-visible:ring-2 focus-visible:ring-inset"
 			data-wc-client-bar=""
 		>
-			<div className="flex h-full w-[520px] min-w-0 shrink items-center gap-2" data-wc-bar-cluster="start">
+			<div
+				className={`flex h-full min-w-0 items-center gap-2 ${compact ? "grow basis-0" : "w-[520px] shrink"}`}
+				data-wc-bar-cluster="start"
+			>
 				<QuietButton
 					icon={Undo2Icon}
 					label={undoLabel}
@@ -307,7 +330,10 @@ export function ClientBar({
 					<span className={`truncate ${look.text}`}>{draftStateText(draft, words, language)}</span>
 				</p>
 			</div>
-			<div className="flex h-full min-w-0 grow items-center justify-center gap-2.5" data-wc-bar-cluster="centre">
+			<div
+				className={`flex h-full items-center justify-center gap-2.5 ${compact ? "shrink-0 px-1" : "min-w-0 grow"}`}
+				data-wc-bar-cluster="centre"
+			>
 				{place ? null : (
 					<>
 						<Segmented
@@ -315,8 +341,8 @@ export function ClientBar({
 							value={mode}
 							onChange={onMode}
 							items={[
-								{ value: "edit", icon: PencilIcon, label: said.edit, word: true },
-								{ value: "preview", icon: EyeIcon, label: said.preview, word: true },
+								{ value: "edit", icon: PencilIcon, label: said.edit, word: !compact },
+								{ value: "preview", icon: EyeIcon, label: said.preview, word: !compact },
 							]}
 							data={{ "data-wc-modes": "" }}
 						/>
@@ -339,12 +365,15 @@ export function ClientBar({
 									word: false,
 								},
 							]}
-							data={{ "data-wc-widths": "" }}
+							data={{ "data-wc-widths": "", ...(compact ? { "data-wc-widths-compact": "" } : {}) }}
 						/>
 					</>
 				)}
 			</div>
-			<div className="flex h-full w-[520px] min-w-0 shrink items-center justify-end gap-2" data-wc-bar-cluster="end">
+			<div
+				className={`flex h-full items-center justify-end gap-2 ${compact ? "shrink-0" : "w-[520px] min-w-0 shrink"}`}
+				data-wc-bar-cluster="end"
+			>
 				{!place && languages.length > 1 ? (
 					<LanguageMenu languages={languages} words={words} onChoose={onLanguage} look="client" />
 				) : null}
@@ -356,6 +385,7 @@ export function ClientBar({
 						controls={panel === "sections" ? panelId : undefined}
 						onClick={() => onPanel("sections")}
 						data={{ "data-wc-bar": "sections" }}
+						wordless={compact}
 					>
 						{said.sections}
 					</BarButton>
@@ -368,6 +398,7 @@ export function ClientBar({
 						controls={panel === "pageDetails" ? panelId : undefined}
 						onClick={() => onPanel("pageDetails")}
 						data={{ "data-wc-bar": "page-details" }}
+						wordless={compact}
 					>
 						{detailsLabel ?? said.pageDetails}
 					</BarButton>

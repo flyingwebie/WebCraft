@@ -9,7 +9,7 @@ import { fill, type Words } from "../../api.ts";
 import { CHROME_EASE, FOCUS_RING } from "../../controls.tsx";
 import { buttonLook } from "../content/ui.tsx";
 import { CodeBox, FormatControl, NoteLine } from "./CodeBox.tsx";
-import { canvasWidth } from "./canvas.ts";
+import { canvasWidth, redrawWithDraftStyles } from "./canvas.ts";
 import { QuickActions, type RuleEdit, useFavourites } from "./QuickActions.tsx";
 import { piecesOf, type RuleBreakpoint, renamedRule, ruleOf, samePieces } from "./rule.ts";
 import { CLASS_KINDS, type StylesView, shownClasses } from "./view.ts";
@@ -328,6 +328,8 @@ function ClassRule({
 		editing.replaceDraft(answer.designSystem.draft);
 		setText((was) => renamedRule(was, name));
 		announce(fill(shown.renamed, { name }));
+		// The canvas under the place shows the new name at once, not on the page's next load.
+		void redrawWithDraftStyles();
 	};
 
 	const problem = read.ok

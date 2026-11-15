@@ -13,7 +13,7 @@
 // - the chrome with every dock open passes the accessibility checks, with the page in light and dark.
 // The edit link may only be followed a few times a minute from one address: one page is shared.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { Frame, Page } from "playwright";
+import type { Frame, Locator, Page } from "playwright";
 
 import type { TestAccount, TestBrowser } from "../harness/index.ts";
 import { announced, enterBuildingArea, focusShellStart, frameOf, settled } from "./building-area.ts";
@@ -494,11 +494,22 @@ describe("the building area's docks and panels", () => {
 		// The menus too.
 		await page.locator('[data-wc-rail="panels"]').click();
 		await page.getByRole("menu", { name: "Panels" }).waitFor();
+		// Menus appear at once: no slide, no fade (SPEC 10).
+		expect(await animationOf(page.getByRole("menu", { name: "Panels" }))).toBe("none");
 		await expectNoAxeViolations(page, "building area docks, Panels menu");
 		await page.keyboard.press("Escape");
 		await page.locator('[data-wc-panel-menu="layers"]').click();
 		await page.getByRole("menu", { name: "Layers: panel menu" }).waitFor();
+		expect(await animationOf(page.getByRole("menu", { name: "Layers: panel menu" }))).toBe("none");
 		await expectNoAxeViolations(page, "building area docks, a panel's menu");
 		await page.keyboard.press("Escape");
 	});
 });
+
+/**
+ * The animation an element appears with. The browser asks for reduced motion, which only shortens
+ * durations, so the name is what tells whether it slides or fades in.
+ */
+async function animationOf(element: Locator): Promise<string> {
+	return element.evaluate((each) => getComputedStyle(each).animationName);
+}

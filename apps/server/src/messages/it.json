@@ -2838,7 +2838,8 @@
 		},
 		"link": {
 			"address": "Indirizzo",
-			"text": "Testo"
+			"text": "Testo",
+			"newTab": "Apri in una nuova scheda"
 		},
 		"media": {
 			"none": "Nessun file scelto.",
@@ -8522,6 +8523,7 @@
 		"undoStep": "Annulla {step}",
 		"redoStep": "Ripeti {step}",
 		"language": "Lingua",
+		"languageCode": "{code}, Lingua: {name}",
 		"viewOnStaging": "Vedi sull'indirizzo di staging (si apre in una nuova scheda)",
 		"draftState": {
 			"label": "Stato della Bozza",
@@ -9478,6 +9480,7 @@
 			"published": "Pubblicato",
 			"tryAgain": "Riprova",
 			"sendForReview": "Invia in revisione",
+			"sendShort": "Invia",
 			"title": "Pubblica {title}",
 			"titleNoPage": "Pubblica queste modifiche",
 			"intro": "I visitatori vedono queste modifiche quando pubblichi.",
@@ -9984,6 +9987,14 @@
 				"finished": "Modifica di {name} terminata",
 				"dropHere": "Rilascia per usare questa foto",
 				"blocks": "Blocchi"
+			},
+			"phone": {
+				"more": "Altro",
+				"close": "Chiudi",
+				"language": "Lingua",
+				"back": "Indietro",
+				"languages": "Lingue della pagina",
+				"hint": "Tocca il contorno tratteggiato per fare modifiche."
 			},
 			"photo": {
 				"region": "{name}: cambia la foto",

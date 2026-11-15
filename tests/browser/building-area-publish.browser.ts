@@ -1,7 +1,8 @@
 // Publish in the building area's bottom bar (ADR 0037 › 1.5, BA-12; SPEC 10 and 13.8), in Chromium:
 // - Staff publish a page with a changed Entry template and a changed Entry in one step, through the
 //   sheet ⌘↵ opens; visitors then see both. The cell reads Publish with its count, Try again,
-//   Publishing… and Published for 2 s, and never changes width (112 × 32); the toast offers the live page;
+//   Publishing… and Published for 2 s, and never changes width (112 × 32), its words at least 4.5:1 on its
+//   colour in every state, light and dark; the toast offers the live page;
 // - a Member's Revert puts one change back; Publish later schedules; Discard all asks first;
 // - an Author's cell is "Send for review", 164 wide: they send the page with a note, then withdraw it;
 // - the shell with the sheet open passes the accessibility checks, light and dark.
@@ -93,6 +94,62 @@ const sheet = (page: Page) => page.locator("[data-wc-publish-sheet]");
 async function sizeOfCell(page: Page): Promise<{ width: number; height: number }> {
 	const box = await cell(page).boundingBox();
 	return { width: Math.round(box?.width ?? 0), height: Math.round(box?.height ?? 0) };
+}
+
+/**
+ * How the cell's words stand out from its colour, with the device in light and in dark, as WCAG's
+ * contrast ratio. axe leaves the cell out while it is `aria-disabled` (publishing, published, nothing
+ * to publish), so the colours are read here: the colours under the cell (the bar's) and its own
+ * painted in turn, then its words on them.
+ */
+async function cellContrast(page: Page): Promise<{ state: string; light: number; dark: number; moving: number }> {
+	const read = () =>
+		cell(page).evaluate((button) => {
+			const canvas = document.createElement("canvas");
+			canvas.width = 1;
+			canvas.height = 1;
+			const paint = canvas.getContext("2d", { willReadFrequently: true });
+			if (!paint) throw new Error("No canvas.");
+			const pixel = () => [...paint.getImageData(0, 0, 1, 1).data].slice(0, 3);
+			const layers: string[] = [];
+			for (let at: Element | null = button; at; at = at.parentElement)
+				layers.unshift(getComputedStyle(at).backgroundColor);
+			paint.fillStyle = "#fff";
+			paint.fillRect(0, 0, 1, 1);
+			for (const layer of layers) {
+				paint.fillStyle = layer;
+				paint.fillRect(0, 0, 1, 1);
+			}
+			const under = pixel();
+			const words = getComputedStyle(button.querySelector("span:not(.sr-only)") ?? button).color;
+			paint.fillStyle = words;
+			paint.fillRect(0, 0, 1, 1);
+			const over = pixel();
+			const luminance = (rgb: number[]) => {
+				const [r = 0, g = 0, b = 0] = rgb.map((channel) => {
+					const value = channel / 255;
+					return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+				});
+				return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+			};
+			const [light, dark] = [luminance(over), luminance(under)].sort((a, b) => b - a) as [number, number];
+			// Read as the state is drawn: nothing in the cell may still be on its way from the last state.
+			return {
+				ratio: Math.round(((light + 0.05) / (dark + 0.05)) * 100) / 100,
+				moving: button.getAnimations({ subtree: true }).length,
+			};
+		});
+	await page.emulateMedia({ colorScheme: "light" });
+	const light = await read();
+	await page.emulateMedia({ colorScheme: "dark" });
+	const dark = await read();
+	await page.emulateMedia({ colorScheme: "light" });
+	return {
+		state: (await cell(page).getAttribute("data-wc-publish")) ?? "",
+		light: light.ratio,
+		dark: dark.ratio,
+		moving: light.moving + dark.moving,
+	};
 }
 
 /** Waits until the cell is in `state` (`ready`, `publishing`, `published`, `failed`, `review`). */
@@ -211,7 +268,12 @@ describe("Staff publish what the page shows", () => {
 
 	test("a refused publish reads Try again; trying again publishes both together, and visitors see both", async () => {
 		const sizes = new Set<string>();
-		const measure = async () => sizes.add(JSON.stringify(await sizeOfCell(page)));
+		// Every state's words stand out at least 4.5:1, light and dark.
+		const contrasts: { state: string; light: number; dark: number; moving: number }[] = [];
+		const measure = async () => {
+			sizes.add(JSON.stringify(await sizeOfCell(page)));
+			contrasts.push(await cellContrast(page));
+		};
 		await measure();
 		// The first try can't reach the server.
 		await page.route("**/_webcraft/build/api/rpc/publishing/publishAll", (route) => route.abort(), { times: 1 });
@@ -226,7 +288,7 @@ describe("Staff publish what the page shows", () => {
 
 		// Trying again: Publishing… while the server answers (held a moment), then Published for 2 s.
 		await page.route("**/_webcraft/build/api/rpc/publishing/publishAll", async (route) => {
-			await new Promise((resolve) => setTimeout(resolve, 400));
+			await new Promise((resolve) => setTimeout(resolve, 1500));
 			await route.continue();
 		});
 		await cell(page).click();
@@ -256,6 +318,15 @@ describe("Staff publish what the page shows", () => {
 		await measure();
 		// The button never changed width.
 		expect([...sizes]).toEqual([JSON.stringify({ width: 112, height: 32 })]);
+		expect(contrasts.map((each) => each.state)).toEqual([
+			"ready",
+			"failed",
+			"publishing",
+			"published",
+			"ready",
+			"ready",
+		]);
+		expect(contrasts.filter((each) => each.light < 4.5 || each.dark < 4.5 || each.moving > 0)).toEqual([]);
 		await page.unroute("**/_webcraft/build/api/rpc/publishing/publishAll");
 
 		// Visitors see the Entry's change and the Template's.
