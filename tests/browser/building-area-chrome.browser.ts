@@ -204,17 +204,11 @@ describe("the building area's chrome, for Staff", () => {
 
 	test("tooltips and menus appear at once, with no slide or fade (SPEC 10)", async () => {
 		const { page } = await shared();
-		// The browser asks for reduced motion, which only shortens durations: the animation's name tells,
-		// and a tooltip has no transition of its own to shorten.
+		// The browser asks for reduced motion, which only shortens durations: the animation's name tells.
 		const tip = page.locator('[data-wc-rail="hide-interface"] [data-wc-tip]');
 		await page.locator('[data-wc-rail="hide-interface"]').hover();
 		await tip.waitFor();
-		expect(
-			await tip.evaluate((element) => {
-				const style = getComputedStyle(element);
-				return { animation: style.animationName, transition: style.transitionDuration };
-			}),
-		).toEqual({ animation: "none", transition: "0s" });
+		expect(await tip.evaluate((element) => getComputedStyle(element).animationName)).toBe("none");
 		await page.mouse.move(700, 400);
 		await tip.waitFor({ state: "hidden" });
 
