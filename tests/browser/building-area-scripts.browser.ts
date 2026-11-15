@@ -623,4 +623,30 @@ describe("a Member", () => {
 		expect(await frame.locator("script[data-wc-component-script]").count()).toBe(1);
 		expect(await notice(page).count()).toBe(0);
 	});
+
+	test("on a phone: the notice opens Safe mode, and More turns it off", async () => {
+		const page = await shared("member");
+		await page.setViewportSize({ width: 390, height: 844 });
+		try {
+			await open(page, "/blog/fresh-bread");
+			await page.locator('[data-wc-phone-bar="more"]').waitFor();
+			const shown = notice(page);
+			await shown.locator("strong").filter({ hasText: "the Site script failed." }).waitFor();
+			await shown.getByRole("button", { name: "Open in Safe mode" }).click();
+			let frame = await reloaded(page, true);
+			expect(await frame.evaluate(() => document.documentElement.dataset.siteScript ?? null)).toBeNull();
+			await page.locator('[data-wc-phone-bar="more"]').click();
+			const row = page.locator('[data-wc-phone-row="safe-mode"]');
+			await row.waitFor();
+			expect(await row.textContent()).toContain("Turn off Safe mode");
+			forgetScriptErrors(page);
+			await expectNoAxeViolations(page, "a phone's More with Safe mode on");
+			await row.click();
+			frame = await reloaded(page, false);
+			await frame.waitForFunction(() => document.documentElement.dataset.siteScript === "ran");
+			forgetScriptErrors(page);
+		} finally {
+			await page.setViewportSize({ width: 1440, height: 900 });
+		}
+	});
 });
