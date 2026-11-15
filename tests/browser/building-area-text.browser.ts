@@ -14,7 +14,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Cookie, Frame, Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
-import { announced, enterBuildingArea, frameOf, settled } from "./building-area.ts";
+import { announced, enterBuildingArea, eventually, frameOf, settled } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
 
@@ -96,17 +96,6 @@ async function drafts() {
 		api.globals.get({ siteId }),
 	]);
 	return { bread: bread.entry.draft, rye: rye.entry.draft, globals: globals.globals.draft };
-}
-
-/** What `read` gives once `done` accepts it, waiting up to 6 seconds (a save waits for typing to pause). */
-async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
-	const deadline = Date.now() + 6000;
-	let value = await read();
-	while (!done(value) && Date.now() < deadline) {
-		await Bun.sleep(150);
-		value = await read();
-	}
-	return value;
 }
 
 /** The text as a person reads it: a typed trailing space is a no-break space in some browsers. */
@@ -223,6 +212,8 @@ describe("content typed in place, for a Member", () => {
 		await page.keyboard.press("Tab");
 		const cleaned = await eventually(drafts, (now) => String(now.bread.fields.intro).includes("Ask"));
 		const intro = String(cleaned.bread.fields.intro);
+		// The span's and the bold's words stay; what they wrapped them in goes.
+		expect(intro).toContain("Ask");
 		expect(intro).toContain("us");
 		for (const gone of ["<span", "style=", "class=", "onclick", "<img"]) expect(intro).not.toContain(gone);
 		// The region shows the text as it was stored, once the person has moved on.
@@ -298,6 +289,7 @@ describe("content typed in place, for a Member", () => {
 		await expectNoAxeViolations(page, "building area text toolbar, open");
 		await page.keyboard.press("Tab");
 		const saved = await eventually(drafts, (now) => String(now.bread.fields.intro).includes("example.com/menu"));
+		expect(String(saved.bread.fields.intro)).toContain("example.com/menu");
 		expect(String(saved.bread.fields.intro)).toMatch(/<(strong|b)>/);
 		await toolbar(page).waitFor({ state: "detached" });
 	});
@@ -319,7 +311,10 @@ describe("content typed in place, for a Member", () => {
 		await page.keyboard.type("Out of the oven");
 		await page.locator("[data-wc-region-problem]").waitFor({ state: "detached", timeout: 6000 });
 		await page.keyboard.press("Tab");
-		await eventually(drafts, (now) => now.bread.fields.subtitle === "Out of the oven");
+		// Saved once the problem is fixed.
+		expect(
+			(await eventually(drafts, (now) => now.bread.fields.subtitle === "Out of the oven")).bread.fields.subtitle,
+		).toBe("Out of the oven");
 	});
 
 	test("the Draft state says No changes yet, Saving…, Saved, N changes not published, Sent for review and Could not save", async () => {

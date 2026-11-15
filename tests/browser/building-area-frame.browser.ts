@@ -23,6 +23,7 @@ import {
 	type EnginePage,
 	enginePages,
 	enterBuildingArea,
+	eventually,
 	expectNoErrors,
 	focusShellStart,
 	frameOf,
@@ -134,17 +135,6 @@ afterAll(async () => {
 async function draftTitle(): Promise<string> {
 	const { entry } = await superadmin.api.entries.get({ siteId, entryId });
 	return entry.draft.title;
-}
-
-/** Waits until `read` answers `expected` (a save lands 0.8 s after typing stops). */
-async function eventually<T>(read: () => Promise<T>, expected: T, timeout = 8000): Promise<T> {
-	const deadline = Date.now() + timeout;
-	let last = await read();
-	while (!Object.is(last, expected) && Date.now() < deadline) {
-		await Bun.sleep(150);
-		last = await read();
-	}
-	return last;
 }
 
 /** Clicks an element of the page through the shell, as a pointer would, at a point of its box. */
@@ -306,7 +296,7 @@ for (const engine of ENGINES) {
 			const expected = `${before} ${engine}!`;
 			// What a browser keeps a typed space as is its own (a no-break space at the end of a line).
 			const typed = async () => (await draftTitle()).replaceAll("\u00a0", " ");
-			expect(await eventually(typed, expected)).toBe(expected);
+			expect(await eventually(typed, (text) => text === expected)).toBe(expected);
 			expect(await frame.locator("h1").evaluate((element) => element.innerHTML.replaceAll("&nbsp;", " "))).toBe(
 				expected,
 			);

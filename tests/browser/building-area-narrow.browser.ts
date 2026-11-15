@@ -15,7 +15,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Frame, Locator, Page } from "playwright";
 
 import type { TestAccount, TestBrowser } from "../harness/index.ts";
-import { enterBuildingArea, frameOf, settled } from "./building-area.ts";
+import { enterBuildingArea, eventually, frameOf, settled } from "./building-area.ts";
 import { expectKeyboardUsable, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
 
@@ -121,17 +121,6 @@ async function pointAt(page: Page, frame: Frame, selector: string, how: "click" 
 	if (how === "tap") await page.touchscreen.tap(x, y);
 	else await page.mouse.click(x, y);
 	await settled(page);
-}
-
-/** What `read` gives once `done` accepts it, waiting up to 10 seconds. */
-async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
-	const deadline = Date.now() + 10_000;
-	let value = await read();
-	while (!done(value) && Date.now() < deadline) {
-		await Bun.sleep(100);
-		value = await read();
-	}
-	return value;
 }
 
 /** The selection's reference, as the address keeps it. */
@@ -326,13 +315,16 @@ describe("Staff by touch", () => {
 
 		// The insert row: Text after the paragraph, one step, in the Draft.
 		await page.locator('[data-wc-insert="text"]').tap();
-		expect(await eventually(draftMarkup, (markup) => (markup.match(/<p\b/g) ?? []).length === 2)).toMatch(
-			/lead[\s\S]*<p\b/,
-		);
+		const paragraphs = (markup: string) => (markup.match(/<p\b/g) ?? []).length;
+		const added = await eventually(draftMarkup, (markup) => paragraphs(markup) === 2);
+		expect(paragraphs(added)).toBe(2);
+		expect(added).toMatch(/lead[\s\S]*<p\b/);
 		await page.locator('[data-wc-bar="undo"]').tap();
-		expect(await eventually(draftMarkup, (markup) => (markup.match(/<p\b/g) ?? []).length === 1)).not.toMatch(
-			/lead[\s\S]*<p\b/,
-		);
+		// One step: the new paragraph goes, the lead stays.
+		const undone = await eventually(draftMarkup, (markup) => paragraphs(markup) === 1);
+		expect(paragraphs(undone)).toBe(1);
+		expect(undone).toMatch(/<p class="lead"/);
+		expect(undone).not.toMatch(/lead[\s\S]*<p\b/);
 	});
 
 	test("every control a finger can reach is at least 44 px, light and dark", async () => {
