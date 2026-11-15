@@ -43,7 +43,7 @@ import {
 	type ProtectedTerm,
 	removeProtectedTerm,
 } from "./terms.ts";
-import { apiPath, breaksRules, leafAt, readableText, storedPath, withLeafAt } from "./units.ts";
+import { apiPath, breaksRules, leafAt, readableText, storedPath, textField, withLeafAt } from "./units.ts";
 
 /** Source types identify human text even when the installed Module is absent or incompatible. */
 async function modulePropsForTranslation(scope: SiteScope): Promise<readonly ModuleComponentProps[]> {
@@ -129,6 +129,13 @@ export type Translations = {
 		scope: SiteScope,
 		input: { item: ItemRef; language: string; at: string; block?: string | null },
 	): Promise<void>;
+	/**
+	 * Translates plain texts into one of the Site's other languages with AI, now, through the Workspace's
+	 * AI key (its budget, cap and the Site's cache and Protected terms, as every AI translation): the
+	 * answers in the same order. Writes nothing; a Form's words are written by its caller. Throws what the
+	 * key and the provider throw (`AiKeyMissingError`, `AiCapReachedError`, `AiProviderError`).
+	 */
+	texts(scope: SiteScope, language: string, texts: readonly string[]): Promise<string[]>;
 	/** An item's translations in a language, from its Draft. */
 	itemTranslation(scope: SiteScope, item: ItemRef, language: string): Promise<ItemTranslation | null>;
 	/** Hears of every Audit log entry: a publish queues AI translation for the Automatic and Review languages. */
@@ -425,6 +432,31 @@ export function createTranslations(options: TranslationsOptions): Translations {
 	};
 
 	return {
+		async texts(scope, code, texts) {
+			const { language, from } = await languageOf(scope, code);
+			if (texts.length === 0) return [];
+			const values = await translateValues(
+				{
+					ai,
+					keys,
+					db: scope.db,
+					place: { workspaceId: scope.workspace.id, siteId: scope.site.id },
+					from: { code: from.code, name: from.name },
+					to: { code: language.code, name: language.name },
+					glossary: await glossaryOf(scope.db, scope.workspace.id, scope.site.id),
+					now: clock.now(),
+				},
+				texts.map((text, index) => ({
+					unit: { path: String(index), labels: [], kind: "text", field: textField(String(index), "") },
+					source: text,
+					target: undefined,
+				})),
+			);
+			return texts.map((text, index) => {
+				const value = values.get(String(index))?.value;
+				return typeof value === "string" && value.trim() !== "" ? value : text;
+			});
+		},
 		async overview(scope, options) {
 			const site = await siteLanguages(scope);
 			const modes = await modesOf(scope.site.id);

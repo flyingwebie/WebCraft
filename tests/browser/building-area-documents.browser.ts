@@ -203,13 +203,17 @@ describe("documents and addresses", () => {
 		expect(await bar(page, "preview").textContent()).toContain(`Preview: ${sample.title}`);
 	});
 
-	test("a Form waits for its place, and says so", async () => {
-		await go(page, "/form/0b5f6a1e-2c3d-4e5f-8a9b-0c1d2e3f4a5b");
+	test("a Form opens in the Forms place, over the home page (BA-27)", async () => {
+		const { form } = await superadmin.api.forms.create({ siteId, name: "Order a cake" });
+		await go(page, `/form/${form.id}`);
 
-		const notice = page.locator('[data-wc-no-document="later"]');
-		await notice.waitFor();
-		expect(await notice.getByRole("heading").textContent()).toBe("Forms open in the Forms place");
-		expect(await page.locator("iframe[data-wc-frame]").count()).toBe(0);
+		// The address says what shows: the home page, with the Forms place open on the Form.
+		await page.waitForURL((url) => url.searchParams.get("wc-place") === `forms/${form.id}`);
+		expect(new URL(page.url()).pathname).toBe("/_webcraft/build/page/");
+		await page.locator('[data-wc-place-frame^="forms"]').waitFor();
+		expect(await page.locator('[data-wc-no-document="later"]').count()).toBe(0);
+		await page.locator("[data-wc-place-back]").click();
+		await page.locator('[data-wc-place-frame^="forms"]').waitFor({ state: "detached" });
 	});
 
 	test("Rendered by opens the Entry template on the page; Back and Forward step between the two; Back to returns", async () => {

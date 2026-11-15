@@ -6,6 +6,7 @@ import type { PageLanguage } from "../bottom-bar/LanguageMenu.tsx";
 import { Frame, type FrameHandle } from "../canvas/Frame.tsx";
 import { PRESETS, type Preset } from "../canvas/gutters.ts";
 import { NoDocument } from "../canvas/NoDocument.tsx";
+import { readFormNames } from "../canvas/placed-form.ts";
 import type { SavingStatus } from "../canvas/regions.ts";
 import { LAYOUT_VERSION } from "../docks/layout.ts";
 import { reverseElsewhere } from "../editing/drafts.ts";
@@ -24,6 +25,7 @@ import { BodyInPlace } from "./BodyInPlace.tsx";
 import { bodyInPlace } from "./body-in-place.ts";
 import { ClientBar, type ClientPanel, clientDraftStateOf } from "./ClientBar.tsx";
 import { CLIENT_PLACES, type ClientPlace, ClientRail } from "./ClientRail.tsx";
+import { FormLockPopover, useFormLocks } from "./FormLock.tsx";
 import { HelpCard } from "./HelpCard.tsx";
 import { ItemPanel } from "./ItemPanel.tsx";
 import { LoopItems } from "./LoopItems.tsx";
@@ -164,6 +166,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 		[config.token, words],
 	);
 	useEffect(() => () => popovers.destroy(), [popovers]);
+	const formLocks = useFormLocks();
 	// A Loop's own items and a query Loop's (BA-16): selected, moved, added, their Fields in the side panel.
 	const openRef = useRef<(path: string) => void>(() => {});
 	const items = useMemo(
@@ -217,10 +220,12 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 					closePanel: () => closePanel(false),
 					popovers,
 					bodies,
+					// A Form the agency built is locked; its popover links to its Submissions (BA-27).
+					onForm: (form) => formLocks.open(form),
 				}),
 			),
 		);
-	}, [config.token, config.site.id, words, undoHistory, closePanel, popovers, items, bodies]);
+	}, [config.token, config.site.id, words, undoHistory, closePanel, popovers, items, bodies, formLocks]);
 	useEffect(() => () => editing.destroy(), [editing]);
 	useEffect(() => editing.setMode(mode), [editing, mode]);
 
@@ -550,6 +555,9 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 						{/* Before the frame in the Tab order: the page stays the last stop. */}
 						{opened.shown?.status === "shown" ? <TextToolbar editing={editing} words={words} /> : null}
 						{opened.shown?.status === "shown" ? <RegionPopover popovers={popovers} words={words} goTo={goTo} /> : null}
+						{opened.shown?.status === "shown" ? (
+							<FormLockPopover locks={formLocks} popovers={popovers} words={words} admin={config.admin} />
+						) : null}
 						{opened.shown?.status === "shown" ? <LoopItems items={items} words={words} /> : null}
 						{opened.shown?.status === "shown" ? <BodyInPlace body={bodies} /> : null}
 						{opened.shown?.status === "shown" ? (
@@ -570,6 +578,8 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 									onSaving={onSaving}
 									editing={editing}
 									sheet={{ width: PRESETS[width] }}
+									// The names of the Forms on the page, for their lock chips (BA-27).
+									onReady={(document) => readFormNames(document, () => api.forms.list({ siteId: config.site.id }))}
 								/>
 							</div>
 						) : null}

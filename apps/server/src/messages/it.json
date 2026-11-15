@@ -9606,8 +9606,6 @@
 				"translations": "Traduzioni",
 				"settings": "Impostazioni"
 			},
-			"laterText": "Questa scheda arriva con una fase successiva dell'area di costruzione. Fino ad allora la trovi nella pagina del Form nell'admin.",
-			"openInAdmin": "Apri il Form nell'admin (nuova scheda)",
 			"newForm": {
 				"title": "Nuovo Form",
 				"name": "Nome",
@@ -9751,7 +9749,166 @@
 			"published": "{name} pubblicato",
 			"publishFailed": "Impossibile pubblicare {name}: {reason}",
 			"saveFailed": "Impossibile salvare {name}: {reason}",
-			"problemsFound": "Impossibile salvare {name} per ora: {count} problemi, indicati nei rispettivi campi."
+			"problemsFound": "Impossibile salvare {name} per ora: {count} problemi, indicati nei rispettivi campi.",
+			"afterSending": {
+				"whatTitle": "Cosa vedono le persone",
+				"message": "Un messaggio qui",
+				"page": "Vai a una pagina",
+				"defaultMessage": "Grazie. Abbiamo ricevuto il tuo messaggio.",
+				"languages": "Lingue del messaggio",
+				"messageIn": "Messaggio in {language}",
+				"pageLabel": "Pagina",
+				"pageHelp": "Le persone ci arrivano nella loro lingua, una volta pubblicata.",
+				"spamTitle": "Controlli antispam",
+				"trapField": "Campo trappola nascosto",
+				"alwaysOn": "Sempre attivo",
+				"timeTrap": "Trappola del tempo",
+				"atMost": "Al massimo",
+				"perHour": "da un indirizzo all'ora",
+				"captcha": "Il CAPTCHA si imposta per tutto il Sito.",
+				"keepTitle": "Conservare le Submission",
+				"keepText": "Per quanto tempo si conservano le Submission si imposta con le Submission del Form, nell'admin.",
+				"keepLink": "Impostalo con le Submission (nuova scheda)",
+				"previewLabel": "Il messaggio in {language}, come lo vedranno i visitatori",
+				"goesTo": "Dopo l'invio, le persone vanno a {page}.",
+				"choosePage": "Scegli la pagina a cui vanno le persone.",
+				"history": {
+					"what": "Cosa vedono le persone",
+					"message": "Messaggio dopo l'invio",
+					"page": "Pagina dopo l'invio",
+					"timeTrap": "Trappola del tempo",
+					"perHour": "Invii all'ora"
+				}
+			},
+			"translations": {
+				"none": "Il Sito ha una sola lingua: non c'è nulla da tradurre.",
+				"language": "Lingua",
+				"languageMissing": "{language} · {count} mancanti",
+				"translateMissing": "Traduci quelli mancanti con l'IA",
+				"translating": "Traduzione…",
+				"filling": "Traduzione dei testi mancanti in {language}…",
+				"filled": "{count} testi tradotti in {language}, nella Bozza",
+				"fillFailed": "Impossibile tradurre i testi mancanti: {reason}",
+				"reasons": {
+					"noKey": "il Workspace non ha una chiave IA",
+					"cap": "la chiave IA ha raggiunto il limite del mese",
+					"provider": "il fornitore IA non ha risposto come dovrebbe"
+				},
+				"intro": "Ogni testo del Form accanto alla sua traduzione in {language}. Se è vuoto, le pagine in quella lingua mostrano il testo come scritto.",
+				"what": "Cosa",
+				"asWritten": "Come scritto ({language})",
+				"missing": "Mancante",
+				"cell": "{what} in {language}",
+				"parts": {
+					"label": "Etichetta",
+					"help": "Aiuto",
+					"placeholder": "Segnaposto",
+					"message": "Messaggio di errore",
+					"option": "Opzione {number}",
+					"submitLabel": "Pulsante › Parole",
+					"successMessage": "Dopo l'invio › Messaggio"
+				},
+				"history": {
+					"typed": "Traduci {what}",
+					"filled": "Traduci in {language} con l'IA"
+				}
+			},
+			"emails": {
+				"apart": "Le email sono Contenuto: si pubblicano a parte dai campi, qui.",
+				"publish": "Pubblica le email",
+				"publishing": "Pubblicazione…",
+				"published": "Le email di {name} sono state pubblicate: le Submission le inviano da ora.",
+				"publishFailed": "Impossibile pubblicare le email di {name}: {reason}",
+				"problemsFound": "Le email non si possono ancora salvare: {count} problemi, mostrati al loro posto.",
+				"neverPublished": "Bozza · non ancora pubblicata",
+				"publishedState": "Pubblicate",
+				"notifications": "Notifiche",
+				"upTo": "Fino a {count}",
+				"addNotification": "Aggiungi una Notifica (nell'admin, nuova scheda)",
+				"noNotifications": "Nessuna Notifica: le Submission vengono solo conservate.",
+				"notification": "Notifica {number}",
+				"sendTo": "Invia a",
+				"routed": "Instradata in base alla risposta a {field}",
+				"password": "Cambiare chi le riceve chiede di nuovo la tua password.",
+				"changeRecipients": "Cambia chi le riceve (nell'admin, nuova scheda)",
+				"subject": "Oggetto",
+				"subjectPlaceholder": "Nuova Submission: il nome del Form",
+				"intro": "Testo iniziale",
+				"introPlaceholder": "Qualcuno ha compilato il Form…",
+				"autoReply": "Risposta automatica",
+				"autoReplyOn": "Invia una Risposta automatica",
+				"noEmailField": "Aggiungi un campo email al Form per inviare una Risposta automatica.",
+				"answers": "Risponde all'indirizzo in",
+				"firstEmailField": "Il primo campo email",
+				"languages": "Lingue della Risposta automatica",
+				"text": "Testo",
+				"history": {
+					"subject": "Oggetto di una Notifica",
+					"intro": "Testo iniziale di una Notifica",
+					"autoReply": "Risposta automatica attiva o no",
+					"autoReplyField": "Il campo email della Risposta automatica",
+					"autoReplyText": "Parole della Risposta automatica"
+				}
+			},
+			"settings": {
+				"nameTitle": "Nome e chiave",
+				"nameIntro": "Salvati subito, non tramite la Bozza. I Template inseriscono il Form per id, quindi una nuova chiave non cambia nulla di inserito.",
+				"name": "Nome",
+				"key": "Chiave",
+				"keyHelp": "Il markup dei Template lo inserisce come {placed}.",
+				"rename": "Salva nome e chiave",
+				"renaming": "Salvataggio…",
+				"renamed": "{name}: nome e chiave salvati",
+				"renameFailed": "Impossibile salvare nome e chiave: {reason}",
+				"buttonTitle": "Il pulsante",
+				"buttonText": "Testo del pulsante",
+				"buttonHelp": "Fa parte della Bozza: si pubblica con i campi.",
+				"placedTitle": "Dove è inserito",
+				"notPlaced": "Non ancora inserito. Il markup dei Template lo inserisce con la sua chiave.",
+				"placedOn": {
+					"siteTemplate": "Il Template del sito",
+					"entryTemplate": "Il Template della voce di {name}",
+					"archiveTemplate": "Il Template dell'archivio di {name}",
+					"component": "Il Componente {name}"
+				},
+				"adminTitle": "Nell'admin",
+				"adminText": "Il CAPTCHA del Sito, la cronologia del Form e la sua eliminazione sono nella sua pagina dell'admin.",
+				"adminLink": "Apri il Form nell'admin (nuova scheda)",
+				"history": {
+					"button": "Testo del pulsante"
+				}
+			},
+			"onPage": {
+				"chip": "Form · {name}",
+				"unnamed": "Form",
+				"panel": "Form",
+				"form": "Form",
+				"summary": "{fields} · {steps} · {status}",
+				"fields": {
+					"one": "{count} campo",
+					"other": "{count} campi"
+				},
+				"steps": {
+					"none": "Nessun passo",
+					"one": "{count} passo",
+					"other": "{count} passi"
+				},
+				"edit": "Modifica questo Form",
+				"submissions": "Vedi le Submission (nuova scheda)",
+				"newCount": "{count} nuove",
+				"notChosen": "I suoi campi sono del Form: si costruiscono nel luogo Form.",
+				"swapped": "La pagina ora mostra {name}",
+				"swapFailed": "Impossibile inserire {name}: {reason}",
+				"readOnly": "Questo Form è inserito da qualcosa che qui non si può cambiare.",
+				"history": "Inserisci {name}",
+				"locked": "l'ha creato la tua agenzia",
+				"lockedChip": "{name} · l'ha creato la tua agenzia",
+				"seeSent": "Vedi cosa hanno inviato",
+				"lockedTitle": "{name}",
+				"lockedText": "Questo Form l'ha creato la tua agenzia. Ciò che le persone inviano arriva nell'admin.",
+				"lockedRegion": "{name}, un Form creato dalla tua agenzia. Premi Invio per vedere cosa hanno inviato.",
+				"close": "Chiudi"
+			}
 		},
 		"client": {
 			"rail": "Modifica del sito",

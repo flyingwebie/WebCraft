@@ -129,6 +129,19 @@ export const BUILDING_AREA_PROCEDURES = [
 	"forms.create",
 	"forms.saveDraft",
 	"forms.publish",
+	// The Forms place's other tabs (BA-27). Settings renames a Form or changes its key (Staff:
+	// `structure.edit`; every Template and Component placing it follows, as in the admin). Translations
+	// fills a Form's missing translations with AI into its Draft (Staff, through the Workspace's AI key,
+	// its budget and cap, as AI translation always goes). Emails changes and publishes the emails' Draft
+	// apart from the fields (`formEmails.edit`, as in the admin): their words and the Auto-reply only, since
+	// a change to who receives Submissions is the Sensitive action `formRecipients.change`, which core
+	// refuses to anything but an admin session (the place sends people to the admin's Emails tab for it,
+	// where the password is asked again). Deleting a Form and its CAPTCHA (a Sensitive action) stay the
+	// admin's.
+	"forms.rename",
+	"forms.translateMissing",
+	"forms.saveEmails",
+	"forms.publishEmails",
 	// Page layouts, as Members arrange them.
 	"pageLayouts.settings",
 	// The Components place's "Allowed for Members" switch: which Components Members may add to a Page
