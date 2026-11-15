@@ -9979,6 +9979,7 @@
 			},
 			"marks": {
 				"clickToEdit": "Fai clic per modificare",
+				"tapToEdit": "Tocca per modificare",
 				"enterToEdit": "Premi Invio per modificare",
 				"header": "Intestazione",
 				"footer": "Piè di pagina",
