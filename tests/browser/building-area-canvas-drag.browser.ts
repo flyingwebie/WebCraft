@@ -219,7 +219,7 @@ describe("dragging on the canvas", () => {
 		await page.waitForTimeout(500);
 		const textLine = await drag(page, page.locator('[data-wc-insert="text"]'), "div.box p:last-of-type", 0.85);
 		expect(textLine).toBe("after");
-		expect(await eventually(article, (text) => /<div class="box">.*<p>[^<]*<\/p><\/div>/.test(text))).toMatch(
+		expect(await eventually(article, (text) => /<p>Last words<\/p><p>[^<]+<\/p><\/div>/.test(text))).toMatch(
 			/<div class="box"><p>Inside the box<\/p><p>Last words<\/p><p>[^<]+<\/p><\/div>/,
 		);
 		// A click on the button still inserts by the one rule.
