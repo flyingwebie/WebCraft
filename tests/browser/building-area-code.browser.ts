@@ -223,6 +223,20 @@ describe("the code panes", () => {
 		expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(2);
 	});
 
+	// Before the checks that make the server refuse something (each refusal is an error in the page's log).
+	test("with the panes open, the shell passes the accessibility checks in light and dark", async () => {
+		const { page } = await shared();
+		await selectHeading(page);
+		await page.mouse.move(24, 460);
+		await page.waitForTimeout(1800);
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.waitForTimeout(1800);
+			await settled(page);
+			await expectAccessibleScreen(page, `building area code panes (${theme})`);
+		}
+	});
+
 	test("the Inspector's chosen Class and the CSS pane's are one choice", async () => {
 		const { page } = await shared();
 		await selectHeading(page);
@@ -442,19 +456,6 @@ describe("the code panes", () => {
 		// The page in the frame is drawn again with it: at 768 the rule doesn't apply, under it it does.
 		await page.locator('[data-wc-gutter="end"]').dblclick();
 		await page.waitForTimeout(400);
-	});
-
-	test("with the panes open, the shell passes the accessibility checks in light and dark", async () => {
-		const { page } = await shared();
-		await selectHeading(page);
-		await page.mouse.move(24, 460);
-		await page.waitForTimeout(1800);
-		for (const theme of ["light", "dark"] as const) {
-			await page.emulateMedia({ colorScheme: theme });
-			await page.waitForTimeout(1800);
-			await settled(page);
-			await expectAccessibleScreen(page, `building area code panes (${theme})`);
-		}
 	});
 
 	test("Run runs the scripts on a page drawn afresh; the console shows what they wrote and an error against its line", async () => {
