@@ -330,9 +330,7 @@ describe("the visual builder", () => {
 		const page = await openBuilder("light", "layout");
 		await page.getByRole("link", { name: "Open Products · Archive template in the building area" }).click();
 		await page.waitForURL((url) => url.pathname === `/_webcraft/build/archive-template/${shop.productsId}`);
-		await page.getByRole("tree", { name: "Layers" }).waitFor();
-
-		const selected = page.getByRole("tree", { name: "Layers" }).getByRole("treeitem", { selected: true });
+		const selected = page.getByRole("tree", { name: "Elements of the page" }).getByRole("treeitem", { selected: true });
 		await selected.waitFor();
 		expect(await selected.count()).toBe(1);
 		expect(await selected.textContent()).toContain("{{@filter}}");
