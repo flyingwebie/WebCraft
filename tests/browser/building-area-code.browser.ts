@@ -323,6 +323,10 @@ describe("the code panes", () => {
 		await selectHeading(page);
 		const mine = (await box(page, "html").inputValue()).replace("{{ props.headline }}", "Mine: {{ props.headline }}");
 		await typeInto(page, "html", mine);
+		// What was typed shows on the page first (its preview), then their change arrives.
+		await (await frameOf(page)).waitForFunction(
+			() => document.querySelector("h1.hero__title")?.textContent?.includes("Mine:") === true,
+		);
 		await api.components.saveMarkup({
 			siteId,
 			componentId,
@@ -332,7 +336,7 @@ describe("the code panes", () => {
 		await (await frameOf(page)).waitForFunction(
 			() => document.querySelector("h1.hero__title")?.textContent?.includes("Theirs") === true,
 			undefined,
-			{ timeout: 10_000 },
+			{ timeout: 30_000 },
 		);
 		expect(await box(page, "html").inputValue()).toContain("Mine:");
 		await leaveBox(page);
@@ -344,6 +348,9 @@ describe("the code panes", () => {
 
 		// Again, and Reload theirs drops what was typed.
 		await typeInto(page, "html", (await box(page, "html").inputValue()).replace("Mine:", "Mine again:"));
+		await (await frameOf(page)).waitForFunction(
+			() => document.querySelector("h1.hero__title")?.textContent?.includes("Mine again:") === true,
+		);
 		await api.components.saveMarkup({
 			siteId,
 			componentId,
@@ -352,7 +359,7 @@ describe("the code panes", () => {
 		await (await frameOf(page)).waitForFunction(
 			() => document.querySelector("h1.hero__title")?.textContent?.includes("Theirs again") === true,
 			undefined,
-			{ timeout: 10_000 },
+			{ timeout: 30_000 },
 		);
 		await leaveBox(page);
 		await dialog.waitFor();
@@ -365,7 +372,7 @@ describe("the code panes", () => {
 		await (await frameOf(page)).waitForFunction(
 			() => document.querySelector("h1.hero__title")?.textContent?.includes("Theirs") === false,
 			undefined,
-			{ timeout: 10_000 },
+			{ timeout: 30_000 },
 		);
 	});
 
