@@ -16,7 +16,7 @@ import type { ElementTree, TreeNode } from "@webcraft/renderer/builder";
 import type { Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
-import { drift, enterBuildingArea, frameOf, settled } from "./building-area.ts";
+import { drift, enterBuildingArea, eventually, frameOf, settled, stays } from "./building-area.ts";
 import { expectAccessibleScreen } from "./checks.ts";
 import { type BrowserInstall, pageErrors, startBrowserInstall } from "./harness.ts";
 
@@ -117,16 +117,6 @@ async function openRows(page: Page): Promise<void> {
 	}
 }
 
-async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
-	const deadline = Date.now() + 15000;
-	let value = await read();
-	while (!done(value) && Date.now() < deadline) {
-		await Bun.sleep(100);
-		value = await read();
-	}
-	return value;
-}
-
 async function announces(page: Page, words: string): Promise<void> {
 	// The shell's messages and Layers' own (its moves, picks and refusals).
 	const said = async () =>
@@ -199,10 +189,11 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 		await focusRow(page, /^p\b/);
 		await page.keyboard.press("ControlOrMeta+d");
 		await announces(page, "Duplicate p");
-		await eventually(order, (tags) => tags.filter((tag) => tag === "p").length === 3);
+		const paragraphs = (tags: string[]) => tags.filter((tag) => tag === "p").length;
+		expect(paragraphs(await eventually(order, (tags) => paragraphs(tags) === 3))).toBe(3);
 		await page.keyboard.press("Delete");
 		await announces(page, "Delete p");
-		await eventually(order, (tags) => tags.filter((tag) => tag === "p").length === 2);
+		expect(paragraphs(await eventually(order, (tags) => paragraphs(tags) === 2))).toBe(2);
 
 		await focusRow(page, /^ul\b/);
 		await page.keyboard.press("ControlOrMeta+x");
@@ -247,7 +238,10 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 		await announces(page, "Picked up section.");
 		expect(await row(page, "section .box").getAttribute("data-grabbed")).toBe("true");
 		await page.keyboard.press("ArrowUp");
-		await eventually(order, (tags) => tags.indexOf("section") < before.indexOf("section"));
+		// Moved for real (in the Draft) before Escape puts it back.
+		expect(
+			(await eventually(order, (tags) => tags.indexOf("section") < before.indexOf("section"))).indexOf("section"),
+		).toBeLessThan(before.indexOf("section"));
 		await page.keyboard.press("Escape");
 		await announces(page, "Put section back where it was.");
 		expect(await eventually(order, (tags) => tags.join() === before.join())).toEqual(before);
@@ -281,7 +275,8 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 		await focusRow(page, "section .box");
 		await page.keyboard.press(" ");
 		await page.keyboard.press("ArrowDown");
-		await eventually(order, (tags) => tags.indexOf("section") > before.indexOf("section"));
+		const moved = await eventually(order, (tags) => tags.indexOf("section") > before.indexOf("section"));
+		expect(moved.indexOf("section")).toBeGreaterThan(before.indexOf("section"));
 		// A peer changes the Entry template meanwhile (ids kept).
 		const { api } = await install.install.superadmin();
 		const { template } = await api.templates.getEntryTemplate({ siteId, postTypeId });
@@ -299,10 +294,17 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 		await announces(page, "This move can no longer be cancelled");
 		await row(page, "section .box").focus();
 		await page.keyboard.press("Escape");
-		await settled(page);
-		expect((await order()).indexOf("section")).toBeGreaterThan(before.indexOf("section"));
+		// Escape puts it down where it is: the move is a step of its own, and the Draft keeps it.
+		const undo = page.locator('[data-wc-bar="undo"]');
+		expect(
+			await eventually(
+				() => undo.getAttribute("aria-label"),
+				(label) => label === "Undo Move section",
+			),
+		).toBe("Undo Move section");
 		expect(await row(page, "section .box").getAttribute("data-grabbed")).toBeNull();
-		await page.locator('[data-wc-bar="undo"]').click();
+		await stays(order, (tags) => tags.join() === moved.join(), { what: "The order after Escape" });
+		await undo.click();
 		expect(await eventually(order, (tags) => tags.join() === before.join())).toEqual(before);
 		expect(JSON.stringify((await api.templates.getEntryTemplate({ siteId, postTypeId })).template?.draft)).toContain(
 			"Peer title",
@@ -326,12 +328,27 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 	test("a branch selected: the JS pane shows the scripts of the Template it is in, with no error", async () => {
 		const page = await shared();
 		const errors = pageErrors(page).length;
+		const js = page.locator('[data-wc-panel="js"]');
 		for (const name of ["Else", "When there are no items"]) {
+			// An element of another source first: the pane reads a source's scripts when the selection
+			// moves into it, so each branch's are read anew.
+			await focusRow(page, "h1");
+			await openRows(page);
+			const ref = (await row(page, name).getAttribute("data-wc-ref")) ?? "";
+			const source = ref.slice(0, ref.indexOf("#"));
+			expect(source).not.toBe("");
+			const read = page.waitForResponse(
+				(response) =>
+					response.url().includes("/code/scripts") &&
+					(JSON.parse(response.request().postData() ?? "{}") as { ref?: string }).ref?.startsWith(source) === true,
+			);
 			await focusRow(page, name);
-			const js = page.locator('[data-wc-panel="js"]');
-			await js.locator('[data-wc-script-tab="site"]').waitFor();
-			await page.locator('textarea[data-wc-code-box="js"]').waitFor();
-			await page.waitForTimeout(500);
+			// The pane asked for the scripts of the source the branch is in, and was answered.
+			const answer = await read;
+			expect({ name, status: answer.status() }).toEqual({ name, status: 200 });
+			await js.locator('[data-wc-js-pane="ready"]').waitFor();
+			// A branch of the Site template: its scripts are the Site's, the tab shown.
+			expect(await js.locator('[data-wc-script-tab="site"]').getAttribute("aria-pressed")).toBe("true");
 			expect(await js.textContent()).not.toContain("Couldn't read it");
 		}
 		expect(pageErrors(page).slice(errors)).toEqual([]);
@@ -343,6 +360,8 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 		expect(await row(page, "When there are no items").getAttribute("aria-selected")).toBe("true");
 		const frame = await frameOf(page);
 		// The Loop lists nothing, so its empty branch's copy is what the page shows after the Condition's.
+		// The original, Else's copy and the empty branch's copy (pasted above): the last is the empty one's.
+		expect(await frame.locator("header p.source").count()).toBe(3);
 		const shown = frame.locator("header p.source").last();
 		await shown.waitFor();
 		const outline = page.locator('[data-wc-outline="selected"]');

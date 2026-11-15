@@ -13,12 +13,13 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
-import { announced, enterBuildingArea, frameOf, settled } from "./building-area.ts";
+import { announced, enterBuildingArea, eventually, focusShellStart, frameOf, settled } from "./building-area.ts";
 import { expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
 
 let install: BrowserInstall;
 let staff: TestAccount;
+let member: TestAccount;
 let siteId: string;
 let postTypeId: string;
 const slug = "bakery";
@@ -31,6 +32,7 @@ beforeAll(async () => {
 	const workspaceId = (await local.createWorkspace("Acme Ltd")).id;
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
 	staff = (await local.createStaff({ workspaces: [workspaceId], name: "Sam Staff" })).account;
+	member = (await local.createMember({ workspaceId, role: "editor", name: "Giulia Romano" })).account;
 	await api.designSystem.createClass({ siteId, name: "lead", styles: "line-height: 1.5;" });
 	const site = await api.templates.saveSiteTemplateMarkup({ siteId, markup: "<main>{{@outlet}}</main>" });
 	await api.templates.publish({ siteId, templateId: site.template.id });
@@ -90,16 +92,6 @@ async function openRows(page: Page): Promise<void> {
 	}
 }
 
-async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
-	const deadline = Date.now() + 15000;
-	let value = await read();
-	while (!done(value) && Date.now() < deadline) {
-		await Bun.sleep(100);
-		value = await read();
-	}
-	return value;
-}
-
 async function clickIn(page: Page, selector: string): Promise<void> {
 	for (let attempt = 0; ; attempt++) {
 		try {
@@ -135,6 +127,10 @@ describe("keys", () => {
 		await list.waitFor();
 		expect(await list.getByRole("region", { name: "In Layers" }).count()).toBe(1);
 		expect(await list.getByText("Pick the layer up, put it down").count()).toBe(1);
+		// Staff's own rows (a Member's list has none of them: checked below).
+		expect(await list.getByRole("region", { name: "In the code panes" }).count()).toBe(1);
+		expect(await list.getByText("Insert", { exact: true }).count()).toBe(1);
+		expect(await list.getByText("Clear the selection, then close a place").count()).toBe(1);
 		await page.keyboard.press("F6");
 		expect(await page.evaluate(() => document.activeElement?.closest("dialog") !== null)).toBe(true);
 		for (const theme of ["light", "dark"] as const) {
@@ -148,17 +144,64 @@ describe("keys", () => {
 		expect(await focusedLabel(page)).toBe(before);
 	});
 
+	test("a Member's shortcuts list has only the keys of editing: not Layers', the code panes' or inserting", async () => {
+		const page = await install.newPage("light");
+		try {
+			await page.setViewportSize({ width: 1440, height: 900 });
+			await enterBuildingArea(install, page, { as: member, siteId, slug, open: `/page${path}` });
+			await settled(page);
+			await focusShellStart(page);
+			await page.keyboard.press("ControlOrMeta+/");
+			const list = page.getByRole("dialog", { name: "Keyboard shortcuts" });
+			await list.waitFor();
+			expect(await list.getByRole("region", { name: "Everywhere" }).count()).toBe(1);
+			expect(await list.getByText("Undo", { exact: true }).count()).toBe(1);
+			// What Staff's list has and a Member may not do.
+			expect(await list.getByRole("region", { name: "In Layers" }).count()).toBe(0);
+			expect(await list.getByRole("region", { name: "In the code panes" }).count()).toBe(0);
+			expect(await list.getByText("Pick the layer up, put it down").count()).toBe(0);
+			// Staff's only rows of the first group: inserting, and Escape clearing the selection.
+			expect(await list.getByText("Insert", { exact: true }).count()).toBe(0);
+			expect(await list.getByText("Clear the selection, then close a place").count()).toBe(0);
+		} finally {
+			await page.context().close();
+		}
+	});
+
 	test("F6 goes back to where focus was in a region", async () => {
 		const page = await shared();
 		await openRows(page);
 		const rows = tree(page).getByRole("treeitem");
 		await rows.nth(2).click();
-		await rows.nth(2).focus();
+		// Remembered: a control of Layers' region that is neither where F6 lands without memory (its first
+		// control) nor the tree's tab stop (the selected row), so only memory brings focus back to it.
+		const picked = await tree(page).evaluate((list) => {
+			const region = list.closest<HTMLElement>("[data-building-region]");
+			if (!region) return null;
+			const focusable = [
+				...region.querySelectorAll<HTMLElement>("a[href], button:not(:disabled), input, select, textarea, [tabindex]"),
+			].filter((element) => element.tabIndex >= 0 && element.checkVisibility());
+			const stop = list.querySelector<HTMLElement>('[role="treeitem"][tabindex="0"]');
+			const other = focusable.find((element) => element !== focusable[0] && element !== stop);
+			if (!other) return null;
+			other.setAttribute("data-test-remembered", "");
+			return {
+				region: region.dataset.buildingRegion,
+				first: focusable[0]?.getAttribute("aria-label") ?? focusable[0]?.textContent ?? "",
+				stop: stop?.getAttribute("aria-label") ?? "",
+			};
+		});
+		if (!picked) throw new Error("Layers' region has no third control to remember.");
+		const remembered = page.locator("[data-test-remembered]");
+		await remembered.focus();
 		const was = await focusedLabel(page);
+		expect(was).not.toBe(picked.first);
+		expect(was).not.toBe(picked.stop);
 		await page.keyboard.press("F6");
 		expect(await focusedLabel(page)).not.toBe(was);
 		await page.keyboard.press("Shift+F6");
-		expect(await focusedLabel(page)).toBe(was);
+		expect(await remembered.evaluate((element) => element === document.activeElement)).toBe(true);
+		await remembered.evaluate((element) => element.removeAttribute("data-test-remembered"));
 	});
 
 	test("a selection inside a branch someone closed keeps the tree's tab stop on the row around it", async () => {
@@ -178,6 +221,19 @@ describe("keys", () => {
 		const heading = tree(page).getByRole("treeitem", { name: "h1", exact: true });
 		await heading.click();
 		await heading.focus();
+		// Every text the shell's live region takes from now on, not only the last.
+		await page.evaluate(() => {
+			const region = document.querySelector("[data-wc-messages]");
+			const seen: string[] = [];
+			(window as unknown as { wcSaid: string[] }).wcSaid = seen;
+			if (!region) return;
+			new MutationObserver(() => seen.push(region.textContent ?? "")).observe(region, {
+				childList: true,
+				subtree: true,
+				characterData: true,
+			});
+		});
+		const said = () => page.evaluate(() => (window as unknown as { wcSaid: string[] }).wcSaid.join(" | "));
 		await page.keyboard.press("Alt+ArrowDown");
 		expect(
 			await eventually(
@@ -186,15 +242,18 @@ describe("keys", () => {
 			),
 		).toContain("Move h1");
 		const { api } = await install.install.superadmin();
-		const moved = await eventually(
-			async () => (await api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).markup?.draft ?? "",
-			(markup) => markup.indexOf("<section") < markup.indexOf("<h1"),
-		);
+		const markup = async () => (await api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).markup?.draft ?? "";
+		const moved = await eventually(markup, (text) => text.indexOf("<section") < text.indexOf("<h1"));
 		expect(moved.indexOf("<section")).toBeLessThan(moved.indexOf("<h1"));
-		await page.waitForTimeout(800);
-		expect(await announced(page)).not.toMatch(/sav/i);
+		// Given time to say more once the save is answered: nothing it said, then or before, was "saved".
+		await page.waitForTimeout(1500);
+		expect(await said()).toContain("Move h1");
+		expect(await said()).not.toMatch(/sav/i);
 		await tree(page).getByRole("treeitem", { name: "h1", exact: true }).focus();
 		await page.keyboard.press("Alt+ArrowUp");
+		// Back in its place for the checks after this one.
+		const back = await eventually(markup, (text) => text.indexOf("<h1") < text.indexOf("<section"));
+		expect(back.indexOf("<h1")).toBeLessThan(back.indexOf("<section"));
 	});
 });
 
@@ -204,25 +263,18 @@ describe("history and peers", () => {
 		await clickIn(page, "p.lead");
 		const css = page.locator('textarea[data-wc-code-box="css"]');
 		await css.waitFor();
+		const styles = async () => (await leadClass())?.styles ?? "";
 		await css.fill(".lead {\n  line-height: 1.5;\n  color: rgb(1, 1, 1);\n}");
 		await page.locator('[data-wc-rail="panels"]').focus();
-		await eventually(
-			async () => (await leadClass())?.styles ?? "",
-			(styles) => styles.includes("rgb(1, 1, 1)"),
-		);
+		expect(await eventually(styles, (text) => text.includes("rgb(1, 1, 1)"))).toContain("rgb(1, 1, 1)");
 		await css.fill(".lead {\n  line-height: 1.5;\n  color: rgb(2, 2, 2);\n}");
 		await page.locator('[data-wc-rail="panels"]').focus();
-		await eventually(
-			async () => (await leadClass())?.styles ?? "",
-			(styles) => styles.includes("rgb(2, 2, 2)"),
-		);
+		expect(await eventually(styles, (text) => text.includes("rgb(2, 2, 2)"))).toContain("rgb(2, 2, 2)");
+		// One Undo takes back the second typing only: the first one's colour is back.
 		await page.locator('[data-wc-bar="undo"]').click();
-		expect(
-			await eventually(
-				async () => (await leadClass())?.styles ?? "",
-				(styles) => styles.includes("rgb(1, 1, 1)"),
-			),
-		).toContain("rgb(1, 1, 1)");
+		const undone = await eventually(styles, (text) => !text.includes("rgb(2, 2, 2)"));
+		expect(undone).toContain("rgb(1, 1, 1)");
+		expect(undone).not.toContain("rgb(2, 2, 2)");
 	});
 
 	test("a Class made from the Inspector keeps the Classes a peer made meanwhile", async () => {

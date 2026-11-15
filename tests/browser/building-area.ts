@@ -200,6 +200,75 @@ export async function shellFocusVisible(page: Page): Promise<boolean> {
 	});
 }
 
+/** A value read, as a failure shows it: a string as it is, anything else as JSON, both cut at 2000 characters. */
+function shown(value: unknown): string {
+	let text: string;
+	try {
+		text = typeof value === "string" ? value : (JSON.stringify(value) ?? String(value));
+	} catch {
+		text = String(value);
+	}
+	return text.length > 2000 ? `${text.slice(0, 2000)}…` : text;
+}
+
+/**
+ * What `read` gives once `done` accepts it. When `done` accepts nothing `read` gives within `timeout`
+ * (15 s by default: a busy machine is slow), it fails, saying what it read last: a wait is a check, never
+ * a pause that ends quietly.
+ */
+export async function eventually<Value>(
+	read: () => Promise<Value>,
+	done: (value: Value) => boolean,
+	options: { timeout?: number; interval?: number; what?: string } = {},
+): Promise<Value> {
+	const { timeout = 15_000, interval = 100, what = "What was waited for" } = options;
+	const deadline = Date.now() + timeout;
+	let value = await read();
+	while (!done(value)) {
+		if (Date.now() >= deadline) throw new Error(`${what} didn't come within ${timeout} ms. Last read: ${shown(value)}`);
+		await Bun.sleep(interval);
+		value = await read();
+	}
+	return value;
+}
+
+/**
+ * Expects `read` to keep giving what `ok` accepts for `during` milliseconds: for something that must not
+ * happen, given the time it would take to. Fails with the first value `ok` refuses; answers the last one.
+ */
+export async function stays<Value>(
+	read: () => Promise<Value>,
+	ok: (value: Value) => boolean,
+	options: { during?: number; interval?: number; what?: string } = {},
+): Promise<Value> {
+	const { during = 1500, interval = 100, what = "What had to stay" } = options;
+	const until = Date.now() + during;
+	for (;;) {
+		const value = await read();
+		if (!ok(value)) throw new Error(`${what} changed. Read: ${shown(value)}`);
+		if (Date.now() >= until) return value;
+		await Bun.sleep(interval);
+	}
+}
+
+/**
+ * Waits until the shell's selection (the address keeps it: `wc-select`) is the element of the page
+ * `selector` names, and answers its reference: a pane shown after it then shows that element's.
+ */
+export async function selectionIs(page: Page, selector: string): Promise<string> {
+	const ref = await (await frameOf(page))
+		.locator(selector)
+		.first()
+		.evaluate((element) => element.closest("[data-wc-code]")?.getAttribute("data-wc-code") ?? null);
+	if (!ref) throw new Error(`${selector} carries no reference.`);
+	await eventually(
+		async () => new URL(page.url()).searchParams.get("wc-select"),
+		(selected) => selected === ref,
+		{ what: `The selection of ${selector}` },
+	);
+	return ref;
+}
+
 /** Expects nothing logged as an error by the page or the frame (axe's own inline-style reports aside). */
 export function expectNoErrors(where: string, errors: readonly string[]): void {
 	const real = errors.filter((error) => !error.startsWith("Applying inline style violates"));
