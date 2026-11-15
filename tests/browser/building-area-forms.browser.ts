@@ -390,7 +390,7 @@ describe("a Form on a page, for a Member", () => {
 		const frame = await framedForm(page);
 		const form = frame.locator('form[action^="/_webcraft/forms/"]');
 		await form.hover({ position: { x: 4, y: 4 } });
-		const chip = page.locator('[data-wc-client-chip="locked"]');
+		const chip = page.locator('[data-wc-client-chip="locked"]', { hasText: "Order a cake" });
 		await chip.waitFor();
 		// Its name, then why it is locked.
 		expect(await chip.textContent()).toBe("Order a cakeyour agency built it");

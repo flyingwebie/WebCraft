@@ -56,9 +56,19 @@ export function placedFormRef(form: Element): string | null {
 /** The names of the Site's Forms, by id, as the shell last read them: what a placed Form's chip says. */
 const names = new Map<string, string>();
 
-/** Keeps the names of the Site's Forms for the chips. */
+/** Who draws with the names, to draw again once they are read. */
+const listeners = new Set<() => void>();
+
+/** Keeps the names of the Site's Forms for the chips, and tells who draws with them. */
 export function rememberFormNames(forms: readonly { id: string; name: string }[]): void {
 	for (const form of forms) names.set(form.id, form.name);
+	for (const listener of listeners) listener();
+}
+
+/** Calls `listener` whenever the Forms' names are read; answers how to stop. */
+export function onFormNames(listener: () => void): () => void {
+	listeners.add(listener);
+	return () => listeners.delete(listener);
 }
 
 /** A placed Form's name, when the shell has read it. */

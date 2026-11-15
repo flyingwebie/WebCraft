@@ -1,7 +1,7 @@
 import { BODY_REGION, LINK_REGION, PHOTO_REGION, TEXT_REGION } from "../agent/contract.ts";
 import { fill, type PageState, type Words } from "../api.ts";
 import { nameOf, type Overlay, type OverlayMark } from "../canvas/overlay.ts";
-import { formIdOf, formNameOf, PLACED_FORM, placedFormOf } from "../canvas/placed-form.ts";
+import { formIdOf, formNameOf, onFormNames, PLACED_FORM, placedFormOf } from "../canvas/placed-form.ts";
 import type { RegionSaving } from "../canvas/regions.ts";
 import type { PageEditing } from "../editing/editing.ts";
 import type { RegionPopovers } from "./popovers.ts";
@@ -481,6 +481,8 @@ export function clientEditing(options: {
 			layer.setAttribute("aria-hidden", "true");
 			canvas.append(layer);
 			stops.push(next.overlay.onDraw(draw));
+			// The placed Forms' chips and names, once their names are read (BA-27).
+			stops.push(onFormNames(redraw));
 			// The page editing asks the overlay for its marks: the dots are drawn here, on the outlines.
 			const overlay: Overlay = {
 				...next.overlay,
