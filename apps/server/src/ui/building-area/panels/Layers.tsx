@@ -433,6 +433,8 @@ export function Layers({
 	}, [selectedRow]);
 
 	const toggle = (key: string, open: boolean) => setToggled((was) => new Map(was).set(key, open));
+	/** What was typed to find a row by its name (typeahead), and when the last letter came. */
+	const typed = useRef({ text: "", at: 0 });
 
 	const focusRow = (key: string | null) => {
 		if (!key) return;
@@ -508,6 +510,9 @@ export function Layers({
 	const announceRefusal = (text: string) => setRefusal((was) => ({ text, count: was.count + 1 }));
 
 	const nameOfRow = (row: Extract<Row, { kind: "node" }>) => rowName(row.node, row.source, row.nested).name;
+	/** The name a row is found by when its name is typed: the name it shows first. */
+	const searchName = (row: Extract<Row, { kind: "node" | "placement" | "branch" }>) =>
+		row.kind === "node" ? nameOfRow(row) : row.kind === "branch" ? row.label : row.placement.name;
 
 	const act = (row: Extract<Row, { kind: "node" }>, action: "hide" | "duplicate" | "delete") => {
 		const tree = row.source.tree;
@@ -796,6 +801,36 @@ export function Layers({
 		if (node && matches(event.nativeEvent, "element.duplicate")) {
 			event.preventDefault();
 			act(node, "duplicate");
+			return;
+		}
+		// `*` opens every row beside this one (the old tree's, and the tree pattern's).
+		if (matches(event.nativeEvent, "tree.openLevel")) {
+			event.preventDefault();
+			setToggled((was) => {
+				const next = new Map(was);
+				for (const each of focusable) if (each.parent === row.parent && each.expandable) next.set(each.key, true);
+				return next;
+			});
+			return;
+		}
+		// Typing a name moves to the next row it starts (letters typed within 0.7 s add up; the same
+		// letter again goes on to the next row it starts).
+		if (matches(event.nativeEvent, "tree.typeahead")) {
+			event.preventDefault();
+			const now = Date.now();
+			const letter = event.key.toLocaleLowerCase();
+			const previous = now - typed.current.at < 700 ? typed.current.text : "";
+			const text = previous === letter ? letter : previous + letter;
+			typed.current = { text, at: now };
+			// A longer name typed may still be the row at focus; one letter always moves on.
+			const from = text.length > 1 ? 0 : 1;
+			for (let step = from; step <= focusable.length; step++) {
+				const each = focusable[(at + step) % focusable.length];
+				if (each && searchName(each).toLocaleLowerCase().startsWith(text)) {
+					if (each !== row) go(each);
+					break;
+				}
+			}
 			return;
 		}
 		const rtl = getComputedStyle(event.currentTarget).direction === "rtl";
