@@ -21,7 +21,7 @@ import { buildShop, SHOP_MARKUP, type Shop } from "../filters/shop.ts";
 import type { TestAccount, TestBrowser } from "../harness/index.ts";
 import { frameOf, settled } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
-import { type BrowserInstall, forgetPageErrors, startBrowserInstall } from "./harness.ts";
+import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
 
 let install: BrowserInstall;
 let shop: Shop;
@@ -248,10 +248,21 @@ describe("documents across switches", () => {
 		await row.waitFor();
 		expect(await row.count()).toBe(1);
 		expect(await row.textContent()).toContain("{{@filter}}");
-		// (A Filter's form carries no element reference of its own on the page, so no outline is drawn on it.)
-		// The JS pane can't read a selected command's scripts (Code mode's `code/scripts` takes element ids
-		// only, and answers 404 for `@1.0.0`): that report is BA-11's, not what this check is about.
-		forgetPageErrors(page, 0, (error) => error.includes("status of 404"));
+		// The canvas outlines the Filter's form: the first element its command draws (BA-28).
+		const frame = await framedAt(page, "/shop");
+		const outline = page.locator('[data-wc-outline="selected"]');
+		await outline.waitFor({ state: "visible" });
+		const form = await frame.locator("aside form[data-wc-filter]").boundingBox();
+		const drawn = await outline.boundingBox();
+		expect(form).not.toBeNull();
+		expect(drawn).not.toBeNull();
+		if (form && drawn) {
+			expect(Math.abs(drawn.x - form.x)).toBeLessThan(4);
+			expect(Math.abs(drawn.y - form.y)).toBeLessThan(4);
+			expect(Math.abs(drawn.width - form.width)).toBeLessThan(4);
+		}
+		// The JS pane reads the scripts of a selected command too (its source's): nothing it can't read.
+		await pane(page, "js").locator("[data-wc-script-tab]").first().waitFor();
 		// The logo tile goes back to the Filter's Layout tab.
 		expect(await page.getByRole("link", { name: "Back to the admin" }).getAttribute("href")).toBe(
 			install.adminUrl(`/sites/${siteId}/filters/${shop.filterId}?tab=layout`),

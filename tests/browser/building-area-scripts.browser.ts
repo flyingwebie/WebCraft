@@ -616,6 +616,46 @@ describe("Staff", () => {
 		await api.components.saveScriptDraft({ siteId, componentId: counterId, code: COUNTER });
 	});
 
+	test("saving the Component script over a version someone saved meanwhile asks: Reload theirs, or Overwrite with mine", async () => {
+		await resetCounter();
+		const page = await shared("staff");
+		await open(page, "/blog/rye");
+		await componentTab(page, "Three");
+		expect(await box(page, "js").inputValue()).toBe(COUNTER);
+		// Someone else saves the Component's script after the box was read.
+		await api.components.saveScriptDraft({ siteId, componentId: counterId, code: `${COUNTER}// theirs\n` });
+		await box(page, "js").click();
+		await toEnd(page);
+		await page.keyboard.insertText("// mine\n");
+		await page.keyboard.press("ControlOrMeta+s");
+		const dialog = page.getByRole("alertdialog", { name: "Someone saved a newer version" });
+		await dialog.waitFor();
+		expect(await dialog.textContent()).toContain("Component script");
+		expect(await page.evaluate(() => document.activeElement?.hasAttribute("data-wc-conflict-reload"))).toBe(true);
+		// Their version is still the Draft while the question is asked.
+		expect(await counterDraft()).toBe(`${COUNTER}// theirs\n`);
+		forgetScriptErrors(page);
+		// Under the modal question the inert panels read as unreachable scrolling regions (as BA-34 found).
+		await expectNoAxeViolations(page, "the JS pane's conflict question", ["scrollable-region-focusable"]);
+		await dialog.getByRole("button", { name: "Overwrite with mine" }).click();
+		expect(await eventually(counterDraft, (code) => code === `${COUNTER}// mine\n`)).toBe(`${COUNTER}// mine\n`);
+
+		// Again, and Reload theirs drops what was typed and shows theirs.
+		await api.components.saveScriptDraft({ siteId, componentId: counterId, code: `${COUNTER}// theirs again\n` });
+		await box(page, "js").click();
+		await toEnd(page);
+		await page.keyboard.insertText("// mine again\n");
+		await page.keyboard.press("ControlOrMeta+s");
+		await dialog.waitFor();
+		await dialog.getByRole("button", { name: "Reload theirs" }).click();
+		await page.waitForFunction(
+			(wanted) => document.querySelector<HTMLTextAreaElement>('textarea[data-wc-code-box="js"]')?.value === wanted,
+			`${COUNTER}// theirs again\n`,
+		);
+		expect(await counterDraft()).toBe(`${COUNTER}// theirs again\n`);
+		await resetCounter();
+	});
+
 	test("a Component script's Consent category and Libraries: saved with it, one Undo step, read back (BA-36)", async () => {
 		await resetCounter();
 		const page = await shared("staff");

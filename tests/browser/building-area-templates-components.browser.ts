@@ -14,6 +14,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Page } from "playwright";
 
+import { fakeNpmPackage } from "../harness/fake-npm.ts";
 import type { TestAccount, TestBrowser } from "../harness/index.ts";
 import { announced, enterBuildingArea, frameOf, shellFocusVisible } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
@@ -329,7 +330,23 @@ describe("Templates and Components, for Staff", () => {
 		expect(JSON.stringify(offered)).toContain(heroId);
 	});
 
-	test("Duplicate makes a copy with its Props and chooses it", async () => {
+	test("Duplicate makes a copy with its Props and its script's Consent category and Libraries, and chooses it", async () => {
+		// The Component's script, with a Consent category and a Library the JS pane set.
+		fakeNpmPackage(install.install, "quote-kit", {
+			"1.0.0": { files: { "dist/kit.min.js": "window.quoteKit = {};" }, license: "MIT", jsdelivr: "dist/kit.min.js" },
+		});
+		const { library } = await superadmin.api.libraries.add({
+			siteId,
+			library: { source: "npm", packageName: "quote-kit", version: "1.0.0" },
+		});
+		const code = "export default function (root) {\n\troot.dataset.quoted = 'yes';\n}\n";
+		await superadmin.api.components.saveScriptDraft({
+			siteId,
+			componentId: quoteId,
+			code,
+			consentCategory: "analytics",
+			libraryIds: [library.id],
+		});
 		await go(page, placed("components", `component=${quoteId}`));
 		await page.locator(`[data-wc-component-details="${quoteId}"] [data-wc-component-duplicate]`).click();
 		await page.locator("[data-wc-component-card]", { hasText: "CustomerQuoteCopy" }).waitFor();
@@ -341,6 +358,8 @@ describe("Templates and Components, for Staff", () => {
 		expect(await announced(page)).toBe("Duplicated as CustomerQuoteCopy");
 		const markup = await superadmin.api.components.getMarkup({ siteId, componentId: copy?.id ?? "" });
 		expect(markup.markup.draft).toContain("{{ props.headline }}");
+		const { script } = await superadmin.api.components.getScript({ siteId, componentId: copy?.id ?? "" });
+		expect(script?.draft).toMatchObject({ code, consentCategory: "analytics", libraryIds: [library.id] });
 	});
 
 	test("deleting a placed Component: the dialog names its pages and starts on Cancel; Delete removes its Placements", async () => {

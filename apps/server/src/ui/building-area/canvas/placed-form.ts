@@ -91,6 +91,34 @@ export function placedFormAt(page: Document, ref: string): HTMLFormElement | nul
 	return null;
 }
 
+/**
+ * The first element a command draws on the page (a Filter's form, a Condition's shown element), by
+ * the command's reference (`content#@0.1`): what lies between the comments of its range, which
+ * Staff's render writes around a command since it carries no `data-wc-code` of its own. Null when the
+ * page draws nothing for it.
+ */
+export function commandElementAt(page: Document, ref: string): Element | null {
+	if (!ref.includes("#@")) return null;
+	const walker = page.createTreeWalker(page.body ?? page, NodeFilter.SHOW_COMMENT);
+	for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+		const match = /^wc-code-start (\S+)$/.exec((node.nodeValue ?? "").trim());
+		if (!match?.[1]) continue;
+		let named: string;
+		try {
+			named = decodeURIComponent(match[1]);
+		} catch {
+			continue;
+		}
+		if (named !== ref) continue;
+		for (let next = node.nextSibling; next; next = next.nextSibling) {
+			if (next.nodeType === Node.ELEMENT_NODE) return next as Element;
+			if (next.nodeType === Node.COMMENT_NODE && (next.nodeValue ?? "").trim() === `wc-code-end ${match[1]}`) break;
+		}
+		return null;
+	}
+	return null;
+}
+
 /** The read of the Site's Forms' names, once per shell. */
 let reading: Promise<void> | null = null;
 
