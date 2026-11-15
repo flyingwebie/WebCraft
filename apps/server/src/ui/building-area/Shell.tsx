@@ -375,8 +375,11 @@ export function Shell({ config }: { config: ShellConfig }) {
 		[editing],
 	);
 
-	// The open document (BA-06): what the address names, and where the frame shows it.
-	const opened = useOpenDocument(config, announce);
+	// The open document (BA-06): what the address names, and where the frame shows it. Before another
+	// opens, what was typed and not saved yet is saved (BA-34; the code panes come further down).
+	const leavingRef = useRef<() => Promise<void>>(async () => {});
+	const leaving = useCallback(() => leavingRef.current(), []);
+	const opened = useOpenDocument(config, announce, leaving);
 	const { framed } = opened;
 
 	const onPage = useCallback(
@@ -520,11 +523,11 @@ export function Shell({ config }: { config: ShellConfig }) {
 		appliedSelection.current = key;
 		if (wanted && pageStructure.snapshot().selection?.ref !== wanted) pageStructure.select(wanted);
 	}, [staff, siteOpen, wanted, shown?.address, pageStructure]);
+	// A Filter the address asks to select (the admin's Filters screen, BA-34): where it is placed.
+	useFilterSelection(staff ? pageStructure : null, opened.address.filter ?? null, shown?.address ?? null);
 
 	// The open document is a page for now (documents come with a later part of the building area).
 	// What the panels' rules read: the selection and the open document's kind (a Template of any kind is a Template).
-	// A Filter the address asks to select (the admin's Filters screen, BA-34): where it is placed.
-	useFilterSelection(staff ? pageStructure : null, opened.address.filter ?? null, shown?.address ?? null);
 	const kind = opened.address.document?.kind ?? null;
 	documentKind.current = kind;
 	const chosen = structureNow.selection;
@@ -578,6 +581,10 @@ export function Shell({ config }: { config: ShellConfig }) {
 		staff && panelSelection !== null,
 	);
 	const codeParts = staff ? codePaneParts(codePanes, words, panelSelection?.name ?? "") : null;
+	leavingRef.current = async () => {
+		await frame.current?.flush();
+		await codePanes.panes?.flush();
+	};
 	const docks = useDocks({
 		config,
 		context,
