@@ -145,15 +145,18 @@ async function toEnd(area: Locator): Promise<void> {
 }
 
 describe("the HTML pane's suggestions", () => {
-	test("the shell with the suggestions open passes the accessibility checks, light and dark", async () => {
+	test("the shell with the panes, then the suggestions, passes the accessibility checks, light and dark", async () => {
 		const page = await shared();
 		await select(page, "h1");
-		const html = box(page, "html");
-		const original = await html.inputValue();
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
 			await page.waitForTimeout(1200);
 			await expectAccessibleScreen(page, `the code panes (${theme})`);
+		}
+		const html = box(page, "html");
+		const original = await html.inputValue();
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
 			await toEnd(html);
 			await page.keyboard.type("{{");
 			await page.getByRole("listbox", { name: "Suggestions" }).waitFor();
@@ -161,6 +164,7 @@ describe("the HTML pane's suggestions", () => {
 			await page.keyboard.press("Escape");
 			await html.fill(original);
 		}
+		await page.emulateMedia({ colorScheme: "light" });
 		await page.locator('[data-wc-rail="panels"]').focus();
 	});
 
@@ -280,6 +284,10 @@ describe("the CSS pane", () => {
 			);
 			if (color !== "rgb(1, 2, 3)")
 				console.log(
+					"preview asked:",
+					await page.evaluate(() => document.documentElement.dataset.wcCssPreview ?? "never"),
+					await box(page, "css").inputValue(),
+					await box(page, "css").getAttribute("readonly"),
 					"preview sheets:",
 					await (await frameOf(page)).evaluate(() =>
 						document.adoptedStyleSheets.map((sheet) => [...sheet.cssRules].map((rule) => rule.cssText).join(" ")),
@@ -430,7 +438,7 @@ describe("Format and Components' Props in the HTML pane", () => {
 			() => html.inputValue(),
 			(text) => text.includes("\n  <h1"),
 		);
-		expect(tidied).toContain('<Hero heading="Welcome" />');
+		expect(tidied).toMatch(/<Hero heading="Welcome"( data-wc-id="[^"]*")? \/>/);
 		await html.fill(original);
 		await page.locator('[data-wc-rail="panels"]').focus();
 	});

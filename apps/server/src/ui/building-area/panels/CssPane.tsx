@@ -236,6 +236,8 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 	let previewSheet: { page: Document; sheet: CSSStyleSheet } | null = null;
 	const previewCss = (text: string | null) => {
 		const page = deps().frame.current?.page() ?? null;
+		// TEMPORARY diagnostics (BA-33): what the preview was asked and found.
+		document.documentElement.dataset.wcCssPreview = `${text === null ? "clear" : "show"}:${page ? "page" : "none"}:${page?.defaultView ? "view" : "noview"}`;
 		if (previewSheet && (previewSheet.page !== page || text === null)) {
 			const { page: was, sheet } = previewSheet;
 			was.adoptedStyleSheets = was.adoptedStyleSheets.filter((each) => each !== sheet);

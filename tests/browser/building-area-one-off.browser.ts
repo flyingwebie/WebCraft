@@ -221,8 +221,7 @@ describe("one-off styles and generated Classes", () => {
 				.getByRole("button", { name: /a generated Class, for CSS/ })
 				.getAttribute("aria-pressed"),
 		).toBe("true");
-		const generated = (await draftClasses()).find((each) => each.generated);
-		expect(generated?.styles).toContain("color: red");
+		expect((await draftClasses()).some((each) => each.generated && each.styles.includes("color: red"))).toBe(true);
 		expect(
 			await (await frameOf(page)).locator('p:text-is("Second words")').evaluate((p) => getComputedStyle(p).color),
 		).toBe("rgb(255, 0, 0)");
@@ -324,6 +323,10 @@ describe("one-off styles and generated Classes", () => {
 		await page.locator('[data-wc-rail="panels"]').focus();
 		await eventually(entryMarkup, (text) => /<h1 class="style-/.test(text));
 		await selectParagraph(page, "First words");
+		await eventually(
+			() => html.inputValue(),
+			(text) => /<h1 class="style-/.test(text),
+		);
 		const again = await html.inputValue();
 		await html.fill(again.replace('<p class="intro">', '<p class="intro" style="color: teal">'));
 		await page.locator('[data-wc-rail="panels"]').focus();

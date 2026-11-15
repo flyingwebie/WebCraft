@@ -29,7 +29,8 @@ beforeAll(async () => {
 	const workspaceId = (await local.createWorkspace("Acme Ltd")).id;
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
 	staff = (await local.createStaff({ workspaces: [workspaceId], name: "Sam Staff" })).account;
-	for (const name of ["lead", "box", "note"]) await api.designSystem.createClass({ siteId, name });
+	for (const name of ["lead", "box", "note"])
+		await api.designSystem.createClass({ siteId, name, styles: name === "box" ? "padding: 48px;" : "" });
 	const site = await api.templates.saveSiteTemplateMarkup({
 		siteId,
 		markup: "<header><p>Acme Bakery</p></header><main>{{@outlet}}</main>",

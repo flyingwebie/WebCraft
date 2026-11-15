@@ -274,7 +274,17 @@ describe("fixed text becomes a value clients edit", () => {
 		question = await ask(page, "Make it a Global");
 		await question.getByLabel("Label").fill("Hours");
 		await question.getByRole("button", { name: "Make it a Global" }).click();
-		await question.waitFor({ state: "detached" });
+		const closed = await question
+			.waitFor({ state: "detached", timeout: 10000 })
+			.then(() => "")
+			.catch(
+				async () =>
+					(await question
+						.getByRole("alert")
+						.textContent()
+						.catch(() => "")) ?? "still open",
+			);
+		expect(closed).toBe("");
 		await announces(page, "The text now reads {{ site.hours }}.");
 		const { globals } = await api.globals.get({ siteId });
 		expect(globals.fields.find((field) => field.key === "hours")).toMatchObject({ label: "Hours", type: "text" });

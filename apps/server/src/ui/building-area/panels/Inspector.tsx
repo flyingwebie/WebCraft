@@ -182,6 +182,9 @@ export function Inspector({
 	);
 }
 
+/** Classes made from the Inspector in this tab, by id: the open sources' catalogues don't know them yet. */
+const MADE_CLASSES = new Map<string, string>();
+
 /** What a node that has no panel of its own is called (a Form, a Popup, pagination). */
 function nodeTitle(node: TreeNode, source: StructureSource): string {
 	if (node.type === "component")
@@ -349,6 +352,7 @@ function ElementInspector({
 	const classNameOf = (id: string) =>
 		source.catalogue.classes.find((each) => each.id === id)?.name ??
 		source.catalogue.utilities.find((each) => each.id === id)?.name ??
+		MADE_CLASSES.get(id) ??
 		id;
 
 	const addClass = async (typed: string) => {
@@ -365,6 +369,8 @@ function ElementInspector({
 				return;
 			}
 			id = made.id;
+			// The source's catalogue was read before the Class was made: its name is kept here (BA-33).
+			MADE_CLASSES.set(made.id, made.name);
 		}
 		if (node.classes.includes(id)) {
 			setAdding(false);

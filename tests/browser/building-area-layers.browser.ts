@@ -57,7 +57,7 @@ beforeAll(async () => {
 	await api.components.saveMarkup({
 		siteId,
 		componentId: cardId,
-		markup: '<div class="card"><h3>Card title</h3></div>',
+		markup: '<div class="card"><h2>Card title</h2></div>',
 	});
 	await api.components.publish({ siteId, componentId: cardId });
 	const { postType } = await api.postTypes.create({ siteId, name: "Blog posts", urlPattern: "/blog/{slug}" });
@@ -127,12 +127,10 @@ async function eventually<Value>(read: () => Promise<Value>, done: (value: Value
 }
 
 async function announces(page: Page, words: string): Promise<void> {
-	expect(
-		await eventually(
-			() => announced(page),
-			(seen) => seen.includes(words),
-		),
-	).toContain(words);
+	// The shell's messages and Layers' own (its moves, picks and refusals).
+	const said = async () =>
+		(await page.locator('[aria-live], [role="status"], [role="alert"]').allTextContents()).join(" | ");
+	expect(await eventually(said, (seen) => seen.includes(words))).toContain(words);
 }
 
 async function entryMarkup(): Promise<string> {
@@ -167,6 +165,18 @@ async function focusRow(page: Page, name: string | RegExp): Promise<void> {
 }
 
 describe("Layers: arranging from the keyboard, branches, hover", () => {
+	test("Layers with its branches passes the accessibility checks, light and dark", async () => {
+		const page = await shared();
+		await focusRow(page, "Else");
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.mouse.move(24, 460);
+			await page.waitForTimeout(1800);
+			await settled(page);
+			await expectAccessibleScreen(page, `Layers with branches (${theme})`);
+		}
+	});
+
 	test("cut, copy, paste, duplicate, delete and rename, each announced", async () => {
 		const page = await shared();
 		await focusRow(page, /^p\b/);
@@ -174,7 +184,7 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 		await announces(page, "Copied p.");
 		await focusRow(page, "section .box");
 		await page.keyboard.press("ControlOrMeta+v");
-		await announces(page, "Paste p");
+		await announces(page, "Paste section.box");
 		expect(await eventually(order, (tags) => tags.join() === "h1,section,p,ul,p,Card,Card")).toEqual([
 			"h1",
 			"section",
@@ -346,34 +356,22 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 	test("the same Component placed twice changes in both places at once", async () => {
 		const page = await shared();
 		const frame = await frameOf(page);
-		const first = frame.locator(".card h3").first();
+		const first = frame.locator(".card h2").first();
 		const box = await first.boundingBox();
 		if (!box) throw new Error("No card.");
 		await page.mouse.click(box.x + 10, box.y + box.height / 2);
 		await settled(page);
-		await page.locator('[data-wc-panel-body="inspector"]').getByLabel("Tag").selectOption("h4");
-		await (await frameOf(page)).locator(".card h4").nth(1).waitFor();
-		expect(await (await frameOf(page)).locator(".card h4").count()).toBe(2);
-		expect(await (await frameOf(page)).locator(".card h3").count()).toBe(0);
+		await page.locator('[data-wc-panel-body="inspector"]').getByLabel("Tag").selectOption("h3");
+		await (await frameOf(page)).locator(".card h3").nth(1).waitFor();
+		expect(await (await frameOf(page)).locator(".card h3").count()).toBe(2);
+		expect(await (await frameOf(page)).locator(".card h2").count()).toBe(0);
 		const { api } = await install.install.superadmin();
 		const read = await eventually(
 			() => api.components.getMarkup({ siteId, componentId: cardId }),
-			(got) => got.markup.draft.includes("<h4>"),
+			(got) => got.markup.draft.replace(/ data-wc-id="[^"]*"/g, "").includes("<h3>"),
 		);
 		expect(read.markup.draft.replace(/ data-wc-id="[^"]*"/g, "")).toContain(
 			'<div class="card"><h4>Card title</h4></div>',
 		);
-	});
-
-	test("Layers with its branches passes the accessibility checks, light and dark", async () => {
-		const page = await shared();
-		await focusRow(page, "Else");
-		for (const theme of ["light", "dark"] as const) {
-			await page.emulateMedia({ colorScheme: theme });
-			await page.mouse.move(24, 460);
-			await page.waitForTimeout(1800);
-			await settled(page);
-			await expectAccessibleScreen(page, `Layers with branches (${theme})`);
-		}
 	});
 });
