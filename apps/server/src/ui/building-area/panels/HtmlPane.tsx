@@ -63,6 +63,15 @@ export function sourceName(words: Words, source: StructureSource): string {
 	}
 }
 
+/** Why a source can't be changed here, as the Inspector says it (BA-08): a Template not made yet, else a Module's. */
+export function readOnlyReason(words: Words, source: StructureSource): string | null {
+	const said = words.structure;
+	if (source.editable) return null;
+	return !source.id && source.kind === "template"
+		? said.notMade
+		: fill(said.readOnly, { name: source.name ?? said.thisSource });
+}
+
 /** A Component's Props block at the start of its markup, as typed. */
 function propsBlock(markup: string): string {
 	const match = /^\s*\{\{@props\}\}[\s\S]*?\{\{\/props\}\}/.exec(markup);
@@ -178,11 +187,7 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 			source: source.ref,
 			name: nameOf(source),
 			editable: source.editable,
-			readOnlyReason: source.editable
-				? null
-				: source.id
-					? fill(words().structure.readOnly, { name: source.name ?? words().structure.thisSource })
-					: words().structure.notMade,
+			readOnlyReason: readOnlyReason(words(), source),
 			failure: null,
 		}));
 		// A source that may be changed is printed from its shared Draft; one that may not (a Module's

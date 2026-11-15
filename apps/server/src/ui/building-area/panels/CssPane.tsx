@@ -8,7 +8,7 @@ import { replaceAt } from "../../builder/tree.ts";
 import { fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING, Tip } from "../controls.tsx";
 import { connect } from "../editing/drafts.ts";
-import type { StructureSelection, StructureSource } from "../editing/selection.ts";
+import type { StructureSelection } from "../editing/selection.ts";
 import { managementApi } from "../management.ts";
 import { NoteLine } from "../places/styles/CodeBox.tsx";
 import { QuickActions, useFavourites } from "../places/styles/QuickActions.tsx";
@@ -17,6 +17,7 @@ import type { QuickTokens, StepSizes } from "../places/styles/view.ts";
 import { CodeWell } from "./CodeWell.tsx";
 import { chooseClass, chosenClassOf, subscribeChosenClass } from "./chosen-class.ts";
 import type { CodePanesDeps } from "./code-panes.tsx";
+import { readOnlyReason } from "./HtmlPane.tsx";
 import {
 	FormatButton,
 	type FormatSlot,
@@ -206,7 +207,7 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 			ref: selection.ref,
 			source: source.ref,
 			editable: source.editable,
-			readOnlyReason: readOnlyReason(source),
+			readOnlyReason: readOnlyReason(words(), source),
 			classes,
 			classId,
 		});
@@ -222,12 +223,6 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 				});
 			}
 		}
-	};
-
-	const readOnlyReason = (source: StructureSource): string | null => {
-		const said = words().structure;
-		if (source.editable) return null;
-		return source.id ? fill(said.readOnly, { name: source.name ?? said.thisSource }) : said.notMade;
 	};
 
 	const save = async () => {
