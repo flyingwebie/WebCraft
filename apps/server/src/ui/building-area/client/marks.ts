@@ -34,10 +34,20 @@ export type ClientEditing = PageEditing & {
 export type ClientMode = "edit" | "preview";
 
 /**
- * What a Member may change on the page now: its text regions, photos and links (Loop items and sections
- * come later).
+ * A Loop's own item's regions (`loop:<loop id>:<item id>`): a set of values, so a Member changes them
+ * in the item's side panel (BA-16, `loop-items.ts`), not one by one in place.
  */
-export const MARKED = `${TEXT_REGION}, ${PHOTO_REGION}, ${LINK_REGION}`;
+export const IN_ITEM = '[data-wc-item^="loop:"]';
+const OWN = `:not(${IN_ITEM})`;
+
+/** The photos and links a Member changes in a popover (BA-15), outside Loop items. */
+const POPPED = `${PHOTO_REGION}${OWN}, ${LINK_REGION}${OWN}`;
+
+/**
+ * What a Member may change on the page in place: its text regions, photos and links (sections come
+ * later). Loop items are marked and changed as items (`loop-items.ts`).
+ */
+export const MARKED = `${TEXT_REGION}${OWN}, ${POPPED}`;
 
 /** The parts of a page that are the same on every page (the Site template's), which a Member can't change. */
 const LOCKED = "header, footer, [role='banner'], [role='contentinfo']";
@@ -200,7 +210,7 @@ export function clientEditing(options: {
 			return;
 		}
 		for (const [element] of prepared) if (!element.isConnected) prepared.delete(element);
-		for (const region of doc.querySelectorAll<HTMLElement>(`${PHOTO_REGION}, ${LINK_REGION}`)) {
+		for (const region of doc.querySelectorAll<HTMLElement>(POPPED)) {
 			const name = labelOf(region);
 			set(region, "aria-haspopup", "dialog");
 			if (region.matches(LINK_REGION)) {
@@ -224,7 +234,7 @@ export function clientEditing(options: {
 				if (now === "false") continue;
 				if (now !== null) editable.set(region, now);
 				region.setAttribute("contenteditable", "false");
-			} else if (now === "false") {
+			} else if (now === "false" && !region.matches(IN_ITEM)) {
 				region.setAttribute("contenteditable", editable.get(region) ?? "true");
 			}
 		}
@@ -319,7 +329,7 @@ export function clientEditing(options: {
 		}
 		// The dots of what changed, on the outline's corner: text from the page editing, photos and links here.
 		let dots = 0;
-		const poppedChanged = [...doc.querySelectorAll<HTMLElement>(`${PHOTO_REGION}, ${LINK_REGION}`)].filter((region) =>
+		const poppedChanged = [...doc.querySelectorAll<HTMLElement>(POPPED)].filter((region) =>
 			changes.has(
 				`${region.getAttribute("data-wc-item")}|${(region.getAttribute("data-wc-field") ?? "").split(".")[0]}`,
 			),

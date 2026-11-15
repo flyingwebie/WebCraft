@@ -458,8 +458,14 @@ describe("a query Loop's items", () => {
 		expect(response.status).toBe(200);
 		expect(await json(response)).toEqual({
 			entries: [
-				{ id: site.postIds[0], title: "Our starter, explained", href: "/it/blog/our-starter-explained", page: true },
-				{ id: site.postIds[1], title: "Spring menu", href: "/it/blog/spring-menu", page: true },
+				{
+					id: site.postIds[0],
+					title: "Our starter, explained",
+					href: "/it/blog/our-starter-explained",
+					page: true,
+					postType: "Blog posts",
+				},
+				{ id: site.postIds[1], title: "Spring menu", href: "/it/blog/spring-menu", page: true, postType: "Blog posts" },
 			],
 		});
 	});
@@ -475,7 +481,7 @@ describe("a query Loop's items", () => {
 		const other = await bakery();
 
 		const answer = (await json(await editing.edit("loop/entries", { entries: [entry.id, other.postIds[0]] }))) as {
-			entries: { id: string; title: string; href: string; page: boolean }[];
+			entries: { id: string; title: string; href: string; page: boolean; postType: string }[];
 		};
 
 		expect(answer.entries).toEqual([
@@ -484,6 +490,7 @@ describe("a query Loop's items", () => {
 				title: "Mill",
 				href: install.adminUrl(`/sites/${site.siteId}/entries/${postType.id}/${entry.id}`),
 				page: false,
+				postType: "Suppliers",
 			},
 		]);
 	});
