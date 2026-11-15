@@ -8,7 +8,7 @@
  * Commands the spec names but later work brings (Popups) are reserved: markup naming them is
  * refused for now.
  */
-import { type Expression, passes, type RenderTime, writeExpression } from "./expressions.ts";
+import { type Expression, writeExpression } from "./expressions.ts";
 import { DEFAULT_ITEM_NAME, loopBodyScope, paginationProblem, readLoopArgument, type ValueScope } from "./loops.ts";
 import type {
 	ConditionBranch,
@@ -93,8 +93,11 @@ export type CheckTools = {
 
 export type RenderTools = {
 	read(path: string): TemplateValue;
-	/** The time the page is rendered, for tests that read `now`. */
-	time?: RenderTime;
+	/**
+	 * Whether a Condition's test passes on this page, `now` reading the time it is rendered. The renderer runs it (`run-expression.ts`), so
+	 * the commands, which the browser's markup code loads, never load what reading values as text takes.
+	 */
+	passes(test: Expression): boolean;
 	/** Renders a Loop: its content once per item, or what shows when it has none. */
 	loop(node: LoopNode): string;
 	/** The links to a Loop's pages: nothing unless it paginates on this page. */
@@ -231,7 +234,7 @@ const ifCommand: TemplateCommand<ConditionNode> = {
 	},
 
 	render(node, tools) {
-		const chosen = node.branches.find((branch) => passes(branch.test, tools.read, tools.time));
+		const chosen = node.branches.find((branch) => tools.passes(branch.test));
 		if (chosen) return tools.nodes(chosen.children);
 		return node.otherwise === null ? "" : tools.nodes(node.otherwise);
 	},

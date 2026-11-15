@@ -94,6 +94,27 @@ describe("the shell's files", () => {
 		}
 	});
 
+	test("neither person's first load holds the HTML parser the rich text cleaner uses", async () => {
+		// The shell reads and writes Template markup in the browser; reading rich text as text (and with it
+		// parse5, about 140 kB) belongs to the renderer, so it stays out of what the document loads at once.
+		for (const person of [staff, editor]) {
+			const building = await openBuildingArea(install, person, siteId);
+			const html = await (await building.shell("/_webcraft/build/page/")).text();
+			const first = /src="\/_webcraft\/edit\/assets\/(shell-[0-9a-f]{16}\.js)"/.exec(html)?.[1] ?? "";
+			const preloaded = [...html.matchAll(/<link rel="modulepreload" href="\/_webcraft\/edit\/assets\/([^"]+)">/g)].map(
+				(match) => match[1] ?? "",
+			);
+			for (const name of [first, ...preloaded]) {
+				const code = await (await building.browser.request(`${building.origin}/_webcraft/edit/assets/${name}`)).text();
+				// Two of parse5's own error codes, which its tokenizer and tree builder carry as text.
+				expect({ name, parser: code.includes("abandoned-head-element-child") || code.includes("eof-in-tag") }).toEqual({
+					name,
+					parser: false,
+				});
+			}
+		}
+	});
+
 	test("every file the shell may load is served as its first file is, hashed and kept a year, to anyone", async () => {
 		const building = await openBuildingArea(install, editor, siteId);
 		const html = await (await building.shell("/_webcraft/build/page/")).text();
