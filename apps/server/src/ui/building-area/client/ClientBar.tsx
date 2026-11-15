@@ -20,6 +20,7 @@ import { editorHistory } from "../../builder/editor-history.ts";
 import { ariaKeys, shortcutText } from "../../builder/shortcuts.ts";
 import { fill, type Words } from "../api.ts";
 import { LanguageMenu, type PageLanguage } from "../bottom-bar/LanguageMenu.tsx";
+import { SafeModeControl } from "../bottom-bar/SafeMode.tsx";
 import { PRESETS, type Preset } from "../canvas/gutters.ts";
 import { CHROME_EASE, FOCUS_RING, type Icon, Tip } from "../controls.tsx";
 import type { ClientMode } from "./marks.ts";
@@ -374,6 +375,8 @@ export function ClientBar({
 				className={`flex h-full items-center justify-end gap-2 ${compact ? "shrink-0" : "w-[520px] min-w-0 shrink"}`}
 				data-wc-bar-cluster="end"
 			>
+				{/* While the page runs none of the site's scripts: Safe mode, and Turn off (BA-32). */}
+				<SafeModeControl words={words} look="client" />
 				{!place && languages.length > 1 ? (
 					<LanguageMenu languages={languages} words={words} onChoose={onLanguage} look="client" />
 				) : null}

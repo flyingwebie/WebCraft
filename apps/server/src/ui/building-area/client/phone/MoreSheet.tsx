@@ -9,13 +9,15 @@ import {
 	Redo2Icon,
 	Rows3Icon,
 	SendIcon,
+	ShieldIcon,
 	SlidersHorizontalIcon,
 	UploadIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { fill, type Words } from "../../api.ts";
 import type { PageLanguage } from "../../bottom-bar/LanguageMenu.tsx";
+import { pageScripts } from "../../canvas/scripts.ts";
 import { CHROME_EASE, FOCUS_RING } from "../../controls.tsx";
 import { type ClientDraftState, plural } from "../ClientBar.tsx";
 import type { ClientMode } from "../marks.ts";
@@ -86,6 +88,7 @@ export function MoreSheet({
 	const phone = said.phone;
 	const [view, setView] = useState<"menu" | "language">("menu");
 	const history = useHistoryState();
+	const safe = useSyncExternalStore(pageScripts.subscribe, () => pageScripts.get().safe);
 	// Where focus goes as the sheet goes: More, unless what was chosen takes it elsewhere.
 	const returnTo = useRef<() => HTMLElement | null>(() =>
 		document.querySelector<HTMLElement>('[data-wc-phone-bar="more"]'),
@@ -189,6 +192,16 @@ export function MoreSheet({
 								data={{ "data-wc-phone-row": "language" }}
 							>
 								{phone.language}
+							</SheetRow>
+						) : null}
+						{/* While the page runs none of the site's scripts: turning Safe mode off (BA-32). */}
+						{safe ? (
+							<SheetRow
+								icon={ShieldIcon}
+								onClick={then(() => void pageScripts.turn(false))}
+								data={{ "data-wc-phone-row": "safe-mode" }}
+							>
+								{words.scripts.turnOffLabel}
 							</SheetRow>
 						) : null}
 						{!place && sections ? (

@@ -19,6 +19,7 @@ import {
 	BUILDING_STAND_IN_PREFIX,
 	type PageAgent,
 } from "./contract.ts";
+import { pageFailures } from "./failures.ts";
 import { pageRegions } from "./regions.ts";
 
 ((win: Window & typeof globalThis) => {
@@ -122,6 +123,8 @@ import { pageRegions } from "./regions.ts";
 	// The page's console, errors and rejected promises, for the JS pane: from the start, before any
 	// Site script runs (`console.ts`).
 	pageConsole(win, host, listen);
+	// The Site's own scripts that fail, for the shell's notice (BA-32, `failures.ts`): heard from now on.
+	pageFailures(win, host, { listen, querySelectorAll, getAttribute, preventDefault });
 
 	const start = () => {
 		adopt([doc.body]);
