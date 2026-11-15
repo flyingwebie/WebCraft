@@ -71,6 +71,9 @@ const LOCK_OUTLINE = "#71717a";
 const LOCK_CHIP = "#3f3f46";
 const CHANGED = "#f59e0b";
 
+/** How long a press in the page counts for the focus that follows it (a tap's focus comes as the touch ends). */
+const POINTED_FOR_MS = 1000;
+
 /** Input that changes a region's text: what waits while an area has focus but isn't being edited. */
 const KEPT_INPUT = new Set(["historyUndo", "historyRedo"]);
 
@@ -100,8 +103,12 @@ export function clientEditing(options: {
 	let armed: HTMLElement | null = null;
 	/** The page's focus is moving into `armed` by the keyboard: its focus isn't editing. */
 	let arming = false;
-	/** A pointer was pressed in the page: the focus that follows is editing. */
-	let pointing = false;
+	/**
+	 * When a pointer was last pressed in the page (0: a key since): the focus that follows is editing. A
+	 * finger's tap gives focus only once the touch ends (BA-19), so the press counts for a moment, until
+	 * a key is pressed.
+	 */
+	let pointedAt = 0;
 	/** The amber dots the page editing asked for (BA-07), drawn on the outlines' corners here. */
 	let changed: Element[] = [];
 	/** The people marks the page editing asked for, kept to draw again after Preview. */
@@ -553,10 +560,7 @@ export function clientEditing(options: {
 					}
 					break;
 				case "pointerdown": {
-					pointing = true;
-					window.setTimeout(() => {
-						pointing = false;
-					}, 0);
+					pointedAt = performance.now();
 					const region = regionOf(event.target);
 					// A press anywhere else in the page closes the popover open now.
 					const popped = poppedNow();
@@ -588,6 +592,7 @@ export function clientEditing(options: {
 					if (!region) break;
 					// From the pointer, focus is editing; from the keyboard, it waits for Enter. Focus coming back
 					// to the region being edited (from its toolbar) goes on editing.
+					const pointing = pointedAt > 0 && performance.now() - pointedAt < POINTED_FOR_MS;
 					if (!arming && (pointing || region === editingNow())) {
 						armed = null;
 						return inner.event(kind, event);
@@ -611,6 +616,7 @@ export function clientEditing(options: {
 					return inner.event(kind, event);
 				}
 				case "keydown": {
+					pointedAt = 0;
 					const key = event as KeyboardEvent;
 					const handled = keyDown(key);
 					if (handled) return true;
