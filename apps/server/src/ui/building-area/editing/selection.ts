@@ -5,7 +5,7 @@ import type { ElementTree, TreeNode } from "@webcraft/renderer/builder";
 import { editorHistory } from "../../builder/editor-history.ts";
 import type { Selection } from "../../builder/model.ts";
 import { selectionKey, selectionOf } from "../../builder/selection-ref.ts";
-import { type NodePath, nodeAt, treeProblem } from "../../builder/tree.ts";
+import { childLists, type NodePath, nodeAt, treeProblem } from "../../builder/tree.ts";
 import { type EditRequests, fill, type Words } from "../api.ts";
 import type { SelectionKind } from "../docks/panels.ts";
 import { managementApi } from "../management.ts";
@@ -89,6 +89,11 @@ export type StructureSelection = {
 	path: NodePath | null;
 	node: TreeNode | null;
 	kind: SelectionKind;
+	/**
+	 * A branch of a Condition or a Loop selected (BA-33: "Else", "When there are no items"): which of
+	 * its node's lists (`path` and `node` are the Condition's or Loop's); null for a node.
+	 */
+	list: number | null;
 };
 
 export type StructureSnapshot = {
@@ -126,7 +131,15 @@ export type Structure = {
 		label: string,
 		select?: string | null,
 		props?: FieldDefinition[],
+		options?: { record?: boolean },
 	): string | null;
+	/** What a source's shared Draft holds now (its tree, a Component's with its Props), or null. */
+	draft(source: string): Json | null;
+	/**
+	 * Records one Undo step of a source's Draft from `before` to `after` (a keyboard move picked up and
+	 * put down: its moves made without a step each, BA-33).
+	 */
+	record(source: string, before: Json, after: Json, label: string): void;
 	/** Adds a Class to the Design system's Draft (a name the Site doesn't have yet): its id, or why not. */
 	createClass(name: string): Promise<{ id: string; name: string } | { refused: string }>;
 	/**
@@ -245,11 +258,34 @@ export function structure(options: {
 		const key = keyOf(selected);
 		const open = sources.get(source);
 		const found = open && key ? selectionOf(open.tree, key) : null;
-		const at = found?.kind === "node" ? found.path : null;
+		// A branch (`<key>/<list>`) is its Condition's or Loop's, with the list it names.
+		const at = found?.kind === "node" ? found.path : found?.kind === "list" ? (found.list.owner ?? null) : null;
+		const list = found?.kind === "list" ? found.list.list : null;
 		const node = at && open ? (nodeAt(open.tree, at) ?? null) : null;
 		// A reference to a source itself (a Page layout's Placement) selects that Placement.
-		return { ref: selected, source, key, path: at, node, kind: key ? kindOf(node) : "placement" };
+		return { ref: selected, source, key, path: at, node, kind: key ? kindOf(node) : "placement", list };
 	};
+
+	/**
+	 * What the canvas outlines for a reference: a branch's first element on the page (an Empty branch
+	 * shown while its Loop lists nothing), else its Condition or Loop; anything else, itself.
+	 */
+	const onCanvas = (ref: string | null): string | null => {
+		if (!ref) return ref;
+		const key = keyOf(ref);
+		const branch = /^(.*)\/(\d+)$/.exec(key);
+		if (!branch) return ref;
+		const source = sourceOf(ref);
+		const open = sources.get(source);
+		const found = open ? selectionOf(open.tree, key) : null;
+		if (found?.kind !== "list" || !open) return `${source}#${branch[1]}`;
+		const owner = found.list.owner ? nodeAt(open.tree, found.list.owner) : undefined;
+		const first = owner ? childLists(owner)[found.list.list]?.find((child) => "id" in child) : undefined;
+		const page = document.querySelector<HTMLIFrameElement>("iframe[data-wc-frame]")?.contentDocument;
+		const firstRef = first && "id" in first ? `${source}#${first.id}` : null;
+		return firstRef && page && elementOf(page, firstRef) ? firstRef : `${source}#${branch[1]}`;
+	};
+	const selectOnCanvas = (ref: string | null) => options.onSelect(onCanvas(ref));
 
 	const tell = () => {
 		snapshot = { sources, layout, layoutInfo, selection: selectionNow(), inPlace };
@@ -475,17 +511,17 @@ export function structure(options: {
 			if (wanted === undefined) {
 				// Outside the Component edited in place: the page goes back to what is selected.
 				announce(words.placements.locked);
-				options.onSelect(selected);
+				selectOnCanvas(selected);
 				return;
 			}
 			if (wanted === selected) {
 				// The canvas outlined an element of the Placement selected: it outlines the Placement again.
-				if (from === "canvas" && wanted !== ref) options.onSelect(wanted);
+				if (from === "canvas" && wanted !== ref) selectOnCanvas(wanted);
 				return;
 			}
 			selected = wanted;
 			tell();
-			if (from !== "canvas" || wanted !== ref) options.onSelect(wanted);
+			if (from !== "canvas" || wanted !== ref) selectOnCanvas(wanted);
 		},
 		snapshot: () => snapshot,
 		subscribe(listener) {
@@ -494,7 +530,31 @@ export function structure(options: {
 				listeners.delete(listener);
 			};
 		},
-		change(ref, next, label, select, props) {
+		draft(ref) {
+			const id = sources.get(ref)?.id;
+			return (id && drafts.get(id)?.client.draft()) ?? null;
+		},
+		record(ref, before, after, label) {
+			const source = sources.get(ref);
+			const open = source?.id ? drafts.get(source.id) : undefined;
+			if (!source?.id || !open) return;
+			const resource = resourceOf(open.kind, source.id);
+			editorHistory().record({
+				resource,
+				before,
+				after,
+				label,
+				location: {
+					siteId: options.siteId,
+					draft: resource,
+					panel: "tree",
+					ref,
+					selection: keyOf(selected ?? ""),
+					title: label,
+				},
+			});
+		},
+		change(ref, next, label, select, props, changeOptions) {
 			const source = sources.get(ref);
 			if (!source?.id || !source.editable) return fill(said.readOnly, { name: source?.name ?? said.thisSource });
 			if (props && source.kind !== "component") return fill(said.readOnly, { name: source.name ?? said.thisSource });
@@ -519,13 +579,14 @@ export function structure(options: {
 			if (!changed) return said.connecting;
 			const resource = resourceOf(open.kind, source.id);
 			const key = select === undefined ? keyOf(selected ?? "") : select;
-			editorHistory().record({
-				resource,
-				before,
-				after: open.client.draft(),
-				label,
-				location: { siteId: options.siteId, draft: resource, panel: "tree", ref, selection: key, title: label },
-			});
+			if (changeOptions?.record !== false)
+				editorHistory().record({
+					resource,
+					before,
+					after: open.client.draft(),
+					label,
+					location: { siteId: options.siteId, draft: resource, panel: "tree", ref, selection: key, title: label },
+				});
 			follow(source.id, next, props ?? null);
 			if (select !== undefined) {
 				selected = select === null ? null : `${ref}#${select}`;
@@ -540,7 +601,7 @@ export function structure(options: {
 				}
 				void redraw().then(() => {
 					// The canvas outlines the selection where the page now draws it.
-					if (drafts.has(id)) options.onSelect(selected);
+					if (drafts.has(id)) selectOnCanvas(selected);
 				});
 			});
 			return null;
@@ -579,7 +640,7 @@ export function structure(options: {
 					announce(said.notSaved, true);
 				}
 				void redraw().then(() => {
-					if (drafts.has(id)) options.onSelect(selected);
+					if (drafts.has(id)) selectOnCanvas(selected);
 				});
 			});
 			return null;

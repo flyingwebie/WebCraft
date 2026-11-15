@@ -2,6 +2,7 @@ import type { TreeNode } from "@webcraft/renderer/builder";
 
 import {
 	canUnwrap,
+	childLists,
 	insertAt,
 	newElement,
 	nodeAt,
@@ -39,6 +40,9 @@ export type LayerOps = {
 	/** Whether something was copied in this tab. */
 	copied(): boolean;
 	copy(): string | null;
+	/** Copies the selection, then removes it (one Undo step). */
+	cut(): string | null;
+	/** Pastes after the selection, or into a branch selected (Else, When there are no items: at its end). */
 	paste(): string | null;
 	duplicate(): string | null;
 	remove(): string | null;
@@ -112,12 +116,40 @@ export function layerOps(options: {
 			announce(fill(said.copied, { name: nameNow() }));
 			return null;
 		},
+		cut() {
+			const selected = inTree();
+			const source = sourceOfSelection();
+			if (!selected || !source || selected.list !== null) return refuse(said.nothingToPaste);
+			const name = nameNow();
+			clipboard = structuredClone(selected.node);
+			const refused = change(removeAt(source.tree, selected.path), fill(words.layers.cutStep, { name }), null);
+			if (!refused) announce(fill(words.layers.cut, { name }));
+			return refused;
+		},
 		paste() {
 			const selected = inTree();
 			const source = sourceOfSelection();
 			if (!clipboard) return refuse(said.nothingToPaste);
 			if (!selected || !source) return refuse(fill(said.notHere, { name: "" }));
 			const copies = withNewIds(source.tree, [clipboard]);
+			// A branch selected: what was copied goes in it, at its end.
+			if (selected.list !== null) {
+				const owner = nodeAt(source.tree, selected.path);
+				const length = owner ? (childLists(owner)[selected.list]?.length ?? 0) : 0;
+				const made = insertAt(source.tree, { owner: selected.path, list: selected.list, index: length }, copies);
+				const branch =
+					owner?.type === "condition"
+						? owner.branches[selected.list]
+							? words.layers.elseIf
+							: words.layers.else
+						: words.layers.empty;
+				const copiedName = clipboard.type === "element" ? (clipboard.label ?? clipboard.tag) : clipboard.type;
+				return change(
+					made.tree,
+					fill(words.layers.pastedInto, { name: copiedName, branch }),
+					keyAt(made.tree, made.path),
+				);
+			}
 			const made = insertAt(source.tree, placeBy(source.tree, selected.path, "after"), copies);
 			const name = anchorName(structure.snapshot(), selected.ref);
 			const key = keyAt(made.tree, made.path);

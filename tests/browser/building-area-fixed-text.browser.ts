@@ -38,7 +38,7 @@ beforeAll(async () => {
 	const workspaceId = (await local.createWorkspace("Acme Ltd")).id;
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
 	staff = (await local.createStaff({ workspaces: [workspaceId], name: "Sam Staff" })).account;
-	for (const name of ["hours", "terms", "lead"]) await api.designSystem.createClass({ siteId, name });
+	for (const name of ["hours", "terms", "lead", "notice", "by"]) await api.designSystem.createClass({ siteId, name });
 	const site = await api.templates.saveSiteTemplateMarkup({
 		siteId,
 		markup: [

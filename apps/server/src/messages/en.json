@@ -10924,6 +10924,23 @@
 			"keep": "Keep the name",
 			"renamed": "Renamed the Class to .{name}.",
 			"renameStep": "Renamed .{from} to .{name}"
+		},
+		"layers": {
+			"cut": "Cut {name}.",
+			"cutStep": "Cut {name}",
+			"renameLabel": "Layer label of {tag}",
+			"renamed": "Renamed {name}.",
+			"renameStep": "Rename {name}",
+			"picked": "Picked up {name}. The arrow keys move it, Space puts it down, Escape puts it back.",
+			"position": "{name}: {position} of {count} in {parent}.",
+			"putDown": "Put down {name}: {position} of {count} in {parent}.",
+			"putBack": "Put {name} back where it was.",
+			"cantCancel": "This move can no longer be cancelled: someone else changed this meanwhile.",
+			"top": "the page",
+			"elseIf": "Else if",
+			"else": "Else",
+			"empty": "When there are no items",
+			"pastedInto": "Paste {name} into {branch}"
 		}
 	},
 	"auth": {

@@ -10924,6 +10924,23 @@
 			"keep": "Tieni il nome",
 			"renamed": "Class rinominata in .{name}.",
 			"renameStep": "Rinominata .{from} in .{name}"
+		},
+		"layers": {
+			"cut": "Tagliato {name}.",
+			"cutStep": "Taglia {name}",
+			"renameLabel": "Etichetta del livello di {tag}",
+			"renamed": "Rinominato {name}.",
+			"renameStep": "Rinomina {name}",
+			"picked": "{name} preso. Le frecce lo spostano, Spazio lo posa, Esc lo rimette dov'era.",
+			"position": "{name}: {position} di {count} in {parent}.",
+			"putDown": "{name} posato: {position} di {count} in {parent}.",
+			"putBack": "{name} rimesso dov'era.",
+			"cantCancel": "Questo spostamento non si può più annullare: qualcun altro l'ha cambiato nel frattempo.",
+			"top": "la pagina",
+			"elseIf": "Altrimenti se",
+			"else": "Altrimenti",
+			"empty": "Quando non ci sono elementi",
+			"pastedInto": "Incolla {name} in {branch}"
 		}
 	},
 	"auth": {

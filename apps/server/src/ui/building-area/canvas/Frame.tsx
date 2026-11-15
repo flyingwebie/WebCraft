@@ -2,6 +2,7 @@ import { type RefObject, useCallback, useEffect, useRef, useState } from "react"
 import { AGENT_HOST_PROPERTY, type AgentHost, BUILDING_STAND_IN_PREFIX } from "../agent/contract.ts";
 import { type EditAnswer, type EditRequests, fill, type PageState, type Words } from "../api.ts";
 import type { PageEditing } from "../editing/editing.ts";
+import { hover, hoveredNow, subscribeHover } from "../editing/hover.ts";
 import { swapPage } from "../editing/rerender.ts";
 import type { RegionCycle } from "../keyboard.ts";
 import { consoleLog } from "../panels/console-log.ts";
@@ -333,6 +334,13 @@ export function Frame({
 				found?.scrollIntoView({ block: "nearest", inline: "nearest" });
 			},
 		};
+		// A row of Layers under the pointer outlines its element on the page (BA-33), never selecting it.
+		const stopHover = subscribeHover(() => {
+			const now = hoveredNow();
+			if (now?.from === "canvas") return;
+			const page = element.contentDocument;
+			drawn.hover(now && page ? elementOfRef(page, now.ref) : null);
+		});
 		// A place over the canvas asks for the page to be drawn again (a Class renamed in Styles).
 		const stopRedraws = answerRedraws(element, () => handle.current?.rerender() ?? Promise.resolve());
 		const catcher = installDragCatcher({
@@ -397,11 +405,16 @@ export function Frame({
 				// Content typed in place sees the page's events first: Undo and Redo, the toolbar's Alt+F10.
 				if (latest.current.editing?.event(kind, event)) return true;
 				switch (kind) {
-					case "pointermove":
-						overlay.hover(selectable(event.target));
+					case "pointermove": {
+						const under = selectable(event.target);
+						overlay.hover(under);
+						// Its row in Layers is marked too (BA-33), whatever source it comes from.
+						hover(under?.closest("[data-wc-code]")?.getAttribute("data-wc-code") ?? null, "canvas");
 						return false;
+					}
 					case "pointerleave":
 						overlay.hover(null);
+						hover(null, "canvas");
 						return false;
 					case "click": {
 						const target = selectable(event.target);
@@ -471,6 +484,7 @@ export function Frame({
 			window.removeEventListener("focus", onFocusChange);
 			catcher.destroy();
 			stopRedraws();
+			stopHover();
 			disconnectEditing?.();
 			overlay.destroy();
 			overlayOf.current = null;
