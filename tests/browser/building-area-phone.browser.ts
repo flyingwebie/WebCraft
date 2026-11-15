@@ -181,13 +181,14 @@ async function said(page: Page, text: string): Promise<void> {
 	);
 }
 
-/** Waits until a value read over the API is what `ok` wants; answers the last one read. */
+/** Waits until a value read over the API is what `ok` wants, and answers it; fails with the last one read. */
 async function eventually<T>(read: () => Promise<T>, ok: (value: T) => boolean): Promise<T> {
 	let last = await read();
 	for (let attempt = 0; attempt < 60 && !ok(last); attempt++) {
 		await new Promise((resolve) => setTimeout(resolve, 150));
 		last = await read();
 	}
+	if (!ok(last)) throw new Error(`Never came; last read: ${JSON.stringify(last)}`);
 	return last;
 }
 
@@ -690,10 +691,12 @@ describe("client editing on a phone", () => {
 		await expectNoAxeViolations(page, "Client editing on a phone › the first visit");
 		await hint.getByRole("button", { name: "Got it" }).tap();
 		await hint.waitFor({ state: "hidden" });
-		await eventually(
-			async () => (await person.api.me.editorPreferences({ siteId })).hintSeen,
-			(seen) => seen === true,
-		);
+		expect(
+			await eventually(
+				async () => (await person.api.me.editorPreferences({ siteId })).preferences.hintSeen,
+				(seen) => seen === true,
+			),
+		).toBe(true);
 
 		await more(page).tap();
 		await moreSheet(page).locator('[data-wc-phone-row="help"]').tap();
