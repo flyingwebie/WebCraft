@@ -7,7 +7,7 @@ import { matches } from "../../editor/shortcuts.ts";
 import { fill, type Words } from "../api.ts";
 import type { SaveWatch } from "../canvas/regions.ts";
 import { CHROME_EASE, FOCUS_RING, Tip } from "../controls.tsx";
-import { sourceOf } from "../editing/selection.ts";
+import { codeRefOf, sourceOf } from "../editing/selection.ts";
 import { NoteLine } from "../places/styles/CodeBox.tsx";
 import { CodeWell } from "./CodeWell.tsx";
 import { ConflictDialog } from "./ConflictDialog.tsx";
@@ -167,7 +167,8 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 	const load = async (path: string, ref: string | null) => {
 		const asked = ++loadRun;
 		store.set((state) => ({ status: state.scripts && state.path === path ? state.status : "loading" }));
-		const answer = await request<Scripts>("code/scripts", { path, ref: ref === null ? null : scriptsRef(ref) });
+		// Asked for the source the selection is in: Code mode reads no branch or command reference.
+		const answer = await request<Scripts>("code/scripts", { path, ref: ref === null ? null : codeRefOf(ref) });
 		if (asked !== loadRun) return;
 		if (!answer.ok) {
 			store.set({ status: "failed", failure: fill(words().code.notRead, { reason: answer.code }) });
@@ -524,17 +525,6 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 			unsubscribe();
 		},
 	};
-}
-
-/**
- * The reference `code/scripts` reads for a selection: an element's own, or for a command (`#@0.1`, a
- * Filter, a Condition) or a branch (`#<key>/1`), which carry no element id, its source alone, so the
- * Component it is drawn in still shows its script.
- */
-function scriptsRef(ref: string): string {
-	const at = ref.indexOf("#");
-	if (at < 0) return ref;
-	return /^[A-Za-z0-9_-]{1,64}$/.test(ref.slice(at + 1)) ? ref : ref.slice(0, at);
 }
 
 /** A script's step in the history: its code and version, and a Component script's settings. */

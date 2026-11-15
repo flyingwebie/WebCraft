@@ -333,6 +333,11 @@ describe("the CSS pane", () => {
 		await pane(page, "css").getByRole("button", { name: "Add a Class" }).click();
 		await pane(page, "css").getByRole("textbox", { name: "Add a Class" }).fill("half-typed");
 		await select(page, "p.lead");
+		// The pane follows the selection on its next render (after saving what the box held, if anything).
+		await pane(page, "css")
+			.getByRole("textbox", { name: "Add a Class" })
+			.waitFor({ state: "detached", timeout: 5000 })
+			.catch(() => {});
 		expect(await pane(page, "css").getByRole("textbox", { name: "Add a Class" }).count()).toBe(0);
 	});
 

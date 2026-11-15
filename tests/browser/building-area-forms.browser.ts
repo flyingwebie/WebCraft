@@ -354,17 +354,26 @@ describe("a Form on a page, for Staff", () => {
 		await page.locator('[data-wc-place-frame^="forms"]').waitFor({ state: "detached" });
 	});
 
+	test("with the Form chosen, the JS pane shows the scripts of the Template it is in, with no error", async () => {
+		const errors = pageErrors(page).length;
+		const frame = await framedForm(page);
+		await frame.locator('form[action^="/_webcraft/forms/"]').click({ position: { x: 4, y: 4 } });
+		await page.locator("[data-wc-form-panel]").waitFor();
+		// The Form's reference is a command's (`site#@…`): the pane asks for the Site template's scripts.
+		const js = page.locator('[data-wc-panel="js"]');
+		await js.locator('[data-wc-script-tab="site"]').waitFor();
+		await page.locator('textarea[data-wc-code-box="js"]').waitFor();
+		await page.waitForTimeout(500);
+		expect(await js.textContent()).not.toContain("Couldn't read it");
+		expect(pageErrors(page).slice(errors)).toEqual([]);
+	});
+
 	for (const theme of THEMES) {
 		test(`with the Form chosen, the shell passes the accessibility checks (${theme})`, async () => {
 			await page.emulateMedia({ colorScheme: theme });
 			const frame = await framedForm(page);
 			await frame.locator('form[action^="/_webcraft/forms/"]').click({ position: { x: 4, y: 4 } });
 			await page.locator("[data-wc-form-panel]").waitFor();
-			// The code panes' JS pane asks `code/scripts` for the selection, which answers 404 for a command's
-			// reference (`site#@…`) as it does for a Loop's or a Condition's: the code panes' (BA-11, BA-09), reported.
-			await page.waitForTimeout(500);
-			// (Every check of this page before passed with no report, so only those 404s are left to forget.)
-			forgetPageErrors(page, 0, (error) => error.includes("status of 404"));
 			// The size readout the last keyboard walk opened (focus on a gutter) leaves after 1.5 s.
 			await page.waitForTimeout(1800);
 			await expectAccessibleScreen(page, `building area, a Form on a page (${theme})`, CHECKED);

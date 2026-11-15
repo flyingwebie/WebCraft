@@ -315,22 +315,61 @@ describe("one-off styles and generated Classes", () => {
 		await selectParagraph(page, "First words");
 		const html = box(page, "html");
 		await html.waitFor();
-		const before = await html.inputValue();
-		await html.fill(before.replace("<h1>", '<h1 style="color: purple">'));
-		await page.locator('[data-wc-rail="panels"]').focus();
-		await eventually(entryMarkup, (text) => /<h1 class="style-/.test(text));
-		await selectParagraph(page, "First words");
-		await eventually(
+		// What the checks above saved (a peer's text, a one-off style) is in the box first, else saving
+		// rightly asks Reload theirs or Overwrite with mine.
+		const withoutIds = (text: string) => text.replace(/ data-wc-id="[^"]*"/g, "");
+		const draft = await entryMarkup();
+		const before = await eventually(
 			() => html.inputValue(),
-			(text) => /<h1 class="style-/.test(text),
+			(text) => withoutIds(text) === draft,
 		);
-		const again = await html.inputValue();
-		await html.fill(again.replace('<p class="intro">', '<p class="intro" style="color: teal">'));
+		expect(withoutIds(before)).toBe(draft);
+		// The box prints each element with its id (`<h1 data-wc-id="…">`): a style is added after the tag.
+		const styled = before.replace(/<h1\b/, '<h1 style="color: purple"');
+		expect(styled).not.toBe(before);
+		await html.fill(styled);
 		await page.locator('[data-wc-rail="panels"]').focus();
-		await eventually(entryMarkup, (text) => /<p class="intro style-/.test(text));
-
+		const firstSave = await eventually(entryMarkup, (text) => /<h1 class="style-/.test(text));
+		expect(firstSave).toMatch(/<h1 class="style-/);
+		await selectParagraph(page, "First words");
+		expect(
+			await eventually(
+				() => html.inputValue(),
+				(text) => /<h1 class="style-/.test(text),
+			),
+		).toMatch(/<h1 class="style-/);
+		const again = await html.inputValue();
+		// The second save is held on its way, and Undo is pressed while it is (BA-33's one run: Undo
+		// took back the first save while the second was still being answered).
+		const held = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		await page.route("**/_webcraft/edit/api/code/save", async (route) => {
+			held.resolve();
+			await release.promise;
+			await route.continue();
+		});
+		try {
+			const teal = again.replace('<p class="intro"', '<p class="intro" style="color: teal"');
+			expect(teal).not.toBe(again);
+			await html.fill(teal);
+			await page.locator('[data-wc-rail="panels"]').focus();
+			await held.promise;
+			await page.getByRole("button", { name: "Undo" }).first().click();
+			await page.waitForTimeout(300);
+			// Nothing taken back yet: Undo waits for the save under way.
+			expect(await entryMarkup()).toMatch(/<h1 class="style-[0-9a-f]{8}">/);
+			release.resolve();
+			const undone = await eventually(entryMarkup, (text) => !/<p class="intro style-/.test(text));
+			// The step taken back is the second save; the first one's generated Class stays on the h1.
+			expect(undone).toContain('<p class="intro">First words</p>');
+			expect(undone).toMatch(/<h1 class="style-[0-9a-f]{8}">/);
+		} finally {
+			release.resolve();
+			await page.unrouteAll({ behavior: "wait" });
+		}
+		// The next Undo takes back the first save: no generated Class left on the h1.
 		await page.getByRole("button", { name: "Undo" }).first().click();
-		const undone = await eventually(entryMarkup, (text) => !/<p class="intro style-/.test(text));
-		expect(undone).toContain('<p class="intro">First words</p>');
+		const first = await eventually(entryMarkup, (text) => !/<h1 class="style-/.test(text));
+		expect(first).toContain("<h1>{{ title }}</h1>");
 	});
 });
