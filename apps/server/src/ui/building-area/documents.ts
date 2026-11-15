@@ -270,7 +270,8 @@ export function shellDocuments(win: Window = window): Documents {
 		},
 		select(ref) {
 			const now = read();
-			if (now.select === ref && !now.filter) return;
+			// Nothing selected yet while a Filter waits to be: the Filter stays asked for.
+			if (now.select === ref && (!now.filter || ref === null)) return;
 			remember({ ...now, select: ref });
 			const next = printAddress({ ...now, select: ref, filter: null });
 			// Not a history entry, and nothing to tell: the selection is already on screen (but a Filter
