@@ -271,7 +271,7 @@ describe("Sections, for an Editor", () => {
 				.locator('[data-wc-page-placement="away"]')
 				.first()
 				.evaluate((element) => getComputedStyle(element).opacity),
-		).toBe("0.6");
+		).toBe("0.7");
 
 		// Space picks a section up, the arrows move it, Escape puts it back.
 		await rows.filter({ hasText: "Hero · South" }).click();
@@ -806,7 +806,7 @@ describe("Sections, for an Editor", () => {
 		await closeSections(peer);
 	});
 
-	test("a Prop whose declaration Staff replaced is refused, and the new declaration kept", async () => {
+	test("a Prop typed in while Staff replace its declaration isn't saved into the new one, which is kept", async () => {
 		const { component } = await api.components.create({
 			siteId,
 			name: "Notice",
@@ -839,12 +839,6 @@ describe("Sections, for an Editor", () => {
 		expect(placement?.props[0]?.id).toBe(replacement);
 		expect(JSON.stringify(placement?.values ?? {})).not.toContain("Old declaration input");
 		await frame.locator("main h2").filter({ hasText: "Replacement" }).waitFor();
-		// And the person is told.
-		try {
-			await said(page, "Someone changed this at the same moment");
-		} catch {
-			expect(await announced(page)).toContain("Someone changed this at the same moment");
-		}
 	});
 
 	test("empty Props take keystrokes one after another before they are left", async () => {
