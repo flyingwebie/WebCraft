@@ -4,6 +4,7 @@ import { nameOf, type Overlay, type OverlayMark } from "../canvas/overlay.ts";
 import type { RegionSaving } from "../canvas/regions.ts";
 import type { PageEditing } from "../editing/editing.ts";
 import type { RegionPopovers } from "./popovers.ts";
+import { PLACEMENT_PROP } from "./sections.ts";
 
 /**
  * Client editing's marks and keys (SPEC 13.2, 13.3 and 13.9; BA-14): what "easy to see" means on the
@@ -34,10 +35,10 @@ export type ClientEditing = PageEditing & {
 export type ClientMode = "edit" | "preview";
 
 /**
- * What a Member may change on the page now: its text regions, photos and links (Loop items and sections
- * come later).
+ * What a Member may change on the page now: its text regions, photos and links, and the text Props of
+ * the page's sections typed in place (BA-17; Loop items come later).
  */
-export const MARKED = `${TEXT_REGION}, ${PHOTO_REGION}, ${LINK_REGION}`;
+export const MARKED = `${TEXT_REGION}, ${PHOTO_REGION}, ${LINK_REGION}, ${PLACEMENT_PROP}`;
 
 /** The parts of a page that are the same on every page (the Site template's), which a Member can't change. */
 const LOCKED = "header, footer, [role='banner'], [role='contentinfo']";

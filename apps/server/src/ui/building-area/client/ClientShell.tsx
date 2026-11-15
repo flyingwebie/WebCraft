@@ -20,6 +20,7 @@ import { MediaShellHost } from "../places/media/host.tsx";
 import { PlaceLoader } from "../places/PlaceLoader.tsx";
 import { PLACE_EVENT, placeEntry, placeKeyOf, reopenPlace } from "../places/registry.ts";
 import { Publish } from "../publish/Publish.tsx";
+import { AddSectionLine } from "./AddSection.tsx";
 import { ClientBar, type ClientPanel, clientDraftStateOf } from "./ClientBar.tsx";
 import { CLIENT_PLACES, type ClientPlace, ClientRail } from "./ClientRail.tsx";
 import { HelpCard } from "./HelpCard.tsx";
@@ -28,7 +29,10 @@ import { MemberDetails } from "./PageDetails.tsx";
 import { PageSwitcher } from "./PageSwitcher.tsx";
 import { regionPopovers } from "./popovers.ts";
 import { RegionPopover } from "./RegionPopover.tsx";
+import { RemovedToast, SectionMarks } from "./SectionBar.tsx";
+import { SectionsSidePanel } from "./SectionsPanel.tsx";
 import { SidePanel } from "./SidePanel.tsx";
+import { memberSections } from "./sections.ts";
 
 /** What the `state` edit request says beyond what Staff's shell reads: whether it may publish, and a Page layout. */
 type ClientPageState = PageState & { page: PageState["page"] & { layout: boolean } };
@@ -126,6 +130,18 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 		return true;
 	}, []);
 
+	// The Sections panel opened from the page (BA-17): a section's settings, or the picker at a boundary.
+	const sectionsRef = useRef<ReturnType<typeof memberSections> | null>(null);
+	const openSectionSettings = useCallback((id: string) => {
+		setPanel("sections");
+		sectionsRef.current?.select(id, { onPage: true });
+		sectionsRef.current?.view("settings");
+	}, []);
+	const openSectionPicker = useCallback((after: string) => {
+		setPanel("sections");
+		sectionsRef.current?.view("add", { after });
+	}, []);
+
 	// The tab's one Undo history and Content typed in place, as for Staff (BA-07), with the client's
 	// marks and keys around it.
 	const undoHistory = useMemo(
@@ -160,6 +176,25 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 	);
 	useEffect(() => () => popovers.destroy(), [popovers]);
 	const goTo = useCallback(() => api.builder.commandMenu({ siteId: config.site.id }), [api, config.site.id]);
+	// Sections (BA-17): the page's Page layout, arranged where the Site lets Members arrange.
+	const titleRef = useRef("");
+	const sections = useMemo(
+		() =>
+			memberSections({
+				token: config.token,
+				siteId: config.site.id,
+				words,
+				request,
+				announce: (text, urgent) => announceRef.current(text, urgent),
+				refresh: () => refreshRef.current(),
+				saving: (status) => savingRef.current(status),
+				undo: () => void undoHistory.undo(),
+				title: () => titleRef.current,
+			}),
+		[config.token, config.site.id, words, request, undoHistory],
+	);
+	sectionsRef.current = sections;
+	useEffect(() => () => sections.destroy(), [sections]);
 	const editing = useMemo(() => {
 		const inner = pageEditing({
 			token: config.token,
@@ -170,15 +205,17 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 			refresh: () => refreshRef.current(),
 			failed: () => setSaving("failed"),
 		});
-		return clientEditing({
-			inner,
-			words,
-			announce: (text, urgent) => announceRef.current(text, urgent),
-			// Escape in the page closes the panel and leaves focus where it is, in the page.
-			closePanel: () => closePanel(false),
-			popovers,
-		});
-	}, [config.token, config.site.id, words, undoHistory, closePanel, popovers]);
+		return sections.wrap(
+			clientEditing({
+				inner,
+				words,
+				announce: (text, urgent) => announceRef.current(text, urgent),
+				// Escape in the page closes the panel and leaves focus where it is, in the page.
+				closePanel: () => closePanel(false),
+				popovers,
+			}),
+		);
+	}, [config.token, config.site.id, words, undoHistory, closePanel, popovers, sections]);
 	useEffect(() => () => editing.destroy(), [editing]);
 	useEffect(() => editing.setMode(mode), [editing, mode]);
 
@@ -360,10 +397,16 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 	};
 
 	const pageTitle = opened.address.document?.kind === "page" ? opened.title.name : null;
-	const sections = arranging && shown?.layout === true;
+	titleRef.current = opened.title.name;
+	const arrangeable = arranging && shown?.layout === true;
 	const draft = clientDraftStateOf(saving, justSaved, shown);
-	const panelShown = place ? null : panel === "sections" && !sections ? null : panel;
+	const panelShown = place ? null : panel === "sections" && !arrangeable ? null : panel;
 	const current = opened.address.document?.kind === "page" ? opened.address.document.page.split("?")[0] : null;
+	const sectionsOpen = panelShown === "sections";
+	// The Sections panel closed: what was typed in it is finished, and it opens on the list next time.
+	useEffect(() => {
+		if (!sectionsOpen) sections.closed();
+	}, [sectionsOpen, sections]);
 
 	return (
 		<div
@@ -409,7 +452,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 				onWidth={setWidth}
 				languages={shown?.languages ?? []}
 				onLanguage={(language) => frame.current?.navigate(language.path)}
-				sections={sections}
+				sections={arrangeable}
 				panel={panelShown}
 				panelId={panelId}
 				onPanel={(next) => setPanel((was) => (was === next ? null : next))}
@@ -434,34 +477,37 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 				data-wc-work=""
 			>
 				{/* The side panel before the canvas in the Tab order: the page stays the last stop. */}
-				{panelShown ? (
+				{panelShown === "sections" ? (
+					<SectionsSidePanel
+						id={panelId}
+						sections={sections}
+						words={words}
+						page={pageTitle ?? ""}
+						language={config.language}
+						onClose={() => closePanel()}
+					/>
+				) : panelShown ? (
 					<SidePanel
 						id={panelId}
 						kind={panelShown}
 						words={words}
-						title={panelShown === "sections" ? said.sections : (detailsHeading?.title ?? said.pageDetails)}
-						page={panelShown === "sections" ? (pageTitle ?? "") : (detailsHeading?.sub ?? pageTitle ?? "")}
+						title={detailsHeading?.title ?? said.pageDetails}
+						page={detailsHeading?.sub ?? pageTitle ?? ""}
 						onClose={() => closePanel()}
 					>
-						{panelShown === "pageDetails" ? (
-							// Page details, or Post details on an Entry (BA-13): a page never published follows its new slug.
-							<MemberDetails
-								token={config.token}
-								siteId={config.site.id}
-								words={words}
-								request={request}
-								page={pageState}
-								onSaving={onSaving}
-								onMoved={(path) => opened.documents.replace({ kind: "page", page: path })}
-								announce={announce}
-								admin={config.admin}
-								onHeading={setDetailsHeading}
-							/>
-						) : (
-							<p className="text-chrome-muted m-0 text-[13px]" data-wc-side-panel-later="">
-								{fill(said.panelLater, { panel: said.sections })}
-							</p>
-						)}
+						{/* Page details, or Post details on an Entry (BA-13): a page never published follows its new slug. */}
+						<MemberDetails
+							token={config.token}
+							siteId={config.site.id}
+							words={words}
+							request={request}
+							page={pageState}
+							onSaving={onSaving}
+							onMoved={(path) => opened.documents.replace({ kind: "page", page: path })}
+							announce={announce}
+							admin={config.admin}
+							onHeading={setDetailsHeading}
+						/>
 					</SidePanel>
 				) : null}
 				<main
@@ -490,6 +536,13 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 						{/* Before the frame in the Tab order: the page stays the last stop. */}
 						{opened.shown?.status === "shown" ? <TextToolbar editing={editing} words={words} /> : null}
 						{opened.shown?.status === "shown" ? <RegionPopover popovers={popovers} words={words} goTo={goTo} /> : null}
+						{/* A section chosen on the page: its name and bar, and "+ Add section" between two (BA-17). */}
+						{opened.shown?.status === "shown" ? (
+							<SectionMarks sections={sections} words={words} onSettings={openSectionSettings} />
+						) : null}
+						{opened.shown?.status === "shown" ? (
+							<AddSectionLine sections={sections} words={words} onAdd={openSectionPicker} />
+						) : null}
 						{opened.shown?.status === "shown" ? (
 							// 12 from the rail, the panel and the bar: the frame keeps 12 left, right and below.
 							<div className="absolute inset-x-0 top-3 bottom-0">
@@ -538,6 +591,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 					{message.urgent ? message.text : ""}
 				</p>
 			</div>
+			<RemovedToast sections={sections} words={words} />
 			<NarrowNotice covered={fit.covered} words={words} back={config.returnTo} />
 			<MediaShellHost config={config} />
 		</div>
