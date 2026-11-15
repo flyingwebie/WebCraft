@@ -6456,7 +6456,7 @@
 			"placedHelp": "The page around the Filter is the Template's: open it in the visual builder to arrange it, with the Filter selected.",
 			"notPlaced": "Not placed yet. Place it in a Template or Component beside its Loop with",
 			"toTemplates": "Go to Templates",
-			"openInBuilder": "Open {place} in the visual builder",
+			"openInBuilder": "Open {place} in the building area",
 			"apart": "Controls can also be placed one by one anywhere on the page, such as the search box in the header: each control's settings show its markup.",
 			"title": "Layout",
 			"intro": "How the Filter's controls sit beside its Loop, and on phones."

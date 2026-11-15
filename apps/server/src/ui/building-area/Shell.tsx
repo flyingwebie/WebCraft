@@ -62,6 +62,7 @@ import { BreakpointLines } from "./places/styles/BreakpointLines.tsx";
 import { Publish } from "./publish/Publish.tsx";
 import { PUBLISH_OPEN_EVENT } from "./publish/sources.ts";
 import { Rail } from "./rail/Rail.tsx";
+import { useFilterSelection } from "./select-filter.ts";
 
 /**
  * The building area's shell (ADR 0037, SPEC 2 and 4): the rail on the left (48 wide; the logo tile
@@ -522,6 +523,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 
 	// The open document is a page for now (documents come with a later part of the building area).
 	// What the panels' rules read: the selection and the open document's kind (a Template of any kind is a Template).
+	// A Filter the address asks to select (the admin's Filters screen, BA-34): where it is placed.
+	useFilterSelection(staff ? pageStructure : null, opened.address.filter ?? null, shown?.address ?? null);
 	const kind = opened.address.document?.kind ?? null;
 	documentKind.current = kind;
 	const chosen = structureNow.selection;

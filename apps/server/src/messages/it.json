@@ -6456,7 +6456,7 @@
 			"placedHelp": "La pagina intorno al Filtro è del Template: aprilo nel visual builder per sistemarla, con il Filtro selezionato.",
 			"notPlaced": "Non ancora inserito. Inseriscilo in un Template o Componente accanto al suo Loop con",
 			"toTemplates": "Vai ai Template",
-			"openInBuilder": "Apri {place} nel visual builder",
+			"openInBuilder": "Apri {place} nell'area di costruzione",
 			"apart": "I controlli si possono anche inserire uno per uno in qualsiasi punto della pagina, come la casella di ricerca nell'intestazione: le impostazioni di ogni controllo ne mostrano il markup.",
 			"title": "Layout",
 			"intro": "Come i controlli del filtro stanno accanto al suo loop, e sui telefoni."
