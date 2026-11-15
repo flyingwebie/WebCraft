@@ -274,6 +274,9 @@ describe("the Styles place, for Staff", () => {
 			document.querySelector("[data-wc-messages]")?.textContent?.includes("Opened Menu"),
 		);
 		expect(await page.locator("[data-wc-class-rename]").isDisabled()).toBe(true);
+		const canvas = await frameOf(page);
+		const title = () => canvas.evaluate(() => getComputedStyle(document.querySelector("h1") as Element).fontSize);
+		const styled = await title();
 		await page.locator("[data-wc-class-name]").fill("masthead__title");
 		await page.locator("[data-wc-class-rename]").click();
 		await page.locator('[data-wc-class-rule="masthead__title"]').waitFor();
@@ -284,6 +287,21 @@ describe("the Styles place, for Staff", () => {
 		const renamed = await draft();
 		// The same Class, by its id: the elements keep it.
 		expect(renamed.classes.find((each) => each.id === ids.get("hero__title"))?.name).toBe("masthead__title");
+		// At once, before anything is published: the canvas under the place draws the page again, its
+		// title with the new name and still styled by its rule (the Draft's stylesheet).
+		await canvas.waitForFunction(() => document.querySelector("h1")?.className === "masthead__title");
+		await canvas.waitForFunction(
+			(size) => getComputedStyle(document.querySelector("h1") as Element).fontSize === size,
+			styled,
+		);
+		expect(await canvas.evaluate(() => document.body.innerHTML)).not.toContain("hero__title");
+		// A change to the rule shows on the canvas at once too.
+		await page.locator("[data-wc-class-rule]").fill(".masthead__title {\n  font-size: 41px;\n}");
+		await canvas.waitForFunction(
+			() => getComputedStyle(document.querySelector("h1") as Element).fontSize === "41px",
+			undefined,
+			{ timeout: 8000 },
+		);
 
 		// Published, every page the canvas shows (the published Structure) carries the new name, none the old.
 		await superadmin.api.designSystem.publish({ siteId });

@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from "react";
 
+import { redrawCanvas } from "../../canvas/redraw.ts";
+
 /**
  * What the Styles place hands the canvas, which stays mounted under it (BA-20): the Breakpoints
  * switched on with "Show on canvas" (`places-assets/07`), drawn as lines over the frame where its edges
@@ -117,4 +119,14 @@ export function showDraftStyles(): void {
 		});
 	}
 	pointAtDraft(frame);
+}
+
+/**
+ * A Class renamed: its elements carry the new name in the Draft Structure, so the page in the frame is
+ * drawn again in place at once (BA-08's `rerender()`, scroll and selection kept), then shown with the
+ * Draft's stylesheet, which has the rule under the new name.
+ */
+export async function redrawWithDraftStyles(): Promise<void> {
+	await redrawCanvas(canvasFrame());
+	showDraftStyles();
 }

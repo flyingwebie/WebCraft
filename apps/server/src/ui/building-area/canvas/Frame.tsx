@@ -23,6 +23,7 @@ import {
 } from "./gutters.ts";
 import { chipName, createOverlay, nameOf, type Overlay } from "./overlay.ts";
 import { endPreview, showPreview } from "./preview.ts";
+import { answerRedraws } from "./redraw.ts";
 import { regionSaving, type SavingStatus } from "./regions.ts";
 import { SizeReadout, useReadoutShown } from "./SizeReadout.tsx";
 
@@ -330,6 +331,8 @@ export function Frame({
 				found?.scrollIntoView({ block: "nearest", inline: "nearest" });
 			},
 		};
+		// A place over the canvas asks for the page to be drawn again (a Class renamed in Styles).
+		const stopRedraws = answerRedraws(element, () => handle.current?.rerender() ?? Promise.resolve());
 		const catcher = installDragCatcher({
 			document: doc,
 			overlay,
@@ -463,6 +466,7 @@ export function Frame({
 			window.removeEventListener("blur", onFocusChange);
 			window.removeEventListener("focus", onFocusChange);
 			catcher.destroy();
+			stopRedraws();
 			disconnectEditing?.();
 			overlay.destroy();
 			overlayOf.current = null;
