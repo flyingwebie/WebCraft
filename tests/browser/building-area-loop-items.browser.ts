@@ -17,7 +17,7 @@ import type { Frame, Page } from "playwright";
 
 import { photo, upload } from "../harness/images.ts";
 import type { TestAccount, TestBrowser } from "../harness/index.ts";
-import { enterBuildingArea, settled } from "./building-area.ts";
+import { enterBuildingArea, eventually, settled } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
 
@@ -139,16 +139,6 @@ async function said(page: Page, text: string, timeout = 8000): Promise<void> {
 		text,
 		{ timeout },
 	);
-}
-
-/** Waits until a value read over the API is what `ok` wants; answers the last one read. */
-async function eventually<T>(read: () => Promise<T>, ok: (value: T) => boolean, tries = 60): Promise<T> {
-	let last = await read();
-	for (let attempt = 0; attempt < tries && !ok(last); attempt++) {
-		await new Promise((resolve) => setTimeout(resolve, 150));
-		last = await read();
-	}
-	return last;
 }
 
 /** The Loop's Draft items, as Staff read them in the admin. */

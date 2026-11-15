@@ -20,7 +20,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Cookie, Frame, Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
-import { enterBuildingArea, frameOf, settled } from "./building-area.ts";
+import { enterBuildingArea, eventually, frameOf, settled } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall, THEMES, type Theme } from "./harness.ts";
 
@@ -164,17 +164,6 @@ async function bodyOf(entryId: string): Promise<Block[]> {
 	const { api } = await install.install.superadmin();
 	const { entry } = await api.entries.get({ siteId, entryId });
 	return entry.draft.fields.body as Block[];
-}
-
-/** What `read` gives once `done` accepts it, waiting up to 8 seconds. */
-async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
-	const deadline = Date.now() + 8000;
-	let value = await read();
-	while (!done(value) && Date.now() < deadline) {
-		await Bun.sleep(200);
-		value = await read();
-	}
-	return value;
 }
 
 /** What has focus, across the shell and its frame: its accessible name, else its words. */

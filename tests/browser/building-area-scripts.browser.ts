@@ -25,7 +25,7 @@ import type { Frame, Page } from "playwright";
 
 import { fakeNpmPackage } from "../harness/fake-npm.ts";
 import type { TestAccount } from "../harness/index.ts";
-import { announced, enterBuildingArea, frameOf, settled } from "./building-area.ts";
+import { announced, enterBuildingArea, eventually, frameOf, settled } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, forgetPageErrors, startBrowserInstall } from "./harness.ts";
 
@@ -268,17 +268,6 @@ async function clickIn(page: Page, frame: Frame, selector: string): Promise<void
 const pane = (page: Page, id: "html" | "css" | "js") => page.locator(`[data-wc-panel="${id}"]`);
 const box = (page: Page, id: "html" | "css" | "js") => page.locator(`textarea[data-wc-code-box="${id}"]`);
 const notice = (page: Page) => page.getByRole("alert", { name: "A script failed" });
-
-/** What `read` gives once `done` accepts it, waiting up to 10 seconds. */
-async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
-	const deadline = Date.now() + 10_000;
-	let value = await read();
-	while (!done(value) && Date.now() < deadline) {
-		await Bun.sleep(100);
-		value = await read();
-	}
-	return value;
-}
 
 /** The Counter's script as its Draft holds it now. */
 async function counterDraft(): Promise<string> {

@@ -18,7 +18,7 @@ import type { Frame, Page } from "playwright";
 
 import { photo, upload } from "../harness/images.ts";
 import type { TestAccount } from "../harness/index.ts";
-import { enterBuildingArea, frameOf, settled } from "./building-area.ts";
+import { enterBuildingArea, eventually, frameOf, settled } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, forgetPageErrors, pageErrors, startBrowserInstall, THEMES } from "./harness.ts";
 
@@ -112,17 +112,6 @@ beforeAll(async () => {
 afterAll(async () => {
 	await install?.close();
 });
-
-/** What `read` gives once `done` accepts it, waiting up to 6 seconds (a save waits for typing to pause). */
-async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
-	const deadline = Date.now() + 6000;
-	let value = await read();
-	while (!done(value) && Date.now() < deadline) {
-		await Bun.sleep(150);
-		value = await read();
-	}
-	return value;
-}
 
 async function draftOf(entryId: string, language?: string) {
 	const { api } = await install.install.superadmin();

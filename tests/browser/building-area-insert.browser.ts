@@ -17,7 +17,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Locator, Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
-import { announced, enterBuildingArea, frameOf, settled } from "./building-area.ts";
+import { announced, enterBuildingArea, eventually, frameOf, settled } from "./building-area.ts";
 import { expectKeyboardUsable, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
 
@@ -152,21 +152,12 @@ const flat = (markup: string) =>
 		.replace(/>\s+</g, "><")
 		.replace(/\s+/g, " ");
 
-/** What `read` gives once `done` accepts it, waiting up to 10 seconds. */
-async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
-	const deadline = Date.now() + 10_000;
-	let value = await read();
-	while (!done(value) && Date.now() < deadline) {
-		await Bun.sleep(100);
-		value = await read();
-	}
-	return value;
-}
-
 /** Waits until a locator's attribute is `value` (or matches it), then expects it. */
 async function holds(locator: Locator, name: string, value: string | RegExp): Promise<void> {
 	const fits = (got: string | null) => got !== null && (typeof value === "string" ? got === value : value.test(got));
-	const got = await eventually(() => locator.getAttribute(name, { timeout: 10_000 }).catch(() => null), fits);
+	const read = () => locator.getAttribute(name, { timeout: 10_000 }).catch(() => null);
+	// Never there: what it reads now, with a screenshot, says more than the wait's own failure.
+	const got = await eventually(read, fits).catch(read);
 	if (!fits(got))
 		await locator
 			.page()
@@ -187,7 +178,7 @@ async function focused(locator: Locator): Promise<void> {
 	const got = await eventually(
 		() => locator.evaluate((element) => element === document.activeElement).catch(() => false),
 		(value) => value,
-	);
+	).catch(() => false);
 	const active = got ? "" : await locator.page().evaluate(() => document.activeElement?.outerHTML.slice(0, 200) ?? "");
 	expect({ focused: got, active }).toEqual({ focused: true, active: "" });
 }
@@ -563,9 +554,8 @@ describe("the tree row's menu", () => {
 		await page.keyboard.press("Shift+F10");
 		await rowMenu.waitFor();
 		await rowMenu.getByRole("menuitem", { name: /Paste/ }).click();
-		expect(await eventually(entryMarkup, (text) => (text.match(/class="card__title"/g) ?? []).length === 2)).toMatch(
-			/card__title.*card__title/,
-		);
+		const titles = (text: string) => (text.match(/class="card__title"/g) ?? []).length;
+		expect(titles(await eventually(entryMarkup, (text) => titles(text) === 2))).toBe(2);
 
 		// Wrap in › a Div.
 		await row.click({ button: "right" });

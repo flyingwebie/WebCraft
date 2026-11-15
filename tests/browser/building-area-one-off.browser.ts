@@ -17,8 +17,8 @@ import type { ElementTree, TreeNode } from "@webcraft/renderer/builder";
 import type { Locator, Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
-import { announced, enterBuildingArea, frameOf, settled } from "./building-area.ts";
-import { expectAccessibleScreen } from "./checks.ts";
+import { announced, enterBuildingArea, eventually, frameOf, settled, stays } from "./building-area.ts";
+import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
 
 let install: BrowserInstall;
@@ -85,16 +85,6 @@ afterAll(async () => {
 
 const css = (page: Page) => page.locator('[data-wc-panel="css"]');
 const box = (page: Page, id: string) => page.locator(`textarea[data-wc-code-box="${id}"]`);
-
-async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
-	const deadline = Date.now() + 15000;
-	let value = await read();
-	while (!done(value) && Date.now() < deadline) {
-		await Bun.sleep(100);
-		value = await read();
-	}
-	return value;
-}
 
 async function announces(page: Page, words: string): Promise<void> {
 	expect(
@@ -172,7 +162,7 @@ async function paragraph(words: string): Promise<string> {
 }
 
 describe("one-off styles and generated Classes", () => {
-	test("the one-off box and the rename offer pass the accessibility checks, light and dark", async () => {
+	test("the one-off box passes the accessibility checks, light and dark (the rename offer: below)", async () => {
 		const page = await shared();
 		await selectParagraph(page, "Sixth words");
 		await oneOffBox(page);
@@ -241,11 +231,30 @@ describe("one-off styles and generated Classes", () => {
 		await rule.waitFor();
 		const name = (await rule.inputValue()).match(/^\.(style-[0-9a-f]{8})/)?.[1];
 		expect(name).toBeTruthy();
+		// Its chip says so in words, not only by a mark.
+		expect(
+			await css(page)
+				.getByRole("button", { name: `Choose .${name}, a generated Class, for CSS` })
+				.count(),
+		).toBe(1);
+		expect((await draftClasses()).find((each) => each.name === name)?.generated).toBe(true);
 		await rule.fill(`.${name} {\n  color: darkgreen;\n  font-style: italic;\n}`);
+		// Changing its rule alone makes it a normal Class, before anything is renamed.
+		const changed = await eventually(draftClasses, (classes) =>
+			classes.some((each) => each.name === name && !each.generated),
+		);
+		expect(changed.find((each) => each.name === name)).toMatchObject({ generated: false });
 		const prompt = css(page).locator("[data-wc-css-rename]");
 		await prompt.waitFor({ timeout: 10000 });
 		const field = prompt.getByRole("textbox", { name: "Name" });
 		expect(await field.evaluate((input) => input === document.activeElement)).toBe(true);
+		for (const theme of ["light", "dark"] as const) {
+			await page.emulateMedia({ colorScheme: theme });
+			await page.waitForTimeout(300);
+			await expectNoAxeViolations(page, `the rename offer (${theme})`);
+		}
+		await page.emulateMedia({ colorScheme: "light" });
+		await field.focus();
 		await field.fill("green-note");
 		await prompt.getByRole("button", { name: "Rename" }).click();
 		await announces(page, "Renamed the Class to .green-note.");
@@ -261,10 +270,13 @@ describe("one-off styles and generated Classes", () => {
 		const oneOff = await oneOffBox(page);
 		await oneOff.fill("color: blue;");
 		await page.locator('[data-wc-rail="panels"]').focus();
-		await eventually(
-			() => paragraph("Fourth words"),
-			(p) => /style-/.test(p),
-		);
+		// Saved to the Draft first: taking it off then has something to take.
+		expect(
+			await eventually(
+				() => paragraph("Fourth words"),
+				(p) => /style-/.test(p),
+			),
+		).toMatch(/class="style-[0-9a-f]{8}"/);
 		await css(page).locator("[data-wc-css-generated]").waitFor();
 		await peerRenames("Sixth words", "Sixth words, by a peer");
 		await css(page)
@@ -354,15 +366,32 @@ describe("one-off styles and generated Classes", () => {
 			await html.fill(teal);
 			await page.locator('[data-wc-rail="panels"]').focus();
 			await held.promise;
+			const redo = page.locator('[data-wc-bar="redo"]');
+			expect(await redo.isDisabled()).toBe(true);
 			await page.getByRole("button", { name: "Undo" }).first().click();
-			await page.waitForTimeout(300);
 			// Nothing taken back yet: Undo waits for the save under way.
-			expect(await entryMarkup()).toMatch(/<h1 class="style-[0-9a-f]{8}">/);
+			const h1Styled = /<h1 class="style-[0-9a-f]{8}">/;
+			await stays(entryMarkup, (text) => h1Styled.test(text) && !/<p class="intro style-/.test(text), {
+				during: 1000,
+				what: "The Draft while the second save is held",
+			});
+			expect(await redo.isDisabled()).toBe(true);
+			const answered = page.waitForResponse("**/_webcraft/edit/api/code/save");
 			release.resolve();
-			const undone = await eventually(entryMarkup, (text) => !/<p class="intro style-/.test(text));
-			// The step taken back is the second save; the first one's generated Class stays on the h1.
+			// The second save lands, then the Undo waiting for it is done (Redo now offers it).
+			expect((await answered).ok()).toBe(true);
+			await eventually(
+				() => redo.isEnabled(),
+				(enabled) => enabled,
+				{ what: "Redo, once the Undo is done" },
+			);
+			// The step taken back is the second save; the first one's generated Class stays on the h1. (Undo
+			// taking back the first save, then the second landing, ends with the h1 plain and the p styled.)
+			const final = (text: string) => text.includes('<p class="intro">First words</p>') && h1Styled.test(text);
+			const undone = await eventually(entryMarkup, final, { what: "The second save taken back" });
 			expect(undone).toContain('<p class="intro">First words</p>');
-			expect(undone).toMatch(/<h1 class="style-[0-9a-f]{8}">/);
+			expect(undone).toMatch(h1Styled);
+			await stays(entryMarkup, final, { during: 1000, what: "The Draft after the Undo" });
 		} finally {
 			release.resolve();
 			await page.unrouteAll({ behavior: "wait" });

@@ -19,7 +19,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Frame, Page } from "playwright";
 
 import type { TestAccount, TestBrowser } from "../harness/index.ts";
-import { enterBuildingArea, frameOf, settled } from "./building-area.ts";
+import { enterBuildingArea, eventually, frameOf, settled } from "./building-area.ts";
 import { expectAccessibleScreen } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
 
@@ -128,17 +128,6 @@ afterAll(async () => {
 const pane = (page: Page, id: "html" | "css" | "js") => page.locator(`[data-wc-panel="${id}"]`);
 const box = (page: Page, id: "html" | "css" | "js") => page.locator(`textarea[data-wc-code-box="${id}"]`);
 const inspector = (page: Page) => page.locator('[data-wc-panel-body="inspector"]');
-
-/** What `read` gives once `done` accepts it, waiting up to 10 seconds. */
-async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
-	const deadline = Date.now() + 10_000;
-	let value = await read();
-	while (!done(value) && Date.now() < deadline) {
-		await Bun.sleep(100);
-		value = await read();
-	}
-	return value;
-}
 
 /** The Component's Draft markup now, as the admin reads it. */
 async function heroMarkup(): Promise<string> {

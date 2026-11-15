@@ -17,7 +17,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Locator, Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
-import { enterBuildingArea, frameOf, settled } from "./building-area.ts";
+import { enterBuildingArea, eventually, frameOf, selectionIs, settled, stays } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
 
@@ -94,16 +94,6 @@ afterAll(async () => {
 const pane = (page: Page, id: "html" | "css" | "js") => page.locator(`[data-wc-panel="${id}"]`);
 const box = (page: Page, id: "html" | "css" | "js") => page.locator(`textarea[data-wc-code-box="${id}"]`);
 
-async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
-	const deadline = Date.now() + 15000;
-	let value = await read();
-	while (!done(value) && Date.now() < deadline) {
-		await Bun.sleep(100);
-		value = await read();
-	}
-	return value;
-}
-
 async function clickIn(page: Page, selector: string): Promise<void> {
 	for (let attempt = 0; ; attempt++) {
 		try {
@@ -124,6 +114,8 @@ async function clickIn(page: Page, selector: string): Promise<void> {
 /** Selects an element of the page and waits for its panes, the HTML box holding its source's markup. */
 async function select(page: Page, selector: string): Promise<void> {
 	await clickIn(page, selector);
+	// Selected (the boxes may still show the element before's source until then).
+	await selectionIs(page, selector);
 	await box(page, "html").waitFor();
 	await eventually(
 		() => box(page, "html").inputValue(),
@@ -134,6 +126,15 @@ async function select(page: Page, selector: string): Promise<void> {
 async function classOf(name: string) {
 	const { api } = await install.install.superadmin();
 	return (await api.designSystem.get({ siteId })).designSystem.draft.classes.find((each) => each.name === name);
+}
+
+/** The Entry template's Draft markup, without the ids the HTML box prints. */
+async function entryMarkup(): Promise<string> {
+	const { api } = await install.install.superadmin();
+	return ((await api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).markup?.draft ?? "").replace(
+		/ data-wc-id="[^"]*"/g,
+		"",
+	);
 }
 
 /** Puts the caret at the end of a box. */
@@ -258,11 +259,14 @@ describe("the CSS pane", () => {
 				(styles) => styles.includes("grid"),
 			),
 		).toContain("display: grid");
+		// A second click takes it back off.
 		await pane(page, "css").getByRole("button", { name: /^Grid/ }).first().click();
-		await eventually(
-			async () => (await classOf("lead"))?.styles ?? "",
-			(styles) => !styles.includes("grid"),
-		);
+		expect(
+			await eventually(
+				async () => (await classOf("lead"))?.styles ?? "",
+				(styles) => !styles.includes("grid"),
+			),
+		).not.toContain("grid");
 	});
 
 	test("unsaved CSS shows on the page before it is saved", async () => {
@@ -309,22 +313,55 @@ describe("the CSS pane", () => {
 		expect(await chips.nth(1).evaluate((chip) => chip === document.activeElement)).toBe(true);
 		await page.keyboard.press("Home");
 		expect(await chips.first().getAttribute("aria-pressed")).toBe("true");
+		const hasPm = /<h1 class="[^"]*\bp-m\b/;
+		expect(await entryMarkup()).toMatch(hasPm);
 		await utilities.getByRole("button", { name: "Remove token utility p-m" }).click();
+		// Taken off the element in the Draft, not only on the page.
+		expect(await eventually(entryMarkup, (text) => !hasPm.test(text))).toMatch(/<h1 class="hero-title lead">/);
 		await (await frameOf(page)).locator("h1:not(.p-m)").waitFor();
-		expect(await pane(page, "css").getByRole("list", { name: "Token utilities" }).count()).toBe(0);
+		expect(
+			await eventually(
+				() => pane(page, "css").getByRole("list", { name: "Token utilities" }).count(),
+				(count) => count === 0,
+			),
+		).toBe(0);
 	});
 
 	test("@layer is refused and nothing is saved", async () => {
 		const page = await shared();
 		await select(page, "p.lead");
-		const before = (await classOf("lead"))?.css;
-		await box(page, "css").fill(
-			".lead {\n  line-height: 1.6;\n  color: rgb(1, 2, 3);\n}\n@layer custom {\n  p { color: red; }\n}",
-		);
-		await pane(page, "css").getByText("remove @layer").waitFor({ timeout: 5000 });
-		await page.waitForTimeout(1200);
-		expect((await classOf("lead"))?.css).toBe(before);
-		await box(page, "css").fill(".lead {\n  line-height: 1.6;\n  color: rgb(1, 2, 3);\n}");
+		const before = await classOf("lead");
+		expect(before?.styles).not.toContain("rgb(4, 5, 6)");
+		let saves = 0;
+		const counted = (request: { url(): string }) => {
+			if (request.url().includes("/designSystem/updateClass")) saves++;
+		};
+		page.on("request", counted);
+		try {
+			// The valid part differs from what is saved: a save of it alone would show.
+			await box(page, "css").fill(
+				".lead {\n  line-height: 1.6;\n  color: rgb(4, 5, 6);\n}\n@layer custom {\n  p { color: red; }\n}",
+			);
+			await pane(page, "css").getByText("remove @layer").waitFor({ timeout: 5000 });
+			// Longer than the pane waits before it saves what is typed (checked just below).
+			await stays(
+				() => classOf("lead"),
+				(now) => JSON.stringify(now) === JSON.stringify(before),
+				{ during: 4000, what: "The Class" },
+			);
+			expect(saves).toBe(0);
+			// Without @layer the same words are saved in that time: the wait above was long enough to see one.
+			await box(page, "css").fill(".lead {\n  line-height: 1.6;\n  color: rgb(4, 5, 6);\n}");
+			expect(
+				await eventually(
+					async () => (await classOf("lead"))?.styles ?? "",
+					(styles) => styles.includes("rgb(4, 5, 6)"),
+					{ timeout: 4000 },
+				),
+			).toContain("rgb(4, 5, 6)");
+		} finally {
+			page.off("request", counted);
+		}
 	});
 
 	test("an unfinished + form doesn't follow the selection to another element", async () => {
@@ -371,25 +408,64 @@ describe("the CSS pane", () => {
 	test("a slow answer for an element selected before never replaces the one selected now", async () => {
 		const page = await shared();
 		await select(page, "p:text-is('Plain words')");
-		let delayed = false;
+		// The pane reads the Design system again when the selection moves (someone may have changed a Class
+		// meanwhile), one read at a time. The one h1's selection sends is held until p.grid-box is selected,
+		// and a peer changes p.grid-box's Class before it is answered: the late answer is shown, and shown
+		// for p.grid-box, the element selected now.
+		const chips = () =>
+			pane(page, "css")
+				.locator("[data-wc-css-class]")
+				.evaluateAll((each) => each.map((chip) => chip.getAttribute("data-wc-css-class")));
+		let reads = 0;
+		let gridClicked = false;
+		let heldSentBeforeGrid = null as boolean | null;
+		const release = Promise.withResolvers<void>();
+		const lateAnswered = Promise.withResolvers<void>();
 		await page.route("**/_webcraft/build/api/rpc/designSystem/get", async (route) => {
-			if (!delayed) {
-				delayed = true;
-				await new Promise((resolve) => setTimeout(resolve, 1500));
+			reads++;
+			if (reads > 1) {
+				await route.continue().catch(() => {});
+				return;
 			}
-			await route.continue();
+			heldSentBeforeGrid = !gridClicked;
+			await release.promise;
+			await route.continue().catch(() => {});
+			await route
+				.request()
+				.response()
+				.catch(() => null);
+			lateAnswered.resolve();
 		});
 		try {
 			await clickIn(page, "h1");
+			await eventually(
+				async () => reads,
+				(count) => count >= 1,
+				{ what: "The read h1's selection sends" },
+			);
+			gridClicked = true;
 			await clickIn(page, "p.grid-box");
-			await page.waitForTimeout(2200);
-			expect(delayed).toBe(true);
+			// Shown from what the pane holds while the read waits.
+			expect(await eventually(chips, (names) => names.join() === "grid-box")).toEqual(["grid-box"]);
+			const { api } = await install.install.superadmin();
+			const grid = await classOf("grid-box");
+			await api.designSystem.updateClass({
+				siteId,
+				classId: grid?.id ?? "",
+				styles: `${grid?.styles ?? ""}\ngap: 3rem;`,
+			});
+			release.resolve();
+			await lateAnswered.promise;
+			expect(heldSentBeforeGrid).toBe(true);
+			// The late answer reached the pane (the peer's gap shows) for the element selected now.
 			expect(
-				await pane(page, "css")
-					.locator("[data-wc-css-class]")
-					.evaluateAll((chips) => chips.map((chip) => chip.getAttribute("data-wc-css-class"))),
-			).toEqual(["grid-box"]);
-			expect(await box(page, "css").inputValue()).toStartWith(".grid-box");
+				await eventually(
+					() => box(page, "css").inputValue(),
+					(text) => text.includes("gap: 3rem"),
+				),
+			).toStartWith(".grid-box");
+			await settled(page);
+			expect(await chips()).toEqual(["grid-box"]);
 		} finally {
 			await page.unroute("**/_webcraft/build/api/rpc/designSystem/get");
 		}
@@ -421,18 +497,26 @@ describe("Format and Components' Props in the HTML pane", () => {
 		await select(page, "h1");
 		const html = box(page, "html");
 		const original = await html.inputValue();
-		await html.fill(
-			original
-				.replace("<article>", "<article>\n")
-				.replace('<Hero heading="Welcome" />', '<Hero    heading="Welcome"/>'),
-		);
+		// The box prints each element with its id, last (`<Hero heading="Welcome" data-wc-id="…" />`).
+		const placed = /<Hero heading="Welcome"( data-wc-id="[^"]*")? \/>/;
+		expect(original).toMatch(placed);
+		const messy = original.replace(/<article\b[^>]*>/, "$&\n").replace(placed, '<Hero    heading="Welcome"$1/>');
+		expect(messy).toContain("<Hero    heading=");
+		expect(messy).not.toContain("\n  <h1");
+		await html.fill(messy);
 		await html.focus();
 		await page.keyboard.press("Alt+Shift+KeyF");
 		const tidied = await eventually(
 			() => html.inputValue(),
 			(text) => text.includes("\n  <h1"),
+			{ what: "Format's indented markup" },
 		);
-		expect(tidied).toMatch(/<Hero heading="Welcome"( data-wc-id="[^"]*")? \/>/);
+		// Format ran (the article's children indented) and left the Placement whole: as it was typed, its
+		// id kept, not split, renamed or tidied into something else.
+		const typed = messy.match(/<Hero {4}heading="Welcome"( data-wc-id="[^"]*")?\/>/)?.[0] ?? "";
+		expect(typed).not.toBe("");
+		expect(tidied).toContain(typed);
+		expect(tidied.match(/<Hero\b/g)).toHaveLength(1);
 		await html.fill(original);
 		await page.locator('[data-wc-rail="panels"]').focus();
 	});
@@ -454,8 +538,13 @@ describe("Format and Components' Props in the HTML pane", () => {
 		const tidied = await eventually(
 			() => js.inputValue(),
 			(text) => text.includes("\n") && text.includes("classList"),
+			{ what: "The formatted script" },
 		);
+		expect(tidied).not.toBe(messy);
 		const caret = await js.evaluate((area: HTMLTextAreaElement) => area.selectionStart);
+		// The word moved with the text around it, and the caret moved with it.
+		expect(tidied.indexOf("classList")).not.toBe(at);
+		expect(caret).not.toBe(at + 3);
 		expect(tidied.slice(caret - 3, caret + 6)).toBe("classList");
 
 		const lines = ["let a=1", "let b=2", "let c=3"] as const;

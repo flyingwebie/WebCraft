@@ -13,7 +13,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
-import { announced, enterBuildingArea, frameOf, settled } from "./building-area.ts";
+import { announced, enterBuildingArea, eventually, frameOf, selectionIs, settled } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
 
@@ -99,16 +99,6 @@ afterAll(async () => {
 const tree = (page: Page) => page.getByRole("tree", { name: "Elements of the page" });
 const box = (page: Page, id: "html" | "css" | "js") => page.locator(`textarea[data-wc-code-box="${id}"]`);
 
-async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
-	const deadline = Date.now() + 15000;
-	let value = await read();
-	while (!done(value) && Date.now() < deadline) {
-		await Bun.sleep(100);
-		value = await read();
-	}
-	return value;
-}
-
 async function clickIn(page: Page, selector: string): Promise<void> {
 	for (let attempt = 0; ; attempt++) {
 		try {
@@ -129,6 +119,8 @@ async function clickIn(page: Page, selector: string): Promise<void> {
 /** Selects an element of the page and waits for its panes, the HTML box holding its source's markup. */
 async function select(page: Page, selector: string): Promise<void> {
 	await clickIn(page, selector);
+	// Selected (the boxes may still show the element before's source until then).
+	await selectionIs(page, selector);
 	await box(page, "html").waitFor();
 	await eventually(
 		() => box(page, "html").inputValue(),

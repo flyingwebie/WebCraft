@@ -19,7 +19,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Frame, Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
-import { enterBuildingArea, frameOf, settled } from "./building-area.ts";
+import { enterBuildingArea, eventually, frameOf, settled } from "./building-area.ts";
 import { expectAccessibleScreen } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
 
@@ -122,17 +122,6 @@ afterAll(async () => {
 const tree = (page: Page) => page.getByRole("tree", { name: "Elements of the page" });
 const inspector = (page: Page) => page.locator('[data-wc-panel-body="inspector"]');
 const chip = (page: Page) => page.locator("[data-wc-chip]");
-
-/** What `read` gives once `done` accepts it, waiting up to 15 seconds (a busy machine is slow). */
-async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
-	const deadline = Date.now() + 15000;
-	let value = await read();
-	while (!done(value) && Date.now() < deadline) {
-		await Bun.sleep(100);
-		value = await read();
-	}
-	return value;
-}
 
 /**
  * Waits until `read` answers `wanted` (or a text `wanted` matches), then checks it: the shell draws a

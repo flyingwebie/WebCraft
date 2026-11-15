@@ -11,7 +11,7 @@ import type { Frame, Page } from "playwright";
 
 import { TEST_PASSWORD, type TestAccount, type TestBrowser } from "../harness/index.ts";
 import { addAuthenticator, confirmIfAsked } from "../harness/two-factor.ts";
-import { enterBuildingArea, frameOf, settled } from "./building-area.ts";
+import { enterBuildingArea, eventually, frameOf, settled } from "./building-area.ts";
 import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
 
 let install: BrowserInstall;
@@ -57,17 +57,6 @@ afterAll(async () => {
 async function subtitle(): Promise<unknown> {
 	const { api } = await install.install.superadmin();
 	return (await api.entries.get({ siteId, entryId })).entry.draft.fields.subtitle;
-}
-
-/** What `read` gives once `done` accepts it, waiting up to 6 seconds (a save waits for typing to pause). */
-async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
-	const deadline = Date.now() + 6000;
-	let value = await read();
-	while (!done(value) && Date.now() < deadline) {
-		await Bun.sleep(150);
-		value = await read();
-	}
-	return value;
 }
 
 /** Types at the end of the subtitle, with the pointer and the keyboard, as a person does. */
