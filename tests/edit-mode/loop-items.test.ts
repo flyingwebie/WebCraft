@@ -530,7 +530,7 @@ describe("a Loop's items in the Publish menu", () => {
 				label: "our-bakes",
 				type: "loopItems",
 				structure: true,
-				items: [site.items[0]],
+				items: [site.items[0] ?? ""],
 				by: { name: expect.any(String) as unknown as string, you: true },
 			},
 		]);
@@ -640,7 +640,7 @@ describe("Publish refuses a page whose only changes are Loop items, for those wh
 				label: "our-bakes",
 				type: "loopItems",
 				structure: true,
-				items: [site.items[0]],
+				items: [site.items[0] ?? ""],
 				by: expect.anything() as unknown as State["changes"][number]["by"],
 			},
 		]);
