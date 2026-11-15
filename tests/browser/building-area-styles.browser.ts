@@ -99,6 +99,31 @@ async function eventually<T>(read: () => Promise<T>, check: (value: T) => boolea
 	return last;
 }
 
+/**
+ * Keeps every message the shell's live regions say from now on: each replaces the last, and which of
+ * two arrives last (the page's "Opened …" and a change's) depends on the machine's load.
+ */
+async function listen(page: Page): Promise<void> {
+	await page.evaluate(() => {
+		const region = document.querySelector("[data-wc-messages]");
+		const kept: string[] = [];
+		(window as unknown as { heard: string[] }).heard = kept;
+		if (!region) return;
+		const keep = () => kept.push((region.textContent ?? "").replaceAll("\u00a0", " "));
+		keep();
+		new MutationObserver(keep).observe(region, { childList: true, subtree: true, characterData: true });
+	});
+}
+
+/** Waits until the shell has said `text` since `listen`. */
+async function heard(page: Page, text: string): Promise<void> {
+	await page.waitForFunction(
+		(wanted) => ((window as unknown as { heard?: string[] }).heard ?? []).some((said) => said.includes(wanted)),
+		text,
+		{ timeout: 15000 },
+	);
+}
+
 /** The Class rows the list shows, by name, in order. */
 const rows = (page: Page) =>
 	page.locator("[data-wc-class-row]").evaluateAll((all) => all.map((row) => row.getAttribute("data-wc-class-row")));
@@ -269,10 +294,9 @@ describe("the Styles place, for Staff", () => {
 	test("Rename follows every element: once published, every page carries the new name and none the old", async () => {
 		await go(page, placed("styles/classes", `class=${ids.get("hero__title")}`));
 		await page.locator('[data-wc-class-rule="hero__title"]').waitFor();
-		// The page under the place is announced once Edit mode has described it: the rename's message comes after.
-		await page.waitForFunction(() =>
-			document.querySelector("[data-wc-messages]")?.textContent?.includes("Opened Menu"),
-		);
+		// The page under the place is announced once Edit mode has described it, maybe after the rename's
+		// message: every message is kept.
+		await listen(page);
 		expect(await page.locator("[data-wc-class-rename]").isDisabled()).toBe(true);
 		const canvas = await frameOf(page);
 		const title = () => canvas.evaluate(() => getComputedStyle(document.querySelector("h1") as Element).fontSize);
@@ -280,10 +304,10 @@ describe("the Styles place, for Staff", () => {
 		await page.locator("[data-wc-class-name]").fill("masthead__title");
 		await page.locator("[data-wc-class-rename]").click();
 		await page.locator('[data-wc-class-rule="masthead__title"]').waitFor();
-		expect((await rule(page)).startsWith(".masthead__title {")).toBe(true);
 		await page.waitForFunction(() =>
-			document.querySelector("[data-wc-messages]")?.textContent?.includes("Renamed to .masthead__title"),
+			document.querySelector<HTMLTextAreaElement>("[data-wc-class-rule]")?.value.startsWith(".masthead__title {"),
 		);
+		await heard(page, "Renamed to .masthead__title");
 		const renamed = await draft();
 		// The same Class, by its id: the elements keep it.
 		expect(renamed.classes.find((each) => each.id === ids.get("hero__title"))?.name).toBe("masthead__title");
