@@ -370,7 +370,8 @@ function SectionList({
 							aria-setsize={rows.length}
 							aria-posinset={index + 1}
 							aria-selected={selected}
-							aria-labelledby={hint ? `${keysId}-${index}-name ${keysId}-${index}-hint` : `${keysId}-${index}-name`}
+							aria-label={row.label}
+							aria-describedby={hint ? `${keysId}-${index}-hint` : undefined}
 							tabIndex={row.id === focusable ? 0 : -1}
 							onClick={() => choose(row)}
 							className={`group relative flex h-14 shrink-0 items-center gap-2.5 rounded-[10px] px-2.5 ${
@@ -410,13 +411,17 @@ function SectionList({
 							<Sketch kind={row.sketch} size="row" />
 							<span className="flex min-w-0 grow flex-col gap-px">
 								<span
-									id={`${keysId}-${index}-name`}
 									className={`truncate text-[13px] font-medium ${row.hidden ? "text-chrome-muted" : "text-chrome-text"}`}
 								>
 									{row.label}
 								</span>
 								{hint ? (
-									<span id={`${keysId}-${index}-hint`} className="text-chrome-muted truncate text-[11px]">
+									// Said as the row's description, not its name.
+									<span
+										id={`${keysId}-${index}-hint`}
+										aria-hidden="true"
+										className="text-chrome-muted truncate text-[11px]"
+									>
 										{hint}
 									</span>
 								) : null}
