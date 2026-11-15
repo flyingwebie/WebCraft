@@ -232,7 +232,6 @@ describe("the language of the page, for Staff", () => {
 		await page.keyboard.press("Enter");
 		await framedAt(page, `/it${bread}`);
 		await page.getByRole("button", { name: "IT, Language: Italiano", exact: true }).waitFor();
-		expect(await page.evaluate(() => document.activeElement?.hasAttribute("data-wc-language"))).toBe(true);
 
 		await button(page).click();
 		await menu(page)

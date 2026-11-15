@@ -292,7 +292,13 @@ export function clientEditing(options: {
 			set(region, "data-wc-empty-label", words.client.photo.empty);
 			set(region, "tabindex", "0");
 			set(region, "aria-label", fill(words.client.photo.region, { name }));
-			if (!region.parentElement?.closest("a, button, [role='button']")) set(region, "role", "button");
+			if (!region.parentElement?.closest("a, button, [role='button']")) {
+				set(region, "role", "button");
+				// A photo with no description (`alt=""`) may only be presentational: in Edit, where it is a
+				// button, it is described by the button's name instead (Preview gives back what it had).
+				if (region.tagName === "IMG" && region.getAttribute("alt") === "")
+					set(region, "alt", fill(words.client.photo.region, { name }));
+			}
 		}
 	};
 

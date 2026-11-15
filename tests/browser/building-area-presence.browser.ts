@@ -283,8 +283,8 @@ describe("Presence on photos, links and Loop items, for two Members", () => {
 		// The third moved to the top: it is dotted too; the first, in its place among the others, isn't.
 		const third = await mineFrame.locator("li").nth(2).boundingBox();
 		if (!third) throw new Error("No third item.");
+		// Selected, with its bar on its top edge.
 		await mine.mouse.click(third.x + 40, third.y + 10);
-		await mine.locator("[data-wc-item-panel]").getByRole("button", { name: "Done" }).click();
 		for (const place of [1, 0]) {
 			await mine
 				.getByRole("toolbar", { name: "Tools for Seeded rye" })
@@ -302,6 +302,7 @@ describe("Presence on photos, links and Loop items, for two Members", () => {
 			{ timeout: 10_000 },
 		);
 		expect(await dots()).toEqual([itemKey(1), itemKey(2)].sort());
+		await mine.locator("[data-wc-item-panel]").getByRole("button", { name: "Done" }).click();
 		for (const theme of ["light", "dark"] as const) {
 			await mine.emulateMedia({ colorScheme: theme });
 			await expectNoAxeViolations(mine, `Client editing › changed Loop items (${theme})`);
