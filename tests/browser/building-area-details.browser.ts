@@ -34,14 +34,6 @@ let writerId: string;
 let photoId: string;
 const slug = "bakery";
 
-/**
- * The bottom bar's language button (BA-04's, `bottom-bar/LanguageMenu.tsx`) shows the code ("EN") but
- * is named "Language: English", which axe's `label-content-name-mismatch` refuses. It shows only on a
- * Site with several languages, as this one is; it isn't these panels', so it is left out of their
- * checks and reported to its owners.
- */
-const CHECKED = { exclude: ["[data-wc-language]"] };
-
 beforeAll(async () => {
 	install = await startBrowserInstall();
 	const local = install.install;
@@ -344,7 +336,11 @@ describe("the Entry panel, for Staff", () => {
 			await openEntryPanel(page);
 			await settled(page);
 			await page.mouse.move(0, 0);
-			await expectAccessibleScreen(page, `building area, Entry panel (${theme})`, CHECKED);
+			// The bar's language button shows the code, and its name starts with it.
+			expect(
+				await page.getByRole("button", { name: "EN, Language: English", exact: true }).getAttribute("data-wc-language"),
+			).toBe("");
+			await expectAccessibleScreen(page, `building area, Entry panel (${theme})`);
 		});
 	}
 });

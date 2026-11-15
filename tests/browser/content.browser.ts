@@ -1,6 +1,7 @@
 // The Post Types & Fields screen, the Entries list, the Entry editor and the Globals editor in a
 // browser: axe and keyboard checks in light and dark, with a Field's settings open, problems showing,
-// dialogs and menus opened from the keyboard, and the keyboard way to move what can be dragged.
+// dialogs and menus opened from the keyboard, and the keyboard way to move what can be dragged. A link
+// Field keeps "Open in a new tab" through the editor's saves.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Page } from "playwright";
 
@@ -327,6 +328,44 @@ for (const theme of THEMES) {
 		});
 	});
 }
+
+describe("a link Field in the Entry editor", () => {
+	test("keeps Open in a new tab through a save, and switching it off takes it away", async () => {
+		const admin = await install.install.superadmin();
+		const { entry } = await admin.api.entries.create({
+			siteId,
+			postTypeId: blogId,
+			title: "Opening hours",
+			fields: { more: { url: "https://acme.test/hours", text: "Our hours", newTab: true } },
+		});
+		const more = async () => (await admin.api.entries.get({ siteId, entryId: entry.id })).entry.draft.fields.more;
+		/** Waits until the Draft's link reads `wanted`. */
+		const saved = async (wanted: Record<string, string | boolean>) => {
+			let seen = await more();
+			for (let look = 0; look < 80 && JSON.stringify(seen) !== JSON.stringify(wanted); look++) {
+				await new Promise((resolve) => setTimeout(resolve, 100));
+				seen = await more();
+			}
+			expect(seen).toEqual(wanted);
+		};
+
+		const page = await install.newPage("light");
+		await open(page, owner, `/sites/${siteId}/entries/${blogId}/${entry.id}`);
+		const link = page.locator("fieldset").filter({ has: page.locator("legend", { hasText: "Read more" }) });
+		const newTab = link.getByRole("checkbox", { name: "Open in a new tab" });
+		await newTab.waitFor();
+		expect(await newTab.getAttribute("aria-checked")).toBe("true");
+
+		// A change to the words saves the link with its new tab kept.
+		await link.getByLabel("Text", { exact: true }).fill("Opening hours");
+		await saved({ url: "https://acme.test/hours", text: "Opening hours", newTab: true });
+
+		// Switched off, the link has no new tab any more.
+		await newTab.click();
+		await saved({ url: "https://acme.test/hours", text: "Opening hours" });
+		expect(await newTab.getAttribute("aria-checked")).toBe("false");
+	});
+});
 
 describe("Members see Content only", () => {
 	test("an Owner's sidebar has no Structure row, and Post Types & Fields says they can't open it", async () => {

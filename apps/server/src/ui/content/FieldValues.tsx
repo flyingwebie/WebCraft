@@ -277,8 +277,12 @@ function LeafValue({
 			);
 		case "link": {
 			const link = value && typeof value === "object" && !Array.isArray(value) ? (value as FieldValues) : {};
-			const set = (part: "url" | "text", next: string) =>
-				onChange({ url: String(link.url ?? ""), text: String(link.text ?? ""), [part]: next });
+			// The value keeps every part it has: the address, the words and "Open in a new tab" (kept only when on).
+			const set = (part: "url" | "text" | "newTab", next: string | boolean) => {
+				const parts = { url: String(link.url ?? ""), text: String(link.text ?? ""), newTab: link.newTab === true };
+				const { newTab, ...rest } = { ...parts, [part]: next };
+				onChange(newTab === true ? { ...rest, newTab: true } : rest);
+			};
 			return (
 				<fieldset className="grid gap-2" aria-describedby={control.describedBy}>
 					<ValueLabel field={field} id={control.labelId} context={context} as="legend" />
@@ -309,6 +313,16 @@ function LeafValue({
 								autoComplete="off"
 							/>
 						</div>
+					</div>
+					<div className="flex items-center gap-2">
+						<Checkbox
+							id={`${control.id}-new-tab`}
+							checked={link.newTab === true}
+							onCheckedChange={(checked) => set("newTab", checked === true)}
+						/>
+						<Label htmlFor={`${control.id}-new-tab`} className="font-normal">
+							{t("content.link.newTab")}
+						</Label>
 					</div>
 					<FieldNotes field={field} id={control.id} problems={control.own} />
 				</fieldset>

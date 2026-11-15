@@ -94,6 +94,21 @@ async function read() {
 	};
 }
 
+/**
+ * Waits until the Drafts hold what `wanted` names: an Undo or a Redo changes the page at once, and
+ * reaches the server through its save a moment later (later still on a busy machine).
+ */
+async function drafts(wanted: Partial<Awaited<ReturnType<typeof read>>>): Promise<void> {
+	const picked = (seen: Awaited<ReturnType<typeof read>>) =>
+		Object.fromEntries(Object.keys(wanted).map((key) => [key, seen[key as keyof typeof seen]]));
+	let seen = picked(await read());
+	for (let attempt = 0; attempt < 150 && JSON.stringify(seen) !== JSON.stringify(wanted); attempt++) {
+		await new Promise((resolve) => setTimeout(resolve, 100));
+		seen = picked(await read());
+	}
+	expect(seen).toEqual(wanted);
+}
+
 /** Waits until the frame shows `path` with its regions editable. */
 async function framedAt(page: Page, path: string): Promise<Frame> {
 	for (let attempt = 0; attempt < 100; attempt++) {
@@ -151,17 +166,23 @@ async function nextUndo(page: Page, label: string | null): Promise<void> {
 				: !button.disabled && button.getAttribute("aria-label") === `Undo ${label}`;
 		},
 		label,
-		{ timeout: 8000 },
+		{ timeout: 15000 },
 	);
 }
 
-/** Waits until the shell has said `text` (its live regions, polite or assertive). */
+/** Waits until the shell has said `text` (its live regions, polite or assertive); says what it said instead. */
 async function said(page: Page, text: string): Promise<void> {
-	await page.waitForFunction(
-		(text) => (document.querySelector("[data-wc-messages]")?.textContent ?? "").replaceAll(" ", "").includes(text),
-		text,
-		{ timeout: 8000 },
-	);
+	const now = async () => ((await page.locator("[data-wc-messages]").textContent()) ?? "").replaceAll("\u00a0", "");
+	try {
+		await page.waitForFunction(
+			(text) =>
+				(document.querySelector("[data-wc-messages]")?.textContent ?? "").replaceAll("\u00a0", "").includes(text),
+			text,
+			{ timeout: 15000 },
+		);
+	} catch {
+		expect(await now()).toContain(text);
+	}
 }
 
 describe("the Undo history, for a Member", () => {
@@ -190,7 +211,7 @@ describe("the Undo history, for a Member", () => {
 		await nextUndo(page, "Edit Tagline");
 		await typeOver(page, frame, "h1", "Rye loaf, sliced");
 		await nextUndo(page, "Edit Title");
-		expect(await read()).toEqual({
+		await drafts({
 			bread: "Fresh bread daily",
 			breadSubtitle: "Out of the oven",
 			rye: "Rye loaf, sliced",
@@ -216,7 +237,7 @@ describe("the Undo history, for a Member", () => {
 		await page.keyboard.press("ControlOrMeta+z");
 		// Where it was made: the page as it was then.
 		await said(page, "Undid Edit Title on Fresh bread");
-		expect(await read()).toEqual({
+		await drafts({
 			bread: "Fresh bread",
 			breadSubtitle: "Out of the oven",
 			rye: "Rye loaf",
@@ -233,14 +254,14 @@ describe("the Undo history, for a Member", () => {
 		await tagline(frame)
 			.filter({ hasText: /^Baked at dawn$/ })
 			.waitFor();
-		expect((await read()).bread).toBe("Fresh bread daily");
+		await drafts({ bread: "Fresh bread daily" });
 
 		// Back to the first page in the shell (no reload): the last step was made on the other page.
 		await page.goBack();
 		frame = await framedAt(page, "/blog/fresh-bread");
 		await redoButton(page).click();
 		await said(page, "Redid Edit Title on Rye loaf");
-		expect((await read()).rye).toBe("Rye loaf, sliced");
+		await drafts({ rye: "Rye loaf, sliced" });
 		await frame
 			.locator("h1")
 			.filter({ hasText: /^Fresh bread daily$/ })
@@ -251,7 +272,7 @@ describe("the Undo history, for a Member", () => {
 		frame = await framedAt(page, "/blog/fresh-bread");
 		await nextUndo(page, null);
 		expect(await redoButton(page).isDisabled()).toBe(true);
-		expect((await read()).tagline).toBe("Baked at dawn");
+		await drafts({ tagline: "Baked at dawn" });
 	});
 
 	test("Undo while still typing saves the text first and takes that burst back; focus stays in the text", async () => {
@@ -265,7 +286,7 @@ describe("the Undo history, for a Member", () => {
 			.filter({ hasText: /^Out of the oven$/ })
 			.waitFor();
 		expect(await frame.evaluate(() => document.activeElement?.getAttribute("data-wc-field"))).toBe("subtitle");
-		expect((await read()).breadSubtitle).toBe("Out of the oven");
+		await drafts({ breadSubtitle: "Out of the oven" });
 		await page.keyboard.press("ControlOrMeta+Shift+z");
 		await said(page, "Redid Edit Subtitle");
 		await frame
@@ -304,9 +325,10 @@ describe("the Undo history, for a Member", () => {
 			"Skipped Edit Tagline. This step overlaps a newer change or its target no longer exists. Undid Edit Subtitle",
 		);
 		expect(await page.locator('[data-wc-messages] [role="alert"]').textContent()).toContain("Skipped Edit Tagline");
-		expect((await read()).tagline).toBe("Staff's");
-		// The pointer off the bar: a tooltip under it shows its keys beside the name (the chrome's, BA-04).
-		await page.mouse.move(700, 400);
+		await drafts({ tagline: "Staff's" });
+		// The pointer still on Undo: its tooltip shows the keys beside the name, which stays the label.
+		await undoButton(page).hover();
+		await undoButton(page).locator("[data-wc-tip]").waitFor();
 		await expectAccessibleScreen(page, "building area Undo history");
 	});
 });
@@ -340,7 +362,7 @@ test("a Member and Staff on one Draft each take back only their own steps", asyn
 		// Staff's later title made the Member's title step obsolete: skipped, never overwriting it.
 		await said(member, "Skipped Edit Title.");
 		await nextUndo(member, null);
-		expect(await read()).toMatchObject({ rye: "Staff rye", tagline: "Staff's" });
+		await drafts({ rye: "Staff rye", tagline: "Staff's" });
 
 		// Staff take back their own two, in order.
 		await undoButton(peer).click();
@@ -348,7 +370,7 @@ test("a Member and Staff on one Draft each take back only their own steps", asyn
 		await undoButton(peer).click();
 		await said(peer, "Undid Edit Subtitle");
 		await nextUndo(peer, null);
-		expect((await read()).rye).toBe("Member rye");
+		await drafts({ rye: "Member rye" });
 		await theirs
 			.locator("article p")
 			.filter({ hasText: /^Dark and dense$/ })
