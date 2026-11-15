@@ -418,7 +418,7 @@ describe("the CSS pane", () => {
 				.evaluateAll((each) => each.map((chip) => chip.getAttribute("data-wc-css-class")));
 		let reads = 0;
 		let gridClicked = false;
-		let heldSentBeforeGrid: boolean | null = null;
+		let heldSentBeforeGrid = null as boolean | null;
 		const release = Promise.withResolvers<void>();
 		const lateAnswered = Promise.withResolvers<void>();
 		await page.route("**/_webcraft/build/api/rpc/designSystem/get", async (route) => {
