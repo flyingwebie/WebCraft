@@ -30,6 +30,12 @@ export const TEXT_REGION =
 /** Image regions (an `<img>` showing a media Field, or the empty element in its place), outside a body. */
 export const PHOTO_REGION = '[data-wc-type="media"][data-wc-item][data-wc-field]:not([data-wc-block])';
 
+/**
+ * Body regions: the element a body's Blocks render in (BA-18). The page's block editor (the editing
+ * bar's body part, loaded into the frame) makes its Blocks editable; the shell draws its tools.
+ */
+export const BODY_REGION = '[data-wc-type="body"][data-wc-item][data-wc-field]';
+
 /** Link regions: an `<a>` showing a whole link Field, its address and its words. */
 export const LINK_REGION = 'a[data-wc-type="link"][data-wc-item][data-wc-field]';
 

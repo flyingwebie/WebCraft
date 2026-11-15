@@ -32,10 +32,42 @@ export type PageDrafts = {
 	place(item: string | null, at: string | null): void;
 	/** Who else is in each of the page's Drafts now, by item: others only, never the person's own tabs. */
 	others(): ReadonlyMap<string, readonly Participant[]>;
+	/**
+	 * One of the page's Drafts as a part of the page changes it directly (a body's Blocks, BA-18), once
+	 * it is open: null before or without it.
+	 */
+	shared(item: string): SharedDraft | null;
 	/** Called when someone comes, goes or moves. Answers how to stop listening. */
 	subscribe(listener: () => void): () => void;
+	/**
+	 * An open Draft's client (`entry:<id>`), for a part that changes it itself (BA-09: a Page's Page
+	 * layout), through this one socket: a second one would show the person to themselves as someone else.
+	 */
+	client(item: string): DraftClient | null;
+	/** Called on every change of an open Draft (the person's, someone else's, a step taken back). */
+	onChange(listener: (item: string, draft: Json) => void): () => void;
 	/** Stops for good: every socket closes. */
 	destroy(): void;
+};
+
+/**
+ * One of the page's shared Drafts as a part changes it directly (the block editor, BA-18), in the shape
+ * the editing bar hands its body part (`site/edit-bar/kit.ts`'s `SharedDraft`): what its copy holds, a
+ * change made at once and sent with the next batch, others' changes as they come, and a wait until
+ * what was sent is saved.
+ */
+export type SharedDraft = {
+	stage: DraftClient["stage"];
+	/** Whether it has the server's document yet and may be changed (nothing can be changed before). */
+	ready(): boolean;
+	draft(): unknown;
+	/** Changes the Draft to what `next` makes of it; false while it can't be changed. */
+	change(next: (current: unknown) => unknown): boolean;
+	/** Hears changes others make (and the person's steps taken back); answers what stops hearing them. */
+	listen(listener: (draft: unknown) => void): () => void;
+	/** Sends what is waiting and waits (8 seconds at most) until the server saved it; false if it didn't. */
+	saved(): Promise<boolean>;
+	reverse: DraftClient["reverse"];
 };
 
 /** A step's resource names its Draft: `draft:<site id>:entry:<id>` or `draft:<site id>:globals`. */
@@ -157,9 +189,21 @@ export function pageDrafts(options: {
 	/** Someone published a Draft the page shows (their name; null when it was the person). */
 	onPublished(by: Extract<ServerMessage, { type: "published" }>["by"]): void;
 }): PageDrafts {
-	type Open = { client: DraftClient; participants: Participant[]; stop: () => void; unregister: () => void };
+	type Open = {
+		client: DraftClient;
+		participants: Participant[];
+		stop: () => void;
+		unregister: () => void;
+		/** Whether the copy has had the server's document. */
+		synced: boolean;
+		/** How many of the person's changes the server refused, so a wait for a save can tell. */
+		refusals: number;
+		/** The parts that change it directly, hearing others' changes (`shared`). */
+		listeners: Set<(draft: unknown) => void>;
+	};
 	const open = new Map<string, Open>();
 	const listeners = new Set<() => void>();
+	const changeListeners = new Set<(item: string, draft: Json) => void>();
 	const tell = () => {
 		for (const listener of listeners) listener();
 	};
@@ -171,15 +215,25 @@ export function pageDrafts(options: {
 			participants: [],
 			stop: () => {},
 			unregister: () => {},
+			synced: false,
+			refusals: 0,
+			listeners: new Set(),
 			client: createDraftClient({
 				onChange: (draft, from) => {
-					if (from === "remote") options.onRemote(item, draft, false);
+					entry.synced = true;
+					for (const listener of changeListeners) listener(item, draft);
+					if (from !== "remote") return;
+					options.onRemote(item, draft, false);
+					for (const listener of entry.listeners) listener(draft);
 				},
 				onPresence: (participants) => {
 					entry.participants = participants;
 					tell();
 				},
-				onRefused: (refusal) => options.onRefused(refusal.code),
+				onRefused: (refusal) => {
+					entry.refusals += 1;
+					options.onRefused(refusal.code);
+				},
 				onPublished: (by) => options.onPublished(by),
 			}),
 		};
@@ -188,7 +242,11 @@ export function pageDrafts(options: {
 			reverse: async (from, to) => {
 				await caughtUp(entry.client, from, to);
 				const result = await entry.client.reverse(from, to);
-				if (result.ok) options.onRemote(item, entry.client.draft(), true);
+				if (result.ok) {
+					const draft = entry.client.draft();
+					options.onRemote(item, draft, true);
+					for (const listener of entry.listeners) listener(draft);
+				}
 				return result;
 			},
 		});
@@ -222,15 +280,56 @@ export function pageDrafts(options: {
 			}
 			return found;
 		},
+		shared(item) {
+			const entry = open.get(item);
+			if (!entry) return null;
+			const { client } = entry;
+			return {
+				stage: () => client.stage(),
+				ready: () => entry.synced && client.status() !== "readOnly" && client.status() !== "ended",
+				draft: () => client.draft(),
+				change: (next) => client.change(next as (current: Json) => Json),
+				listen(listener) {
+					entry.listeners.add(listener);
+					return () => {
+						entry.listeners.delete(listener);
+					};
+				},
+				reverse: (from, to) => client.reverse(from, to),
+				saved() {
+					const refusals = entry.refusals;
+					client.flush();
+					const started = Date.now();
+					return new Promise((resolve) => {
+						const check = () => {
+							const status = client.status();
+							if (entry.refusals !== refusals) resolve(false);
+							else if (status === "saved") resolve(true);
+							else if (status === "readOnly" || status === "ended" || Date.now() - started > 8000) resolve(false);
+							else window.setTimeout(check, 100);
+						};
+						window.setTimeout(check, 50);
+					});
+				},
+			};
+		},
 		subscribe(listener) {
 			listeners.add(listener);
 			return () => {
 				listeners.delete(listener);
 			};
 		},
+		client: (item) => open.get(item)?.client ?? null,
+		onChange(listener) {
+			changeListeners.add(listener);
+			return () => {
+				changeListeners.delete(listener);
+			};
+		},
 		destroy() {
 			for (const item of [...open.keys()]) closeDraft(item);
 			listeners.clear();
+			changeListeners.clear();
 		},
 	};
 }

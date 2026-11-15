@@ -237,6 +237,7 @@ export function ClientBar({
 	onUndo,
 	onRedo,
 	place,
+	detailsLabel,
 }: {
 	words: Words;
 	/** The person's Admin language, for the plurals. */
@@ -261,6 +262,8 @@ export function ClientBar({
 	onRedo(): void;
 	/** Whether a place is open over the canvas: the page's own controls wait until it is left. */
 	place: boolean;
+	/** The details button's word when it isn't "Page details": "Post details" on an Entry (`client-flows/01`, BA-18). */
+	detailsLabel?: string;
 }) {
 	const said = words.client;
 	const history = useHistory();
@@ -366,7 +369,7 @@ export function ClientBar({
 						onClick={() => onPanel("pageDetails")}
 						data={{ "data-wc-bar": "page-details" }}
 					>
-						{said.pageDetails}
+						{detailsLabel ?? said.pageDetails}
 					</BarButton>
 				)}
 				{/* Publish (BA-12): one cell that never changes width, its sheet above it. */}

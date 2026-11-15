@@ -13,6 +13,11 @@ export type Overlay = {
 	hover(element: Element | null): void;
 	/** The selected element (solid outline and the name-and-size chip), or null. */
 	select(element: Element | null): void;
+	/**
+	 * What the selection's chip calls it instead of its element's name (BA-09: a Placement selected by
+	 * its root element is named by its Component), until the next selection; null: its element's name.
+	 */
+	name(text: string | null): void;
 	selected(): Element | null;
 	/** Watches a page the frame now shows: its scrolling, size and changes move the outlines. */
 	attach(document: Document): void;
@@ -95,6 +100,7 @@ export function createOverlay(options: {
 
 	let hovered: Element | null = null;
 	let chosen: Element | null = null;
+	let chosenName: string | null = null;
 	let pending = 0;
 	const cleanups: (() => void)[] = [];
 	let pageCleanups: (() => void)[] = [];
@@ -139,7 +145,7 @@ export function createOverlay(options: {
 			chip.classList.add("hidden");
 			return;
 		}
-		chip.textContent = `${chipName(chosen, words)} · ${Math.round(shown.rect.width)} × ${Math.round(shown.rect.height)}`;
+		chip.textContent = `${chosenName ?? chipName(chosen, words)} · ${Math.round(shown.rect.width)} × ${Math.round(shown.rect.height)}`;
 		// An element of a Component is drawn in the Component colour (SPEC 7).
 		const inComponent = isInComponent(chosen);
 		selectedBox.classList.toggle("border-[#a78bfa]", inComponent);
@@ -233,6 +239,11 @@ export function createOverlay(options: {
 		},
 		select(element) {
 			chosen = element;
+			chosenName = null;
+			schedule();
+		},
+		name(text) {
+			chosenName = text;
 			schedule();
 		},
 		selected: () => (chosen?.isConnected ? chosen : null),

@@ -44,8 +44,13 @@ export type FrameHandle = {
 	 * scroll and selection kept, none of the page's scripts run again. A stand-in loads again instead.
 	 */
 	rerender(): Promise<void>;
-	/** Outlines the element a Structure reference names (`data-wc-code`), or nothing; brought into view. */
-	select(ref: string | null): void;
+	/**
+	 * Outlines the element a Structure reference names (`data-wc-code`), or nothing; brought into view.
+	 * `name` is what its chip calls it instead of its element's name (a Placement: its Component's).
+	 */
+	select(ref: string | null, name?: string | null): void;
+	/** The overlay drawn over the page now (BA-09 draws the Component edited in place on it), or null. */
+	overlay(): Overlay | null;
 	/**
 	 * Shows the page as the server rendered it with changes not saved yet (BA-11, `canvas/preview.ts`):
 	 * its body and stylesheet in place, as `rerender` does. `rerender` takes the preview away again.
@@ -57,6 +62,18 @@ export type FrameHandle = {
 
 /** The page's theme as the rail's Dark preview sets it: dark or light values, or the page's own choice (null). */
 export type PageTheme = "dark" | "light" | null;
+
+/**
+ * The page's element a Structure reference names: the element itself, else, for a source (a Page's
+ * Placement, `content/<id>`) or a Placement in a Template (`content#<id>`), the first element its
+ * Component draws (the Placement's root).
+ */
+function elementOfRef(page: Document, ref: string): Element | null {
+	const exact = page.querySelector(`[data-wc-code="${CSS.escape(ref)}"]`);
+	if (exact) return exact;
+	const source = ref.includes("#") ? ref.replace("#", "/") : ref;
+	return page.querySelector(`[data-wc-code^="${CSS.escape(`${source}#`)}"]`);
+}
 
 /** How long a control's change of the frame's size eases, in milliseconds (SPEC 10). */
 const RESIZE_EASE_MS = 200;
@@ -243,10 +260,13 @@ export function Frame({
 			latest.current.onSelect?.(chosen ? { element: chosen, name: chipName(chosen, latest.current.words) } : null);
 		/** What is selected now, by its Structure reference: a drawing in place selects it again, whenever it lands. */
 		let chosenRef: string | null = null;
+		/** What its chip calls it, when not its element's name. */
+		let chosenName: string | null = null;
 		const overlay: Overlay = {
 			...drawn,
 			select(chosen) {
 				chosenRef = chosenRefOf(chosen);
+				chosenName = null;
 				drawn.select(chosen);
 				tellSelected(chosen);
 			},
@@ -272,11 +292,8 @@ export function Frame({
 			latest.current.onReady?.(swapped);
 			drawn.hover(null);
 			// What is selected by the time the page is drawn, not what was when it was asked for.
-			drawn.select(
-				chosenRef
-					? (swapped.querySelector(`[data-wc-code="${CSS.escape(chosenRef)}"]`) ?? placedFormAt(swapped, chosenRef))
-					: null,
-			);
+			drawn.select(chosenRef ? (placedFormAt(swapped, chosenRef) ?? elementOfRef(swapped, chosenRef)) : null);
+			drawn.name(chosenName);
 		};
 		handle.current = {
 			navigate(address) {
@@ -303,18 +320,15 @@ export function Frame({
 				if (swapped) drawnAgain(swapped);
 			},
 			page: () => element.contentDocument,
-			select(ref) {
+			overlay: () => overlayOf.current,
+			select(ref, name = null) {
 				chosenRef = ref;
+				chosenName = name;
 				const page = element.contentDocument;
-				// An element by its reference, or a source's first element (a Placement's root, by the Placement).
-				const found =
-					ref && page
-						? (page.querySelector(`[data-wc-code="${CSS.escape(ref)}"]`) ??
-							(ref.includes("#")
-								? placedFormAt(page, ref)
-								: page.querySelector(`[data-wc-code^="${CSS.escape(`${ref}#`)}"]`)))
-						: null;
+				// A placed Form by the command that placed it (BA-27), else an element by its reference.
+				const found = ref && page ? (placedFormAt(page, ref) ?? elementOfRef(page, ref)) : null;
 				drawn.select(found);
+				drawn.name(name);
 				found?.scrollIntoView({ block: "nearest", inline: "nearest" });
 			},
 		};

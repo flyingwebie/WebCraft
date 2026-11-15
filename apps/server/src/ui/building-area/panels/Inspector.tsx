@@ -1,19 +1,16 @@
-import {
-	type AttributePart,
-	type ElementNode,
-	isValuePath,
-	readFormat,
-	type TreeNode,
-	writeFormat,
-} from "@webcraft/renderer/builder";
+import type { ElementNode, TreeNode } from "@webcraft/renderer/builder";
 import { ComponentIcon, PlusIcon, XIcon } from "lucide-react";
-import { type ReactNode, useEffect, useId, useState, useSyncExternalStore } from "react";
+import { type ReactNode, useEffect, useId, useMemo, useState, useSyncExternalStore } from "react";
 
 import { replaceAt } from "../../builder/tree.ts";
 import { fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
+import type { PageLayoutEditor } from "../editing/page-layout.ts";
 import type { Structure, StructureSelection, StructureSource } from "../editing/selection.ts";
 import { useChosenClass } from "./chosen-class.ts";
+import { printParts, readParts, type ValueChoice, CommitInput as ValueInput } from "./inputs.tsx";
+import { ConditionPanel, itemValues, LoopPanel, loopAround, useLoopFacts } from "./LoopPanel.tsx";
+import { PropsPanel } from "./Props.tsx";
 
 /**
  * The Inspector panel for Staff (SPEC 5, `builder/02`; BA-08): what the selected element of a Template
@@ -23,50 +20,159 @@ import { useChosenClass } from "./chosen-class.ts";
  * change is one Undo step, made through the Template's or Component's shared Draft; the page in the
  * frame is drawn again in place. A Module's Component is shown read only, with the reason.
  *
- * A Placement, a Loop and a Condition get their own panels with BA-09; until then the Inspector names them.
+ * A Placement, a Loop and a Condition get their own panels (BA-09): the Props panel (`Props.tsx`), the
+ * Loop and Condition panels (`LoopPanel.tsx`). An element a Loop repeats shows its Loop's settings above
+ * its own (`builder/07`), and `{{` in its values offers the Loop's item.
  */
 export function Inspector({
 	structure,
 	words,
+	token,
+	siteId,
+	layout,
 	onOpenComponent,
+	onOpenLoop,
 }: {
 	structure: Structure;
 	words: Words;
-	/** Opens a Component as the document (its id). */
-	onOpenComponent(componentId: string): void;
+	token: string;
+	siteId: string;
+	/** A Page's Page layout, as the Props panel changes its Placements' values. */
+	layout: PageLayoutEditor;
+	/** "Inside the {name} Component": the Component (its id) and the source it is on the page (`content/<id>`). */
+	onOpenComponent(componentId: string, source: string): void;
+	/** "Open in Loops": the Loops place on a Loop (its id). */
+	onOpenLoop(loopId: string): void;
 }) {
 	const snapshot = useSyncExternalStore(structure.subscribe, structure.snapshot);
 	const said = words.structure.inspector;
 	const selection = snapshot.selection;
+	const source = selection ? snapshot.sources.get(selection.source) : undefined;
+	const around = source && selection?.path ? loopAround(source.tree, selection.path) : null;
+	const loopFacts = useLoopFacts(token, siteId, around?.node.source ?? null);
+	const values = useMemo<ValueChoice[]>(
+		() => [
+			...(around ? itemValues(loopFacts, around.node.alias) : []),
+			...(source?.catalogue.values ?? []).map((value) => ({ path: value.path, label: value.label })),
+		],
+		[around, loopFacts, source],
+	);
 	if (!selection) return null;
-	const source = snapshot.sources.get(selection.source);
 	const placement =
 		selection.kind === "placement" && !selection.key
 			? snapshot.layout?.find((each) => `content/${each.id}` === selection.ref)
 			: undefined;
 	if (placement) {
-		return <Note>{fill(said.placementOf, { name: placement.name })}</Note>;
+		return (
+			<PropsPanel
+				key={selection.ref}
+				structure={structure}
+				words={words}
+				token={token}
+				siteId={siteId}
+				layout={layout}
+				placement={{
+					placement,
+					all: snapshot.layout ?? [],
+					canArrange: snapshot.layoutInfo?.canArrange ?? false,
+				}}
+				source={null}
+				path={null}
+				node={null}
+				component={snapshot.sources.get(selection.ref) ?? null}
+				values={[]}
+			/>
+		);
 	}
 	if (!source || !selection.node || !selection.path) return <Note>{said.notOpen}</Note>;
-	if (selection.node.type !== "element") {
-		return <Note>{nodeTitle(selection.node, source)}</Note>;
+	const node = selection.node;
+	if (node.type === "component") {
+		return (
+			<PropsPanel
+				key={selection.ref}
+				structure={structure}
+				words={words}
+				token={token}
+				siteId={siteId}
+				layout={layout}
+				placement={null}
+				source={source}
+				path={selection.path}
+				node={node}
+				component={snapshot.sources.get(`${selection.source}/${node.id}`) ?? null}
+				values={values}
+			/>
+		);
+	}
+	if (node.type === "loop") {
+		return (
+			<LoopPanel
+				key={selection.ref}
+				structure={structure}
+				words={words}
+				token={token}
+				siteId={siteId}
+				source={source}
+				path={selection.path}
+				node={node}
+				onOpenLoop={onOpenLoop}
+			/>
+		);
+	}
+	if (node.type === "condition") {
+		return (
+			<ConditionPanel
+				key={selection.ref}
+				structure={structure}
+				words={words}
+				source={source}
+				path={selection.path}
+				node={node}
+				values={values}
+			/>
+		);
+	}
+	if (node.type !== "element") {
+		return <Note>{nodeTitle(node, source)}</Note>;
 	}
 	const inside = selection.source.includes("/") && source.kind === "component" ? source : null;
-	return (
+	const element = (
 		<ElementInspector
 			key={selection.ref}
 			structure={structure}
 			words={words}
 			selection={selection}
-			node={selection.node}
+			node={node}
 			source={source}
 			inside={inside}
+			values={values}
 			onOpenComponent={onOpenComponent}
 		/>
 	);
+	if (!around) return element;
+	// An element a Loop repeats (`builder/07`): its Loop's settings, then its own.
+	return (
+		<div className="flex min-h-0 grow flex-col gap-2 overflow-auto" data-wc-in-loop="">
+			<LoopPanel
+				key={`${selection.source}:${around.path.join(".")}`}
+				structure={structure}
+				words={words}
+				token={token}
+				siteId={siteId}
+				source={source}
+				path={around.path}
+				node={around.node}
+				onOpenLoop={onOpenLoop}
+			/>
+			<p className="text-chrome-muted border-chrome-line mt-1 border-t px-0.5 pt-2 text-[11px] font-semibold tracking-[0.06em] uppercase">
+				{fill(words.placements.loop.element, { name: node.label ?? node.tag })}
+			</p>
+			{element}
+		</div>
+	);
 }
 
-/** What a node that isn't an element is called, until its own panel comes (BA-09). */
+/** What a node that has no panel of its own is called (a Form, a Popup, pagination). */
 function nodeTitle(node: TreeNode, source: StructureSource): string {
 	if (node.type === "component")
 		return source.catalogue.components.find((component) => component.id === node.component)?.name ?? node.component;
@@ -159,47 +265,6 @@ function CommitInput({
 	);
 }
 
-/**
- * An attribute's value as the Inspector shows it: fixed text, and each value as `{{ path }}` (with its
- * formatter, `{{ path | date: long }}`); a literal `{{` is written `\{{`. Read back the same way. The
- * Template markup parser would do this too, but it is large for the shell's bundle; the server checks
- * every tree it saves either way.
- */
-function printParts(parts: readonly AttributePart[]): string {
-	return parts
-		.map((part) =>
-			part.type === "text"
-				? part.text.replaceAll("{{", "\\{{")
-				: `{{ ${part.path}${part.format ? ` | ${writeFormat(part.format)}` : ""} }}`,
-		)
-		.join("");
-}
-
-/** Reads what `printParts` writes; the problem is the value it couldn't read, or its formatter's problem. */
-function readParts(text: string): { parts: AttributePart[] } | { problem: string } {
-	const parts: AttributePart[] = [];
-	let literal = "";
-	let at = 0;
-	for (const match of text.matchAll(/\\\{\{|\{\{([^}]*)\}\}/g)) {
-		literal += text.slice(at, match.index);
-		at = match.index + match[0].length;
-		if (match[0] === "\\{{") {
-			literal += "{{";
-			continue;
-		}
-		const [path = "", format] = (match[1] ?? "").split("|").map((piece) => piece.trim());
-		if (!isValuePath(path)) return { problem: match[0] };
-		const read = format === undefined ? null : readFormat(format);
-		if (read && "problem" in read) return { problem: read.problem };
-		if (literal) parts.push({ type: "text", text: literal });
-		literal = "";
-		parts.push({ type: "value", path, ...(read ? { format: read.format } : {}) });
-	}
-	literal += text.slice(at);
-	if (literal) parts.push({ type: "text", text: literal });
-	return { parts };
-}
-
 /** What an element holds, as its Template's markup says it (read only here: the HTML pane and the page change it). */
 function contentOf(node: ElementNode): string {
 	return node.children
@@ -223,15 +288,18 @@ function ElementInspector({
 	node,
 	source,
 	inside,
+	values,
 	onOpenComponent,
 }: {
 	structure: Structure;
 	words: Words;
+	/** What `{{` offers in its values. */
+	values: readonly ValueChoice[];
 	selection: StructureSelection;
 	node: ElementNode;
 	source: StructureSource;
 	inside: StructureSource | null;
-	onOpenComponent(componentId: string): void;
+	onOpenComponent(componentId: string, source: string): void;
 }) {
 	const said = words.structure;
 	const ids = { tag: useId(), label: useId(), id: useId(), classInput: useId() };
@@ -484,11 +552,13 @@ function ElementInspector({
 						)
 					}
 				>
-					<CommitInput
+					<ValueInput
 						mono
 						label={fill(said.inspector.attributeValue, { name: attribute.name })}
 						value={printParts(attribute.value)}
 						disabled={readOnly}
+						values={values}
+						valuesLabel={words.placements.values}
 						onCommit={(value) =>
 							setAttribute(attribute.name, value, fill(said.steps.attribute, { attribute: attribute.name, name }))
 						}
@@ -555,7 +625,7 @@ function ElementInspector({
 			{inside?.id ? (
 				<button
 					type="button"
-					onClick={() => onOpenComponent(inside.id as string)}
+					onClick={() => onOpenComponent(inside.id as string, inside.ref)}
 					className={`flex h-8 items-center gap-2 rounded-md bg-[#2e1065] px-2.5 text-[12px] font-medium text-[#ddd6fe] hover:bg-[#3b0f80] ${CHROME_EASE} ${FOCUS_RING}`}
 					data-wc-inside=""
 				>
