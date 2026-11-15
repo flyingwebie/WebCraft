@@ -504,7 +504,6 @@ describe("the Command menu", () => {
 	test("a Member gets the shorter menu: their Actions and Go to, no Insert", async () => {
 		const page = await install.newPage("light");
 		await page.setViewportSize({ width: 1440, height: 900 });
-		// On a post: a Page's Sections for Members (BA-17) crash the client shell on `ui-overhaul` now (see the handoff).
 		await enterBuildingArea(install, page, { as: member, siteId, slug, open: `/page${post}` });
 		await page.locator("[data-wc-client]").waitFor();
 		await page.keyboard.press("ControlOrMeta+k");

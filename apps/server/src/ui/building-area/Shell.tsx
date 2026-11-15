@@ -1,4 +1,4 @@
-import { readExpression, type TreeNode } from "@webcraft/renderer/builder";
+import { type ElementTree, readExpression, type TreeNode } from "@webcraft/renderer/builder";
 import { PencilIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useEditorFit } from "../builder/editor-fit.ts";
@@ -128,6 +128,21 @@ function inPlaceTargetOf(snapshot: StructureSnapshot): InPlaceTarget | null {
 	const source = `${selection.source}/${node.id}`;
 	const name = placementName(snapshot, selection.ref) ?? node.component;
 	return { source, componentId: node.component, name, placement: selection.ref };
+}
+
+/** The reference of the Site template's element that holds the outlet (where a Page's content goes), or null. */
+function outletHolder(tree: ElementTree | undefined): string | null {
+	const visit = (nodes: readonly TreeNode[], owner: TreeNode | null): string | null => {
+		for (const node of nodes) {
+			if (node.type === "outlet") return owner && "id" in owner ? `site#${owner.id}` : null;
+			for (const list of childLists(node)) {
+				const found = visit(list, node);
+				if (found !== null || list.some((each) => each.type === "outlet")) return found;
+			}
+		}
+		return null;
+	};
+	return tree ? visit(tree.nodes, null) : null;
 }
 
 /** What Done selects for a Component's source on the page: a Page's Placement, or the Placement node in its Template. */
@@ -930,6 +945,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 						{emptyPage ? (
 							<EmptyPage
 								words={words}
+								frame={frame}
+								outlet={outletHolder(siteSource?.tree)}
 								onAddComponent={() => menu.setRequest({ tab: "insert", only: "components" })}
 								onNewSection={() => void insert.newSection(0)}
 							/>
