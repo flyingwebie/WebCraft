@@ -325,7 +325,6 @@ describe("fixed text becomes a value clients edit", () => {
 
 		await page.locator('[data-wc-bar="undo"]').click();
 		const undone = await eventually(read, (got) => got.component.draft.props.length === 0);
-		if (undone.component.draft.props.length) console.log("after Undo:", await announced(page));
 		expect(undone.component.draft.props).toEqual([]);
 		expect(undone.markup.draft).toContain("<p>Closed on Sundays</p>");
 	});

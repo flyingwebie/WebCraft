@@ -579,14 +579,17 @@ export function structure(options: {
 			if (!changed) return said.connecting;
 			const resource = resourceOf(open.kind, source.id);
 			const key = select === undefined ? keyOf(selected ?? "") : select;
-			if (changeOptions?.record !== false)
-				editorHistory().record({
-					resource,
-					before,
-					after: open.client.draft(),
-					label,
-					location: { siteId: options.siteId, draft: resource, panel: "tree", ref, selection: key, title: label },
-				});
+			const recordedAfter = open.client.draft();
+			const stepId =
+				changeOptions?.record === false
+					? undefined
+					: editorHistory().record({
+							resource,
+							before,
+							after: open.client.draft(),
+							label,
+							location: { siteId: options.siteId, draft: resource, panel: "tree", ref, selection: key, title: label },
+						});
 			follow(source.id, next, props ?? null);
 			if (select !== undefined) {
 				selected = select === null ? null : `${ref}#${select}`;
@@ -599,6 +602,11 @@ export function structure(options: {
 					options.failed();
 					announce(said.notSaved, true);
 				}
+				// New Props come back as the server keeps them (their ids, their defaults written out): the step
+				// ends where the Draft is once saved, so Undo finds its own change there (BA-33).
+				const acknowledged = open.client.draft();
+				if (ok && props && stepId !== undefined && !sameValue(acknowledged, recordedAfter))
+					editorHistory().attach(stepId, { resource, before: recordedAfter, after: acknowledged });
 				void redraw().then(() => {
 					// The canvas outlines the selection where the page now draws it.
 					if (drafts.has(id)) selectOnCanvas(selected);

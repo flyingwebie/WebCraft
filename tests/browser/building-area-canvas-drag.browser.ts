@@ -130,6 +130,8 @@ async function clickIn(page: Page, selector: string): Promise<void> {
  * pausing over it so the shell can draw where it lands; answers what the drop line said meanwhile.
  */
 async function drag(page: Page, from: Locator, selector: string, at: number): Promise<string | null> {
+	await (await frameOf(page)).locator(selector).first().scrollIntoViewIfNeeded();
+	await settled(page);
 	const start = await from.boundingBox();
 	const target = await (await frameOf(page)).locator(selector).first().boundingBox();
 	if (!start || !target) throw new Error("Nothing to drag from or to.");
@@ -203,7 +205,7 @@ describe("dragging on the canvas", () => {
 		);
 		await page.waitForTimeout(500);
 		const textLine = await drag(page, page.locator('[data-wc-insert="text"]'), "div.box p:last-of-type", 0.85);
-		console.log("text drop:", textLine, await announced(page));
+		expect(textLine).toBe("after");
 		expect(await eventually(article, (text) => /<div class="box">.*<p>[^<]*<\/p><\/div>/.test(text))).toMatch(
 			/<div class="box"><p>Inside the box<\/p><p>Last words<\/p><p>[^<]+<\/p><\/div>/,
 		);

@@ -167,21 +167,14 @@ async function focusRow(page: Page, name: string | RegExp): Promise<void> {
 describe("Layers: arranging from the keyboard, branches, hover", () => {
 	test("Layers with its branches passes the accessibility checks, light and dark", async () => {
 		const page = await shared();
-		const missing: string[] = [];
-		page.on("response", (response) => {
-			if (response.status() === 404) missing.push(response.url());
-		});
-		page.on("requestfinished", () => {});
-		process.on("beforeExit", () => {
-			if (missing.length) console.log("404s:", missing);
-		});
-		await focusRow(page, "Else");
+		// Its branches shown; a plain row selected (a branch's own JS reading is the JS pane's, BA-32).
+		await focusRow(page, "p .source");
+		await row(page, "Else").waitFor();
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
 			await page.mouse.move(24, 460);
 			await page.waitForTimeout(1800);
 			await settled(page);
-			if (missing.length) console.log("404s:", missing);
 			await expectAccessibleScreen(page, `Layers with branches (${theme})`);
 		}
 	});
@@ -237,8 +230,11 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 		await steps.waitFor();
 		expect(await steps.getAttribute("aria-selected")).toBe("true");
 		const { api } = await install.install.superadmin();
-		const { template } = await api.templates.getEntryTemplate({ siteId, postTypeId });
-		expect(JSON.stringify(template?.draft)).toContain('"label":"Steps"');
+		const labelled = await eventually(
+			async () => JSON.stringify((await api.templates.getEntryTemplate({ siteId, postTypeId })).template?.draft),
+			(draft) => draft.includes('"label":"Steps"'),
+		);
+		expect(labelled).toContain('"label":"Steps"');
 	});
 
 	test("Space picks a layer up, the arrows move it, Escape puts it back with no step, Space puts it down as one", async () => {

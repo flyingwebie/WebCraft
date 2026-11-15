@@ -282,17 +282,6 @@ describe("the CSS pane", () => {
 				() => frameOf(page).then((frame) => frame.locator("p.lead").evaluate((p) => getComputedStyle(p).color)),
 				(value) => value === "rgb(1, 2, 3)",
 			);
-			if (color !== "rgb(1, 2, 3)")
-				console.log(
-					"preview asked:",
-					await page.evaluate(() => document.documentElement.dataset.wcCssPreview ?? "never"),
-					await box(page, "css").inputValue(),
-					await box(page, "css").getAttribute("readonly"),
-					"preview sheets:",
-					await (await frameOf(page)).evaluate(() =>
-						document.adoptedStyleSheets.map((sheet) => [...sheet.cssRules].map((rule) => rule.cssText).join(" ")),
-					),
-				);
 			expect(color).toBe("rgb(1, 2, 3)");
 			expect((await classOf("lead"))?.styles).not.toContain("rgb(1, 2, 3)");
 		} finally {
