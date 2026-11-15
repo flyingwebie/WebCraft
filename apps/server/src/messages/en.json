@@ -10906,6 +10906,24 @@
 			},
 			"noneExisting": "There is none of text yet: make a new one.",
 			"refused": "Couldn't make it editable: {reason}"
+		},
+		"oneOff": {
+			"add": "One-off style",
+			"addLabel": "Style only this element",
+			"box": "One-off style of {name}",
+			"help": "Only for this element, such as margin-top: var(--space-m). It becomes a generated Class: pages never carry inline styles.",
+			"generated": "Generated",
+			"chooseGenerated": "Choose .{name}, a generated Class, for CSS",
+			"applied": "One-off style applied.",
+			"removed": "One-off style removed.",
+			"notSaved": "Couldn't save the one-off style: {reason}",
+			"renameTitle": ".{name} is a normal Class now",
+			"renameHelp": "It was made from a one-off style. Give it a name, or keep the one it has.",
+			"name": "Name",
+			"rename": "Rename",
+			"keep": "Keep the name",
+			"renamed": "Renamed the Class to .{name}.",
+			"renameStep": "Renamed .{from} to .{name}"
 		}
 	},
 	"auth": {

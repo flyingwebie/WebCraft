@@ -10906,6 +10906,24 @@
 			},
 			"noneExisting": "Non ce n'è ancora nessuno di testo: creane uno nuovo.",
 			"refused": "Non è stato possibile renderlo modificabile: {reason}"
+		},
+		"oneOff": {
+			"add": "Stile singolo",
+			"addLabel": "Dai uno stile solo a questo elemento",
+			"box": "Stile singolo di {name}",
+			"help": "Solo per questo elemento, per esempio margin-top: var(--space-m). Diventa una Class generata: le pagine non portano mai stili in linea.",
+			"generated": "Generata",
+			"chooseGenerated": "Scegli .{name}, una Class generata, per il CSS",
+			"applied": "Stile singolo applicato.",
+			"removed": "Stile singolo rimosso.",
+			"notSaved": "Non è stato possibile salvare lo stile singolo: {reason}",
+			"renameTitle": ".{name} ora è una Class normale",
+			"renameHelp": "È stata creata da uno stile singolo. Dalle un nome, o tieni quello che ha.",
+			"name": "Nome",
+			"rename": "Rinomina",
+			"keep": "Tieni il nome",
+			"renamed": "Class rinominata in .{name}.",
+			"renameStep": "Rinominata .{from} in .{name}"
 		}
 	},
 	"auth": {
