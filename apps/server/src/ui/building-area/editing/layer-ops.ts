@@ -25,6 +25,9 @@ import { type Structure, type StructureSelection, sourceOf } from "./selection.t
  * tab; Paste puts a copy after the selection.
  */
 
+/** Make Component's fixed text turned into Props: each piece's `fixedTextsOf` index and its Prop's key. */
+export type MadeTexts = { index: number; key: string }[];
+
 /** What can wrap an element without a question: a Div, a Section, a Link. */
 export type PlainWrap = "div" | "section" | "a";
 
@@ -47,9 +50,10 @@ export type LayerOps = {
 	parent(): string | null;
 	/**
 	 * Make Component: moves the selected element or Placement into a new Component named `name`, placed
-	 * where it was (`components.make`; the page looks the same). Answers why not, or null.
+	 * where it was (`components.make`; the page looks the same), its fixed text chosen made Props (each
+	 * the Prop's default). Answers why not, or null.
 	 */
-	makeComponent(name: string): Promise<string | null>;
+	makeComponent(name: string, texts?: MadeTexts): Promise<string | null>;
 };
 
 export function layerOps(options: {
@@ -201,7 +205,7 @@ export function layerOps(options: {
 			structure.select(`${selected.source}#${key}`);
 			return null;
 		},
-		async makeComponent(name) {
+		async makeComponent(name, texts = []) {
 			const said = words.componentDialog;
 			const selected = inTree();
 			const source = sourceOfSelection();
@@ -213,6 +217,7 @@ export function layerOps(options: {
 					source: source.target as never,
 					path: [...selected.path],
 					node: selected.node,
+					...(texts.length ? { texts } : {}),
 				});
 				announce(fill(said.made, { name }));
 				structure.select(`${selected.source}#${made.placement.id}`);

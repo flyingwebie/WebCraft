@@ -10853,6 +10853,59 @@
 			"cancel": "Cancel",
 			"made": "Made the Component {name}.",
 			"refused": "Couldn't make the Component: {reason}"
+		},
+		"fixedText": {
+			"badge": "Fixed text",
+			"heading": "Fixed text",
+			"help": "Clients can't edit fixed text. Make it a value they edit instead.",
+			"make": {
+				"prop": "Bind to Prop",
+				"field": "Make it a Field",
+				"global": "Make it a Global"
+			},
+			"intro": {
+				"prop": "Each copy of the Component then shows its own value for it. “{text}” becomes the Prop's default, so nothing changes until someone gives another.",
+				"field": "Each Entry then shows its own value for it. “{text}” becomes the Field's default for new Entries. The Field is added to the Post Type at once.",
+				"global": "Clients then change it in the Globals, for every page. “{text}” becomes the Global's Draft value. The Global is added at once."
+			},
+			"mode": {
+				"new": {
+					"prop": "A new Prop",
+					"field": "A new Field",
+					"global": "A new Global"
+				},
+				"existing": {
+					"prop": "A Prop it has",
+					"field": "A Field the Post Type has",
+					"global": "A Global the Site has"
+				}
+			},
+			"existing": {
+				"prop": "Prop",
+				"field": "Field",
+				"global": "Global"
+			},
+			"none": "Choose…",
+			"label": "Label",
+			"key": "Key",
+			"keyHelp": "Template markup reads it as {binding}.",
+			"labelRequired": "Give it a label.",
+			"keyInvalid": "A key starts with a lower-case letter, then letters, digits and underscores.",
+			"keyTaken": "That key is taken.",
+			"chooseExisting": "Choose one.",
+			"made": "The text now reads {binding}.",
+			"changed": "The selected text changed. Select it again to make it editable.",
+			"cancel": "Cancel",
+			"component": {
+				"texts": "Fixed text",
+				"textsHelp": "Each copy of the Component can show its own text instead. The current text becomes the Prop's default.",
+				"turnIntoProp": "Turn the fixed text into a Prop",
+				"propKey": "Prop name",
+				"keyInvalid": "{key} can't name a Prop: start with a lower-case letter, then letters, digits or _.",
+				"keyTwice": "Two Props can't both be called {key}."
+			},
+			"noneExisting": "There is none of text yet: make a new one.",
+			"refused": "Couldn't make it editable: {reason}"
 		}
 	},
 	"auth": {

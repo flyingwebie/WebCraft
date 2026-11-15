@@ -10853,6 +10853,59 @@
 			"cancel": "Annulla",
 			"made": "Component {name} creato.",
 			"refused": "Non è stato possibile creare il Component: {reason}"
+		},
+		"fixedText": {
+			"badge": "Testo fisso",
+			"heading": "Testo fisso",
+			"help": "I clienti non possono modificare il testo fisso. Rendilo un valore che possono modificare.",
+			"make": {
+				"prop": "Collega a una Prop",
+				"field": "Rendilo un Field",
+				"global": "Rendilo un Global"
+			},
+			"intro": {
+				"prop": "Ogni copia del Component mostrerà il suo valore. “{text}” diventa il valore predefinito della Prop, quindi nulla cambia finché qualcuno non ne indica un altro.",
+				"field": "Ogni Entry mostrerà il suo valore. “{text}” diventa il valore predefinito del Field per le nuove Entry. Il Field si aggiunge subito al Post Type.",
+				"global": "I clienti lo cambieranno nei Global, per ogni pagina. “{text}” diventa il valore in Bozza del Global. Il Global si aggiunge subito."
+			},
+			"mode": {
+				"new": {
+					"prop": "Una nuova Prop",
+					"field": "Un nuovo Field",
+					"global": "Un nuovo Global"
+				},
+				"existing": {
+					"prop": "Una Prop che ha già",
+					"field": "Un Field del Post Type",
+					"global": "Un Global del Sito"
+				}
+			},
+			"existing": {
+				"prop": "Prop",
+				"field": "Field",
+				"global": "Global"
+			},
+			"none": "Scegli…",
+			"label": "Etichetta",
+			"key": "Chiave",
+			"keyHelp": "Il Template markup la legge come {binding}.",
+			"labelRequired": "Dagli un'etichetta.",
+			"keyInvalid": "Una chiave inizia con una lettera minuscola, poi lettere, cifre e trattini bassi.",
+			"keyTaken": "Questa chiave è già usata.",
+			"chooseExisting": "Scegline uno.",
+			"made": "Il testo ora legge {binding}.",
+			"changed": "Il testo selezionato è cambiato. Selezionalo di nuovo per renderlo modificabile.",
+			"cancel": "Annulla",
+			"component": {
+				"texts": "Testo fisso",
+				"textsHelp": "Ogni copia del Component potrà mostrare un suo testo. Il testo attuale diventa il valore predefinito della Prop.",
+				"turnIntoProp": "Trasforma il testo fisso in una Prop",
+				"propKey": "Nome della Prop",
+				"keyInvalid": "{key} non può essere il nome di una Prop: inizia con una lettera minuscola, poi lettere, cifre o _.",
+				"keyTwice": "Due Props non possono chiamarsi entrambe {key}."
+			},
+			"noneExisting": "Non ce n'è ancora nessuno di testo: creane uno nuovo.",
+			"refused": "Non è stato possibile renderlo modificabile: {reason}"
 		}
 	},
 	"auth": {

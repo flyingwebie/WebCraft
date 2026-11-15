@@ -117,9 +117,16 @@ export type Structure = {
 	subscribe(listener: () => void): () => void;
 	/**
 	 * Changes a source's tree (one Undo step, `label`), then selects `select` (a key in the new tree; the
-	 * selection as it was when undefined). Answers why it was refused, or null.
+	 * selection as it was when undefined). A Component's Props change with it when `props` is given (the
+	 * same step: fixed text made a Prop, BA-33). Answers why it was refused, or null.
 	 */
-	change(source: string, next: ElementTree, label: string, select?: string | null): string | null;
+	change(
+		source: string,
+		next: ElementTree,
+		label: string,
+		select?: string | null,
+		props?: FieldDefinition[],
+	): string | null;
 	/** Adds a Class to the Design system's Draft (a name the Site doesn't have yet): its id, or why not. */
 	createClass(name: string): Promise<{ id: string; name: string } | { refused: string }>;
 	/**
@@ -487,9 +494,10 @@ export function structure(options: {
 				listeners.delete(listener);
 			};
 		},
-		change(ref, next, label, select) {
+		change(ref, next, label, select, props) {
 			const source = sources.get(ref);
 			if (!source?.id || !source.editable) return fill(said.readOnly, { name: source?.name ?? said.thisSource });
+			if (props && source.kind !== "component") return fill(said.readOnly, { name: source.name ?? said.thisSource });
 			const problem = treeProblem(next, {
 				elements: new Set(source.catalogue.elements),
 				commands: new Set(source.catalogue.commands),
@@ -501,7 +509,11 @@ export function structure(options: {
 			const before = open.client.draft();
 			const changed = open.client.change(
 				open.kind === "component"
-					? { ...(before as Record<string, Json>), tree: next as unknown as Json }
+					? {
+							...(before as Record<string, Json>),
+							tree: next as unknown as Json,
+							...(props ? { props: props as unknown as Json } : {}),
+						}
 					: (next as unknown as Json),
 			);
 			if (!changed) return said.connecting;
@@ -514,7 +526,7 @@ export function structure(options: {
 				label,
 				location: { siteId: options.siteId, draft: resource, panel: "tree", ref, selection: key, title: label },
 			});
-			follow(source.id, next);
+			follow(source.id, next, props ?? null);
 			if (select !== undefined) {
 				selected = select === null ? null : `${ref}#${select}`;
 				tell();

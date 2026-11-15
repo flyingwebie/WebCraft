@@ -13,6 +13,7 @@ import {
 	RepeatIcon,
 	SquareDashedIcon,
 	Trash2Icon,
+	TypeIcon,
 } from "lucide-react";
 import {
 	type DragEvent,
@@ -48,6 +49,7 @@ import {
 } from "../../builder/tree.ts";
 import { fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING, Tip } from "../controls.tsx";
+import { holdsFixedText } from "../editing/fixed-text.ts";
 import type { PageLayoutEditor } from "../editing/page-layout.ts";
 import {
 	keyOf,
@@ -806,11 +808,14 @@ function TreeRow({
 				: node?.type === "element"
 					? CodeXmlIcon
 					: SquareDashedIcon;
+	// Text clients can't edit (BA-33): flagged, so Staff find what to make a Prop, a Field or a Global.
+	const fixed = node !== null && holdsFixedText(node);
 	const label = [
 		named.name,
 		named.detail,
 		pages !== null && pages > 1 ? fill(said.pagesOther, { count: String(pages) }) : null,
 		hidden ? said.hiddenRow : null,
+		fixed ? words.fixedText.badge : null,
 	]
 		.filter(Boolean)
 		.join(" ");
@@ -906,6 +911,9 @@ function TreeRow({
 				)}
 			</span>
 			{hidden ? <EyeOffIcon aria-hidden="true" className="text-chrome-faint size-3.5 shrink-0" /> : null}
+			{fixed ? (
+				<TypeIcon aria-hidden="true" className="size-3.5 shrink-0 text-[#fbbf24]" data-wc-fixed-text="" />
+			) : null}
 			{pages !== null && pages > 1 ? (
 				<span className="shrink-0 rounded-[4px] bg-[#7c2d12] px-1.5 text-[11px] leading-[18px] font-medium text-[#fdba74]">
 					{/* A space before it, so the row's text reads as its name does ("HeroSplit 3 pages"). */}
