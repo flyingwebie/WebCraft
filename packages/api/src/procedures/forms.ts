@@ -255,6 +255,8 @@ export const forms = {
 		.handler(async ({ context, input }) => {
 			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
 			const { form } = await context.services.forms.get(site, input.formId);
+			// One of the Site's other languages, or nothing is asked (`TRANSLATION_LANGUAGE_INVALID`).
+			await context.services.translations.texts(site, input.language, []);
 			const { version, filled } = await withMissingTranslations(form.draft, input.language, (texts) =>
 				context.services.translations.texts(site, input.language, texts),
 			);
