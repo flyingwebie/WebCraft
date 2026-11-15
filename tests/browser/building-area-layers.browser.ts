@@ -7,6 +7,7 @@
 // - a row under the pointer outlines its element on the canvas, and an element under the pointer marks
 //   its row, never changing the selection;
 // - the same Component placed twice changes in both places at once;
+// - a branch selected shows its Template's scripts in the JS pane, with no error (UI-21);
 // - Layers with its branches passes the accessibility checks, light and dark.
 // The building area's own test of `builder` 171 and 196, `code-layers` 378 and 572, `code-selection`
 // 39 and 394, and `editor-concurrency` 443 and 497.
@@ -17,7 +18,7 @@ import type { Page } from "playwright";
 import type { TestAccount } from "../harness/index.ts";
 import { drift, enterBuildingArea, frameOf, settled } from "./building-area.ts";
 import { expectAccessibleScreen } from "./checks.ts";
-import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
+import { type BrowserInstall, pageErrors, startBrowserInstall } from "./harness.ts";
 
 let install: BrowserInstall;
 let staff: TestAccount;
@@ -167,9 +168,8 @@ async function focusRow(page: Page, name: string | RegExp): Promise<void> {
 describe("Layers: arranging from the keyboard, branches, hover", () => {
 	test("Layers with its branches passes the accessibility checks, light and dark", async () => {
 		const page = await shared();
-		// Its branches shown; a plain row selected (a branch's own JS reading is the JS pane's, BA-32).
-		await focusRow(page, "p .source");
-		await row(page, "Else").waitFor();
+		// Its branches shown, one of them selected (the code panes read the Condition's source).
+		await focusRow(page, "Else");
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
 			await page.mouse.move(24, 460);
@@ -321,6 +321,20 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 		const saved = await eventually(siteMarkup, (text) => (text.match(/Copied value/g) ?? []).length === 3);
 		expect(saved).toMatch(/\{\{@else\}\}\s*<p class="source">Copied value<\/p>\s*\{\{\/if\}\}/);
 		expect(saved).toMatch(/\{\{@empty\}\}\s*<p class="source">Copied value<\/p>\s*\{\{\/loop\}\}/);
+	});
+
+	test("a branch selected: the JS pane shows the scripts of the Template it is in, with no error", async () => {
+		const page = await shared();
+		const errors = pageErrors(page).length;
+		for (const name of ["Else", "When there are no items"]) {
+			await focusRow(page, name);
+			const js = page.locator('[data-wc-panel="js"]');
+			await js.locator('[data-wc-script-tab="site"]').waitFor();
+			await page.locator('textarea[data-wc-code-box="js"]').waitFor();
+			await page.waitForTimeout(500);
+			expect(await js.textContent()).not.toContain("Couldn't read it");
+		}
+		expect(pageErrors(page).slice(errors)).toEqual([]);
 	});
 
 	test("selecting When there are no items outlines what it shows on the page", async () => {

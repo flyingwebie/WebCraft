@@ -7,7 +7,7 @@ import { matches } from "../../builder/shortcuts.ts";
 import { fill, type Words } from "../api.ts";
 import type { SaveWatch } from "../canvas/regions.ts";
 import { CHROME_EASE, FOCUS_RING, Tip } from "../controls.tsx";
-import { sourceOf } from "../editing/selection.ts";
+import { codeRefOf, sourceOf } from "../editing/selection.ts";
 import { NoteLine } from "../places/styles/CodeBox.tsx";
 import { CodeWell } from "./CodeWell.tsx";
 import { ConflictDialog } from "./ConflictDialog.tsx";
@@ -149,7 +149,8 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 	const load = async (path: string, ref: string | null) => {
 		const asked = ++loadRun;
 		store.set((state) => ({ status: state.scripts && state.path === path ? state.status : "loading" }));
-		const answer = await request<Scripts>("code/scripts", { path, ref });
+		// Asked for the source the selection is in: Code mode reads no branch or command reference.
+		const answer = await request<Scripts>("code/scripts", { path, ref: ref === null ? null : codeRefOf(ref) });
 		if (asked !== loadRun) return;
 		if (!answer.ok) {
 			store.set({ status: "failed", failure: fill(words().code.notRead, { reason: answer.code }) });
