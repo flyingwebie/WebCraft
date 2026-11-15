@@ -198,8 +198,10 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 				announce: (text, urgent) => announceRef.current(text, urgent),
 				refresh: () => refreshRef.current(),
 				saving: (status) => savingRef.current(status),
+				// A photo chosen or a link saved is an Undo step, as typed text is (BA-35).
+				history: undoHistory,
 			}),
-		[config.token, words],
+		[config.token, words, undoHistory],
 	);
 	useEffect(() => () => popovers.destroy(), [popovers]);
 	const formLocks = useFormLocks();
@@ -251,6 +253,8 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 				saving: (status) => savingRef.current(status),
 				undo: () => void undoHistory.undo(),
 				title: () => titleRef.current,
+				// A Prop's step keeps its place among the person's; Undo first finishes one still open (BA-35).
+				steps: undoHistory,
 			}),
 		[config.token, config.site.id, words, request, undoHistory],
 	);

@@ -1,7 +1,11 @@
+import type { Json } from "@webcraft/core/draft-document";
 import { CircleAlertIcon, InfoIcon, PlayIcon, TrashIcon, TriangleAlertIcon } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useRef, useSyncExternalStore } from "react";
 
+import { editorHistory, type HistoryResult } from "../../builder/editor-history.ts";
+import { matches } from "../../builder/shortcuts.ts";
 import { fill, type Words } from "../api.ts";
+import type { SaveWatch } from "../canvas/regions.ts";
 import { CHROME_EASE, FOCUS_RING, Tip } from "../controls.tsx";
 import { sourceOf } from "../editing/selection.ts";
 import { NoteLine } from "../places/styles/CodeBox.tsx";
@@ -31,9 +35,15 @@ import { type PaneStore, paneStore, usePane } from "./pane-store.ts";
  * runs the Site script, the Component's and the page's on it, in that order. The **console** under the
  * box lists what the page's scripts write, their errors and rejected promises (the page agent hands
  * them over, `agent/console.ts`), each against its script and line; choosing one opens that script
- * with the caret on the line. A script typed and not saved yet, or a conflict waiting for its choice,
- * is kept by its page when the frame shows another one, and shown again (and saved, or asked again)
- * once the frame shows that page again (BA-34).
+ * with the caret on the line. A Component script's call that failed on a Placement shows against its
+ * Component, with the Placement a click away (BA-32).
+ *
+ * Each save is **one Undo step** of the tab's history (BA-32): taken back by saving the code before it,
+ * based on the version the step left (a script someone changed since is skipped as obsolete). Typing
+ * holds the history's place from the first keystroke until its save is answered, so Undo waits for the
+ * save before it takes a step back. ⌘S saves at once. A script typed and not saved yet, or a conflict
+ * waiting for its choice, is kept by its page when the frame shows another one, and shown again (and
+ * saved, or asked again) once the frame shows that page again (BA-34).
  */
 
 export type ScriptTab = "page" | "site" | "component";
@@ -83,6 +93,10 @@ export type JsPane = {
 	scriptOf(source: string | null): ScriptTab | null;
 	choose(choice: "reload" | "overwrite" | "cancel"): void;
 	flush(): Promise<void>;
+	/** ⌘S: saves what was typed at once, and says so once it is in the Draft. */
+	saveNow(): Promise<void>;
+	/** Selects a Placement on the page by its Structure reference (a console line's, BA-32). */
+	showPlacement(ref: string): void;
 	destroy(): void;
 };
 
@@ -120,6 +134,19 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 	let loadRun = 0;
 	let saving: Promise<void> | null = null;
 	let serial = 0;
+	/** The Undo history's place, held from the first keystroke of typing until its save is over. */
+	let holding: SaveWatch | null = null;
+	const hold = () => {
+		if (holding) return;
+		const title = words().code.js.console;
+		holding = deps().history.watch({ label: title, field: "", title });
+	};
+	const release = () => {
+		const held = holding;
+		holding = null;
+		held?.settle();
+	};
+	const unregisters = new Map<string, () => void>();
 	/** What was typed and not saved (or a conflict waiting) on pages the frame no longer shows, by page. */
 	const kept = new Map<string, JsState>();
 	const unsaved = (state: JsState) => Object.values(state.dirty).some(Boolean) || state.conflict !== null;
@@ -207,16 +234,20 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 						: null
 					: { path, kind: "site", code, version: version === undefined ? scripts.site.version : version };
 		if (!body) return;
+		const was = tab === "component" ? scripts.component : tab === "page" ? scripts.page : scripts.site;
+		const before = { code: was?.code ?? "", version: was?.version ?? null };
 		store.set({ saving: true });
 		const answer = await request<CodeScript>("code/saveScript", body);
 		store.set({ saving: false });
 		// The frame shows another page now: what was asked is told to that page's kept state.
 		if (store.get().path !== path) {
-			const was = kept.get(path);
-			if (was && answer.ok) kept.set(path, savedInto(was, tab, code, answer.data));
-			else if (was && !answer.ok && answer.code === "CHANGED_MEANWHILE") {
+			const left = kept.get(path);
+			if (answer.ok) {
+				recordStep(tab, scripts, before, { code, version: answer.data.version });
+				if (left) kept.set(path, savedInto(left, tab, code, answer.data));
+			} else if (left && answer.code === "CHANGED_MEANWHILE") {
 				const newer = answer.data.version;
-				kept.set(path, { ...was, conflict: { tab, version: typeof newer === "string" ? newer : null } });
+				kept.set(path, { ...left, conflict: { tab, version: typeof newer === "string" ? newer : null } });
 			}
 			return;
 		}
@@ -231,6 +262,7 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 			return;
 		}
 		const saved = answer.data;
+		recordStep(tab, scripts, before, { code, version: saved.version });
 		store.set((now) => savedInto(now, tab, code, saved));
 	};
 
@@ -244,8 +276,97 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 			await saving;
 		} finally {
 			saving = null;
+			release();
+			// Typed while the save was under way: the history waits for that too.
+			const dirty = store.get().dirty;
+			if (dirty.site || dirty.page || dirty.component) hold();
 		}
 	};
+
+	/** Which script a step is of, as the history names its Draft: the Site's, a page's, a Component's. */
+	const resourceOf = (tab: ScriptTab, scripts: Scripts): string | null =>
+		tab === "site"
+			? "script:site"
+			: tab === "page"
+				? scripts.page
+					? `script:page:${scripts.page.entryId}`
+					: null
+				: scripts.component
+					? `script:component:${scripts.component.componentId}`
+					: null;
+
+	/** One save as one Undo step: the code before it and after it, with the versions they were saved at. */
+	const recordStep = (
+		tab: ScriptTab,
+		scripts: Scripts,
+		before: { code: string; version: string | null },
+		after: { code: string; version: string | null },
+	) => {
+		const resource = resourceOf(tab, scripts);
+		const path = store.get().path;
+		if (!resource || !path || before.code === after.code) return;
+		const said = words().code.js.steps;
+		const label = tab === "component" ? fill(said.component, { name: scripts.component?.name ?? "" }) : said[tab];
+		const target =
+			tab === "component" && scripts.component
+				? { kind: "component" as const, componentId: scripts.component.componentId }
+				: { kind: tab as "site" | "page" };
+		if (!unregisters.has(resource))
+			unregisters.set(resource, deps().history.register(resource, portOf(resource, target, path)));
+		editorHistory().record({
+			resource,
+			before: before as unknown as Json,
+			after: after as unknown as Json,
+			label,
+			location: { siteId: deps().config.site.id, panel: "js", title: label },
+		});
+	};
+
+	/**
+	 * How a script's step is taken back (or made again): the code it goes back to, saved over the version
+	 * the step left. A version someone saved since makes the step obsolete; the box follows when it shows
+	 * that script and nothing is typed in it.
+	 */
+	const portOf = (
+		resource: string,
+		target: { kind: "site" | "page" } | { kind: "component"; componentId: string },
+		path: string,
+	) => ({
+		async reverse(from: Json, to: Json): Promise<HistoryResult> {
+			const now = from as unknown as { code: string; version: string | null };
+			const wanted = to as unknown as { code: string; version: string | null };
+			const answer = await request<CodeScript>("code/saveScript", {
+				path,
+				...target,
+				code: wanted.code,
+				version: now.version,
+			});
+			if (!answer.ok) {
+				if (answer.code === "CHANGED_MEANWHILE") return { ok: false, code: "HISTORY_OBSOLETE" };
+				return { ok: false, code: answer.code === "network" ? "HISTORY_UNAVAILABLE" : answer.code };
+			}
+			const saved = answer.data;
+			store.set((state) => {
+				const scripts = state.scripts;
+				if (!scripts) return {};
+				const tab = (["site", "page", "component"] as const).find((each) => resourceOf(each, scripts) === resource);
+				if (!tab) return {};
+				const next = { ...scripts } as Scripts;
+				if (tab === "site") next.site = { ...next.site, ...saved };
+				else if (tab === "page" && next.page) next.page = { ...next.page, ...saved };
+				else if (tab === "component" && next.component) next.component = { ...next.component, ...saved };
+				return {
+					scripts: next,
+					texts: state.dirty[tab] ? state.texts : { ...state.texts, [tab]: wanted.code },
+				};
+			});
+			return {
+				ok: true,
+				before: { code: now.code, version: now.version } as unknown as Json,
+				after: { code: wanted.code, version: saved.version } as unknown as Json,
+			};
+		},
+	});
 
 	const scriptOf = (source: string | null): ScriptTab | null => {
 		const scripts = store.get().scripts;
@@ -274,6 +395,7 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 			const tab = state.tab;
 			if (tab === "component" && !state.scripts?.component?.editable) return;
 			store.set({ texts: { ...state.texts, [tab]: text }, dirty: { ...state.dirty, [tab]: true }, failure: null });
+			hold();
 			window.clearTimeout(saveTimer);
 			saveTimer = window.setTimeout(() => void flush(), SAVE_AFTER_MS);
 		},
@@ -288,6 +410,16 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 			try {
 				await flush();
 				if (store.get().conflict) return;
+				// A Component script with new code: its Placements drawn afresh wait for the new code rather
+				// than getting the old one's call first (WebCraft's runtime forgets it, BA-32).
+				const before = frame.page();
+				const changed = store.get().scripts?.component;
+				if (before && changed?.src && !before.querySelector(`script[src="${CSS.escape(changed.src)}"]`)) {
+					const runtime = (
+						before.defaultView as { webcraft?: { componentScript?: { forget?(id: string): void } } } | null
+					)?.webcraft?.componentScript;
+					runtime?.forget?.(changed.componentId);
+				}
 				// A fresh page, drawn from the Drafts: nothing of the scripts that ran before stays on it.
 				await frame.rerender();
 				const page = frame.page();
@@ -312,8 +444,11 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 				if (scripts.site.src) add(scripts.site.src);
 				const component = scripts.component;
 				if (component?.src && !loaded.has(component.src)) {
-					if (!page.querySelector(`script[src="${component.runtime}"]`)) add(component.runtime);
-					add(component.src, true).dataset.wcComponentScript = component.componentId;
+					if (!page.querySelector(`script[src="${component.runtime}"]`)) add(component.runtime).dataset.wcWatch = "";
+					const loader = add(component.src, true);
+					loader.dataset.wcComponentScript = component.componentId;
+					// Named, so a call of it that fails says whose it is (the notice, the console).
+					loader.dataset.wcComponentName = component.name;
 				}
 				if (scripts.page?.src) add(scripts.page.src);
 				page.head.append(...tags);
@@ -346,8 +481,19 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 			}
 		},
 		flush,
+		showPlacement(ref) {
+			deps().structure.select(ref);
+		},
+		async saveNow() {
+			await flush();
+			const now = store.get();
+			if (now.status === "ready" && !now.dirty[now.tab] && !now.conflict && !now.failure)
+				deps().announce(fill(words().code.js.saved, { script: scriptTitle(words(), now.tab) }));
+		},
 		destroy() {
 			window.clearTimeout(saveTimer);
+			release();
+			for (const unregister of unregisters.values()) unregister();
 			unsubscribe();
 		},
 	};
@@ -437,7 +583,15 @@ export function JsBody({ pane, words, settings }: { pane: JsPane; words: Words; 
 	}, [shownLines.length]);
 
 	const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-		formatting.onKeyDown(event);
+		if (formatting.onKeyDown(event)) return;
+		// ⌘S / Ctrl+S saves at once (BA-32), as in the HTML pane: never the browser's Save page.
+		if (
+			matches(event.nativeEvent, "editor.save") ||
+			((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s")
+		) {
+			event.preventDefault();
+			void pane.saveNow();
+		}
 	};
 	const note =
 		tab === "component" && component
@@ -555,6 +709,7 @@ export function JsBody({ pane, words, settings }: { pane: JsPane; words: Words; 
 /** One line of the console: its level, what it says, and the script and line it came from. */
 function ConsoleRow({ line, pane, words }: { line: ConsoleLine; pane: JsPane; words: Words }) {
 	const shown = words.code.js;
+	if (line.component) return <ComponentLine line={line} component={line.component} pane={pane} words={words} />;
 	const tab = pane.scriptOf(line.source);
 	const script = tab
 		? scriptTitle(words, tab)
@@ -594,6 +749,49 @@ function ConsoleRow({ line, pane, words }: { line: ConsoleLine; pane: JsPane; wo
 				) : (
 					<span className="text-chrome-muted shrink-0 font-sans">{where}</span>
 				)
+			) : null}
+		</li>
+	);
+}
+
+/**
+ * A Component script's call that failed on a Placement (BA-32): "{name} failed on a Placement: …",
+ * against its Component script, with the Placement a click away on Staff's page (it is selected).
+ */
+function ComponentLine({
+	line,
+	component,
+	pane,
+	words,
+}: {
+	line: ConsoleLine;
+	component: { id: string; name: string };
+	pane: JsPane;
+	words: Words;
+}) {
+	const shown = words.code.js;
+	const placement = line.placement ?? null;
+	return (
+		<li
+			className="border-chrome-line flex items-start gap-1.5 border-b px-1.5 py-0.5 text-red-200"
+			data-wc-console-line="error"
+			data-wc-console-script="component"
+			data-wc-console-component={component.id}
+		>
+			<CircleAlertIcon aria-hidden="true" className="mt-[3px] size-3 flex-none" />
+			<span className="sr-only">{shown.levels.error}</span>
+			<span className="min-w-0 grow break-words whitespace-pre-wrap">
+				{fill(shown.componentError, { name: component.name, message: line.text })}
+			</span>
+			{placement ? (
+				<button
+					type="button"
+					onClick={() => pane.showPlacement(placement)}
+					className={`text-chrome-accent shrink-0 rounded-sm font-sans underline-offset-2 hover:underline ${FOCUS_RING}`}
+					data-wc-console-placement=""
+				>
+					{shown.showPlacement}
+				</button>
 			) : null}
 		</li>
 	);

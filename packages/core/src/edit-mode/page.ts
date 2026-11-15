@@ -45,6 +45,11 @@ export type PageChange = {
 	 * (`canCode`), with the page; everyone who edits may change it, undo it and discard it.
 	 */
 	structure?: true;
+	/**
+	 * For a Loop's items: the ids of those that differ from what is published (new, changed, or moved
+	 * among the others), so each can be shown as changed. A removed item is in none of them.
+	 */
+	items?: string[];
 };
 
 /**
@@ -371,6 +376,7 @@ async function changesOf(
 				label: row.name,
 				type: "loopItems",
 				structure: true,
+				items: changedLoopItems(draftItems, publishedItems),
 				writer: row.updatedBy,
 			});
 			continue;
@@ -431,6 +437,53 @@ async function changesOf(
 }
 
 /** Whether a Loop's stored items hold no item. */
+/** A Loop's items as stored: the Repeater's rows, each with its id. */
+function rowsOf(items: unknown): { id: string; values: unknown }[] {
+	const rows = items && typeof items === "object" ? (items as { rows?: unknown }).rows : undefined;
+	if (!Array.isArray(rows)) return [];
+	return rows.flatMap((row) =>
+		row && typeof row === "object" && typeof (row as { id?: unknown }).id === "string"
+			? [{ id: (row as { id: string }).id, values: (row as { values?: unknown }).values ?? null }]
+			: [],
+	);
+}
+
+/**
+ * The ids of the Draft's Loop items that differ from what is published: new ones, those whose values
+ * changed, and those moved among the others (the published order kept by the most items; the rest
+ * moved). An item only removed leaves no id behind.
+ */
+function changedLoopItems(draftItems: unknown, publishedItems: unknown): string[] {
+	const draft = rowsOf(draftItems);
+	const published = new Map(rowsOf(publishedItems).map((row, index) => [row.id, { ...row, index }]));
+	const changed = new Set<string>();
+	const kept: { id: string; index: number }[] = [];
+	for (const row of draft) {
+		const was = published.get(row.id);
+		if (!was || !sameJson(row.values, was.values)) changed.add(row.id);
+		if (was) kept.push({ id: row.id, index: was.index });
+	}
+	// The longest run of items still in their published order stays; any other item was moved.
+	const length = kept.map(() => 1);
+	const before = kept.map(() => -1);
+	for (let at = 0; at < kept.length; at++) {
+		for (let earlier = 0; earlier < at; earlier++) {
+			const here = kept[at];
+			const there = kept[earlier];
+			if (here && there && there.index < here.index && (length[earlier] ?? 0) + 1 > (length[at] ?? 0)) {
+				length[at] = (length[earlier] ?? 0) + 1;
+				before[at] = earlier;
+			}
+		}
+	}
+	let end = -1;
+	for (let at = 0; at < kept.length; at++) if (end < 0 || (length[at] ?? 0) > (length[end] ?? 0)) end = at;
+	const stayed = new Set<string>();
+	for (let at = end; at >= 0; at = before[at] ?? -1) stayed.add(kept[at]?.id ?? "");
+	for (const each of kept) if (!stayed.has(each.id)) changed.add(each.id);
+	return draft.filter((row) => changed.has(row.id)).map((row) => row.id);
+}
+
 function isEmptyItems(items: unknown): boolean {
 	const rows = items && typeof items === "object" ? (items as { rows?: unknown }).rows : undefined;
 	return !Array.isArray(rows) || rows.length === 0;

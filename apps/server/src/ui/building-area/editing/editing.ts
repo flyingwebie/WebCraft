@@ -10,7 +10,7 @@ import { COMMAND_MENU_EVENT, type MenuTab } from "../command-menu/state.ts";
 import { PUBLISH_OPEN_EVENT } from "../publish/sources.ts";
 import { type PageDrafts, pageDrafts, type SharedDraft } from "./drafts.ts";
 import type { ShellHistory } from "./history.ts";
-import { displayName, peopleIn, presenceMarks, regionPlace } from "./presence.ts";
+import { displayName, peopleIn, presenceMarks, regionPlace, VALUE_REGION } from "./presence.ts";
 
 /**
  * Content typed in place, the shell's side (ADR 0037 › 1.3 and 1.5, BA-07). The page agent makes the
@@ -185,6 +185,8 @@ export function pageEditing(options: {
 	let seen = new Set<string>();
 
 	const regions = (): HTMLElement[] => (doc ? [...doc.querySelectorAll<HTMLElement>(TEXT_REGION)] : []);
+	/** Every value on the page someone can be in: text, a photo, a link (BA-35). */
+	const values = (): HTMLElement[] => (doc ? [...doc.querySelectorAll<HTMLElement>(VALUE_REGION)] : []);
 
 	const refreshSoon = () => {
 		window.clearTimeout(refreshTimer);
@@ -202,7 +204,7 @@ export function pageEditing(options: {
 				? [{ kind: "changed" as const, element: region, label: said.changedHere }]
 				: [];
 		});
-		parts.overlay.marks([...dots, ...presenceMarks(drafts.others(), shown, words)]);
+		parts.overlay.marks([...dots, ...presenceMarks(drafts.others(), values(), words)]);
 	};
 
 	/**
@@ -380,7 +382,7 @@ export function pageEditing(options: {
 					const prefix = `draft:${options.siteId}:`;
 					const item = location.draft?.startsWith(prefix) ? location.draft.slice(prefix.length) : null;
 					if (!item || location.ref === undefined || !doc) return false;
-					const region = regions().find(
+					const region = values().find(
 						(each) => each.getAttribute("data-wc-item") === item && each.getAttribute("data-wc-field") === location.ref,
 					);
 					if (!region) return false;
@@ -408,14 +410,14 @@ export function pageEditing(options: {
 		},
 		ready(document) {
 			if (document !== doc) return;
-			const items = regions().map((region) => region.getAttribute("data-wc-item") ?? "");
+			const items = values().map((region) => region.getAttribute("data-wc-item") ?? "");
 			drafts.show([...items, ...(state?.page.item ? [state.page.item] : [])]);
 			drawMarks();
 		},
 		pageState(next) {
 			state = next;
 			if (doc) {
-				const items = regions().map((region) => region.getAttribute("data-wc-item") ?? "");
+				const items = values().map((region) => region.getAttribute("data-wc-item") ?? "");
 				drafts.show([...items, ...(next.page.item ? [next.page.item] : [])]);
 			}
 			drawMarks();

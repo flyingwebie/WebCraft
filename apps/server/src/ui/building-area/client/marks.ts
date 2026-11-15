@@ -4,6 +4,7 @@ import { nameOf, type Overlay, type OverlayMark } from "../canvas/overlay.ts";
 import { formIdOf, formNameOf, onFormNames, PLACED_FORM, placedFormOf } from "../canvas/placed-form.ts";
 import type { RegionSaving } from "../canvas/regions.ts";
 import type { PageEditing } from "../editing/editing.ts";
+import { claimPlace } from "../editing/presence.ts";
 import type { RegionPopovers } from "./popovers.ts";
 import { PLACEMENT_PROP } from "./sections.ts";
 
@@ -61,7 +62,7 @@ const OFFSET = 6;
 const CHIP_HEIGHT = 26;
 const CHIP_GAP = 6;
 /** The amber dot (SPEC 13.2). */
-const DOT_SIZE = 12;
+export const DOT_SIZE = 12;
 
 /** The colours of the marks (`client-flows/05`): indigo for what may change, grey for what is locked. */
 const MARK = "#4f46e5";
@@ -69,7 +70,7 @@ const MARK_SOFT = "#4f46e599";
 const MARK_TINT = "#4f46e514";
 const LOCK_OUTLINE = "#71717a";
 const LOCK_CHIP = "#3f3f46";
-const CHANGED = "#f59e0b";
+export const CHANGED = "#f59e0b";
 
 /** How long a press in the page counts for the focus that follows it (a tap's focus comes as the touch ends). */
 const POINTED_FOR_MS = 1000;
@@ -147,6 +148,41 @@ export function clientEditing(options: {
 	const labelOf = (region: Element) =>
 		(!region.matches(TEXT_REGION) && region.getAttribute("data-wc-label")) || nameOf(region, words);
 	const redraw = () => parts?.overlay.schedule();
+	/**
+	 * "Click to edit", or "Tap to edit" where the pointer is a finger (BA-35): the shell's own window
+	 * answers, as a tablet or a phone does.
+	 */
+	const toEdit = () =>
+		parts?.frame.ownerDocument.defaultView?.matchMedia?.("(pointer: coarse)").matches
+			? said.tapToEdit
+			: said.clickToEdit;
+
+	/**
+	 * Presence on a photo or a link (BA-35): while its popover is open the person is in its value, so
+	 * others see their colour and name on it. Text being edited says where the person is itself; when
+	 * it stops (it says "nowhere") and a popover is still open, the popover's value is said again.
+	 */
+	let placedAt: string | null = null;
+	let wasEditing = false;
+	const placeOwner = {};
+	const placePopped = () => {
+		const editingText = inner.snapshot().region !== null;
+		const stopped = wasEditing && !editingText;
+		wasEditing = editingText;
+		const element = poppedNow();
+		const item = element?.getAttribute("data-wc-item") ?? "";
+		if (element && (item === "globals" || item.startsWith("entry:"))) {
+			const at = (element.getAttribute("data-wc-field") ?? "").split(".")[0] ?? "";
+			const wanted = `${item}|${at}`;
+			if (editingText || (wanted === placedAt && !stopped)) return;
+			placedAt = wanted;
+			claimPlace(inner, placeOwner, { item, at });
+			return;
+		}
+		if (placedAt === null) return;
+		placedAt = null;
+		claimPlace(inner, placeOwner, null, editingText);
+	};
 
 	/** Starts editing an area: the page editing takes it as if focus had just come (its toolbar, its Draft). */
 	const startEditing = (region: HTMLElement, caretAtEnd: boolean) => {
@@ -256,7 +292,13 @@ export function clientEditing(options: {
 			set(region, "data-wc-empty-label", words.client.photo.empty);
 			set(region, "tabindex", "0");
 			set(region, "aria-label", fill(words.client.photo.region, { name }));
-			if (!region.parentElement?.closest("a, button, [role='button']")) set(region, "role", "button");
+			if (!region.parentElement?.closest("a, button, [role='button']")) {
+				set(region, "role", "button");
+				// A photo with no description (`alt=""`) may only be presentational: in Edit, where it is a
+				// button, it is described by the button's name instead (Preview gives back what it had).
+				if (region.tagName === "IMG" && region.getAttribute("alt") === "")
+					set(region, "alt", fill(words.client.photo.region, { name }));
+			}
 		}
 	};
 
@@ -416,7 +458,7 @@ export function clientEditing(options: {
 				: isDrop
 					? said.dropHere
 					: isHover
-						? said.clickToEdit
+						? toEdit()
 						: said.enterToEdit;
 			const shape = region.matches(PHOTO_REGION)
 				? "image"
@@ -503,6 +545,16 @@ export function clientEditing(options: {
 			};
 			const disconnect = inner.connect({ ...next, overlay });
 			const disconnectPopovers = popovers.connect({ frame: next.frame, overlay: next.overlay });
+			// A photo or a link whose value a step took back (or someone else changed) shows it (BA-35).
+			stops.push(
+				inner
+					.drafts()
+					.onChange((item, draft) =>
+						popovers.draftChanged(item, draft, () => inner.shared(item)?.saved() ?? Promise.resolve()),
+					),
+				popovers.subscribe(placePopped),
+				inner.subscribe(placePopped),
+			);
 			return () => {
 				disconnectPopovers();
 				disconnect();
