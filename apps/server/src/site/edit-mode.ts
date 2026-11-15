@@ -664,11 +664,19 @@ const codeSave = z.object({
 
 const pageChange = z.object({ path: z.string().max(2000), item: z.string().max(100), key: z.string().max(200) });
 
+/**
+ * A link region's new value (the link popover): its address, words and whether it opens in a new tab.
+ * The link Field's own rules (the addresses a link may go to, their lengths) are checked as it saves.
+ */
+const linkChange = z
+	.object({ url: z.string().max(10_000), text: z.string().max(10_000), newTab: z.boolean().optional() })
+	.strict();
+
 const regionChange = z.object({
 	item: z.string().max(100),
 	field: z.string().max(200),
-	/** Text, rich text's HTML, or a body's Blocks (the block editor's region). */
-	value: z.union([z.string().max(200_000), z.array(z.unknown()).max(BODY_LIMITS.blocks), z.null()]),
+	/** Text, rich text's HTML, a body's Blocks (the block editor's region), or a link (the link popover's). */
+	value: z.union([z.string().max(200_000), z.array(z.unknown()).max(BODY_LIMITS.blocks), linkChange, z.null()]),
 	language: z.string().max(35).optional(),
 });
 
