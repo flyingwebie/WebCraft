@@ -203,6 +203,16 @@ async function homeLayout(): Promise<{ order: string[]; quote: unknown }> {
 	};
 }
 
+/**
+ * Lets the canvas's size readout leave before a keyboard walk: a pointer or a walk on a gutter shows
+ * it, and it fades out after a moment (BA-04), its controls going with it mid-walk otherwise.
+ */
+async function readoutGone(page: Page): Promise<void> {
+	await page.mouse.move(700, 450);
+	await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+	await page.waitForTimeout(1800);
+}
+
 /** Clicks an element of the page in the frame, at its middle, as a person does. */
 async function clickIn(page: Page, frame: Frame, selector: string): Promise<void> {
 	for (let attempt = 0; ; attempt++) {
@@ -252,8 +262,10 @@ describe("a Page's Placements, for Staff", () => {
 		expect(await chip(page).textContent()).toMatch(/^HeroSplit · /);
 		expect(selectedIn(page)).toBe("content/hero");
 		expect(await inspector(page).getByLabel("Headline").inputValue()).toBe("Fresh every morning");
-		// HeroSplit shows on one page only: no warning.
-		expect(await inspector(page).locator("[data-wc-warning]").count()).toBe(0);
+		// HeroSplit shows on Home and on both Blog posts (their Entry template places it).
+		expect(await inspector(page).locator("[data-wc-warning]").textContent()).toBe(
+			"On 3 pages: editing the Component changes all.",
+		);
 	});
 
 	test("changing a Prop changes the page in place; Undo takes it back", async () => {
@@ -349,6 +361,7 @@ describe("a Page's Placements, for Staff", () => {
 		expect(await frame.locator("section.quote").getAttribute("inert")).toBeNull();
 		// While it is edited in place the rest of the page is inert, its h1 among it: the page has no
 		// level-one heading to offer then, by design (it is locked, as a modal's background is).
+		await readoutGone(page);
 		await expectNoAxeViolations(page, "Component edited in place, light", ["page-has-heading-one"]);
 		await expectKeyboardUsable(page, "Component edited in place, light");
 
@@ -365,7 +378,7 @@ describe("a Page's Placements, for Staff", () => {
 		// The Component's Props, and "+" adds one.
 		expect(await panel.locator("[data-wc-prop]").count()).toBe(3);
 		await page.locator("[data-wc-add-prop]").click();
-		await page.getByRole("menuitem", { name: "Text" }).click();
+		await page.getByRole("menuitem", { name: "Text", exact: true }).click();
 		await panel.locator('[data-wc-prop="text"]').waitFor();
 		const props = async () => (await api.components.get({ siteId, componentId: quoteId })).component.draft.props;
 		expect((await eventually(props, (list) => list.length === 4)).map((prop) => prop.key)).toEqual([
@@ -400,9 +413,11 @@ describe("a Page's Placements, for Staff", () => {
 			.getByRole("treeitem", { name: /^CustomerQuote/ })
 			.click();
 		await inspector(page).getByLabel("Quote").waitFor();
+		await readoutGone(page);
 		await expectAccessibleScreen(page, "Props panel, light");
 		await page.emulateMedia({ colorScheme: "dark" });
 		try {
+			await readoutGone(page);
 			await expectAccessibleScreen(page, "Props panel, dark");
 		} finally {
 			await page.emulateMedia({ colorScheme: "light" });
