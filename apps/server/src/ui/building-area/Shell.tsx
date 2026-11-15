@@ -412,7 +412,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 								structure={pageStructure}
 								announce={announce}
 								onEdit={(formId) => {
-									setFormFrom(titleText(words, opened.title));
+									setFormFrom(opened.title.name || titleText(words, opened.title));
 									opened.documents.openPlace(`forms/${formId}`);
 								}}
 								fallback={
