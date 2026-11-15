@@ -76,6 +76,8 @@ export type Docks = {
 	headings: Partial<Record<PanelKey, ReactNode>>;
 	/** What each panel shows under its header (BA-08 onwards: Layers, the Inspector); empty when none. */
 	bodies: Partial<Record<PanelKey, ReactNode>>;
+	/** A panel's title when it isn't its name (BA-09: the Inspector says "Loop" over an element a Loop repeats). */
+	titles: Partial<Record<PanelKey, string>>;
 	/** Beside a panel's title, muted: what it shows now (`h1 · Heading`); the Inspector's is the selection's name. */
 	subs: Partial<Record<PanelKey, string>>;
 	/** A panel's own entries at the top of its header's menu (BA-11: a code pane's Expand, Copy all, its switches). */
@@ -93,7 +95,7 @@ export type Docks = {
 	setDrawer(side: DockSide | null): void;
 	/** A panel whose menu button takes focus once the docks have drawn (after a move from its menu). */
 	focusLater(id: string | null): void;
-	/** The actions each panel's header shows beside its title (BA-13: the Entry panel's Find and Collapse; BA-11: the code panes' Classes, Format and Expand). */
+	/** The actions each panel's header shows beside its title (BA-13: the Entry panel's Find and Collapse; BA-11: the code panes' Classes, Format and Expand; BA-09: the Props panel's Edit Component, the Component panel's "+"). */
 	panelActions: Partial<Record<PanelKey, ReactNode>>;
 };
 
@@ -123,6 +125,7 @@ export function useDocks({
 	context,
 	headings = {},
 	bodies = {},
+	titles = {},
 	subs = {},
 	menus = {},
 	wide = null,
@@ -133,6 +136,7 @@ export function useDocks({
 	context: PanelContext;
 	headings?: Partial<Record<PanelKey, ReactNode>>;
 	bodies?: Partial<Record<PanelKey, ReactNode>>;
+	titles?: Partial<Record<PanelKey, string>>;
 	subs?: Partial<Record<PanelKey, string>>;
 	menus?: Partial<Record<PanelKey, readonly MenuEntry[]>>;
 	/** A panel opened wide (a code pane's Expand, BA-11): the only one its dock draws while it shows. Not stored. */
@@ -317,6 +321,7 @@ export function useDocks({
 		context,
 		headings,
 		bodies,
+		titles,
 		subs,
 		menus,
 		change,
@@ -722,6 +727,8 @@ function Dock({
 /** What a panel's header says: the Inspector names what is selected ("Element"); the others their own name. */
 function titleOf(shownPanel: ShownPanel, docks: Docks): string {
 	const { words, context } = docks;
+	const own = docks.titles[shownPanel.placement.id as PanelKey];
+	if (own) return own;
 	if (shownPanel.placement.id === "inspector" && context.selection) {
 		return words.inspectorTitles[context.selection.kind];
 	}

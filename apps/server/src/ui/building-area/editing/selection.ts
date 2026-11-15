@@ -1,4 +1,4 @@
-import type { BuilderCatalogue, BuilderOpened, BuilderTarget } from "@webcraft/core";
+import type { BuilderCatalogue, BuilderOpened, BuilderTarget, FieldDefinition } from "@webcraft/core";
 import { createDraftClient, type DraftClient, type Json, sameValue } from "@webcraft/core/draft-document";
 import type { ElementTree, TreeNode } from "@webcraft/renderer/builder";
 
@@ -44,6 +44,8 @@ export type StructureSource = {
 	editable: boolean;
 	/** Its tree as its shared Draft holds it now. */
 	tree: ElementTree;
+	/** A Component's Props as its shared Draft holds them now (BA-09); null for a Template. */
+	props: FieldDefinition[] | null;
 	catalogue: BuilderCatalogue;
 	/** For a Component: on how many published pages visitors see it. */
 	pages: number | null;
@@ -53,8 +55,29 @@ export type StructureSource = {
 	contentAvailable: boolean;
 };
 
-/** A Placement of the page's Page layout (a Page's content), as the tree lists it. */
-export type LayoutPlacement = { id: string; name: string; hidden: boolean };
+/** A Placement of the page's Page layout (a Page's content), as the tree lists it and the Props panel edits it. */
+export type LayoutPlacement = {
+	id: string;
+	name: string;
+	hidden: boolean;
+	/** Its Component's id. */
+	component: string;
+	locked: boolean;
+	/** Its Props' declarations, as the Placement keeps them, and their values in the page's language. */
+	props: FieldDefinition[];
+	values: Record<string, unknown>;
+};
+
+/** What the page's Page layout says of itself (`pageLayouts.get`): whose it is, who may arrange it, its language. */
+export type LayoutInfo = {
+	/** The Page's Entry. */
+	entryId: string;
+	canArrange: boolean;
+	/** Whether the person may move past and change locked Placements (Staff). */
+	canLock: boolean;
+	language: string;
+	defaultLanguage: string;
+};
 
 /** What is selected: its reference, and where it is in its source's tree when the source is open. */
 export type StructureSelection = {
@@ -73,7 +96,14 @@ export type StructureSnapshot = {
 	sources: ReadonlyMap<string, StructureSource>;
 	/** On a Page, its Page layout's Placements (the content of the Site template's outlet). */
 	layout: readonly LayoutPlacement[] | null;
+	/** On a Page, what its Page layout says of itself. */
+	layoutInfo: LayoutInfo | null;
 	selection: StructureSelection | null;
+	/**
+	 * The Component edited in place (BA-09), by its source's reference (`content/<placement id>`): the
+	 * rest of the page is locked, and the page's selection stays inside it. Null when none is.
+	 */
+	inPlace: string | null;
 };
 
 export type Structure = {
@@ -92,6 +122,18 @@ export type Structure = {
 	change(source: string, next: ElementTree, label: string, select?: string | null): string | null;
 	/** Adds a Class to the Design system's Draft (a name the Site doesn't have yet): its id, or why not. */
 	createClass(name: string): Promise<{ id: string; name: string } | { refused: string }>;
+	/**
+	 * Changes a Component's Props through its shared Draft (one Undo step, `label`): `source` is the
+	 * reference of a source that is that Component. Answers why it was refused, or null.
+	 */
+	changeProps(source: string, props: FieldDefinition[], label: string): string | null;
+	/** Reads the page's Page layout again (it changed: a move, a Prop, someone else's change). */
+	reloadLayout(): Promise<void>;
+	/**
+	 * Edits the Component a source is in place (its reference, `content/<placement id>`), or stops
+	 * (null). While one is, a selection on the page outside it is refused (`locked` says why).
+	 */
+	editInPlace(source: string | null): void;
 	destroy(): void;
 };
 
@@ -163,8 +205,10 @@ export function structure(options: {
 	let generation = 0;
 	let sources = new Map<string, StructureSource>();
 	let layout: LayoutPlacement[] | null = null;
+	let layoutInfo: LayoutInfo | null = null;
 	let selected: string | null = null;
-	let snapshot: StructureSnapshot = { sources, layout, selection: null };
+	let inPlace: string | null = null;
+	let snapshot: StructureSnapshot = { sources, layout, layoutInfo, selection: null, inPlace };
 	/** References being opened now, so each is asked for once. */
 	const opening = new Set<string>();
 
@@ -182,6 +226,12 @@ export function structure(options: {
 			: null;
 	};
 
+	/** A Component's Props from what its Draft's document holds; null when it holds none. */
+	const propsIn = (kind: "template" | "component", draft: Json): FieldDefinition[] | null => {
+		const props = kind === "component" ? (draft as { props?: Json } | null)?.props : null;
+		return Array.isArray(props) ? (props as unknown as FieldDefinition[]) : null;
+	};
+
 	const selectionNow = (): StructureSelection | null => {
 		if (!selected) return null;
 		const source = sourceOf(selected);
@@ -195,17 +245,23 @@ export function structure(options: {
 	};
 
 	const tell = () => {
-		snapshot = { sources, layout, selection: selectionNow() };
+		snapshot = { sources, layout, layoutInfo, selection: selectionNow(), inPlace };
 		for (const listener of listeners) listener();
 	};
 
-	/** Every open source of a Template or Component shows its tree as the Draft has it now: whether one changed. */
-	const follow = (id: string, tree: ElementTree): boolean => {
+	/**
+	 * Every open source of a Template or Component shows its tree (and a Component its Props) as the
+	 * Draft has it now: whether one changed.
+	 */
+	const follow = (id: string, tree: ElementTree, props: FieldDefinition[] | null = null): boolean => {
 		let changed = false;
 		const next = new Map(sources);
 		for (const [ref, source] of sources) {
-			if (source.id !== id || sameValue(source.tree as unknown as Json, tree as unknown as Json)) continue;
-			next.set(ref, { ...source, tree });
+			if (source.id !== id) continue;
+			const sameTree = sameValue(source.tree as unknown as Json, tree as unknown as Json);
+			const sameProps = props === null || sameValue(source.props as unknown as Json, props as unknown as Json);
+			if (sameTree && sameProps) continue;
+			next.set(ref, { ...source, tree, ...(props === null ? {} : { props }) });
 			changed = true;
 		}
 		if (!changed) return false;
@@ -261,7 +317,7 @@ export function structure(options: {
 			onChange: (draft, from) => {
 				const tree = treeIn(kind, draft);
 				// Someone else's change to it (not the Draft as it was opened): the page shows it too.
-				if (tree && follow(id, tree) && from === "remote") redrawSoon();
+				if (tree && follow(id, tree, propsIn(kind, draft)) && from === "remote") redrawSoon();
 			},
 			onRefused: (refusal) => {
 				options.failed();
@@ -274,7 +330,7 @@ export function structure(options: {
 				const result = await client.reverse(from, to);
 				if (result.ok) {
 					const tree = treeIn(kind, client.draft());
-					if (tree) follow(id, tree);
+					if (tree) follow(id, tree, propsIn(kind, client.draft()));
 					void saved(client).then(() => redraw());
 				}
 				return result;
@@ -296,6 +352,7 @@ export function structure(options: {
 		const id = opened.component?.id ?? opened.template?.id ?? null;
 		const draft = id ? drafts.get(id)?.client.draft() : undefined;
 		const fromDraft = draft !== undefined ? treeIn(kind, draft) : null;
+		const propsFromDraft = draft !== undefined ? propsIn(kind, draft) : null;
 		const source: StructureSource = {
 			ref: answer.data.ref,
 			kind,
@@ -304,6 +361,7 @@ export function structure(options: {
 			target,
 			editable: editable && id !== null,
 			tree: fromDraft && fromDraft.nodes.length > 0 ? fromDraft : opened.tree,
+			props: kind === "component" ? (propsFromDraft ?? opened.props ?? []) : null,
 			catalogue: opened.catalogue,
 			pages: opened.usage?.pages ?? null,
 			pageLayout: answer.data.pageLayout,
@@ -315,16 +373,21 @@ export function structure(options: {
 		// The Site template opened first says what the outlet shows: a Template's elements, or a Page layout.
 		if (source.ref === "site") {
 			if (source.pageLayout) void readLayout(source.pageLayout.id, asked);
-			// The content's references open only where the content is a Template's (a Page's Placements
-			// open with BA-09); the Site template's own always do.
+			// The content's references open where the content is a Template's, and a Page's Placements
+			// (`content/<placement id>`, BA-09); the Site template's own always do.
 			for (const waiting of pending.splice(0)) {
-				if (waiting.startsWith("site") || source.contentAvailable) void load(waiting);
+				if (waiting.startsWith("site") || source.contentAvailable || placementOnPage(waiting, source))
+					void load(waiting);
 			}
 		}
 	};
 
 	/** References the page names whose source waits for the Site template's answer (Templates or a Page layout). */
 	const pending: string[] = [];
+
+	/** Whether a reference is a Page's Placement (or something in one) while the Site template says the page is a Page. */
+	const placementOnPage = (ref: string, site: StructureSource | undefined) =>
+		Boolean(site?.pageLayout) && ref.startsWith("content/");
 
 	const readLayout = async (entryId: string, asked: number) => {
 		try {
@@ -334,11 +397,38 @@ export function structure(options: {
 				id: placement.id,
 				name: placement.componentName,
 				hidden: placement.hidden,
+				component: placement.component,
+				locked: placement.locked,
+				props: placement.props as FieldDefinition[],
+				values: placement.values as Record<string, unknown>,
 			}));
+			layoutInfo = {
+				entryId,
+				canArrange: read.canArrange,
+				canLock: read.canLock,
+				language: read.language,
+				defaultLanguage: read.defaultLanguage,
+			};
 			tell();
 		} catch {
 			// Without it the tree shows the Site template only.
 		}
+	};
+
+	/**
+	 * What the canvas selected, as the Structure selects it. On a Page (outside the Component edited in
+	 * place) an element a Placement shows selects the Placement: a Page holds placed Components, whose
+	 * elements are changed by editing the Component in place. While one is edited in place, a selection
+	 * outside it is refused: the page keeps what was selected.
+	 */
+	const fromCanvas = (ref: string | null): string | null | undefined => {
+		// While a Component is edited in place, nothing outside it is selected (its elements are, or what was).
+		if (ref === null) return inPlace ? undefined : null;
+		const source = sourceOf(ref);
+		if (inPlace) return source === inPlace || source.startsWith(`${inPlace}/`) ? ref : undefined;
+		const site = sources.get("site");
+		if (site?.pageLayout && source.startsWith("content/")) return `content/${source.split("/")[1]}`;
+		return ref;
 	};
 
 	return {
@@ -348,7 +438,9 @@ export function structure(options: {
 			generation++;
 			sources = new Map();
 			layout = null;
+			layoutInfo = null;
 			selected = null;
+			inPlace = null;
 			opening.clear();
 			pending.length = 0;
 			tell();
@@ -365,17 +457,28 @@ export function structure(options: {
 			const site = sources.get("site");
 			for (const ref of refs) {
 				if (ref === "site" || ref.startsWith("site/")) void load(ref);
-				// The content's sources open once the Site template says the page's content is a Template's
-				// (a Page's Placements open with BA-09).
-				else if (site?.contentAvailable) void load(ref);
+				// The content's sources open once the Site template says the page's content is a Template's,
+				// or that it is a Page (its Placements open, not its Page layout itself).
+				else if (site?.contentAvailable || placementOnPage(ref, site)) void load(ref);
 				else if (!site && !pending.includes(ref)) pending.push(ref);
 			}
 		},
 		select(ref, from = "panel") {
-			if (ref === selected) return;
-			selected = ref;
+			const wanted = from === "canvas" ? fromCanvas(ref) : ref;
+			if (wanted === undefined) {
+				// Outside the Component edited in place: the page goes back to what is selected.
+				announce(words.placements.locked);
+				options.onSelect(selected);
+				return;
+			}
+			if (wanted === selected) {
+				// The canvas outlined an element of the Placement selected: it outlines the Placement again.
+				if (from === "canvas" && wanted !== ref) options.onSelect(wanted);
+				return;
+			}
+			selected = wanted;
 			tell();
-			if (from !== "canvas") options.onSelect(ref);
+			if (from !== "canvas" || wanted !== ref) options.onSelect(wanted);
 		},
 		snapshot: () => snapshot,
 		subscribe(listener) {
@@ -429,6 +532,54 @@ export function structure(options: {
 				});
 			});
 			return null;
+		},
+		changeProps(ref, props, label) {
+			const source = sources.get(ref);
+			if (source?.kind !== "component" || !source.id || !source.editable)
+				return fill(said.readOnly, { name: source?.name ?? said.thisSource });
+			const open = drafts.get(source.id);
+			const status = open?.client.status();
+			if (!open || (status !== "saved" && status !== "saving" && status !== "offline")) return said.connecting;
+			const before = open.client.draft();
+			if (!open.client.change({ ...(before as Record<string, Json>), props: props as unknown as Json }))
+				return said.connecting;
+			const resource = resourceOf("component", source.id);
+			editorHistory().record({
+				resource,
+				before,
+				after: open.client.draft(),
+				label,
+				location: {
+					siteId: options.siteId,
+					draft: resource,
+					panel: "tree",
+					ref,
+					selection: keyOf(selected ?? ""),
+					title: label,
+				},
+			});
+			follow(source.id, source.tree, props);
+			announce(label);
+			const id = source.id;
+			void saved(open.client).then((ok) => {
+				if (!ok) {
+					options.failed();
+					announce(said.notSaved, true);
+				}
+				void redraw().then(() => {
+					if (drafts.has(id)) options.onSelect(selected);
+				});
+			});
+			return null;
+		},
+		async reloadLayout() {
+			const entryId = layoutInfo?.entryId ?? sources.get("site")?.pageLayout?.id;
+			if (entryId) await readLayout(entryId, generation);
+		},
+		editInPlace(ref) {
+			if (ref === inPlace) return;
+			inPlace = ref;
+			tell();
 		},
 		async createClass(name) {
 			// The Class is the Design system's: taking the element's change back leaves it there, unused, as

@@ -10153,6 +10153,110 @@
 					"error": "Errore:"
 				}
 			}
+		},
+		"placements": {
+			"placement": "questo Placement",
+			"locked": "Bloccato mentre modifichi il Component sul posto: premi Fine per uscire.",
+			"connecting": "Connessione alla Draft della Page in corso. Riprova tra un momento.",
+			"notSaved": "Non è stato possibile salvare la modifica. Resta in questa scheda e viene inviata quando torna la connessione.",
+			"refused": "Non è stato possibile cambiare il Page layout: {reason}",
+			"values": "Valori",
+			"treeKeys": "I Placement di una Page si spostano con Alt e le frecce su e giù, o trascinandone le righe; le righe del Site template intorno restano dove sono.",
+			"dragElsewhere": "{name} non può andare lì: un elemento si sposta dentro il suo Template o Component.",
+			"layoutRefusals": {
+				"unavailable": "Il Page layout non si può riordinare ora.",
+				"locked": "{name} è bloccato.",
+				"besideLocked": "{name} non può superare un Placement bloccato.",
+				"edge": "{name} non può spostarsi oltre: un Page layout tiene i suoi Placement in un solo elenco.",
+				"outside": "{name} resta nel Page layout: le righe del Site template sono bloccate."
+			},
+			"steps": {
+				"move": "Sposta {name}",
+				"hide": "Nascondi {name}",
+				"show": "Mostra {name}",
+				"duplicate": "Duplica {name}",
+				"remove": "Elimina {name}",
+				"prop": "Cambia {prop} di {name}",
+				"addProp": "Aggiungi la Prop {prop} a {name}",
+				"removeProp": "Togli la Prop {prop} da {name}",
+				"renameProp": "Rinomina la Prop {prop} di {name}"
+			},
+			"props": {
+				"onPages": "In {count} pagine: modificare il Component le cambia tutte.",
+				"none": "Questo Component non ha Props.",
+				"edit": "Modifica Component",
+				"on": "Sì",
+				"off": "No",
+				"noChoice": "Nessuna",
+				"notHere": "Per ora questo tipo di Prop si cambia nella modifica della Page.",
+				"url": "Indirizzo di {name}",
+				"urlPlaceholder": "Incolla un indirizzo",
+				"linkText": "Testo di {name}",
+				"linkTextPlaceholder": "Testo del link",
+				"noFile": "Nessun file",
+				"choose": "Scegli",
+				"chooseFor": "Scegli un file Media per {name}",
+				"removeFile": "Togli il file da {name}"
+			},
+			"component": {
+				"add": "Aggiungi una Prop",
+				"addMenu": "Aggiungi Prop",
+				"noProps": "Ancora nessuna Prop",
+				"addHint": "Premi + per aggiungerne una",
+				"label": "Etichetta di props.{name}",
+				"remove": "Togli la Prop {name}",
+				"editing": "{name} · In modifica",
+				"started": "Stai modificando {name} sul posto. Il resto della pagina è bloccato fino a Fine.",
+				"ended": "Modifica di {name} terminata. Le modifiche sono nella sua Draft.",
+				"placesLocked": "Gli altri luoghi sono bloccati mentre modifichi un Component sul posto: premi prima Fine.",
+				"done": "Fine",
+				"types": {
+					"text": "Testo",
+					"richText": "Testo formattato",
+					"number": "Numero",
+					"boolean": "Interruttore",
+					"date": "Data",
+					"select": "Scelta",
+					"media": "Media",
+					"link": "Link",
+					"email": "Email",
+					"relationship": "Relationship",
+					"group": "Gruppo",
+					"repeater": "Repeater"
+				}
+			},
+			"loop": {
+				"which": "Loop",
+				"entries": "Entries",
+				"items": "Elementi",
+				"eachItem": "Ogni elemento si chiama",
+				"notFound": "Su questo Site non c'è un Loop chiamato {name}.",
+				"open": "Apri in Loops",
+				"step": "Ripeti il Loop {name}",
+				"aliasStep": "Rinomina gli elementi di {name}",
+				"ownItems": "I suoi Loop item.",
+				"setByLoop": "Lo decide il Loop, non il markup.",
+				"entriesOf": "Entries di {postTypes}",
+				"atMost": "al massimo {count}",
+				"order": {
+					"newest": "dal più recente",
+					"oldest": "dal meno recente",
+					"az": "per {field}, dalla A alla Z",
+					"za": "per {field}, dalla Z alla A"
+				},
+				"element": "Elemento · {name}"
+			},
+			"condition": {
+				"test": "Si mostra quando",
+				"elseIf": "Altrimenti, quando",
+				"otherwise": "Altrimenti",
+				"otherwiseHint": "Altrimenti mostra i suoi elementi quando nessuna prova vale.",
+				"otherwiseOn": "Aggiungi Altrimenti",
+				"otherwiseOff": "Togli Altrimenti",
+				"step": "Cambia la prova di {name}",
+				"bad": "Questa prova non si legge: {problem}",
+				"name": "Se {test}"
+			}
 		}
 	},
 	"auth": {

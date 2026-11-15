@@ -14,19 +14,33 @@ import {
 	SquareDashedIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+	type DragEvent,
+	type KeyboardEvent,
+	type ReactNode,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	useSyncExternalStore,
+} from "react";
 
 import { matches } from "../../builder/shortcuts.ts";
 import {
+	canHoldChildren,
 	childLists,
+	type DropPosition,
+	dropPositionAt,
 	insertAt,
 	isFormatting,
 	moveDown,
 	moveIntoPrevious,
 	moveOut,
+	moveTo,
 	moveUp,
 	type NodePath,
 	pathKey,
+	placeBy,
 	placeOf,
 	removeAt,
 	replaceAt,
@@ -34,6 +48,7 @@ import {
 } from "../../builder/tree.ts";
 import { fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING, Tip } from "../controls.tsx";
+import type { PageLayoutEditor } from "../editing/page-layout.ts";
 import {
 	keyOf,
 	type LayoutPlacement,
@@ -55,6 +70,12 @@ import {
  * does) and open and close them, Home and End go to the ends, Alt with the arrows moves the selected
  * element (up, down, into the one before it, out of its parent), Delete removes it and ⌘D / Ctrl+D
  * duplicates it. Each change is one Undo step, made through its Template's or Component's shared Draft.
+ *
+ * A Page's Placements (BA-09) are rows of its Page layout: Alt with ↑ or ↓, or a drag, moves one among
+ * them (the Site template's rows around them are locked, and so is a locked Placement for those who may
+ * not lock), Hide, Duplicate and Delete act on the Page's Draft; each is one Undo step too. A drag moves
+ * an element within its own Template or Component. While a Component is edited in place, its rows open
+ * under its Placement and every other row is dimmed and locked.
  */
 
 /** One row of the tree. */
@@ -75,7 +96,21 @@ type Row =
 			nested: StructureSource | null;
 			parent: string | null;
 	  }
-	| { kind: "placement"; key: string; placement: LayoutPlacement; depth: number; parent: string | null };
+	| {
+			kind: "placement";
+			key: string;
+			placement: LayoutPlacement;
+			depth: number;
+			parent: string | null;
+			/** Its place in the Page layout. */
+			index: number;
+			/** Its Component's source while it is edited in place (its rows nest under it). */
+			nested: StructureSource | null;
+			expandable: boolean;
+			expanded: boolean;
+			/** On how many published pages its Component shows, once the page has opened it. */
+			pages: number | null;
+	  };
 
 /** What a node is called in a row: its tag (or Component, command), and a quieter detail. */
 function rowName(
@@ -107,7 +142,7 @@ function rowName(
 				detail: "",
 			};
 		case "loop":
-			return { name: `{{@loop ${node.source}}}`, detail: "" };
+			return { name: `Loop ${node.source}`, detail: `as ${node.alias}` };
 		case "condition":
 			return { name: "{{@if}}", detail: "" };
 		case "text":
@@ -197,9 +232,17 @@ function rowsOf(
 				const label = contentLabel(words, site, content);
 				if (label) rows.push({ kind: "divider", key: `${source.ref}:outlet`, label, icon: "layout", depth });
 				if (site.pageLayout && snapshot.layout) {
-					for (const placement of snapshot.layout) {
-						rows.push({ kind: "placement", key: `layout:${placement.id}`, placement, depth, parent });
-					}
+					snapshot.layout.forEach((placement, index) => {
+						const key = `layout:${placement.id}`;
+						const ref = `content/${placement.id}`;
+						// A Page's Placement opens on its Component's elements while it is edited in place.
+						const nested = snapshot.inPlace === ref ? (snapshot.sources.get(ref) ?? null) : null;
+						const expandable = Boolean(nested?.tree.nodes.some((child) => !isFormatting(child)));
+						const expanded = expandable && expandedOf(key, true);
+						const pages = snapshot.sources.get(ref)?.pages ?? null;
+						rows.push({ kind: "placement", key, placement, depth, parent, index, nested, expandable, expanded, pages });
+						if (expanded && nested) visit(nested, nested.tree.nodes, [], depth + 1, key);
+					});
 				} else if (content) visit(content, content.tree.nodes, [], depth, parent);
 				return;
 			}
@@ -239,9 +282,19 @@ function rowsOf(
 /** The pixel indent of a row: 14 per level (SPEC 4). */
 const INDENT = 14;
 
-export function Layers({ structure, words }: { structure: Structure; words: Words }) {
+export function Layers({
+	structure,
+	words,
+	layout,
+}: {
+	structure: Structure;
+	words: Words;
+	/** A Page's Page layout, as its Placements' rows change it (BA-09). */
+	layout: PageLayoutEditor;
+}) {
 	const snapshot = useSyncExternalStore(structure.subscribe, structure.snapshot);
 	const said = words.structure;
+	const placed = words.placements;
 	/** Rows the person opened or closed themselves; the others follow the outlet and the selection. */
 	const [toggled, setToggled] = useState<ReadonlyMap<string, boolean>>(new Map());
 	const rows = useMemo(
@@ -249,7 +302,11 @@ export function Layers({ structure, words }: { structure: Structure; words: Word
 		[snapshot, words, toggled],
 	);
 	const selectedRef = snapshot.selection?.ref ?? null;
-	const selectedRow = rows.find((row) => row.kind === "node" && row.ref === selectedRef);
+	const selectedRow = rows.find(
+		(row) =>
+			(row.kind === "node" && row.ref === selectedRef) ||
+			(row.kind === "placement" && `content/${row.placement.id}` === selectedRef),
+	);
 	const [focusKey, setFocusKey] = useState<string | null>(null);
 	const list = useRef<HTMLDivElement>(null);
 	const focusable = rows.filter((row) => row.kind !== "divider");
@@ -273,11 +330,57 @@ export function Layers({ structure, words }: { structure: Structure; words: Word
 		);
 	};
 
+	/** Whether a row is outside the Component edited in place: dimmed, and refused. */
+	const lockedRow = (row: Row): boolean => {
+		const inPlace = snapshot.inPlace;
+		if (!inPlace || row.kind === "divider") return false;
+		// The Placement of a Template whose Component is edited in place is that Component's row.
+		if (row.kind === "node" && row.nested && within(row.nested.ref, inPlace)) return false;
+		const ref = row.kind === "node" ? sourceOf(row.ref) : `content/${row.placement.id}`;
+		return !within(ref, inPlace);
+	};
+
 	const choose = (row: Row) => {
-		if (row.kind === "node") structure.select(row.ref);
-		// A Page layout's Placement: its Component's elements on the page (BA-09 opens its Props).
-		else if (row.kind === "placement") structure.select(`content/${row.placement.id}`);
 		setFocusKey(row.key);
+		if (lockedRow(row)) {
+			announceRefusal(placed.locked);
+			return;
+		}
+		if (row.kind === "node") structure.select(row.ref);
+		// A Page layout's Placement: the Props panel opens on it.
+		else if (row.kind === "placement") structure.select(`content/${row.placement.id}`);
+	};
+
+	/** Answers a Page layout change: said when refused. */
+	const layoutDone = (refused: string | null) => {
+		if (refused) announceRefusal(refused);
+		return refused === null;
+	};
+	const placements = snapshot.layout ?? [];
+	const actOnPlacement = (row: Extract<Row, { kind: "placement" }>, action: "hide" | "duplicate" | "delete") => {
+		const id = row.placement.id;
+		if (action === "hide") {
+			layoutDone(layout.hide(placements, id));
+			return;
+		}
+		if (action === "duplicate") {
+			const made = layout.duplicate(placements, id);
+			if ("refused" in made) announceRefusal(made.refused);
+			else {
+				structure.select(`content/${made.id}`);
+				setFocusKey(`layout:${made.id}`);
+			}
+			return;
+		}
+		const at = focusable.findIndex((each) => each.key === row.key);
+		const next = focusable[at + 1] ?? focusable[at - 1];
+		if (layoutDone(layout.remove(placements, id))) {
+			structure.select(null);
+			if (next) focusRow(next.key);
+		}
+	};
+	const movePlacement = (row: Extract<Row, { kind: "placement" }>, to: number) => {
+		if (layoutDone(layout.move(placements, row.placement.id, to))) focusRow(row.key);
 	};
 
 	/** Changes the tree of a row's source; answers whether it was taken (else it was said why not). */
@@ -343,7 +446,26 @@ export function Layers({ structure, words }: { structure: Structure; words: Word
 			choose(next);
 			focusRow(next.key);
 		};
-		const node = row.kind === "node" ? row : null;
+		const node = row.kind === "node" && !lockedRow(row) ? row : null;
+		const placement = row.kind === "placement" && !lockedRow(row) ? row : null;
+		if (placement && event.altKey && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
+			event.preventDefault();
+			// A Page layout is one level: a Placement moves up or down among the others, never in or out.
+			if (event.key === "ArrowUp") movePlacement(placement, placement.index - 1);
+			else if (event.key === "ArrowDown") movePlacement(placement, placement.index + 1);
+			else announceRefusal(fill(placed.layoutRefusals.edge, { name: placement.placement.name }));
+			return;
+		}
+		if (placement && (event.key === "Delete" || event.key === "Backspace")) {
+			event.preventDefault();
+			actOnPlacement(placement, "delete");
+			return;
+		}
+		if (placement && matches(event.nativeEvent, "element.duplicate")) {
+			event.preventDefault();
+			actOnPlacement(placement, "duplicate");
+			return;
+		}
 		if (event.altKey && node && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
 			event.preventDefault();
 			const rtl = getComputedStyle(event.currentTarget).direction === "rtl";
@@ -367,6 +489,7 @@ export function Layers({ structure, words }: { structure: Structure; words: Word
 		const rtl = getComputedStyle(event.currentTarget).direction === "rtl";
 		const opening = rtl ? "ArrowLeft" : "ArrowRight";
 		const closing = rtl ? "ArrowRight" : "ArrowLeft";
+		const opens = row;
 		switch (event.key) {
 			case "ArrowDown":
 				event.preventDefault();
@@ -386,12 +509,12 @@ export function Layers({ structure, words }: { structure: Structure; words: Word
 				return;
 			case opening:
 				event.preventDefault();
-				if (node?.expandable && !node.expanded) toggle(node.key, true);
-				else if (node?.expandable) go(focusable[at + 1]);
+				if (opens?.expandable && !opens.expanded) toggle(opens.key, true);
+				else if (opens?.expandable) go(focusable[at + 1]);
 				return;
 			case closing:
 				event.preventDefault();
-				if (node?.expandable && node.expanded) toggle(node.key, false);
+				if (opens?.expandable && opens.expanded) toggle(opens.key, false);
 				else go(focusable.find((each) => each.key === row.parent));
 				return;
 			case "Enter":
@@ -402,6 +525,81 @@ export function Layers({ structure, words }: { structure: Structure; words: Word
 			default:
 				return;
 		}
+	};
+
+	// Drag and drop in the tree (BA-09): a Page's Placement among the Page layout's, an element within its
+	// own Template or Component. Alt with the arrows does the same from the keyboard.
+	const [dragging, setDragging] = useState<string | null>(null);
+	const [dropAt, setDropAt] = useState<{ key: string; position: DropPosition } | null>(null);
+	const rowByKey = (key: string | null) => (key ? focusable.find((row) => row.key === key) : undefined);
+	const canDrag = (row: Row) =>
+		!lockedRow(row) &&
+		((row.kind === "placement" && Boolean(snapshot.layoutInfo?.canArrange)) ||
+			(row.kind === "node" && row.source.editable));
+	const positionOver = (row: Row, event: DragEvent<HTMLElement>): DropPosition => {
+		const box = event.currentTarget.getBoundingClientRect();
+		const y = box.height > 0 ? (event.clientY - box.top) / box.height : 0;
+		return dropPositionAt(y, row.kind === "node" && canHoldChildren(row.node));
+	};
+	/** Drops the row being dragged at a row; says why not when it can't go there. */
+	const drop = (target: Row, position: DropPosition) => {
+		const moving = rowByKey(dragging);
+		setDragging(null);
+		setDropAt(null);
+		if (!moving || moving.key === target.key) return;
+		if (moving.kind === "placement") {
+			// A Placement stays in its Page layout: the Site template's rows around it are locked.
+			if (target.kind !== "placement") {
+				announceRefusal(fill(placed.layoutRefusals.outside, { name: moving.placement.name }));
+				return;
+			}
+			const after = position !== "before";
+			const to = moving.index < target.index ? target.index - (after ? 0 : 1) : target.index + (after ? 1 : 0);
+			movePlacement(moving, to);
+			return;
+		}
+		if (moving.kind !== "node") return;
+		if (target.kind !== "node" || target.source.ref !== moving.source.ref || lockedRow(target)) {
+			announceRefusal(fill(placed.dragElsewhere, { name: nameOfRow(moving) }));
+			return;
+		}
+		const moved = moveTo(moving.source.tree, moving.path, placeBy(moving.source.tree, target.path, position));
+		if ("refused" in moved) {
+			announceRefusal(fill(placed.dragElsewhere, { name: nameOfRow(moving) }));
+			return;
+		}
+		const key = "id" in moving.node ? moving.node.id : `@${moved.path.join(".")}`;
+		if (change(moving, moved.tree, fill(said.steps.move, { name: nameOfRow(moving) }), key))
+			focusRow(`${moving.source.ref}:${pathKey(moved.path)}`);
+	};
+	const dragProps = (row: Row) => {
+		if (row.kind === "divider") return {};
+		const draggable = canDrag(row);
+		return {
+			draggable,
+			onDragStart: (event: DragEvent<HTMLElement>) => {
+				if (!draggable) return;
+				event.dataTransfer.effectAllowed = "move";
+				event.dataTransfer.setData("text/plain", row.key);
+				setDragging(row.key);
+			},
+			onDragOver: (event: DragEvent<HTMLElement>) => {
+				if (!dragging) return;
+				event.preventDefault();
+				event.dataTransfer.dropEffect = "move";
+				const position = positionOver(row, event);
+				if (dropAt?.key !== row.key || dropAt.position !== position) setDropAt({ key: row.key, position });
+			},
+			onDragLeave: () => setDropAt((was) => (was?.key === row.key ? null : was)),
+			onDrop: (event: DragEvent<HTMLElement>) => {
+				event.preventDefault();
+				drop(row, positionOver(row, event));
+			},
+			onDragEnd: () => {
+				setDragging(null);
+				setDropAt(null);
+			},
+		};
 	};
 
 	if (!snapshot.sources.get("site")) {
@@ -441,11 +639,18 @@ export function Layers({ structure, words }: { structure: Structure; words: Word
 							words={words}
 							selected={row.kind === "node" ? row.ref === selectedRef : selectedRef === `content/${row.placement.id}`}
 							tabStop={row.key === tabStop}
+							locked={lockedRow(row)}
+							inPlace={row.kind === "placement" && snapshot.inPlace === `content/${row.placement.id}`}
+							drop={dropAt?.key === row.key ? dropAt.position : null}
+							dragged={dragging === row.key}
+							drag={dragProps(row)}
 							onChoose={() => choose(row)}
-							onToggle={row.kind === "node" && row.expandable ? () => toggle(row.key, !row.expanded) : undefined}
+							onToggle={row.expandable ? () => toggle(row.key, !row.expanded) : undefined}
 							actions={
-								row.kind === "node" ? (
+								lockedRow(row) ? null : row.kind === "node" ? (
 									<RowActions row={row} words={words} onAction={(action) => act(row, action)} />
+								) : snapshot.layoutInfo?.canArrange ? (
+									<RowActions row={row} words={words} onAction={(action) => actOnPlacement(row, action)} />
 								) : null
 							}
 							onFocus={() => setFocusKey(row.key)}
@@ -454,7 +659,7 @@ export function Layers({ structure, words }: { structure: Structure; words: Word
 				)}
 			</div>
 			<p id="wc-layers-keys" className="sr-only">
-				{said.keys}
+				{`${said.keys} ${placed.treeKeys}`}
 			</p>
 			<p className="sr-only" role="status" aria-live="polite">
 				{refusal.text ? `${refusal.text}${refusal.count % 2 ? " " : ""}` : ""}
@@ -468,6 +673,11 @@ function TreeRow({
 	words,
 	selected,
 	tabStop,
+	locked,
+	inPlace,
+	drop,
+	dragged,
+	drag,
 	onChoose,
 	onToggle,
 	actions,
@@ -477,6 +687,14 @@ function TreeRow({
 	words: Words;
 	selected: boolean;
 	tabStop: boolean;
+	/** Outside the Component edited in place: dimmed. */
+	locked: boolean;
+	/** The Placement whose Component is edited in place (`builder/06`'s tinted row). */
+	inPlace: boolean;
+	/** Where the row being dragged would land on this one, drawn as a line (or an outline, inside). */
+	drop: DropPosition | null;
+	dragged: boolean;
+	drag: Record<string, unknown>;
 	onChoose(): void;
 	onToggle?: () => void;
 	actions: ReactNode;
@@ -487,9 +705,9 @@ function TreeRow({
 	const component = node?.type === "component" || row.kind === "placement";
 	const named =
 		row.kind === "node" ? rowName(row.node, row.source, row.nested) : { name: row.placement.name, detail: "" };
-	const pages = row.kind === "node" ? (row.nested?.pages ?? null) : null;
+	const pages = row.kind === "placement" ? row.pages : (row.nested?.pages ?? null);
 	const hidden = (node?.type === "component" && node.hidden) || (row.kind === "placement" && row.placement.hidden);
-	const expanded = row.kind === "node" && row.expandable ? row.expanded : undefined;
+	const expanded = row.expandable ? row.expanded : undefined;
 	const Chevron = expanded ? ChevronDownIcon : ChevronRightIcon;
 	const Glyph = component
 		? ComponentIcon
@@ -516,21 +734,35 @@ function TreeRow({
 			aria-expanded={expanded}
 			aria-label={label}
 			tabIndex={tabStop ? 0 : -1}
+			aria-disabled={locked || undefined}
 			onClick={onChoose}
 			// The tree hears the keys for every row (one tab stop, arrow keys).
 			onKeyDown={() => {}}
 			onFocus={(event) => {
 				if (event.target === event.currentTarget) onFocus();
 			}}
+			{...drag}
 			className={`group/row relative flex h-[26px] cursor-default items-center gap-1 rounded-[5px] pe-1 text-[12px] ${
-				selected
-					? "text-chrome-strong bg-[#6366f1]/25 shadow-[inset_2px_0_0_#6366f1]"
-					: "hover:bg-chrome-hover text-chrome-text"
-			} ${hidden ? "[&>[data-wc-row-name]]:opacity-50" : ""} ${CHROME_EASE} ${FOCUS_RING}`}
+				inPlace
+					? "bg-[#a78bfa]/20 text-[#ddd6fe] shadow-[inset_2px_0_0_#a78bfa]"
+					: selected
+						? "text-chrome-strong bg-[#6366f1]/25 shadow-[inset_2px_0_0_#6366f1]"
+						: "hover:bg-chrome-hover text-chrome-text"
+			} ${hidden ? "[&>[data-wc-row-name]]:opacity-50" : ""} ${locked ? "opacity-45" : ""} ${dragged ? "opacity-50" : ""} ${
+				drop === "inside" ? "outline-chrome-focus outline-2 -outline-offset-2 outline-dashed" : ""
+			} ${CHROME_EASE} ${FOCUS_RING}`}
 			style={{ paddingInlineStart: `${4 + row.depth * INDENT}px` }}
 			data-wc-row={row.key}
-			data-wc-ref={row.kind === "node" ? row.ref : undefined}
+			data-wc-ref={row.kind === "node" ? row.ref : `content/${row.placement.id}`}
+			data-wc-locked={locked ? "" : undefined}
 		>
+			{drop === "before" || drop === "after" ? (
+				<span
+					aria-hidden="true"
+					className={`bg-chrome-focus pointer-events-none absolute inset-x-0 h-0.5 rounded-full ${drop === "before" ? "-top-px" : "-bottom-px"}`}
+					data-wc-drop-line={drop}
+				/>
+			) : null}
 			<span aria-hidden="true" className="text-chrome-faint grid size-3.5 shrink-0 place-items-center">
 				{onToggle ? (
 					<Chevron
@@ -557,13 +789,31 @@ function TreeRow({
 						) : null}
 					</>
 				) : (
-					<span className={component ? "text-chrome-strong font-medium" : "font-mono"}>{named.name}</span>
+					<>
+						<span
+							className={
+								component
+									? inPlace
+										? "font-medium"
+										: "text-chrome-strong font-medium"
+									: node?.type === "loop"
+										? "font-mono text-[#fbbf24]"
+										: "font-mono"
+							}
+						>
+							{named.name}
+						</span>
+						{named.detail ? (
+							<span className="text-chrome-muted truncate font-mono text-[11px]">{named.detail}</span>
+						) : null}
+					</>
 				)}
 			</span>
 			{hidden ? <EyeOffIcon aria-hidden="true" className="text-chrome-faint size-3.5 shrink-0" /> : null}
 			{pages !== null && pages > 1 ? (
 				<span className="shrink-0 rounded-[4px] bg-[#7c2d12] px-1.5 text-[11px] leading-[18px] font-medium text-[#fdba74]">
-					{fill(said.pagesOther, { count: String(pages) })}
+					{/* A space before it, so the row's text reads as its name does ("HeroSplit 3 pages"). */}
+					{` ${fill(said.pagesOther, { count: String(pages) })}`}
 				</span>
 			) : null}
 			{actions}
@@ -577,20 +827,21 @@ function RowActions({
 	words,
 	onAction,
 }: {
-	row: Extract<Row, { kind: "node" }>;
+	row: Extract<Row, { kind: "node" } | { kind: "placement" }>;
 	words: Words;
 	onAction(action: "hide" | "duplicate" | "delete"): void;
 }) {
-	if (!row.source.editable) return null;
+	if (row.kind === "node" && !row.source.editable) return null;
 	const said = words.structure.actions;
-	const placement = row.node.type === "component";
+	const placement = row.kind === "placement" || row.node.type === "component";
+	const hidden = row.kind === "placement" ? row.placement.hidden : row.node.type === "component" && row.node.hidden;
 	const buttons: { action: "hide" | "duplicate" | "delete"; label: string; icon: typeof EyeIcon }[] = [
 		...(placement
 			? [
 					{
 						action: "hide" as const,
-						label: row.node.type === "component" && row.node.hidden ? said.show : said.hide,
-						icon: row.node.type === "component" && row.node.hidden ? EyeIcon : EyeOffIcon,
+						label: hidden ? said.show : said.hide,
+						icon: hidden ? EyeIcon : EyeOffIcon,
 					},
 				]
 			: []),

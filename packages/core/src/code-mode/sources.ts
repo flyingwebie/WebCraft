@@ -28,6 +28,7 @@ import { BUILT_IN_FIELDS } from "../content/fields.ts";
 import { getGlobals } from "../content/globals.ts";
 import { draftVersion } from "../content/json.ts";
 import { listLoops } from "../content/loops.ts";
+import { draftPageLayoutTree } from "../content/page-layouts.ts";
 import { getPostType } from "../content/post-types.ts";
 import { printPropDeclarations } from "../content/prop-markup.ts";
 import { RELATED_BUILT_INS } from "../content/render-values.ts";
@@ -63,8 +64,17 @@ export function writeCodeRef(ref: Pick<CodeRef, "root" | "placements">, element?
 	return element ? `${source}#${element}` : source;
 }
 
-/** The kinds of Structure Code mode opens as Template markup. */
-export type CodeSourceKind = "entryTemplate" | "archiveTemplate" | "searchTemplate" | "siteTemplate" | "component";
+/**
+ * The kinds of Structure Code mode opens as Template markup, and a Page's Page layout: the root of a
+ * Page's content (its Placements), read only here (it is the Page's Content, changed as the Entry is).
+ */
+export type CodeSourceKind =
+	| "entryTemplate"
+	| "archiveTemplate"
+	| "searchTemplate"
+	| "siteTemplate"
+	| "component"
+	| "pageLayout";
 
 /** One Template or Component on the way to an element: as the breadcrumb shows it. */
 export type CodeStep = {
@@ -158,6 +168,20 @@ async function rootOf(
 	}
 	const content = await deps.pageContent(host, path);
 	const target = content.contentTemplate;
+	// A Page's content is its Page layout: the Placements it shows open from there (never saved as markup).
+	if (!content.notFound && !target && content.entryId) {
+		const layout = await draftPageLayoutTree(scope, content.entryId, content.language);
+		if (!layout) throw new CodeSourceNotFoundError();
+		return {
+			kind: "pageLayout",
+			id: content.entryId,
+			name: null,
+			editable: false,
+			tree: layout,
+			draft: null,
+			postTypeId: null,
+		};
+	}
 	if (content.notFound || !target) throw new CodeSourceNotFoundError();
 	const postType = "postTypeId" in target ? await getPostType(scope, target.postTypeId) : null;
 	const template =
