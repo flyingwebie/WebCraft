@@ -61,8 +61,9 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 	const emit = () => {
 		for (const listener of listeners) listener();
 	};
+	// The building area says it in the shell's own live region (`kit.say`); the editing bar, in the page.
 	const announce = (text: string, refused = false) =>
-		editorAccessibility(kit.doc).announce(text, refused ? "interrupt" : "polite");
+		kit.say ? kit.say(text, refused) : editorAccessibility(kit.doc).announce(text, refused ? "interrupt" : "polite");
 	const selection = () => state.layout.placements.find((p) => p.id === selected);
 	const canEdit = () => state.canArrange && kit.editing() && !disposed;
 	const refusal = (action: LayoutAction, id = selected, duringSave = false): LayoutRefusal | null => {
