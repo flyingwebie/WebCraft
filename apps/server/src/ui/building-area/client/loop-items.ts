@@ -2,7 +2,8 @@ import { TEXT_REGION } from "../agent/contract.ts";
 import { type EditAnswer, editRequests, fill, type PageState, type Words } from "../api.ts";
 import { frameGeometry, type Overlay } from "../canvas/overlay.ts";
 import type { SavingStatus } from "../canvas/regions.ts";
-import { type ClientEditing, IN_ITEM, MARKED } from "./marks.ts";
+import { claimPlace, itemPresenceDraft, peopleAt } from "../editing/presence.ts";
+import { CHANGED, type ClientEditing, DOT_SIZE, IN_ITEM, MARKED } from "./marks.ts";
 
 /**
  * List items and query Loops in client editing (SPEC 13.3, BA-16; `client/05`): "a set of values opens
@@ -253,6 +254,37 @@ export function loopItems(options: {
 
 	let layer: HTMLDivElement | null = null;
 	const stops: (() => void)[] = [];
+	/** The client editing this wraps: the page's Drafts (Presence) and the text being edited. */
+	let edit: ClientEditing | null = null;
+	/** The page's own item (`entry:<id>`), whose Draft Presence on items goes through. */
+	let pageItem: string | null = null;
+	/** The items changed and not published (`loop:<loop id>:<item id>`): their amber dots (BA-35). */
+	let changedItems = new Set<string>();
+	/** The item the person is said to be in (Presence), and whether text was being edited last time. */
+	let placedItem: string | null = null;
+	let wasEditing = false;
+	const placeOwner = {};
+	/**
+	 * Presence on a Loop item (BA-35): the person is in the item selected, on the page's own Draft (the
+	 * editing bar's way). Typed text says where the person is while it is edited; once it stops, the
+	 * selected item is said again.
+	 */
+	const placeItem = () => {
+		if (!edit) return;
+		const editingText = edit.snapshot().region !== null;
+		const stopped = wasEditing && !editingText;
+		wasEditing = editingText;
+		const wanted = mode === "edit" && selectedKey ? selectedKey : null;
+		if (wanted) {
+			if (editingText || (wanted === placedItem && !stopped)) return;
+			placedItem = wanted;
+			claimPlace(edit, placeOwner, { item: itemPresenceDraft(pageItem), at: wanted });
+			return;
+		}
+		if (placedItem === null) return;
+		placedItem = null;
+		claimPlace(edit, placeOwner, null, editingText);
+	};
 
 	const view = () => parts?.frame.contentWindow as (Window & typeof globalThis) | null | undefined;
 	const isElement = (target: EventTarget | null): target is Element => {
@@ -515,6 +547,7 @@ export function loopItems(options: {
 
 	/** What React draws: the selected item, the query chip, the toast. */
 	const publish = () => {
+		placeItem();
 		const item = find(selectedKey);
 		const chipItem = chip ? find(chip.key) : null;
 		const link = chipItem ? (links.get(chipItem.id) ?? null) : null;
@@ -999,12 +1032,21 @@ export function loopItems(options: {
 				}
 				const kind = isSelected ? "selected" : isArmed ? "focus" : isHovered ? "hover" : "rest";
 				outline(`item:${item.key}`, box, kind);
+				// Someone else in it: their colour and name (BA-35).
+				const person = edit ? peopleAt(edit.drafts().others(), itemPresenceDraft(pageItem), item.key, words) : null;
+				if (person) personOn(item.key, box, person);
+				// Changed and not published: the amber dot on the outline's corner (BA-35).
+				if (changedItems.has(item.key)) dotOn(item.key, box);
 				if (kind === "hover" || kind === "focus") {
 					chipOn(
 						`chip:${item.key}`,
 						box,
 						nameOf(item),
-						kind === "hover" ? words.client.marks.clickToEdit : words.client.marks.enterToEdit,
+						kind === "hover"
+							? parts?.frame.ownerDocument.defaultView?.matchMedia?.("(pointer: coarse)").matches
+								? words.client.marks.tapToEdit
+								: words.client.marks.clickToEdit
+							: words.client.marks.enterToEdit,
 					);
 				}
 			}
@@ -1024,6 +1066,40 @@ export function loopItems(options: {
 		drawn.style.setProperty("border-radius", `${RADIUS}px`);
 		drawn.style.setProperty("border", kind === "rest" ? `1.5px dashed ${MARK_SOFT}` : `2px solid ${MARK}`);
 		drawn.style.setProperty("background-color", kind === "hover" ? MARK_TINT : "transparent");
+	};
+
+	const dotOn = (key: string, box: Box) => {
+		const drawn = take(`dot:${key}`, "absolute box-border rounded-full border-2 border-white shadow-sm", 4);
+		drawn.dataset.wcClientMark = "changed";
+		drawn.dataset.wcChangedItem = key;
+		place(drawn, { left: box.left - DOT_SIZE / 2, top: box.top - DOT_SIZE / 2, width: DOT_SIZE, height: DOT_SIZE });
+		drawn.style.setProperty("background-color", CHANGED);
+	};
+
+	/** Someone else's mark on an item: an outline in their colour and their name above it (as the overlay's). */
+	const personOn = (key: string, box: Box, person: { colour: string; name: string }) => {
+		const drawn = take(`person:${key}`, "absolute box-border border-2 border-solid", 2);
+		drawn.dataset.wcMark = "person";
+		drawn.dataset.wcPersonItem = key;
+		place(drawn, box);
+		drawn.style.setProperty("border-radius", `${RADIUS}px`);
+		drawn.style.setProperty("border-color", person.colour);
+		const name = take(
+			`person-name:${key}`,
+			"absolute flex h-[22px] items-center gap-1 whitespace-nowrap rounded-md px-2 text-[12px] leading-4 font-semibold text-white shadow-[0_2px_8px_rgba(0,0,0,0.18)]",
+			4,
+		);
+		name.dataset.wcMarkName = "";
+		name.style.setProperty("background-color", person.colour);
+		if (name.dataset.wcWords !== person.name) {
+			name.dataset.wcWords = person.name;
+			name.replaceChildren(icon(name.ownerDocument, "user", 13), name.ownerDocument.createTextNode(person.name));
+		}
+		const above = box.top - 22 - 4;
+		// Above the item's top right corner: its own chip and bar keep the left.
+		name.style.setProperty("right", "auto");
+		name.style.setProperty("left", `${Math.max(0, box.left + box.width - name.offsetWidth)}px`);
+		name.style.setProperty("top", `${above >= 0 ? above : box.top + box.height + 4}px`);
 	};
 
 	const chipOn = (key: string, box: Box, name: string, hint: string) => {
@@ -1079,6 +1155,9 @@ export function loopItems(options: {
 		...editing,
 		connect(next) {
 			parts = next;
+			edit = editing;
+			// Others coming, going and moving between items; text editing starting and stopping.
+			stops.push(editing.drafts().subscribe(redraw), editing.subscribe(placeItem));
 			const shellDoc = next.frame.ownerDocument;
 			const canvas = next.frame.closest("[data-wc-canvas]") ?? next.frame.parentElement ?? shellDoc.body;
 			layer = shellDoc.createElement("div");
@@ -1124,6 +1203,11 @@ export function loopItems(options: {
 		pageState(state) {
 			const changed = language?.code !== state.language.code;
 			language = state.language;
+			pageItem = state.page.item ?? null;
+			changedItems = new Set(
+				state.changes.flatMap((change) => (change.items ?? []).map((id) => `${change.item}:${id}`)),
+			);
+			redraw();
 			if (changed) links.clear();
 			editing.pageState(state);
 			if (changed) void loadLinks();
@@ -1358,6 +1442,7 @@ function place(target: HTMLElement, box: Box): void {
 const ICONS = {
 	list: ["M3 12h.01", "M3 18h.01", "M3 6h.01", "M8 12h13", "M8 18h13", "M8 6h13"],
 	plus: ["M5 12h14", "M12 5v14"],
+	user: ["M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2", "M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0"],
 } as const;
 
 function icon(owner: Document, name: keyof typeof ICONS, size: number): SVGSVGElement {

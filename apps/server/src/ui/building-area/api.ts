@@ -100,7 +100,12 @@ export type PageState = {
 	/** The page: its title as its Draft has it, its path, and the Entry it shows (`entry:<id>`; none on the 404 page). */
 	page: { title: string; path: string; item: string | null };
 	/** The page's changes in its Draft (its Entry's values, the Globals it shows, its Loops' items), by item and key. */
-	changes: { item: string; key: string }[];
+	changes: {
+		item: string;
+		key: string;
+		/** For a Loop's items: the ids of those that differ from what is published (BA-35). */
+		items?: string[];
+	}[];
 	/** The Reviews of the page's items: waiting (`inReview`) or sent back. */
 	reviews: { status: "inReview" | "sentBack" }[];
 	/** The language the page is shown in. */
