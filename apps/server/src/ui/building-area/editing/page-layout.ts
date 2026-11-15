@@ -83,7 +83,12 @@ export function pageLayoutEditor(options: {
 		const layout = layoutOf(draft);
 		if (sameValue(layout, seen)) return;
 		seen = layout;
-		if (!own) options.changed();
+		if (own) return;
+		// A step taken back is saved like any change: the page is drawn again once the Draft has it
+		// (someone else's change has been saved already).
+		const client = options.drafts.client(changedItem);
+		if (client) void saved(client).then(() => options.changed());
+		else options.changed();
 	});
 
 	/** Waits until the Draft has saved what was sent (or can't): true when it has. */
