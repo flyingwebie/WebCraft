@@ -3,7 +3,8 @@
 //   mode shows the page again with none of the Site's own scripts, and the bar says Safe mode with Turn
 //   off, which brings them back (and the notice). For Staff, and for a Member in client editing's words;
 // - Component scripts run in the frame, once per Placement, also for a Placement added later (one
-//   duplicated in Layers, BA-09; a section a Member adds, BA-17, of a Component the page never loaded);
+//   duplicated in Layers, BA-09; a Component placed from the insert row's menu, BA-10, and a section a
+//   Member adds, BA-17, each of a Component the page never loaded);
 //   a call that fails shows its notice, naming the Component;
 // - the JS pane's Component tab (BA-11): chosen for a Placement selected, its "on N pages" warning, ⌘S
 //   saving it, Run running the new code on each Placement once, a failing call in the console against
@@ -138,6 +139,9 @@ beforeAll(async () => {
 		},
 	});
 	await api.entries.publish({ siteId, entryId: sections.id });
+	// An empty Page, where Staff place a Component from the insert row's menu (BA-10).
+	const { entry: visit } = await api.entries.create({ siteId, postTypeId: pagesId, title: "Visit us", slug: "visit" });
+	await api.entries.publish({ siteId, entryId: visit.id });
 });
 
 afterAll(async () => {
@@ -386,6 +390,22 @@ describe("Staff", () => {
 		await frame.waitForFunction(() => document.querySelectorAll("main [data-calls]").length === 3);
 		expect(await counters(frame)).toEqual(["One: 1", "Broken: 1", "Three: 1"]);
 		forgetScriptErrors(page);
+	});
+
+	test("a Component placed from the insert row's menu runs its script, which the page hadn't loaded", async () => {
+		const page = await shared("staff");
+		const frame = await open(page, "/visit");
+		const empty = page.locator("[data-wc-empty-page]");
+		await empty.getByRole("button", { name: "Add a Component" }).waitFor();
+		expect(await frame.locator("script[data-wc-component-script]").count()).toBe(0);
+		await empty.getByRole("button", { name: "Add a Component" }).click();
+		const menu = page.locator("dialog[data-wc-command-menu]");
+		await menu.getByRole("option", { name: /^Quote/ }).click();
+		await frame.locator("blockquote").filter({ hasText: "Best bread in Cork." }).waitFor();
+		// Its script arrives and is called once on the new Placement.
+		await frame.waitForFunction(() => document.querySelector<HTMLElement>("[data-quoted]")?.dataset.quoted === "1");
+		expect(await frame.locator("script[data-wc-component-script]").count()).toBe(1);
+		expect(await notice(page).count()).toBe(0);
 	});
 
 	test("the JS pane's Component tab: chosen for a Placement, its warning, ⌘S saving it, Run, a failing call", async () => {
