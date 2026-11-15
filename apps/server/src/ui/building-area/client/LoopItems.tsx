@@ -33,6 +33,9 @@ export function LoopItems({ items, words }: { items: LoopItemsController; words:
 	const { selected, query, removed, busy } = useSyncExternalStore(items.subscribe, items.snapshot);
 	const [, setMoved] = useState(0);
 	useEffect(() => items.onMove(() => setMoved((count) => count + 1)), [items]);
+	// The Alt+F10 already answered, kept here: the bar and the chip are drawn anew when it selects.
+	const barReached = useRef(selected?.reach ?? 0);
+	const chipReached = useRef(query?.reach ?? 0);
 	const canvas = items.canvasBox();
 	const selectedBox = selected ? items.boxOf(selected.key) : null;
 	const queryBox = query ? items.boxOf(query.key) : null;
@@ -48,6 +51,7 @@ export function LoopItems({ items, words }: { items: LoopItemsController; words:
 					last={selected.index === selected.count - 1}
 					across={selected.across}
 					reach={selected.reach}
+					reached={barReached}
 					busy={busy}
 					left={clamp(selectedBox.left + 8, canvas.left + 4, canvas.right - 240)}
 					top={clamp(selectedBox.top - 6 - BAR_HEIGHT / 2, canvas.top + 4, canvas.bottom - BAR_HEIGHT - 4)}
@@ -61,6 +65,7 @@ export function LoopItems({ items, words }: { items: LoopItemsController; words:
 					from={query.from}
 					link={query.link}
 					reach={query.reach}
+					reached={chipReached}
 					left={clamp(queryBox.left + CHIP_INSET, canvas.left + 4, canvas.right - CHIP_WIDTH - 4)}
 					top={clamp(queryBox.top + CHIP_INSET, canvas.top + 4, canvas.bottom - 96)}
 				/>
@@ -88,6 +93,7 @@ function ItemBar({
 	last,
 	across,
 	reach,
+	reached,
 	busy,
 	left,
 	top,
@@ -100,6 +106,7 @@ function ItemBar({
 	last: boolean;
 	across: boolean;
 	reach: number;
+	reached: { current: number };
 	busy: boolean;
 	left: number;
 	top: number;
@@ -130,12 +137,11 @@ function ItemBar({
 	const shown = usable.includes(current) ? current : (usable[0] ?? 0);
 
 	// Alt+F10 from the item: focus goes to the bar.
-	const reached = useRef(reach);
 	useEffect(() => {
 		if (reach === reached.current) return;
 		reached.current = reach;
 		bar.current?.querySelector<HTMLElement>('[tabindex="0"]')?.focus();
-	}, [reach]);
+	}, [reach, reached]);
 
 	const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
 		// From the button focus is on, even one a move just turned off.
@@ -213,6 +219,7 @@ function QueryChip({
 	from,
 	link,
 	reach,
+	reached,
 	left,
 	top,
 }: {
@@ -222,17 +229,17 @@ function QueryChip({
 	from: string;
 	link: { href: string; page: boolean } | null;
 	reach: number;
+	reached: { current: number };
 	left: number;
 	top: number;
 }) {
 	const said = words.client.items.query;
 	const action = useRef<HTMLElement | null>(null);
-	const reached = useRef(reach);
 	useEffect(() => {
 		if (reach === reached.current) return;
 		reached.current = reach;
 		action.current?.focus();
-	}, [reach]);
+	}, [reach, reached]);
 	useEffect(() => () => items.holdChip(false), [items]);
 	const look = `text-chrome-accent inline-flex items-center gap-1.5 rounded-md text-[12px] font-semibold hover:underline ${FOCUS_RING}`;
 	return (

@@ -236,6 +236,8 @@ export function loopItems(options: {
 	let chipReach = 0;
 	/** A pointer was pressed in the page: the focus that follows isn't the keyboard's. */
 	let pointing = false;
+	/** Focus is put on an item by the shell (after a change, or Escape): what was said stays said. */
+	let quiet = false;
 	/** The query item whose chip shows, and whether it stays (clicked, focus) or follows the pointer. */
 	let chip: { key: string; held: boolean } | null = null;
 	let chipHeld = false;
@@ -375,11 +377,23 @@ export function loopItems(options: {
 				? (before as HTMLElement)
 				: null;
 		if (!add) {
+			// An item of the list where the items are (`li` in a list), holding a real button.
 			const listed = parent?.localName === "ul" || parent?.localName === "ol";
 			add = doc.createElement(listed ? "li" : "div");
 			add.setAttribute(ADD_MARK, loop.id);
-			add.setAttribute("tabindex", "0");
-			add.setAttribute("role", "button");
+			const button = doc.createElement("button");
+			button.setAttribute("type", "button");
+			// Nothing of the Site's styles for buttons: the card is drawn by the shell over it.
+			button.style.setProperty("all", "unset");
+			for (const [name, value] of [
+				["display", "block"],
+				["box-sizing", "border-box"],
+				["width", "100%"],
+				["height", "100%"],
+				["cursor", "pointer"],
+			] as const)
+				button.style.setProperty(name, value);
+			add.append(button);
 			for (const [name, value] of [
 				["box-sizing", "border-box"],
 				["list-style", "none"],
@@ -389,7 +403,6 @@ export function loopItems(options: {
 				["background", "none"],
 				["box-shadow", "none"],
 				["outline", "none"],
-				["cursor", "pointer"],
 				["flex", "none"],
 				["align-self", "flex-start"],
 				["max-width", "100%"],
@@ -397,7 +410,7 @@ export function loopItems(options: {
 				add.style.setProperty(name, value);
 			loop.end.before(add);
 		}
-		add.setAttribute("aria-label", fill(said.addTo, { loop: loop.label }));
+		add.querySelector("button")?.setAttribute("aria-label", fill(said.addTo, { loop: loop.label }));
 		const last = loop.items.at(-1);
 		const box = last ? pageBox(elementsOf(last)) : null;
 		const runsAcross = across(loop);
@@ -685,7 +698,12 @@ export function loopItems(options: {
 		if (!frame || !element?.isConnected) return;
 		frame.focus();
 		frame.contentWindow?.focus();
-		element.focus({ preventScroll: true });
+		quiet = true;
+		try {
+			element.focus({ preventScroll: true });
+		} finally {
+			quiet = false;
+		}
 		element.scrollIntoView({ block: "nearest", inline: "nearest" });
 	};
 	const focusItem = (key: string) => {
@@ -728,14 +746,16 @@ export function loopItems(options: {
 		for (const element of doc.querySelectorAll<HTMLElement>(MARKED)) all.add(element);
 		for (const loop of loops) {
 			for (const item of loop.items) if (item.focus) all.add(item.focus);
-			if (loop.add) all.add(loop.add);
+			const button = loop.add?.querySelector("button");
+			if (button) all.add(button);
 		}
 		return [...all]
 			.filter((element) => element.isConnected && element.getClientRects().length > 0)
 			.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
 	};
 	const isOurs = (element: HTMLElement) =>
-		element.hasAttribute(ADD_MARK) || loops.some((loop) => loop.items.some((item) => item.focus === element));
+		Boolean(element.closest(`[${ADD_MARK}]`)) ||
+		loops.some((loop) => loop.items.some((item) => item.focus === element));
 
 	/** The stop after (or before) `from`; a stop inside another counts as after it. */
 	const nextStop = (from: Element, back: boolean): HTMLElement | null => {
@@ -857,7 +877,7 @@ export function loopItems(options: {
 		// Focus goes to the item that took its place, else the "Add" card.
 		const next = find(after);
 		if (next) focusItem(next.key);
-		else focusOn(loops.find((each) => each.id === loop.id)?.add);
+		else focusOn(loops.find((each) => each.id === loop.id)?.add?.querySelector("button"));
 	};
 
 	const restore = async () => {
@@ -1168,7 +1188,7 @@ export function loopItems(options: {
 					}
 					const item = itemOf(event.target);
 					if (item && item.focus === event.target) {
-						arm(item, !pointing);
+						arm(item, !pointing && !quiet);
 						if (item.loop.source === "query" && !pointing) showChip(item.key, true);
 					}
 					break;

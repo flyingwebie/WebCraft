@@ -611,8 +611,9 @@ function MediaField({
 					)}
 				</span>
 				<button
+					id={`${id}-choose`}
 					type="button"
-					aria-label={fill(said.changeNamed, { name: label })}
+					aria-labelledby={`${id}-choose ${id}-label`}
 					onClick={() => void choose()}
 					className={button}
 					data-wc-item-field={path}
@@ -631,7 +632,7 @@ function MediaField({
 						{said.removePhoto}
 					</button>
 				) : (
-					<span className="text-chrome-faint text-[12px]">{said.noPhoto}</span>
+					<span className="text-chrome-muted text-[12px]">{said.noPhoto}</span>
 				)}
 			</div>
 			{note}

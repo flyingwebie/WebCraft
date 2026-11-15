@@ -109,9 +109,9 @@ beforeAll(async () => {
 		postTypeId: recipes.id,
 		markup: [
 			"<article><h1>{{ title }}</h1>",
-			'<ul>{{@loop our-bakes as bake}}<li><h3>{{ bake.name }}</h3><p>{{ bake.price }}</p><img src="{{ bake.photo }}" width="160" height="120"></li>{{/loop}}</ul>',
+			'<ul>{{@loop our-bakes as bake}}<li><h2>{{ bake.name }}</h2><p>{{ bake.price }}</p><img src="{{ bake.photo }}" width="160" height="120"></li>{{/loop}}</ul>',
 			"<h2>From the blog</h2>",
-			'{{@loop latest-posts as post}}<section class="post"><h3>{{ post.title }}</h3></section>{{/loop}}',
+			"{{@loop latest-posts as post}}<section><h3>{{ post.title }}</h3></section>{{/loop}}",
 			"</article>",
 		].join(""),
 	});
@@ -159,13 +159,13 @@ const names = async () => (await draftItems()).map((item) => item.name);
 
 /** The items' names as the page in the frame shows them. */
 async function shownNames(frame: Frame): Promise<string[]> {
-	return frame.locator("li h3").allTextContents();
+	return frame.locator("li h2").allTextContents();
 }
 
 /** Waits until the page in the frame shows these names, in this order. */
 async function untilShown(frame: Frame, wanted: string[]): Promise<void> {
 	await frame.waitForFunction(
-		(wanted) => JSON.stringify([...document.querySelectorAll("li h3")].map((each) => each.textContent)) === wanted,
+		(wanted) => JSON.stringify([...document.querySelectorAll("li h2")].map((each) => each.textContent)) === wanted,
 		JSON.stringify(wanted),
 	);
 }
@@ -201,7 +201,7 @@ describe("a Loop's own items, for an Editor", () => {
 	let page: Page;
 	let frame: Frame;
 
-	/** The Loop as it was, and the page read again, before a part that changes it. */
+	/** The Loop as it was, and the page read again, before each part (one that failed leaves nothing behind). */
 	const reset = async () => {
 		await api.loops.saveItems({ siteId, loopId, items: BAKES() });
 		await page.reload();
@@ -225,9 +225,11 @@ describe("a Loop's own items, for an Editor", () => {
 		// Each item is outlined at rest, with "Add an item" as a dashed card at the end of the list.
 		expect(await page.locator('[data-wc-item-mark="rest"]').count()).toBe(3);
 		expect(await page.locator("[data-wc-loop-add-card]").textContent()).toBe("Add an item");
-		expect(await frame.locator("[data-wc-loop-add]").getAttribute("aria-label")).toBe("Add an item to Our bakes");
+		expect(await frame.locator("[data-wc-loop-add] button").getAttribute("aria-label")).toBe(
+			"Add an item to Our bakes",
+		);
 		// An item's values are changed in its panel, not typed in place; they aren't marked one by one.
-		expect(await frame.locator("li h3").first().getAttribute("contenteditable")).toBe("false");
+		expect(await frame.locator("li h2").first().getAttribute("contenteditable")).toBe("false");
 		expect(await page.locator('[data-wc-client-mark="rest"]').count()).toBe(1);
 
 		const second = await boxIn(frame, "li", 1);
@@ -260,7 +262,7 @@ describe("a Loop's own items, for an Editor", () => {
 		expect(await side.getByLabel("Name").inputValue()).toBe("Cardamom bun");
 		expect(await side.getByLabel("Price").inputValue()).toBe("€3.20");
 		expect(await side.getByRole("switch", { name: "Sold out today" }).getAttribute("aria-checked")).toBe("false");
-		await side.getByRole("button", { name: "Change Photo" }).waitFor();
+		await side.locator('[data-wc-item-field="photo"]').waitFor();
 		await side.getByRole("textbox", { name: "Description" }).waitFor();
 		// 360 wide on the right; it pushes the page.
 		const sideBox = await side.boundingBox();
@@ -284,6 +286,7 @@ describe("a Loop's own items, for an Editor", () => {
 	});
 
 	test("each Field saves to the Loop's Draft, and the page shows it", async () => {
+		await reset();
 		const second = await boxIn(frame, "li", 1);
 		await page.mouse.click(second.x + 40, second.y + 10);
 		const side = page.locator(panel);
@@ -313,7 +316,7 @@ describe("a Loop's own items, for an Editor", () => {
 		expect(await names()).toEqual(["Country sourdough", "Cardamom knot", "Seeded rye"]);
 
 		// A photo from the Media library.
-		await side.getByRole("button", { name: "Change Photo" }).click();
+		await side.locator('[data-wc-item-field="photo"]').click();
 		const picker = page.locator("[data-wc-media-picker]");
 		await picker.waitFor();
 		await picker.locator(`[data-wc-pick="${rolls}"]`).click();
@@ -332,14 +335,15 @@ describe("a Loop's own items, for an Editor", () => {
 		expect(await side.getByLabel("Name").getAttribute("aria-invalid")).toBe("true");
 		await side.getByLabel("Name").fill("Cardamom bun");
 		await side.locator('[data-wc-item-problem="name"]').waitFor({ state: "detached" });
+		await untilShown(frame, ["Country sourdough", "Cardamom bun", "Seeded rye"]);
 
 		await page.keyboard.press("Escape");
 		await side.waitFor({ state: "detached" });
 		expect(await focusInPage(frame)).toMatch(/^li:Cardamom bun/);
-		await reset();
 	});
 
 	test("Alt+F10 reaches the item bar; a move is announced and saved; Escape goes back to the item", async () => {
+		await reset();
 		await frame.locator("li").first().focus();
 		await said(page, "Country sourdough, item 1 of 3 in Our bakes. Press Enter to change it, Alt+F10 for its tools.");
 		await page.locator("[data-wc-item-chip]", { hasText: "Country sourdoughPress Enter to edit" }).waitFor();
@@ -385,10 +389,10 @@ describe("a Loop's own items, for an Editor", () => {
 		await page.locator(panel).locator("[data-wc-item-panel-name]", { hasText: "Country sourdough" }).waitFor();
 		await page.keyboard.press("Escape");
 		await page.locator(panel).waitFor({ state: "detached" });
-		await reset();
 	});
 
 	test("Remove, then Undo puts the item back where it was", async () => {
+		await reset();
 		const second = await boxIn(frame, "li", 1);
 		await page.mouse.click(second.x + 40, second.y + 10);
 		await page.locator(bar).getByRole("button", { name: "Remove" }).click();
@@ -421,10 +425,10 @@ describe("a Loop's own items, for an Editor", () => {
 		await toast.getByText("Seeded rye removed").waitFor();
 		await page.mouse.move(700, 880);
 		await toast.waitFor({ state: "detached", timeout: 12_000 });
-		await reset();
 	});
 
 	test("Duplicate puts a copy after its item; Add makes a new item, its panel open", async () => {
+		await reset();
 		const first = await boxIn(frame, "li", 0);
 		await page.mouse.click(first.x + 40, first.y + 10);
 		await page.locator(bar).getByRole("button", { name: "Duplicate" }).click();
@@ -440,11 +444,20 @@ describe("a Loop's own items, for an Editor", () => {
 		await page.locator(panel).locator("[data-wc-item-panel-position]", { hasText: "item 2 of 4" }).waitFor();
 		await page.locator(panel).getByRole("button", { name: "Done" }).click();
 
-		await page.locator("[data-wc-loop-add-card]").scrollIntoViewIfNeeded();
-		const add = await boxIn(frame, "[data-wc-loop-add]");
-		const card = await page.locator("[data-wc-loop-add-card]").boundingBox();
+		await frame.locator("[data-wc-loop-add]").scrollIntoViewIfNeeded();
 		// The card is drawn on the place made for it at the end of the list, under the last item.
-		expect(card && Math.abs(card.y - add.y) <= 1 && Math.abs(card.height - add.height) <= 1).toBe(true);
+		let off = Number.POSITIVE_INFINITY;
+		for (let attempt = 0; attempt < 10 && off > 1; attempt++) {
+			await settled(page);
+			const place = await boxIn(frame, "[data-wc-loop-add]");
+			const card = await page.locator("[data-wc-loop-add-card]").boundingBox();
+			off = card
+				? Math.max(Math.abs(card.y - place.y), Math.abs(card.x - place.x), Math.abs(card.height - place.height))
+				: off;
+			if (off > 1) await page.waitForTimeout(50);
+		}
+		expect(off).toBeLessThanOrEqual(1);
+		const add = await boxIn(frame, "[data-wc-loop-add]");
 		await page.mouse.click(add.x + add.width / 2, add.y + add.height / 2);
 		await said(page, "Item added to Our bakes");
 		expect(await eventually(names, (list) => list.length === 5)).toHaveLength(5);
@@ -466,10 +479,10 @@ describe("a Loop's own items, for an Editor", () => {
 			"Almond croissant",
 		]);
 		await page.keyboard.press("Escape");
-		await reset();
 	});
 
 	test("Tab goes through the items and the Add card in the page's order; Enter on the card adds", async () => {
+		await reset();
 		await frame.locator("h1").click();
 		await page.keyboard.press("Escape");
 		await page.keyboard.press("Tab");
@@ -495,11 +508,12 @@ describe("a Loop's own items, for an Editor", () => {
 		expect(await eventually(names, (list) => list.length === 4)).toHaveLength(4);
 		await page.locator(panel).locator("[data-wc-item-panel-position]", { hasText: "item 4 of 4" }).waitFor();
 		await page.keyboard.press("Escape");
-		await reset();
 	});
 
 	test("a query Loop's item shows where it comes from, and opens its Entry's page", async () => {
-		const post = await boxIn(frame, "section.post h3", 0);
+		await reset();
+		await frame.locator("section h3").first().scrollIntoViewIfNeeded();
+		const post = await boxIn(frame, "section h3", 0);
 		await page.mouse.move(post.x + 10, post.y + 5);
 		const chip = page.locator("[data-wc-query-chip]");
 		await chip.locator("[data-wc-query-from]", { hasText: "These are your latest Blog posts" }).waitFor();
@@ -520,7 +534,7 @@ describe("a Loop's own items, for an Editor", () => {
 		await page.locator("[data-wc-loop-add-card]").waitFor();
 
 		// From the keyboard: focus on the item says where it comes from; Enter opens it.
-		await frame.locator("section.post").nth(1).focus();
+		await frame.locator("section").nth(1).focus();
 		await said(page, "Our sourdough starter, explained. These are your latest Blog posts. Press Enter to open it");
 		await chip.waitFor();
 		await page.keyboard.press("Enter");
@@ -532,6 +546,7 @@ describe("a Loop's own items, for an Editor", () => {
 	});
 
 	test("the shell passes the accessibility checks, light and dark; Preview takes the items' marks away", async () => {
+		await reset();
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
 			const second = await boxIn(frame, "li", 1);
@@ -541,13 +556,16 @@ describe("a Loop's own items, for an Editor", () => {
 			await expectNoAxeViolations(page, `an item selected, its panel open (${theme})`);
 			await page.locator(panel).getByRole("button", { name: "Done" }).click();
 			await page.locator(panel).waitFor({ state: "detached" });
-			const post = await boxIn(frame, "section.post h3", 0);
+			await frame.locator("section h3").first().scrollIntoViewIfNeeded();
+			const post = await boxIn(frame, "section h3", 0);
 			await page.mouse.move(post.x + 10, post.y + 5);
 			await page.locator("[data-wc-query-chip]").waitFor();
 			await expectNoAxeViolations(page, `a query item's chip (${theme})`);
 		}
 		await page.emulateMedia({ colorScheme: "light" });
 		await page.mouse.move(700, 880);
+		// The chip goes once the pointer has left its item: nothing changes under the keyboard's walk.
+		await page.locator("[data-wc-query-chip]").waitFor({ state: "detached" });
 		await expectAccessibleScreen(page, "client editing with Loop items");
 
 		await page.locator('[data-wc-segment="preview"]').click();
@@ -565,6 +583,6 @@ describe("a Loop's own items, for an Editor", () => {
 		await page.locator('[data-wc-segment="edit"]').click();
 		await page.locator('[data-wc-item-mark="rest"]').nth(2).waitFor();
 		expect(await frame.locator("li").first().getAttribute("tabindex")).toBe("0");
-		expect(await frame.locator("li h3").first().getAttribute("contenteditable")).toBe("false");
+		expect(await frame.locator("li h2").first().getAttribute("contenteditable")).toBe("false");
 	});
 });
