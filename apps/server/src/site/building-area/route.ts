@@ -15,6 +15,7 @@ import it from "../../messages/it.json" with { type: "json" };
 import { plainText } from "../../responses.ts";
 import { type AdminMessages, SHELL_PERMISSIONS, type ShellConfig } from "../../ui/building-area/api.ts";
 import { buildingAreaCookieOf } from "../cookies.ts";
+import { editBarAssets } from "../edit-bar/assets.ts";
 import { editSessionOf, safeModeOf } from "../edit-mode.ts";
 import { buildingAreaAssets } from "./assets.ts";
 import { shellHeaders } from "./headers.ts";
@@ -107,6 +108,7 @@ export async function buildingAreaEndpoint(
 		layout: preferences.layout,
 		hintSeen: preferences.hintSeen,
 		agency: { name: branding.senderName, note: branding.footer },
+		bodyEditor: (await editBarAssets()).body.path,
 	};
 	const files = await buildingAreaAssets();
 	const html = [

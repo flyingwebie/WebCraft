@@ -9793,6 +9793,30 @@
 				"creating": "Creazione…",
 				"none": "Ancora niente qui."
 			},
+			"body": {
+				"choices": {
+					"paragraph": "Testo",
+					"heading2": "Titolo",
+					"heading3": "Titolo più piccolo",
+					"heading4": "Titolo minore",
+					"bulleted": "Elenco",
+					"numbered": "Elenco numerato",
+					"quote": "Citazione",
+					"image": "Foto",
+					"video": "Video",
+					"table": "Tabella",
+					"callout": "Riquadro",
+					"code": "Codice",
+					"divider": "Separatore",
+					"toggle": "Sezione a scomparsa"
+				},
+				"filter": "Scrivi per filtrare",
+				"agencyMade": "Sezioni create dalla tua agenzia",
+				"fillIn": "Chiede {props}",
+				"nothingToFill": "Pronta da inserire",
+				"close": "Chiudi",
+				"loadFailed": "Non è stato possibile rendere modificabile {name}. Ricarica la pagina per riprovare."
+			},
 			"marks": {
 				"clickToEdit": "Fai clic per modificare",
 				"enterToEdit": "Premi Invio per modificare",
@@ -9801,7 +9825,8 @@
 				"sameEverywhere": "Uguale in ogni pagina",
 				"armed": "{name}. Premi Invio per modificarlo.",
 				"finished": "Modifica di {name} terminata",
-				"dropHere": "Rilascia per usare questa foto"
+				"dropHere": "Rilascia per usare questa foto",
+				"blocks": "Blocchi"
 			},
 			"photo": {
 				"region": "{name}: cambia la foto",
