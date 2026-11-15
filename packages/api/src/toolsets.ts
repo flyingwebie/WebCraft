@@ -124,6 +124,7 @@ export const TOOL_PLACES = {
 	"forms.create": place(["forms"], "structure.edit"),
 	"forms.saveDraft": place(["forms"], "structure.edit"),
 	"forms.publish": publishing(["forms", "publishing"], "structure.edit"),
+	"forms.translateMissing": place(["forms", "translation"], "structure.edit"),
 	"forms.rename": place(["forms"], "structure.edit"),
 	"forms.captcha.get": place(["forms"], "structure.edit"),
 	"forms.captcha.set": place(["forms"], "structure.edit"),

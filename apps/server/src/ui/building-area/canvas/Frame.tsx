@@ -22,6 +22,7 @@ import {
 	widestFor,
 } from "./gutters.ts";
 import { chipName, createOverlay, nameOf, type Overlay } from "./overlay.ts";
+import { chosenRefOf, PLACED_FORM, placedFormAt, placedFormOf } from "./placed-form.ts";
 import { endPreview, showPreview } from "./preview.ts";
 import { answerRedraws } from "./redraw.ts";
 import { regionSaving, type SavingStatus } from "./regions.ts";
@@ -265,7 +266,7 @@ export function Frame({
 		const overlay: Overlay = {
 			...drawn,
 			select(chosen) {
-				chosenRef = chosen?.getAttribute("data-wc-code") ?? null;
+				chosenRef = chosenRefOf(chosen);
 				chosenName = null;
 				drawn.select(chosen);
 				tellSelected(chosen);
@@ -292,7 +293,7 @@ export function Frame({
 			latest.current.onReady?.(swapped);
 			drawn.hover(null);
 			// What is selected by the time the page is drawn, not what was when it was asked for.
-			drawn.select(chosenRef ? elementOfRef(swapped, chosenRef) : null);
+			drawn.select(chosenRef ? (placedFormAt(swapped, chosenRef) ?? elementOfRef(swapped, chosenRef)) : null);
 			drawn.name(chosenName);
 		};
 		handle.current = {
@@ -325,7 +326,8 @@ export function Frame({
 				chosenRef = ref;
 				chosenName = name;
 				const page = element.contentDocument;
-				const found = ref && page ? elementOfRef(page, ref) : null;
+				// A placed Form by the command that placed it (BA-27), else an element by its reference.
+				const found = ref && page ? (placedFormAt(page, ref) ?? elementOfRef(page, ref)) : null;
 				drawn.select(found);
 				drawn.name(name);
 				found?.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -350,11 +352,12 @@ export function Frame({
 			const view = element.contentWindow as (Window & typeof globalThis) | null;
 			return view && target instanceof view.Element ? target : null;
 		};
-		// A region, else (for Staff, whose page tags every element of a Template or Component) the
-		// element a Template or Component drew, else what is under the pointer.
+		// A placed Form as one thing (BA-27: its fields are the Forms place's), else a region, else (for
+		// Staff, whose page tags every element of a Template or Component) the element a Template or
+		// Component drew, else what is under the pointer.
 		const selectable = (target: EventTarget | null): Element | null => {
 			const found = pageElement(target);
-			return found ? (saving.regionOf(found) ?? found.closest("[data-wc-code]") ?? found) : null;
+			return found ? (placedFormOf(found) ?? saving.regionOf(found) ?? found.closest("[data-wc-code]") ?? found) : null;
 		};
 		const regionOf = (target: EventTarget | null) => {
 			const found = pageElement(target);
@@ -403,7 +406,8 @@ export function Frame({
 					case "click": {
 						const target = selectable(event.target);
 						if (target) overlay.select(target);
-						return false;
+						// While editing, a click in a placed Form only chooses it: it never sends it.
+						return !latest.current.following && Boolean(target?.matches(PLACED_FORM));
 					}
 					case "focusin": {
 						const target = regionOf(event.target);

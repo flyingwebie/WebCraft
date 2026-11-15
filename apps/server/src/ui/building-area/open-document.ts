@@ -120,6 +120,11 @@ export function useOpenDocument(config: ShellConfig, announce: (text: string) =>
 			setShown({ status: "missing" });
 			return;
 		}
+		// A Form opens in the Forms place (BA-27), over the home page: the address says so from now on.
+		if (document.kind === "form") {
+			documents.replace({ kind: "page", page: "/" }, `forms/${document.formId}`);
+			return;
+		}
 		let current = true;
 		void whereShown(api, config.site.id, document).then((found) => {
 			if (!current) return;

@@ -1,6 +1,6 @@
 // The Forms place's ground on the server (ADR 0037, BA-26): what the admin's Build tab saves and
-// publishes, the building area does from the Site's own address, for Staff only; a Form's emails and
-// deleting a Form stay the admin's; the shell starts knowing whether the person builds Forms, with the
+// publishes, the building area does from the Site's own address, for Staff only; deleting a Form
+// stays the admin's (its emails and name: `forms-tabs.test.ts`); the shell starts knowing whether the person builds Forms, with the
 // admin's words for a field's settings.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { emptyField } from "@webcraft/renderer/forms";
@@ -116,12 +116,9 @@ describe("a Member", () => {
 });
 
 describe("what stays the admin's", () => {
-	test("a Form's emails, its name and key, and deleting it are not on the Site's address", async () => {
+	test("deleting a Form is not on the Site's address (its emails and its name are BA-27's tabs)", async () => {
 		const { form } = await staff.api.forms.create({ siteId, name: "Job application" });
 		for (const [path, input] of [
-			["forms.saveEmails", { siteId, formId: form.id, emails: { notifications: [] } }],
-			["forms.publishEmails", { siteId, formId: form.id }],
-			["forms.rename", { siteId, formId: form.id, name: "Jobs" }],
 			["forms.delete", { siteId, formId: form.id }],
 			["forms.captcha.get", { siteId }],
 		] as const) {
