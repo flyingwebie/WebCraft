@@ -185,11 +185,15 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 					: words().structure.notMade,
 			failure: null,
 		}));
-		const answer = await request<{ markup: string }>("code/editorMarkup", {
-			path,
-			ref: source.ref,
-			draft: { tree: source.tree },
-		});
+		// A source that may be changed is printed from its shared Draft; one that may not (a Module's
+		// Component, a Template not made yet) is read as Code mode reads it, with no Draft of its own.
+		const answer = source.editable
+			? await request<{ markup: string }>("code/editorMarkup", {
+					path,
+					ref: source.ref,
+					draft: { tree: source.tree },
+				})
+			: await request<{ markup: string }>("code/open", { path, ref: source.ref });
 		if (asked !== run) return;
 		// Typed over meanwhile (just after a save): what was typed stays, against the source as it was.
 		const now = store.get();

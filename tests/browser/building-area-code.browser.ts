@@ -4,6 +4,7 @@
 //   pane's are one choice), the page script; Escape clears the selection and the panes leave;
 // - typing markup previews in the frame without saving; leaving the box saves it, one Undo step; markup
 //   that can't be read lists each problem with its line and column, and saves nothing;
+// - a Module's Component is read only, with the reason;
 // - saving over a version someone saved meanwhile asks: Reload theirs, or Overwrite with mine;
 // - the CSS pane's media query at a 768 px frame writes `@media (width < 768px)` into the Class;
 // - Format: one Undo step in the box, "Formatted · N lines changed", "Already tidy", "Can't format: …";
@@ -36,6 +37,7 @@ beforeAll(async () => {
 	install = await startBrowserInstall();
 	const local = install.install;
 	const { api } = await local.superadmin();
+	await api.modules.approve({ moduleId: "extra-blocks", version: "1.0.0" });
 	const workspaceId = (await local.createWorkspace("Acme Ltd")).id;
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
 	const person = await local.createStaff({ workspaces: [workspaceId], name: "Sam Staff" });
@@ -52,7 +54,7 @@ beforeAll(async () => {
 	const site = await api.templates.saveSiteTemplateMarkup({
 		siteId,
 		markup: [
-			'<header class="site-header"><p>Acme Bakery</p></header>',
+			'<header class="site-header"><p>Acme Bakery</p><MapEmbed label="Find us" url="https://www.openstreetmap.org/export/embed.html?bbox=1,2,3,4" /></header>',
 			'<main class="page">{{@outlet}}</main>',
 			"<footer><p>Harbour Street</p></footer>",
 		].join(""),
@@ -262,6 +264,20 @@ describe("the code panes", () => {
 		await page.keyboard.press("Escape");
 		await page.locator('[data-wc-outline="selected"]').waitFor({ state: "hidden" });
 		for (const id of ["html", "css", "js"] as const) await pane(page, id).waitFor({ state: "detached" });
+	});
+
+	test("a Module's Component shows its markup read only, with the reason, and no Format", async () => {
+		const { page } = await shared();
+		await clickIn(page, await frameOf(page), 'header [data-extra-block="map"] a');
+		await page.waitForFunction(
+			() =>
+				document.querySelector<HTMLTextAreaElement>('textarea[data-wc-code-box="html"]')?.value.includes("<a") === true,
+		);
+		expect(await box(page, "html").getAttribute("readonly")).not.toBeNull();
+		expect(await pane(page, "html").locator("[data-format-note]").textContent()).toMatch(
+			/comes from a Module: it can't be changed here\.$/,
+		);
+		expect(await pane(page, "html").locator("[data-format-button]").count()).toBe(0);
 	});
 
 	test("typing markup previews in the frame without saving; leaving the box saves it, one Undo step", async () => {
