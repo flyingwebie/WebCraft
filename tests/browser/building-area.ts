@@ -96,12 +96,10 @@ export async function enterBuildingArea(
 		...(options.returnTo ? { returnTo: options.returnTo } : {}),
 		...(options.safeMode ? { safeMode: true } : {}),
 	});
-	// The link names the test Install's own address for the Site (its Staging address, or the Primary
-	// domain `goLive` gave it); the web process serves it on `.localhost`.
+	// The link names the test Install's own address for the Site; the web process serves it on `.localhost`,
+	// and the browser follows it on the Site's Staging address, where the checks then go on.
 	const link = new URL(url);
-	const address = `${link.pathname}${link.search}`;
-	const live = link.hostname === new URL(install.liveUrl(options.slug, "/")).hostname;
-	await page.goto(live ? install.liveUrl(options.slug, address) : install.siteUrl(options.slug, address));
+	await page.goto(install.siteUrl(options.slug, `${link.pathname}${link.search}`));
 	return frameOf(page);
 }
 

@@ -611,14 +611,31 @@ describe("Staff", () => {
 		await open(page, "/blog/rye");
 		await componentTab(page, "Three");
 		expect(await box(page, "js").inputValue()).toBe(COUNTER);
-		// Someone else saves the Component's script after the box was read.
-		await api.components.saveScriptDraft({ siteId, componentId: counterId, code: `${COUNTER}// theirs\n` });
-		await box(page, "js").click();
-		await toEnd(page);
-		await page.keyboard.insertText("// mine\n");
-		await page.keyboard.press("ControlOrMeta+s");
 		const dialog = page.getByRole("alertdialog", { name: "Someone saved a newer version" });
-		await dialog.waitFor();
+		/**
+		 * Types `line` and saves it with ⌘S, while someone else saves `theirs`: the person's save is held on
+		 * its way until theirs has landed, so it goes out based on the version the box was read at.
+		 */
+		const clash = async (line: string, theirs: string) => {
+			const held = Promise.withResolvers<void>();
+			await page.route("**/_webcraft/edit/api/code/saveScript", async (route) => {
+				await held.promise;
+				await route.continue();
+			});
+			try {
+				await box(page, "js").click();
+				await toEnd(page);
+				await page.keyboard.insertText(line);
+				await page.keyboard.press("ControlOrMeta+s");
+				await api.components.saveScriptDraft({ siteId, componentId: counterId, code: theirs });
+				held.resolve();
+				await dialog.waitFor();
+			} finally {
+				held.resolve();
+				await page.unrouteAll({ behavior: "wait" });
+			}
+		};
+		await clash("// mine\n", `${COUNTER}// theirs\n`);
 		expect(await dialog.textContent()).toContain("Component script");
 		expect(await page.evaluate(() => document.activeElement?.hasAttribute("data-wc-conflict-reload"))).toBe(true);
 		// Their version is still the Draft while the question is asked.
@@ -630,12 +647,7 @@ describe("Staff", () => {
 		expect(await eventually(counterDraft, (code) => code === `${COUNTER}// mine\n`)).toBe(`${COUNTER}// mine\n`);
 
 		// Again, and Reload theirs drops what was typed and shows theirs.
-		await api.components.saveScriptDraft({ siteId, componentId: counterId, code: `${COUNTER}// theirs again\n` });
-		await box(page, "js").click();
-		await toEnd(page);
-		await page.keyboard.insertText("// mine again\n");
-		await page.keyboard.press("ControlOrMeta+s");
-		await dialog.waitFor();
+		await clash("// mine again\n", `${COUNTER}// theirs again\n`);
 		await dialog.getByRole("button", { name: "Reload theirs" }).click();
 		await page.waitForFunction(
 			(wanted) => document.querySelector<HTMLTextAreaElement>('textarea[data-wc-code-box="js"]')?.value === wanted,
