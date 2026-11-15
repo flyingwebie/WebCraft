@@ -308,7 +308,7 @@ const AGENT_STYLES = `/* Empty elements are never invisible (SPEC 6, BA-10): a d
 [data-wc-type="media"][data-wc-item]:not(img):empty::after { content: attr(data-wc-empty-label); }
 a[data-wc-type="link"][data-wc-item]:empty { display: inline-block; min-width: 6rem; min-height: 1.5em; }
 a[data-wc-type="link"][data-wc-item]:empty::after { content: attr(data-wc-empty-label); }
-[data-wc-hidden-placement]:not([data-wc-hidden-placement] *) { opacity: 0.6; }
+[data-wc-hidden-placement]:not([data-wc-hidden-placement] *) { opacity: 0.7; }
 html[data-wc-preview] [data-wc-hidden-placement]:not([data-wc-hidden-placement] *) { display: none !important; }
 [data-wc-placement-prop][contenteditable="true"] { outline: none; }
 [data-wc-type="body"] [data-wc-block-part][contenteditable="true"] { cursor: text; }

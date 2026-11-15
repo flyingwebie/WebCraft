@@ -9979,6 +9979,7 @@
 			},
 			"marks": {
 				"clickToEdit": "Click to edit",
+				"tapToEdit": "Tap to edit",
 				"enterToEdit": "Press Enter to edit",
 				"header": "Header",
 				"footer": "Footer",
