@@ -822,6 +822,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 			className="bg-chrome text-chrome-text grid h-dvh w-full grid-cols-[48px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_48px] overflow-hidden font-sans text-[12px]"
 			data-interface={hidden ? "hidden" : "shown"}
 			data-place={placeKey ?? undefined}
+			data-wc-staff=""
 		>
 			{/* The page itself is the main content: following the link puts focus in the frame (see <main>). */}
 			<a

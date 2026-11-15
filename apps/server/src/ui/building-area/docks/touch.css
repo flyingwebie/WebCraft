@@ -1,0 +1,47 @@
+/*
+ * Staff with a finger (BA-34; SPEC 2, as client editing has it, BA-19): under a coarse pointer every
+ * control of the Staff shell is a target of at least 44 × 44 px, whatever the window's width: the rail,
+ * the bottom bar and its insert row, the drawer buttons, the docks' panel headers, Layers' rows and the
+ * panels' own controls. Compiled into the shell's stylesheet after client editing's
+ * (`site/building-area/assets.ts`). The parts other tickets draw are restyled here by their data
+ * attributes, so each stays one component; a fine pointer (a mouse, a trackpad) sees no change.
+ * The separators between panels stay 8 px: a finger moves and collapses panels from their menus.
+ */
+@media (pointer: coarse) {
+	[data-wc-staff]
+		:is(
+			button,
+			a[href],
+			select,
+			textarea,
+			summary,
+			input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="range"], [type="file"]),
+			[role="button"],
+			[role="switch"],
+			[role="tab"],
+			[role="menuitem"],
+			[role="menuitemradio"],
+			[role="menuitemcheckbox"],
+			[role="option"],
+			[role="treeitem"]
+		):not(.sr-only) {
+		min-height: 44px;
+		min-width: 44px;
+	}
+
+	/* The rows and headers that hold them grow with them. */
+	[data-wc-staff] :is([data-wc-panel-header], [data-wc-insert-buttons], [data-wc-insert-buttons] > *) {
+		height: auto;
+	}
+
+	/* The insert row keeps its order and its keys; when its buttons no longer fit the bar, it scrolls. */
+	[data-wc-staff] :has(> [data-wc-insert-buttons]) {
+		max-width: 100%;
+		overflow-x: auto;
+		overscroll-behavior-x: contain;
+		scrollbar-width: none;
+	}
+	[data-wc-staff] [data-wc-insert-buttons] {
+		gap: 0;
+	}
+}
