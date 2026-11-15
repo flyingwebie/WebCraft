@@ -18,7 +18,7 @@ import type { ElementTree, TreeNode } from "@webcraft/renderer/builder";
 import type { Frame, Locator, Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
-import { announced, enterBuildingArea, frameOf, settled } from "./building-area.ts";
+import { announced, enterBuildingArea, eventually, frameOf, settled } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
 
@@ -111,17 +111,6 @@ async function openRows(page: Page): Promise<void> {
 		await closed.locator("svg").first().click();
 		await settled(page);
 	}
-}
-
-/** What `read` gives once `done` accepts it, waiting up to 15 seconds (a busy machine is slow). */
-async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
-	const deadline = Date.now() + 15000;
-	let value = await read();
-	while (!done(value) && Date.now() < deadline) {
-		await Bun.sleep(100);
-		value = await read();
-	}
-	return value;
 }
 
 async function says(locator: Locator, words: string): Promise<void> {
@@ -298,19 +287,33 @@ describe("fixed text becomes a value clients edit", () => {
 		expect(await eventually(siteMarkup, (text) => text.includes("{{ site.hours }}"))).toContain(
 			'<p class="hours">{{ site.hours }}</p>',
 		);
+
+		// One step: one Undo takes the binding back (the Global stays: Globals' fields have no Draft).
+		await page.locator('[data-wc-bar="undo"]').click();
+		expect(await eventually(siteMarkup, (text) => text.includes('<p class="hours">Open daily</p>'))).toContain(
+			'<p class="hours">Open daily</p>',
+		);
 	});
 
 	test("in a Component it becomes a Prop, the text its default; Undo takes back both in one step", async () => {
 		const page = await shared();
 		await clickIn(page, "aside.notice p");
 		await says(inspector(page).locator("[data-wc-fixed-texts]"), "“Closed on Sundays”");
+		const shownBefore = await (await frameOf(page)).locator("aside.notice p").elementHandle();
+		if (!shownBefore) throw new Error("The notice isn't on the page.");
 		const question = await ask(page, "Bind to Prop");
 		await question.getByLabel("Label").fill("Message");
 		await question.getByRole("button", { name: "Bind to Prop" }).click();
 		await question.waitFor({ state: "detached" });
 		await announces(page, "The text now reads {{ props.message }}.");
-		// The Prop's default is the text: the page shows the same words.
-		await (await frameOf(page)).getByText("Closed on Sundays").first().waitFor();
+		// The Prop's default is the text: the page, drawn again from the changed Component, shows the same
+		// words (the paragraph is a new one, so it isn't the old page still showing).
+		await eventually(
+			() => shownBefore.evaluate((element) => element.isConnected).catch(() => false),
+			(connected) => !connected,
+			{ what: "The notice drawn again" },
+		);
+		expect(await (await frameOf(page)).locator("aside.notice p").textContent()).toBe("Closed on Sundays");
 
 		const { api } = await install.install.superadmin();
 		const read = async () => {

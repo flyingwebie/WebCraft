@@ -11,7 +11,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Locator, Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
-import { announced, enterBuildingArea, frameOf, settled } from "./building-area.ts";
+import { announced, enterBuildingArea, eventually, frameOf, settled, stays } from "./building-area.ts";
 import { expectAccessibleScreen } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
 
@@ -19,6 +19,7 @@ let install: BrowserInstall;
 let staff: TestAccount;
 let siteId: string;
 let postTypeId: string;
+let noteId: string;
 const slug = "bakery";
 const path = "/blog/fresh-bread";
 
@@ -37,6 +38,7 @@ beforeAll(async () => {
 	});
 	await api.templates.publish({ siteId, templateId: site.template.id });
 	const { component } = await api.components.create({ siteId, name: "Note" });
+	noteId = component.id;
 	await api.components.saveMarkup({
 		siteId,
 		componentId: component.id,
@@ -87,19 +89,18 @@ afterAll(async () => {
 	await install?.close();
 });
 
-async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
-	const deadline = Date.now() + 15000;
-	let value = await read();
-	while (!done(value) && Date.now() < deadline) {
-		await Bun.sleep(100);
-		value = await read();
-	}
-	return value;
-}
-
 async function entryMarkup(): Promise<string> {
 	const { api } = await install.install.superadmin();
 	return ((await api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).markup?.draft ?? "").replace(
+		/ data-wc-id="[^"]*"/g,
+		"",
+	);
+}
+
+/** The Note Component's Draft markup, without ids. */
+async function noteMarkup(): Promise<string> {
+	const { api } = await install.install.superadmin();
+	return (await api.components.getMarkup({ siteId, componentId: noteId })).markup.draft.replace(
 		/ data-wc-id="[^"]*"/g,
 		"",
 	);
@@ -197,6 +198,8 @@ describe("dragging on the canvas", () => {
 	test("an element moves within its own Template or Component only: elsewhere is refused in words", async () => {
 		const page = await shared();
 		const before = await article();
+		const noteBefore = await noteMarkup();
+		expect(noteBefore).toContain('<aside class="note"><p>Noted</p></aside>');
 		await clickIn(page, "aside.note p");
 		await drag(page, page.locator("[data-wc-chip]"), "h1", 0.2);
 		expect(
@@ -205,7 +208,12 @@ describe("dragging on the canvas", () => {
 				(text) => text.includes("can't go there"),
 			),
 		).toContain("an element moves within its own Template or Component");
-		expect(await article()).toBe(before);
+		// Nothing moved: neither the Entry template nor the Component the paragraph is in, given time to save.
+		await stays(
+			async () => ({ article: await article(), note: await noteMarkup() }),
+			(now) => now.article === before && now.note === noteBefore,
+			{ during: 2000, what: "The Entry template and the Note Component" },
+		);
 	});
 
 	test("a button of the insert row dragged onto the page inserts its element where it is dropped", async () => {
@@ -222,7 +230,29 @@ describe("dragging on the canvas", () => {
 		expect(await eventually(article, (text) => /<p>Last words<\/p><p>[^<]+<\/p><\/div>/.test(text))).toMatch(
 			/<div class="box"><p>Inside the box<\/p><p>Last words<\/p><p>[^<]+<\/p><\/div>/,
 		);
-		// A click on the button still inserts by the one rule.
+		// The drag leaves no catcher behind.
+		expect(await page.locator("[data-wc-catcher]").count()).toBe(0);
+	});
+
+	test("a button of the insert row dropped in the middle of an element that holds others puts it inside", async () => {
+		const page = await shared();
+		const before = await article();
+		const inBox = (text: string) => text.match(/<div class="box">([\s\S]*?)<\/div>/)?.[1] ?? "";
+		const line = await drag(page, page.locator('[data-wc-insert="heading"]'), "div.box", 0.5);
+		expect(line).toBe("inside");
+		const after = await eventually(article, (text) => (inBox(text).match(/<h2>/g) ?? []).length === 1);
+		expect(inBox(after)).toContain("<h2>Heading</h2>");
+		expect((before.match(/<h2>/g) ?? []).length + 1).toBe((after.match(/<h2>/g) ?? []).length);
+	});
+
+	test("a click on a button of the insert row still inserts its element, with no drag", async () => {
+		const page = await shared();
+		await clickIn(page, "p.lead");
+		const before = await article();
+		const count = (text: string) => (text.match(/<p\b/g) ?? []).length;
+		await page.locator('[data-wc-insert="text"]').click();
+		const after = await eventually(article, (text) => count(text) === count(before) + 1);
+		expect(count(after)).toBe(count(before) + 1);
 		expect(await page.locator("[data-wc-catcher]").count()).toBe(0);
 	});
 
