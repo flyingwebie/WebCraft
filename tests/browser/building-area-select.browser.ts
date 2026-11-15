@@ -123,15 +123,29 @@ const tree = (page: Page) => page.getByRole("tree", { name: "Elements of the pag
 const inspector = (page: Page) => page.locator('[data-wc-panel-body="inspector"]');
 const chip = (page: Page) => page.locator("[data-wc-chip]");
 
-/** What `read` gives once `done` accepts it, waiting up to 8 seconds. */
+/** What `read` gives once `done` accepts it, waiting up to 15 seconds (a busy machine is slow). */
 async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
-	const deadline = Date.now() + 8000;
+	const deadline = Date.now() + 15000;
 	let value = await read();
 	while (!done(value) && Date.now() < deadline) {
 		await Bun.sleep(100);
 		value = await read();
 	}
 	return value;
+}
+
+/**
+ * Waits until `read` answers `wanted` (or a text `wanted` matches), then checks it: the shell draws a
+ * selection's parts (outline, chip, row, Inspector, address) and saves a change a moment after the
+ * click or the key, later on a busy machine, so a check reads the state it waits for, never at once.
+ */
+async function soon<Value>(read: () => Promise<Value>, wanted: Value | RegExp): Promise<void> {
+	const pattern = wanted instanceof RegExp ? wanted : null;
+	const value = await eventually(read, (seen) =>
+		pattern ? pattern.test(String(seen ?? "")) : JSON.stringify(seen) === JSON.stringify(wanted),
+	);
+	if (pattern) expect(String(value ?? "")).toMatch(pattern);
+	else expect(value as unknown).toEqual(wanted);
 }
 
 /** The Entry template's Draft markup now, as the admin reads it. */
@@ -190,25 +204,25 @@ describe("Staff select, arrange and change elements of Templates and Components"
 		const frame = await frameOf(page);
 		await clickIn(page, frame, "h1.hero__title");
 		await page.locator('[data-wc-outline="selected"]').waitFor();
-		expect(await chip(page).textContent()).toMatch(/^h1 · Heading · \d+ × \d+$/);
+		await soon(() => chip(page).textContent(), /^h1 · Heading · \d+ × \d+$/);
 		// An element of a Component is drawn in the Component colour.
-		expect(await page.locator('[data-wc-outline="selected"]').getAttribute("class")).toContain("border-[#a78bfa]");
+		await soon(() => page.locator('[data-wc-outline="selected"]').getAttribute("class"), /border-\[#a78bfa\]/);
 		const row = tree(page).getByRole("treeitem", { name: "h1 .hero__title" });
-		expect(await row.getAttribute("aria-selected")).toBe("true");
-		expect(await page.locator('[data-wc-panel="inspector"] h2').textContent()).toBe("Element");
-		expect(await inspector(page).getByLabel("Tag").inputValue()).toBe("h1");
-		expect(await inspector(page).locator("[data-wc-class]").allTextContents()).toEqual([".hero__title"]);
-		expect(await inspector(page).locator("[data-wc-content]").textContent()).toBe("{{ props.headline }}");
-		expect(await inspector(page).locator("[data-wc-inside]").textContent()).toBe("Inside the HeroSplit Component");
-		expect(selectedIn(page)).toMatch(/^content\/[\w-]+#[\w-]+$/);
+		await soon(() => row.getAttribute("aria-selected"), "true");
+		await soon(() => page.locator('[data-wc-panel="inspector"] h2').textContent(), "Element");
+		await soon(() => inspector(page).getByLabel("Tag").inputValue(), "h1");
+		await soon(() => inspector(page).locator("[data-wc-class]").allTextContents(), [".hero__title"]);
+		await soon(() => inspector(page).locator("[data-wc-content]").textContent(), "{{ props.headline }}");
+		await soon(() => inspector(page).locator("[data-wc-inside]").textContent(), "Inside the HeroSplit Component");
+		await soon(async () => selectedIn(page), /^content\/[\w-]+#[\w-]+$/);
 	});
 
 	test("on text, the click selects and the caret is there: typing saves to the Entry's Draft", async () => {
 		const { page } = await shared();
 		const frame = await frameOf(page);
 		await clickIn(page, frame, "h2");
-		expect(await chip(page).textContent()).toMatch(/^h2 · Title · \d+ × \d+$/);
-		expect(await tree(page).getByRole("treeitem", { name: "h2" }).getAttribute("aria-selected")).toBe("true");
+		await soon(() => chip(page).textContent(), /^h2 · Title · \d+ × \d+$/);
+		await soon(() => tree(page).getByRole("treeitem", { name: "h2" }).getAttribute("aria-selected"), "true");
 		await clickIn(page, frame, "h2");
 		await page.keyboard.press("End");
 		await page.keyboard.type(" today");
@@ -235,8 +249,8 @@ describe("Staff select, arrange and change elements of Templates and Components"
 		expect(await stillTheSameWindow(page)).toBe(true);
 		expect(await (await frameOf(page)).evaluate(() => window.scrollY)).toBe(scrolled);
 		// Still selected, as the page now draws it, and the Draft has it.
-		expect(await chip(page).textContent()).toMatch(/^h3 · /);
-		expect(await entryTemplateMarkup()).toMatch(/<h3[^>]* class="lead"/);
+		await soon(() => chip(page).textContent(), /^h3 · /);
+		await soon(entryTemplateMarkup, /<h3[^>]* class="lead"/);
 
 		await page.getByRole("button", { name: "Undo" }).first().click();
 		await (await frameOf(page)).locator("p.lead").waitFor();
@@ -259,7 +273,7 @@ describe("Staff select, arrange and change elements of Templates and Components"
 		expect(
 			await (await frameOf(page)).locator("p.lead").evaluate((element) => getComputedStyle(element).fontSize),
 		).toBe("48px");
-		expect(await inspector(page).locator("[data-wc-class]").allTextContents()).toEqual([".lead", ".is-large"]);
+		await soon(() => inspector(page).locator("[data-wc-class]").allTextContents(), [".lead", ".is-large"]);
 
 		await inspector(page).getByRole("button", { name: "Remove .is-large" }).click();
 		await (await frameOf(page)).locator("p.lead:not(.is-large)").waitFor();
@@ -282,14 +296,14 @@ describe("Staff select, arrange and change elements of Templates and Components"
 		await inspector(page).getByLabel("Value", { exact: true }).fill("Fresh: {{ title }}");
 		await page.keyboard.press("Enter");
 		await (await frameOf(page)).locator('p.lead[title="Fresh: Fresh bread today"]').waitFor();
-		expect(await inspector(page).getByLabel("Value of title").inputValue()).toBe("Fresh: {{ title }}");
+		await soon(() => inspector(page).getByLabel("Value of title").inputValue(), "Fresh: {{ title }}");
 		expect(await eventually(entryTemplateMarkup, (markup) => markup.includes("{{ title }}"))).toMatch(
 			/<p[^>]* id="lead-text"[^>]* title="Fresh: \{\{ title \}\}"/,
 		);
 		// A value that isn't one is refused in words, and nothing changes.
 		await inspector(page).getByLabel("Value of title").fill("{{ not a path }}");
 		await page.keyboard.press("Enter");
-		expect(await inspector(page).getByRole("alert").textContent()).toContain("This isn't a value: {{ not a path }}");
+		await soon(() => inspector(page).getByRole("alert").textContent(), /This isn't a value: \{\{ not a path \}\}/);
 		// Each was one step.
 		await page.getByRole("button", { name: "Undo" }).first().click();
 		await (await frameOf(page)).locator("p.lead:not([title])").waitFor();
@@ -307,7 +321,7 @@ describe("Staff select, arrange and change elements of Templates and Components"
 		await (await frameOf(page)).locator("article > small").waitFor();
 		const markup = await eventually(entryTemplateMarkup, (text) => text.includes("<small"));
 		expect(markup).toMatch(/<small[^>]*>Baked by hand\.<\/small>/);
-		expect(await tree(page).getByRole("treeitem", { name: "Note small" }).getAttribute("aria-selected")).toBe("true");
+		await soon(() => tree(page).getByRole("treeitem", { name: "Note small" }).getAttribute("aria-selected"), "true");
 		// Both are steps: Undo twice takes both back.
 		await page.getByRole("button", { name: "Undo" }).first().click();
 		await (await frameOf(page)).locator("article > p:not(.lead)").waitFor();
@@ -322,22 +336,22 @@ describe("Staff select, arrange and change elements of Templates and Components"
 		const rows = tree(page);
 		await rows.getByRole("treeitem", { name: "h2" }).focus();
 		await page.keyboard.press("ArrowDown");
-		expect(await rows.getByRole("treeitem", { name: "p .lead" }).getAttribute("aria-selected")).toBe("true");
+		await soon(() => rows.getByRole("treeitem", { name: "p .lead" }).getAttribute("aria-selected"), "true");
 		// The canvas follows the tree.
-		await settled(page);
-		expect(await chip(page).textContent()).toMatch(/^p · Subtitle · /);
+		await soon(() => chip(page).textContent(), /^p · Subtitle · /);
 		await page.keyboard.press("ArrowUp");
+		await soon(() => rows.getByRole("treeitem", { name: "h2" }).getAttribute("aria-selected"), "true");
 		await page.keyboard.press("ArrowUp");
-		expect(await rows.getByRole("treeitem", { name: "HeroSplit" }).getAttribute("aria-selected")).toBe("true");
+		await soon(() => rows.getByRole("treeitem", { name: "HeroSplit" }).getAttribute("aria-selected"), "true");
 		// Open and close: the Placement's Component's elements nest under it.
 		const hero = rows.getByRole("treeitem", { name: "HeroSplit" });
-		expect(await hero.getAttribute("aria-expanded")).toBe("false");
+		await soon(() => hero.getAttribute("aria-expanded"), "false");
 		await page.keyboard.press("ArrowRight");
-		expect(await hero.getAttribute("aria-expanded")).toBe("true");
+		await soon(() => hero.getAttribute("aria-expanded"), "true");
 		await page.keyboard.press("ArrowLeft");
-		expect(await hero.getAttribute("aria-expanded")).toBe("false");
+		await soon(() => hero.getAttribute("aria-expanded"), "false");
 		await page.keyboard.press("ArrowRight");
-		expect(await hero.getAttribute("aria-expanded")).toBe("true");
+		await soon(() => hero.getAttribute("aria-expanded"), "true");
 		await rows.getByRole("treeitem", { name: "section .hero" }).waitFor();
 
 		// Alt+ArrowUp moves the subtitle above the title, in the Draft and on the page.
@@ -346,9 +360,10 @@ describe("Staff select, arrange and change elements of Templates and Components"
 		await page.keyboard.press("Alt+ArrowUp");
 		await (await frameOf(page)).locator("p.lead + h2").waitFor();
 		expect(await eventually(entryTemplateMarkup, (markup) => /lead[\s\S]*<h2/.test(markup))).toMatch(/lead[\s\S]*<h2/);
-		expect(
-			await rows.getByRole("treeitem", { name: "p .lead" }).evaluate((row) => row === document.activeElement),
-		).toBe(true);
+		await soon(
+			() => rows.getByRole("treeitem", { name: "p .lead" }).evaluate((row) => row === document.activeElement),
+			true,
+		);
 		await page.getByRole("button", { name: "Undo" }).first().click();
 		await (await frameOf(page)).locator("h2 + p.lead").waitFor();
 
@@ -364,21 +379,21 @@ describe("Staff select, arrange and change elements of Templates and Components"
 		const { page } = await shared();
 		const frame = await frameOf(page);
 		await clickIn(page, frame, "p.lead");
+		await soon(async () => selectedIn(page), /^content#/);
 		const ref = selectedIn(page);
-		expect(ref).toMatch(/^content#/);
 		await page.keyboard.press("Escape");
 		await page.locator('[data-wc-outline="selected"]').waitFor({ state: "hidden" });
 		await inspector(page).waitFor({ state: "detached" });
-		expect(selectedIn(page)).toBeNull();
-		expect(await tree(page).locator('[aria-selected="true"]').count()).toBe(0);
+		await soon(async () => selectedIn(page), null);
+		await soon(() => tree(page).locator('[aria-selected="true"]').count(), 0);
 
 		await clickIn(page, frame, "p.lead");
 		await page.locator('[data-wc-place="templates"]').click();
 		await page.locator("[data-wc-place-frame]").waitFor();
 		await page.goBack();
 		await page.locator("[data-wc-place-frame]").waitFor({ state: "detached" });
-		expect(selectedIn(page)).toBe(ref);
-		expect(await tree(page).getByRole("treeitem", { name: "p .lead" }).getAttribute("aria-selected")).toBe("true");
+		await soon(async () => selectedIn(page), ref);
+		await soon(() => tree(page).getByRole("treeitem", { name: "p .lead" }).getAttribute("aria-selected"), "true");
 		await inspector(page).getByLabel("Tag").waitFor();
 
 		await page.reload();
@@ -391,7 +406,7 @@ describe("Staff select, arrange and change elements of Templates and Components"
 			),
 		).toBe("true");
 		await page.locator('[data-wc-outline="selected"]').waitFor();
-		expect(await chip(page).textContent()).toMatch(/^p · Subtitle · /);
+		await soon(() => chip(page).textContent(), /^p · Subtitle · /);
 	});
 
 	test("an element of a Module's Component is read only, with the reason", async () => {

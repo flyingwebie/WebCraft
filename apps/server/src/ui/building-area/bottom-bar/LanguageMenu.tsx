@@ -1,7 +1,7 @@
 import { CheckIcon, ChevronUpIcon, LanguagesIcon } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 
-import type { Words } from "../api.ts";
+import { fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
 
 /** One of the page's languages: the page in it, or that language's home page where it is hidden. */
@@ -91,7 +91,12 @@ export function LanguageMenu({
 				aria-haspopup="menu"
 				aria-expanded={open}
 				aria-controls={open ? id : undefined}
-				aria-label={`${words.language}: ${current.name}`}
+				// Named with the words it shows: the language's name for a client, its code first for Staff.
+				aria-label={
+					look === "client"
+						? `${words.language}: ${current.name}`
+						: fill(words.languageCode, { code: current.code.toUpperCase(), name: current.name })
+				}
 				onClick={() => setOpen((was) => !was)}
 				onKeyDown={(event) => {
 					if (event.key === "ArrowUp" || event.key === "ArrowDown") {

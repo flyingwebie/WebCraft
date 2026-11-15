@@ -180,6 +180,14 @@ for (const theme of THEMES) {
 				"menu",
 				`account menu (${theme})`,
 			);
+			// A menu appears at once: no slide, no fade, no zoom (SPEC 10). The browser asks for reduced
+			// motion, which only shortens durations: the animation itself must be gone.
+			await page.getByRole("button", { name: /Open the account menu/ }).click();
+			const menu = page.locator('[data-slot="dropdown-menu-content"]');
+			await menu.waitFor();
+			expect(await menu.evaluate((element) => getComputedStyle(element).animationName)).toBe("none");
+			await page.keyboard.press("Escape");
+			await menu.waitFor({ state: "detached" });
 		});
 
 		test("Search opens and closes from the keyboard", async () => {

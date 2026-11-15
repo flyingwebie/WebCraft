@@ -6,6 +6,7 @@
 //   inside the frame; a width wider than the pane zooms the page out and says so; double-click and the
 //   readout's reset go back to full width; the readout comes 300 ms after the pointer and leaves 1.5 s
 //   after it, and names the breakpoint the width is in, from the Design system;
+// - tooltips and menus appear at once, with no slide or fade (SPEC 10);
 // - Hide interface keeps the rail, the bar and the selection's outline;
 // - Dark preview switches the page's Dark mode in the frame only;
 // - Exit ends the session (the next edit request answers EDIT_MODE_ENDED) and goes back to the admin;
@@ -199,6 +200,24 @@ describe("the building area's chrome, for Staff", () => {
 		expect(Math.round(box.x - canvas.x)).toBe(12);
 		expect(Math.round(canvas.x + canvas.width - (box.x + box.width))).toBe(12);
 		expect(Math.round(canvas.y + canvas.height - (box.y + box.height))).toBe(12);
+	});
+
+	test("tooltips and menus appear at once, with no slide or fade (SPEC 10)", async () => {
+		const { page } = await shared();
+		// The browser asks for reduced motion, which only shortens durations: the animation's name tells.
+		const tip = page.locator('[data-wc-rail="hide-interface"] [data-wc-tip]');
+		await page.locator('[data-wc-rail="hide-interface"]').hover();
+		await tip.waitFor();
+		expect(await tip.evaluate((element) => getComputedStyle(element).animationName)).toBe("none");
+		await page.mouse.move(700, 400);
+		await tip.waitFor({ state: "hidden" });
+
+		await page.getByRole("button", { name: "More places", exact: true }).click();
+		const menu = page.getByRole("menu");
+		await menu.waitFor();
+		expect(await menu.evaluate((element) => getComputedStyle(element).animationName)).toBe("none");
+		await page.keyboard.press("Escape");
+		await menu.waitFor({ state: "detached" });
 	});
 
 	test("a side gutter narrows the frame symmetrically; at 768 the page's media query matches; the readout names the breakpoint", async () => {
