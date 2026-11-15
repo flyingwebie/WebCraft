@@ -90,7 +90,7 @@ function typingIn(target: EventTarget | null): boolean {
 }
 
 /** What the bottom bar shows of the page in the frame. */
-type ShownPage = { address: string; changes: number; inReview: boolean; languages: PageLanguage[] };
+type ShownPage = { address: string; changes: number; inReview: boolean };
 
 /**
  * What a Placement selected is called (its Component's name), for the canvas's chip and the Inspector's
@@ -172,6 +172,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 
 	// The page in the frame and the Draft state beside Publish.
 	const [shown, setShown] = useState<ShownPage | null>(null);
+	// The page's languages, kept while the next page loads, so the language menu stays and keeps focus.
+	const [pageLanguages, setPageLanguages] = useState<PageLanguage[]>([]);
 	// What is selected on the canvas, which the docks' panels follow.
 	const [selection, setSelection] = useState<PanelContext["selection"]>(null);
 	const [saving, setSaving] = useState<"idle" | "saving" | "failed">("idle");
@@ -360,14 +362,15 @@ export function Shell({ config }: { config: ShellConfig }) {
 	const takeState = useCallback(
 		(address: string, answer: Promise<EditAnswer<PageState>>) => {
 			void answer.then((state) => {
-				if (!state.ok || shownAddress.current !== address) return;
+				if (shownAddress.current !== address) return;
+				setPageLanguages(state.ok ? state.data.languages : []);
+				if (!state.ok) return;
 				editing.pageState(state.data);
 				setPageState(state.data);
 				setShown({
 					address,
 					changes: state.data.changes.length,
 					inReview: state.data.reviews.some((review) => review.status === "inReview"),
-					languages: state.data.languages,
 				});
 			});
 		},
@@ -839,7 +842,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 			<BottomBar
 				words={words}
 				language={config.language}
-				languages={place || inPlaceTarget ? [] : (shown?.languages ?? [])}
+				languages={place || inPlaceTarget ? [] : pageLanguages}
 				onLanguage={(language) => frame.current?.navigate(language.path)}
 				nav={
 					place ? (
