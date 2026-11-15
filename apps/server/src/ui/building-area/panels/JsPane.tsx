@@ -24,6 +24,7 @@ import {
 	useFormatSlot,
 } from "./pane-parts.tsx";
 import { type PaneStore, paneStore, usePane } from "./pane-store.ts";
+import { type ScriptSettings, ScriptSettingsRow, sameSettings } from "./ScriptSettings.tsx";
 
 /**
  * The JS pane (BA-11; SPEC 5, `builder/02`, `05`, `07`, `10`): the page's scripts, as Code mode's JS
@@ -44,18 +45,25 @@ import { type PaneStore, paneStore, usePane } from "./pane-store.ts";
  * save before it takes a step back. ⌘S saves at once. A script typed and not saved yet, or a conflict
  * waiting for its choice, is kept by its page when the frame shows another one, and shown again (and
  * saved, or asked again) once the frame shows that page again (BA-34).
+ *
+ * The Component tab also sets the script's **Consent category** and the **Libraries it needs** (BA-36,
+ * as Code mode's Component tab did), in a row under the header: a change saves at once with the script
+ * (`code/saveScript` takes `consentCategory` and `libraryIds`), as one Undo step with its code.
  */
 
 export type ScriptTab = "page" | "site" | "component";
 
 type CodeScript = { code: string; version: string | null; src: string | null };
-type ComponentScript = CodeScript & {
-	componentId: string;
-	name: string;
-	editable: boolean;
-	pages: number;
-	runtime: string;
-};
+type ComponentScript = CodeScript &
+	ScriptSettings & {
+		componentId: string;
+		name: string;
+		editable: boolean;
+		pages: number;
+		runtime: string;
+		/** The Site's Libraries, to choose the ones it needs from. */
+		libraries: { id: string; name: string }[];
+	};
 type Scripts = {
 	site: CodeScript;
 	page: (CodeScript & { entryId: string }) | null;
@@ -72,6 +80,8 @@ export type JsState = {
 	/** The text in the box for each script, and whether it is typed and not saved yet. */
 	texts: Record<ScriptTab, string>;
 	dirty: Record<ScriptTab, boolean>;
+	/** The Component script's settings as the Component tab shows them (saved with its text). */
+	settings: ScriptSettings | null;
 	saving: boolean;
 	running: boolean;
 	/** A save over someone else's version is waiting for the person's choice. */
@@ -85,6 +95,8 @@ export type JsPane = {
 	store: PaneStore<JsState>;
 	format: FormatSlot;
 	change(text: string): void;
+	/** The Component tab's Consent category or Libraries changed: saved at once with its script. */
+	changeSettings(settings: ScriptSettings): void;
 	show(tab: ScriptTab): void;
 	run(): Promise<void>;
 	/** Opens the script a console line came from, the caret on its line. */
@@ -111,6 +123,7 @@ const IDLE: JsState = {
 	tab: "page",
 	texts: EMPTY,
 	dirty: CLEAN,
+	settings: null,
 	saving: false,
 	running: false,
 	conflict: null,
@@ -162,19 +175,19 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 		}
 		const scripts = answer.data;
 		store.set((state) => {
+			const keepComponent =
+				state.dirty.component && state.scripts?.component?.componentId === scripts.component?.componentId;
 			const texts = {
 				page: state.dirty.page ? state.texts.page : (scripts.page?.code ?? ""),
 				site: state.dirty.site ? state.texts.site : scripts.site.code,
-				component:
-					state.dirty.component && state.scripts?.component?.componentId === scripts.component?.componentId
-						? state.texts.component
-						: (scripts.component?.code ?? ""),
+				component: keepComponent ? state.texts.component : (scripts.component?.code ?? ""),
 			};
 			const tabs = tabsOf(scripts);
 			return {
 				status: "ready",
 				scripts,
 				texts,
+				settings: keepComponent ? state.settings : settingsOf(scripts.component),
 				tab: tabs.includes(state.tab) ? state.tab : (tabs[0] ?? "site"),
 				failure: null,
 			};
@@ -217,14 +230,16 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 		const scripts = state.scripts;
 		if (!path || !scripts || !state.dirty[tab]) return;
 		const code = state.texts[tab];
+		const settings = tab === "component" ? (state.settings ?? settingsOf(scripts.component)) : null;
 		const body =
 			tab === "component"
-				? scripts.component
+				? scripts.component && settings
 					? {
 							path,
 							kind: "component",
 							componentId: scripts.component.componentId,
 							code,
+							...settings,
 							version: version === undefined ? scripts.component.version : version,
 						}
 					: null
@@ -235,7 +250,11 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 					: { path, kind: "site", code, version: version === undefined ? scripts.site.version : version };
 		if (!body) return;
 		const was = tab === "component" ? scripts.component : tab === "page" ? scripts.page : scripts.site;
-		const before = { code: was?.code ?? "", version: was?.version ?? null };
+		const before: Step = {
+			code: was?.code ?? "",
+			version: was?.version ?? null,
+			...(tab === "component" ? settingsOf(scripts.component) : {}),
+		};
 		store.set({ saving: true });
 		const answer = await request<CodeScript>("code/saveScript", body);
 		store.set({ saving: false });
@@ -243,8 +262,8 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 		if (store.get().path !== path) {
 			const left = kept.get(path);
 			if (answer.ok) {
-				recordStep(tab, scripts, before, { code, version: answer.data.version });
-				if (left) kept.set(path, savedInto(left, tab, code, answer.data));
+				recordStep(tab, scripts, before, { code, version: answer.data.version, ...(settings ?? {}) });
+				if (left) kept.set(path, savedInto(left, tab, code, answer.data, settings));
 			} else if (left && answer.code === "CHANGED_MEANWHILE") {
 				const newer = answer.data.version;
 				kept.set(path, { ...left, conflict: { tab, version: typeof newer === "string" ? newer : null } });
@@ -262,20 +281,22 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 			return;
 		}
 		const saved = answer.data;
-		recordStep(tab, scripts, before, { code, version: saved.version });
-		store.set((now) => savedInto(now, tab, code, saved));
+		recordStep(tab, scripts, before, { code, version: saved.version, ...(settings ?? {}) });
+		store.set((now) => savedInto(now, tab, code, saved, settings));
 	};
 
 	const flush = async () => {
 		window.clearTimeout(saveTimer);
-		if (saving) await saving;
-		saving = (async () => {
+		// One save at a time: several waiting (quick Library ticks) each go in turn, never two at once.
+		while (saving) await saving;
+		const mine = (async () => {
 			for (const tab of ["site", "page", "component"] as const) await save(tab);
 		})();
+		saving = mine;
 		try {
-			await saving;
+			await mine;
 		} finally {
-			saving = null;
+			if (saving === mine) saving = null;
 			release();
 			// Typed while the save was under way: the history waits for that too.
 			const dirty = store.get().dirty;
@@ -296,15 +317,10 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 					: null;
 
 	/** One save as one Undo step: the code before it and after it, with the versions they were saved at. */
-	const recordStep = (
-		tab: ScriptTab,
-		scripts: Scripts,
-		before: { code: string; version: string | null },
-		after: { code: string; version: string | null },
-	) => {
+	const recordStep = (tab: ScriptTab, scripts: Scripts, before: Step, after: Step) => {
 		const resource = resourceOf(tab, scripts);
 		const path = store.get().path;
-		if (!resource || !path || before.code === after.code) return;
+		if (!resource || !path || sameStep(before, after)) return;
 		const said = words().code.js.steps;
 		const label = tab === "component" ? fill(said.component, { name: scripts.component?.name ?? "" }) : said[tab];
 		const target =
@@ -333,12 +349,14 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 		path: string,
 	) => ({
 		async reverse(from: Json, to: Json): Promise<HistoryResult> {
-			const now = from as unknown as { code: string; version: string | null };
-			const wanted = to as unknown as { code: string; version: string | null };
+			const now = from as unknown as Step;
+			const wanted = to as unknown as Step;
+			const settings = target.kind === "component" ? stepSettings(wanted) : null;
 			const answer = await request<CodeScript>("code/saveScript", {
 				path,
 				...target,
 				code: wanted.code,
+				...(settings ?? {}),
 				version: now.version,
 			});
 			if (!answer.ok) {
@@ -358,12 +376,13 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 				return {
 					scripts: next,
 					texts: state.dirty[tab] ? state.texts : { ...state.texts, [tab]: wanted.code },
+					...(tab === "component" && settings && !state.dirty.component ? { settings } : {}),
 				};
 			});
 			return {
 				ok: true,
-				before: { code: now.code, version: now.version } as unknown as Json,
-				after: { code: wanted.code, version: saved.version } as unknown as Json,
+				before: now as unknown as Json,
+				after: { ...wanted, version: saved.version } as unknown as Json,
 			};
 		},
 	});
@@ -398,6 +417,14 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 			hold();
 			window.clearTimeout(saveTimer);
 			saveTimer = window.setTimeout(() => void flush(), SAVE_AFTER_MS);
+		},
+		changeSettings(settings) {
+			const state = store.get();
+			if (!state.scripts?.component?.editable) return;
+			store.set({ settings, dirty: { ...state.dirty, component: true }, failure: null });
+			hold();
+			// A choice is made at once: it is saved now, with what is typed in the box.
+			void flush();
 		},
 		show(tab) {
 			store.set({ tab });
@@ -499,13 +526,45 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 	};
 }
 
-/** A pane's state once `code` was saved to the script of `tab`: its new version, and dirty only if typed since. */
-function savedInto(now: JsState, tab: ScriptTab, code: string, saved: CodeScript): JsState {
+/** A script's step in the history: its code and version, and a Component script's settings. */
+type Step = { code: string; version: string | null } & Partial<ScriptSettings>;
+
+/** The settings a step carries, if it is a Component script's. */
+function stepSettings(step: Step): ScriptSettings | null {
+	return step.consentCategory && step.libraryIds
+		? { consentCategory: step.consentCategory, libraryIds: step.libraryIds }
+		: null;
+}
+
+/** Whether a save changed nothing a step would take back: the same code, and the same settings. */
+function sameStep(before: Step, after: Step): boolean {
+	const one = stepSettings(before);
+	const other = stepSettings(after);
+	return before.code === after.code && (!one || !other || sameSettings(one, other));
+}
+
+/** A Component script's settings as its Draft has them. */
+function settingsOf(component: ComponentScript | null | undefined): ScriptSettings | null {
+	return component ? { consentCategory: component.consentCategory, libraryIds: [...component.libraryIds] } : null;
+}
+
+/**
+ * A pane's state once `code` (and a Component script's `settings`) was saved to the script of `tab`: its
+ * new version, and dirty only if typed or changed since.
+ */
+function savedInto(
+	now: JsState,
+	tab: ScriptTab,
+	code: string,
+	saved: CodeScript,
+	settings: ScriptSettings | null,
+): JsState {
 	const next = { ...now.scripts } as Scripts;
 	if (tab === "site") next.site = { ...next.site, ...saved };
 	else if (tab === "page" && next.page) next.page = { ...next.page, ...saved };
 	else if (tab === "component" && next.component) next.component = { ...next.component, ...saved };
-	const typedSince = now.texts[tab] !== code;
+	const typedSince =
+		now.texts[tab] !== code || Boolean(settings && now.settings && !sameSettings(now.settings, settings));
 	return { ...now, scripts: next, dirty: { ...now.dirty, [tab]: typedSince }, failure: null };
 }
 
@@ -606,8 +665,17 @@ export function JsBody({ pane, words, settings }: { pane: JsPane; words: Words; 
 					? words.code.saving
 					: shown.help;
 
+	const scriptSettings = state.settings ?? settingsOf(component);
 	return (
 		<div className="flex min-h-0 grow flex-col gap-1" data-wc-js-pane={state.status} data-wc-script={tab}>
+			{state.status === "ready" && tab === "component" && component?.editable && scriptSettings ? (
+				<ScriptSettingsRow
+					words={words}
+					settings={scriptSettings}
+					libraries={component.libraries}
+					onChange={(next) => pane.changeSettings(next)}
+				/>
+			) : null}
 			{state.status === "ready" ? (
 				<CodeWell
 					ref={area}

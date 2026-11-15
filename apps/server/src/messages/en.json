@@ -10468,7 +10468,19 @@
 				},
 				"componentError": "{name} failed on a Placement: {message}",
 				"showPlacement": "Show the Placement",
-				"saved": "Saved the {script} to the Draft."
+				"saved": "Saved the {script} to the Draft.",
+				"settings": "The Component script's settings",
+				"consent": "Consent category",
+				"consentHelp": "Outside Necessary, visitors' pages hold it back until they accept this category in the Consent banner.",
+				"categories": {
+					"necessary": "Necessary",
+					"analytics": "Analytics",
+					"marketing": "Marketing",
+					"media": "Media"
+				},
+				"libraries": "Libraries it needs",
+				"librariesNone": "None",
+				"noLibraries": "The Site has no Libraries: add them in Site › Libraries."
 			}
 		},
 		"placements": {
