@@ -10257,6 +10257,304 @@
 				"bad": "This test can't be read: {problem}",
 				"name": "If {test}"
 			}
+		},
+		"insert": {
+			"row": "Insert",
+			"items": {
+				"section": {
+					"name": "Section",
+					"hint": "A new top-level section, placed after this one",
+					"page": "A new top-level Component, placed after this one",
+					"tip": "Section: starts a new Component here"
+				},
+				"container": {
+					"name": "Container",
+					"hint": "A width-constrained wrapper"
+				},
+				"div": {
+					"name": "Div",
+					"hint": "A plain wrapper"
+				},
+				"header": {
+					"name": "Header",
+					"hint": "A header landmark"
+				},
+				"footer": {
+					"name": "Footer",
+					"hint": "A footer landmark"
+				},
+				"heading": {
+					"name": "Heading",
+					"hint": "A heading, h1 to h6"
+				},
+				"text": {
+					"name": "Text",
+					"menu": "Paragraph",
+					"hint": "A paragraph of text"
+				},
+				"link": {
+					"name": "Link",
+					"hint": "A link to a Page or address"
+				},
+				"button": {
+					"name": "Button",
+					"hint": "A link styled as a button"
+				},
+				"list": {
+					"name": "List",
+					"hint": "A bulleted or numbered list"
+				},
+				"image": {
+					"name": "Image",
+					"hint": "A picture from Media"
+				},
+				"video": {
+					"name": "Video",
+					"hint": "A video from Media"
+				},
+				"icon": {
+					"name": "Icon",
+					"hint": "A small picture from Media, read as decoration"
+				},
+				"loop": {
+					"name": "Loop",
+					"hint": "Repeats its children over a Loop"
+				},
+				"condition": {
+					"name": "Condition",
+					"hint": "Shows its children only when true"
+				},
+				"form": {
+					"name": "Form",
+					"hint": "A Form placed here"
+				},
+				"outlet": {
+					"name": "Page content",
+					"hint": "Where each page's content shows"
+				},
+				"component": {
+					"name": "Component",
+					"hint": "Add Component: {name}"
+				},
+				"more": {
+					"name": "More to insert"
+				},
+				"element": {
+					"hint": "The {tag} element"
+				},
+				"value": {
+					"hint": "The value {path}"
+				}
+			},
+			"templateGroup": "Template commands",
+			"defaults": {
+				"heading": "Heading",
+				"text": "Write something here.",
+				"link": "Link",
+				"button": "Button",
+				"listItem": "List item"
+			},
+			"steps": {
+				"insert": "Insert {name}",
+				"add": "Add {name}"
+			},
+			"forceAfter": "Hold ⌘ or Ctrl to insert after the selection.",
+			"inserted": "Inserted {name} {where}.",
+			"whereInside": "inside {name}",
+			"whereAfter": "after {name}",
+			"whereEnd": "at the end of {name}",
+			"wherePage": "in the Page layout",
+			"refusals": {
+				"page": "A Page holds Components: add a Section or a Component first.",
+				"placement": "{name} is a Component: edit it in place to add inside it.",
+				"nothing": "Nothing can be added here: open a page that shows this Template or Component.",
+				"notAllowed": "{name} can't go here.",
+				"connecting": "Still opening the page's elements. Try again in a moment."
+			},
+			"section": {
+				"making": "Making {name}…",
+				"made": "{name} placed on the page. Its container is selected: Heading, Text and Div go inside it.",
+				"failed": "Couldn't make the section: {reason}"
+			},
+			"media": {
+				"image": "Choose an image",
+				"video": "Choose a video"
+			},
+			"emptySlot": "empty",
+			"dropComponent": "Drop a Component here"
+		},
+		"commandMenu": {
+			"title": "Command menu",
+			"open": "Command menu",
+			"close": "Close the Command menu",
+			"tabsLabel": "Command menu tabs",
+			"tabs": {
+				"actions": "Actions",
+				"goTo": "Go to",
+				"insert": "Insert"
+			},
+			"switchHint": "Tab to switch",
+			"placeholder": {
+				"actions": "Search actions…",
+				"goTo": "Search Pages, Entries, Templates, Components and elements…",
+				"goToMember": "Search Pages and Entries…",
+				"insert": "Search for elements, Components, Loops…"
+			},
+			"where": "Where:",
+			"inside": "Inside",
+			"after": "After",
+			"inverse": "{keys} inserts {way} instead",
+			"inverseInside": "inside",
+			"inverseAfter": "after",
+			"recent": "Recent",
+			"none": "Nothing found.",
+			"loading": "Loading…",
+			"countOne": "1 result",
+			"countOther": "{count} results",
+			"option": "{label}, {group}",
+			"optionKeys": "{label}, {group}, {keys}",
+			"disabled": "{label}, {reason}",
+			"keyNames": {
+				"command": "Command",
+				"control": "Control",
+				"shift": "Shift",
+				"option": "Option",
+				"alt": "Alt",
+				"up": "Up",
+				"down": "Down",
+				"left": "Left",
+				"right": "Right",
+				"enter": "Enter",
+				"delete": "Delete",
+				"forwardDelete": "Forward delete",
+				"escape": "Escape",
+				"space": "Space",
+				"slash": "Slash",
+				"letter": "a letter",
+				"asterisk": "Asterisk",
+				"leftBracket": "Left bracket",
+				"rightBracket": "Right bracket"
+			},
+			"groups": {
+				"editor": "Editor",
+				"element": "Element",
+				"placement": "Placement",
+				"places": "Places",
+				"format": "Format",
+				"pages": "Pages",
+				"templates": "Templates",
+				"components": "Components",
+				"layers": "Elements on this page",
+				"sections": "Sections",
+				"text": "Text",
+				"media": "Media",
+				"commands": "Template commands",
+				"other": "More elements",
+				"values": "Values"
+			},
+			"actions": {
+				"undo": "Undo",
+				"redo": "Redo",
+				"undoStep": "Undo {step}",
+				"redoStep": "Redo {step}",
+				"nothingToUndo": "Nothing to undo.",
+				"nothingToRedo": "Nothing to redo.",
+				"publish": "Publish",
+				"sendForReview": "Send for review",
+				"openPlace": "Open {place}",
+				"backToCanvas": "Back to the canvas",
+				"hideInterface": "Hide the interface",
+				"showInterface": "Show the interface",
+				"exit": "Exit the building area",
+				"copy": "Copy",
+				"paste": "Paste",
+				"duplicate": "Duplicate",
+				"delete": "Delete",
+				"parent": "Select parent",
+				"wrap": "Wrap in {what}",
+				"unwrap": "Unwrap",
+				"makeComponent": "Make Component",
+				"newComponent": "New Component",
+				"editComponent": "Edit Component",
+				"hidePlacement": "Hide the Placement",
+				"showPlacement": "Show the Placement",
+				"formatHtml": "Format HTML",
+				"formatCss": "Format CSS",
+				"formatJs": "Format JS",
+				"formatAll": "Format all three",
+				"preview": "Preview",
+				"edit": "Edit",
+				"pageDetails": "Page details",
+				"sections": "Sections",
+				"help": "Help"
+			},
+			"wrap": {
+				"div": "a Div",
+				"section": "a Section",
+				"a": "a Link",
+				"loop": "a Loop",
+				"condition": "a Condition"
+			},
+			"templates": {
+				"siteTemplate": "Site template",
+				"searchTemplate": "Search results template",
+				"entryTemplate": "Entry template · {postType}",
+				"archiveTemplate": "Archive template · {postType}"
+			},
+			"steps": {
+				"loop": "Which Loop?",
+				"form": "Which Form?",
+				"component": "Which Component?",
+				"condition": "Write the test, then Enter: {example}",
+				"conditionLabel": "Test",
+				"noLoops": "This Site has no Loops yet: make one in the Loops place.",
+				"noForms": "This Site has no Forms yet.",
+				"back": "Back to everything"
+			},
+			"loadFailed": "The Command menu couldn't be loaded. Try again.",
+			"narrow": "The Command menu needs a wider window."
+		},
+		"emptyPage": {
+			"title": "This Page is empty",
+			"text": "Start with a Component, or build your own section.",
+			"addComponent": "Add a Component",
+			"newSection": "New section",
+			"orPress": "or press {keys}"
+		},
+		"rowMenu": {
+			"label": "Actions for {name}",
+			"copy": "Copy",
+			"paste": "Paste",
+			"duplicate": "Duplicate",
+			"wrapIn": "Wrap in",
+			"makeComponent": "Make Component",
+			"delete": "Delete",
+			"copied": "Copied {name}.",
+			"pasted": "Pasted {name} after {after}.",
+			"nothingToPaste": "Nothing copied to paste.",
+			"notHere": "{name} can't be pasted here.",
+			"parentNone": "{name} is at the top: it has no parent to select.",
+			"unwrapRefused": "{name} can't be unwrapped: it holds a branch or an empty state that would be lost.",
+			"steps": {
+				"paste": "Paste {name}",
+				"wrap": "Wrap {name} in {what}",
+				"unwrap": "Unwrap {name}"
+			}
+		},
+		"componentDialog": {
+			"makeTitle": "Make Component",
+			"makeText": "{name} moves into a new Component, placed where it was. The page looks the same.",
+			"newTitle": "New Component",
+			"newText": "An empty Component, placed {where}. It opens so you can build it.",
+			"name": "Name",
+			"nameHint": "Capital first, letters and digits only, such as CustomerQuote.",
+			"badName": "Use a capital first, then letters and digits only, with at least one small letter.",
+			"taken": "The Site has a Component called {name} already.",
+			"make": "Make",
+			"create": "Create",
+			"cancel": "Cancel",
+			"made": "Made the Component {name}.",
+			"refused": "Couldn't make the Component: {reason}"
 		}
 	},
 	"auth": {
