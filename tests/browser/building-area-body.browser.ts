@@ -186,6 +186,17 @@ async function focusedText(page: Page): Promise<string> {
 	});
 }
 
+/** Waits until what has focus is named `name` (the editor moves focus a moment after it draws). */
+async function focusOn(page: Page, name: string | RegExp): Promise<string> {
+	const deadline = Date.now() + 3000;
+	let found = await focusedText(page);
+	while (!(typeof name === "string" ? found === name : name.test(found)) && Date.now() < deadline) {
+		await page.waitForTimeout(25);
+		found = await focusedText(page);
+	}
+	return found;
+}
+
 /** Whether focus is in the frame's page, on an element `test` accepts. */
 async function focusedInPage(frame: Frame, test: string): Promise<boolean> {
 	return frame.evaluate((selector) => document.hasFocus() && document.activeElement?.matches(selector) === true, test);
@@ -218,7 +229,9 @@ for (const theme of THEMES) {
 				expect(block && drawn).toBeTruthy();
 				if (block && drawn) {
 					expect(drawn.y).toBeGreaterThanOrEqual(block.y + block.height);
-					expect(Math.abs(drawn.x - block.x)).toBeLessThanOrEqual(1);
+					// Start-aligned with the Block, kept 4 px inside the page where the Block touches its edge.
+					expect(drawn.x).toBeGreaterThanOrEqual(block.x - 1);
+					expect(drawn.x - block.x).toBeLessThanOrEqual(4);
 				}
 				// The tools are the shell's, never the page's: the page holds none of them.
 				expect(await page.locator(`${TOOLS} .body-toolbar`).count()).toBe(1);
@@ -250,7 +263,7 @@ for (const theme of THEMES) {
 
 				const chooser = page.getByRole("dialog", { name: "Blocks" });
 				await chooser.waitFor();
-				expect(await focusedText(page)).toBe("Blocks");
+				expect(await focusOn(page, "Blocks")).toBe("Blocks");
 				// `client-flows/01`: 480 wide, "Type to filter", the Blocks as tiles, the Components as cards
 				// under "Sections your agency made", saying what they ask for.
 				expect((await chooser.boundingBox())?.width).toBe(480);
@@ -344,7 +357,7 @@ describe("typing in a body in the building area", () => {
 			expect(await page.locator("[data-wc-draft-state]").textContent()).toContain("1 change not published");
 
 			await page.keyboard.press("Alt+F10");
-			expect(await focusedText(page)).toMatch(/^Drag to move Paragraph, block 2$/);
+			expect(await focusOn(page, /^Drag to move Paragraph, block 2$/)).toMatch(/^Drag to move Paragraph, block 2$/);
 			await page.keyboard.press("Escape");
 			expect(await focusedInPage(frame, `${BODY} p[contenteditable]`)).toBe(true);
 			expect(await paragraph.evaluate((element) => element === document.activeElement)).toBe(true);
@@ -421,7 +434,7 @@ describe("typing in a body in the building area", () => {
 			if (new URL(request.url()).pathname.startsWith("/_webcraft/edit/assets/body-")) fetched.push(request.url());
 		});
 		try {
-			await frame.locator("h1[contenteditable]").waitFor();
+			await frame.locator("main").waitFor({ state: "attached" });
 			await page.waitForTimeout(500);
 			expect(fetched).toEqual([]);
 			const { path } = await article();

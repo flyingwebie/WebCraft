@@ -9797,8 +9797,8 @@
 				"choices": {
 					"paragraph": "Text",
 					"heading2": "Heading",
-					"heading3": "Smaller heading",
-					"heading4": "Smallest heading",
+					"heading3": "Heading 3",
+					"heading4": "Heading 4",
 					"bulleted": "List",
 					"numbered": "Numbered list",
 					"quote": "Quote",

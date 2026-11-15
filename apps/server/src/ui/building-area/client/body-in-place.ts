@@ -13,6 +13,7 @@ import { BODY_REGION } from "../agent/contract.ts";
 import { type EditRequests, fill, type PageState, type Words } from "../api.ts";
 import { frameGeometry, nameOf, type Overlay } from "../canvas/overlay.ts";
 import type { SavingStatus } from "../canvas/regions.ts";
+import { FOCUS_RING } from "../controls.tsx";
 import { pickMedia } from "../places/media/pick.ts";
 import type { ClientEditing } from "./marks.ts";
 
@@ -56,7 +57,7 @@ const PHONE_WIDTH = 640;
 const EDGE = 4;
 
 /** The shell's own focus ring, on everything the editor draws. */
-const RING = "outline-none focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-chrome-focus";
+const RING = FOCUS_RING;
 
 /**
  * The block editor's own class names, drawn in client editing's look (SPEC 13.1: dark, popovers 380
@@ -97,7 +98,7 @@ const CLASSES: Readonly<Record<string, string>> = {
 	"chooser-group":
 		"w-full text-[10px] font-semibold tracking-[0.4px] text-chrome-muted uppercase in-data-[group=blocks]:sr-only",
 	"chooser-option":
-		"flex h-[52px] w-[84px] cursor-default flex-col items-center justify-center gap-[5px] rounded-[9px] bg-chrome-raised text-[12px] font-medium text-chrome-text hover:bg-chrome-hover aria-selected:bg-chrome-hover aria-selected:outline-2 aria-selected:outline-[#818cf8] [&>svg]:size-[18px] in-data-[group=components]:w-[222px] in-data-[group=components]:flex-row in-data-[group=components]:justify-start in-data-[group=components]:gap-2.5 in-data-[group=components]:px-2.5 in-data-[group=components]:[&>svg]:box-content in-data-[group=components]:[&>svg]:size-[15px] in-data-[group=components]:[&>svg]:shrink-0 in-data-[group=components]:[&>svg]:rounded-[7px] in-data-[group=components]:[&>svg]:bg-chrome-hover in-data-[group=components]:[&>svg]:p-[6.5px] group-data-[phone]/body:min-h-11",
+		"flex h-[52px] w-[84px] cursor-default flex-col items-center justify-center gap-[5px] overflow-hidden rounded-[9px] bg-chrome-raised px-1 text-center text-[12px] leading-tight font-medium text-chrome-text hover:bg-chrome-hover aria-selected:bg-chrome-hover aria-selected:outline-2 aria-selected:outline-[#818cf8] [&>svg]:size-[18px] in-data-[group=components]:w-[222px] in-data-[group=components]:flex-row in-data-[group=components]:justify-start in-data-[group=components]:gap-2.5 in-data-[group=components]:px-2.5 in-data-[group=components]:[&>svg]:box-content in-data-[group=components]:[&>svg]:size-[15px] in-data-[group=components]:[&>svg]:shrink-0 in-data-[group=components]:[&>svg]:rounded-[7px] in-data-[group=components]:[&>svg]:bg-chrome-hover in-data-[group=components]:[&>svg]:p-[6.5px] group-data-[phone]/body:min-h-11",
 	"chooser-words": "flex min-w-0 flex-col",
 	"chooser-name": "truncate text-[12px] font-medium text-chrome-strong",
 	"chooser-detail": "truncate text-[11px] font-normal text-chrome-muted",
@@ -113,6 +114,11 @@ const CLASSES: Readonly<Record<string, string>> = {
 
 /** The "Add a Block" tool, the indigo square of `client-flows/01`. */
 const ADD_TOOL = "bg-[#4f46e5]! text-white! hover:bg-[#4338ca]! [&>svg]:size-3.5!";
+
+/** A body's name for people: its Field's label, as its chip says it. */
+function bodyName(region: Element, words: Words): string {
+	return region.getAttribute("data-wc-label") || nameOf(region, words);
+}
 
 /** What an event's target is in the page: an element of its realm, or nothing. */
 function pageElement(view: Window | null | undefined, target: EventTarget | null): Element | null {
@@ -528,7 +534,7 @@ export function bodyInPlace(options: {
 		const [factory] = await Promise.all([loadBodyEditor(page, options.src), stateReady]);
 		if (page !== doc || !layer) return;
 		if (!factory) {
-			announce(fill(said.loadFailed, { name: nameOf(region, words) }), true);
+			announce(fill(said.loadFailed, { name: bodyName(region, words) }), true);
 			return;
 		}
 		tools = factory(kitFor(page));
@@ -572,7 +578,7 @@ export function bodyInPlace(options: {
 		tools?.mode(false);
 		tools?.mode(true);
 		region.focus({ preventScroll: true });
-		window.setTimeout(() => announce(fill(words.client.marks.finished, { name: nameOf(region, words) })), 0);
+		window.setTimeout(() => announce(fill(words.client.marks.finished, { name: bodyName(region, words) })), 0);
 		redraw();
 	};
 
