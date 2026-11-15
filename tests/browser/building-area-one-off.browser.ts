@@ -315,17 +315,22 @@ describe("one-off styles and generated Classes", () => {
 		await selectParagraph(page, "First words");
 		const html = box(page, "html");
 		await html.waitFor();
-		// The peers' changes of the checks above are in the box first (else saving asks Reload or Overwrite).
+		// What the checks above saved (a peer's text, a one-off style) is in the box first, else saving
+		// rightly asks Reload theirs or Overwrite with mine.
+		const withoutIds = (text: string) => text.replace(/ data-wc-id="[^"]*"/g, "");
+		const draft = await entryMarkup();
 		const before = await eventually(
 			() => html.inputValue(),
-			(text) => text.includes("Second words, by a peer") && text.includes("Sixth words, by a peer"),
+			(text) => withoutIds(text) === draft,
 		);
+		expect(withoutIds(before)).toBe(draft);
 		// The box prints each element with its id (`<h1 data-wc-id="…">`): a style is added after the tag.
 		const styled = before.replace(/<h1\b/, '<h1 style="color: purple"');
 		expect(styled).not.toBe(before);
 		await html.fill(styled);
 		await page.locator('[data-wc-rail="panels"]').focus();
-		expect(await eventually(entryMarkup, (text) => /<h1 class="style-/.test(text))).toMatch(/<h1 class="style-/);
+		const firstSave = await eventually(entryMarkup, (text) => /<h1 class="style-/.test(text));
+		expect(firstSave).toMatch(/<h1 class="style-/);
 		await selectParagraph(page, "First words");
 		expect(
 			await eventually(
