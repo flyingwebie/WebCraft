@@ -18,6 +18,8 @@ export type EditMediaItem = {
 	alt: string | null;
 	width: number | null;
 	height: number | null;
+	/** How large the original is, in bytes (the photo popover's foot says it). */
+	sizeBytes: number;
 	status: MediaItem["status"];
 	/** The original, on the Site's own domain; null until the worker has cleaned it. */
 	url: string | null;
@@ -50,6 +52,7 @@ export function editMediaItem(item: MediaItem): EditMediaItem {
 		alt: item.alt,
 		width: item.width,
 		height: item.height,
+		sizeBytes: item.sizeBytes,
 		status: item.status,
 		url: item.url,
 		thumbnail: thumbnail?.url ?? item.url,

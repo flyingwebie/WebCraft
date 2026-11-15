@@ -12,12 +12,12 @@ html.wc-edit-on [data-wc-placement-selected]{outline:3px solid #2563eb;outline-o
 webcraft-edit-bar { display: block !important; }
 .wc-editor-messages { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 html.wc-edit { padding-top: 3.5rem; scroll-padding-top: 4.5rem; }
-html.wc-edit-on [data-wc-field] {
+html.wc-edit-on [data-wc-field]:not([data-wc-type="link"]) {
 	outline: 1px dashed rgba(79, 70, 229, 0.6);
 	outline-offset: 3px;
 	cursor: text;
 }
-html.wc-edit-on [data-wc-field]:hover { outline: 2px solid #4f46e5; }
+html.wc-edit-on [data-wc-field]:not([data-wc-type="link"]):hover { outline: 2px solid #4f46e5; }
 html.wc-edit-on [data-wc-field]:focus {
 	outline: 2px solid #4338ca;
 	outline-offset: 3px;
