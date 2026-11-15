@@ -37,6 +37,17 @@ export type PageLayoutEditor = {
 	remove(placements: readonly LayoutPlacement[], id: string): string | null;
 	/** Changes one of a Placement's Props' values (in the page's language). */
 	setValue(placements: readonly LayoutPlacement[], id: string, field: FieldDefinition, value: FieldJson): string | null;
+	/**
+	 * Places a Component on the Page (BA-10: the insert row, the Command menu's Insert, the empty Page),
+	 * at `at` among the Page layout's Placements (its end when past it), with its Props' declarations and
+	 * no values yet: one Undo step, `label`. Answers the new Placement's id, or why not.
+	 */
+	place(
+		placements: readonly LayoutPlacement[],
+		component: { id: string; props: FieldDefinition[] },
+		at: number,
+		label: string,
+	): { id: string } | { refused: string };
 	destroy(): void;
 };
 
@@ -229,6 +240,21 @@ export function pageLayoutEditor(options: {
 					each.id === id ? { ...each, values: writeField(each.values ?? {}, field, value, languages) } : each,
 				),
 			);
+		},
+		place(_placements, component, at, label) {
+			// The server checks what a Member may place (Allowed components, locks) as it saves the Draft.
+			if (!info?.canArrange) return { refused: reason("unavailable", said.placement) };
+			const id = crypto.randomUUID();
+			const problem = write(label, `content/${id}`, (list) => {
+				list.splice(Math.max(0, Math.min(at, list.length)), 0, {
+					id,
+					component: component.id,
+					props: component.props as unknown as Json,
+					values: {},
+				});
+				return list;
+			});
+			return problem ? { refused: problem } : { id };
 		},
 		destroy: stopListening,
 	};
