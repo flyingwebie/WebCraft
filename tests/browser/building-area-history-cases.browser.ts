@@ -493,7 +493,7 @@ describe("the Undo history's harder cases, for a Member", () => {
 
 				// The server goes away. Undo can't reach the Draft: the step stays, and so does the one before it.
 				network.down = true;
-				for (const upstream of network.upstreams.splice(0)) await upstream.close();
+				for (const upstream of network.upstreams.splice(0)) await upstream.close().catch(() => {});
 				const kept =
 					"Hide or show Hero · South wasn't undone and stays in the history. The Draft can't be changed right now. Try again in a moment.";
 				await undoButton(page).click();
