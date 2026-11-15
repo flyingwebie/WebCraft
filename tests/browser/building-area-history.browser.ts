@@ -305,8 +305,9 @@ describe("the Undo history, for a Member", () => {
 		);
 		expect(await page.locator('[data-wc-messages] [role="alert"]').textContent()).toContain("Skipped Edit Tagline");
 		expect((await read()).tagline).toBe("Staff's");
-		// The pointer off the bar: a tooltip under it shows its keys beside the name (the chrome's, BA-04).
-		await page.mouse.move(700, 400);
+		// The pointer still on Undo: its tooltip shows the keys beside the name, which stays the label.
+		await undoButton(page).hover();
+		await undoButton(page).locator("[data-wc-tip]").waitFor();
 		await expectAccessibleScreen(page, "building area Undo history");
 	});
 });

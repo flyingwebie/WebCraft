@@ -8522,6 +8522,7 @@
 		"undoStep": "Annulla {step}",
 		"redoStep": "Ripeti {step}",
 		"language": "Lingua",
+		"languageCode": "{code}, Lingua: {name}",
 		"viewOnStaging": "Vedi sull'indirizzo di staging (si apre in una nuova scheda)",
 		"draftState": {
 			"label": "Stato della Bozza",

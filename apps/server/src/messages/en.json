@@ -8522,6 +8522,7 @@
 		"undoStep": "Undo {step}",
 		"redoStep": "Redo {step}",
 		"language": "Language",
+		"languageCode": "{code}, Language: {name}",
 		"viewOnStaging": "View on Staging (opens in a new tab)",
 		"draftState": {
 			"label": "Draft state",
