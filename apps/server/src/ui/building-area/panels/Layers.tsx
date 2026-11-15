@@ -1,4 +1,5 @@
-import type { ElementTree, TreeNode } from "@webcraft/renderer/builder";
+import { type Json, sameValue } from "@webcraft/core/draft-document";
+import { type ElementTree, type TreeNode, writeExpression } from "@webcraft/renderer/builder";
 import {
 	ChevronDownIcon,
 	ChevronRightIcon,
@@ -13,6 +14,7 @@ import {
 	RepeatIcon,
 	SquareDashedIcon,
 	Trash2Icon,
+	TypeIcon,
 } from "lucide-react";
 import {
 	type DragEvent,
@@ -39,6 +41,7 @@ import {
 	moveTo,
 	moveUp,
 	type NodePath,
+	nodeAt,
 	pathKey,
 	placeBy,
 	placeOf,
@@ -48,6 +51,8 @@ import {
 } from "../../builder/tree.ts";
 import { fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING, Tip } from "../controls.tsx";
+import { holdsFixedText } from "../editing/fixed-text.ts";
+import { type Hovered, hover, hoveredNow, subscribeHover } from "../editing/hover.ts";
 import type { PageLayoutEditor } from "../editing/page-layout.ts";
 import {
 	keyOf,
@@ -84,6 +89,24 @@ type Row =
 	| { kind: "divider"; key: string; label: string; icon: "site" | "content" | "layout"; depth: number }
 	/** An empty element's or an empty Page layout's dashed slot (BA-10, `docking/07`): shown, never focused. */
 	| { kind: "slot"; key: string; label: string; depth: number }
+	/**
+	 * A later branch of a Condition or a Loop (BA-33): Else if …, Else, When there are no items. It is
+	 * selected as `<source>#<key>/<list>`, and what is pasted on it goes into it.
+	 */
+	| {
+			kind: "branch";
+			key: string;
+			ref: string;
+			source: StructureSource;
+			/** Its Condition's or Loop's path, and which of its lists it is. */
+			path: NodePath;
+			list: number;
+			label: string;
+			depth: number;
+			expandable: boolean;
+			expanded: boolean;
+			parent: string | null;
+	  }
 	| {
 			kind: "node";
 			key: string;
@@ -261,9 +284,11 @@ function rowsOf(
 			const ref = `${source.ref}#${id}`;
 			const nested = node.type === "component" ? (snapshot.sources.get(`${source.ref}/${node.id}`) ?? null) : null;
 			const children = nested ? nested.tree.nodes : (childLists(node)[0] ?? []);
-			const expandable = children.some(
-				(child) => !isFormatting(child) && child.type !== "comment" && child.type !== "text" && child.type !== "value",
-			);
+			const shown = (child: TreeNode) =>
+				!isFormatting(child) && child.type !== "comment" && child.type !== "text" && child.type !== "value";
+			// A Condition's or Loop's later lists are branches of their own (Else, When there are no items).
+			const branches = nested ? [] : childLists(node).slice(1);
+			const expandable = children.some(shown) || branches.length > 0;
 			const opened =
 				expandable && (holdsOutlet(node) || (onTheWay(ref) && holdsSelection(node, source, nested, selected)));
 			const expanded = expandable && expandedOf(`${source.ref}:${pathKey(path)}`, opened);
@@ -289,8 +314,37 @@ function rowsOf(
 					depth: depth + 1,
 				});
 			if (!expanded) return;
-			if (nested) visit(nested, nested.tree.nodes, [], depth + 1, `${source.ref}:${pathKey(path)}`);
-			else visit(source, children, [...path, 0], depth + 1, `${source.ref}:${pathKey(path)}`);
+			const rowKey = `${source.ref}:${pathKey(path)}`;
+			if (nested) visit(nested, nested.tree.nodes, [], depth + 1, rowKey);
+			else visit(source, children, [...path, 0], depth + 1, rowKey);
+			branches.forEach((list, index) => {
+				const at = index + 1;
+				const key = `${rowKey}/${at}`;
+				const label =
+					node.type === "condition"
+						? node.branches[at]
+							? `${words.layers.elseIf} ${writeExpression(node.branches[at].test)}`
+							: words.layers.else
+						: words.layers.empty;
+				const open = list.some(shown);
+				const branchExpanded = open && expandedOf(key, true);
+				rows.push({
+					kind: "branch",
+					key,
+					ref: `${source.ref}#${id}/${at}`,
+					source,
+					path,
+					list: at,
+					label,
+					depth: depth + 1,
+					expandable: open,
+					expanded: branchExpanded,
+					parent: rowKey,
+				});
+				// An empty branch shows its slot, as an empty element does.
+				if (!open) rows.push({ kind: "slot", key: `${key}:empty`, label: words.insert.emptySlot, depth: depth + 2 });
+				else if (branchExpanded) visit(source, list, [...path, at], depth + 2, key);
+			});
 		});
 	};
 	rows.push({ kind: "divider", key: "site:divider", label: words.structure.siteTemplate, icon: "site", depth: 0 });
@@ -326,17 +380,49 @@ export function Layers({
 	const selectedRef = snapshot.selection?.ref ?? null;
 	const selectedRow = rows.find(
 		(row) =>
-			(row.kind === "node" && row.ref === selectedRef) ||
+			((row.kind === "node" || row.kind === "branch") && row.ref === selectedRef) ||
 			(row.kind === "placement" && `content/${row.placement.id}` === selectedRef),
 	);
 	const [focusKey, setFocusKey] = useState<string | null>(null);
 	const list = useRef<HTMLDivElement>(null);
 	const focusable = rows.filter(
-		(row): row is Extract<Row, { kind: "node" | "placement" }> => row.kind !== "divider" && row.kind !== "slot",
+		(row): row is Extract<Row, { kind: "node" | "placement" | "branch" }> =>
+			row.kind !== "divider" && row.kind !== "slot",
 	);
+	// What is under the pointer across the views (BA-33): a row hovered outlines its element on the canvas.
+	const hovered = useSyncExternalStore(subscribeHover, hoveredNow);
+	/** The row being renamed in place (F2, a double-click), by its key. */
+	const [renaming, setRenaming] = useState<string | null>(null);
+	/**
+	 * The layer picked up with Space (BA-33): the arrow keys move it, each move made without a step of
+	 * its own; Space puts it down as one Undo step, Escape puts it back. A peer's change meanwhile means
+	 * it can no longer be put back: Escape then puts it down where it is.
+	 */
+	const [picked, setPicked] = useState<{
+		ref: string;
+		source: string;
+		name: string;
+		before: Json;
+		last: Json;
+		invalid: boolean;
+	} | null>(null);
 	/** The row whose menu is open, and where (BA-10). */
 	const [rowMenu, setRowMenu] = useState<{ key: string; name: string; at: { x: number; y: number } } | null>(null);
-	const tabStop = (selectedRow ?? focusable.find((row) => row.key === focusKey) ?? focusable[0])?.key ?? null;
+	// The selection inside a branch someone closed (a caret in its text, BA-33): the nearest row shown
+	// around it keeps the tree's tab stop, so the tree is still reached where the selection is.
+	const aroundSelection = selectedRow
+		? undefined
+		: [...focusable]
+				.reverse()
+				.find((row) =>
+					row.kind === "node"
+						? holdsSelection(row.node, row.source, row.nested, selectedRef)
+						: row.kind === "placement"
+							? selectedRef !== null && within(sourceOf(selectedRef), `content/${row.placement.id}`)
+							: false,
+				);
+	const tabStop =
+		(selectedRow ?? aroundSelection ?? focusable.find((row) => row.key === focusKey) ?? focusable[0])?.key ?? null;
 
 	// The selected row is brought into view as the selection changes (from the canvas, Undo, the address).
 	useEffect(() => {
@@ -362,7 +448,7 @@ export function Layers({
 		if (!inPlace || row.kind === "divider" || row.kind === "slot") return false;
 		// The Placement of a Template whose Component is edited in place is that Component's row.
 		if (row.kind === "node" && row.nested && within(row.nested.ref, inPlace)) return false;
-		const ref = row.kind === "node" ? sourceOf(row.ref) : `content/${row.placement.id}`;
+		const ref = row.kind === "node" || row.kind === "branch" ? sourceOf(row.ref) : `content/${row.placement.id}`;
 		return !within(ref, inPlace);
 	};
 
@@ -372,7 +458,7 @@ export function Layers({
 			announceRefusal(placed.locked);
 			return;
 		}
-		if (row.kind === "node") structure.select(row.ref);
+		if (row.kind === "node" || row.kind === "branch") structure.select(row.ref);
 		// A Page layout's Placement: the Props panel opens on it.
 		else if (row.kind === "placement") structure.select(`content/${row.placement.id}`);
 	};
@@ -474,7 +560,127 @@ export function Layers({
 		});
 	};
 
+	/** Where a node is among its siblings, for what a keyboard move says ("2 of 4 in article"). */
+	const positionOf = (source: StructureSource, path: NodePath) => {
+		const place = placeOf(path);
+		const owner = place.owner?.length ? (nodeAt(source.tree, place.owner) ?? null) : null;
+		const siblings = (owner ? childLists(owner)[place.list] : source.tree.nodes) ?? [];
+		const counted = siblings.filter((each) => !isFormatting(each) && each.type !== "comment");
+		const index = counted.indexOf(siblings[place.index] as TreeNode);
+		const parent =
+			owner?.type === "element" ? (owner.label ?? owner.tag) : owner ? rowName(owner, source, null).name : said2.top;
+		return { position: String(index + 1), count: String(counted.length), parent };
+	};
+	const said2 = words.layers;
+	/** The tree a source's Draft document holds (a Component's is inside it). */
+	const treeOfDraft = (source: StructureSource, draft: Json): ElementTree =>
+		(source.kind === "component" ? (draft as { tree: ElementTree }).tree : draft) as unknown as ElementTree;
+	const pickUp = (row: Extract<Row, { kind: "node" }>) => {
+		const before = structure.draft(row.source.ref);
+		if (!before) return;
+		choose(row);
+		const name = nameOfRow(row);
+		setPicked({ ref: row.ref, source: row.source.ref, name, before, last: before, invalid: false });
+		announceRefusal(fill(said2.picked, { name }));
+	};
+	/** Puts the picked layer down where it is: its moves are one Undo step. */
+	const putDown = (say = true) => {
+		if (!picked) return;
+		setPicked(null);
+		const now = structure.draft(picked.source);
+		const moved = !sameValue(picked.before, picked.last);
+		if (moved)
+			structure.record(picked.source, picked.before, picked.last, fill(said.steps.move, { name: picked.name }));
+		const row = rows.find((each) => each.kind === "node" && each.ref === picked.ref);
+		if (say && row?.kind === "node")
+			announceRefusal(fill(said2.putDown, { name: picked.name, ...positionOf(row.source, row.path) }));
+		void now;
+	};
+	/** Puts the picked layer back where it was, unless someone changed its source meanwhile. */
+	const putBack = () => {
+		if (!picked) return;
+		const source = snapshot.sources.get(picked.source);
+		if (picked.invalid || !source) {
+			announceRefusal(said2.cantCancel);
+			putDown(false);
+			return;
+		}
+		setPicked(null);
+		if (!sameValue(picked.before, picked.last)) {
+			const refused = structure.change(
+				source.ref,
+				treeOfDraft(source, picked.before),
+				fill(said2.putBack, { name: picked.name }),
+				keyOf(picked.ref),
+				undefined,
+				{ record: false },
+			);
+			if (refused) announceRefusal(refused);
+		} else announceRefusal(fill(said2.putBack, { name: picked.name }));
+		// Back where it was: its row is found by its reference once the tree shows it there.
+		const ref = picked.ref;
+		requestAnimationFrame(() =>
+			requestAnimationFrame(() =>
+				list.current?.querySelector<HTMLElement>(`[data-wc-ref="${CSS.escape(ref)}"]`)?.focus(),
+			),
+		);
+	};
+	/** Moves the picked layer one step (no Undo step of its own). */
+	const movePicked = (row: Extract<Row, { kind: "node" }>, how: "up" | "down" | "in" | "out") => {
+		if (!picked) return;
+		const moved = { up: moveUp, down: moveDown, in: moveIntoPrevious, out: moveOut }[how](row.source.tree, row.path);
+		if ("refused" in moved) {
+			announceRefusal(moved.refused);
+			return;
+		}
+		const key = "id" in row.node ? row.node.id : `@${moved.path.join(".")}`;
+		const refused = structure.change(
+			row.source.ref,
+			moved.tree,
+			fill(said2.position, { name: picked.name, ...positionOf({ ...row.source, tree: moved.tree }, moved.path) }),
+			key,
+			undefined,
+			{ record: false },
+		);
+		if (refused) {
+			announceRefusal(refused);
+			return;
+		}
+		const last = structure.draft(row.source.ref) ?? picked.last;
+		setPicked({ ...picked, ref: `${row.source.ref}#${key}`, last });
+		focusRow(`${row.source.ref}:${pathKey(moved.path)}`);
+	};
+	// Someone else changed the picked layer's source meanwhile: it can no longer be put back.
+	useEffect(() => {
+		if (!picked || picked.invalid) return;
+		const now = structure.draft(picked.source);
+		if (now && !sameValue(now, picked.last)) {
+			setPicked({ ...picked, invalid: true });
+			announceRefusal(said2.cantCancel);
+		}
+	});
+
+	/** Renames an element's layer in place: its Layer label (empty takes it away). */
+	const rename = (row: Extract<Row, { kind: "node" }>, label: string) => {
+		setRenaming(null);
+		focusRow(row.key);
+		if (row.node.type !== "element") return;
+		const wanted = label.trim();
+		if ((row.node.label ?? "") === wanted) return;
+		const { label: _old, ...rest } = row.node;
+		const name = wanted || row.node.tag;
+		if (
+			change(
+				row,
+				replaceAt(row.source.tree, row.path, wanted ? { ...rest, label: wanted } : rest),
+				fill(said2.renameStep, { name }),
+			)
+		)
+			announceRefusal(fill(said2.renamed, { name }));
+	};
+
 	const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+		if (renaming) return;
 		const at = focusable.findIndex((row) => row.key === (focusKey ?? tabStop));
 		const row = focusable[at];
 		if (!row) return;
@@ -485,6 +691,57 @@ export function Layers({
 		};
 		const node = row.kind === "node" && !lockedRow(row) ? row : null;
 		const placement = row.kind === "placement" && !lockedRow(row) ? row : null;
+		const branch = row.kind === "branch" && !lockedRow(row) ? row : null;
+		// A layer picked up (BA-33): the arrows move it, Space puts it down, Escape puts it back.
+		if (picked) {
+			const moving = rows.find(
+				(each): each is Extract<Row, { kind: "node" }> => each.kind === "node" && each.ref === picked.ref,
+			);
+			if (event.key === " ") {
+				event.preventDefault();
+				putDown();
+				return;
+			}
+			if (event.key === "Escape") {
+				event.preventDefault();
+				event.stopPropagation();
+				putBack();
+				return;
+			}
+			if (moving && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
+				event.preventDefault();
+				const rtl = getComputedStyle(event.currentTarget).direction === "rtl";
+				const inward = rtl ? "ArrowLeft" : "ArrowRight";
+				movePicked(
+					moving,
+					event.key === "ArrowUp" ? "up" : event.key === "ArrowDown" ? "down" : event.key === inward ? "in" : "out",
+				);
+				return;
+			}
+			// Any other key puts it down where it is first.
+			putDown(false);
+		}
+		// Pasting on a branch puts what was copied into it (BA-33).
+		if (branch && menu && branch.source.editable && matches(event.nativeEvent, "tree.paste")) {
+			event.preventDefault();
+			menu.ops.paste();
+			return;
+		}
+		if (node?.source.editable && matches(event.nativeEvent, "tree.cut")) {
+			event.preventDefault();
+			menu?.ops.cut();
+			return;
+		}
+		if (node?.source.editable && node.node.type === "element" && matches(event.nativeEvent, "tree.rename")) {
+			event.preventDefault();
+			setRenaming(node.key);
+			return;
+		}
+		if (node?.source.editable && event.key === " " && !event.altKey && !event.ctrlKey && !event.metaKey) {
+			event.preventDefault();
+			pickUp(node);
+			return;
+		}
 		// The row's menu (BA-10): Shift+F10 or the menu key opens it under the row; ⌘C and ⌘V copy and paste.
 		if (node && menu && node.source.editable) {
 			if ((event.key === "F10" && event.shiftKey) || event.key === "ContextMenu") {
@@ -628,7 +885,7 @@ export function Layers({
 			focusRow(`${moving.source.ref}:${pathKey(moved.path)}`);
 	};
 	const dragProps = (row: Row) => {
-		if (row.kind === "divider" || row.kind === "slot") return {};
+		if (row.kind === "divider" || row.kind === "slot" || row.kind === "branch") return {};
 		const draggable = canDrag(row);
 		return {
 			draggable,
@@ -669,6 +926,11 @@ export function Layers({
 				aria-label={said.tree}
 				aria-describedby="wc-layers-keys"
 				onKeyDown={onKeyDown}
+				onBlur={(event) => {
+					// Focus leaving the tree puts a picked layer down where it is.
+					if (picked && !event.currentTarget.contains(event.relatedTarget as Node | null)) putDown(false);
+				}}
+				onMouseLeave={() => hover(null, "tree")}
 				className="-mx-1 min-h-0 grow overflow-auto px-1 pb-2"
 			>
 				{rows.map((row) =>
@@ -704,7 +966,31 @@ export function Layers({
 							key={row.key}
 							row={row}
 							words={words}
-							selected={row.kind === "node" ? row.ref === selectedRef : selectedRef === `content/${row.placement.id}`}
+							selected={
+								row.kind === "node" || row.kind === "branch"
+									? row.ref === selectedRef
+									: selectedRef === `content/${row.placement.id}`
+							}
+							hovered={hoveredRow(row, hovered)}
+							grabbed={row.kind === "node" && picked?.ref === row.ref}
+							renaming={
+								row.kind === "node" && renaming === row.key
+									? {
+											onDone: (label) => {
+												if (label !== null) rename(row, label);
+												else {
+													setRenaming(null);
+													focusRow(row.key);
+												}
+											},
+										}
+									: null
+							}
+							onRename={
+								row.kind === "node" && row.node.type === "element" && row.source.editable && !lockedRow(row)
+									? () => setRenaming(row.key)
+									: undefined
+							}
 							tabStop={row.key === tabStop}
 							locked={lockedRow(row)}
 							inPlace={row.kind === "placement" && snapshot.inPlace === `content/${row.placement.id}`}
@@ -714,7 +1000,7 @@ export function Layers({
 							onChoose={() => choose(row)}
 							onToggle={row.expandable ? () => toggle(row.key, !row.expanded) : undefined}
 							actions={
-								lockedRow(row) ? null : row.kind === "node" ? (
+								lockedRow(row) || row.kind === "branch" ? null : row.kind === "node" ? (
 									<RowActions row={row} words={words} onAction={(action) => act(row, action)} />
 								) : snapshot.layoutInfo?.canArrange ? (
 									<RowActions row={row} words={words} onAction={(action) => actOnPlacement(row, action)} />
@@ -753,10 +1039,23 @@ export function Layers({
 	);
 }
 
+/** Whether a row is the one hovered on the canvas (its element, or a Page's Placement around it). */
+function hoveredRow(row: Row, hovered: Hovered): boolean {
+	if (hovered?.from !== "canvas") return false;
+	if (row.kind === "node") return row.ref === hovered.ref;
+	if (row.kind === "placement")
+		return sourceOf(hovered.ref).split("/").slice(0, 2).join("/") === `content/${row.placement.id}` && !row.expanded;
+	return false;
+}
+
 function TreeRow({
 	row,
 	words,
 	selected,
+	hovered,
+	grabbed,
+	renaming,
+	onRename,
 	tabStop,
 	locked,
 	inPlace,
@@ -769,9 +1068,17 @@ function TreeRow({
 	onFocus,
 	onMenu,
 }: {
-	row: Extract<Row, { kind: "node" } | { kind: "placement" }>;
+	row: Extract<Row, { kind: "node" } | { kind: "placement" } | { kind: "branch" }>;
 	words: Words;
 	selected: boolean;
+	/** Its element is under the pointer on the canvas (BA-33). */
+	hovered: boolean;
+	/** Picked up with Space, being moved with the arrows. */
+	grabbed: boolean;
+	/** Renamed in place now: the label's field, Enter or leaving keeps it, Escape doesn't (null). */
+	renaming: { onDone(label: string | null): void } | null;
+	/** Starts renaming it (a double-click). */
+	onRename?: () => void;
 	tabStop: boolean;
 	/** Outside the Component edited in place: dimmed. */
 	locked: boolean;
@@ -792,8 +1099,12 @@ function TreeRow({
 	const node = row.kind === "node" ? row.node : null;
 	const component = node?.type === "component" || row.kind === "placement";
 	const named =
-		row.kind === "node" ? rowName(row.node, row.source, row.nested) : { name: row.placement.name, detail: "" };
-	const pages = row.kind === "placement" ? row.pages : (row.nested?.pages ?? null);
+		row.kind === "node"
+			? rowName(row.node, row.source, row.nested)
+			: row.kind === "branch"
+				? { name: row.label, detail: "" }
+				: { name: row.placement.name, detail: "" };
+	const pages = row.kind === "placement" ? row.pages : row.kind === "node" ? (row.nested?.pages ?? null) : null;
 	const hidden = (node?.type === "component" && node.hidden) || (row.kind === "placement" && row.placement.hidden);
 	const expanded = row.expandable ? row.expanded : undefined;
 	const Chevron = expanded ? ChevronDownIcon : ChevronRightIcon;
@@ -801,16 +1112,19 @@ function TreeRow({
 		? ComponentIcon
 		: node?.type === "loop"
 			? RepeatIcon
-			: node?.type === "condition"
+			: node?.type === "condition" || row.kind === "branch"
 				? GitBranchIcon
 				: node?.type === "element"
 					? CodeXmlIcon
 					: SquareDashedIcon;
+	// Text clients can't edit (BA-33): flagged, so Staff find what to make a Prop, a Field or a Global.
+	const fixed = node !== null && holdsFixedText(node);
 	const label = [
 		named.name,
 		named.detail,
 		pages !== null && pages > 1 ? fill(said.pagesOther, { count: String(pages) }) : null,
 		hidden ? said.hiddenRow : null,
+		fixed ? words.fixedText.badge : null,
 	]
 		.filter(Boolean)
 		.join(" ");
@@ -824,6 +1138,10 @@ function TreeRow({
 			tabIndex={tabStop ? 0 : -1}
 			aria-disabled={locked || undefined}
 			onClick={onChoose}
+			onDoubleClick={onRename}
+			onMouseEnter={() => hover(row.kind === "placement" ? `content/${row.placement.id}` : row.ref, "tree")}
+			data-hovered={hovered ? "true" : undefined}
+			data-grabbed={grabbed ? "true" : undefined}
 			onContextMenu={
 				onMenu
 					? (event) => {
@@ -844,12 +1162,14 @@ function TreeRow({
 					: selected
 						? "text-chrome-strong bg-[#6366f1]/25 shadow-[inset_2px_0_0_#6366f1]"
 						: "hover:bg-chrome-hover text-chrome-text"
-			} ${hidden ? "[&>[data-wc-row-name]]:opacity-50" : ""} ${locked ? "opacity-45" : ""} ${dragged ? "opacity-50" : ""} ${
+			} ${hidden ? "[&>[data-wc-row-name]]:opacity-50" : ""} ${locked ? "opacity-45" : ""} ${dragged || grabbed ? "opacity-50" : ""} ${
+				hovered && !selected ? "bg-chrome-hover" : ""
+			} ${grabbed ? "outline-chrome-focus outline-1 -outline-offset-1 outline-dashed" : ""} ${
 				drop === "inside" ? "outline-chrome-focus outline-2 -outline-offset-2 outline-dashed" : ""
 			} ${CHROME_EASE} ${FOCUS_RING}`}
 			style={{ paddingInlineStart: `${4 + row.depth * INDENT}px` }}
 			data-wc-row={row.key}
-			data-wc-ref={row.kind === "node" ? row.ref : `content/${row.placement.id}`}
+			data-wc-ref={row.kind === "placement" ? `content/${row.placement.id}` : row.ref}
 			data-wc-locked={locked ? "" : undefined}
 		>
 			{drop === "before" || drop === "after" ? (
@@ -875,13 +1195,22 @@ function TreeRow({
 				className={`size-3.5 shrink-0 ${component ? "text-[#a78bfa]" : node?.type === "loop" ? "text-[#fbbf24]" : node?.type === "condition" ? "text-[#60a5fa]" : "text-chrome-faint"}`}
 			/>
 			<span className="flex min-w-0 grow items-baseline gap-1.5 truncate" data-wc-row-name="">
-				{node?.type === "element" ? (
+				{renaming && node?.type === "element" ? (
+					<RenameField
+						label={fill(words.layers.renameLabel, { tag: node.tag })}
+						value={node.label ?? ""}
+						onDone={renaming.onDone}
+					/>
+				) : node?.type === "element" ? (
 					<>
 						<span className={`font-mono ${node.label ? "text-chrome-strong font-sans" : "text-[#f472b6]"}`}>
 							{named.name}
 						</span>
 						{named.detail ? (
-							<span className="text-chrome-muted truncate font-mono text-[11px]">{named.detail}</span>
+							<>
+								{" "}
+								<span className="text-chrome-muted truncate font-mono text-[11px]">{named.detail}</span>
+							</>
 						) : null}
 					</>
 				) : (
@@ -900,12 +1229,18 @@ function TreeRow({
 							{named.name}
 						</span>
 						{named.detail ? (
-							<span className="text-chrome-muted truncate font-mono text-[11px]">{named.detail}</span>
+							<>
+								{" "}
+								<span className="text-chrome-muted truncate font-mono text-[11px]">{named.detail}</span>
+							</>
 						) : null}
 					</>
 				)}
 			</span>
 			{hidden ? <EyeOffIcon aria-hidden="true" className="text-chrome-faint size-3.5 shrink-0" /> : null}
+			{fixed ? (
+				<TypeIcon aria-hidden="true" className="size-3.5 shrink-0 text-[#fbbf24]" data-wc-fixed-text="" />
+			) : null}
 			{pages !== null && pages > 1 ? (
 				<span className="shrink-0 rounded-[4px] bg-[#7c2d12] px-1.5 text-[11px] leading-[18px] font-medium text-[#fdba74]">
 					{/* A space before it, so the row's text reads as its name does ("HeroSplit 3 pages"). */}
@@ -914,6 +1249,46 @@ function TreeRow({
 			) : null}
 			{actions}
 		</div>
+	);
+}
+
+/** A layer's label typed in place (F2, a double-click): Enter or leaving keeps it, Escape doesn't. */
+function RenameField({ label, value, onDone }: { label: string; value: string; onDone(label: string | null): void }) {
+	const [text, setText] = useState(value);
+	const field = useRef<HTMLInputElement>(null);
+	const done = useRef(false);
+	useEffect(() => {
+		field.current?.focus();
+		field.current?.select();
+	}, []);
+	const finish = (label: string | null) => {
+		if (done.current) return;
+		done.current = true;
+		onDone(label);
+	};
+	return (
+		<input
+			ref={field}
+			aria-label={label}
+			value={text}
+			spellCheck={false}
+			autoComplete="off"
+			onChange={(event) => setText(event.target.value)}
+			onClick={(event) => event.stopPropagation()}
+			onKeyDown={(event) => {
+				event.stopPropagation();
+				if (event.key === "Enter") {
+					event.preventDefault();
+					finish(text);
+				} else if (event.key === "Escape") {
+					event.preventDefault();
+					finish(null);
+				}
+			}}
+			onBlur={() => finish(text)}
+			className={`bg-chrome-well text-chrome-strong h-[20px] min-w-0 grow rounded-[3px] px-1 text-[12px] ${FOCUS_RING}`}
+			data-wc-rename=""
+		/>
 	);
 }
 

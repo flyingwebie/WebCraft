@@ -2,6 +2,7 @@ import type { TreeNode } from "@webcraft/renderer/builder";
 
 import {
 	canUnwrap,
+	childLists,
 	insertAt,
 	newElement,
 	nodeAt,
@@ -25,6 +26,9 @@ import { type Structure, type StructureSelection, sourceOf } from "./selection.t
  * tab; Paste puts a copy after the selection.
  */
 
+/** Make Component's fixed text turned into Props: each piece's `fixedTextsOf` index and its Prop's key. */
+export type MadeTexts = { index: number; key: string }[];
+
 /** What can wrap an element without a question: a Div, a Section, a Link. */
 export type PlainWrap = "div" | "section" | "a";
 
@@ -36,6 +40,9 @@ export type LayerOps = {
 	/** Whether something was copied in this tab. */
 	copied(): boolean;
 	copy(): string | null;
+	/** Copies the selection, then removes it (one Undo step). */
+	cut(): string | null;
+	/** Pastes after the selection, or into a branch selected (Else, When there are no items: at its end). */
 	paste(): string | null;
 	duplicate(): string | null;
 	remove(): string | null;
@@ -47,9 +54,10 @@ export type LayerOps = {
 	parent(): string | null;
 	/**
 	 * Make Component: moves the selected element or Placement into a new Component named `name`, placed
-	 * where it was (`components.make`; the page looks the same). Answers why not, or null.
+	 * where it was (`components.make`; the page looks the same), its fixed text chosen made Props (each
+	 * the Prop's default). Answers why not, or null.
 	 */
-	makeComponent(name: string): Promise<string | null>;
+	makeComponent(name: string, texts?: MadeTexts): Promise<string | null>;
 };
 
 export function layerOps(options: {
@@ -108,12 +116,40 @@ export function layerOps(options: {
 			announce(fill(said.copied, { name: nameNow() }));
 			return null;
 		},
+		cut() {
+			const selected = inTree();
+			const source = sourceOfSelection();
+			if (!selected || !source || selected.list !== null) return refuse(said.nothingToPaste);
+			const name = nameNow();
+			clipboard = structuredClone(selected.node);
+			const refused = change(removeAt(source.tree, selected.path), fill(words.layers.cutStep, { name }), null);
+			if (!refused) announce(fill(words.layers.cut, { name }));
+			return refused;
+		},
 		paste() {
 			const selected = inTree();
 			const source = sourceOfSelection();
 			if (!clipboard) return refuse(said.nothingToPaste);
 			if (!selected || !source) return refuse(fill(said.notHere, { name: "" }));
 			const copies = withNewIds(source.tree, [clipboard]);
+			// A branch selected: what was copied goes in it, at its end.
+			if (selected.list !== null) {
+				const owner = nodeAt(source.tree, selected.path);
+				const length = owner ? (childLists(owner)[selected.list]?.length ?? 0) : 0;
+				const made = insertAt(source.tree, { owner: selected.path, list: selected.list, index: length }, copies);
+				const branch =
+					owner?.type === "condition"
+						? owner.branches[selected.list]
+							? words.layers.elseIf
+							: words.layers.else
+						: words.layers.empty;
+				const copiedName = clipboard.type === "element" ? (clipboard.label ?? clipboard.tag) : clipboard.type;
+				return change(
+					made.tree,
+					fill(words.layers.pastedInto, { name: copiedName, branch }),
+					keyAt(made.tree, made.path),
+				);
+			}
 			const made = insertAt(source.tree, placeBy(source.tree, selected.path, "after"), copies);
 			const name = anchorName(structure.snapshot(), selected.ref);
 			const key = keyAt(made.tree, made.path);
@@ -201,7 +237,7 @@ export function layerOps(options: {
 			structure.select(`${selected.source}#${key}`);
 			return null;
 		},
-		async makeComponent(name) {
+		async makeComponent(name, texts = []) {
 			const said = words.componentDialog;
 			const selected = inTree();
 			const source = sourceOfSelection();
@@ -213,6 +249,7 @@ export function layerOps(options: {
 					source: source.target as never,
 					path: [...selected.path],
 					node: selected.node,
+					...(texts.length ? { texts } : {}),
 				});
 				announce(fill(said.made, { name }));
 				structure.select(`${selected.source}#${made.placement.id}`);

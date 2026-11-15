@@ -17,8 +17,15 @@ const DRAG_THRESHOLD = 4;
 export function installDragCatcher(options: {
 	document: Document;
 	overlay: Overlay;
-	/** A drag ended: what was dragged, and the page's element under the drop (null outside the page). */
-	onDrop(source: string, target: Element | null): void;
+	/**
+	 * A drag ended: what was dragged, the page's element under the drop (null outside the page), and
+	 * where the pointer was on the shell's window.
+	 */
+	onDrop(source: string, target: Element | null, point: { x: number; y: number }): void;
+	/** The pointer moved while dragging (BA-33: the drop line follows it); null target outside the page. */
+	onOver?(source: string, target: Element | null, point: { x: number; y: number }): void;
+	/** The drag ended, dropped or not: what `onOver` drew goes. */
+	onEnd?(): void;
 }): DragCatcher {
 	const { document: doc, overlay, onDrop } = options;
 	const view = doc.defaultView ?? window;
@@ -31,6 +38,7 @@ export function installDragCatcher(options: {
 		catcher?.remove();
 		catcher = null;
 		overlay.hover(null);
+		options.onEnd?.();
 	};
 
 	const onDown = (event: PointerEvent) => {
@@ -64,7 +72,9 @@ export function installDragCatcher(options: {
 			doc.body.append(catcher);
 		}
 		event.preventDefault();
-		overlay.hover(overlay.elementAt(event.clientX, event.clientY));
+		const over = overlay.elementAt(event.clientX, event.clientY);
+		overlay.hover(over);
+		options.onOver?.(press.source, over, { x: event.clientX, y: event.clientY });
 	};
 
 	const onUp = (event: PointerEvent) => {
@@ -81,7 +91,7 @@ export function installDragCatcher(options: {
 		};
 		view.addEventListener("click", swallow, { capture: true, once: true });
 		view.setTimeout(() => view.removeEventListener("click", swallow, { capture: true }), 0);
-		onDrop(source, target);
+		onDrop(source, target, { x: event.clientX, y: event.clientY });
 	};
 
 	const onKey = (event: KeyboardEvent) => {

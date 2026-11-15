@@ -33,6 +33,11 @@ export type Overlay = {
 	 * yet (the amber dot on its corner). Replaces the marks drawn before.
 	 */
 	marks(marks: readonly OverlayMark[]): void;
+	/**
+	 * Where a drag over the page would land (BA-33): a line before or after an element, or an outline
+	 * inside it; null takes it away.
+	 */
+	dropLine(element: Element | null, position: "before" | "after" | "inside" | null): void;
 	/** Whether the selection's chip is drawn: not while a toolbar on the selection already names it. */
 	showChip(shown: boolean): void;
 	/** Where an element of the page is on the shell's window (its box through the frame's offset and zoom), or null. */
@@ -87,11 +92,18 @@ export function createOverlay(options: {
 	chip.className =
 		"absolute hidden whitespace-nowrap rounded-t-[3px] bg-[#4f46e5] px-1.5 font-mono text-[11px] leading-[18px] font-semibold text-white";
 	chip.dataset.wcChip = "";
+	// The chip is the selected element's grab handle (BA-33): dragged over the page, it moves the element.
+	chip.dataset.wcDrag = "move";
+	chip.classList.add("pointer-events-auto", "cursor-grab", "select-none");
+	const dropBox = doc.createElement("div");
+	dropBox.className = "absolute hidden box-border rounded-[2px]";
+	dropBox.dataset.wcDropLine = "";
 	// Marks go under the outlines and the chip: the selection is always on top.
 	const markLayer = doc.createElement("div");
 	markLayer.className = "absolute inset-0";
 	markLayer.dataset.wcMarks = "";
-	layer.append(markLayer, hoverBox, selectedBox, chip);
+	layer.append(markLayer, hoverBox, selectedBox, chip, dropBox);
+	let dropAt: { element: Element; position: "before" | "after" | "inside" } | null = null;
 	canvas.append(layer);
 	let drawnMarks: { mark: OverlayMark; parts: HTMLElement[] }[] = [];
 	let chipShown = true;
@@ -138,6 +150,21 @@ export function createOverlay(options: {
 		layer.style.setProperty("width", `${clip.width}px`);
 		layer.style.setProperty("height", `${clip.height}px`);
 		place(hoverBox, outlinesShown && hovered && hovered !== chosen ? hovered : null, geometry, clip);
+		const dropped = place(dropBox, dropAt?.element ?? null, geometry, clip);
+		if (dropped && dropAt) {
+			// A 2 px line on the element's top or bottom edge, or a dashed outline inside it.
+			dropBox.dataset.wcDropLine = dropAt.position;
+			const inside = dropAt.position === "inside";
+			dropBox.classList.toggle("border-2", inside);
+			dropBox.classList.toggle("border-dashed", inside);
+			dropBox.classList.toggle("border-[#4ade80]", inside);
+			dropBox.classList.toggle("bg-[#4ade80]", !inside);
+			if (!inside) {
+				dropBox.style.setProperty("height", "2px");
+				if (dropAt.position === "after") dropBox.style.setProperty("top", `${dropped.top + dropped.height - 1}px`);
+				else dropBox.style.setProperty("top", `${dropped.top - 1}px`);
+			}
+		}
 		placeMarks(geometry, clip);
 		for (const listener of drawListeners) listener();
 		const shown = place(selectedBox, outlinesShown ? chosen : null, geometry, clip);
@@ -240,6 +267,10 @@ export function createOverlay(options: {
 		select(element) {
 			chosen = element;
 			chosenName = null;
+			schedule();
+		},
+		dropLine(element, position) {
+			dropAt = element && position ? { element, position } : null;
 			schedule();
 		},
 		name(text) {

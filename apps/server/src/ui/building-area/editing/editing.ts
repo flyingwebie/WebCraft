@@ -6,6 +6,7 @@ import { TEXT_REGION } from "../agent/contract.ts";
 import { fill, type PageState, type Words } from "../api.ts";
 import { nameOf, type Overlay, type OverlayMark } from "../canvas/overlay.ts";
 import type { RegionSaving, SavedAnswer, SaveWatch } from "../canvas/regions.ts";
+import { toggleShortcuts } from "../command-menu/Shortcuts.tsx";
 import { COMMAND_MENU_EVENT, type MenuTab } from "../command-menu/state.ts";
 import { PUBLISH_OPEN_EVENT } from "../publish/sources.ts";
 import { type PageDrafts, pageDrafts, type SharedDraft } from "./drafts.ts";
@@ -481,6 +482,11 @@ export function pageEditing(options: {
 								: null;
 					if (tab) {
 						document.dispatchEvent(new CustomEvent(COMMAND_MENU_EVENT, { detail: { tab } }));
+						return true;
+					}
+					// ⌘/ in the page opens the Keyboard shortcuts list too (BA-33).
+					if (matches(key, "menu.shortcuts") && !document.querySelector("dialog[open]")) {
+						toggleShortcuts();
 						return true;
 					}
 					if (key.key === "F10" && key.altKey && region && region.getAttribute("data-wc-type") === "richText") {

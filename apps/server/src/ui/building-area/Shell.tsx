@@ -352,7 +352,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 			kind: "make",
 			suggested: /[a-z]/.test(words_) ? words_ : "NewComponent",
 			text: fill(words.componentDialog.makeText, { name }),
-			submit: (chosen) => ops.makeComponent(chosen),
+			node: selected.node,
+			submit: (chosen, texts) => ops.makeComponent(chosen, texts),
 		});
 	};
 	/** What the canvas selected last: its name as its chip says it, and its reference when it has one. */
