@@ -274,6 +274,18 @@ export function CommandMenu({
 					run,
 				});
 		}
+		const formats = (["html", "css", "js"] as const).map((language) => formatTarget(language));
+		if (formats.every(Boolean))
+			add({
+				id: "format-all",
+				group: said.groups.format,
+				icon: CodeXmlIcon,
+				label: action.formatAll,
+				permission: "structure.edit",
+				run: async () => {
+					for (const format of formats) await format?.();
+				},
+			});
 		if (staff) {
 			add({
 				id: "newComponent",
@@ -622,7 +634,12 @@ export function CommandMenu({
 		);
 	})();
 
-	const all = asking ? answers : tab === "actions" ? actions : tab === "goTo" ? (goTo ?? []) : insertRows;
+	// The row's Component button and the empty Page's Add a Component list the Components only, until typing.
+	const insertList =
+		request?.only === "components" && !query.trim()
+			? insertRows.filter((row) => row.group === said.groups.components)
+			: insertRows;
+	const all = asking ? answers : tab === "actions" ? actions : tab === "goTo" ? (goTo ?? []) : insertList;
 	const listed = (() => {
 		const found = visibleCommands(all, {
 			tab: asking ? "insert" : tab,

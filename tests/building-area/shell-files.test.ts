@@ -1,6 +1,6 @@
 // The shell's code in files of its own (BA-30): the file the shell's document loads imports nothing at
 // once, and names the rest of the shell's files (each person's shell, each place's, the Media
-// picker's, the code panes', the parts they share) only for when they are needed; the document preloads its person's.
+// picker's, the code panes', the Command menu's, the parts they share) only for when they are needed; the document preloads its person's.
 // Every one of them is served from the Site's address as the shell's first file is: hashed, kept a
 // year, with nothing about the Site or the person in it.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
@@ -60,6 +60,7 @@ describe("the shell's files", () => {
 		expect([...fetchedLater].sort()).toEqual(
 			[
 				"shell-CodePanes",
+				"shell-CommandMenu",
 				"shell-ComponentsPlace",
 				"shell-ContentPlace",
 				"shell-FormsPlace",

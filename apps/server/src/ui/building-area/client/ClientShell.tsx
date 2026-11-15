@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { useEditorFit } from "../../builder/editor-fit.ts";
+import { editorHistory } from "../../builder/editor-history.ts";
 import { type EditAnswer, editRequests, fill, type PageState, type ShellConfig } from "../api.ts";
 import type { PageLanguage } from "../bottom-bar/LanguageMenu.tsx";
 import { Frame, type FrameHandle } from "../canvas/Frame.tsx";
 import { PRESETS, type Preset } from "../canvas/gutters.ts";
 import { NoDocument } from "../canvas/NoDocument.tsx";
 import type { SavingStatus } from "../canvas/regions.ts";
+import type { MenuHost } from "../command-menu/host.ts";
+import { CommandMenuHost, useCommandMenu } from "../command-menu/loader.tsx";
 import { LAYOUT_VERSION } from "../docks/layout.ts";
 import { reverseElsewhere } from "../editing/drafts.ts";
 import { pageEditing } from "../editing/editing.ts";
@@ -20,6 +23,7 @@ import { MediaShellHost } from "../places/media/host.tsx";
 import { PlaceLoader } from "../places/PlaceLoader.tsx";
 import { PLACE_EVENT, placeEntry, placeKeyOf, reopenPlace } from "../places/registry.ts";
 import { Publish } from "../publish/Publish.tsx";
+import { PUBLISH_OPEN_EVENT } from "../publish/sources.ts";
 import { ClientBar, type ClientPanel, clientDraftStateOf } from "./ClientBar.tsx";
 import { CLIENT_PLACES, type ClientPlace, ClientRail } from "./ClientRail.tsx";
 import { HelpCard } from "./HelpCard.tsx";
@@ -387,6 +391,34 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 	const draft = clientDraftStateOf(saving, justSaved, shown);
 	const panelShown = place ? null : panel === "sections" && !sections ? null : panel;
 	const current = opened.address.document?.kind === "page" ? opened.address.document.page.split("?")[0] : null;
+	// The Members' shorter Command menu (BA-10, SPEC 13.9): ⌘K Actions and ⌘P Go to, in their words.
+	const menu = useCommandMenu({ tabs: ["actions", "goTo"], announce });
+	const menuHost: MenuHost = {
+		config,
+		words,
+		announce,
+		history: {
+			undo: () => undoHistory.undo(),
+			redo: () => undoHistory.redo(),
+			state: () => editorHistory().state(),
+		},
+		publish: () => document.dispatchEvent(new CustomEvent(PUBLISH_OPEN_EVENT)),
+		places: CLIENT_PLACES.filter((key) => placeEntry(key)).map((key) => ({ key, name: words.places[key] })),
+		place: placeKey,
+		openPlace: (key) => {
+			const wanted = clientPlace(key);
+			if (wanted) openPlace(wanted);
+		},
+		leavePlace,
+		open: opened.open,
+		exit: () => void exit(),
+		member: {
+			preview: { on: mode === "preview", set: (on) => onMode(on ? "preview" : "edit") },
+			pageDetails: () => setPanel("pageDetails"),
+			sections: sections ? () => setPanel("sections") : null,
+			help: () => setCard("help"),
+		},
+	};
 
 	return (
 		<div
@@ -576,6 +608,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 				</p>
 			</div>
 			<NarrowNotice covered={fit.covered} words={words} back={config.returnTo} />
+			<CommandMenuHost host={menuHost} request={menu.request} onRequest={menu.setRequest} />
 			<MediaShellHost config={config} />
 		</div>
 	);
