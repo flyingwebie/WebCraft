@@ -269,6 +269,10 @@ describe("the Styles place, for Staff", () => {
 	test("Rename follows every element: once published, every page carries the new name and none the old", async () => {
 		await go(page, placed("styles/classes", `class=${ids.get("hero__title")}`));
 		await page.locator('[data-wc-class-rule="hero__title"]').waitFor();
+		// The page under the place is announced once Edit mode has described it: the rename's message comes after.
+		await page.waitForFunction(() =>
+			document.querySelector("[data-wc-messages]")?.textContent?.includes("Opened Menu"),
+		);
 		expect(await page.locator("[data-wc-class-rename]").isDisabled()).toBe(true);
 		await page.locator("[data-wc-class-name]").fill("masthead__title");
 		await page.locator("[data-wc-class-rename]").click();
