@@ -62,9 +62,11 @@ export type LoopItemPlace = { alias: string; key?: string };
 /**
  * Where a binding sits, for Edit mode's tags: the Loop item it is in, if any; whether it is an
  * image's `src` (`image`: a media value the image popover changes) rather than an element's only
- * content; and for a body's image Block, the Block's id (`block`).
+ * content; whether it is a whole link an `<a>` shows (`link`: its address in `href` and its words as
+ * the `<a>`'s only content, a link value the link popover changes); and for a body's image Block, the
+ * Block's id (`block`).
  */
-export type RegionPlace = { item?: LoopItemPlace; image?: boolean; block?: string };
+export type RegionPlace = { item?: LoopItemPlace; image?: boolean; link?: boolean; block?: string };
 
 /** A Loop of the Site as checks see it: which paths its items have (`title`, `category.url`). */
 export type LoopInfo = { isKnownValue(itemPath: string): boolean };

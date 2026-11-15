@@ -2142,7 +2142,9 @@ export function editingBar(
 	// Editing in place
 
 	/** Text and rich text regions: image regions are the image tools'. */
-	const TEXT_REGION = '[data-wc-item][data-wc-field]:not([data-wc-type="media"]):not([data-wc-type="body"])';
+	// Link regions (`data-wc-type="link"`) are the building area's link popover's (BA-15): never typed over here.
+	const TEXT_REGION =
+		'[data-wc-item][data-wc-field]:not([data-wc-type="media"]):not([data-wc-type="body"]):not([data-wc-type="link"])';
 	const plainTextOnly = (() => {
 		try {
 			const probe = doc.createElement("div");

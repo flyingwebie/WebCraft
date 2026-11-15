@@ -276,7 +276,9 @@ const SHELL_DOCUMENT_STYLES = `body.wc-shell{margin:0;background:#121214;color:#
 
 /**
  * What the framed page needs from WebCraft: outside scripts' placeholders (ADR 0022), as the editing
- * bar's page stylesheet styles them. Everything else with chrome is drawn by the shell, over the frame.
+ * bar's page stylesheet styles them, and room for an empty image or link region to be found and
+ * clicked, with the words the shell gives it (`data-wc-empty-label`, BA-15). Everything else with
+ * chrome is drawn by the shell, over the frame.
  */
 const AGENT_STYLES = `.wc-outside-scripts {
 	margin: 2rem auto; max-width: 48rem; padding: 0.75rem 1rem;
@@ -291,6 +293,14 @@ const AGENT_STYLES = `.wc-outside-scripts {
 	.wc-outside-scripts { background: #27272a; color: #e4e4e7; border-color: #a1a1aa; }
 	.wc-outside-script-note { color: #d4d4d8; }
 }
+[data-wc-type="media"][data-wc-item]:not(img):empty {
+	display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box;
+	min-width: 12rem; min-height: 8rem; padding: 1rem; border-radius: 0.5rem;
+	background: #eef2ff; color: #3730a3; font: 500 14px/1.4 ui-sans-serif, system-ui, sans-serif;
+}
+[data-wc-type="media"][data-wc-item]:not(img):empty::after { content: attr(data-wc-empty-label); }
+a[data-wc-type="link"][data-wc-item]:empty { display: inline-block; min-width: 6rem; min-height: 1.5em; }
+a[data-wc-type="link"][data-wc-item]:empty::after { content: attr(data-wc-empty-label); }
 `;
 
 async function asset(
