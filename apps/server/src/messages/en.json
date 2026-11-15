@@ -2838,7 +2838,8 @@
 		},
 		"link": {
 			"address": "Address",
-			"text": "Text"
+			"text": "Text",
+			"newTab": "Open in a new tab"
 		},
 		"media": {
 			"none": "No file chosen.",

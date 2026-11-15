@@ -2838,7 +2838,8 @@
 		},
 		"link": {
 			"address": "Indirizzo",
-			"text": "Testo"
+			"text": "Testo",
+			"newTab": "Apri in una nuova scheda"
 		},
 		"media": {
 			"none": "Nessun file scelto.",
