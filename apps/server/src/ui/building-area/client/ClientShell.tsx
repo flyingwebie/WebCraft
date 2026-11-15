@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
-import { useEditorFit } from "../../builder/editor-fit.ts";
 import { type EditAnswer, editRequests, fill, type PageState, type ShellConfig } from "../api.ts";
 import type { PageLanguage } from "../bottom-bar/LanguageMenu.tsx";
 import { Frame, type FrameHandle } from "../canvas/Frame.tsx";
@@ -15,7 +14,6 @@ import { shellHistory } from "../editing/history.ts";
 import { TextToolbar } from "../editing/TextToolbar.tsx";
 import { type RegionCycle, regionCycle } from "../keyboard.ts";
 import { managementApi } from "../management.ts";
-import { NarrowNotice } from "../NarrowNotice.tsx";
 import { useOpenDocument } from "../open-document.ts";
 import { MediaShellHost } from "../places/media/host.tsx";
 import { PlaceLoader } from "../places/PlaceLoader.tsx";
@@ -34,6 +32,11 @@ import { loopItems } from "./loop-items.ts";
 import { type ClientMode, clientEditing } from "./marks.ts";
 import { MemberDetails } from "./PageDetails.tsx";
 import { PageSwitcher } from "./PageSwitcher.tsx";
+import { useKeepInView } from "./phone/keep-in-view.ts";
+import { useClientLayout, useKeyboardInset } from "./phone/layout.ts";
+import { MoreSheet } from "./phone/MoreSheet.tsx";
+import { PhoneBar } from "./phone/PhoneBar.tsx";
+import { PhoneHint } from "./phone/PhoneHint.tsx";
 import { regionPopovers } from "./popovers.ts";
 import { RegionPopover } from "./RegionPopover.tsx";
 import { RemovedToast, SectionMarks } from "./SectionBar.tsx";
@@ -91,6 +94,11 @@ function clientPlace(key: string | null): ClientPlace | null {
  * Publish), and one side panel at a time (360, pushing the page). Every area the Member may change is
  * marked on the page (`marks.ts`). None of the Staff's parts is drawn: no docks, panels, code panes,
  * insert row, or Templates, Styles, Loops and Components places.
+ *
+ * At every width (BA-19, `phone/`): up to 640 px the phone's one bar replaces the rail and the bar, the
+ * rest is in "More", the page is edge to edge, panels and popovers are sheets from the bottom and the
+ * text toolbar sits on the keyboard; from 641 to 1023 px (a tablet) the desktop shell with a bar that
+ * keeps only the words it needs. No window is too narrow for a Member.
  */
 export function ClientShell({ config }: { config: ShellConfig }) {
 	const { words } = config;
@@ -100,8 +108,11 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 	const cycle = useRef<RegionCycle | null>(null);
 	const frame = useRef<FrameHandle | null>(null);
 	const [message, setMessage] = useState({ text: "", urgent: false, count: 0 });
-	const fit = useEditorFit();
 	const panelId = useId();
+	const layout = useClientLayout();
+	const phone = layout === "phone";
+	const keyboard = useKeyboardInset(phone);
+	const [more, setMore] = useState(false);
 
 	const [exiting, setExiting] = useState(false);
 	const [mode, setMode] = useState<ClientMode>("edit");
@@ -131,9 +142,11 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 		if (!open) return false;
 		setPanel(null);
 		if (focusButton)
-			document
-				.querySelector<HTMLElement>(`[data-wc-bar="${open === "sections" ? "sections" : "page-details"}"]`)
-				?.focus();
+			(
+				document.querySelector<HTMLElement>(`[data-wc-bar="${open === "sections" ? "sections" : "page-details"}"]`) ??
+				// On a phone the panel was opened from More.
+				document.querySelector<HTMLElement>('[data-wc-phone-bar="more"]')
+			)?.focus();
 		return true;
 	}, []);
 
@@ -269,6 +282,12 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 	}, [config.token, config.site.id, words, undoHistory, closePanel, popovers, items, bodies, formLocks, sections]);
 	useEffect(() => () => editing.destroy(), [editing]);
 	useEffect(() => editing.setMode(mode), [editing, mode]);
+	// On a phone, nothing covers what is being edited: a sheet, the toolbar or the keyboard (BA-19).
+	useKeepInView({ on: phone, editing, popovers, keyboard });
+	// More belongs to the phone's bar.
+	useEffect(() => {
+		if (!phone) setMore(false);
+	}, [phone]);
 
 	// What Edit mode says of the page now, and what Page details calls itself on it (Post details on an Entry; BA-13).
 	const [pageState, setPageState] = useState<PageState | null>(null);
@@ -436,7 +455,11 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 	const closeCard = () => {
 		const was = card;
 		setCard(null);
-		if (was === "help") document.querySelector<HTMLElement>('[data-wc-rail="help"]')?.focus();
+		if (was === "help")
+			(
+				document.querySelector<HTMLElement>('[data-wc-rail="help"]') ??
+				document.querySelector<HTMLElement>('[data-wc-phone-bar="more"]')
+			)?.focus();
 		if (was !== "first") return;
 		void api.me
 			.saveEditorPreferences({ siteId: config.site.id, preferences: { version: LAYOUT_VERSION, hintSeen: true } })
@@ -463,10 +486,47 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 		if (!sectionsOpen) sections.closed();
 	}, [sectionsOpen, sections]);
 
+	// The page's name, which lists the Pages and Entries; Publish in the bar's size. The phone's bar and
+	// the desktop's draw the same ones.
+	const switcher = (
+		<PageSwitcher
+			config={config}
+			name={pageTitle ?? words.documents.untitled}
+			current={current ?? null}
+			data={opened.switchable}
+			onOpen={(path) => opened.open({ kind: "page", page: path })}
+			announce={announce}
+		/>
+	);
+	const publish = (size: "client" | "phone") => (
+		<Publish
+			config={config}
+			request={request}
+			path={shown ? (shown.address.split("?")[0] ?? "/") : null}
+			document={opened.address.document}
+			changed={publishChanged}
+			size={size}
+			announce={announce}
+			onPublished={refreshState}
+		/>
+	);
+	/** One side panel at a time: the bar's (or More's) closes the item's. */
+	const openBarPanel = (next: ClientPanel) => {
+		items.closePanel({ deselect: true });
+		setPanel((was) => (was === next ? null : next));
+	};
+	// A side panel on a phone is a sheet: a tap on the dimmed page puts it away.
+	const sheetShown = phone && !place && (panelShown !== null || itemsNow.selected?.panel === true);
+
 	return (
 		<div
-			className="bg-chrome text-chrome-text grid h-dvh w-full grid-cols-[76px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_56px] overflow-hidden font-sans text-[13px]"
+			className={`bg-chrome text-chrome-text grid h-dvh w-full overflow-hidden font-sans text-[13px] ${
+				phone
+					? "grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_60px]"
+					: "grid-cols-[76px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_56px]"
+			}`}
 			data-wc-client=""
+			data-wc-layout={layout}
 			data-wc-mode={mode}
 			data-place={placeKey ?? undefined}
 		>
@@ -476,66 +536,93 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 			>
 				{words.skipToContent}
 			</a>
-			<ClientRail
-				config={config}
-				place={placeKey}
-				onPage={leavePlace}
-				onPlace={openPlace}
-				helpOpen={card === "help"}
-				onHelp={() => setCard((was) => (was === "help" ? null : "help"))}
-				onExit={() => void exit()}
-				exiting={exiting}
-			/>
+			{phone ? null : (
+				<ClientRail
+					config={config}
+					place={placeKey}
+					onPage={leavePlace}
+					onPlace={openPlace}
+					helpOpen={card === "help"}
+					onHelp={() => setCard((was) => (was === "help" ? null : "help"))}
+					onExit={() => void exit()}
+					exiting={exiting}
+				/>
+			)}
 			{/* Before the canvas in the Tab order, so the page comes last; F6 still goes rail, page, bar. */}
-			<ClientBar
-				words={words}
-				language={config.language}
-				switcher={
-					<PageSwitcher
-						config={config}
-						name={pageTitle ?? words.documents.untitled}
-						current={current ?? null}
-						data={opened.switchable}
-						onOpen={(path) => opened.open({ kind: "page", page: path })}
-						announce={announce}
-					/>
-				}
-				draft={draft}
-				mode={mode}
-				onMode={onMode}
-				width={width}
-				onWidth={setWidth}
-				languages={shown?.languages ?? []}
-				onLanguage={(language) => frame.current?.navigate(language.path)}
-				sections={arrangeable}
-				panel={panelShown}
-				panelId={panelId}
-				onPanel={(next) => {
-					// One side panel at a time: the bar's closes the item's.
-					items.closePanel({ deselect: true });
-					setPanel((was) => (was === next ? null : next));
-				}}
-				publish={
-					<Publish
-						config={config}
-						request={request}
-						path={shown ? (shown.address.split("?")[0] ?? "/") : null}
-						document={opened.address.document}
-						changed={publishChanged}
-						size="client"
-						announce={announce}
-						onPublished={refreshState}
-					/>
-				}
-				onUndo={() => void undoHistory.undo()}
-				onRedo={() => void undoHistory.redo()}
-				place={place !== null}
-				detailsLabel={postPage ? words.details.postDetails : undefined}
-			/>
+			{phone ? (
+				<PhoneBar
+					words={words}
+					editing={editing}
+					switcher={switcher}
+					mode={mode}
+					onMode={onMode}
+					moreOpen={more}
+					onMore={() => setMore((was) => !was)}
+					publish={publish("phone")}
+					onUndo={() => void undoHistory.undo()}
+					place={place !== null}
+				/>
+			) : (
+				<ClientBar
+					words={words}
+					language={config.language}
+					switcher={switcher}
+					draft={draft}
+					mode={mode}
+					onMode={onMode}
+					width={width}
+					onWidth={setWidth}
+					languages={shown?.languages ?? []}
+					onLanguage={(language) => frame.current?.navigate(language.path)}
+					sections={arrangeable}
+					panel={panelShown}
+					panelId={panelId}
+					onPanel={openBarPanel}
+					publish={publish("client")}
+					onUndo={() => void undoHistory.undo()}
+					onRedo={() => void undoHistory.redo()}
+					place={place !== null}
+					detailsLabel={postPage ? words.details.postDetails : undefined}
+					compact={layout === "tablet"}
+				/>
+			)}
+			{phone && more ? (
+				<MoreSheet
+					words={words}
+					language={config.language}
+					mode={mode}
+					onMode={onMode}
+					languages={shown?.languages ?? []}
+					onLanguage={(language) => frame.current?.navigate(language.path)}
+					sections={arrangeable}
+					onSections={() => openBarPanel("sections")}
+					detailsLabel={postPage ? words.details.postDetails : said.pageDetails}
+					onDetails={() => openBarPanel("pageDetails")}
+					draft={draft}
+					onRedo={() => void undoHistory.redo()}
+					onHelp={() => setCard("help")}
+					onExit={() => void exit()}
+					exiting={exiting}
+					place={place !== null}
+					onClose={() => setMore(false)}
+				/>
+			) : null}
 			<div
-				className="relative col-start-2 row-start-1 grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_auto]"
+				className={`relative row-start-1 grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_auto] ${phone ? "col-start-1" : "col-start-2"}`}
 				data-wc-work=""
 			>
+				{/* On a phone a side panel is a sheet over the dimmed page: a tap on the page puts it away. */}
+				{sheetShown ? (
+					<div
+						aria-hidden="true"
+						className="fixed inset-0 z-40"
+						onClick={() => {
+							if (itemsNow.selected?.panel) items.closePanel({ deselect: true });
+							else closePanel();
+						}}
+						data-wc-phone-dim=""
+					/>
+				) : null}
 				{/* The side panel before the canvas in the Tab order: the page stays the last stop. */}
 				{itemsNow.selected?.panel && !place ? (
 					<ItemPanel
@@ -592,18 +679,25 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 					className="relative col-start-1 row-start-1 min-h-0 min-w-0"
 				>
 					<div
-						className={`relative h-full w-full ${place ? "invisible" : ""}`}
+						className={`relative h-full w-full ${place ? "invisible" : ""} ${phone ? "overflow-hidden" : ""}`}
 						inert={place ? true : undefined}
 						data-wc-under-place=""
 					>
 						{card && !place ? (
-							<HelpCard config={config} page={pageTitle} help={card === "help"} onClose={closeCard} />
+							phone && card === "first" ? (
+								<PhoneHint words={words} onClose={closeCard} />
+							) : (
+								<HelpCard config={config} page={pageTitle} help={card === "help"} onClose={closeCard} />
+							)
 						) : null}
 						{opened.shown?.status === "missing" || opened.shown?.status === "later" ? (
 							<NoDocument words={words} why={opened.shown.status} />
 						) : null}
 						{/* Before the frame in the Tab order: the page stays the last stop. */}
-						{opened.shown?.status === "shown" ? <TextToolbar editing={editing} words={words} /> : null}
+						{opened.shown?.status === "shown" ? (
+							// On a phone the toolbar sits on the keyboard (BA-19).
+							<TextToolbar editing={editing} words={words} dock={phone ? { bottom: keyboard } : null} />
+						) : null}
 						{opened.shown?.status === "shown" ? <RegionPopover popovers={popovers} words={words} goTo={goTo} /> : null}
 						{/* A section chosen on the page: its name and bar, and "+ Add section" between two (BA-17). */}
 						{opened.shown?.status === "shown" ? (
@@ -618,8 +712,9 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 						{opened.shown?.status === "shown" ? <LoopItems items={items} words={words} /> : null}
 						{opened.shown?.status === "shown" ? <BodyInPlace body={bodies} /> : null}
 						{opened.shown?.status === "shown" ? (
-							// 12 from the rail, the panel and the bar: the frame keeps 12 left, right and below.
-							<div className="absolute inset-x-0 top-3 bottom-0">
+							// 12 from the rail, the panel and the bar: the frame keeps 12 left, right and below. On a
+							// phone the page is edge to edge: the frame's 12 fall outside the screen.
+							<div className={phone ? "absolute -inset-x-3 top-0 -bottom-3" : "absolute inset-x-0 top-3 bottom-0"}>
 								<Frame
 									address={opened.shown.frame}
 									following={mode === "preview"}
@@ -634,7 +729,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 									onPage={onPage}
 									onSaving={onSaving}
 									editing={editing}
-									sheet={{ width: PRESETS[width] }}
+									sheet={{ width: phone ? null : PRESETS[width] }}
 									// The names of the Forms on the page, for their lock chips (BA-27).
 									onReady={(document) => readFormNames(document, () => api.forms.list({ siteId: config.site.id }))}
 								/>
@@ -668,7 +763,6 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 				</p>
 			</div>
 			<RemovedToast sections={sections} words={words} />
-			<NarrowNotice covered={fit.covered} words={words} back={config.returnTo} />
 			<MediaShellHost config={config} />
 		</div>
 	);

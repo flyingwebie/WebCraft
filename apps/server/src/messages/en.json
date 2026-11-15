@@ -9480,6 +9480,7 @@
 			"published": "Published",
 			"tryAgain": "Try again",
 			"sendForReview": "Send for review",
+			"sendShort": "Send",
 			"title": "Publish {title}",
 			"titleNoPage": "Publish these changes",
 			"intro": "Visitors see these changes once you publish.",
@@ -9986,6 +9987,14 @@
 				"finished": "Finished editing {name}",
 				"dropHere": "Drop to use this photo",
 				"blocks": "Blocks"
+			},
+			"phone": {
+				"more": "More",
+				"close": "Close",
+				"language": "Language",
+				"back": "Back",
+				"languages": "Languages of the page",
+				"hint": "Tap the dashed outline to make changes."
 			},
 			"photo": {
 				"region": "{name}: change the photo",
