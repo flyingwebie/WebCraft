@@ -10458,7 +10458,19 @@
 				},
 				"componentError": "{name} ha dato un errore su un Placement: {message}",
 				"showPlacement": "Mostra il Placement",
-				"saved": "{script}: salvato nella bozza."
+				"saved": "{script}: salvato nella bozza.",
+				"settings": "Impostazioni dello script del Component",
+				"consent": "Categoria di consenso",
+				"consentHelp": "Fuori da Necessari, le pagine dei visitatori lo trattengono finché non accettano questa categoria nel banner dei consensi.",
+				"categories": {
+					"necessary": "Necessari",
+					"analytics": "Statistiche",
+					"marketing": "Marketing",
+					"media": "Contenuti multimediali"
+				},
+				"libraries": "Librerie che usa",
+				"librariesNone": "Nessuna",
+				"noLibraries": "Il sito non ha librerie: aggiungile in Sito › Librerie."
 			}
 		},
 		"placements": {
