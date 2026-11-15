@@ -106,7 +106,7 @@ export function clientEditing(options: {
 	/**
 	 * When a pointer was last pressed in the page (0: a key since): the focus that follows is editing. A
 	 * finger's tap gives focus only once the touch ends (BA-19), so the press counts for a moment, until
-	 * a key is pressed.
+	 * a key is pressed in the page or focus leaves it.
 	 */
 	let pointedAt = 0;
 	/** The amber dots the page editing asked for (BA-07), drawn on the outlines' corners here. */
@@ -601,6 +601,8 @@ export function clientEditing(options: {
 					return false;
 				}
 				case "focusout": {
+					// Focus gone out of the page (to a popover, the bar): the press it came with no longer counts.
+					if (!(event as FocusEvent).relatedTarget) pointedAt = 0;
 					const region = regionOf(event.target);
 					if ((region && region === armed) || (armed?.matches(PLACED_FORM) && event.target === armed)) {
 						armed = null;
