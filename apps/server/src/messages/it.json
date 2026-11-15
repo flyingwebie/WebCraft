@@ -1890,6 +1890,7 @@
 		"errors": {
 			"generic": "Qualcosa è andato storto. Riprova.",
 			"CHANGED_MEANWHILE": "Qualcun altro l'ha modificato nello stesso momento. Riprova.",
+			"PROP_REPLACED": "Ciò che hai scritto non è stato tenuto: qualcuno ha cambiato questa Prop del Component nello stesso momento.",
 			"EDIT_MODE_ENDED": "La modalità modifica è terminata. Riaprila dall'admin.",
 			"EDIT_REQUEST_REFUSED": "Questa pagina non può fare modifiche. Ricaricala e riprova.",
 			"EDIT_FIELD_INVALID": "Questo non si può cambiare qui.",
@@ -10360,6 +10361,7 @@
 				"network": "Il sito non è raggiungibile. Riprova.",
 				"CHANGED_MEANWHILE": "Qualcuno l'ha cambiata nello stesso momento, oppure così non si può salvare. Ora mostra ciò che è salvato.",
 				"DRAFT_CHANGED": "Qualcuno ha cambiato le sezioni della pagina nello stesso momento. Ora le mostra come sono.",
+				"PROP_REPLACED": "Ciò che hai scritto non è stato tenuto: qualcuno ha cambiato le impostazioni di questa sezione nello stesso momento. Ora mostra ciò che è salvato.",
 				"PAGE_LAYOUT_REFUSED": "Solo lo Staff può cambiare questa parte del layout della pagina.",
 				"ENTRY_INVALID": "Così non si può salvare.",
 				"EDIT_MODE_ENDED": "La modifica è terminata. Riapri la pagina dall'admin.",

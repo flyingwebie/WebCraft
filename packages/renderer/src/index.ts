@@ -111,7 +111,6 @@ export {
 	type CompareOperator,
 	EXPRESSION_KEYWORDS,
 	type Expression,
-	passes,
 	type RenderTime,
 	readExpression,
 	writeExpression,
@@ -221,6 +220,7 @@ export {
 	retainedValues,
 } from "./prop-retention.ts";
 export { cleanRichText, RICH_TEXT_MAX_LENGTH, richTextToText, richTextTranslation } from "./rich-text.ts";
+export { passes } from "./run-expression.ts";
 export {
 	cutText,
 	type JsonLd,
@@ -291,18 +291,17 @@ export {
 	VOID_ELEMENTS,
 	valuePathsOf,
 } from "./tree.ts";
+export { isPresent, textOf } from "./value-text.ts";
 export {
 	type BodyValue,
 	bodyValue,
 	isBody,
 	isList,
-	isPresent,
 	isRichText,
 	type RichText,
 	richText,
 	type TemplateValue,
 	type TocValue,
-	textOf,
 	tocValue,
 	type ValueReader,
 } from "./values.ts";

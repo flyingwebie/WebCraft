@@ -232,6 +232,9 @@ describe("the language of the page, for Staff", () => {
 		await page.keyboard.press("Enter");
 		await framedAt(page, `/it${bread}`);
 		await page.getByRole("button", { name: "IT, Language: Italiano", exact: true }).waitFor();
+		// The button stays while the page in the other language loads, and focus is back on it.
+		const onButton = () => page.evaluate(() => document.activeElement?.hasAttribute("data-wc-language") ?? false);
+		expect(await onButton()).toBe(true);
 
 		await button(page).click();
 		await menu(page)
@@ -239,6 +242,7 @@ describe("the language of the page, for Staff", () => {
 			.click();
 		await framedAt(page, bread);
 		await page.getByRole("button", { name: "EN, Language: English", exact: true }).waitFor();
+		expect(await onButton()).toBe(true);
 		await expectAccessibleScreen(page, "Building area › after choosing a language");
 	});
 });
