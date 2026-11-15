@@ -27,6 +27,7 @@ import { type RegionCycle, regionCycle } from "./keyboard.ts";
 import { NarrowNotice } from "./NarrowNotice.tsx";
 import { useOpenDocument } from "./open-document.ts";
 import { AddPropButton, ComponentPanel } from "./panels/ComponentPanel.tsx";
+import { EntryPanel, EntryPanelActions, useEntryPanelView } from "./panels/EntryFields.tsx";
 import { Inspector } from "./panels/Inspector.tsx";
 import { Layers } from "./panels/Layers.tsx";
 import { conditionName, loopAround } from "./panels/LoopPanel.tsx";
@@ -143,6 +144,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 	const [selection, setSelection] = useState<PanelContext["selection"]>(null);
 	const [saving, setSaving] = useState<"idle" | "saving" | "failed">("idle");
 	const shownAddress = useRef<string | null>(null);
+	// What Edit mode says of the page now: the Entry panel and Page details read its Entry from it (BA-13).
+	const [pageState, setPageState] = useState<PageState | null>(null);
 
 	const announce = useCallback((text: string, urgent = false) => {
 		// Alternating a trailing space makes the same words twice in a row heard twice.
@@ -269,6 +272,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 			void answer.then((state) => {
 				if (!state.ok || shownAddress.current !== address) return;
 				editing.pageState(state.data);
+				setPageState(state.data);
 				setShown({
 					address,
 					changes: state.data.changes.length,
@@ -293,6 +297,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 				pageStructure.page(address.startsWith(`${BUILDING_STAND_IN_PREFIX}/`) ? null : (address.split("?")[0] ?? "/"));
 			setSaving("idle");
 			setShown(null);
+			setPageState(null);
 			takeState(address, answer);
 			framed(address, answer);
 		},
@@ -454,10 +459,31 @@ export function Shell({ config }: { config: ShellConfig }) {
 		[panelSelection, kind, inPlaceTarget],
 	);
 	const editTarget = staff ? inPlaceTargetOf(structureNow) : null;
+	// The Entry panel (BA-13): the page's Entry filled in without leaving it; a page never published
+	// follows its new slug. (A Member gets Page details in client editing's side panel instead.)
+	const entryView = useEntryPanelView();
 	const docks = useDocks({
 		config,
 		context,
 		announce,
+		panelActions: {
+			entry: <EntryPanelActions words={words} view={entryView} />,
+			...(staff && editTarget && !inPlaceTarget
+				? {
+						inspector: (
+							<PanelButton
+								icon={PencilIcon}
+								label={words.placements.props.edit}
+								onClick={() => editInPlace(editTarget)}
+								data={{ "data-wc-edit-component": "" }}
+							/>
+						),
+					}
+				: {}),
+			...(staff && inPlaceTarget
+				? { component: <AddPropButton structure={pageStructure} words={words} target={inPlaceTarget} /> }
+				: {}),
+		},
 		headings: {
 			layers: (
 				<DocumentSwitcher
@@ -479,56 +505,54 @@ export function Shell({ config }: { config: ShellConfig }) {
 					}
 				: {}),
 		},
-		bodies: staff
-			? {
-					layers: <Layers structure={pageStructure} words={words} layout={layoutEditor} />,
-					inspector: (
-						<Inspector
-							structure={pageStructure}
-							words={words}
-							token={config.token}
-							siteId={config.site.id}
-							layout={layoutEditor}
-							onOpenComponent={(componentId, source) => {
-								// Placed on this page: edited in place; else opened as the document.
-								const snapshot = pageStructure.snapshot();
-								const placed = snapshot.sources.get(source);
-								if (placed)
-									editInPlace({
-										source,
-										componentId,
-										name: placed.name ?? componentId,
-										placement: placementOfSource(snapshot, source),
-									});
-								else opened.open({ kind: "component", componentId });
-							}}
-							onOpenLoop={(loopId) => opened.documents.openPlace(`loops/${loopId}`)}
-						/>
-					),
-					...(inPlaceTarget
-						? { component: <ComponentPanel structure={pageStructure} words={words} target={inPlaceTarget} /> }
-						: {}),
-				}
-			: {},
-		actions: staff
-			? {
-					...(editTarget && !inPlaceTarget
-						? {
-								inspector: (
-									<PanelButton
-										icon={PencilIcon}
-										label={words.placements.props.edit}
-										onClick={() => editInPlace(editTarget)}
-										data={{ "data-wc-edit-component": "" }}
-									/>
-								),
-							}
-						: {}),
-					...(inPlaceTarget
-						? { component: <AddPropButton structure={pageStructure} words={words} target={inPlaceTarget} /> }
-						: {}),
-				}
-			: {},
+		bodies: {
+			entry: (
+				<EntryPanel
+					token={config.token}
+					siteId={config.site.id}
+					words={words}
+					request={request}
+					page={pageState}
+					onSaving={onSaving}
+					onMoved={(path) => opened.documents.replace({ kind: "page", page: path })}
+					announce={announce}
+					view={entryView}
+					admin={config.admin}
+					onLanguage={(path) => frame.current?.navigate(path)}
+				/>
+			),
+			...(staff
+				? {
+						layers: <Layers structure={pageStructure} words={words} layout={layoutEditor} />,
+						inspector: (
+							<Inspector
+								structure={pageStructure}
+								words={words}
+								token={config.token}
+								siteId={config.site.id}
+								layout={layoutEditor}
+								onOpenComponent={(componentId, source) => {
+									// Placed on this page: edited in place; else opened as the document.
+									const snapshot = pageStructure.snapshot();
+									const placed = snapshot.sources.get(source);
+									if (placed)
+										editInPlace({
+											source,
+											componentId,
+											name: placed.name ?? componentId,
+											placement: placementOfSource(snapshot, source),
+										});
+									else opened.open({ kind: "component", componentId });
+								}}
+								onOpenLoop={(loopId) => opened.documents.openPlace(`loops/${loopId}`)}
+							/>
+						),
+						...(inPlaceTarget
+							? { component: <ComponentPanel structure={pageStructure} words={words} target={inPlaceTarget} /> }
+							: {}),
+					}
+				: {}),
+		},
 		titles: loopOfElement ? { inspector: words.inspectorTitles.loop } : {},
 		subs: loopOfElement ? { inspector: loopOfElement.node.source } : {},
 	});

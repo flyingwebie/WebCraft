@@ -76,8 +76,6 @@ export type Docks = {
 	headings: Partial<Record<PanelKey, ReactNode>>;
 	/** What each panel shows under its header (BA-08 onwards: Layers, the Inspector); empty when none. */
 	bodies: Partial<Record<PanelKey, ReactNode>>;
-	/** A panel's own actions in its header, before its menu (BA-09: the Props panel's Edit Component). */
-	actions: Partial<Record<PanelKey, ReactNode>>;
 	/** A panel's title when it isn't its name (BA-09: the Component panel is titled with the Component's). */
 	titles: Partial<Record<PanelKey, string>>;
 	/** A panel's muted part beside its title, when it isn't the selection's name (the Inspector's). */
@@ -95,6 +93,8 @@ export type Docks = {
 	setDrawer(side: DockSide | null): void;
 	/** A panel whose menu button takes focus once the docks have drawn (after a move from its menu). */
 	focusLater(id: string | null): void;
+	/** The actions each panel's header shows beside its title (BA-13: the Entry panel's Find and Collapse; BA-09: the Props panel's Edit Component, the Component panel's "+"). */
+	panelActions: Partial<Record<PanelKey, ReactNode>>;
 };
 
 /** The window's size, following it. */
@@ -123,19 +123,19 @@ export function useDocks({
 	context,
 	headings = {},
 	bodies = {},
-	actions = {},
 	titles = {},
 	subs = {},
 	announce,
+	panelActions = {},
 }: {
 	config: ShellConfig;
 	context: PanelContext;
 	headings?: Partial<Record<PanelKey, ReactNode>>;
 	bodies?: Partial<Record<PanelKey, ReactNode>>;
-	actions?: Partial<Record<PanelKey, ReactNode>>;
 	titles?: Partial<Record<PanelKey, string>>;
 	subs?: Partial<Record<PanelKey, string>>;
 	announce(text: string, urgent?: boolean): void;
+	panelActions?: Partial<Record<PanelKey, ReactNode>>;
 }): Docks {
 	const { words } = config;
 	const [stored, setStored] = useState<Layout | null>(config.layout);
@@ -309,7 +309,6 @@ export function useDocks({
 		context,
 		headings,
 		bodies,
-		actions,
 		titles,
 		subs,
 		change,
@@ -321,6 +320,7 @@ export function useDocks({
 		drawer,
 		setDrawer,
 		focusLater: setFocusTarget,
+		panelActions,
 	};
 }
 
@@ -649,7 +649,7 @@ function Dock({
 									docks.subs[placement.id as PanelKey] ??
 									(placement.id === "inspector" ? docks.context.selection?.name : undefined)
 								}
-								actions={docks.actions[placement.id as PanelKey]}
+								actions={docks.panelActions[placement.id as PanelKey]}
 								heading={docks.headings[placement.id as PanelKey]}
 								collapsed={Boolean(placement.collapsed)}
 								labels={{
