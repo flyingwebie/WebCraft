@@ -3,7 +3,6 @@ import type { ElementTree } from "@webcraft/renderer/builder";
 import { TriangleAlertIcon } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 
-import { editorHistory } from "../../builder/editor-history.ts";
 import { matches } from "../../builder/shortcuts.ts";
 import { fill, type Words } from "../api.ts";
 import { FOCUS_RING } from "../controls.tsx";
@@ -149,6 +148,9 @@ const IDLE: HtmlState = {
 /** How long after typing stops the page previews the markup, in milliseconds (Code mode's). */
 const PREVIEW_AFTER_MS = 350;
 
+/** A save's place among the person's steps, kept from the moment the save starts. */
+type HistoryPlace = ReturnType<CodePanesDeps["history"]["reserve"]>;
+
 type ReadAnswer = {
 	tree: ElementTree;
 	styles: Record<string, string>;
@@ -162,6 +164,7 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 	let run = 0;
 	let previewRun = 0;
 	let saving: Promise<void> | null = null;
+	let saveSerial = 0;
 	/** The source's tree as last printed, to tell a new tree (a change from the Inspector, Layers, someone else). */
 	let shownTree: ElementTree | null = null;
 	let shownPath: string | null = null;
@@ -344,8 +347,11 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 		void locate(state.text, state.source, deps().structure.snapshot().selection);
 	};
 
-	/** Saves through Code mode's own save: inline styles and a Component's Props become Classes and Props. */
-	const saveWhole = async (state: HtmlState, overwrite: boolean): Promise<boolean> => {
+	/**
+	 * Saves through Code mode's own save: inline styles and a Component's Props become Classes and Props.
+	 * Its receipts are one step, recorded in the place the save took in the history when it started.
+	 */
+	const saveWhole = async (state: HtmlState, overwrite: boolean, place: HistoryPlace): Promise<boolean> => {
 		const path = deps().path();
 		if (!path || !state.source) return false;
 		const opened = await request<{ version: string | null }>("code/open", { path, ref: state.source });
@@ -362,15 +368,15 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 			return false;
 		}
 		const label = fill(words().code.html.step, { name: state.name });
-		const [first, ...rest] = answer.data.history;
-		if (first) {
-			const step = editorHistory().record({
-				...first,
-				label,
-				location: { siteId: deps().config.site.id, panel: "html", ref: state.ref ?? undefined, title: label },
-			});
-			for (const change of rest) editorHistory().attach(step, change);
-		}
+		// Recorded one after the other under one group of their own, the receipts make one step.
+		const group = `html-save:${++saveSerial}`;
+		const location = {
+			siteId: deps().config.site.id,
+			panel: "html" as const,
+			ref: state.ref ?? undefined,
+			title: label,
+		};
+		for (const change of answer.data.history) place.record({ ...change, label, location, group });
 		void overwrite;
 		await deps().frame.current?.rerender();
 		return true;
@@ -388,6 +394,8 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 			store.set({ conflict: true });
 			return;
 		}
+		// The save keeps its place among the person's steps from now: Undo waits for it (BA-33's 872).
+		const place = deps().history.reserve();
 		saving = (async () => {
 			store.set({ saving: true });
 			window.clearTimeout(previewTimer);
@@ -413,7 +421,7 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 				Object.keys(read.data.styles).length > 0 ||
 				(source.kind === "component" && propsBlock(state.text) !== propsBlock(state.base));
 			let ok: boolean;
-			if (whole) ok = await saveWhole(state, overwrite);
+			if (whole) ok = await saveWhole(state, overwrite, place);
 			else {
 				const refused = deps().structure.change(sourceRef, read.data.tree, label);
 				if (refused) {
@@ -442,6 +450,7 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 		try {
 			await saving;
 		} finally {
+			place.settle();
 			saving = null;
 			store.set({ saving: false });
 		}

@@ -325,12 +325,35 @@ describe("one-off styles and generated Classes", () => {
 			(text) => /<h1 class="style-/.test(text),
 		);
 		const again = await html.inputValue();
-		await html.fill(again.replace('<p class="intro">', '<p class="intro" style="color: teal">'));
-		await page.locator('[data-wc-rail="panels"]').focus();
-		await eventually(entryMarkup, (text) => /<p class="intro style-/.test(text));
-
+		// The second save is held on its way, and Undo is pressed while it is (BA-33's one run: Undo
+		// took back the first save while the second was still being answered).
+		const held = Promise.withResolvers<void>();
+		const release = Promise.withResolvers<void>();
+		await page.route("**/_webcraft/edit/api/code/save", async (route) => {
+			held.resolve();
+			await release.promise;
+			await route.continue();
+		});
+		try {
+			await html.fill(again.replace('<p class="intro">', '<p class="intro" style="color: teal">'));
+			await page.locator('[data-wc-rail="panels"]').focus();
+			await held.promise;
+			await page.getByRole("button", { name: "Undo" }).first().click();
+			await page.waitForTimeout(300);
+			// Nothing taken back yet: Undo waits for the save under way.
+			expect(await entryMarkup()).toMatch(/<h1 class="style-[0-9a-f]{8}">/);
+			release.resolve();
+			const undone = await eventually(entryMarkup, (text) => !/<p class="intro style-/.test(text));
+			// The step taken back is the second save; the first one's generated Class stays on the h1.
+			expect(undone).toContain('<p class="intro">First words</p>');
+			expect(undone).toMatch(/<h1 class="style-[0-9a-f]{8}">/);
+		} finally {
+			release.resolve();
+			await page.unrouteAll({ behavior: "wait" });
+		}
+		// The next Undo takes back the first save: no generated Class left on the h1.
 		await page.getByRole("button", { name: "Undo" }).first().click();
-		const undone = await eventually(entryMarkup, (text) => !/<p class="intro style-/.test(text));
-		expect(undone).toContain('<p class="intro">First words</p>');
+		const first = await eventually(entryMarkup, (text) => !/<h1 class="style-/.test(text));
+		expect(first).toContain("<h1>{{ title }}</h1>");
 	});
 });
