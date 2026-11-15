@@ -129,6 +129,12 @@ async function reset(): Promise<void> {
 	await api.entries.publish({ siteId, entryId: breadId });
 }
 
+/** A heading as the Page layout keeps it: the text, or its English one. */
+function headingOf(value: unknown): string {
+	if (typeof value === "string") return value;
+	return value && typeof value === "object" ? String((value as { en?: unknown }).en ?? "") : "";
+}
+
 /** What the Drafts hold now: the Tagline, and the Home page's sections (their headings, hidden ones marked). */
 async function read() {
 	const [globals, layout] = await Promise.all([
@@ -139,7 +145,7 @@ async function read() {
 		tagline: String(globals.globals.draft.tagline ?? ""),
 		sections: layout.layout.placements.map(
 			(placement) =>
-				`${(placement.values as { heading?: string }).heading ?? ""}${placement.hidden ? " (hidden)" : ""}`,
+				`${headingOf((placement.values as { heading?: unknown }).heading)}${placement.hidden ? " (hidden)" : ""}`,
 		),
 	};
 }
