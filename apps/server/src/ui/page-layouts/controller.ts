@@ -163,7 +163,11 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 			state = result.data as LayoutState;
 			// A peer deletion can unmount the field without a blur event. Finish/refuse its own input
 			// before the UI unregisters the flusher; never leave an orphan capable of restoring the row.
-			for (const id of inputs.keys()) if (!state.layout.placements.some((p) => p.id === id)) flushProps(id);
+			// So can Staff replacing a Prop's declaration (its box is drawn again for the new one): what was
+			// typed for the old one is refused now, and the person told, rather than dropped unsaid.
+			for (const [id, input] of inputs)
+				if (!state.layout.placements.some((p) => p.id === id) || input.replaced(state.layout).length > 0)
+					flushProps(id);
 			if (selected && !selection()) selected = null;
 			emit();
 			outline();
@@ -312,7 +316,7 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 		if (!receipt || !shared) {
 			input.cancel();
 			saved = false;
-			announce(kit.errorText("CHANGED_MEANWHILE"), true);
+			announce(kit.errorText(input.replaced(state.layout).length > 0 ? "PROP_REPLACED" : "CHANGED_MEANWHILE"), true);
 			emit();
 			return;
 		}
@@ -333,9 +337,12 @@ export function pageLayoutController(kit: BarKit, initial: LayoutState, entryId:
 			emit();
 			saved = await shared.saved();
 			busy = false;
-			if (saved) for (const listener of finished) listener(step);
-			else announce(kit.errorText("CHANGED_MEANWHILE"), true);
+			if (!saved) announce(kit.errorText("CHANGED_MEANWHILE"), true);
 			await reload();
+			// Staff replaced a Prop's declaration while it was typed in: the value isn't kept, and isn't a step.
+			const kept = input.replaced(state.layout).length === 0;
+			if (saved && kept) for (const listener of finished) listener(step);
+			if (saved && !kept) announce(kit.errorText("PROP_REPLACED"), true);
 			await kit.refresh();
 			await refreshPage();
 		}, true);

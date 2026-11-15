@@ -452,8 +452,10 @@ describe("the Command menu", () => {
 		await menu(page).waitFor({ state: "hidden" });
 		await focused(page.locator('[data-wc-insert="section"]'));
 
-		// The arrows move along the tab list.
+		// The arrows move along the tab list. Opening puts focus in the search box a frame later: wait for
+		// it, so it can't take focus back from the tab list in the middle of the arrows.
 		await page.keyboard.press("ControlOrMeta+k");
+		await focused(menu(page).getByRole("combobox"));
 		await tab("Actions").focus();
 		await page.keyboard.press("ArrowRight");
 		await holds(tab("Go to"), "aria-selected", "true");
@@ -461,6 +463,8 @@ describe("the Command menu", () => {
 
 		// An Action runs once the menu has closed, and shows under Recent the next time.
 		await page.keyboard.press("ArrowLeft");
+		await holds(tab("Actions"), "aria-selected", "true");
+		await focused(tab("Actions"));
 		await menu(page).getByRole("combobox").fill("hide the interface");
 		const hide = menu(page).getByRole("option", { name: /^Hide the interface/ });
 		await holds(hide, "aria-selected", "true");

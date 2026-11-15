@@ -1890,6 +1890,7 @@
 		"errors": {
 			"generic": "Something went wrong. Try again.",
 			"CHANGED_MEANWHILE": "Someone changed this at the same moment. Try again.",
+			"PROP_REPLACED": "What you typed wasn't kept: someone changed this Prop of the Component at the same moment.",
 			"EDIT_MODE_ENDED": "Edit mode has ended. Open it again from the admin.",
 			"EDIT_REQUEST_REFUSED": "This page can't make changes. Reload it and try again.",
 			"EDIT_FIELD_INVALID": "This can't be changed here.",
@@ -10352,6 +10353,7 @@
 				"network": "The Site couldn't be reached. Try again.",
 				"CHANGED_MEANWHILE": "Someone changed this at the same moment, or it can't be saved as it is. It shows what is saved now.",
 				"DRAFT_CHANGED": "Someone changed the page's sections at the same moment. It shows them as they are now.",
+				"PROP_REPLACED": "What you typed wasn't kept: someone changed this section's settings at the same moment. It shows what is saved now.",
 				"PAGE_LAYOUT_REFUSED": "Only Staff can change this part of the page's layout.",
 				"ENTRY_INVALID": "This can't be saved as it is.",
 				"EDIT_MODE_ENDED": "Editing ended. Open the page again from the admin.",

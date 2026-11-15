@@ -1,3 +1,4 @@
+import { applyFormat } from "./apply-format.ts";
 import type { HoldEmbed } from "./body/blocks.ts";
 import { renderBody, renderToc } from "./body/body.ts";
 import { bodyChecks } from "./body/checks.ts";
@@ -6,7 +7,6 @@ import { COMPONENT_ROOT_ATTRIBUTE } from "./component-scripts.ts";
 import { blockPlacement, COMPONENT_LIMITS, type PlacementNode, type PropArgument } from "./components.ts";
 import { escapeAttribute, escapeText, safeAttributeValue, safeUrl, URL_ATTRIBUTES } from "./escape.ts";
 import type { RenderTime } from "./expressions.ts";
-import { applyFormat } from "./formatters.ts";
 import { textIn } from "./languages.ts";
 import {
 	isLoopValuePath,
@@ -19,6 +19,7 @@ import {
 } from "./loops.ts";
 import { type ImagePriority, type MediaReader, mediaReference, renderMediaImage } from "./media.ts";
 import { cleanRichText } from "./rich-text.ts";
+import { passes } from "./run-expression.ts";
 import {
 	type Attribute,
 	childListsOf,
@@ -30,17 +31,8 @@ import {
 	type ValueNode,
 	VOID_ELEMENTS,
 } from "./tree.ts";
-import {
-	isBody,
-	isList,
-	isPresent,
-	isRichText,
-	isToc,
-	joinList,
-	type TemplateValue,
-	textOf,
-	type ValueReader,
-} from "./values.ts";
+import { isPresent, textOf } from "./value-text.ts";
+import { isBody, isList, isRichText, isToc, joinList, type TemplateValue, type ValueReader } from "./values.ts";
 
 export { escapeAttribute, escapeText, safeUrl } from "./escape.ts";
 
@@ -357,7 +349,7 @@ function renderNodeContent(node: TreeNode, options: RenderOptions, state: Render
 	if (!command) return "";
 	return command.render(node, {
 		read: options.values,
-		time: options.time,
+		passes: (test) => passes(test, options.values, options.time),
 		nodes: (children) => {
 			const list = childListsOf(node).indexOf(children);
 			return codeRange(renderNodes(children, options, state), options, `${state.paths?.get(node)}/${list}`);
