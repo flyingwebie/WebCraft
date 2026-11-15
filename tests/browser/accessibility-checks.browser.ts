@@ -10,6 +10,8 @@ import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
 
 let install: BrowserInstall;
 let staff: TestAccount;
+/** A Member: the Body is written in place in client editing (BA-18). */
+let member: TestAccount;
 let siteId: string;
 let postTypeId: string;
 let entryId: string;
@@ -22,6 +24,7 @@ beforeAll(async () => {
 	const workspace = (await local.createWorkspace()).id;
 	siteId = (await local.createSite(workspace, { slug: "checks" })).id;
 	staff = (await local.createStaff({ workspaces: [workspace] })).account;
+	member = (await local.createMember({ workspaceId: workspace, role: "editor" })).account;
 	const { api } = await local.superadmin();
 	mediaId = (await api.media.upload({ siteId, file: upload(await photo({ width: 32, height: 32 }), "leaf.jpg") })).media
 		.id;
@@ -55,9 +58,10 @@ for (const theme of THEMES) {
 		await install.signIn(page, staff);
 		await page.goto(install.adminUrl(`/sites/${siteId}/checks`));
 		// The building area's way in, the image the Check is about selected, coming back to the Checks.
+		// (Its `returnTo` follows the screen's own address, which its filters change.)
 		const link = page
 			.locator(
-				`a[href='/sites/${siteId}/build?open=%2Fentry-template%2F${postTypeId}&element=photo&returnTo=%2Fsites%2F${siteId}%2Fchecks']`,
+				`a[href^='/sites/${siteId}/build?open=%2Fentry-template%2F${postTypeId}&element=photo&returnTo=%2Fsites%2F${siteId}%2Fchecks']`,
 			)
 			.first();
 		await link.waitFor();
@@ -85,7 +89,7 @@ for (const theme of THEMES) {
 			'data-wc-decorative="true"',
 		);
 		// "Open the admin" goes back to the Checks.
-		expect(await page.getByRole("link", { name: "Back to the admin" }).getAttribute("href")).toBe(
+		expect(await page.getByRole("link", { name: "Back to the admin" }).getAttribute("href")).toStartWith(
 			install.adminUrl(`/sites/${siteId}/checks`),
 		);
 		await page.goto(install.adminUrl(`/sites/${siteId}/entries/${postTypeId}/${entryId}`));
@@ -161,7 +165,7 @@ test("the building area keeps Decorative placements empty when the shared Media 
 	await api.entries.publish({ siteId, entryId });
 	const page = await install.newPage("light");
 	let frame = await enterBuildingArea(install, page, {
-		as: staff,
+		as: member,
 		siteId,
 		slug: "checks",
 		open: "/page/stories/leaves",

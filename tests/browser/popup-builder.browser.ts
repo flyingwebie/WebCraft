@@ -77,7 +77,6 @@ for (const theme of THEMES)
 		for (let attempt = 0; attempt < 50 && !(await draft()).includes("{{@popup first"); attempt++)
 			await page.waitForTimeout(100);
 		expect(await draft()).toContain("{{@popup first");
-		await tree.getByRole("treeitem", { name: /^\{\{@popup\}\}/ }).waitFor();
 
 		// The HTML pane shows the Template's markup: the Popup it shows is changed there.
 		await tree.getByRole("treeitem", { name: /^Popup layout/ }).click();

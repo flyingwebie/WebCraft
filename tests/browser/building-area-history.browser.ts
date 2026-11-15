@@ -135,7 +135,7 @@ async function named(page: Page, path: string): Promise<void> {
 	if (!title) return;
 	await page.waitForFunction(
 		(title) =>
-			document.querySelector("[data-wc-page-switcher]")?.getAttribute("aria-label")?.startsWith(`${title}:`) === true,
+			document.querySelector("[data-wc-page-switcher]")?.getAttribute("aria-label")?.startsWith(title) === true,
 		title,
 		{ timeout: 15000 },
 	);

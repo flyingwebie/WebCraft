@@ -73,7 +73,8 @@ function entryPath({ postType }: PostTypeOnScreen, { entry }: EntryOnScreen): st
  */
 function useOpenEditMode(siteId: string): { open(path: string, safeMode: boolean): void } {
 	const navigate = useNavigate();
-	const here = useRouterState({ select: (state) => state.location.href });
+	// Path and query only: the way in refuses a `returnTo` with a fragment (the skip link's `#main`).
+	const here = useRouterState({ select: (state) => `${state.location.pathname}${state.location.searchStr}` });
 	const open = (path: string, safeMode: boolean) => {
 		void navigate({
 			to: "/sites/$siteId/build",

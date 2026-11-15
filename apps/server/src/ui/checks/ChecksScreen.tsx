@@ -23,6 +23,7 @@ import {
 	VideoIcon,
 } from "lucide-react";
 import { useId, useMemo, useState } from "react";
+import { useHere, withReturn } from "../Checks.tsx";
 
 import { languageName } from "../content/DraftParts.tsx";
 import { When } from "../content/When.tsx";
@@ -101,6 +102,7 @@ export function ChecksScreen({
 	postTypes: readonly PlacePostType[];
 }) {
 	const t = useT();
+	const here = useHere();
 	const id = useId();
 	const [kind, setKind] = useState<Kind | "all">("all");
 	const [query, setQuery] = useState("");
@@ -222,7 +224,7 @@ export function ChecksScreen({
 															size="sm"
 															aria-describedby={rowId}
 															// The editor, or the builder for Structure: both are pages of their own.
-															render={<a href={check.href} />}
+															render={<a href={withReturn(check.href, here)} />}
 														>
 															{t("checks.screen.open")}
 														</Button>

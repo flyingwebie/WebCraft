@@ -78,6 +78,11 @@ export async function enterBuildingArea(
 		firstVisit?: boolean;
 	},
 ): Promise<Frame> {
+	// The link is made in the test process, whose clock stands still, and followed by the web process on
+	// the real clock: brought up to the real time first, a link asked for later in a file isn't already
+	// past its 60 seconds.
+	const real = new Date();
+	if (install.install.clock.now() < real) await install.install.clock.set(real);
 	const admin = await install.install.signIn(options.as);
 	if (!options.firstVisit) {
 		await admin.api.me.saveEditorPreferences({

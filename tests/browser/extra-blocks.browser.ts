@@ -8,6 +8,8 @@ import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
 let install: BrowserInstall;
 let admin: TestBrowser;
 let staff: TestAccount;
+/** A Member: the Body is written in place in client editing (BA-18). */
+let member: TestAccount;
 let siteId: string;
 let postTypeId: string;
 let entryId: string;
@@ -19,6 +21,7 @@ beforeAll(async () => {
 	const workspace = await install.install.createWorkspace("Extra blocks");
 	siteId = (await install.install.createSite(workspace.id, { name: "Extra blocks", slug: "extra" })).id;
 	staff = (await install.install.createStaff({ workspaces: [workspace.id] })).account;
+	member = (await install.install.createMember({ workspaceId: workspace.id, role: "editor" })).account;
 	await install.goLive(siteId);
 	postTypeId = (
 		await admin.api.postTypes.create({
@@ -186,7 +189,7 @@ for (const theme of THEMES) {
 		const page = await install.newPage(theme);
 		const requests: string[] = [];
 		page.on("request", (request) => requests.push(request.url()));
-		let frame = await enterBuildingArea(install, page, { as: staff, siteId, slug: "extra", open: `/page${path}` });
+		let frame = await enterBuildingArea(install, page, { as: member, siteId, slug: "extra", open: `/page${path}` });
 		expect(await frame.locator('script[data-wc-module="extra-blocks"]').count()).toBe(0);
 		expect(await frame.getByRole("tab").count()).toBe(0);
 		expect(await frame.locator("iframe").count()).toBe(0);
@@ -204,7 +207,7 @@ for (const theme of THEMES) {
 		await page.keyboard.press("Escape");
 		// Safe mode, as "Edit in Safe mode" opens it: the frame runs none of the Site's scripts.
 		frame = await enterBuildingArea(install, page, {
-			as: staff,
+			as: member,
 			siteId,
 			slug: "extra",
 			open: `/page${path}`,
