@@ -9,8 +9,9 @@ import type { PageLanguage } from "./bottom-bar/LanguageMenu.tsx";
 import { Frame, type FrameHandle, type PageTheme } from "./canvas/Frame.tsx";
 import { NoDocument } from "./canvas/NoDocument.tsx";
 import { tagName } from "./canvas/overlay.ts";
+import { chosenRefOf, readFormNames } from "./canvas/placed-form.ts";
 import type { SavingStatus } from "./canvas/regions.ts";
-import { DocumentSwitcher } from "./DocumentSwitcher.tsx";
+import { DocumentSwitcher, titleText } from "./DocumentSwitcher.tsx";
 import { DockArea, useDocks } from "./docks/Docks.tsx";
 import { PanelsMenu } from "./docks/PanelsMenu.tsx";
 import type { PanelContext } from "./docks/panels.ts";
@@ -20,10 +21,12 @@ import { shellHistory } from "./editing/history.ts";
 import { refOf, structure } from "./editing/selection.ts";
 import { TextToolbar } from "./editing/TextToolbar.tsx";
 import { type RegionCycle, regionCycle } from "./keyboard.ts";
+import { managementApi } from "./management.ts";
 import { NarrowNotice } from "./NarrowNotice.tsx";
 import { useOpenDocument } from "./open-document.ts";
 import { codePaneParts, useCodePanes } from "./panels/code-panes.tsx";
 import { EntryPanel, EntryPanelActions, useEntryPanelView } from "./panels/EntryFields.tsx";
+import { FormPanel, FormPanelHeading } from "./panels/FormPanel.tsx";
 import { Inspector } from "./panels/Inspector.tsx";
 import { Layers } from "./panels/Layers.tsx";
 import { MediaShellHost } from "./places/media/host.tsx";
@@ -223,6 +226,11 @@ export function Shell({ config }: { config: ShellConfig }) {
 	useEffect(() => {
 		if (!placeKey) setPlaceBar(null);
 	}, [placeKey]);
+	// A Form opened from the page it is placed on ("Edit this Form", BA-27): the bar says "Back to {page}".
+	const [formFrom, setFormFrom] = useState<string | null>(null);
+	useEffect(() => {
+		if (placeKey !== "forms") setFormFrom(null);
+	}, [placeKey]);
 	// The Command menu's way in and out of places (it comes with BA-10): `webcraft:place` on the shell's
 	// document, its detail the place to open (`{ place: "content" }`) or none to leave (`{ place: null }`).
 	useEffect(() => {
@@ -366,6 +374,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 		menus: codeParts?.menus,
 		wide: codePanes.wide,
 		headings: {
+			...(chosenNode?.type === "form" ? { inspector: <FormPanelHeading words={words} /> } : {}),
 			layers: (
 				<DocumentSwitcher
 					words={words}
@@ -396,10 +405,23 @@ export function Shell({ config }: { config: ShellConfig }) {
 				? {
 						layers: <Layers structure={pageStructure} words={words} />,
 						inspector: (
-							<Inspector
-								structure={pageStructure}
+							// A placed Form is one thing: its own panel (BA-27); anything else, the Inspector.
+							<FormPanel
+								config={config}
 								words={words}
-								onOpenComponent={(componentId) => opened.open({ kind: "component", componentId })}
+								structure={pageStructure}
+								announce={announce}
+								onEdit={(formId) => {
+									setFormFrom(titleText(words, opened.title));
+									opened.documents.openPlace(`forms/${formId}`);
+								}}
+								fallback={
+									<Inspector
+										structure={pageStructure}
+										words={words}
+										onOpenComponent={(componentId) => opened.open({ kind: "component", componentId })}
+									/>
+								}
 							/>
 						),
 						...codeParts?.bodies,
@@ -458,7 +480,16 @@ export function Shell({ config }: { config: ShellConfig }) {
 				languages={place ? [] : (shown?.languages ?? [])}
 				onLanguage={(language) => frame.current?.navigate(language.path)}
 				nav={
-					place ? null : (
+					place ? (
+						placeKey === "forms" && formFrom ? (
+							<DocumentNav
+								words={words}
+								back={{ title: formFrom, onBack: () => opened.documents.openPlace(null) }}
+								preview={null}
+								renderedBy={null}
+							/>
+						) : null
+					) : (
 						<DocumentNav words={words} back={opened.back} preview={opened.preview} renderedBy={opened.renderedBy} />
 					)
 				}
@@ -543,7 +574,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 								onSaving={onSaving}
 								onSelect={(selected) => {
 									setSelection(selected ? { kind: "element", name: selected.name } : null);
-									const ref = selected ? refOf(selected.element) : null;
+									const ref = selected ? (chosenRefOf(selected.element) ?? refOf(selected.element)) : null;
 									setCanvasSelection(selected ? { ref, name: selected.name } : null);
 									if (!staff) return;
 									// The canvas selected it: the Structure, the tree and the address follow.
@@ -552,6 +583,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 								}}
 								onReady={(document) => {
 									if (staff) pageStructure.found(document);
+									readFormNames(document, () => managementApi(config.token).forms.list({ siteId: config.site.id }));
 								}}
 								editing={editing}
 							/>

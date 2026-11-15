@@ -1,6 +1,6 @@
-import { createFileRoute, notFound, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useNavigate, useRouter } from "@tanstack/react-router";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
-import { Button } from "@webcraft/ui/components/button.tsx";
+import { Button, buttonVariants } from "@webcraft/ui/components/button.tsx";
 import { HammerIcon, InboxIcon, LanguagesIcon, MailIcon, SaveIcon, SettingsIcon, UploadIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -257,6 +257,17 @@ function FormPage() {
 						<span ref={setEmailsSlot} className="contents" />
 						{structureTab ? (
 							<>
+								{/* The Forms place builds the Form (SPEC 15.1, BA-27): Build, Settings and Translations there. */}
+								<Link
+									to="/sites/$siteId/build"
+									params={{ siteId }}
+									search={{ open: `/form/${form.id}`, returnTo: `/sites/${siteId}/forms/${form.id}?tab=${current}` }}
+									className={buttonVariants({ variant: "outline" })}
+									data-building-area=""
+								>
+									<HammerIcon data-icon="inline-start" />
+									{t("buildingArea.documents.openIn")}
+								</Link>
 								<HistoryLink siteId={siteId} item={{ kind: "form", id: form.id }} />
 								<Button variant="outline" onClick={() => void save()} disabled={busy || !changed}>
 									<SaveIcon data-icon="inline-start" />
