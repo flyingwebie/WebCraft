@@ -280,7 +280,11 @@ const SHELL_DOCUMENT_STYLES = `body.wc-shell{margin:0;background:#121214;color:#
  * clicked, with the words the shell gives it (`data-wc-empty-label`, BA-15). Everything else with
  * chrome is drawn by the shell, over the frame.
  */
-const AGENT_STYLES = `.wc-outside-scripts {
+const AGENT_STYLES = `/* Empty elements are never invisible (SPEC 6, BA-10): a dashed box at least 35 px tall, for Staff (only their render tags elements). */
+[data-wc-code]:empty:not(img, br, hr, wbr, col, source, track, video, audio, picture, iframe, input) {
+	min-block-size: 35px; outline: 1px dashed #a1a1aa; outline-offset: -1px;
+}
+.wc-outside-scripts {
 	margin: 2rem auto; max-width: 48rem; padding: 0.75rem 1rem;
 	border: 1px dashed #71717a; border-radius: 0.75rem;
 	background: #f4f4f5; color: #3f3f46; font: 500 14px/1.4 ui-sans-serif, system-ui, sans-serif;

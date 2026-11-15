@@ -27,7 +27,7 @@ export type GoToTarget = {
  * Builder, ADR 0035), for those who may change Structure.
  */
 export function destinationCommands(t: T, data: CommandMenuData, go: Pick<GoToTarget, "page" | "builder">): Command[] {
-	const everywhere: readonly Canvas[] = ["code", "builder", "edit"];
+	const everywhere: readonly Canvas[] = ["code", "builder", "edit", "building"];
 	const commands: Command[] = [];
 	const pagesGroup = t("builder.commandMenu.groups.pages");
 	for (const page of data.pages)

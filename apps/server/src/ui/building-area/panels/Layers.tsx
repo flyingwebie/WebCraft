@@ -57,6 +57,7 @@ import {
 	type StructureSource,
 	sourceOf,
 } from "../editing/selection.ts";
+import { RowMenu, type RowMenuHost } from "./RowMenu.tsx";
 
 /**
  * The Layers panel for Staff (SPEC 5, `builder/01`, `builder/02`, `docking/07`; BA-08): the whole page
@@ -81,6 +82,8 @@ import {
 /** One row of the tree. */
 type Row =
 	| { kind: "divider"; key: string; label: string; icon: "site" | "content" | "layout"; depth: number }
+	/** An empty element's or an empty Page layout's dashed slot (BA-10, `docking/07`): shown, never focused. */
+	| { kind: "slot"; key: string; label: string; depth: number }
 	| {
 			kind: "node";
 			key: string;
@@ -231,6 +234,14 @@ function rowsOf(
 			if (node.type === "outlet") {
 				const label = contentLabel(words, site, content);
 				if (label) rows.push({ kind: "divider", key: `${source.ref}:outlet`, label, icon: "layout", depth });
+				// An empty Page layout says where Components go (`builder/04`).
+				if (site.pageLayout && snapshot.layout?.length === 0)
+					rows.push({
+						kind: "slot",
+						key: `${source.ref}:outlet:empty`,
+						label: words.insert.dropComponent,
+						depth: depth + 1,
+					});
 				if (site.pageLayout && snapshot.layout) {
 					snapshot.layout.forEach((placement, index) => {
 						const key = `layout:${placement.id}`;
@@ -269,6 +280,14 @@ function rowsOf(
 				nested,
 				parent,
 			});
+			// An element that holds nothing yet shows its empty slot (SPEC 6: empty elements are never invisible).
+			if (node.type === "element" && canHoldChildren(node) && node.children.length === 0)
+				rows.push({
+					kind: "slot",
+					key: `${source.ref}:${pathKey(path)}:empty`,
+					label: words.insert.emptySlot,
+					depth: depth + 1,
+				});
 			if (!expanded) return;
 			if (nested) visit(nested, nested.tree.nodes, [], depth + 1, `${source.ref}:${pathKey(path)}`);
 			else visit(source, children, [...path, 0], depth + 1, `${source.ref}:${pathKey(path)}`);
@@ -286,11 +305,14 @@ export function Layers({
 	structure,
 	words,
 	layout,
+	menu,
 }: {
 	structure: Structure;
 	words: Words;
 	/** A Page's Page layout, as its Placements' rows change it (BA-09). */
 	layout: PageLayoutEditor;
+	/** An element row's menu (BA-10): Copy, Paste, Duplicate, Wrap in, Make Component, Delete. */
+	menu?: RowMenuHost;
 }) {
 	const snapshot = useSyncExternalStore(structure.subscribe, structure.snapshot);
 	const said = words.structure;
@@ -309,7 +331,11 @@ export function Layers({
 	);
 	const [focusKey, setFocusKey] = useState<string | null>(null);
 	const list = useRef<HTMLDivElement>(null);
-	const focusable = rows.filter((row) => row.kind !== "divider");
+	const focusable = rows.filter(
+		(row): row is Extract<Row, { kind: "node" | "placement" }> => row.kind !== "divider" && row.kind !== "slot",
+	);
+	/** The row whose menu is open, and where (BA-10). */
+	const [rowMenu, setRowMenu] = useState<{ key: string; name: string; at: { x: number; y: number } } | null>(null);
 	const tabStop = (selectedRow ?? focusable.find((row) => row.key === focusKey) ?? focusable[0])?.key ?? null;
 
 	// The selected row is brought into view as the selection changes (from the canvas, Undo, the address).
@@ -333,7 +359,7 @@ export function Layers({
 	/** Whether a row is outside the Component edited in place: dimmed, and refused. */
 	const lockedRow = (row: Row): boolean => {
 		const inPlace = snapshot.inPlace;
-		if (!inPlace || row.kind === "divider") return false;
+		if (!inPlace || row.kind === "divider" || row.kind === "slot") return false;
 		// The Placement of a Template whose Component is edited in place is that Component's row.
 		if (row.kind === "node" && row.nested && within(row.nested.ref, inPlace)) return false;
 		const ref = row.kind === "node" ? sourceOf(row.ref) : `content/${row.placement.id}`;
@@ -437,6 +463,17 @@ export function Layers({
 			focusRow(`${row.source.ref}:${pathKey(moved.path)}`);
 	};
 
+	const openRowMenu = (row: Extract<Row, { kind: "node" }>, at: { x: number; y: number } | null) => {
+		choose(row);
+		const element = list.current?.querySelector<HTMLElement>(`[data-wc-row="${CSS.escape(row.key)}"]`);
+		const box = element?.getBoundingClientRect();
+		setRowMenu({
+			key: row.key,
+			name: nameOfRow(row),
+			at: at ?? { x: (box?.left ?? 0) + 16, y: (box?.bottom ?? 0) + 2 },
+		});
+	};
+
 	const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
 		const at = focusable.findIndex((row) => row.key === (focusKey ?? tabStop));
 		const row = focusable[at];
@@ -448,6 +485,24 @@ export function Layers({
 		};
 		const node = row.kind === "node" && !lockedRow(row) ? row : null;
 		const placement = row.kind === "placement" && !lockedRow(row) ? row : null;
+		// The row's menu (BA-10): Shift+F10 or the menu key opens it under the row; ⌘C and ⌘V copy and paste.
+		if (node && menu && node.source.editable) {
+			if ((event.key === "F10" && event.shiftKey) || event.key === "ContextMenu") {
+				event.preventDefault();
+				openRowMenu(node, null);
+				return;
+			}
+			if (matches(event.nativeEvent, "tree.copy")) {
+				event.preventDefault();
+				menu.ops.copy();
+				return;
+			}
+			if (matches(event.nativeEvent, "tree.paste")) {
+				event.preventDefault();
+				menu.ops.paste();
+				return;
+			}
+		}
 		if (placement && event.altKey && ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
 			event.preventDefault();
 			// A Page layout is one level: a Placement moves up or down among the others, never in or out.
@@ -573,7 +628,7 @@ export function Layers({
 			focusRow(`${moving.source.ref}:${pathKey(moved.path)}`);
 	};
 	const dragProps = (row: Row) => {
-		if (row.kind === "divider") return {};
+		if (row.kind === "divider" || row.kind === "slot") return {};
 		const draggable = canDrag(row);
 		return {
 			draggable,
@@ -617,7 +672,19 @@ export function Layers({
 				className="-mx-1 min-h-0 grow overflow-auto px-1 pb-2"
 			>
 				{rows.map((row) =>
-					row.kind === "divider" ? (
+					row.kind === "slot" ? (
+						<div
+							key={row.key}
+							role="presentation"
+							className="flex h-[26px] items-center pe-1"
+							style={{ paddingInlineStart: `${8 + row.depth * INDENT}px` }}
+							data-wc-layers-slot=""
+						>
+							<span className="border-chrome-hover text-chrome-muted flex h-[22px] grow items-center justify-center rounded-[5px] border border-dashed text-[11px]">
+								{row.label}
+							</span>
+						</div>
+					) : row.kind === "divider" ? (
 						<div
 							key={row.key}
 							role="presentation"
@@ -654,6 +721,11 @@ export function Layers({
 								) : null
 							}
 							onFocus={() => setFocusKey(row.key)}
+							onMenu={
+								menu && row.kind === "node" && row.source.editable && !lockedRow(row)
+									? (at) => openRowMenu(row, at)
+									: undefined
+							}
 						/>
 					),
 				)}
@@ -664,6 +736,19 @@ export function Layers({
 			<p className="sr-only" role="status" aria-live="polite">
 				{refusal.text ? `${refusal.text}${refusal.count % 2 ? " " : ""}` : ""}
 			</p>
+			{rowMenu && menu ? (
+				<RowMenu
+					words={words}
+					host={menu}
+					name={rowMenu.name}
+					at={rowMenu.at}
+					onClose={(refocus) => {
+						const key = rowMenu.key;
+						setRowMenu(null);
+						if (refocus) focusRow(key);
+					}}
+				/>
+			) : null}
 		</div>
 	);
 }
@@ -682,6 +767,7 @@ function TreeRow({
 	onToggle,
 	actions,
 	onFocus,
+	onMenu,
 }: {
 	row: Extract<Row, { kind: "node" } | { kind: "placement" }>;
 	words: Words;
@@ -699,6 +785,8 @@ function TreeRow({
 	onToggle?: () => void;
 	actions: ReactNode;
 	onFocus(): void;
+	/** Opens the row's menu at the pointer (a right-click, BA-10). */
+	onMenu?: (at: { x: number; y: number }) => void;
 }) {
 	const said = words.structure;
 	const node = row.kind === "node" ? row.node : null;
@@ -736,6 +824,14 @@ function TreeRow({
 			tabIndex={tabStop ? 0 : -1}
 			aria-disabled={locked || undefined}
 			onClick={onChoose}
+			onContextMenu={
+				onMenu
+					? (event) => {
+							event.preventDefault();
+							onMenu({ x: event.clientX, y: event.clientY });
+						}
+					: undefined
+			}
 			// The tree hears the keys for every row (one tab stop, arrow keys).
 			onKeyDown={() => {}}
 			onFocus={(event) => {
