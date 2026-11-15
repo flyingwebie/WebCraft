@@ -161,6 +161,9 @@ export type SectionsSnapshot = {
 /** How long the toast after a removal offers Undo (`client-flows/05`: 8 s with Undo). */
 export const REMOVED_FOR_MS = 8000;
 
+/** How long a change of the page's Entry (a step taken back) may take to be saved before it is drawn anyway. */
+const SAVED_WAIT_MS = 5000;
+
 /** How near a boundary between two sections the pointer brings "+ Add section", in the page's pixels. */
 const BOUNDARY_REACH = 16;
 
@@ -271,10 +274,21 @@ export function memberSections(options: {
 		const item = `entry:${entryId}`;
 		const client = (): DraftClient | null => wrapped?.drafts().client(item) ?? null;
 		const heard = new Set<(draft: unknown) => void>();
+		let waiting: number | undefined;
+		/** Tells the listeners once the copy is saved: what they read again from the server then holds it. */
+		const tell = (started: number) => {
+			window.clearTimeout(waiting);
+			const open = client();
+			if (open && open.status() !== "saved" && Date.now() - started < SAVED_WAIT_MS) {
+				waiting = window.setTimeout(() => tell(started), 50);
+				return;
+			}
+			const draft = open?.draft() ?? null;
+			for (const listener of heard) listener(draft);
+		};
 		const stop =
-			wrapped?.drafts().onChange((changed, draft) => {
-				if (changed !== item) return;
-				for (const listener of heard) listener(draft);
+			wrapped?.drafts().onChange((changed) => {
+				if (changed === item) tell(Date.now());
 			}) ?? (() => {});
 		/** The person's last change of the Draft, to tell it was kept once it is saved. */
 		let committed: { before: Json; after: Json } | null = null;
@@ -332,6 +346,7 @@ export function memberSections(options: {
 		return {
 			shared,
 			close() {
+				window.clearTimeout(waiting);
 				heard.clear();
 				stop();
 			},
