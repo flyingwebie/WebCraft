@@ -340,7 +340,7 @@ describe("a link Field in the Entry editor", () => {
 		});
 		const more = async () => (await admin.api.entries.get({ siteId, entryId: entry.id })).entry.draft.fields.more;
 		/** Waits until the Draft's link reads `wanted`. */
-		const saved = async (wanted: unknown) => {
+		const saved = async (wanted: Record<string, string | boolean>) => {
 			let seen = await more();
 			for (let look = 0; look < 80 && JSON.stringify(seen) !== JSON.stringify(wanted); look++) {
 				await new Promise((resolve) => setTimeout(resolve, 100));

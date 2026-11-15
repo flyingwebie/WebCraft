@@ -145,7 +145,7 @@ async function soon<Value>(read: () => Promise<Value>, wanted: Value | RegExp): 
 		pattern ? pattern.test(String(seen ?? "")) : JSON.stringify(seen) === JSON.stringify(wanted),
 	);
 	if (pattern) expect(String(value ?? "")).toMatch(pattern);
-	else expect(value).toEqual(wanted as Value);
+	else expect(value as unknown).toEqual(wanted);
 }
 
 /** The Entry template's Draft markup now, as the admin reads it. */
