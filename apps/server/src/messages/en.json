@@ -10938,6 +10938,37 @@
 			"noneExisting": "There is none of text yet: make a new one.",
 			"refused": "Couldn't make it editable: {reason}"
 		},
+		"bindProp": {
+			"heading": {
+				"link": "Link",
+				"media": "Image"
+			},
+			"help": "Let each Placement of the Component give its own value.",
+			"button": "Bind to Prop",
+			"bound": "Reads {binding}.",
+			"title": {
+				"link": "Bind the link to a Prop",
+				"media": "Bind the image to a Prop"
+			},
+			"intro": {
+				"link": "Each Placement then gives its own address. A new Link Prop starts with this link's address as its default.",
+				"media": "Each Placement then gives its own image. A new Media Prop starts with this image as its default."
+			},
+			"mode": {
+				"new": "A new Prop",
+				"existing": "A Prop it has"
+			},
+			"newLabel": {
+				"link": "Link",
+				"media": "Image"
+			},
+			"existing": "Prop",
+			"none": "Choose…",
+			"noneExisting": "The Component has no Prop of this type yet.",
+			"choose": "Choose a Prop.",
+			"changed": "The element changed. Select it again to bind it.",
+			"done": "Bound to {binding}."
+		},
 		"oneOff": {
 			"add": "One-off style",
 			"addLabel": "Style only this element",

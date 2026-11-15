@@ -169,6 +169,17 @@ export function keyOf(ref: string): string {
 	return at < 0 ? "" : ref.slice(at + 1);
 }
 
+/**
+ * A reference as Code mode reads one (`<source>` or `<source>#<id>`): a branch (`<key>/<list>`, BA-33)
+ * is its Condition's or Loop's, and a key that is a path (`@2.0.0`, a command such as a placed Form)
+ * leaves only its source, the Template or Component the selection is in.
+ */
+export function codeRefOf(ref: string): string {
+	const source = sourceOf(ref);
+	const key = keyOf(ref).replace(/\/\d+$/, "");
+	return /^[A-Za-z0-9_-]{1,64}$/.test(key) ? `${source}#${key}` : source;
+}
+
 /** The reference an element of the page carries: its own, or the nearest one around it. */
 export function refOf(element: Element): string | null {
 	return element.closest("[data-wc-code]")?.getAttribute("data-wc-code") ?? null;

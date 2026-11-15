@@ -5,6 +5,7 @@ import { type ReactNode, useEffect, useId, useMemo, useState, useSyncExternalSto
 import { replaceAt } from "../../builder/tree.ts";
 import { editRequests, fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
+import { askToBind, type BindAsk, bindKindOf, boundPathOf, propBindings } from "../editing/bind-prop.ts";
 import {
 	askAbout,
 	excerpt,
@@ -15,6 +16,7 @@ import {
 } from "../editing/fixed-text.ts";
 import type { PageLayoutEditor } from "../editing/page-layout.ts";
 import type { Structure, StructureSelection, StructureSource } from "../editing/selection.ts";
+import { BindPropDialog } from "./BindPropDialog.tsx";
 import { useChosenClass } from "./chosen-class.ts";
 import { FixedTextDialog } from "./FixedTextDialog.tsx";
 import { printParts, readParts, type ValueChoice, CommitInput as ValueInput } from "./inputs.tsx";
@@ -340,6 +342,11 @@ function ElementInspector({
 	const [asking, setAsking] = useState<FixedTextAsk | null>(null);
 	const fixedTarget = fixedTextTarget(source);
 	const fixed = selection.path ? fixedTextsIn(node, selection.path) : [];
+	// A Component's link or image bound to a Prop (UI-21): its address or file then reads the Prop.
+	const bindings = useMemo(() => propBindings({ structure, words }), [structure, words]);
+	const [binding, setBinding] = useState<BindAsk | null>(null);
+	const bindKind = source.kind === "component" && source.editable ? bindKindOf(node) : null;
+	const boundPath = bindKind ? boundPathOf(node, bindKind) : null;
 
 	/** Changes the element; says why not when refused. */
 	const update = (next: ElementNode, label: string) => {
@@ -576,6 +583,31 @@ function ElementInspector({
 				</Field>
 			) : null}
 			{asking ? <FixedTextDialog words={words} ask={asking} texts={texts} onDone={() => setAsking(null)} /> : null}
+			{bindKind ? (
+				<Field label={words.bindProp.heading[bindKind]}>
+					<p className="text-chrome-muted m-0 text-[11px]">{words.bindProp.help}</p>
+					{boundPath ? (
+						<p className="text-chrome-strong m-0 truncate font-mono text-[11px]" data-wc-bound-prop="">
+							{fill(words.bindProp.bound, { binding: `{{ ${boundPath} }}` })}
+						</p>
+					) : null}
+					<button
+						type="button"
+						onClick={() => {
+							const ask = askToBind(source, node);
+							if (ask) setBinding(ask);
+						}}
+						className={`border-chrome-line text-chrome-strong hover:bg-chrome-hover h-6 self-start rounded-[4px] border px-1.5 text-[11px] font-medium ${CHROME_EASE} ${FOCUS_RING}`}
+						data-wc-bind-prop={bindKind}
+					>
+						{words.bindProp.button}
+						<span className="sr-only">{`: ${words.bindProp.heading[bindKind]}`}</span>
+					</button>
+				</Field>
+			) : null}
+			{binding ? (
+				<BindPropDialog words={words} ask={binding} bindings={bindings} onDone={() => setBinding(null)} />
+			) : null}
 			<Field label={said.inspector.id} htmlFor={ids.id}>
 				<CommitInput
 					id={ids.id}

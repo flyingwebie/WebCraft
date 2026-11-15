@@ -10938,6 +10938,37 @@
 			"noneExisting": "Non ce n'è ancora nessuno di testo: creane uno nuovo.",
 			"refused": "Non è stato possibile renderlo modificabile: {reason}"
 		},
+		"bindProp": {
+			"heading": {
+				"link": "Link",
+				"media": "Immagine"
+			},
+			"help": "Permetti a ogni Placement del Component di indicare un suo valore.",
+			"button": "Collega a una Prop",
+			"bound": "Legge {binding}.",
+			"title": {
+				"link": "Collega il link a una Prop",
+				"media": "Collega l'immagine a una Prop"
+			},
+			"intro": {
+				"link": "Ogni Placement indicherà il suo indirizzo. Una nuova Prop di tipo Link parte con l'indirizzo di questo link come valore predefinito.",
+				"media": "Ogni Placement indicherà la sua immagine. Una nuova Prop di tipo Media parte con questa immagine come valore predefinito."
+			},
+			"mode": {
+				"new": "Una nuova Prop",
+				"existing": "Una Prop che ha già"
+			},
+			"newLabel": {
+				"link": "Link",
+				"media": "Immagine"
+			},
+			"existing": "Prop",
+			"none": "Scegli…",
+			"noneExisting": "Il Component non ha ancora una Prop di questo tipo.",
+			"choose": "Scegli una Prop.",
+			"changed": "L'elemento è cambiato. Selezionalo di nuovo per collegarlo.",
+			"done": "Collegato a {binding}."
+		},
 		"oneOff": {
 			"add": "Stile singolo",
 			"addLabel": "Dai uno stile solo a questo elemento",
