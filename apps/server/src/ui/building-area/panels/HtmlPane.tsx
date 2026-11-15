@@ -255,13 +255,13 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 		const { structure, path } = deps();
 		const snapshot = structure.snapshot();
 		const selection = snapshot.selection;
-		const state = store.get();
 		const pathNow = path();
 		if (pathNow !== shownPath) {
 			shownPath = pathNow;
 			shownTree = null;
 			store.set({ ...IDLE });
 		}
+		const state = store.get();
 		if (!selection) return;
 		const source = snapshot.sources.get(selection.source);
 		if (!source) {
