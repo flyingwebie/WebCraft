@@ -27,6 +27,7 @@ import { type RegionCycle, regionCycle } from "./keyboard.ts";
 import { NarrowNotice } from "./NarrowNotice.tsx";
 import { useOpenDocument } from "./open-document.ts";
 import { AddPropButton, ComponentPanel } from "./panels/ComponentPanel.tsx";
+import { codePaneParts, useCodePanes } from "./panels/code-panes.tsx";
 import { EntryPanel, EntryPanelActions, useEntryPanelView } from "./panels/EntryFields.tsx";
 import { Inspector } from "./panels/Inspector.tsx";
 import { Layers } from "./panels/Layers.tsx";
@@ -462,12 +463,30 @@ export function Shell({ config }: { config: ShellConfig }) {
 	// The Entry panel (BA-13): the page's Entry filled in without leaving it; a page never published
 	// follows its new slug. (A Member gets Page details in client editing's side panel instead.)
 	const entryView = useEntryPanelView();
+	// The code panes (BA-11): their own file, fetched the first time something is selected.
+	const codePanes = useCodePanes(
+		{
+			config,
+			words,
+			structure: pageStructure,
+			history: undoHistory,
+			frame,
+			announce,
+			path: () => {
+				const address = shownAddress.current;
+				return address && !address.startsWith(`${BUILDING_STAND_IN_PREFIX}/`) ? (address.split("?")[0] ?? "/") : null;
+			},
+		},
+		staff && panelSelection !== null,
+	);
+	const codeParts = staff ? codePaneParts(codePanes, words, panelSelection?.name ?? "") : null;
 	const docks = useDocks({
 		config,
 		context,
 		announce,
 		panelActions: {
 			entry: <EntryPanelActions words={words} view={entryView} />,
+			...codeParts?.actions,
 			...(staff && editTarget && !inPlaceTarget
 				? {
 						inspector: (
@@ -484,6 +503,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 				? { component: <AddPropButton structure={pageStructure} words={words} target={inPlaceTarget} /> }
 				: {}),
 		},
+		menus: codeParts?.menus,
+		wide: codePanes.wide,
 		headings: {
 			layers: (
 				<DocumentSwitcher
@@ -550,18 +571,20 @@ export function Shell({ config }: { config: ShellConfig }) {
 						...(inPlaceTarget
 							? { component: <ComponentPanel structure={pageStructure} words={words} target={inPlaceTarget} /> }
 							: {}),
+						...codeParts?.bodies,
 					}
 				: {}),
 		},
 		titles: loopOfElement ? { inspector: words.inspectorTitles.loop } : {},
-		subs: loopOfElement ? { inspector: loopOfElement.node.source } : {},
+		subs: { ...codeParts?.subs, ...(loopOfElement ? { inspector: loopOfElement.node.source } : {}) },
 	});
 
 	const exit = async () => {
 		setExiting(true);
 		announce(words.exiting);
-		// Whatever was typed and not saved yet is saved before the session ends.
+		// Whatever was typed and not saved yet is saved before the session ends (the page, the code panes).
 		await frame.current?.flush();
+		await codePanes.panes?.flush();
 		const answer = await request("end", {});
 		if (!answer.ok && answer.code !== "EDIT_MODE_ENDED") {
 			setExiting(false);

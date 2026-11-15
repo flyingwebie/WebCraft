@@ -7,6 +7,7 @@ import { fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
 import type { PageLayoutEditor } from "../editing/page-layout.ts";
 import type { Structure, StructureSelection, StructureSource } from "../editing/selection.ts";
+import { useChosenClass } from "./chosen-class.ts";
 import { printParts, readParts, type ValueChoice, CommitInput as ValueInput } from "./inputs.tsx";
 import { ConditionPanel, itemValues, LoopPanel, loopAround, useLoopFacts } from "./LoopPanel.tsx";
 import { PropsPanel } from "./Props.tsx";
@@ -309,7 +310,8 @@ function ElementInspector({
 			? said.notMade
 			: fill(said.readOnly, { name: source.name ?? said.thisSource });
 	const name = node.label ?? node.tag;
-	const [chosen, setChosen] = useState<string | null>(node.classes[0] ?? null);
+	// The chosen Class is the CSS pane's too (BA-11): "CSS edits the chosen one".
+	const [chosen, setChosen] = useChosenClass(selection.ref, node.classes);
 	const [adding, setAdding] = useState(false);
 	const [className, setClassName] = useState("");
 	const [newAttribute, setNewAttribute] = useState<{ name: string; value: string } | null>(null);

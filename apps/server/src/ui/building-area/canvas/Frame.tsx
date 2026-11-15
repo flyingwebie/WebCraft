@@ -4,6 +4,7 @@ import { type EditAnswer, type EditRequests, fill, type PageState, type Words } 
 import type { PageEditing } from "../editing/editing.ts";
 import { swapPage } from "../editing/rerender.ts";
 import type { RegionCycle } from "../keyboard.ts";
+import { consoleLog } from "../panels/console-log.ts";
 import { installDragCatcher } from "./catcher.ts";
 import { Gutter } from "./Gutter.tsx";
 import {
@@ -21,6 +22,7 @@ import {
 	widestFor,
 } from "./gutters.ts";
 import { chipName, createOverlay, nameOf, type Overlay } from "./overlay.ts";
+import { endPreview, showPreview } from "./preview.ts";
 import { regionSaving, type SavingStatus } from "./regions.ts";
 import { SizeReadout, useReadoutShown } from "./SizeReadout.tsx";
 
@@ -48,6 +50,13 @@ export type FrameHandle = {
 	select(ref: string | null, name?: string | null): void;
 	/** The overlay drawn over the page now (BA-09 draws the Component edited in place on it), or null. */
 	overlay(): Overlay | null;
+	/**
+	 * Shows the page as the server rendered it with changes not saved yet (BA-11, `canvas/preview.ts`):
+	 * its body and stylesheet in place, as `rerender` does. `rerender` takes the preview away again.
+	 */
+	preview(page: { html: string; css: string }): void;
+	/** The page's document now (the JS pane's Run adds the scripts to it), or none. */
+	page(): Document | null;
 };
 
 /** The page's theme as the rail's Dark preview sets it: dark or light values, or the page's own choice (null). */
@@ -275,6 +284,16 @@ export function Frame({
 			watch: (region) => latest.current.editing?.watch(region),
 		});
 		const disconnectEditing = latest.current.editing?.connect({ frame: element, overlay, saving });
+		/** The page's body was drawn again in place: its regions, the Structure and the outline follow it. */
+		const drawnAgain = (swapped: Document) => {
+			saving.track(swapped);
+			latest.current.editing?.ready(swapped);
+			latest.current.onReady?.(swapped);
+			drawn.hover(null);
+			// What is selected by the time the page is drawn, not what was when it was asked for.
+			drawn.select(chosenRef ? elementOfRef(swapped, chosenRef) : null);
+			drawn.name(chosenName);
+		};
 		handle.current = {
 			navigate(address) {
 				// In place: a frame's own navigation would add to the window's history, which is the shell's.
@@ -292,14 +311,14 @@ export function Frame({
 				}
 				const swapped = await swapPage(element);
 				if (!swapped) return;
-				saving.track(swapped);
-				latest.current.editing?.ready(swapped);
-				latest.current.onReady?.(swapped);
-				drawn.hover(null);
-				// What is selected by the time the page is drawn, not what was when it was asked for.
-				drawn.select(chosenRef ? elementOfRef(swapped, chosenRef) : null);
-				drawn.name(chosenName);
+				endPreview(element);
+				drawnAgain(swapped);
 			},
+			preview(shown) {
+				const swapped = showPreview(element, shown.html, shown.css);
+				if (swapped) drawnAgain(swapped);
+			},
+			page: () => element.contentDocument,
 			overlay: () => overlayOf.current,
 			select(ref, name = null) {
 				chosenRef = ref;
@@ -419,8 +438,10 @@ export function Frame({
 			focus() {
 				checkFocus();
 			},
-			error() {
-				// The JS pane lists them once it exists.
+			log(entry) {
+				// The JS pane's console (BA-11), against the page that wrote it.
+				const view = element.contentWindow;
+				consoleLog.add(entry, view ? `${view.location.pathname}${view.location.search}` : "");
 			},
 			following: () => latest.current.following,
 			follow: (href) => latest.current.onFollow(href),

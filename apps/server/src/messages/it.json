@@ -9897,6 +9897,54 @@
 				"ask": "Chiedi alla tua agenzia",
 				"askText": "{name} si occupa di questo sito. Chiedi a loro ciò che non puoi cambiare qui.",
 				"close": "Chiudi"
+			},
+			"items": {
+				"position": "{loop} · elemento {n} di {count}",
+				"untitled": "Elemento {n}",
+				"armed": "{name}, elemento {n} di {count} in {loop}. Premi Invio per modificarlo, Alt+F10 per i suoi strumenti.",
+				"tools": "Strumenti per {name}",
+				"moveEarlier": "Sposta prima",
+				"moveLater": "Sposta dopo",
+				"duplicate": "Duplica",
+				"remove": "Rimuovi",
+				"moved": "Spostato al posto {n} di {count}",
+				"duplicated": "{name} duplicato",
+				"removed": "{name} rimosso",
+				"removedHint": "{name} rimosso. Annulla è in cima alla finestra per 8 secondi.",
+				"undo": "Annulla",
+				"undoLabel": "Rimetti {name}",
+				"restored": "{name} rimesso al suo posto",
+				"dismiss": "Chiudi",
+				"add": "Aggiungi un elemento",
+				"addTo": "Aggiungi un elemento a {loop}",
+				"added": "Elemento aggiunto a {loop}",
+				"failed": "Impossibile modificare {loop}: {reason}",
+				"panel": {
+					"previous": "Elemento precedente",
+					"next": "Elemento successivo",
+					"close": "Chiudi {name}",
+					"removeThis": "Rimuovi questo elemento",
+					"done": "Fatto",
+					"loading": "Caricamento dell'elemento…",
+					"loadFailed": "Impossibile aprire l'elemento: {reason}",
+					"inAdmin": "Questo si modifica nell'admin.",
+					"noPhoto": "Nessuna foto",
+					"change": "Cambia",
+					"choose": "Scegli una foto",
+					"removePhoto": "Rimuovi la foto",
+					"address": "{field} · indirizzo",
+					"words": "{field} · testo",
+					"noChoice": "Nessuna scelta",
+					"inLanguage": "{field} · {language}",
+					"saved": "{field} salvato"
+				},
+				"query": {
+					"from": "Questi sono gli ultimi contenuti di {type}",
+					"fromEntries": "Questi vengono dalle tue Voci",
+					"open": "Apri questa Voce",
+					"openInAdmin": "Apri questa Voce nell'admin",
+					"armed": "{title}. {from}. Premi Invio per aprirla, Alt+F10 per il link."
+				}
 			}
 		},
 		"structure": {
@@ -10029,6 +10077,81 @@
 				"review": "traduzione da rivedere",
 				"missing": "non ancora tradotta",
 				"hidden": "nascosta in questa lingua"
+			}
+		},
+		"code": {
+			"loading": "Apertura dei riquadri del codice…",
+			"loadFailed": "Non è stato possibile caricare i riquadri del codice. Controlla la connessione, poi seleziona di nuovo l'elemento.",
+			"expand": "Espandi",
+			"restore": "Torna alla sua parte",
+			"copyAll": "Copia tutto",
+			"copied": "Copiato.",
+			"copyFailed": "Impossibile copiare: questo browser non l'ha permesso.",
+			"formatOnLeave": "Formatta quando lascio il riquadro",
+			"wrap": "Manda a capo le righe lunghe",
+			"preferenceFailed": "Impossibile salvare questa scelta sul tuo account. Resta valida per questa visita.",
+			"saving": "Salvataggio…",
+			"notRead": "Impossibile leggerlo: {reason}",
+			"notPreviewed": "Impossibile mostrarlo sulla pagina: {reason}",
+			"notSaved": "Impossibile salvare: {reason}",
+			"conflict": {
+				"title": "Qualcuno ha salvato una versione più recente",
+				"text": "{name} è stato modificato da quando hai iniziato a scrivere. Ricaricare la sua versione o sovrascriverla con la tua?",
+				"reload": "Ricarica la sua",
+				"overwrite": "Sovrascrivi con la mia",
+				"cancel": "Continua a scrivere"
+			},
+			"html": {
+				"label": "HTML di {name}",
+				"loading": "Lettura del markup…",
+				"help": "Mostrato sulla pagina mentre scrivi. Salvato quando lasci il riquadro, o con ⌘S.",
+				"previewing": "Mostrato sulla pagina, non ancora salvato. Salvato quando lasci il riquadro, o con ⌘S.",
+				"problemAt": "Riga {line}, colonna {column}: {message}",
+				"problems": "Il markup non si può leggere: ogni problema è elencato sotto il riquadro.",
+				"step": "HTML di {name} modificato",
+				"saved": "HTML di {name} salvato.",
+				"placementHelp": "Un Placement di un Component su questa pagina: cambia le sue Props nell'Inspector."
+			},
+			"css": {
+				"label": "CSS di .{name}",
+				"loading": "Lettura delle Classi…",
+				"noClass": "Questo elemento non ha ancora una Class. Aggiungine una con + per dargli uno stile.",
+				"help": "Salvato mentre scrivi: i suoi stili, le sue regole con & e un blocco per ogni larghezza.",
+				"notRead": "Impossibile leggere il Design system. Seleziona di nuovo l'elemento per riprovare.",
+				"step": "CSS di .{name} modificato"
+			},
+			"js": {
+				"loading": "Lettura degli script…",
+				"tabs": "Script",
+				"tabNames": {
+					"page": "Pagina",
+					"site": "Sito",
+					"component": "Component"
+				},
+				"titles": {
+					"page": "Script della pagina",
+					"site": "Script del sito",
+					"component": "Script del Component"
+				},
+				"help": "Salvato mentre scrivi. Viene eseguito sulla pagina quando premi Esegui, o quando la pagina si ricarica.",
+				"noPage": "Questa pagina non mostra un Entry, quindi non ha uno script suo.",
+				"usedOn": "{name} è su {count} pagine: cambiare il suo script le cambia tutte.",
+				"run": "Esegui",
+				"running": "Esecuzione…",
+				"ran": "Script eseguiti su una pagina nuova.",
+				"console": "Console",
+				"clear": "Svuota la console",
+				"empty": "Ancora niente.",
+				"oneError": "1 errore",
+				"errors": "{count} errori",
+				"at": "{script} · riga {line}",
+				"didNotLoad": "{script} non è stato caricato.",
+				"levels": {
+					"log": "Log:",
+					"info": "Informazione:",
+					"warn": "Avviso:",
+					"error": "Errore:"
+				}
 			}
 		},
 		"placements": {

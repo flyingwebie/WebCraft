@@ -76,10 +76,12 @@ export type Docks = {
 	headings: Partial<Record<PanelKey, ReactNode>>;
 	/** What each panel shows under its header (BA-08 onwards: Layers, the Inspector); empty when none. */
 	bodies: Partial<Record<PanelKey, ReactNode>>;
-	/** A panel's title when it isn't its name (BA-09: the Component panel is titled with the Component's). */
+	/** A panel's title when it isn't its name (BA-09: the Inspector says "Loop" over an element a Loop repeats). */
 	titles: Partial<Record<PanelKey, string>>;
-	/** A panel's muted part beside its title, when it isn't the selection's name (the Inspector's). */
+	/** Beside a panel's title, muted: what it shows now (`h1 · Heading`); the Inspector's is the selection's name. */
 	subs: Partial<Record<PanelKey, string>>;
+	/** A panel's own entries at the top of its header's menu (BA-11: a code pane's Expand, Copy all, its switches). */
+	menus: Partial<Record<PanelKey, readonly MenuEntry[]>>;
 	change(next: Layout | null, said?: string): void;
 	/** A panel switched off or on in the Panels menu. */
 	toggle(id: PanelKey): void;
@@ -93,7 +95,7 @@ export type Docks = {
 	setDrawer(side: DockSide | null): void;
 	/** A panel whose menu button takes focus once the docks have drawn (after a move from its menu). */
 	focusLater(id: string | null): void;
-	/** The actions each panel's header shows beside its title (BA-13: the Entry panel's Find and Collapse; BA-09: the Props panel's Edit Component, the Component panel's "+"). */
+	/** The actions each panel's header shows beside its title (BA-13: the Entry panel's Find and Collapse; BA-11: the code panes' Classes, Format and Expand; BA-09: the Props panel's Edit Component, the Component panel's "+"). */
 	panelActions: Partial<Record<PanelKey, ReactNode>>;
 };
 
@@ -125,6 +127,8 @@ export function useDocks({
 	bodies = {},
 	titles = {},
 	subs = {},
+	menus = {},
+	wide = null,
 	announce,
 	panelActions = {},
 }: {
@@ -134,6 +138,9 @@ export function useDocks({
 	bodies?: Partial<Record<PanelKey, ReactNode>>;
 	titles?: Partial<Record<PanelKey, string>>;
 	subs?: Partial<Record<PanelKey, string>>;
+	menus?: Partial<Record<PanelKey, readonly MenuEntry[]>>;
+	/** A panel opened wide (a code pane's Expand, BA-11): the only one its dock draws while it shows. Not stored. */
+	wide?: PanelKey | null;
 	announce(text: string, urgent?: boolean): void;
 	panelActions?: Partial<Record<PanelKey, ReactNode>>;
 }): Docks {
@@ -177,8 +184,13 @@ export function useDocks({
 				const definition = panelOf(placement.id);
 				return definition && !placement.hidden && definition.shows(context) ? [{ placement, definition }] : [];
 			});
-		return { left: of("left"), right: of("right"), bottom: of("bottom") };
-	}, [layout, context]);
+		// A panel opened wide is the only one its dock draws, while it shows there.
+		const widened = (panels: ShownPanel[]) => {
+			const only = panels.find((each) => each.placement.id === wide && !each.placement.collapsed);
+			return only ? [only] : panels;
+		};
+		return { left: widened(of("left")), right: widened(of("right")), bottom: widened(of("bottom")) };
+	}, [layout, context, wide]);
 
 	const toggle = useCallback(
 		(id: PanelKey) => {
@@ -311,6 +323,7 @@ export function useDocks({
 		bodies,
 		titles,
 		subs,
+		menus,
 		change,
 		toggle,
 		reset,
@@ -551,7 +564,10 @@ function Dock({
 				docks.focusLater(id);
 			},
 		}));
+		const own = docks.menus[id as PanelKey] ?? [];
 		return [
+			...own,
+			...(own.length > 0 ? [{ kind: "separator", key: "own" } as const] : []),
 			...moves,
 			{
 				kind: "item",
