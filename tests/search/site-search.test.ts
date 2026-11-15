@@ -11,6 +11,7 @@ import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
+let member: TestBrowser;
 let siteId: string;
 let recipesId: string;
 let searchPageId: string;
@@ -22,6 +23,7 @@ beforeAll(async () => {
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
 	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
+	member = (await install.createMember({ workspaceId, role: "editor" })).browser;
 	recipesId = (
 		await staff.api.postTypes.create({
 			siteId,
@@ -308,7 +310,8 @@ describe("answers", () => {
 
 describe("in Edit mode", () => {
 	test("the search results page shows the hits for the query too", async () => {
-		const editing = await openEditMode(install, staff, siteId, "/search");
+		// A Member's Edit mode: the regions' tags only (Staff's frame carries where each element comes from too).
+		const editing = await openEditMode(install, member, siteId, "/search");
 
 		const response = await editing.page("/search?q=brioche");
 
