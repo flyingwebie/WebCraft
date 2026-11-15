@@ -1,5 +1,5 @@
 import type { FieldDefinition } from "@webcraft/core";
-import { createDraftClient, type DraftClient, type Json } from "@webcraft/core/draft-document";
+import { type DraftClient, type Json, reverseChange } from "@webcraft/core/draft-document";
 
 import type { BarKit, SharedDraft } from "../../../site/edit-bar/kit.ts";
 import { editorHistory, type HistoryLocation } from "../../builder/editor-history.ts";
@@ -16,7 +16,7 @@ import {
 } from "../../page-layouts/controller.ts";
 import { type EditRequests, fill, type PageState, type Words } from "../api.ts";
 import type { SavingStatus } from "../canvas/regions.ts";
-import { connect, draftResource } from "../editing/drafts.ts";
+import { draftResource } from "../editing/drafts.ts";
 import type { ClientEditing, ClientMode } from "./marks.ts";
 
 /**
@@ -263,48 +263,60 @@ export function memberSections(options: {
 	// ── the page's Entry's shared Draft ──
 
 	/**
-	 * The page's Entry's shared Draft, as the controller changes it (Props typed in): its own copy over
-	 * the Site's socket, as the editing bar opened its own. Others' changes come to its listeners.
+	 * The page's Entry's shared Draft, as the controller changes it (Props typed in): the shell's one copy
+	 * of it (the page editing's `drafts`, over one socket: a second would show the person to themselves
+	 * as someone else). Its changes, the person's and others', come to its listeners.
 	 */
 	function openShared(entryId: string) {
+		const item = `entry:${entryId}`;
+		const client = (): DraftClient | null => wrapped?.drafts().client(item) ?? null;
 		const heard = new Set<(draft: unknown) => void>();
-		let synced = false;
-		let refusals = 0;
-		const client: DraftClient = createDraftClient({
-			onChange: (draft, from) => {
-				synced = true;
-				if (from === "remote") for (const listener of heard) listener(draft);
-			},
-			onRefused: () => {
-				refusals++;
-			},
-		});
-		const url = new URL(`/_webcraft/edit/drafts/entry/${entryId}`, window.location.href);
-		url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-		const stop = connect(client, url, options.token);
+		const stop =
+			wrapped?.drafts().onChange((changed, draft) => {
+				if (changed !== item) return;
+				for (const listener of heard) listener(draft);
+			}) ?? (() => {});
+		/** The person's last change of the Draft, to tell it was kept once it is saved. */
+		let committed: { before: Json; after: Json } | null = null;
 		const shared: SharedDraft = {
-			stage: () => client.stage(),
-			ready: () => synced && client.status() !== "readOnly" && client.status() !== "ended",
-			draft: () => client.draft(),
-			change: (next) => client.change(next as (current: Json) => Json),
+			stage() {
+				const staged = client()?.stage();
+				if (!staged) return null;
+				return {
+					...staged,
+					commit() {
+						const receipt = staged.commit();
+						committed = receipt;
+						return receipt;
+					},
+				};
+			},
+			ready() {
+				const status = client()?.status();
+				return status !== undefined && status !== "connecting" && status !== "readOnly" && status !== "ended";
+			},
+			draft: () => client()?.draft() ?? null,
+			change: (next) => client()?.change(next as (current: Json) => Json) ?? false,
 			listen(listener) {
 				heard.add(listener);
 				return () => {
 					heard.delete(listener);
 				};
 			},
-			reverse: (from, to) => client.reverse(from, to),
+			reverse: async (from, to) => (await client()?.reverse(from, to)) ?? { ok: false, code: "HISTORY_UNAVAILABLE" },
 			saved() {
-				const before = refusals;
+				const open = client();
+				const receipt = committed;
+				committed = null;
+				if (!open) return Promise.resolve(false);
 				options.saving("saving");
-				client.flush();
+				open.flush();
 				const started = Date.now();
 				return new Promise<boolean>((resolve) => {
 					const check = () => {
-						const status = client.status();
+						const status = open.status();
 						let done: boolean | null = null;
-						if (refusals !== before) done = false;
-						else if (status === "saved") done = true;
+						if (status === "saved") done = kept(open, receipt);
 						else if (status === "readOnly" || status === "ended" || Date.now() - started > 8000) done = false;
 						if (done === null) {
 							window.setTimeout(check, 100);
@@ -321,7 +333,6 @@ export function memberSections(options: {
 			shared,
 			close() {
 				heard.clear();
-				client.close();
 				stop();
 			},
 		};
@@ -1021,6 +1032,20 @@ export function memberSections(options: {
 	function dismissRemovedNow() {
 		window.clearTimeout(removedTimer);
 		removed = null;
+	}
+}
+
+/**
+ * Whether the Draft still holds the person's change where it made it, once saved: a refused change is
+ * taken out of the copy again (the server's document comes back).
+ */
+function kept(client: DraftClient, receipt: { before: Json; after: Json } | null): boolean {
+	if (!receipt) return true;
+	try {
+		reverseChange(receipt.after, receipt.before, client.draft());
+		return true;
+	} catch {
+		return false;
 	}
 }
 
