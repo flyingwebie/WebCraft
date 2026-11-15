@@ -30,7 +30,21 @@ import { regionSaving, type SavingStatus } from "./regions.ts";
 import { SizeReadout, useReadoutShown } from "./SizeReadout.tsx";
 
 /** What a drop over the page tells the rest of the shell: `webcraft:drop` on the shell's document. */
-export type DropDetail = { source: string; target: Element | null };
+export type DropDetail = {
+	source: string;
+	target: Element | null;
+	/** Where the drop was down the target's box (0 its top, 1 its bottom), or null outside the page. */
+	fraction: number | null;
+};
+
+/** Elements nothing goes inside: a drag over one lands before or after it. */
+const HOLDS_NOTHING = new Set(["img", "video", "audio", "input", "br", "hr", "iframe", "source", "track", "wbr"]);
+
+/** Where a drop at a fraction of an element's height lands: inside its middle when it can hold, else before or after. */
+export function dropPositionOf(element: Element, fraction: number): "before" | "after" | "inside" {
+	if (!HOLDS_NOTHING.has(element.localName) && fraction > 0.3 && fraction < 0.7) return "inside";
+	return fraction < 0.5 ? "before" : "after";
+}
 
 /** What the shell can ask of the frame. */
 export type FrameHandle = {
@@ -343,13 +357,33 @@ export function Frame({
 		});
 		// A place over the canvas asks for the page to be drawn again (a Class renamed in Styles).
 		const stopRedraws = answerRedraws(element, () => handle.current?.rerender() ?? Promise.resolve());
+		/** Where a point of the shell's window is down an element's box on the page (0 top, 1 bottom). */
+		const fractionAt = (target: Element, point: { x: number; y: number }) => {
+			const box = overlay.boxOf(target);
+			return box && box.height > 0 ? Math.min(1, Math.max(0, (point.y - box.top) / box.height)) : 0.5;
+		};
+		/** The element a drop goes against: what Templates and Components drew (the nearest tagged element). */
+		const dropTarget = (target: Element | null) => target?.closest("[data-wc-code]") ?? target;
 		const catcher = installDragCatcher({
 			document: doc,
 			overlay,
-			onDrop(source, target) {
+			onOver(source, target, point) {
+				// Moving an element or inserting one (BA-33) shows where it lands.
+				const against = source === "move" || source.startsWith("insert:") ? dropTarget(target) : null;
+				drawn.dropLine(against, against ? dropPositionOf(against, fractionAt(against, point)) : null);
+			},
+			onEnd: () => drawn.dropLine(null, null),
+			onDrop(source, target, point) {
 				const { words: shown, announce: say } = latest.current;
-				say(target ? fill(shown.droppedOn, { name: nameOf(target, shown) }) : shown.dropOutside);
-				doc.dispatchEvent(new CustomEvent<DropDetail>("webcraft:drop", { detail: { source, target } }));
+				const ours = source === "move" || source.startsWith("insert:");
+				const against = ours ? dropTarget(target) : target;
+				// A move or an insert says what it did itself.
+				if (!ours) say(target ? fill(shown.droppedOn, { name: nameOf(target, shown) }) : shown.dropOutside);
+				doc.dispatchEvent(
+					new CustomEvent<DropDetail>("webcraft:drop", {
+						detail: { source, target: against, fraction: against ? fractionAt(against, point) : null },
+					}),
+				);
 			},
 		});
 		/** Whether focus is in the page: the frame is the shell's focused element and the window has focus. */

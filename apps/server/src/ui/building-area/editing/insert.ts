@@ -1,7 +1,20 @@
 import type { BuilderCatalogue, FieldDefinition } from "@webcraft/core";
 import type { ElementNode, ElementTree, TreeNode } from "@webcraft/renderer/builder";
 
-import { childLists, insertAt, type NodePath, newElement, nodeAt, type Place, placeOf } from "../../builder/tree.ts";
+import { selectionOf } from "../../builder/selection-ref.ts";
+import {
+	canHoldChildren,
+	childLists,
+	dropPositionAt,
+	insertAt,
+	moveTo,
+	type NodePath,
+	newElement,
+	nodeAt,
+	type Place,
+	placeBy,
+	placeOf,
+} from "../../builder/tree.ts";
 import { fill, type Words } from "../api.ts";
 import type { BuildingDocument } from "../documents.ts";
 import { managementApi } from "../management.ts";
@@ -209,7 +222,8 @@ export type Landing =
 			kind: "tree";
 			source: string;
 			place: Place;
-			position: "inside" | "after" | "end";
+			/** "before": a drop on the canvas's upper half of an element (BA-33). */
+			position: "inside" | "after" | "before" | "end";
 			/** The element the landing line is drawn against (the selection, or the top-level one for Section); null at the end. */
 			anchor: string | null;
 			/** After an "inside" insert the parent stays selected. */
@@ -456,6 +470,13 @@ export type Inserter = {
 	placeComponent(componentId: string, landing: Landing): Promise<string | null>;
 	/** Starts a new section on the Page (D2) at a position among its Placements. */
 	newSection(at: number): Promise<string | null>;
+	/**
+	 * A drag dropped on the page (BA-33): a row's kind (`insert:<kind>`) lands against the element at
+	 * `ref` (before, inside or after it, by where the drop was down its box: `fraction`), and the
+	 * selection's chip (`move`) moves the selected element there, within its own Template or Component
+	 * (a Page's Placement among the Page layout's). One Undo step; answers why not (also said), or null.
+	 */
+	dropAt(source: string, ref: string | null, fraction: number | null): Promise<string | null>;
 	/** The landing line shown now (the row's button under the pointer or with focus, Insert open), or none. */
 	preview(kind: InsertKind | null, forceAfter?: boolean): void;
 	current(): InsertPreview;
@@ -489,6 +510,7 @@ export function inserter(host: InserterHost): Inserter {
 		const anchor = at.anchor ? anchorName(snapshot, at.anchor) : null;
 		if (at.position === "inside" && anchor) return fill(said.whereInside, { name: anchor });
 		if (at.position === "after" && anchor) return fill(said.whereAfter, { name: anchor });
+		if (at.position === "before" && anchor) return fill(words.canvasDrop.whereBefore, { name: anchor });
 		const source = snapshot.sources.get(at.source);
 		return fill(said.whereEnd, { name: source?.name ?? words.structure.siteTemplate });
 	};
@@ -591,8 +613,128 @@ export function inserter(host: InserterHost): Inserter {
 		}
 	};
 
+	/** A Page's Placement a reference is in (`content/<id>…`) while the page is a Page, by its place in the layout. */
+	const placementOn = (ref: string) => {
+		const snapshot = structure.snapshot();
+		const site = snapshot.sources.get("site");
+		if (!site?.pageLayout || host.document() === "siteTemplate" || snapshot.inPlace) return null;
+		const id = /^content\/([^/#]+)/.exec(ref)?.[1];
+		const index = id ? (snapshot.layout ?? []).findIndex((each) => each.id === id) : -1;
+		return id && index >= 0 ? { id, index } : null;
+	};
+
+	/** Moves the selected element (or a Page's Placement) to where a drop on `ref` lands. */
+	const moveTo_ = (ref: string, fraction: number): string | null => {
+		const snapshot = structure.snapshot();
+		const selection = snapshot.selection;
+		if (!selection) return refuse(words.canvasDrop.nothingHere);
+		const name = anchorName(snapshot, selection.ref);
+		// A Page's Placement moves among the Page layout's.
+		const moving = !selection.key ? placementOn(selection.ref) : null;
+		if (moving) {
+			const target = placementOn(ref);
+			if (!target) return refuse(fill(words.placements.layoutRefusals.outside, { name }));
+			const after = fraction >= 0.5;
+			const to = moving.index < target.index ? target.index - (after ? 0 : 1) : target.index + (after ? 1 : 0);
+			if (to === moving.index) return null;
+			const refused = host.layout.move(snapshot.layout ?? [], moving.id, to);
+			return refused ? refuse(refused) : null;
+		}
+		if (!selection.path || !selection.node || selection.list !== null) return refuse(words.canvasDrop.nothingHere);
+		const source = snapshot.sources.get(selection.source);
+		const key = ref.includes("#") ? ref.slice(ref.indexOf("#") + 1) : "";
+		const found = source && sourceOf(ref) === selection.source && key ? selectionOf(source.tree, key) : null;
+		if (!source || found?.kind !== "node") return refuse(fill(words.placements.dragElsewhere, { name }));
+		const target = nodeAt(source.tree, found.path);
+		if (!target) return refuse(said.refusals.connecting);
+		const from = selection.path.join(".");
+		const to = found.path.join(".");
+		if (to === from) return null;
+		if (to.startsWith(`${from}.`)) return refuse(fill(words.canvasDrop.intoItself, { name }));
+		const position = dropPositionAt(fraction, canHoldChildren(target));
+		const moved = moveTo(source.tree, selection.path, placeBy(source.tree, found.path, position));
+		if ("refused" in moved) return refuse(moved.refused);
+		const refused = structure.change(
+			selection.source,
+			moved.tree,
+			fill(words.structure.steps.move, { name }),
+			keyAt(moved.tree, moved.path),
+		);
+		return refused ? refuse(refused) : null;
+	};
+
+	/** Inserts a row's kind where a drop on `ref` lands. */
+	const insertOn = async (kind: InsertKind, ref: string, fraction: number): Promise<string | null> => {
+		// On a Page, a section dropped on a Placement goes before or after it; nothing else goes in a Page.
+		const placed = placementOn(ref);
+		if (placed) {
+			if (kind !== "section") return refuse(said.refusals.page);
+			return newSection(fraction < 0.5 ? placed.index : placed.index + 1);
+		}
+		const media =
+			kind === "image" || kind === "icon" || kind === "video"
+				? await host.pick(kind === "video" ? "video" : "image")
+				: undefined;
+		if (media === null) return null;
+		// The tree as it is after the picker (someone may have changed it meanwhile).
+		const snapshot = structure.snapshot();
+		const sourceRef = sourceOf(ref);
+		const source = snapshot.sources.get(sourceRef);
+		const key = ref.includes("#") ? ref.slice(ref.indexOf("#") + 1) : "";
+		const found = source && key ? selectionOf(source.tree, key) : null;
+		if (!source || found?.kind !== "node") return refuse(said.refusals.connecting);
+		if (!source.editable)
+			return refuse(fill(words.structure.readOnly, { name: source.name ?? words.structure.thisSource }));
+		const target = nodeAt(source.tree, found.path);
+		if (!target) return refuse(said.refusals.connecting);
+		const anchor = `${sourceRef}#${key}`;
+		let landing: Landing;
+		if (kind === "section") {
+			// Section is always top level: before or after the top-level element the drop is in.
+			const top = found.path[0] ?? 0;
+			const after = fraction >= 0.5;
+			landing = {
+				kind: "tree",
+				source: sourceRef,
+				place: { owner: null, list: 0, index: after ? top + 1 : top },
+				position: after ? "after" : "before",
+				anchor: keyAt(source.tree, [top]) ? `${sourceRef}#${keyAt(source.tree, [top])}` : null,
+				keep: false,
+			};
+		} else {
+			const position = dropPositionAt(fraction, canHold(target, kind));
+			landing =
+				position === "inside"
+					? {
+							kind: "tree",
+							source: sourceRef,
+							place: { owner: found.path, list: 0, index: childLists(target)[0]?.length ?? 0 },
+							position: "inside",
+							anchor,
+							keep: false,
+						}
+					: {
+							kind: "tree",
+							source: sourceRef,
+							place: placeBy(source.tree, found.path, position),
+							position,
+							anchor,
+							keep: false,
+						};
+		}
+		const made = nodesFor(kind, source.tree, source.catalogue, words, media);
+		if (!made) return refuse(fill(said.refusals.notAllowed, { name: kindName(kind, words) }));
+		return insertNodes(made.nodes, kindName(kind, words), landing, made.select);
+	};
+
 	return {
 		landing,
+		async dropAt(source, ref, fraction) {
+			if (!ref || fraction === null) return refuse(words.canvasDrop.nothingHere);
+			if (source === "move") return moveTo_(ref, fraction);
+			if (source.startsWith("insert:")) return insertOn(source.slice("insert:".length) as InsertKind, ref, fraction);
+			return null;
+		},
 		async insert(kind, options = {}) {
 			const at = landing(kind, options.forceAfter ?? false);
 			if (at.kind === "refused") return refuse(at.reason);

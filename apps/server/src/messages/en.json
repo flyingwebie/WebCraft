@@ -10941,6 +10941,12 @@
 			"else": "Else",
 			"empty": "When there are no items",
 			"pastedInto": "Paste {name} into {branch}"
+		},
+		"canvasDrop": {
+			"whereBefore": "before {name}",
+			"grab": "Drag to move {name}",
+			"nothingHere": "Drop it on the page, where it should go.",
+			"intoItself": "{name} can't go inside itself."
 		}
 	},
 	"auth": {
