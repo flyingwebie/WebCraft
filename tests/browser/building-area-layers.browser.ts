@@ -167,12 +167,21 @@ async function focusRow(page: Page, name: string | RegExp): Promise<void> {
 describe("Layers: arranging from the keyboard, branches, hover", () => {
 	test("Layers with its branches passes the accessibility checks, light and dark", async () => {
 		const page = await shared();
+		const missing: string[] = [];
+		page.on("response", (response) => {
+			if (response.status() === 404) missing.push(response.url());
+		});
+		page.on("requestfinished", () => {});
+		process.on("beforeExit", () => {
+			if (missing.length) console.log("404s:", missing);
+		});
 		await focusRow(page, "Else");
 		for (const theme of ["light", "dark"] as const) {
 			await page.emulateMedia({ colorScheme: theme });
 			await page.mouse.move(24, 460);
 			await page.waitForTimeout(1800);
 			await settled(page);
+			if (missing.length) console.log("404s:", missing);
 			await expectAccessibleScreen(page, `Layers with branches (${theme})`);
 		}
 	});
@@ -218,6 +227,7 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 			"Card",
 		]);
 
+		await focusRow(page, /^ul\b/);
 		await page.keyboard.press("F2");
 		const rename = page.getByRole("textbox", { name: "Layer label of ul" });
 		await rename.fill("Steps");

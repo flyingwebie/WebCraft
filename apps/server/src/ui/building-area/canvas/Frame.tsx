@@ -348,6 +348,13 @@ export function Frame({
 				found?.scrollIntoView({ block: "nearest", inline: "nearest" });
 			},
 		};
+		// The selection's chip is its grab handle (BA-33): a click on it (no drag) selects what is under it.
+		const chipElement = area.querySelector<HTMLElement>("[data-wc-chip]");
+		const onChipClick = (event: MouseEvent) => {
+			const target = selectable(overlay.elementAt(event.clientX, event.clientY));
+			if (target) overlay.select(target);
+		};
+		chipElement?.addEventListener("click", onChipClick);
 		// A row of Layers under the pointer outlines its element on the page (BA-33), never selecting it.
 		const stopHover = subscribeHover(() => {
 			const now = hoveredNow();
@@ -519,6 +526,7 @@ export function Frame({
 			catcher.destroy();
 			stopRedraws();
 			stopHover();
+			chipElement?.removeEventListener("click", onChipClick);
 			disconnectEditing?.();
 			overlay.destroy();
 			overlayOf.current = null;

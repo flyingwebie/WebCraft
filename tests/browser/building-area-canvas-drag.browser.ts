@@ -202,7 +202,8 @@ describe("dragging on the canvas", () => {
 			/<p class="lead">Fresh from the oven<\/p><h2>Heading<\/h2>/,
 		);
 		await page.waitForTimeout(500);
-		await drag(page, page.locator('[data-wc-insert="text"]'), "div.box p:last-of-type", 0.85);
+		const textLine = await drag(page, page.locator('[data-wc-insert="text"]'), "div.box p:last-of-type", 0.85);
+		console.log("text drop:", textLine, await announced(page));
 		expect(await eventually(article, (text) => /<div class="box">.*<p>[^<]*<\/p><\/div>/.test(text))).toMatch(
 			/<div class="box"><p>Inside the box<\/p><p>Last words<\/p><p>[^<]+<\/p><\/div>/,
 		);

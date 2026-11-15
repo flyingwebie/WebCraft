@@ -270,7 +270,12 @@ describe("fixed text becomes a value clients edit", () => {
 		await page.keyboard.press("Escape");
 		await question.waitFor({ state: "detached" });
 
-		await clickIn(page, "p.hours");
+		for (let attempt = 0; attempt < 3; attempt++) {
+			await clickIn(page, "p.hours");
+			const shown = await inspector(page).locator("[data-wc-fixed-texts]").textContent();
+			if (shown?.includes("Open daily")) break;
+			await page.waitForTimeout(500);
+		}
 		await says(inspector(page).locator("[data-wc-fixed-texts]"), "“Open daily”");
 		question = await ask(page, "Make it a Global");
 		await question.getByLabel("Label").fill("Hours");
@@ -318,8 +323,9 @@ describe("fixed text becomes a value clients edit", () => {
 			expect.objectContaining({ key: "message", label: "Message", type: "text", default: "Closed on Sundays" }),
 		]);
 
-		await page.getByRole("button", { name: "Undo" }).first().click();
+		await page.locator('[data-wc-bar="undo"]').click();
 		const undone = await eventually(read, (got) => got.component.draft.props.length === 0);
+		if (undone.component.draft.props.length) console.log("after Undo:", await announced(page));
 		expect(undone.component.draft.props).toEqual([]);
 		expect(undone.markup.draft).toContain("<p>Closed on Sundays</p>");
 	});
@@ -401,7 +407,7 @@ describe("fixed text becomes a value clients edit", () => {
 		await make.waitFor();
 		await make.getByRole("checkbox", { name: /Turn the fixed text into a Prop/ }).check();
 		expect(await make.getByLabel("Prop name").inputValue()).toBe("askUsAt");
-		await make.getByLabel("Name").fill("CounterNote");
+		await make.getByLabel("Name", { exact: true }).fill("CounterNote");
 		await make.getByRole("button", { name: "Make" }).click();
 		await make.waitFor({ state: "detached" });
 		const { api } = await install.install.superadmin();
