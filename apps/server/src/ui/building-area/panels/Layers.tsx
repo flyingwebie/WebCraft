@@ -216,11 +216,14 @@ function holdsSelection(
 	source: StructureSource,
 	nested: StructureSource | null,
 	selected: string | null,
+	path: readonly number[] = [],
 ): boolean {
 	if (!selected) return false;
 	const at = sourceOf(selected);
 	if (nested) return within(at, nested.ref);
 	const key = keyOf(selected);
+	// A node with no id (a command, such as a Filter) is selected by where it is (`@1.0.0`): under this one (BA-34).
+	if (at === source.ref && key.startsWith(`@${path.join(".")}.`)) return true;
 	const found = (list: readonly TreeNode[]): boolean =>
 		list.some(
 			(child) =>
@@ -290,7 +293,7 @@ function rowsOf(
 			const branches = nested ? [] : childLists(node).slice(1);
 			const expandable = children.some(shown) || branches.length > 0;
 			const opened =
-				expandable && (holdsOutlet(node) || (onTheWay(ref) && holdsSelection(node, source, nested, selected)));
+				expandable && (holdsOutlet(node) || (onTheWay(ref) && holdsSelection(node, source, nested, selected, path)));
 			const expanded = expandable && expandedOf(`${source.ref}:${pathKey(path)}`, opened);
 			rows.push({
 				kind: "node",

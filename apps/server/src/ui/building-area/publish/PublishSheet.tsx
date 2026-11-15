@@ -1,12 +1,14 @@
 import {
 	BracesIcon,
 	ComponentIcon,
+	ExternalLinkIcon,
 	FileCodeIcon,
 	GlobeIcon,
 	ImageIcon,
 	LanguagesIcon,
 	LayoutGridIcon,
 	type LucideIcon,
+	MessageSquareIcon,
 	PaletteIcon,
 	RepeatIcon,
 	Rows3Icon,
@@ -27,7 +29,9 @@ import { type ChangeRow, changeText, countOf, type DraftRow, draftName, type Pub
  * Component, the Design system…); a note about translations when there are any; Publish later with a
  * day and a time; "N other Drafts on this Site · Publish all" for those who may publish; "Discard all
  * changes" (asked first); Publish. An Author gets "Send for review" with a note instead, and Withdraw
- * while their Review waits.
+ * while their Review waits. A Popup's Component open as the document is published with its Popup,
+ * after its review in the admin: the sheet says so and links there (BA-34, as the visual builder's
+ * "Review and publish Popup" did).
  */
 
 /** What the sheet asks the controller to do. */
@@ -143,6 +147,7 @@ export function PublishSheet({
 	const waiting = data?.reviews.find((review) => review.status === "inReview") ?? null;
 	const sentBack = data?.reviews.find((review) => review.status === "sentBack" && review.comment) ?? null;
 	const translating = !author && changes.length > 0 ? (data?.translations ?? []) : [];
+	const popup = data?.popup ?? null;
 
 	const scheduleNow = () => {
 		const at = new Date(`${when.day}T${when.time}`);
@@ -162,7 +167,7 @@ export function PublishSheet({
 			</p>
 		);
 	} else if (changes.length === 0 && drafts.length === 0) {
-		body = <p className="text-chrome-muted m-0 text-[13px]">{shown.empty}</p>;
+		body = popup ? null : <p className="text-chrome-muted m-0 text-[13px]">{shown.empty}</p>;
 	} else {
 		body = (
 			<ul aria-label={shown.rows} className="m-0 flex list-none flex-col gap-3.5 p-0" data-wc-publish-rows="">
@@ -215,6 +220,8 @@ export function PublishSheet({
 			</div>
 
 			{body}
+
+			{popup ? <PopupReview popup={popup} words={words} /> : null}
 
 			{sentBack?.comment ? (
 				<p className="bg-chrome-raised text-chrome-muted m-0 rounded-lg p-2.5 text-[12px]">
@@ -423,6 +430,47 @@ function DraftItem({
 				<span className="text-chrome-muted truncate text-[12px]">{who}</span>
 			</span>
 		</li>
+	);
+}
+
+/**
+ * A Popup's Component open as the document (BA-34): the Popup's row, why it isn't published from here,
+ * and its review in the admin (a new tab), where it is published with its settings.
+ */
+function PopupReview({ popup, words }: { popup: NonNullable<PublishData["popup"]>; words: Words }) {
+	const shown = words.publishing.popup;
+	const noteId = useId();
+	return (
+		<div className="flex flex-col gap-3" data-wc-publish-popup={popup.changed ? "changed" : "published"}>
+			<div className="flex items-center gap-3">
+				<span className="bg-chrome-raised inline-grid size-[30px] shrink-0 place-items-center rounded-lg">
+					<MessageSquareIcon aria-hidden="true" className="text-chrome-text size-[15px]" />
+				</span>
+				<span className="flex min-w-0 grow flex-col gap-px">
+					<span className="text-chrome-strong truncate text-[13px] font-semibold">
+						{fill(shown.row, { name: popup.name })}
+					</span>
+					<span className="text-chrome-muted truncate text-[12px]">
+						{popup.changed ? shown.changed : shown.unchanged}
+					</span>
+				</span>
+			</div>
+			<p id={noteId} className="bg-chrome-raised text-chrome-muted m-0 rounded-lg p-2.5 text-[12px]">
+				{shown.note}
+			</p>
+			<a
+				href={popup.review}
+				target="_blank"
+				rel="noopener noreferrer"
+				aria-label={shown.reviewName}
+				aria-describedby={noteId}
+				className={`${sheetButton(popup.changed ? "primary" : "quiet")} w-full`}
+				data-wc-publish-popup-review=""
+			>
+				<ExternalLinkIcon aria-hidden="true" className="size-4" />
+				{shown.review}
+			</a>
+		</div>
 	);
 }
 

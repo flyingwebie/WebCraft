@@ -325,14 +325,16 @@ describe("from the keyboard on the Site", () => {
 });
 
 describe("the visual builder", () => {
-	test("Open in visual builder opens the Template holding the Filter, the Filter selected", async () => {
+	// The building area took the visual builder's place here (BA-34): `building-area-switching` checks it in full.
+	test("Open in the building area opens the Template holding the Filter, the Filter selected", async () => {
 		const page = await openBuilder("light", "layout");
-		await page.getByRole("link", { name: "Open Products · Archive template in the visual builder" }).click();
-		await page.getByRole("tree", { name: "Layers" }).waitFor();
-
-		const selected = page.getByRole("treeitem", { selected: true });
+		await page.getByRole("link", { name: "Open Products · Archive template in the building area" }).click();
+		await page.waitForURL((url) => url.pathname === `/_webcraft/build/archive-template/${shop.productsId}`);
+		const selected = page.getByRole("tree", { name: "Elements of the page" }).getByRole("treeitem", { selected: true });
+		await selected.waitFor();
 		expect(await selected.count()).toBe(1);
-		expect(await selected.textContent()).toContain("Filter shop");
+		expect(await selected.textContent()).toContain("{{@filter}}");
+		expect(new URL(page.url()).searchParams.get("wc-filter")).toBeNull();
 	});
 
 	test("its insert menu places a Filter, or one of its controls on its own", async () => {

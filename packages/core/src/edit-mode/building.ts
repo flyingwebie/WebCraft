@@ -39,6 +39,13 @@ export type StandInDocument = Exclude<BuildingDocument, { kind: "page" } | { kin
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
+ * The shell's own parameter that opens a Template or Component with a Filter's element selected (the
+ * admin's Filters screen, BA-34): `/archive-template/<Post Type id>?wc-filter=<Filter id>`. It is the
+ * shell's, never the document's: the shell selects where the Filter is placed, then drops it.
+ */
+export const BUILDING_FILTER_PARAMETER = "wc-filter";
+
+/**
  * Whether `path` is a page of the Site the building area may frame: a path as Edit mode takes it, and
  * not one of the paths the Install keeps on every Site's address (`/_…`, such as `/_webcraft/` and
  * `/_media/`), which are never a Site's pages.
@@ -51,7 +58,8 @@ function isSitePageAddress(address: string): boolean {
  * The document a building-area address opens: `open` is the part of its address after
  * `/_webcraft/build`, with its query (`/page/blog/fresh-bread`, `/entry-template/<id>?entry=<id>`).
  * Null for anything that names no document: another form, an id that isn't one, a path off the Site.
- * A page's query is the page's own; the other documents take no query but an Entry template's `entry`.
+ * A page's query is the page's own; the other documents take no query but an Entry template's `entry`
+ * and the shell's `wc-filter` (a Filter to select, `BUILDING_FILTER_PARAMETER`), which is left out.
  */
 export function parseBuildingDocument(open: string): BuildingDocument | null {
 	if (open.length > 4000) return null;
@@ -70,6 +78,10 @@ export function parseBuildingDocument(open: string): BuildingDocument | null {
 	}
 	const [empty, kind = "", id = "", ...rest] = path.split("/");
 	if (empty !== "" || rest.length > 0) return null;
+	// A Filter to select, once: the shell's, so it is left out of the document.
+	const filter = params.getAll(BUILDING_FILTER_PARAMETER);
+	if (filter.length > 1 || filter.some((each) => !ID.test(each))) return null;
+	params.delete(BUILDING_FILTER_PARAMETER);
 	const keys = [...params.keys()];
 	if (kind === "entry-template" && ID.test(id)) {
 		const entry = params.get("entry");

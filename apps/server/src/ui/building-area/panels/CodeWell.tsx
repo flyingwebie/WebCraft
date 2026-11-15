@@ -9,8 +9,10 @@ import {
 	useState,
 } from "react";
 
+import { codeKeyEdit } from "../../builder/code-keys.ts";
 import type { CssTokenKind } from "../../builder/css-tokens.ts";
 import { editorHistory } from "../../builder/editor-history.ts";
+import { matches } from "../../builder/shortcuts.ts";
 import { type CodeLanguage, codeLines } from "./code-tokens.ts";
 
 /** Each kind of piece on the chrome's code well (each at least 4.5:1 on it), as the Styles place's box. */
@@ -34,7 +36,9 @@ export type LineRange = { from: number; to: number };
  * in every code box of the app), the caret's line raised, the selection's lines marked (the element's
  * own lines in its source) and lines with a problem marked in red. With `wrap`, long lines wrap and
  * each line's number stays at its first row. The gutter and the highlighting are hidden from assistive
- * technology: the text area is the box.
+ * technology: the text area is the box. ⌘] and ⌘[ (Ctrl on other systems) indent and outdent the
+ * caret's line or every line of the selection by two spaces (BA-36, as Code mode's boxes did), typed
+ * in so the box's own Undo takes each back in one step.
  */
 export function CodeWell({
 	ref,
@@ -206,7 +210,10 @@ export function CodeWell({
 					onChange?.(event.target.value);
 					followCaret(event.target);
 				}}
-				onKeyDown={onKeyDown}
+				onKeyDown={(event) => {
+					if (indentKey(event)) return;
+					onKeyDown?.(event);
+				}}
 				onSelect={(event) => followCaret(event.currentTarget)}
 				onBlur={() => {
 					editorHistory().boundary();
@@ -220,4 +227,43 @@ export function CodeWell({
 			/>
 		</div>
 	);
+}
+
+/**
+ * ⌘] / ⌘[: indents or outdents the lines the caret or the selection is on (`codeKeyEdit`, the old
+ * editors' rule: two spaces in, up to two spaces or a tab out), keeping the same lines selected. Only
+ * what changed is typed over, so the box's Undo gives the lines back as they were. The keys never reach
+ * the browser (⌘[ would go back a page), even in a box that can't be edited.
+ */
+function indentKey(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
+	const native = event.nativeEvent;
+	if (!matches(native, "editor.indent") && !matches(native, "editor.outdent")) return false;
+	event.preventDefault();
+	const area = event.currentTarget;
+	const edit = codeKeyEdit(native, area);
+	if (!edit) return true;
+	const text = area.value;
+	const next = edit.text;
+	if (next !== text) {
+		let from = 0;
+		while (from < text.length && from < next.length && text[from] === next[from]) from++;
+		let tail = 0;
+		while (
+			tail < text.length - from &&
+			tail < next.length - from &&
+			text[text.length - 1 - tail] === next[next.length - 1 - tail]
+		)
+			tail++;
+		const { scrollTop, scrollLeft } = area;
+		area.setSelectionRange(from, text.length - tail);
+		const typed = area.ownerDocument.execCommand("insertText", false, next.slice(from, next.length - tail));
+		if (!typed) {
+			area.setRangeText(next.slice(from, next.length - tail), from, text.length - tail, "end");
+			area.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+		}
+		area.scrollTop = scrollTop;
+		area.scrollLeft = scrollLeft;
+	}
+	area.setSelectionRange(edit.start, edit.end);
+	return true;
 }

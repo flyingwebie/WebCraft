@@ -6457,7 +6457,7 @@
 			"placedHelp": "The page around the Filter is the Template's: open it in the visual builder to arrange it, with the Filter selected.",
 			"notPlaced": "Not placed yet. Place it in a Template or Component beside its Loop with",
 			"toTemplates": "Go to Templates",
-			"openInBuilder": "Open {place} in the visual builder",
+			"openInBuilder": "Open {place} in the building area",
 			"apart": "Controls can also be placed one by one anywhere on the page, such as the search box in the header: each control's settings show its markup.",
 			"title": "Layout",
 			"intro": "How the Filter's controls sit beside its Loop, and on phones."
@@ -9547,6 +9547,14 @@
 				"one": "{count} other Draft on this Site",
 				"other": "{count} other Drafts on this Site"
 			},
+			"popup": {
+				"row": "Popup · {name}",
+				"changed": "changed, not live yet",
+				"unchanged": "as published",
+				"note": "This Component is the Popup's layout. It goes live with the Popup and its settings (its Triggers, Display rules and layout): review them, then publish the Popup.",
+				"review": "Review and publish Popup",
+				"reviewName": "Review and publish Popup in the admin (opens in a new tab)"
+			},
 			"publishAll": "Publish all",
 			"publishAllName": "Publish all in the admin (opens in a new tab)",
 			"discard": "Discard all changes",
@@ -10460,7 +10468,19 @@
 				},
 				"componentError": "{name} failed on a Placement: {message}",
 				"showPlacement": "Show the Placement",
-				"saved": "Saved the {script} to the Draft."
+				"saved": "Saved the {script} to the Draft.",
+				"settings": "The Component script's settings",
+				"consent": "Consent category",
+				"consentHelp": "Outside Necessary, visitors' pages hold it back until they accept this category in the Consent banner.",
+				"categories": {
+					"necessary": "Necessary",
+					"analytics": "Analytics",
+					"marketing": "Marketing",
+					"media": "Media"
+				},
+				"libraries": "Libraries it needs",
+				"librariesNone": "None",
+				"noLibraries": "The Site has no Libraries: add them in Site › Libraries."
 			}
 		},
 		"placements": {

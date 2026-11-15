@@ -50,6 +50,9 @@ import {
  * - A Module's Component, or a Template not made yet, is read only, with the reason.
  * - A Placement of a Page's Page layout is shown as the markup of its Component tag (read only here;
  *   its Props are the Inspector's).
+ * - **Another document** (BA-34): markup typed and not saved (it couldn't be read, say), or a conflict
+ *   waiting for its choice, is kept by its source's Template or Component when the frame shows another
+ *   page, and shown again (previewed, the conflict asked again) once a page shows that source again.
  */
 
 /** A source's name as the panes say it: the Component's, or the Template's kind (and Post Type). */
@@ -168,6 +171,32 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 	/** The source's tree as last printed, to tell a new tree (a change from the Inspector, Layers, someone else). */
 	let shownTree: ElementTree | null = null;
 	let shownPath: string | null = null;
+	/** The Template or Component shown (its target), and what was typed in others the frame no longer shows. */
+	let shownTarget: string | null = null;
+	const kept = new Map<string, HtmlState>();
+	const targetOf = (source: StructureSource) => JSON.stringify(source.target);
+
+	/** Keeps what was typed and not saved (or a conflict waiting) for when a page shows its source again. */
+	const keep = () => {
+		const state = store.get();
+		if (shownTarget && state.source && state.status === "ready" && (state.dirty || state.conflict))
+			kept.set(shownTarget, { ...state, saving: false, previewing: false, marked: null });
+	};
+
+	/** Shows what was kept for the source, typed over its markup as before. Answers whether there was any. */
+	const restore = (selection: StructureSelection, source: StructureSource): boolean => {
+		const target = targetOf(source);
+		const was = kept.get(target);
+		if (!was) return false;
+		kept.delete(target);
+		run++;
+		shownTree = source.tree;
+		shownTarget = target;
+		store.set({ ...was, ref: selection.ref, source: source.ref });
+		window.clearTimeout(previewTimer);
+		previewTimer = window.setTimeout(() => void preview(), PREVIEW_AFTER_MS);
+		return true;
+	};
 
 	const nameOf = (source: StructureSource): string => sourceName(words(), source);
 
@@ -193,6 +222,7 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 		if (!path) return;
 		const asked = ++run;
 		shownTree = source.tree;
+		shownTarget = targetOf(source);
 		const typedBefore = store.get().text;
 		store.set((state) => ({
 			status: state.source === source.ref && state.status === "ready" ? "ready" : "loading",
@@ -283,8 +313,10 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 		const selection = snapshot.selection;
 		const pathNow = path();
 		if (pathNow !== shownPath) {
+			keep();
 			shownPath = pathNow;
 			shownTree = null;
+			shownTarget = null;
 			store.set({ ...IDLE });
 		}
 		const state = store.get();
@@ -302,7 +334,7 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 				void save().then(() => follow());
 				return;
 			}
-			void show(selection, source);
+			if (!restore(selection, source)) void show(selection, source);
 			return;
 		}
 		if (selection.ref !== state.ref) {
@@ -404,6 +436,9 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 				? await request<ReadAnswer>("code/editorRead", { path, ref: sourceRef, markup: state.text })
 				: null;
 			if (!read) return;
+			// The frame shows another page now: the source is no longer this one's, so nothing is saved
+			// (what was typed is kept for when a page shows it again).
+			if (deps().path() !== path) return;
 			if (!read.ok) {
 				const problems = problemsOf(read);
 				store.set({

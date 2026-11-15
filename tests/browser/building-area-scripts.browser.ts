@@ -11,15 +11,19 @@
 //   its Component with its Placement a click away;
 // - ⌘S in the HTML, CSS and JS panes saves, and what it saved is what the Draft holds; Tab leaves a box;
 // - Undo waits for a Component script's save before it takes a step back;
+// - the Component tab's Consent category and Libraries (BA-36): each saved with the script, one Undo
+//   step with what was typed, read back after the shell loads again; ⌘] and ⌘[ in the code boxes;
 // - the shell passes the accessibility checks with the notice and with Safe mode on, light and dark.
 // The building area's counterpart of `site-scripts.browser.ts` 192 (a failing Site script, Safe mode),
-// `component-scripts.browser.ts` 173, 219, 243 and 289 (Edit mode and Code mode's JS panel),
-// `editor-keyboard.browser.ts` 444 (Component JS keys and saved text) and `editor-history.browser.ts`
-// 293 (Undo waits for a Component script).
+// `component-scripts.browser.ts` 173, 219, 243 and 289 (Edit mode and Code mode's JS panel; 219's
+// Consent category and Libraries and 243's "and its category" in BA-36's check),
+// `editor-keyboard.browser.ts` 444 (Component JS keys and saved text; its ⌘] and ⌘[ in BA-36's) and
+// `editor-history.browser.ts` 293 (Undo waits for a Component script).
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { ApiClient } from "@webcraft/api";
 import type { Frame, Page } from "playwright";
 
+import { fakeNpmPackage } from "../harness/fake-npm.ts";
 import type { TestAccount } from "../harness/index.ts";
 import { announced, enterBuildingArea, frameOf, settled } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
@@ -279,6 +283,29 @@ async function eventually<Value>(read: () => Promise<Value>, done: (value: Value
 /** The Counter's script as its Draft holds it now. */
 async function counterDraft(): Promise<string> {
 	return (await api.components.getScript({ siteId, componentId: counterId })).script?.draft.code ?? "";
+}
+
+/** The Counter script's Draft: its code, Consent category and Libraries (by name, in the Site's order). */
+async function counterScript(): Promise<{ code: string; consent: string; libraries: string[] }> {
+	const { script } = await api.components.getScript({ siteId, componentId: counterId });
+	const { libraries } = await api.libraries.list({ siteId });
+	const ids = script?.draft.libraryIds ?? [];
+	return {
+		code: script?.draft.code ?? "",
+		consent: script?.draft.consentCategory ?? "",
+		libraries: libraries.filter((library) => ids.includes(library.id)).map((library) => library.name),
+	};
+}
+
+/** The Counter's script as the fixture has it: its code, Necessary, no Libraries. */
+async function resetCounter(): Promise<void> {
+	await api.components.saveScriptDraft({
+		siteId,
+		componentId: counterId,
+		code: COUNTER,
+		consentCategory: "necessary",
+		libraryIds: [],
+	});
 }
 
 /**
@@ -587,6 +614,178 @@ describe("Staff", () => {
 			await page.unrouteAll({ behavior: "wait" });
 		}
 		await api.components.saveScriptDraft({ siteId, componentId: counterId, code: COUNTER });
+	});
+
+	test("a Component script's Consent category and Libraries: saved with it, one Undo step, read back (BA-36)", async () => {
+		await resetCounter();
+		const page = await shared("staff");
+		await open(page, "/blog/rye");
+		await componentTab(page, "One");
+		const row = pane(page, "js").getByRole("group", { name: "The Component script's settings" });
+		const consent = row.getByRole("combobox", { name: "Consent category" });
+		const libraries = row.getByRole("button", { name: /^Libraries it needs/ });
+		expect(await consent.inputValue()).toBe("necessary");
+		expect(await consent.locator("option").allTextContents()).toEqual(["Necessary", "Analytics", "Marketing", "Media"]);
+		// Its help is the select's description, and shows on focus.
+		const help =
+			"Outside Necessary, visitors' pages hold it back until they accept this category in the Consent banner.";
+		expect(
+			await consent.evaluate((select) =>
+				(select.getAttribute("aria-describedby") ?? "")
+					.split(" ")
+					.map((id) => document.getElementById(id)?.textContent)
+					.join(" "),
+			),
+		).toBe(help);
+		await consent.focus();
+		await row.locator("[data-wc-tip]").filter({ hasText: help }).waitFor();
+		// A Site without Libraries says where to add them.
+		expect(await libraries.textContent()).toBe("None");
+		await libraries.focus();
+		await page.keyboard.press("Enter");
+		const menu = page.getByRole("menu", { name: "Libraries it needs" });
+		await menu
+			.getByRole("menuitem", { name: "The Site has no Libraries: add them in Site › Libraries.", disabled: true })
+			.waitFor();
+		await page.keyboard.press("Escape");
+		await menu.waitFor({ state: "detached" });
+		expect(await libraries.evaluate((button) => button === document.activeElement)).toBe(true);
+
+		// Two Libraries on the Site: the shell loads again and the menu lists them.
+		for (const name of ["motion-kit", "swipe-kit"]) {
+			fakeNpmPackage(install.install, name, {
+				"1.0.0": {
+					files: { "dist/kit.min.js": `window["${name}"] = {};` },
+					license: "MIT",
+					jsdelivr: "dist/kit.min.js",
+				},
+			});
+			await api.libraries.add({ siteId, library: { source: "npm", packageName: name, version: "1.0.0" } });
+		}
+		await open(page, "/blog/rye");
+		await componentTab(page, "One");
+
+		// The Consent category saves at once, as one Undo step.
+		await consent.selectOption("analytics");
+		expect((await eventually(counterScript, (now) => now.consent === "analytics")).consent).toBe("analytics");
+		await page.locator('[data-wc-bar="undo"]').click();
+		await said(page, "Undid Changed the Component script of Counter");
+		expect((await eventually(counterScript, (now) => now.consent === "necessary")).consent).toBe("necessary");
+		await page.waitForFunction(
+			() => document.querySelector<HTMLSelectElement>("[data-wc-script-consent]")?.value === "necessary",
+		);
+
+		// The Libraries, ticked from the keyboard: the menu stays open; each saves at once.
+		await libraries.focus();
+		await page.keyboard.press("ArrowDown");
+		await menu.waitFor();
+		const motion = menu.getByRole("menuitemcheckbox", { name: "motion-kit" });
+		expect(await motion.evaluate((item) => item === document.activeElement)).toBe(true);
+		await page.keyboard.press("Enter");
+		await menu.getByRole("menuitemcheckbox", { name: "motion-kit", checked: true }).waitFor();
+		expect((await eventually(counterScript, (now) => now.libraries.length === 1)).libraries).toEqual(["motion-kit"]);
+		await page.keyboard.press("ArrowDown");
+		await page.keyboard.press(" ");
+		await menu.getByRole("menuitemcheckbox", { name: "swipe-kit", checked: true }).waitFor();
+		expect((await eventually(counterScript, (now) => now.libraries.length === 2)).libraries).toEqual([
+			"motion-kit",
+			"swipe-kit",
+		]);
+		forgetScriptErrors(page);
+		await expectNoAxeViolations(page, "the Component tab's Libraries menu, light");
+		await page.emulateMedia({ colorScheme: "dark" });
+		await expectNoAxeViolations(page, "the Component tab's Libraries menu, dark");
+		await page.emulateMedia({ colorScheme: "light" });
+		// Unticking one.
+		await page.keyboard.press("Enter");
+		await menu.getByRole("menuitemcheckbox", { name: "swipe-kit", checked: false }).waitFor();
+		expect((await eventually(counterScript, (now) => now.libraries.length === 1)).libraries).toEqual(["motion-kit"]);
+		await page.keyboard.press("Escape");
+		expect(await libraries.textContent()).toBe("motion-kit");
+
+		// What is typed and a category chosen before it saved go together: one save, one Undo step.
+		const typed = `${COUNTER}// with its category\n`;
+		await box(page, "js").click();
+		await toEnd(page);
+		await page.keyboard.insertText("// with its category\n");
+		await consent.selectOption("marketing");
+		const both = await eventually(counterScript, (now) => now.consent === "marketing" && now.code === typed);
+		expect(both).toEqual({ code: typed, consent: "marketing", libraries: ["motion-kit"] });
+		await page.locator('[data-wc-bar="undo"]').click();
+		const undone = await eventually(counterScript, (now) => now.consent === "necessary");
+		expect(undone).toEqual({ code: COUNTER, consent: "necessary", libraries: ["motion-kit"] });
+		await page.waitForFunction(
+			(wanted) => document.querySelector<HTMLTextAreaElement>('textarea[data-wc-code-box="js"]')?.value === wanted,
+			COUNTER,
+		);
+		expect(await consent.inputValue()).toBe("necessary");
+		await page.locator('[data-wc-bar="redo"]').click();
+		expect(await eventually(counterScript, (now) => now.consent === "marketing")).toEqual(both);
+
+		// Read back once the shell loads again.
+		await open(page, "/blog/rye");
+		await componentTab(page, "One");
+		expect(await consent.inputValue()).toBe("marketing");
+		expect(await libraries.textContent()).toBe("motion-kit");
+		expect(await box(page, "js").inputValue()).toBe(typed);
+		forgetScriptErrors(page);
+		await expectNoAxeViolations(page, "the Component tab's settings, light");
+		await page.emulateMedia({ colorScheme: "dark" });
+		await expectNoAxeViolations(page, "the Component tab's settings, dark");
+		await page.emulateMedia({ colorScheme: "light" });
+		await resetCounter();
+	});
+
+	test("⌘] and ⌘[ indent and outdent the lines in a code box; the box's Undo takes each back (BA-36)", async () => {
+		await resetCounter();
+		const page = await shared("staff");
+		await open(page, "/blog/rye");
+		await componentTab(page, "Three");
+		const js = box(page, "js");
+		await js.click();
+		await page.keyboard.press("ControlOrMeta+a");
+		await page.keyboard.insertText("// First\n// Second");
+		// Every line of the selection, and the same lines stay selected.
+		await page.keyboard.press("ControlOrMeta+a");
+		await page.keyboard.press("ControlOrMeta+]");
+		expect(await js.inputValue()).toBe("  // First\n  // Second");
+		await page.keyboard.press("ControlOrMeta+]");
+		expect(await js.inputValue()).toBe("    // First\n    // Second");
+		await page.keyboard.press("ControlOrMeta+[");
+		await page.keyboard.press("ControlOrMeta+[");
+		expect(await js.inputValue()).toBe("// First\n// Second");
+		// The caret's line alone, the caret moving with it.
+		await js.evaluate((area: HTMLTextAreaElement) => area.setSelectionRange(12, 12));
+		await page.keyboard.press("ControlOrMeta+]");
+		expect(await js.inputValue()).toBe("// First\n  // Second");
+		expect(await js.evaluate((area: HTMLTextAreaElement) => area.selectionStart)).toBe(14);
+		// The box's Undo takes the indent back in one step.
+		await page.keyboard.press("ControlOrMeta+z");
+		expect(await js.inputValue()).toBe("// First\n// Second");
+		expect(await page.evaluate(() => document.activeElement?.getAttribute("data-wc-code-box"))).toBe("js");
+		// The page stayed where it was (⌘[ is the browser's Back).
+		expect(new URL(page.url()).pathname).toBe("/_webcraft/build/page/blog/rye");
+		await page.keyboard.press("ControlOrMeta+s");
+		expect(await eventually(counterDraft, (code) => code === "// First\n// Second")).toBe("// First\n// Second");
+
+		// The HTML pane's box has the same keys.
+		await clickIn(page, await frameOf(page), "main h1");
+		await page.waitForFunction(
+			() =>
+				document.querySelector<HTMLTextAreaElement>('textarea[data-wc-code-box="html"]')?.value.includes("<h1") ===
+				true,
+		);
+		const html = box(page, "html");
+		const markup = await html.inputValue();
+		const at = markup.indexOf("<h1");
+		await html.focus();
+		await html.evaluate((area: HTMLTextAreaElement, offset: number) => area.setSelectionRange(offset, offset), at);
+		await page.keyboard.press("ControlOrMeta+]");
+		const lineStart = markup.lastIndexOf("\n", at - 1) + 1;
+		expect(await html.inputValue()).toBe(`${markup.slice(0, lineStart)}  ${markup.slice(lineStart)}`);
+		await page.keyboard.press("ControlOrMeta+[");
+		expect(await html.inputValue()).toBe(markup);
+		await resetCounter();
 	});
 });
 

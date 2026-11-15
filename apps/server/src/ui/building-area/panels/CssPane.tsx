@@ -42,7 +42,9 @@ import { type PaneStore, paneStore, usePane } from "./pane-store.ts";
  *   (`designSystem.updateClass`): its styles, its own CSS (nested rules, any other `@media`) and each
  *   breakpoint's styles. Each save is one Undo step, taken back through the Design system's shared
  *   Draft; the page in the frame is drawn again with the Draft's stylesheet.
- * - A rule that isn't one block for the Class is marked on its line and not saved.
+ * - A rule that isn't one block for the Class is marked on its line and not saved. Once another
+ *   element (or Class) is shown, it is kept as typed, with its problem, for when the pane shows that
+ *   Class again, in this document or another (BA-34).
  * - The media query action writes a breakpoint's block (`@media (width >= 768px)`, from that width up,
  *   as the Design system's breakpoints apply) or, "At this width", the rule at the frame's width now
  *   as the frames draw it: `@media (width < 768px)`.
@@ -176,6 +178,8 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 	let saveTimer: number | undefined;
 	let reading: Promise<void> | null = null;
 	let saving: Promise<void> | null = null;
+	/** Rules typed and not saved (they couldn't be read) of Classes the pane no longer shows, by Class. */
+	const kept = new Map<string, { text: string; problem: CssState["problem"] }>();
 
 	/**
 	 * The Design system's answers in the order their requests were sent (UI-21): an answer to a request
@@ -249,11 +253,14 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 			store.set({ text: "", name: found?.name ?? state.name, dirty: false, problem: null });
 			return;
 		}
+		// A rule typed for this Class and not saved is shown again as it was typed.
+		const typed = state.classId ? kept.get(state.classId) : undefined;
+		if (typed && state.classId) kept.delete(state.classId);
 		store.set({
 			name: found.name,
-			text: ruleOf(found.name, found, state.design.breakpoints),
-			dirty: false,
-			problem: null,
+			text: typed?.text ?? ruleOf(found.name, found, state.design.breakpoints),
+			dirty: typed !== undefined,
+			problem: typed?.problem ?? null,
 			failure: null,
 		});
 	};
@@ -329,8 +336,14 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 		const moved = state.ref !== selection.ref || state.classId !== classId;
 		if (state.ref !== selection.ref && state.renaming) store.set({ renaming: null });
 		if (moved && state.dirty) {
-			void flush().then(follow);
-			return;
+			// Saved first; a rule that can't be (its problem marked) is kept for when its Class shows again.
+			if (!state.problem && !state.failure) {
+				void flush().then(follow);
+				return;
+			}
+			if (state.classId) kept.set(state.classId, { text: state.text, problem: state.problem });
+			window.clearTimeout(saveTimer);
+			store.set({ dirty: false });
 		}
 		const utilities = source.catalogue.utilities
 			.filter((each) => element.classes.includes(each.id))
