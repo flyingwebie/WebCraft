@@ -205,8 +205,11 @@ export async function addLoopItem(
 	return { items: order(loop), item: result };
 }
 
-/** Where a query Loop's item (an Entry) is changed: its own page in Edit mode, else its editor in the admin. */
-export type EntryLink = { id: string; title: string; href: string; page: boolean };
+/**
+ * Where a query Loop's item (an Entry) is changed: its own page in Edit mode, else its editor in the
+ * admin; and its Post Type's name (client editing's chip says where the items come from).
+ */
+export type EntryLink = { id: string; title: string; href: string; page: boolean; postType: string };
 
 /**
  * Where each of these Entries of the Site is changed, for the "Edit this Entry" link on a query
@@ -241,6 +244,7 @@ export async function entryLinks(
 				title: entryValues(storedVersion(row.draft), [], languages).title,
 				href: path ?? editor,
 				page: path !== undefined,
+				postType: postType.name,
 			});
 		}
 	}
