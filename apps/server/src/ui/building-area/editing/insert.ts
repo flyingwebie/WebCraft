@@ -366,9 +366,10 @@ export function nodesFor(
 	const one = (node: ElementNode) => ({ nodes: [node], select: node.id });
 	switch (kind) {
 		case "section": {
-			const inner = container(tree, catalogue, words);
-			const section = element(tree, "section", [inner]);
-			return { nodes: [section], select: inner.id };
+			const section = element(tree, "section", [container(tree, catalogue, words)]);
+			// Making the section gives what it holds fresh ids: its container's is read from it.
+			const inner = section.children[0];
+			return { nodes: [section], select: inner && "id" in inner ? inner.id : null };
 		}
 		case "container":
 			return one(container(tree, catalogue, words));
@@ -532,8 +533,8 @@ export function inserter(host: InserterHost): Inserter {
 			host.announce(fill(said.section.making, { name }));
 			const { component } = await api.components.create({ siteId: host.siteId, name });
 			const empty: ElementTree = { version: 1, nodes: [] };
-			const inner = container(empty, sourceCatalogue(structure.snapshot()), words);
-			const section = element(empty, "section", [inner]);
+			const section = element(empty, "section", [container(empty, sourceCatalogue(structure.snapshot()), words)]);
+			const inner = section.children[0] as ElementNode;
 			await api.components.saveDraft({
 				siteId: host.siteId,
 				componentId: component.id,
@@ -550,7 +551,11 @@ export function inserter(host: InserterHost): Inserter {
 			structure.select(ref);
 			if (!(await shownSource(ref))) return null;
 			host.editInPlace({ source: ref, componentId: component.id, name, placement: ref });
-			structure.select(`${ref}#${inner.id}`);
+			// Its container, as the Component's Draft holds it (the server keeps or gives the ids).
+			const shown = structure.snapshot().sources.get(ref)?.tree.nodes[0];
+			const held = shown?.type === "element" ? shown.children.find((child) => child.type === "element") : undefined;
+			const containerId = held && "id" in held ? held.id : inner.id;
+			structure.select(`${ref}#${containerId}`);
 			host.announce(fill(said.section.made, { name }));
 			return null;
 		} catch (error) {

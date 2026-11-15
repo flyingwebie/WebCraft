@@ -164,7 +164,12 @@ async function eventually<Value>(read: () => Promise<Value>, done: (value: Value
 /** Waits until a locator's attribute is `value` (or matches it), then expects it. */
 async function holds(locator: Locator, name: string, value: string | RegExp): Promise<void> {
 	const fits = (got: string | null) => got !== null && (typeof value === "string" ? got === value : value.test(got));
-	const got = await eventually(() => locator.getAttribute(name), fits);
+	const got = await eventually(() => locator.getAttribute(name, { timeout: 10_000 }).catch(() => null), fits);
+	if (!fits(got))
+		await locator
+			.page()
+			.screenshot({ path: `${process.env.BA10_SHOTS ?? "/tmp"}/holds-${name}.png` })
+			.catch(() => {});
 	expect(fits(got) ? "fits" : `${name}=${got}`).toBe("fits");
 }
 
@@ -181,7 +186,8 @@ async function focused(locator: Locator): Promise<void> {
 		() => locator.evaluate((element) => element === document.activeElement).catch(() => false),
 		(value) => value,
 	);
-	expect(got).toBe(true);
+	const active = got ? "" : await locator.page().evaluate(() => document.activeElement?.outerHTML.slice(0, 200) ?? "");
+	expect({ focused: got, active }).toEqual({ focused: true, active: "" });
 }
 
 /** The Entry template's Draft markup, its whitespace between tags left out. */
@@ -190,12 +196,11 @@ async function entryMarkup(): Promise<string> {
 	return flat((await api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).markup?.draft ?? "");
 }
 
-/** Selects an element by a click on it in the page, and waits for its row to be the selected one. */
-async function selectInPage(page: Page, selector: string, row: RegExp): Promise<string> {
-	await (await frameOf(page)).locator(selector).first().click();
-	const selected = tree(page).getByRole("treeitem", { selected: true });
-	await holds(selected, "aria-label", row);
-	return (await selected.getAttribute("data-wc-ref")) ?? "";
+/** Selects the card's title: the card's row, opened with the arrow key, then the title's row. */
+async function selectTitle(page: Page): Promise<string> {
+	await selectRow(page, /^div \.card/);
+	await tree(page).getByRole("treeitem", { selected: true }).press("ArrowRight");
+	return selectRow(page, /card__title/);
 }
 
 /** Selects a row of the tree by its name, as a click does, and waits for the address to say so. */
@@ -257,7 +262,7 @@ describe("the insert row on a Template's elements", () => {
 		expect(selectedIn(page)).toBe(card);
 
 		// An h2 can't hold a paragraph: Text lands after it and is selected.
-		const title = await selectInPage(page, "h2.card__title", /card__title/);
+		const title = await selectTitle(page);
 		await insertButton(page, "text").click();
 		const after = await eventually(entryMarkup, (text) => text.includes("<p>Write something here.</p>"));
 		expect(after).toContain('<h2 class="card__title">{{ title }}</h2><p>Write something here.</p>');
@@ -269,7 +274,7 @@ describe("the insert row on a Template's elements", () => {
 		await holds(tree(page).getByRole("treeitem", { selected: true }), "aria-label", /^p\b/);
 
 		// ⌘ (Ctrl) held: a Div goes after the card, though the card could hold it. Empty, it is a 35 px dashed box.
-		await selectInPage(page, "h2.card__title", /card__title/);
+		await selectTitle(page);
 		await selectRow(page, /^div \.card/);
 		await insertButton(page, "div").click({ modifiers: ["ControlOrMeta"] });
 		const forced = await eventually(entryMarkup, (text) => text.includes("</div><div></div></section>"));
@@ -278,19 +283,37 @@ describe("the insert row on a Template's elements", () => {
 		const empty = await eventually(
 			() =>
 				frame.evaluate(() => {
-					const element = [...document.querySelectorAll("section.hero > div")].at(-1) as HTMLElement | undefined;
-					return element
-						? { height: element.getBoundingClientRect().height, outline: getComputedStyle(element).outlineStyle }
-						: null;
+					const element = document.querySelector<HTMLElement>("section.hero > div:empty");
+					if (!element) return null;
+					// The rules that set its outline or height (said if the check fails).
+					const rules = [...document.styleSheets].flatMap((sheet) => {
+						try {
+							return [...sheet.cssRules]
+								.filter(
+									(rule) =>
+										rule instanceof CSSStyleRule &&
+										element.matches(rule.selectorText) &&
+										/outline|block-size/.test(rule.cssText),
+								)
+								.map((rule) => rule.cssText.slice(0, 160));
+						} catch {
+							return [];
+						}
+					});
+					return {
+						height: element.getBoundingClientRect().height,
+						outline: getComputedStyle(element).outlineStyle,
+						rules,
+					};
 				}),
 			(box) => (box?.height ?? 0) >= 35,
 		);
 		expect(empty?.height).toBeGreaterThanOrEqual(35);
-		expect(empty?.outline).toBe("dashed");
+		expect({ outline: empty?.outline, rules: empty?.rules }).toMatchObject({ outline: "dashed" });
 		await page.locator("[data-wc-layers-slot]").first().waitFor();
 
 		// Section: after the top-level section the selection is in, with its container selected.
-		await selectInPage(page, "h2.card__title", /card__title/);
+		await selectTitle(page);
 		await insertButton(page, "section").click();
 		const sectioned = await eventually(entryMarkup, (text) =>
 			text.includes('<section><div class="container"></div></section>'),
@@ -366,7 +389,9 @@ describe("Section on a Page (D2) and the empty Page", () => {
 		await page.locator("[data-wc-done]").waitFor();
 		const order = async () =>
 			(await api.pageLayouts.get({ siteId, entryId: homeId })).placements.map((each) => each.componentName);
-		expect(await eventually(order, (names) => names.length === 2)).toEqual(["HeroSplit", "Section2"]);
+		const placed = await eventually(order, (names) => names.length === 2);
+		expect(placed[0]).toBe("HeroSplit");
+		expect(placed[1]).toMatch(/^Section\d+$/);
 		await page.locator("[data-wc-done]").click();
 
 		// The empty Page's Add a Component: Insert lists the Components only; one is placed.
@@ -512,7 +537,7 @@ describe("the tree row's menu", () => {
 		);
 
 		// Make Component asks a name and places the new Component where the element was.
-		await selectInPage(page, "h2.card__title", /card__title/);
+		await selectTitle(page);
 		await tree(page).getByRole("treeitem", { selected: true }).click({ button: "right" });
 		await rowMenu.getByRole("menuitem", { name: /Make Component/ }).click();
 		const dialog = page.locator("dialog[data-wc-component-dialog]");

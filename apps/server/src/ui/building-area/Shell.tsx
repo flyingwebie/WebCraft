@@ -887,6 +887,14 @@ export function Shell({ config }: { config: ShellConfig }) {
 						{opened.shown?.status === "missing" || opened.shown?.status === "later" ? (
 							<NoDocument words={words} why={opened.shown.status} />
 						) : null}
+						{/* An empty Page says how to start (`builder/04`); before the frame, so the page stays the last stop. */}
+						{emptyPage ? (
+							<EmptyPage
+								words={words}
+								onAddComponent={() => menu.setRequest({ tab: "insert", only: "components" })}
+								onNewSection={() => void insert.newSection(0)}
+							/>
+						) : null}
 						{/* Before the frame in the Tab order: the page stays the last stop. */}
 						{opened.shown?.status === "shown" ? <TextToolbar editing={editing} words={words} /> : null}
 						{opened.shown?.status === "shown" ? (
@@ -919,13 +927,6 @@ export function Shell({ config }: { config: ShellConfig }) {
 									inPlace.page(document, frame.current?.overlay() ?? null);
 								}}
 								editing={editing}
-							/>
-						) : null}
-						{emptyPage ? (
-							<EmptyPage
-								words={words}
-								onAddComponent={() => menu.setRequest({ tab: "insert", only: "components" })}
-								onNewSection={() => void insert.newSection(0)}
 							/>
 						) : null}
 						{/* The Breakpoints switched on in Styles (BA-24), drawn where the frame's edges would be. */}

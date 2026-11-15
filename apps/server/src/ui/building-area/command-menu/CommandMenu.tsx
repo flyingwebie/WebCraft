@@ -14,6 +14,7 @@ import {
 	VariableIcon,
 } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 import type { Command } from "../../builder/commands.ts";
 import { recentCommands, rememberCommand, visibleCommands } from "../../builder/commands.ts";
@@ -73,6 +74,8 @@ export function CommandMenu({
 	const list = useRef<HTMLDivElement>(null);
 	const tabButtons = useRef(new Map<MenuTab, HTMLButtonElement>());
 	const origin = useRef<HTMLElement | null>(null);
+	/** The tab was chosen with the arrow keys: focus stays on the tab list. */
+	const arrowed = useRef(false);
 	const open = request !== null;
 	const tab = request?.tab ?? "actions";
 	const tabs: readonly MenuTab[] = staff ? ["actions", "goTo", "insert"] : ["actions", "goTo"];
@@ -112,6 +115,11 @@ export function CommandMenu({
 		setProblem(null);
 		setAsking(request?.step ? { question: request.step, mode: "insert" } : null);
 		setAfter(Boolean(request?.forceAfter));
+		// A tab reached with the arrow keys keeps focus on the tab list; any other way focuses the search box.
+		if (arrowed.current) {
+			arrowed.current = false;
+			return;
+		}
 		requestAnimationFrame(() => search.current?.focus());
 	}, [open, request]);
 
@@ -812,8 +820,12 @@ export function CommandMenu({
 													: undefined;
 									if (!next) return;
 									event.preventDefault();
-									switchTab(next);
-									requestAnimationFrame(() => tabButtons.current.get(next)?.focus());
+									// The new tab is drawn at once, so focus moves with the selection.
+									if (next !== tab) {
+										arrowed.current = true;
+										flushSync(() => switchTab(next));
+									}
+									tabButtons.current.get(next)?.focus();
 								}}
 								className={`aria-selected:bg-chrome-hover aria-selected:text-chrome-strong text-chrome-muted flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[13px] font-semibold ${CHROME_EASE} ${FOCUS_RING}`}
 								data-wc-menu-tab={each}
