@@ -1,4 +1,4 @@
-import { components, entries, loops, scripts, siteLanguages as siteLanguageRows } from "@webcraft/db/schema";
+import { components, entries, loops, popups, scripts, siteLanguages as siteLanguageRows } from "@webcraft/db/schema";
 import { type ElementTree, loopNamesIn, placementsIn } from "@webcraft/renderer";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
@@ -31,6 +31,10 @@ import { type PageChange, type PageDeps, type PageReview, pageState } from "./pa
  *   Component, the Globals).
  *
  * Only items whose Draft differs from what is published are listed (they are Publish all's Drafts).
+ *
+ * A Popup's Component open as the document is never published on its own: it goes live with its Popup
+ * and the Popup's settings (its Trigger, Display rules, layout), which the person reviews first in the
+ * admin's Popups screen, as the visual builder sent them there (`popup`, BA-34).
  */
 
 /** Something the shell names for Publish besides the page: the open document, or what the place in view has open. */
@@ -80,6 +84,12 @@ export type DocumentPublish = {
 	otherDrafts: number;
 	/** Publish all in the admin. */
 	publishAll: string;
+	/**
+	 * When a source is a Popup's Component (the document, BA-34): the Popup, whether its Draft (its
+	 * Component, its script or its settings) differs from what is published, and its review in the
+	 * admin, where it is published with its settings. It is never among `items`.
+	 */
+	popup: { id: string; name: string; changed: boolean; review: string } | null;
 	/**
 	 * The Site's languages that AI translation keeps up to date once the Default language is published:
 	 * Automatic (published together) and Review (waits in the Draft for a person).
@@ -139,6 +149,8 @@ export async function documentPublish(
 	for (const draft of rows) if (draft.canPublish) items.push(draft.item);
 
 	const listed = new Set([...pageKeys, ...rows.map((draft) => keyOf(draft.item))]);
+	const popup = canCode ? await popupOf(scope, input.sources) : null;
+	if (popup) listed.add(`popup:${popup.id}`);
 	return {
 		canPublish,
 		canCode,
@@ -160,6 +172,13 @@ export async function documentPublish(
 		reviews: state?.reviews ?? [],
 		otherDrafts: drafts.filter((draft) => draft.canPublish && !listed.has(keyOf(draft.item))).length,
 		publishAll: publishAllUrl(deps.config.adminOrigin, scope.site.id),
+		popup: popup
+			? {
+					...popup,
+					changed: byKey.has(`popup:${popup.id}`),
+					review: popupReviewUrl(deps.config.adminOrigin, scope.site.id, popup.id),
+				}
+			: null,
 		translations: await translatedLanguages(scope),
 		live: input.path === null ? null : await liveAddress(deps.config, scope, host, input.path),
 	};
@@ -316,6 +335,26 @@ async function liveAddress(
 	} else origin = stagingUrl(config, scope.site.slug);
 	if (!origin || origin === host.origin) return null;
 	return new URL(path, origin).toString();
+}
+
+/** The Popup whose Component a source names, if one does. */
+async function popupOf(
+	scope: SiteScope,
+	sources: readonly PublishSource[],
+): Promise<{ id: string; name: string } | null> {
+	for (const source of sources) {
+		if (source.kind !== "component") continue;
+		const row = await scope.first(popups, eq(popups.componentId, source.id));
+		if (row) return { id: row.id, name: row.name };
+	}
+	return null;
+}
+
+/** Where a Popup is reviewed and published in the admin: the Popups screen with its sheet open. */
+function popupReviewUrl(adminOrigin: string, siteId: string, popupId: string): string {
+	const url = new URL(`/sites/${siteId}/popups`, adminOrigin);
+	url.searchParams.set("popup", popupId);
+	return url.toString();
 }
 
 /** Where Publish all is in the admin: the Site's pages, with its list open. */

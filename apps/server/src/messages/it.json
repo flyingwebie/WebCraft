@@ -9546,6 +9546,14 @@
 				"one": "{count} altra Bozza su questo sito",
 				"other": "{count} altre Bozze su questo sito"
 			},
+			"popup": {
+				"row": "Popup · {name}",
+				"changed": "modificato, non ancora online",
+				"unchanged": "come pubblicato",
+				"note": "Questo Componente è il layout del Popup. Va online con il Popup e le sue impostazioni (Trigger, regole di visualizzazione e layout): rivedile, poi pubblica il Popup.",
+				"review": "Rivedi e pubblica il Popup",
+				"reviewName": "Rivedi e pubblica il Popup nell'admin (si apre in una nuova scheda)"
+			},
 			"publishAll": "Pubblica tutto",
 			"publishAllName": "Pubblica tutto nell'amministrazione (si apre in una nuova scheda)",
 			"discard": "Scarta tutte le modifiche",
