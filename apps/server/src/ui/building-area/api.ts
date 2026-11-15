@@ -106,8 +106,8 @@ export type PageState = {
 	languages: { code: string; name: string; path: string; current: boolean }[];
 };
 
-/** An edit request's answer: its JSON, or the refusal's code. */
-export type EditAnswer<T> = { ok: true; data: T } | { ok: false; status: number; code: string };
+/** An edit request's answer: its JSON, or the refusal's code (and its `data`, such as a refused value's problems). */
+export type EditAnswer<T> = { ok: true; data: T } | { ok: false; status: number; code: string; data?: unknown };
 
 /** Sends edit requests (`/_webcraft/edit/api/<action>`) for the session, as the editing bar does. */
 export type EditRequests = <T = unknown>(action: string, body: unknown) => Promise<EditAnswer<T>>;
@@ -130,8 +130,14 @@ export function editRequests(token: string): EditRequests {
 			});
 			const data: unknown = await response.json().catch(() => null);
 			if (response.ok) return { ok: true, data: data as T };
-			const code = (data as { code?: unknown } | null)?.code;
-			return { ok: false, status: response.status, code: typeof code === "string" ? code : "generic" };
+			const refusal = data as { code?: unknown; data?: unknown } | null;
+			const code = refusal?.code;
+			return {
+				ok: false,
+				status: response.status,
+				code: typeof code === "string" ? code : "generic",
+				data: refusal?.data,
+			};
 		} catch {
 			return { ok: false, status: 0, code: "network" };
 		}

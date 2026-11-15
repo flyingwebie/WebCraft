@@ -76,8 +76,6 @@ export type Docks = {
 	headings: Partial<Record<PanelKey, ReactNode>>;
 	/** What each panel shows under its header (BA-08 onwards: Layers, the Inspector); empty when none. */
 	bodies: Partial<Record<PanelKey, ReactNode>>;
-	/** A panel's own controls in its header, before its menu (BA-11: the code panes' Format and Expand). */
-	actions: Partial<Record<PanelKey, ReactNode>>;
 	/** Beside a panel's title, muted: what it shows now (`h1 · Heading`); the Inspector's is the selection's name. */
 	subs: Partial<Record<PanelKey, string>>;
 	/** A panel's own entries at the top of its header's menu (BA-11: a code pane's Expand, Copy all, its switches). */
@@ -95,6 +93,8 @@ export type Docks = {
 	setDrawer(side: DockSide | null): void;
 	/** A panel whose menu button takes focus once the docks have drawn (after a move from its menu). */
 	focusLater(id: string | null): void;
+	/** The actions each panel's header shows beside its title (BA-13: the Entry panel's Find and Collapse; BA-11: the code panes' Classes, Format and Expand). */
+	panelActions: Partial<Record<PanelKey, ReactNode>>;
 };
 
 /** The window's size, following it. */
@@ -123,22 +123,22 @@ export function useDocks({
 	context,
 	headings = {},
 	bodies = {},
-	actions = {},
 	subs = {},
 	menus = {},
 	wide = null,
 	announce,
+	panelActions = {},
 }: {
 	config: ShellConfig;
 	context: PanelContext;
 	headings?: Partial<Record<PanelKey, ReactNode>>;
 	bodies?: Partial<Record<PanelKey, ReactNode>>;
-	actions?: Partial<Record<PanelKey, ReactNode>>;
 	subs?: Partial<Record<PanelKey, string>>;
 	menus?: Partial<Record<PanelKey, readonly MenuEntry[]>>;
 	/** A panel opened wide (a code pane's Expand, BA-11): the only one its dock draws while it shows. Not stored. */
 	wide?: PanelKey | null;
 	announce(text: string, urgent?: boolean): void;
+	panelActions?: Partial<Record<PanelKey, ReactNode>>;
 }): Docks {
 	const { words } = config;
 	const [stored, setStored] = useState<Layout | null>(config.layout);
@@ -317,7 +317,6 @@ export function useDocks({
 		context,
 		headings,
 		bodies,
-		actions,
 		subs,
 		menus,
 		change,
@@ -329,6 +328,7 @@ export function useDocks({
 		drawer,
 		setDrawer,
 		focusLater: setFocusTarget,
+		panelActions,
 	};
 }
 
@@ -660,7 +660,7 @@ function Dock({
 									docks.subs[placement.id as PanelKey] ??
 									(placement.id === "inspector" ? docks.context.selection?.name : undefined)
 								}
-								actions={docks.actions[placement.id as PanelKey]}
+								actions={docks.panelActions[placement.id as PanelKey]}
 								heading={docks.headings[placement.id as PanelKey]}
 								collapsed={Boolean(placement.collapsed)}
 								labels={{

@@ -24,7 +24,10 @@ import { ClientBar, type ClientPanel, clientDraftStateOf } from "./ClientBar.tsx
 import { CLIENT_PLACES, type ClientPlace, ClientRail } from "./ClientRail.tsx";
 import { HelpCard } from "./HelpCard.tsx";
 import { type ClientMode, clientEditing } from "./marks.ts";
+import { MemberDetails } from "./PageDetails.tsx";
 import { PageSwitcher } from "./PageSwitcher.tsx";
+import { regionPopovers } from "./popovers.ts";
+import { RegionPopover } from "./RegionPopover.tsx";
 import { SidePanel } from "./SidePanel.tsx";
 
 /** What the `state` edit request says beyond what Staff's shell reads: whether it may publish, and a Page layout. */
@@ -142,6 +145,21 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 	);
 	useEffect(() => () => undoHistory.destroy(), [undoHistory]);
 	const refreshRef = useRef<() => void>(() => {});
+	const savingRef = useRef<(status: SavingStatus) => void>(() => {});
+	// The photo and link popovers (BA-15): what they change shows in the Draft's state and the page's dots.
+	const popovers = useMemo(
+		() =>
+			regionPopovers({
+				token: config.token,
+				words,
+				announce: (text, urgent) => announceRef.current(text, urgent),
+				refresh: () => refreshRef.current(),
+				saving: (status) => savingRef.current(status),
+			}),
+		[config.token, words],
+	);
+	useEffect(() => () => popovers.destroy(), [popovers]);
+	const goTo = useCallback(() => api.builder.commandMenu({ siteId: config.site.id }), [api, config.site.id]);
 	const editing = useMemo(() => {
 		const inner = pageEditing({
 			token: config.token,
@@ -158,10 +176,15 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 			announce: (text, urgent) => announceRef.current(text, urgent),
 			// Escape in the page closes the panel and leaves focus where it is, in the page.
 			closePanel: () => closePanel(false),
+			popovers,
 		});
-	}, [config.token, config.site.id, words, undoHistory, closePanel]);
+	}, [config.token, config.site.id, words, undoHistory, closePanel, popovers]);
 	useEffect(() => () => editing.destroy(), [editing]);
 	useEffect(() => editing.setMode(mode), [editing, mode]);
+
+	// What Edit mode says of the page now, and what Page details calls itself on it (Post details on an Entry; BA-13).
+	const [pageState, setPageState] = useState<PageState | null>(null);
+	const [detailsHeading, setDetailsHeading] = useState<{ title: string; sub: string } | null>(null);
 
 	/** Reads what Edit mode says of the page in the frame: the Draft's state, the languages, Publish. */
 	const takeState = useCallback(
@@ -170,6 +193,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 				if (!state.ok || shownAddress.current !== address) return;
 				const data = state.data as ClientPageState;
 				editing.pageState(data);
+				setPageState(data);
 				setShown({
 					address,
 					changes: data.changes.length,
@@ -193,6 +217,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 			setJustSaved(false);
 			window.clearTimeout(savedTimer.current);
 			setShown(null);
+			setPageState(null);
 			takeState(address, answer);
 			framed(address, answer);
 		},
@@ -218,6 +243,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 		},
 		[refreshState],
 	);
+	savingRef.current = onSaving;
 	useEffect(() => () => window.clearTimeout(savedTimer.current), []);
 
 	// What Publish covers is read again whenever the page's state or a save changes (BA-12).
@@ -413,13 +439,29 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 						id={panelId}
 						kind={panelShown}
 						words={words}
-						title={panelShown === "sections" ? said.sections : said.pageDetails}
-						page={pageTitle ?? ""}
+						title={panelShown === "sections" ? said.sections : (detailsHeading?.title ?? said.pageDetails)}
+						page={panelShown === "sections" ? (pageTitle ?? "") : (detailsHeading?.sub ?? pageTitle ?? "")}
 						onClose={() => closePanel()}
 					>
-						<p className="text-chrome-muted m-0 text-[13px]" data-wc-side-panel-later="">
-							{fill(said.panelLater, { panel: panelShown === "sections" ? said.sections : said.pageDetails })}
-						</p>
+						{panelShown === "pageDetails" ? (
+							// Page details, or Post details on an Entry (BA-13): a page never published follows its new slug.
+							<MemberDetails
+								token={config.token}
+								siteId={config.site.id}
+								words={words}
+								request={request}
+								page={pageState}
+								onSaving={onSaving}
+								onMoved={(path) => opened.documents.replace({ kind: "page", page: path })}
+								announce={announce}
+								admin={config.admin}
+								onHeading={setDetailsHeading}
+							/>
+						) : (
+							<p className="text-chrome-muted m-0 text-[13px]" data-wc-side-panel-later="">
+								{fill(said.panelLater, { panel: said.sections })}
+							</p>
+						)}
 					</SidePanel>
 				) : null}
 				<main
@@ -447,6 +489,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 						) : null}
 						{/* Before the frame in the Tab order: the page stays the last stop. */}
 						{opened.shown?.status === "shown" ? <TextToolbar editing={editing} words={words} /> : null}
+						{opened.shown?.status === "shown" ? <RegionPopover popovers={popovers} words={words} goTo={goTo} /> : null}
 						{opened.shown?.status === "shown" ? (
 							// 12 from the rail, the panel and the bar: the frame keeps 12 left, right and below.
 							<div className="absolute inset-x-0 top-3 bottom-0">

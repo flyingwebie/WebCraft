@@ -56,6 +56,12 @@ export type PageDetailsChange = {
 	seo?: EntrySeoChange;
 	/** The Summary field's new value (text, or rich text's HTML). */
 	summary?: string | null;
+	/**
+	 * Values of the Entry's other Fields, by key, each as its type takes it (as `saveDraft` takes them:
+	 * a Group's given Fields, null or "" to clear one): the building area's Entry panel and Post details
+	 * change the Fields that don't show on the page. A Body's Blocks are the block editor's, never here.
+	 */
+	fields?: Record<string, unknown>;
 };
 
 /** The page's details, in a language (the Default language unless given). */
@@ -118,8 +124,9 @@ export async function pageDetails(
 }
 
 /**
- * Saves a change from the Page details drawer to the Entry's Draft, in a language, and answers the
- * page's details afterwards with the problems of what it changed.
+ * Saves a change from the Page details drawer (or the building area's Entry panel and Page details) to
+ * the Entry's Draft, in a language, and answers the page's details afterwards with the problems of
+ * what it changed.
  */
 export async function savePageDetails(
 	scope: SiteScope,
@@ -132,6 +139,16 @@ export async function savePageDetails(
 	if (change.slug !== undefined) draft.slug = change.slug;
 	if (change.seo !== undefined) draft.seo = change.seo;
 	let summaryPath: string | null = null;
+	const fieldKeys = Object.keys(change.fields ?? {});
+	if (change.fields !== undefined && fieldKeys.length > 0) {
+		const entry = await getEntry(scope, entryId, change.language);
+		const postType = await getPostType(scope, entry.postTypeId);
+		// A Body's Blocks are the block editor's (with its own checks and receipts); every other Field is the Post Type's.
+		if (fieldKeys.some((key) => postType.fields.find((field) => field.key === key)?.type === "body")) {
+			throw new EditFieldInvalidError();
+		}
+		draft.fields = { ...change.fields };
+	}
 	if (change.summary !== undefined) {
 		const entry = await getEntry(scope, entryId, change.language);
 		const postType = await getPostType(scope, entry.postTypeId);
@@ -141,14 +158,17 @@ export async function savePageDetails(
 			throw new EditFieldInvalidError();
 		}
 		summaryPath = postType.summaryField;
-		draft.fields = nested(summaryPath, change.summary);
+		draft.fields = { ...draft.fields, ...nested(summaryPath, change.summary) };
 	}
 	const saved = await saveDraft(scope, entryId, draft);
 	const touched = (at: string) =>
 		(change.title !== undefined && at === "title") ||
 		(change.slug !== undefined && at === "slug") ||
 		(change.seo !== undefined && at.startsWith("seo.")) ||
-		(summaryPath !== null && at === `fields.${summaryPath}`);
+		(summaryPath !== null && at === `fields.${summaryPath}`) ||
+		fieldKeys.some(
+			(key) => at === `fields.${key}` || at.startsWith(`fields.${key}.`) || at.startsWith(`fields.${key}[`),
+		);
 	return {
 		details: await pageDetails(scope, media, change.item, saved.language),
 		problems: saved.problems.filter((problem) => touched(problem.at)),

@@ -20,11 +20,18 @@ export const BUILDING_STAND_IN_PREFIX = "/_webcraft/build/stand-in";
 export const BUILDING_PREFIX = "/_webcraft/build";
 
 /**
- * Text and rich text regions the page agent makes editable (image regions and bodies come with
- * later parts of the building area). `agent/regions.ts` makes them editable; the shell saves them
- * (`canvas/regions.ts`) and edits them (`editing/`).
+ * Text and rich text regions the page agent makes editable (bodies come with a later part of the
+ * building area; image and link regions are changed in popovers, BA-15). `agent/regions.ts` makes
+ * them editable; the shell saves them (`canvas/regions.ts`) and edits them (`editing/`).
  */
-export const TEXT_REGION = '[data-wc-item][data-wc-field]:not([data-wc-type="media"]):not([data-wc-type="body"])';
+export const TEXT_REGION =
+	'[data-wc-item][data-wc-field]:not([data-wc-type="media"]):not([data-wc-type="body"]):not([data-wc-type="link"])';
+
+/** Image regions (an `<img>` showing a media Field, or the empty element in its place), outside a body. */
+export const PHOTO_REGION = '[data-wc-type="media"][data-wc-item][data-wc-field]:not([data-wc-block])';
+
+/** Link regions: an `<a>` showing a whole link Field, its address and its words. */
+export const LINK_REGION = 'a[data-wc-type="link"][data-wc-item][data-wc-field]';
 
 /** The page's events the agent hands to the shell, as the browser gave them, before any Site script sees them. */
 export type AgentEventKind =
@@ -40,7 +47,11 @@ export type AgentEventKind =
 	| "beforeinput"
 	/** The caret or the selected text moved (on the document): the text toolbar shows what is pressed. */
 	| "selectionchange"
-	| "scroll";
+	| "scroll"
+	/** Something dragged over the page, out of an element, or dropped: a file dropped on a photo (BA-15). */
+	| "dragover"
+	| "dragleave"
+	| "drop";
 
 /** The shell's half, which the agent calls. */
 export type AgentHost = {

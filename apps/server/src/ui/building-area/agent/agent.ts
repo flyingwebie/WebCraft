@@ -106,6 +106,9 @@ import { pageRegions } from "./regions.ts";
 		"input",
 		"beforeinput",
 		"scroll",
+		"dragover",
+		"dragleave",
+		"drop",
 	] as const) {
 		listen.call(win, kind, forward(kind), { capture: true, passive: kind === "pointermove" || kind === "scroll" });
 	}
