@@ -178,15 +178,18 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 	let saving: Promise<void> | null = null;
 
 	/**
-	 * When the Draft the pane shows was saved (UI-21): an answer read or saved before it (a slow read, a
-	 * save answered after a newer read) is older, and never replaces it.
+	 * The Design system's answers in the order their requests were sent (UI-21): an answer to a request
+	 * sent before the one whose answer the pane shows (a slow read, a save answered after a newer read)
+	 * is older, and never replaces it.
 	 */
-	let adoptedAt = Number.NEGATIVE_INFINITY;
+	let asked = 0;
+	let shownAsk = 0;
+	/** A request about to be sent: its place in that order. */
+	const ask = () => ++asked;
 	/** Shows a Draft the server answered, unless the pane shows a newer one already. Answers whether it did. */
-	const adopt = (view: { draft: unknown; updatedAt: Date | string | null }, sizes: StepSizes): boolean => {
-		const at = view.updatedAt ? new Date(view.updatedAt).getTime() : 0;
-		if (at < adoptedAt) return false;
-		adoptedAt = at;
+	const adopt = (view: { draft: unknown }, sizes: StepSizes, at: number): boolean => {
+		if (at < shownAsk) return false;
+		shownAsk = at;
 		store.set({ design: designOf(view.draft, sizes) });
 		return true;
 	};
@@ -194,6 +197,7 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 	/** Reads the Design system's Draft: its Classes, breakpoints and tokens, and the scales' sizes. */
 	const read = async () => {
 		reading ??= (async () => {
+			const at = ask();
 			try {
 				const [got, preview] = await Promise.all([
 					api().designSystem.get({ siteId: siteId() }),
@@ -206,7 +210,7 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 							[...preview.preview.scales.space, ...preview.preview.scales.text].map((step) => [step.id, step.size]),
 						)
 					: (store.get().design?.sizes ?? {});
-				if (!adopt(got.designSystem, sizes)) {
+				if (!adopt(got.designSystem, sizes, at)) {
 					// Older than what the pane shows: only the scales' sizes are taken.
 					const shown = store.get().design;
 					if (shown) store.set({ design: { ...shown, sizes } });
@@ -398,10 +402,11 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 		// Someone saved this Class since its rule was shown: theirs or mine, never silently over theirs.
 		if (!overwrite && shownClass) {
 			try {
+				const freshAt = ask();
 				const fresh = await api().designSystem.get({ siteId: siteId() });
 				const now = (fresh.designSystem.draft.classes as DesignClass[]).find((each) => each.id === state.classId);
 				if (now && !sameClass(now, shownClass)) {
-					adopt(fresh.designSystem, design.sizes);
+					adopt(fresh.designSystem, design.sizes, freshAt);
 					store.set({ saving: false, conflict: true });
 					deps().announce(fill(words().code.conflict.text, { name: `.${state.name}` }), true);
 					return;
@@ -413,6 +418,7 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 		const classId = state.classId;
 		if (!classId) return;
 		const wasGenerated = Boolean(design.classes.find((each) => each.id === classId)?.generated);
+		const savedAt = ask();
 		try {
 			const saved = await api().designSystem.updateClass({
 				siteId: siteId(),
@@ -431,7 +437,7 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 			});
 			const typedSince = store.get().text !== state.text;
 			// A newer Draft read meanwhile already holds this save: it stays.
-			adopt(saved.designSystem, design.sizes);
+			adopt(saved.designSystem, design.sizes, savedAt);
 			store.set({ dirty: typedSince, failure: null });
 			const now = store.get().design?.classes.find((each) => each.id === classId) ?? null;
 			shownClass = now;
@@ -439,6 +445,9 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 			if (wasGenerated && now && !now.generated) store.set({ renaming: { classId: now.id, name: now.name } });
 			follow();
 			await deps().frame.current?.rerender();
+			// The page now has the saved rule from the Draft's stylesheet: the preview of what was typed
+			// leaves, so a later change to the Class (Undo, the Styles place, a peer) shows on the page.
+			if (!store.get().dirty && previewFor?.ref === state.ref) previewCss(null);
 		} catch (error) {
 			const code = (error as { code?: string }).code ?? "generic";
 			const message = (error as { message?: string }).message ?? "";
@@ -598,6 +607,8 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 					void read().then(() => {
 						if (!store.get().dirty) showRule();
 					});
+					// The page shows the Draft's rule again, not a preview of what was typed before.
+					if (!store.get().dirty) previewCss(null);
 					void deps().frame.current?.rerender();
 				}
 				return result;
@@ -721,6 +732,7 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 				return null;
 			}
 			const place = deps().history.reserve();
+			const renamedAt = ask();
 			try {
 				const saved = await api().designSystem.updateClass({
 					siteId: siteId(),
@@ -735,7 +747,7 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 					label,
 					location: { siteId: siteId(), panel: "css", ref: store.get().ref ?? undefined, title: label },
 				});
-				adopt(saved.designSystem, store.get().design?.sizes ?? {});
+				adopt(saved.designSystem, store.get().design?.sizes ?? {}, renamedAt);
 				store.set({ renaming: null });
 				follow();
 				showRule();
