@@ -170,13 +170,19 @@ async function nextUndo(page: Page, label: string | null): Promise<void> {
 	);
 }
 
-/** Waits until the shell has said `text` (its live regions, polite or assertive). */
+/** Waits until the shell has said `text` (its live regions, polite or assertive); says what it said instead. */
 async function said(page: Page, text: string): Promise<void> {
-	await page.waitForFunction(
-		(text) => (document.querySelector("[data-wc-messages]")?.textContent ?? "").replaceAll(" ", "").includes(text),
-		text,
-		{ timeout: 15000 },
-	);
+	const now = async () => ((await page.locator("[data-wc-messages]").textContent()) ?? "").replaceAll("\u00a0", "");
+	try {
+		await page.waitForFunction(
+			(text) =>
+				(document.querySelector("[data-wc-messages]")?.textContent ?? "").replaceAll("\u00a0", "").includes(text),
+			text,
+			{ timeout: 15000 },
+		);
+	} catch {
+		expect(await now()).toContain(text);
+	}
 }
 
 describe("the Undo history, for a Member", () => {
