@@ -368,11 +368,13 @@ export function loopItems(options: {
 	const placeAdd = (loop: ShownLoop) => {
 		if (!doc) return;
 		const parent = loop.end.parentElement;
-		let add = loop.end.previousElementSibling?.matches(`[${ADD_MARK}]`)
-			? (loop.end.previousSibling as HTMLElement | null)
-			: null;
-		if (!add || add.getAttribute(ADD_MARK) !== loop.id || add.nextSibling !== loop.end) {
-			add?.remove();
+		// It sits right before the Loop's closing mark, where it was put.
+		const before = loop.end.previousSibling;
+		let add =
+			before?.nodeType === Node.ELEMENT_NODE && (before as Element).getAttribute(ADD_MARK) === loop.id
+				? (before as HTMLElement)
+				: null;
+		if (!add) {
 			const listed = parent?.localName === "ul" || parent?.localName === "ol";
 			add = doc.createElement(listed ? "li" : "div");
 			add.setAttribute(ADD_MARK, loop.id);

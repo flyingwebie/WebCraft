@@ -138,11 +138,13 @@ function ItemBar({
 	}, [reach]);
 
 	const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-		const at = usable.indexOf(shown);
+		// From the button focus is on, even one a move just turned off.
+		const from = current;
 		let next: number | undefined;
-		if (event.key === "ArrowRight" || event.key === "ArrowDown") next = usable[(at + 1) % usable.length];
+		if (event.key === "ArrowRight" || event.key === "ArrowDown")
+			next = usable.find((index) => index > from) ?? usable[0];
 		else if (event.key === "ArrowLeft" || event.key === "ArrowUp")
-			next = usable[(at - 1 + usable.length) % usable.length];
+			next = [...usable].reverse().find((index) => index < from) ?? usable.at(-1);
 		else if (event.key === "Home") next = usable[0];
 		else if (event.key === "End") next = usable.at(-1);
 		else if (event.key === "Escape") {
