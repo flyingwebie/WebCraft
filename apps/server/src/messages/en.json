@@ -10045,8 +10045,6 @@
 			"sameEverywhere": "Same on every page",
 			"lockedHint": "Your agency fixed its place",
 			"hiddenHint": "Hidden from visitors",
-			"lockedState": "place fixed by your agency",
-			"hiddenState": "hidden from visitors",
 			"chip": "section",
 			"choose": "Choose {name}",
 			"more": "More for {name}",

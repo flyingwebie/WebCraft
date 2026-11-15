@@ -169,6 +169,8 @@ async function open(page: Page, path: string): Promise<Frame> {
 		if (new URL(frame.url()).pathname === path) {
 			await frame.locator("main [data-wc-page-placement]").first().waitFor();
 			await page.locator('[data-wc-bar="sections"]').waitFor();
+			// The sections are arranged once the controller has the page.
+			await frame.locator("html.wc-arrange-on").waitFor({ state: "attached" });
 			return frame;
 		}
 		await page.waitForTimeout(50);
@@ -260,9 +262,9 @@ describe("Sections, for an Editor", () => {
 		expect(await rows.first().textContent()).toBe("HeaderSame on every page");
 		expect(await rows.last().textContent()).toBe("FooterSame on every page");
 		// A section whose place the agency fixed, and a hidden one, say so.
-		expect(await rows.nth(3).getAttribute("aria-label")).toBe("Hero · Fixed, place fixed by your agency");
+		expect(await rows.nth(3).getAttribute("aria-label")).toBe("Hero · Fixed, Your agency fixed its place");
 		expect(await rows.nth(3).textContent()).toContain("Your agency fixed its place");
-		expect(await rows.nth(4).getAttribute("aria-label")).toBe("Hero · Away, hidden from visitors");
+		expect(await rows.nth(4).getAttribute("aria-label")).toBe("Hero · Away, Hidden from visitors");
 		expect(await rows.nth(4).textContent()).toContain("Hidden from visitors");
 		// Hidden: faded on the page (it stays in the Draft).
 		expect(
@@ -270,7 +272,7 @@ describe("Sections, for an Editor", () => {
 				.locator('[data-wc-page-placement="away"]')
 				.first()
 				.evaluate((element) => getComputedStyle(element).opacity),
-		).toBe("0.45");
+		).toBe("0.6");
 
 		// Space picks a section up, the arrows move it, Escape puts it back.
 		await rows.filter({ hasText: "Hero · South" }).click();
@@ -718,6 +720,7 @@ describe("Sections, for an Editor", () => {
 			await open(page, "/switches");
 			await openSections(page);
 			// Hero is no longer Allowed: its section stays and changes, but no copy of it is made.
+			await page.getByRole("treeitem", { name: /^Hero/ }).click();
 			await page
 				.getByRole("treeitem", { name: /^Hero/ })
 				.getByRole("button", { name: /^More for/ })

@@ -117,7 +117,13 @@ export type SectionRow = {
 };
 
 /** Where "+ Add section" is: between the row `after` (`HEADER_ROW` at the top) and the next one. */
-export type Boundary = { after: string; next: string | null; y: number };
+export type Boundary = {
+	after: string;
+	next: string | null;
+	/** Where the next section starts, and where the one before ends, in the page's own pixels. */
+	y: number;
+	from: number;
+};
 
 export type SectionsSnapshot = {
 	/** `none`: the page isn't a Page the person may arrange now (Preview too); `loading` until it is read. */
@@ -546,9 +552,14 @@ export function memberSections(options: {
 		if (shown.length === 0) return [];
 		const list: Boundary[] = [];
 		const first = shown[0];
-		if (first) list.push({ after: HEADER_ROW, next: first.id, y: first.box.top + scroll });
+		if (first)
+			list.push({ after: HEADER_ROW, next: first.id, y: first.box.top + scroll, from: first.box.top + scroll });
 		shown.forEach((each, index) => {
-			list.push({ after: each.id, next: shown[index + 1]?.id ?? null, y: each.box.bottom + scroll });
+			const next = shown[index + 1];
+			const bottom = each.box.bottom + scroll;
+			// Two sections may have a gap between them (their margins): the boundary is all of it.
+			const top = next ? Math.max(bottom, next.box.top + scroll) : bottom;
+			list.push({ after: each.id, next: next?.id ?? null, y: top, from: bottom });
 		});
 		return list;
 	}
@@ -558,7 +569,7 @@ export function memberSections(options: {
 		const view = doc?.defaultView;
 		if (!view) return;
 		const y = pointer.clientY + view.scrollY;
-		const near = boundaries().find((each) => Math.abs(each.y - y) <= BOUNDARY_REACH) ?? null;
+		const near = boundaries().find((each) => y >= each.from - BOUNDARY_REACH && y <= each.y + BOUNDARY_REACH) ?? null;
 		const section = markedOf(event.target) ? null : sectionOf(event.target);
 		let changed = false;
 		if (near?.after !== boundary?.after || near?.y !== boundary?.y) {
@@ -896,7 +907,10 @@ export function memberSections(options: {
 			dismissRemovedNow();
 			emit();
 		},
-		refusal: (action, id) => controller()?.refusal(action, id ?? controller()?.state().selected) ?? "unavailable",
+		refusal(action, id) {
+			const made = controller();
+			return made ? made.refusal(action, id ?? made.state().selected) : "unavailable";
+		},
 		grab(change) {
 			const made = controller();
 			if (!made) return;

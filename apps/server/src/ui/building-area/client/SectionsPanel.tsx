@@ -354,9 +354,6 @@ function SectionList({
 					const selected = row.id === snapshot.selected;
 					const section = row.kind === "section";
 					const line = dropLine(row);
-					const state = [row.locked && section ? said.lockedState : null, row.hidden ? said.hiddenState : null]
-						.filter(Boolean)
-						.join(", ");
 					const hint = !section
 						? said.sameEverywhere
 						: row.locked
@@ -373,7 +370,7 @@ function SectionList({
 							aria-setsize={rows.length}
 							aria-posinset={index + 1}
 							aria-selected={selected}
-							aria-label={state ? `${row.label}, ${state}` : row.label}
+							aria-label={hint ? `${row.label}, ${hint}` : row.label}
 							tabIndex={row.id === focusable ? 0 : -1}
 							onClick={() => choose(row)}
 							className={`group relative flex h-14 shrink-0 items-center gap-2.5 rounded-[10px] px-2.5 ${
@@ -413,11 +410,11 @@ function SectionList({
 							<Sketch kind={row.sketch} size="row" />
 							<span className="flex min-w-0 grow flex-col gap-px">
 								<span
-									className={`truncate text-[13px] font-medium ${row.hidden ? "text-chrome-faint opacity-70" : "text-chrome-text"}`}
+									className={`truncate text-[13px] font-medium ${row.hidden ? "text-chrome-muted" : "text-chrome-text"}`}
 								>
 									{row.label}
 								</span>
-								{hint ? <span className="text-chrome-faint truncate text-[11px]">{hint}</span> : null}
+								{hint ? <span className="text-chrome-muted truncate text-[11px]">{hint}</span> : null}
 							</span>
 							{row.locked ? <LockIcon aria-hidden="true" className="text-chrome-muted size-3.5 shrink-0" /> : null}
 							{section ? (

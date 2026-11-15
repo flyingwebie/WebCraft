@@ -10045,8 +10045,6 @@
 			"sameEverywhere": "Uguale su ogni pagina",
 			"lockedHint": "La tua agenzia ne ha fissato il posto",
 			"hiddenHint": "Nascosta ai visitatori",
-			"lockedState": "posto fissato dalla tua agenzia",
-			"hiddenState": "nascosta ai visitatori",
 			"chip": "sezione",
 			"choose": "Scegli {name}",
 			"more": "Altro per {name}",

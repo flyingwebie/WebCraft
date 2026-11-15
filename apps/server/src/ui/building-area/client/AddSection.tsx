@@ -215,7 +215,7 @@ export function SectionPicker({
 					const heading = `${searchId}-${kind}`;
 					return (
 						<section key={kind} aria-labelledby={heading} className="flex flex-col gap-2">
-							<h3 id={heading} className="text-chrome-faint m-0 text-[11px] font-semibold tracking-[0.04em] uppercase">
+							<h3 id={heading} className="text-chrome-muted m-0 text-[11px] font-semibold tracking-[0.04em] uppercase">
 								{said.groups[kind]}
 							</h3>
 							<ul className="m-0 grid list-none grid-cols-2 gap-2 p-0">
