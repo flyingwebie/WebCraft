@@ -262,13 +262,8 @@ describe("Sections, for an Editor", () => {
 		expect(await rows.first().textContent()).toBe("HeaderSame on every page");
 		expect(await rows.last().textContent()).toBe("FooterSame on every page");
 		// A section whose place the agency fixed, and a hidden one, say so.
-		/** A row's description, as it is said after its name. */
-		const described = (row: ReturnType<typeof rows.nth>) =>
-			row.evaluate((element) => document.getElementById(element.getAttribute("aria-describedby") ?? "")?.textContent);
-		expect(await rows.nth(3).getAttribute("aria-label")).toBe("Hero · Fixed");
-		expect(await described(rows.nth(3))).toBe("Your agency fixed its place");
-		expect(await rows.nth(4).getAttribute("aria-label")).toBe("Hero · Away");
-		expect(await described(rows.nth(4))).toBe("Hidden from visitors");
+		expect(await tree.getByRole("treeitem", { name: /^Hero · Fixed\s*Your agency fixed its place$/ }).count()).toBe(1);
+		expect(await tree.getByRole("treeitem", { name: /^Hero · Away\s*Hidden from visitors$/ }).count()).toBe(1);
 		expect(await rows.nth(4).textContent()).toContain("Hidden from visitors");
 		// Hidden: faded on the page (it stays in the Draft).
 		expect(

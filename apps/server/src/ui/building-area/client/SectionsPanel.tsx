@@ -370,8 +370,7 @@ function SectionList({
 							aria-setsize={rows.length}
 							aria-posinset={index + 1}
 							aria-selected={selected}
-							aria-label={row.label}
-							aria-describedby={hint ? `${keysId}-${index}-hint` : undefined}
+							aria-labelledby={`${keysId}-${index}-name`}
 							tabIndex={row.id === focusable ? 0 : -1}
 							onClick={() => choose(row)}
 							className={`group relative flex h-14 shrink-0 items-center gap-2.5 rounded-[10px] px-2.5 ${
@@ -409,22 +408,14 @@ function SectionList({
 								</span>
 							)}
 							<Sketch kind={row.sketch} size="row" />
-							<span className="flex min-w-0 grow flex-col gap-px">
+							{/* Its name is what it shows: the section, then what is said of it (fixed, hidden). */}
+							<span id={`${keysId}-${index}-name`} className="flex min-w-0 grow flex-col gap-px">
 								<span
 									className={`truncate text-[13px] font-medium ${row.hidden ? "text-chrome-muted" : "text-chrome-text"}`}
 								>
 									{row.label}
 								</span>
-								{hint ? (
-									// Said as the row's description, not its name.
-									<span
-										id={`${keysId}-${index}-hint`}
-										aria-hidden="true"
-										className="text-chrome-muted truncate text-[11px]"
-									>
-										{hint}
-									</span>
-								) : null}
+								{hint ? <span className="text-chrome-muted truncate text-[11px]">{hint}</span> : null}
 							</span>
 							{row.locked ? <LockIcon aria-hidden="true" className="text-chrome-muted size-3.5 shrink-0" /> : null}
 							{section ? (
