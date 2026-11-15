@@ -682,6 +682,7 @@ function useSuggest(pane: HtmlPane, words: Words, area: { current: HTMLTextAreaE
 				data-wc-suggestions=""
 			>
 				{open.items.slice(0, 40).map((item, index) => (
+					// biome-ignore lint/suspicious/noArrayIndexKey: two suggestions may read alike; each is its place in the list.
 					<div
 						key={`${item.group}:${item.label}:${index}`}
 						id={optionId(index)}
