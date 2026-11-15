@@ -30,6 +30,17 @@ export type ShellHistory = {
 	 * makes keeps its place among the person's own, whichever save is answered first.
 	 */
 	watch(step: { label: string; field: string; title: string }): SaveWatch;
+	/**
+	 * A place among the person's steps for an action made elsewhere (a section's Props, BA-35), kept
+	 * from the moment it is made: its steps (`record`, none for a refused one) come in once every earlier
+	 * action is over, and Undo waits for it until `settle`.
+	 */
+	reserve(): { record(step: HistoryStep): void; settle(): void };
+	/**
+	 * What else is finished before the history moves (a section's Prop still open, BA-35): called by
+	 * Undo and Redo, which wait for it. Answers how to stop.
+	 */
+	settleWith(settle: () => Promise<unknown>): () => void;
 	/** How a Draft takes a step back: its open shared document (`drafts.ts`). Answers how to stop. */
 	register(resource: string, port: HistoryPort): () => void;
 	/**
@@ -43,6 +54,9 @@ export type ShellHistory = {
 	/** What the page in the frame does for the history: save what was typed, show a step's place. */
 	setPage(page: HistoryPage | null): void;
 };
+
+/** A step as the shell records it: a Draft's change, its words and where it was made. */
+export type HistoryStep = Parameters<ReturnType<typeof editorHistory>["record"]>[0];
 
 export type HistoryPage = {
 	/** Saves what was typed and not saved yet. */
@@ -120,9 +134,11 @@ export function shellHistory(options: {
 		reveal: (location) => page?.reveal(location) ?? false,
 	});
 
+	const settlers = new Set<() => Promise<unknown>>();
 	/** Everything the person started is saved and recorded before the history moves. */
 	const settled = async () => {
 		await page?.settle();
+		await Promise.all([...settlers].map((settle) => settle().catch(() => {})));
 		await order.idle();
 	};
 	const undo = async () => {
@@ -159,6 +175,19 @@ export function shellHistory(options: {
 					});
 				},
 				settle: place.settle,
+			};
+		},
+		reserve() {
+			const place = order.reserve();
+			return {
+				record: (step) => place.record(() => history.record(step)),
+				settle: place.settle,
+			};
+		},
+		settleWith(settle) {
+			settlers.add(settle);
+			return () => {
+				settlers.delete(settle);
 			};
 		},
 		register: (resource, port) => history.register(resource, port),

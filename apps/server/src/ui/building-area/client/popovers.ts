@@ -1,7 +1,8 @@
 import { LINK_REGION, PHOTO_REGION } from "../agent/contract.ts";
 import { type EditAnswer, editRequests, fill, type PageState, type Words } from "../api.ts";
 import type { Overlay } from "../canvas/overlay.ts";
-import type { SavingStatus } from "../canvas/regions.ts";
+import type { SavedAnswer, SavingStatus } from "../canvas/regions.ts";
+import type { ShellHistory } from "../editing/history.ts";
 
 /**
  * The popovers of client editing (SPEC 13.3, BA-15; `client/03` and `client/04`): one value changed
@@ -42,6 +43,12 @@ export type RegionPopovers = {
 	language(): { code: string; name: string } | null;
 	/** While the Media picker is open, the popover it came from waits hidden. */
 	picking(on: boolean): void;
+	/**
+	 * One of the page's Drafts changed (a step taken back, someone else's change): the photos and links
+	 * whose value changed show it, read again from the page as the server renders it once `saved` (what
+	 * was sent is saved) resolves (BA-35).
+	 */
+	draftChanged(item: string, draft: unknown, saved: () => Promise<unknown>): void;
 	photo: PhotoActions;
 	link: LinkActions;
 	destroy(): void;
@@ -123,6 +130,8 @@ export function regionPopovers(options: {
 	refresh(): void;
 	/** The Draft's state beside Publish: saving, saved, could not save. */
 	saving(status: SavingStatus): void;
+	/** The tab's Undo history: a photo chosen or a link saved is a step, as typed text is (BA-35). */
+	history?: Pick<ShellHistory, "watch">;
 }): RegionPopovers {
 	const { words, announce } = options;
 	const request = editRequests(options.token);
@@ -139,6 +148,32 @@ export function regionPopovers(options: {
 	let parts: { frame: HTMLIFrameElement; overlay: Overlay } | null = null;
 	let doc: Document | null = null;
 	let language: { code: string; name: string } | null = null;
+	/** The page's title, for a step's "on {page}". */
+	let title = "";
+	/** The photos and links whose save is on its way (`item|field`): a change of their Draft meanwhile is theirs. */
+	const busy = new Set<string>();
+	/** Each Draft's values as last seen, by item, then key (as JSON): what changed in it. */
+	const seen = new Map<string, Map<string, string>>();
+	const keyOf = (element: Element) =>
+		`${element.getAttribute("data-wc-item") ?? ""}|${element.getAttribute("data-wc-field") ?? ""}`;
+
+	/**
+	 * The step a photo's or a link's save makes in the Undo history, kept in its place from the moment it
+	 * is asked for. `done` is always called: Undo waits for every step on its way.
+	 */
+	const step = (element: HTMLElement) => {
+		const watch = options.history?.watch({
+			label: nameOf(element),
+			field: element.dataset.wcField ?? "",
+			title,
+		});
+		return {
+			done(answer: SavedAnswer | null) {
+				if (answer) watch?.saved(answer);
+				watch?.settle();
+			},
+		};
+	};
 
 	const view = () => parts?.frame.contentWindow as (Window & typeof globalThis) | null | undefined;
 	const regionOf = (target: EventTarget | null, selector: string): HTMLElement | null => {
@@ -224,18 +259,29 @@ export function regionPopovers(options: {
 
 	const choose: PhotoActions["choose"] = async (element, mediaId) => {
 		options.saving("saving");
-		const answer = await request("image", {
+		const made = step(element);
+		const key = keyOf(element);
+		busy.add(key);
+		const answer = await request<{
+			media: string | null;
+			problems: SavedAnswer["problems"];
+			history?: SavedAnswer["history"];
+		}>("image", {
 			item: element.dataset.wcItem,
 			field: element.dataset.wcField,
 			media: mediaId,
 			...(language ? { language: language.code } : {}),
-		});
-		if (!answer.ok) {
+		}).catch(() => null);
+		if (!answer?.ok) {
+			busy.delete(key);
+			made.done(null);
 			options.saving("failed");
-			announce(fill(said.photo.failed, { reason: reasonOf(answer) }), true);
+			announce(fill(said.photo.failed, { reason: answer ? reasonOf(answer) : "network" }), true);
 			return null;
 		}
+		made.done({ value: answer.data.media, problems: answer.data.problems ?? [], history: answer.data.history });
 		const next = await refreshRegion(element);
+		busy.delete(key);
 		options.saving("saved");
 		announce(mediaId ? said.photo.changed : said.photo.removed);
 		options.refresh();
@@ -348,6 +394,52 @@ export function regionPopovers(options: {
 		return true;
 	};
 
+	/**
+	 * Photos and links whose value changed in their Draft without a save of the person's (a step taken
+	 * back, someone else's change), shown as the server renders the page now: a photo takes the element
+	 * the page has (its sizes, its Focal point), a link its address, words and tab.
+	 */
+	const showFromServer = async (regions: HTMLElement[], saved: () => Promise<unknown>) => {
+		await saved().catch(() => {});
+		const win = regions[0]?.ownerDocument.defaultView;
+		if (!win) return;
+		let fresh: Document;
+		try {
+			const response = await fetch(win.location.href, { credentials: "same-origin", cache: "no-store" });
+			if (!response.ok) return;
+			fresh = new DOMParser().parseFromString(await response.text(), "text/html");
+		} catch {
+			return;
+		}
+		for (const region of regions) {
+			if (!region.isConnected || busy.has(keyOf(region))) continue;
+			if (region.matches(LINK_REGION)) {
+				const found = [...fresh.querySelectorAll<HTMLElement>(LINK_REGION)].find(
+					(each) => keyOf(each) === keyOf(region) && each.dataset.wcId === region.dataset.wcId,
+				);
+				if (!found) continue;
+				const text = (found.textContent ?? "").trim();
+				const url = found.getAttribute("href") ?? "";
+				showLink(region, url || text ? { url, text, newTab: found.getAttribute("target") === "_blank" } : null);
+				continue;
+			}
+			const found = sameRegion(fresh, region);
+			// Already shown (the person's own save got there first): left as it is, with what Edit gave it.
+			const same = (name: string) => found?.getAttribute(name) === region.getAttribute(name);
+			if (!found || (same("data-wc-media") && same("src") && same("class"))) continue;
+			const replacement = region.ownerDocument.importNode(outer(found), true) as Element;
+			outer(region).replaceWith(replacement);
+			const next = replacement.matches(PHOTO_REGION)
+				? (replacement as HTMLElement)
+				: replacement.querySelector<HTMLElement>(PHOTO_REGION);
+			// An open popover follows its photo to the element that took its place.
+			if (next && snapshot.open?.element === region) {
+				set({ open: { ...snapshot.open, element: next, focus: snapshot.open.focus, seq: ++seq } });
+			}
+		}
+		parts?.overlay.schedule();
+	};
+
 	// ── the link ──
 
 	const read: LinkActions["read"] = (element) => {
@@ -357,21 +449,8 @@ export function regionPopovers(options: {
 		return { url, text: text === url ? "" : text, newTab: element.getAttribute("target") === "_blank" };
 	};
 
-	const save: LinkActions["save"] = async (element, value) => {
-		options.saving("saving");
-		const answer = await request<{ value: { url: string; text: string; newTab?: boolean } | null }>("save", {
-			item: element.dataset.wcItem,
-			field: element.dataset.wcField,
-			value: value && { url: value.url, text: value.text, newTab: value.newTab },
-			...(language ? { language: language.code } : {}),
-		});
-		if (!answer.ok) {
-			options.saving("failed");
-			return { ok: false, reason: answer.code };
-		}
-		// The page shows the link as stored, at once: its address, its words (its address when it has
-		// none), a new tab.
-		const stored = answer.data.value;
+	/** Shows a link as stored: its address, its words (its address when it has none), a new tab. */
+	const showLink = (element: HTMLElement, stored: { url: string; text: string; newTab?: boolean } | null) => {
 		if (stored) {
 			element.setAttribute("href", stored.url);
 			element.textContent = stored.text || stored.url;
@@ -387,6 +466,33 @@ export function regionPopovers(options: {
 			element.removeAttribute("target");
 			element.removeAttribute("rel");
 		}
+	};
+
+	const save: LinkActions["save"] = async (element, value) => {
+		options.saving("saving");
+		const made = step(element);
+		const key = keyOf(element);
+		busy.add(key);
+		const answer = await request<{
+			value: { url: string; text: string; newTab?: boolean } | null;
+			problems: SavedAnswer["problems"];
+			history?: SavedAnswer["history"];
+		}>("save", {
+			item: element.dataset.wcItem,
+			field: element.dataset.wcField,
+			value: value && { url: value.url, text: value.text, newTab: value.newTab },
+			...(language ? { language: language.code } : {}),
+		}).catch(() => null);
+		busy.delete(key);
+		if (!answer?.ok) {
+			made.done(null);
+			options.saving("failed");
+			return { ok: false, reason: answer ? answer.code : "network" };
+		}
+		made.done({ value: answer.data.value, problems: answer.data.problems ?? [], history: answer.data.history });
+		// The page shows the link as stored, at once.
+		const stored = answer.data.value;
+		showLink(element, stored);
 		parts?.overlay.schedule();
 		options.saving("saved");
 		announce(stored ? said.link.saved : said.link.removed);
@@ -413,6 +519,21 @@ export function regionPopovers(options: {
 		},
 		pageState(state) {
 			language = state.language;
+			title = state.page.title || state.page.path || "";
+		},
+		draftChanged(item, draft, saved) {
+			const values = (draft as { values?: Record<string, unknown> } | null)?.values ?? {};
+			const before = seen.get(item);
+			const now = new Map(Object.entries(values).map(([key, value]) => [key, JSON.stringify(value ?? null)]));
+			seen.set(item, now);
+			if (!before || !doc) return;
+			const changed = [...doc.querySelectorAll<HTMLElement>(`${PHOTO_REGION}, ${LINK_REGION}`)].filter((region) => {
+				if (region.dataset.wcItem !== item || region.dataset.wcBlock !== undefined || busy.has(keyOf(region)))
+					return false;
+				const key = (region.dataset.wcField ?? "").split(".")[0] ?? "";
+				return (before.get(key) ?? "null") !== (now.get(key) ?? "null");
+			});
+			if (changed.length > 0) void showFromServer(changed, saved);
 		},
 		kindOf,
 		open,

@@ -17,6 +17,7 @@ import {
 import { type EditRequests, fill, type PageState, type Words } from "../api.ts";
 import type { SavingStatus } from "../canvas/regions.ts";
 import { draftResource } from "../editing/drafts.ts";
+import type { ShellHistory } from "../editing/history.ts";
 import type { ClientEditing, ClientMode } from "./marks.ts";
 
 /**
@@ -207,6 +208,11 @@ export function memberSections(options: {
 	undo(): void;
 	/** The page's title, for the Undo history's "on {page}". */
 	title(): string;
+	/**
+	 * The tab's Undo history as the shell keeps it (BA-35): each action keeps its place among the
+	 * person's steps from the moment it is made, and Undo first finishes a section's Prop still open.
+	 */
+	steps?: Pick<ShellHistory, "reserve" | "settleWith">;
 }): MemberSections {
 	const { words, announce } = options;
 	const said = words.sections;
@@ -476,7 +482,21 @@ export function memberSections(options: {
 				if (selectedGone()) onPage = false;
 				emit();
 			}),
+			// An own action keeps its place among the person's steps from the moment it is made: a Prop
+			// whose save is answered late comes before text typed after it (BA-35).
+			made.began(() => {
+				const place = options.steps?.reserve();
+				if (!place) return () => {};
+				places.push(place);
+				return () => {
+					const at = places.indexOf(place);
+					if (at >= 0) places.splice(at, 1);
+					place.settle();
+				};
+			}),
 			made.finished((step) => record(step, entryId)),
+			// Undo first finishes a Prop still open (and waits for its save): it is the step taken back.
+			options.steps?.settleWith(() => made.finish()) ?? (() => {}),
 			made.flushWith(() => {
 				for (const flush of flushers) flush();
 			}),
@@ -508,10 +528,15 @@ export function memberSections(options: {
 		return !now?.selected || !now.data.layout.placements.some((each) => each.id === now.selected);
 	};
 
+	/** The places kept for own actions still on their way, the earliest first (`began`). */
+	const places: ReturnType<ShellHistory["reserve"]>[] = [];
+
 	/** Each finished action is a step of the tab's Undo history: the Page layout as it was and became. */
 	function record(step: LayoutStep, entryId: string) {
 		const resource = draftResource(options.siteId, `entry:${entryId}`);
-		history.record({
+		// In the place its action kept (the earliest still open: actions are saved one after the other).
+		const place = places[0];
+		(place ?? history).record({
 			resource,
 			before: { layout: documentValue(step.before) },
 			after: { layout: documentValue(step.after) },

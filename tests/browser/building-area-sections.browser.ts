@@ -271,7 +271,7 @@ describe("Sections, for an Editor", () => {
 				.locator('[data-wc-page-placement="away"]')
 				.first()
 				.evaluate((element) => getComputedStyle(element).opacity),
-		).toBe("0.6");
+		).toBe("0.7");
 
 		// Space picks a section up, the arrows move it, Escape puts it back.
 		await rows.filter({ hasText: "Hero · South" }).click();
@@ -737,5 +737,223 @@ describe("Sections, for an Editor", () => {
 			});
 		}
 		expect(await announced(page)).not.toContain("went wrong");
+	});
+
+	// ── BA-35: the Props' remaining cases of `page-layout-props.browser.ts` and `page-layouts.browser.ts` ──
+
+	/** Opens a section's settings in the Sections panel, from its row. */
+	const settingsOf = async (each: Page, name: RegExp) => {
+		if ((await each.locator("[data-wc-sections-list]").count()) === 0) {
+			if ((await each.locator("[data-wc-section-settings]").count()) > 0)
+				await each.locator("[data-wc-side-panel-back]").click();
+			else await openSections(each);
+			await each.locator("[data-wc-sections-list]").waitFor();
+		}
+		await each.getByRole("treeitem", { name }).click();
+		await each.keyboard.press("Enter");
+		await each.locator("[data-wc-section-settings]").waitFor();
+		return each.locator("[data-wc-section-settings]");
+	};
+	const isFocused = (locator: ReturnType<Page["locator"]>) =>
+		locator.evaluate((input) => input === document.activeElement);
+
+	test("a Prop typed in while someone moves its section keeps what was typed, and focus", async () => {
+		const entryId = await makePage("Moved", "moved", [hero("hero", "First words"), hero("other", "Second words")]);
+		const frame = await open(page, "/moved");
+		await open(peer, "/moved");
+		const mine = (await settingsOf(page, /Second words/)).getByLabel("Heading", { exact: true });
+		await mine.fill("Own moved input");
+		expect(await isFocused(mine)).toBe(true);
+		// The peer moves the first section down: the person's section is now first.
+		await openSections(peer);
+		await peer.getByRole("treeitem", { name: /First words/ }).click();
+		await peer.keyboard.press("Alt+ArrowDown");
+		await saved(async () => (await layoutOf(entryId)).placements.map((placement) => placement.id), ["other", "hero"]);
+		await frame.waitForFunction(
+			() => document.querySelector("main [data-wc-page-placement]")?.getAttribute("data-wc-page-placement") === "other",
+			undefined,
+			{ timeout: 8000 },
+		);
+		expect(await mine.inputValue()).toBe("Own moved input");
+		expect(await isFocused(mine)).toBe(true);
+		await mine.press("Tab");
+		await saved(headings(entryId), ["Own moved input", "First words"]);
+		await closeSections(page);
+		await closeSections(peer);
+	});
+
+	test("two people typing in one Prop: what each typed at either end is kept", async () => {
+		const entryId = await makePage("Merge", "merge", [hero("hero", "Middle")]);
+		await open(page, "/merge");
+		await open(peer, "/merge");
+		const mine = (await settingsOf(page, /Middle/)).getByLabel("Heading", { exact: true });
+		const theirs = (await settingsOf(peer, /Middle/)).getByLabel("Heading", { exact: true });
+		await mine.fill("Start Middle");
+		await theirs.fill("Middle End");
+		await theirs.press("Tab");
+		await page.waitForFunction(
+			() =>
+				[...document.querySelectorAll<HTMLInputElement>("[data-wc-section-settings] input")].some(
+					(input) => input.value === "Start Middle End",
+				),
+			undefined,
+			{ timeout: 8000 },
+		);
+		expect(await isFocused(mine)).toBe(true);
+		await mine.press("Tab");
+		await saved(headings(entryId), ["Start Middle End"]);
+		await closeSections(page);
+		await closeSections(peer);
+	});
+
+	test("a Prop typed in while Staff replace its declaration isn't saved into the new one, which is kept", async () => {
+		const { component } = await api.components.create({
+			siteId,
+			name: "Notice",
+			props: [{ key: "first", label: "First", type: "text", default: "Baseline" }],
+		});
+		await api.components.saveMarkup({
+			siteId,
+			componentId: component.id,
+			markup: "<section><h2>{{ props.first }}</h2></section>",
+		});
+		await api.components.publish({ siteId, componentId: component.id });
+		const notice = (await api.components.get({ siteId, componentId: component.id })).component;
+		const entryId = await makePage("Replaced", "replaced", [{ id: "notice", component: notice }]);
+		const frame = await open(page, "/replaced");
+		const first = (await settingsOf(page, /^Notice/)).getByLabel("First", { exact: true });
+		await first.fill("Old declaration input");
+		// Staff declare `first` again, as a new Prop with the same key.
+		const replacement = crypto.randomUUID();
+		await api.components.saveMarkup({
+			siteId,
+			componentId: component.id,
+			markup: `{{@props}}\nfirst: text id="${replacement}" default="Replacement"\n{{/props}}\n<section><h2>{{ props.first }}</h2></section>`,
+		});
+		await api.components.publish({ siteId, componentId: component.id });
+		await frame.locator("main h2").filter({ hasText: "Replacement" }).waitFor({ timeout: 10_000 });
+		await closeSections(page);
+		// What was typed for the old declaration isn't saved into the new one; the new one is kept.
+		await page.waitForTimeout(1500);
+		const placement = (await layoutOf(entryId)).placements[0];
+		expect(placement?.props[0]?.id).toBe(replacement);
+		expect(JSON.stringify(placement?.values ?? {})).not.toContain("Old declaration input");
+		await frame.locator("main h2").filter({ hasText: "Replacement" }).waitFor();
+	});
+
+	test("empty Props take keystrokes one after another before they are left", async () => {
+		const { component } = await api.components.create({
+			siteId,
+			name: "Blank",
+			props: [
+				{ key: "first", label: "First", type: "text" },
+				{ key: "group", label: "Group", type: "group", fields: [{ key: "second", label: "Second", type: "text" }] },
+			],
+		});
+		await api.components.saveMarkup({
+			siteId,
+			componentId: component.id,
+			markup: "<section><p>A card to fill in</p><h2>{{ props.first }}</h2></section>",
+		});
+		await api.components.publish({ siteId, componentId: component.id });
+		const blank = (await api.components.get({ siteId, componentId: component.id })).component;
+		const entryId = await makePage("Blank", "blank", [{ id: "blank", component: blank }]);
+		await open(page, "/blank");
+		const settings = await settingsOf(page, /^Blank/);
+		await settings.getByLabel("First", { exact: true }).focus();
+		await page.keyboard.type("ab");
+		await settings.getByLabel("First", { exact: true }).press("Tab");
+		await settings.getByLabel("Second", { exact: true }).focus();
+		await page.keyboard.type("cd");
+		await settings.getByLabel("Second", { exact: true }).press("Tab");
+		await saved(async () => (await layoutOf(entryId)).placements[0]?.values, { first: "ab", group: { second: "cd" } });
+		await closeSections(page);
+	});
+
+	for (const peerAction of ["remove", "move"] as const) {
+		test(`typing on in a Repeater's row past a peer's ${peerAction} and then another removal keeps the row and its words`, async () => {
+			const entryId = await makePage(`Rows ${peerAction}`, `rows-${peerAction}`, [
+				{
+					id: "cards",
+					component: components.cards,
+					values: {
+						rows: {
+							rows: ["North", "Middle", "South"].map((text) => ({
+								id: text.toLowerCase(),
+								values: { text: { en: text } },
+							})),
+						},
+					},
+				},
+			]);
+			await open(page, `/rows-${peerAction}`);
+			await open(peer, `/rows-${peerAction}`);
+			const mine = await settingsOf(page, /^Cards/);
+			const theirs = await settingsOf(peer, /^Cards/);
+			const rowTexts = () =>
+				page.evaluate(() =>
+					[
+						...document.querySelectorAll<HTMLInputElement>("[data-wc-section-settings] [data-wc-section-row-of] input"),
+					].map((input) => input.value),
+				);
+			const last = mine.locator("[data-wc-section-row-of] input").last();
+			await last.focus();
+			await last.press("End");
+			await page.keyboard.type("a");
+			await theirs.getByRole("button", { name: "Actions for row 1" }).click();
+			await peer.getByRole("menuitem", { name: peerAction === "remove" ? "Remove row" : "Move down" }).click();
+			const afterFirst = peerAction === "remove" ? ["Middle", "Southa"] : ["Middle", "North", "Southa"];
+			for (let attempt = 0; attempt < 80 && JSON.stringify(await rowTexts()) !== JSON.stringify(afterFirst); attempt++)
+				await page.waitForTimeout(100);
+			expect(await rowTexts()).toEqual(afterFirst);
+			expect(await isFocused(mine.locator("[data-wc-section-row-of] input").last())).toBe(true);
+			await page.keyboard.type("b");
+			await theirs.getByRole("button", { name: `Actions for row ${peerAction === "remove" ? 1 : 2}` }).click();
+			await peer.getByRole("menuitem", { name: "Remove row" }).click();
+			const afterSecond = peerAction === "remove" ? ["Southab"] : ["Middle", "Southab"];
+			for (let attempt = 0; attempt < 80 && JSON.stringify(await rowTexts()) !== JSON.stringify(afterSecond); attempt++)
+				await page.waitForTimeout(100);
+			expect(await rowTexts()).toEqual(afterSecond);
+			await mine.locator("[data-wc-section-row-of] input").last().press("Tab");
+			await saved(
+				async () => (await layoutOf(entryId)).placements[0]?.values.rows,
+				[...(peerAction === "remove" ? [] : [{ id: "middle", text: "Middle" }]), { id: "south", text: "Southab" }],
+			);
+			await closeSections(page);
+			await closeSections(peer);
+		});
+	}
+
+	test("a Prop's save says nothing; a row's own eye hides its section and keeps the chosen one", async () => {
+		const entryId = await makePage("Quiet", "quiet", [hero("north", "North"), hero("south", "South")]);
+		const frame = await open(page, "/quiet");
+		const heading = (await settingsOf(page, /Hero · North/)).getByLabel("Heading", { exact: true });
+		await heading.focus();
+		const messages = page.locator("[data-wc-messages]");
+		const before = await messages.textContent();
+		await heading.fill("Quietly saved");
+		await heading.press("Tab");
+		await frame.locator("main h1").filter({ hasText: "Quietly saved" }).waitFor();
+		await saved(headings(entryId), ["Quietly saved", "South"]);
+		expect(await messages.textContent()).toBe(before);
+
+		// Back to the list, North chosen: South's own eye hides South, and North stays chosen.
+		await page.locator("[data-wc-side-panel-back]").click();
+		const north = page.getByRole("treeitem", { name: /Quietly saved/ });
+		const south = page.getByRole("treeitem", { name: /Hero · South/ });
+		await north.click();
+		expect(await north.getAttribute("aria-selected")).toBe("true");
+		await south.hover();
+		await south.getByRole("button", { name: "Hide Hero · South", exact: true }).click();
+		await saved(
+			async () => (await layoutOf(entryId)).placements.map((placement) => Boolean(placement.hidden)),
+			[false, true],
+		);
+		expect(await north.getAttribute("aria-selected")).toBe("true");
+		expect(await south.getAttribute("aria-selected")).toBe("false");
+		await south.getByRole("button", { name: "Show Hero · South", exact: true }).waitFor({ state: "attached" });
+		// An action is said, as the drawer's were.
+		await said(page, "Hide or show Hero · South");
+		await closeSections(page);
 	});
 });

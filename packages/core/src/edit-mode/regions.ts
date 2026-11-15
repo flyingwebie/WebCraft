@@ -83,6 +83,8 @@ export type SavedImage = {
 	status: "draft" | "published" | "changed";
 	media: string | null;
 	problems: ContentProblem[];
+	/** The change to its Entry's or the Globals' Draft, as a typed value's (`SavedRegion`); a Loop item's and a Block's have none. */
+	history?: RegionHistory;
 };
 
 /** Reads an item as a region names it; refuses anything else. */
@@ -253,20 +255,39 @@ export async function saveImage(scope: SiteScope, change: ImageChange): Promise<
 		return saveBlockImage(scope, item.id, fields, { ...change, block: change.block });
 	}
 	const values = nested(change.field, change.media);
-	if (item.kind === "globals") {
-		const saved = await saveGlobalsDraft(scope, { language, fields: values });
+	// As a typed value's save: the item held from the first read to the last, its receipt this change alone.
+	return scope.transaction(async (tx) => {
+		const held = async () =>
+			item.kind === "globals"
+				? documentView("globals", (await lockGlobals(tx)).draft)
+				: documentView("entry", (await lockEntry(tx, item.id)).draft);
+		const before = await held();
+		let saved: Omit<SavedImage, "history">;
+		if (item.kind === "globals") {
+			const done = await saveGlobalsDraft(tx, { language, fields: values });
+			saved = {
+				status: done.status,
+				media: mediaIdOf(valueAt(done.draft, change.field)),
+				problems: problemsAt(done.problems, `fields.${change.field}`),
+			};
+		} else {
+			const done = await saveDraft(tx, item.id, { language, fields: values });
+			saved = {
+				status: done.status,
+				media: mediaIdOf(valueAt(done.draft.fields, change.field)),
+				problems: problemsAt(done.problems, `fields.${change.field}`),
+			};
+		}
+		const key = change.field.split(".")[0] ?? "";
 		return {
-			status: saved.status,
-			media: mediaIdOf(valueAt(saved.draft, change.field)),
-			problems: problemsAt(saved.problems, `fields.${change.field}`),
+			...saved,
+			history: {
+				resource: `draft:${tx.site.id}:${item.kind === "globals" ? "globals" : `entry:${item.id}`}`,
+				before: { values: keptValue(before, key) },
+				after: { values: keptValue(await held(), key) },
+			},
 		};
-	}
-	const saved = await saveDraft(scope, item.id, { language, fields: values });
-	return {
-		status: saved.status,
-		media: mediaIdOf(valueAt(saved.draft.fields, change.field)),
-		problems: problemsAt(saved.problems, `fields.${change.field}`),
-	};
+	});
 }
 
 /** Refuses what an image region can't show: anything but an image of the Site's library, out of the Trash. */
