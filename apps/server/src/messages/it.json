@@ -10450,7 +10450,15 @@
 					"info": "Informazione:",
 					"warn": "Avviso:",
 					"error": "Errore:"
-				}
+				},
+				"steps": {
+					"page": "Modificato lo script della pagina",
+					"site": "Modificato lo script del sito",
+					"component": "Modificato lo script del Component {name}"
+				},
+				"componentError": "{name} ha dato un errore su un Placement: {message}",
+				"showPlacement": "Mostra il Placement",
+				"saved": "{script}: salvato nella bozza."
 			}
 		},
 		"placements": {
@@ -10854,6 +10862,35 @@
 			"cancel": "Annulla",
 			"made": "Component {name} creato.",
 			"refused": "Non è stato possibile creare il Component: {reason}"
+		},
+		"scripts": {
+			"notice": "Uno script ha dato un errore",
+			"siteFailed": "Lo script del sito ha dato un errore.",
+			"pageFailed": "Lo script di questa pagina ha dato un errore.",
+			"libraryFailed": "La libreria {name} ha dato un errore.",
+			"componentFailed": "Lo script del Component {name} ha dato un errore.",
+			"notLoaded": "Non si è caricato.",
+			"errorAt": "{message} (riga {line})",
+			"more": "Anche altri script hanno dato un errore: {count}.",
+			"safeHelp": "La modalità sicura mostra la pagina senza nessuno script del sito, così puoi continuare a modificarla.",
+			"openSafe": "Apri in modalità sicura",
+			"dismiss": "Chiudi",
+			"safe": "Modalità sicura",
+			"safeOn": "Modalità sicura: questa pagina non esegue nessuno script del sito.",
+			"turnOff": "Disattiva",
+			"turnOffLabel": "Disattiva la modalità sicura",
+			"turning": "Cambio in corso…",
+			"turnedOn": "Modalità sicura attiva: la pagina non esegue nessuno script del sito.",
+			"turnedOff": "Modalità sicura disattivata: la pagina esegue di nuovo gli script del sito.",
+			"switchFailed": "Non è stato possibile cambiare la modalità sicura: {reason}",
+			"client": {
+				"siteFailed": "Qualcosa in questa pagina non ha funzionato: lo script del sito ha dato un errore.",
+				"pageFailed": "Qualcosa in questa pagina non ha funzionato: lo script della pagina ha dato un errore.",
+				"libraryFailed": "Qualcosa in questa pagina non ha funzionato: la libreria {name} ha dato un errore.",
+				"componentFailed": "Qualcosa in questa pagina non ha funzionato: lo script di {name} ha dato un errore.",
+				"help": "Puoi continuare a modificare. Se la pagina non si comporta come dovrebbe, aprila in modalità sicura, che non esegue nessuno script del sito, e avvisa la tua agenzia.",
+				"safeOn": "Modalità sicura: in questa pagina non viene eseguito nessuno script del sito."
+			}
 		}
 	},
 	"auth": {

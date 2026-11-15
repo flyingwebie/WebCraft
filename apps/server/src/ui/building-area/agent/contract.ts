@@ -82,6 +82,12 @@ export type AgentHost = {
 	 */
 	log(entry: ConsoleEntry): void;
 	/**
+	 * One of the Site's own scripts failed in the page (BA-32, `agent/failures.ts`): the Site script,
+	 * the page's script, a Library or a Component script threw or didn't load, or a Component script's
+	 * call failed on a Placement. The shell says so in its notice, with Safe mode a click away.
+	 */
+	failed(failure: ScriptFailure): void;
+	/**
 	 * A link of the page was clicked while the shell lets links be followed (editing is off: the
 	 * interface is hidden). The agent stops the browser following it and hands its address here; the
 	 * shell opens it as the next document, or leaves it when it isn't a page of the Site. Answers
@@ -108,5 +114,25 @@ export type ConsoleEntry = {
 	/** The address of the script it came from (an error's file), when the browser says. */
 	source: string | null;
 	/** Its 1-based line in that script, when the browser says. */
+	line: number | null;
+	/**
+	 * A Component script's call that failed on a Placement (BA-32): its Component, and the Placement's
+	 * root by its Structure reference (`data-wc-code`, on Staff's page; null on a Member's).
+	 */
+	component?: { id: string; name: string };
+	placement?: string | null;
+};
+
+/**
+ * One of the Site's own scripts that failed in the page (BA-32): which (`site`, `page`, a `library` by
+ * its name, a `component` by its Component), what it said, and its line (0 when the browser didn't
+ * say; null when the script didn't load at all).
+ */
+export type ScriptFailure = {
+	kind: "site" | "page" | "library" | "component";
+	/** A Library's or a Component's name ("" for the Site script and the page's). */
+	name: string;
+	componentId: string | null;
+	message: string;
 	line: number | null;
 };
