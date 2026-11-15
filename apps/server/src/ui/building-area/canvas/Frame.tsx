@@ -6,6 +6,7 @@ import { swapPage } from "../editing/rerender.ts";
 import type { RegionCycle } from "../keyboard.ts";
 import { consoleLog } from "../panels/console-log.ts";
 import { installDragCatcher } from "./catcher.ts";
+import { watchComponentScripts } from "./component-scripts.ts";
 import { Gutter } from "./Gutter.tsx";
 import {
 	type Breakpoint,
@@ -26,7 +27,9 @@ import { chosenRefOf, PLACED_FORM, placedFormAt, placedFormOf } from "./placed-f
 import { endPreview, showPreview } from "./preview.ts";
 import { answerRedraws } from "./redraw.ts";
 import { regionSaving, type SavingStatus } from "./regions.ts";
+import { ScriptNotice } from "./ScriptNotice.tsx";
 import { SizeReadout, useReadoutShown } from "./SizeReadout.tsx";
+import { pageScripts } from "./scripts.ts";
 
 /** What a drop over the page tells the rest of the shell: `webcraft:drop` on the shell's document. */
 export type DropDetail = { source: string; target: Element | null };
@@ -364,8 +367,14 @@ export function Frame({
 			return found ? saving.regionOf(found) : null;
 		};
 
+		/** Component scripts for Placements added to the page later (BA-32), watched on the page shown now. */
+		let stopWatching = () => {};
 		const host: AgentHost = {
 			attach(_agent, document, address) {
+				// The Site's own scripts on this page: none failed yet; Safe mode as the page says (BA-32).
+				pageScripts.started(address, document);
+				stopWatching();
+				stopWatching = () => {};
 				overlay.attach(document);
 				const theme = latest.current.theme;
 				if (theme) document.documentElement.setAttribute("data-wc-theme", theme);
@@ -388,6 +397,9 @@ export function Frame({
 				latest.current.onPage(address, state);
 			},
 			ready(document) {
+				pageScripts.ready(document);
+				stopWatching();
+				stopWatching = watchComponentScripts(element, document);
 				overlay.attach(document);
 				saving.track(document);
 				latest.current.editing?.ready(document);
@@ -450,6 +462,10 @@ export function Frame({
 				const view = element.contentWindow;
 				consoleLog.add(entry, view ? `${view.location.pathname}${view.location.search}` : "");
 			},
+			failed(failure) {
+				// One of the Site's own scripts failed: the notice says which (BA-32, `ScriptNotice.tsx`).
+				pageScripts.failed(failure);
+			},
 			following: () => latest.current.following,
 			follow: (href) => latest.current.onFollow(href),
 		};
@@ -458,6 +474,21 @@ export function Frame({
 		(element as unknown as Record<string, unknown>)[AGENT_HOST_PROPERTY] = host;
 		requested.current = latest.current.address;
 		element.src = latest.current.address;
+
+		// Safe mode switched from the notice or the bar (BA-32): what was typed is saved, the Site told,
+		// and the page shown again, with or without the Site's own scripts.
+		const stopSwitching = pageScripts.connect(async (on) => {
+			const { request: ask, announce: say, words: shown } = latest.current;
+			await saving.flush();
+			const answer = await ask(on ? "safe/start" : "safe/stop", {});
+			if (!answer.ok) {
+				say(fill(shown.scripts.switchFailed, { reason: answer.code }), true);
+				return;
+			}
+			const view = element.contentWindow;
+			if (view) view.location.replace(`${view.location.pathname}${view.location.search}`);
+			say(on ? shown.scripts.turnedOn : shown.scripts.turnedOff);
+		});
 
 		const onFocusChange = () => queueMicrotask(checkFocus);
 		doc.addEventListener("focusin", onFocusChange);
@@ -471,6 +502,8 @@ export function Frame({
 			window.removeEventListener("focus", onFocusChange);
 			catcher.destroy();
 			stopRedraws();
+			stopSwitching();
+			stopWatching();
 			disconnectEditing?.();
 			overlay.destroy();
 			overlayOf.current = null;
@@ -544,6 +577,8 @@ export function Frame({
 
 	return (
 		<div ref={canvas} className="absolute inset-0 flex justify-center overflow-hidden" data-wc-canvas="">
+			{/* One of the Site's own scripts failed on the page (BA-32): before the frame in the Tab order. */}
+			<ScriptNotice words={words} client={Boolean(sheet)} />
 			{readoutShown && area && !sheet ? (
 				<SizeReadout
 					size={size}

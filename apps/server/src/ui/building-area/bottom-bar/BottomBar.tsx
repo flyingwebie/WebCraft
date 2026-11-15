@@ -7,6 +7,7 @@ import { fill, type Words } from "../api.ts";
 import { IconButton, IconLink } from "../controls.tsx";
 import { type DraftState, DraftStateCell } from "./DraftState.tsx";
 import { LanguageMenu, type PageLanguage } from "./LanguageMenu.tsx";
+import { SafeModeControl } from "./SafeMode.tsx";
 
 /** What the shell's Undo history offers now: the step each way, by its label. */
 type HistoryState = { undo: string | null; redo: string | null; busy: boolean };
@@ -101,6 +102,8 @@ export function BottomBar({
 				data-wc-insert-row={insertRow ? "" : undefined}
 			/>
 			<div className="flex h-full w-[400px] shrink items-center justify-end gap-2" data-wc-bar-cluster="end">
+				{/* While the page runs none of the Site's own scripts: Safe mode, and Turn off (BA-32). */}
+				<SafeModeControl words={words} />
 				{languages.length > 1 ? <LanguageMenu languages={languages} words={words} onChoose={onLanguage} /> : null}
 				{staging ? (
 					<IconLink

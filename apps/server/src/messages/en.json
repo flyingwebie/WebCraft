@@ -10440,7 +10440,15 @@
 					"info": "Information:",
 					"warn": "Warning:",
 					"error": "Error:"
-				}
+				},
+				"steps": {
+					"page": "Changed the page script",
+					"site": "Changed the Site script",
+					"component": "Changed the Component script of {name}"
+				},
+				"componentError": "{name} failed on a Placement: {message}",
+				"showPlacement": "Show the Placement",
+				"saved": "Saved the {script} to the Draft."
 			}
 		},
 		"placements": {
@@ -10545,6 +10553,35 @@
 				"step": "Change the test of {name}",
 				"bad": "This test can't be read: {problem}",
 				"name": "If {test}"
+			}
+		},
+		"scripts": {
+			"notice": "A script failed",
+			"siteFailed": "The Site script failed.",
+			"pageFailed": "This page's script failed.",
+			"libraryFailed": "The Library {name} failed.",
+			"componentFailed": "The Component script of {name} failed.",
+			"notLoaded": "It didn't load.",
+			"errorAt": "{message} (line {line})",
+			"more": "Other scripts failed too: {count}.",
+			"safeHelp": "Safe mode shows the page with none of the Site's own scripts, so editing goes on.",
+			"openSafe": "Open in Safe mode",
+			"dismiss": "Dismiss",
+			"safe": "Safe mode",
+			"safeOn": "Safe mode: this page runs none of the Site's own scripts.",
+			"turnOff": "Turn off",
+			"turnOffLabel": "Turn off Safe mode",
+			"turning": "Switching…",
+			"turnedOn": "Safe mode is on: the page runs none of the Site's own scripts.",
+			"turnedOff": "Safe mode is off: the page runs the Site's own scripts again.",
+			"switchFailed": "Safe mode couldn't be switched: {reason}",
+			"client": {
+				"siteFailed": "Something on this page didn't work: the Site script failed.",
+				"pageFailed": "Something on this page didn't work: this page's own script failed.",
+				"libraryFailed": "Something on this page didn't work: the Library {name} failed.",
+				"componentFailed": "Something on this page didn't work: the script of {name} failed.",
+				"help": "You can keep editing. If the page doesn't behave, open it in Safe mode, which runs none of the site's scripts, and tell your agency.",
+				"safeOn": "Safe mode: none of the site's scripts run on this page."
 			}
 		}
 	},
