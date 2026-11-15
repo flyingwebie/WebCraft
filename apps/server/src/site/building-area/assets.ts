@@ -276,9 +276,10 @@ const SHELL_DOCUMENT_STYLES = `body.wc-shell{margin:0;background:#121214;color:#
 
 /**
  * What the framed page needs from WebCraft: outside scripts' placeholders (ADR 0022), as the editing
- * bar's page stylesheet styles them, and room for an empty image or link region to be found and
- * clicked, with the words the shell gives it (`data-wc-empty-label`, BA-15). Everything else with
- * chrome is drawn by the shell, over the frame.
+ * bar's page stylesheet styles them, room for an empty image or link region to be found and
+ * clicked, with the words the shell gives it (`data-wc-empty-label`, BA-15), and a body's Blocks
+ * while they are written (BA-18): an empty line's hint, a focused photo, video or Component, and the
+ * Blocks with a problem or a Check. Everything else with chrome is drawn by the shell, over the frame.
  */
 const AGENT_STYLES = `.wc-outside-scripts {
 	margin: 2rem auto; max-width: 48rem; padding: 0.75rem 1rem;
@@ -304,6 +305,21 @@ a[data-wc-type="link"][data-wc-item]:empty::after { content: attr(data-wc-empty-
 [data-wc-hidden-placement]:not([data-wc-hidden-placement] *) { opacity: 0.6; }
 html[data-wc-preview] [data-wc-hidden-placement]:not([data-wc-hidden-placement] *) { display: none !important; }
 [data-wc-placement-prop][contenteditable="true"] { outline: none; }
+[data-wc-type="body"] [data-wc-block-part][contenteditable="true"] { cursor: text; }
+[data-wc-type="body"] [data-wc-block-part]:focus { outline: none; }
+[data-wc-type="body"] [contenteditable="true"][data-wc-placeholder]:empty::before {
+	content: attr(data-wc-placeholder); color: #71717a; pointer-events: none;
+}
+[data-wc-type="body"]:focus { outline: none; }
+.wc-edit-block { display: block; }
+.wc-edit-block[tabindex] { cursor: default; }
+.wc-edit-block:focus { outline: 2px solid #4f46e5; outline-offset: 3px; border-radius: 4px; }
+[data-wc-type="body"] [data-wc-block-id][data-wc-invalid] { outline: 2px solid #b91c1c; outline-offset: 2px; }
+[data-wc-type="body"] [data-wc-block-id][data-wc-check] { outline: 1px dashed #b45309; outline-offset: 2px; }
+.wc-edit-empty {
+	display: inline-block; padding: 0.5rem 0.75rem; border: 1px dashed #71717a; border-radius: 0.5rem;
+	background: #f4f4f5; color: #3f3f46; font: 500 13px/1.3 ui-sans-serif, system-ui, sans-serif;
+}
 `;
 
 async function asset(

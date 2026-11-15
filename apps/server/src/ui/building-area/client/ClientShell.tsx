@@ -21,6 +21,8 @@ import { PlaceLoader } from "../places/PlaceLoader.tsx";
 import { PLACE_EVENT, placeEntry, placeKeyOf, reopenPlace } from "../places/registry.ts";
 import { Publish } from "../publish/Publish.tsx";
 import { AddSectionLine } from "./AddSection.tsx";
+import { BodyInPlace } from "./BodyInPlace.tsx";
+import { bodyInPlace } from "./body-in-place.ts";
 import { ClientBar, type ClientPanel, clientDraftStateOf } from "./ClientBar.tsx";
 import { CLIENT_PLACES, type ClientPlace, ClientRail } from "./ClientRail.tsx";
 import { HelpCard } from "./HelpCard.tsx";
@@ -198,6 +200,21 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 	);
 	useEffect(() => () => items.destroy(), [items]);
 	const itemsNow = useSyncExternalStore(items.subscribe, items.snapshot);
+	// An Entry's body written in place as Blocks (BA-18): its editor loads into the page the first time one shows.
+	const bodies = useMemo(
+		() =>
+			bodyInPlace({
+				token: config.token,
+				words,
+				request,
+				src: config.bodyEditor,
+				announce: (text, urgent) => announceRef.current(text, urgent),
+				saving: (status) => savingRef.current(status),
+				refresh: () => refreshRef.current(),
+			}),
+		[config.token, config.bodyEditor, words, request],
+	);
+	useEffect(() => () => bodies.destroy(), [bodies]);
 	const goTo = useCallback(() => api.builder.commandMenu({ siteId: config.site.id }), [api, config.site.id]);
 	// Sections (BA-17): the page's Page layout, arranged where the Site lets Members arrange.
 	const titleRef = useRef("");
@@ -231,17 +248,20 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 		});
 		return sections.wrap(
 			items.wrap(
-				clientEditing({
-					inner,
-					words,
-					announce: (text, urgent) => announceRef.current(text, urgent),
-					// Escape in the page closes the panel and leaves focus where it is, in the page.
-					closePanel: () => closePanel(false),
-					popovers,
-				}),
+				bodies.wrap(
+					clientEditing({
+						inner,
+						words,
+						announce: (text, urgent) => announceRef.current(text, urgent),
+						// Escape in the page closes the panel and leaves focus where it is, in the page.
+						closePanel: () => closePanel(false),
+						popovers,
+						bodies,
+					}),
+				),
 			),
 		);
-	}, [config.token, config.site.id, words, undoHistory, closePanel, popovers, items, sections]);
+	}, [config.token, config.site.id, words, undoHistory, closePanel, popovers, items, bodies, sections]);
 	useEffect(() => () => editing.destroy(), [editing]);
 	useEffect(() => editing.setMode(mode), [editing, mode]);
 
@@ -425,6 +445,9 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 
 	const pageTitle = opened.address.document?.kind === "page" ? opened.title.name : null;
 	titleRef.current = opened.title.name;
+	// An Entry that isn't a Page: its details are Post details (`client-flows/01`).
+	const postPage =
+		pageState?.page.item?.startsWith("entry:") === true && (pageState as ClientPageState).page.layout !== true;
 	const arrangeable = arranging && shown?.layout === true;
 	const draft = clientDraftStateOf(saving, justSaved, shown);
 	const panelShown = place ? null : panel === "sections" && !arrangeable ? null : panel;
@@ -502,6 +525,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 				onUndo={() => void undoHistory.undo()}
 				onRedo={() => void undoHistory.redo()}
 				place={place !== null}
+				detailsLabel={postPage ? words.details.postDetails : undefined}
 			/>
 			<div
 				className="relative col-start-2 row-start-1 grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_auto]"
@@ -584,6 +608,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 							<AddSectionLine sections={sections} words={words} onAdd={openSectionPicker} />
 						) : null}
 						{opened.shown?.status === "shown" ? <LoopItems items={items} words={words} /> : null}
+						{opened.shown?.status === "shown" ? <BodyInPlace body={bodies} /> : null}
 						{opened.shown?.status === "shown" ? (
 							// 12 from the rail, the panel and the bar: the frame keeps 12 left, right and below.
 							<div className="absolute inset-x-0 top-3 bottom-0">
