@@ -72,6 +72,7 @@ export {
 	BUILDING_AREA_PAGE_PATH,
 	BUILDING_AREA_PATH,
 	BUILDING_AREA_STAND_IN_PATH,
+	BUILDING_FILTER_PARAMETER,
 	type BuildingDocument,
 	buildingAreaPageAddress,
 	isAdminReturnPath,

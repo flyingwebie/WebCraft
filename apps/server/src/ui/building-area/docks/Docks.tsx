@@ -344,7 +344,9 @@ const DOCK_ICONS = { left: PanelLeftIcon, right: PanelRightIcon, bottom: PanelBo
  * The three docks around the canvas (SPEC 2 and 4; `docking/01` to `05`), each in its grid area of the
  * working area: left and right full height, the bottom one under the canvas between them. A dock with
  * no panel to show takes no space, and shows as a dashed drop box while a panel is in the air.
- * Between 1024 and 1279 px the side docks open one at a time over the canvas (`fit`).
+ * Between 1024 and 1279 px the side docks open one at a time over the canvas (`fit`). A window
+ * narrowed while someone works in a side dock keeps that dock open, as its drawer, focus where it was
+ * (BA-34); selecting on the page never opens a drawer that was closed, nor closes one that is open.
  */
 export function DockArea({
 	docks,
@@ -360,8 +362,17 @@ export function DockArea({
 	onHideFocus(): void;
 }) {
 	const { layout, shown, inAir } = docks;
-	if (hidden) return null;
 	const drawers = fit === "drawers";
+	// Narrowed into the drawer layout while working in a side dock: that dock stays open, as its drawer.
+	const before = useRef(fit);
+	const kept = drawers && before.current !== "drawers" && !docks.drawer ? focusedSide() : null;
+	const { setDrawer } = docks;
+	useLayoutEffect(() => {
+		before.current = fit;
+		if (kept) setDrawer(kept);
+	});
+	const drawer = docks.drawer ?? kept;
+	if (hidden) return null;
 	const open = (side: DockSide) => shown[side].length > 0;
 	const lengths = fitDocks(
 		{
@@ -376,7 +387,7 @@ export function DockArea({
 		const isOpen = open(side);
 		const inDrawer = drawers && side !== "bottom";
 		if (!isOpen && !inAir) return null;
-		if (inDrawer && docks.drawer !== side && !inAir) return null;
+		if (inDrawer && drawer !== side && !inAir) return null;
 		const length = isOpen
 			? (lengths[side] ?? dockLength(layout, side, docks.window))
 			: side === "bottom"
@@ -394,6 +405,12 @@ export function DockArea({
 			{inAir ? <InAirLayer docks={docks} /> : null}
 		</>
 	);
+}
+
+/** The side dock that has focus now, if one has. */
+function focusedSide(): "left" | "right" | null {
+	const side = document.activeElement?.closest("[data-wc-dock]")?.getAttribute("data-wc-dock");
+	return side === "left" || side === "right" ? side : null;
 }
 
 /** Between 1024 and 1279 px: a button at each top corner of the canvas that opens its side dock over it. */
@@ -495,10 +512,12 @@ function Dock({
 	const target = inAir?.landing?.side === side;
 	const dockName = words.docks.dockNames[side];
 
-	// In a drawer, Escape closes it and focus goes back to the button that opened it.
+	// A drawer opened takes focus (on its first control), unless it has it already (a window narrowed
+	// while working in it). In a drawer, Escape closes it and focus goes back to the button that opened it.
 	useEffect(() => {
 		if (!drawer) return;
 		const box = element.current;
+		if (box?.contains(document.activeElement)) return;
 		const first = box?.querySelector<HTMLElement>("button, [tabindex='0']");
 		first?.focus();
 	}, [drawer]);

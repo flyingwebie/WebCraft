@@ -62,6 +62,7 @@ import { BreakpointLines } from "./places/styles/BreakpointLines.tsx";
 import { Publish } from "./publish/Publish.tsx";
 import { PUBLISH_OPEN_EVENT } from "./publish/sources.ts";
 import { Rail } from "./rail/Rail.tsx";
+import { useFilterSelection } from "./select-filter.ts";
 
 /**
  * The building area's shell (ADR 0037, SPEC 2 and 4): the rail on the left (48 wide; the logo tile
@@ -378,8 +379,11 @@ export function Shell({ config }: { config: ShellConfig }) {
 		[editing],
 	);
 
-	// The open document (BA-06): what the address names, and where the frame shows it.
-	const opened = useOpenDocument(config, announce);
+	// The open document (BA-06): what the address names, and where the frame shows it. Before another
+	// opens, what was typed and not saved yet is saved (BA-34; the code panes come further down).
+	const leavingRef = useRef<() => Promise<void>>(async () => {});
+	const leaving = useCallback(() => leavingRef.current(), []);
+	const opened = useOpenDocument(config, announce, leaving);
 	const { framed } = opened;
 
 	const onPage = useCallback(
@@ -523,6 +527,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 		appliedSelection.current = key;
 		if (wanted && pageStructure.snapshot().selection?.ref !== wanted) pageStructure.select(wanted);
 	}, [staff, siteOpen, wanted, shown?.address, pageStructure]);
+	// A Filter the address asks to select (the admin's Filters screen, BA-34): where it is placed.
+	useFilterSelection(staff ? pageStructure : null, opened.address.filter ?? null, shown?.address ?? null);
 
 	// The open document is a page for now (documents come with a later part of the building area).
 	// What the panels' rules read: the selection and the open document's kind (a Template of any kind is a Template).
@@ -579,6 +585,10 @@ export function Shell({ config }: { config: ShellConfig }) {
 		staff && panelSelection !== null,
 	);
 	const codeParts = staff ? codePaneParts(codePanes, words, panelSelection?.name ?? "") : null;
+	leavingRef.current = async () => {
+		await frame.current?.flush();
+		await codePanes.panes?.flush();
+	};
 	const docks = useDocks({
 		config,
 		context,
@@ -816,6 +826,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 			className="bg-chrome text-chrome-text grid h-dvh w-full grid-cols-[48px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_48px] overflow-hidden font-sans text-[12px]"
 			data-interface={hidden ? "hidden" : "shown"}
 			data-place={placeKey ?? undefined}
+			data-wc-staff=""
 		>
 			{/* The page itself is the main content: following the link puts focus in the frame (see <main>). */}
 			<a

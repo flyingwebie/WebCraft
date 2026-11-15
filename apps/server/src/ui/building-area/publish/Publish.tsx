@@ -72,12 +72,14 @@ export function Publish({
 	const sheetId = useId();
 
 	const author = !handedIn && data ? !data.canPublish : false;
-	const count = handedIn ? handedIn.changes : countOf(data);
+	// A Popup's changes count too: the sheet sends them to the Popup's review (BA-34).
+	const popupChanged = data?.popup?.changed ?? false;
+	const count = handedIn ? handedIn.changes : countOf(data) + (popupChanged ? 1 : 0);
 	const withdrawable = data?.reviews.some((review) => review.status === "inReview" && review.canWithdraw) ?? false;
-	// Nothing to publish, revert or withdraw: the cell is drawn quiet and does nothing.
+	// Nothing to publish, review, revert or withdraw: the cell is drawn quiet and does nothing.
 	const nothing = handedIn
 		? handedIn.changes === 0
-		: !data || (data.changes.length === 0 && data.drafts.length === 0 && !withdrawable);
+		: !data || (data.changes.length === 0 && data.drafts.length === 0 && !withdrawable && !popupChanged);
 	const disabled = cell === "publishing" || cell === "published" || (cell === "ready" && nothing);
 
 	const state: CellState = cell === "ready" ? (author ? { kind: "review" } : { kind: "ready", count }) : { kind: cell };

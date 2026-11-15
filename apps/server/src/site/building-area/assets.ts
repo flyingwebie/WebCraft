@@ -249,7 +249,9 @@ async function shellStylesheet(theme: string, fonts: readonly BuildingAreaAsset[
 	const chrome = await Bun.file(join(dirname(shellEntry), "theme.css")).text();
 	// Client editing on a phone and with a finger (BA-19): the sheets and the 44 px targets.
 	const phone = await Bun.file(join(dirname(shellEntry), "client", "phone", "phone.css")).text();
-	const css = `${(await Bun.file(theme).text()).replace('@import "@fontsource-variable/inter";', "")}\n${chrome}\n${phone}`;
+	// Staff with a finger (BA-34): the 44 px targets of the rail, the bar, the docks and their panels.
+	const touch = await Bun.file(join(dirname(shellEntry), "docks", "touch.css")).text();
+	const css = `${(await Bun.file(theme).text()).replace('@import "@fontsource-variable/inter";', "")}\n${chrome}\n${phone}\n${touch}`;
 	const compiled = await compile(css, { base: dirname(theme), onDependency() {} });
 	// The shell's own sources, and the admin's parts it reuses as they are (the Media library's, BA-22,
 	// a Form field's settings, BA-26, with the shared components they draw with).

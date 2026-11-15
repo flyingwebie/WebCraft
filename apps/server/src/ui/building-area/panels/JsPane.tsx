@@ -41,7 +41,9 @@ import { type PaneStore, paneStore, usePane } from "./pane-store.ts";
  * Each save is **one Undo step** of the tab's history (BA-32): taken back by saving the code before it,
  * based on the version the step left (a script someone changed since is skipped as obsolete). Typing
  * holds the history's place from the first keystroke until its save is answered, so Undo waits for the
- * save before it takes a step back. ⌘S saves at once.
+ * save before it takes a step back. ⌘S saves at once. A script typed and not saved yet, or a conflict
+ * waiting for its choice, is kept by its page when the frame shows another one, and shown again (and
+ * saved, or asked again) once the frame shows that page again (BA-34).
  */
 
 export type ScriptTab = "page" | "site" | "component";
@@ -145,6 +147,9 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 		held?.settle();
 	};
 	const unregisters = new Map<string, () => void>();
+	/** What was typed and not saved (or a conflict waiting) on pages the frame no longer shows, by page. */
+	const kept = new Map<string, JsState>();
+	const unsaved = (state: JsState) => Object.values(state.dirty).some(Boolean) || state.conflict !== null;
 
 	const load = async (path: string, ref: string | null) => {
 		const asked = ++loadRun;
@@ -181,6 +186,19 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 		const selection = deps().structure.snapshot().selection;
 		const state = store.get();
 		if (path !== state.path) {
+			if (state.path && state.status === "ready" && unsaved(state))
+				kept.set(state.path, { ...state, saving: false, running: false, goTo: null });
+			const was = path ? kept.get(path) : undefined;
+			if (path && was) {
+				// Back on a page with something unsaved: as it was, read at the versions it was typed over.
+				kept.delete(path);
+				store.set(was);
+				if (!was.conflict && Object.values(was.dirty).some(Boolean)) {
+					window.clearTimeout(saveTimer);
+					saveTimer = window.setTimeout(() => void flush(), SAVE_AFTER_MS);
+				}
+				return;
+			}
 			store.set({ ...IDLE, path });
 			if (path && selection) void load(path, selection.ref);
 			return;
@@ -221,6 +239,18 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 		store.set({ saving: true });
 		const answer = await request<CodeScript>("code/saveScript", body);
 		store.set({ saving: false });
+		// The frame shows another page now: what was asked is told to that page's kept state.
+		if (store.get().path !== path) {
+			const left = kept.get(path);
+			if (answer.ok) {
+				recordStep(tab, scripts, before, { code, version: answer.data.version });
+				if (left) kept.set(path, savedInto(left, tab, code, answer.data));
+			} else if (left && answer.code === "CHANGED_MEANWHILE") {
+				const newer = answer.data.version;
+				kept.set(path, { ...left, conflict: { tab, version: typeof newer === "string" ? newer : null } });
+			}
+			return;
+		}
 		if (!answer.ok) {
 			if (answer.code === "CHANGED_MEANWHILE") {
 				const newer = answer.data.version;
@@ -233,14 +263,7 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 		}
 		const saved = answer.data;
 		recordStep(tab, scripts, before, { code, version: saved.version });
-		store.set((now) => {
-			const next = { ...now.scripts } as Scripts;
-			if (tab === "site") next.site = { ...next.site, ...saved };
-			else if (tab === "page" && next.page) next.page = { ...next.page, ...saved };
-			else if (tab === "component" && next.component) next.component = { ...next.component, ...saved };
-			const typedSince = now.texts[tab] !== code;
-			return { scripts: next, dirty: { ...now.dirty, [tab]: typedSince }, failure: null };
-		});
+		store.set((now) => savedInto(now, tab, code, saved));
 	};
 
 	const flush = async () => {
@@ -474,6 +497,16 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 			unsubscribe();
 		},
 	};
+}
+
+/** A pane's state once `code` was saved to the script of `tab`: its new version, and dirty only if typed since. */
+function savedInto(now: JsState, tab: ScriptTab, code: string, saved: CodeScript): JsState {
+	const next = { ...now.scripts } as Scripts;
+	if (tab === "site") next.site = { ...next.site, ...saved };
+	else if (tab === "page" && next.page) next.page = { ...next.page, ...saved };
+	else if (tab === "component" && next.component) next.component = { ...next.component, ...saved };
+	const typedSince = now.texts[tab] !== code;
+	return { ...now, scripts: next, dirty: { ...now.dirty, [tab]: typedSince }, failure: null };
 }
 
 /** A script's title: "Page script", "Site script", "Component script". */
