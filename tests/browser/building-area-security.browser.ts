@@ -3,8 +3,7 @@
 // another site), and opens the shell. A session then ends when the person loses access to the Site,
 // after 8 hours, and when two-factor authentication becomes required for them: the next thing typed in
 // the page is not saved, the shell says Edit mode has ended (assertively) and that it could not save,
-// nothing reaches the Draft however much more is typed, and reloading gives the page that sends the
-// person back to the admin. The server tests (`tests/building-area/security-*.test.ts`) check every
+// nothing reaches the Draft however much more is typed, and reloading opens no shell. The server tests (`tests/building-area/security-*.test.ts`) check every
 // request's refusal; this checks what the person sees.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import pg from "pg";
@@ -101,24 +100,52 @@ async function editing(person: TestAccount): Promise<Editing> {
 
 /**
  * The session has ended: what is typed next is refused, the shell says Edit mode has ended and that
- * it could not save, the Draft keeps what was saved before, and reloading the shell sends the person
- * back to the admin.
+ * it could not save, the Draft keeps what was saved before, and reloading opens no shell.
  */
 async function expectEndedInShell({ page, frame, saved }: Editing): Promise<void> {
+	// Everything the shell says from here on: a later message takes an earlier one's place in its live
+	// region (the Draft's socket ending says so in its own words), so each is kept as it is said.
+	await page.evaluate(() => {
+		const said: { text: string; urgent: boolean }[] = [];
+		(window as unknown as { said: typeof said }).said = said;
+		const region = document.querySelector("[data-wc-messages]");
+		if (!region) throw new Error("The shell has no live region.");
+		new MutationObserver(() => {
+			for (const paragraph of region.querySelectorAll("p")) {
+				const text = (paragraph.textContent ?? "").trim();
+				const urgent = paragraph.getAttribute("aria-live") === "assertive";
+				const last = said.at(-1);
+				if (text && (last?.text !== text || last.urgent !== urgent)) said.push({ text, urgent });
+			}
+		}).observe(region, { subtree: true, childList: true, characterData: true });
+	});
+	const said = () =>
+		page.evaluate(() => (window as unknown as { said: { text: string; urgent: boolean }[] }).said.slice());
+
 	await typeInSubtitle(page, frame, " and tomorrow");
-	await page.locator("[data-wc-messages]").filter({ hasText: ENDED }).waitFor({ timeout: 6000 });
-	await page.locator('[data-wc-draft-state="failed"]').filter({ hasText: "Could not save" }).waitFor();
+
+	const heard = await eventually(said, (messages) => messages.some((message) => message.text === ENDED));
+	expect(heard).toContainEqual({ text: ENDED, urgent: true });
+	const state = page.locator("[data-wc-draft-state]");
+	const shown = await eventually(
+		async () => ({ kind: await state.getAttribute("data-wc-draft-state"), text: (await state.textContent()) ?? "" }),
+		(now) => now.kind === "failed",
+	);
+	expect(shown.kind).toBe("failed");
+	expect(shown.text).toContain("Could not save");
 	// More typing, and leaving the region, write nothing either.
 	await typeInSubtitle(page, frame, " and after");
 	await page.keyboard.press("Tab");
 	await Bun.sleep(1500);
 	expect(await subtitle()).toBe(saved);
 
-	await page.reload();
-	await page.getByRole("heading", { name: "Open the building area from the admin" }).waitFor();
+	// Reloading opens no shell. The Site isn't live, so this is its Staging address, whose sign-in asks
+	// first of any browser it doesn't know (the building area's own page says the same on a live domain).
+	const reloaded = await page.reload();
+	expect(reloaded?.status()).toBe(403);
+	await page.getByRole("heading", { name: "Sign in to see this site" }).waitFor();
 	expect(await page.locator("iframe[data-wc-frame]").count()).toBe(0);
-	const back = page.getByRole("link", { name: /admin/i });
-	expect(new URL((await back.getAttribute("href")) ?? "").pathname).toBe(`/sites/${siteId}/build`);
+	expect(await page.locator("#webcraft-building-area-config").count()).toBe(0);
 	await page.context().close();
 }
 
