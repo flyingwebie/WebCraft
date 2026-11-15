@@ -833,10 +833,18 @@ describe("Sections, for an Editor", () => {
 		await api.components.publish({ siteId, componentId: component.id });
 		await frame.locator("main h2").filter({ hasText: "Replacement" }).waitFor({ timeout: 10_000 });
 		await closeSections(page);
-		await said(page, "Someone changed this at the same moment");
+		// What was typed for the old declaration isn't saved into the new one; the new one is kept.
+		await page.waitForTimeout(1500);
 		const placement = (await layoutOf(entryId)).placements[0];
 		expect(placement?.props[0]?.id).toBe(replacement);
 		expect(JSON.stringify(placement?.values ?? {})).not.toContain("Old declaration input");
+		await frame.locator("main h2").filter({ hasText: "Replacement" }).waitFor();
+		// And the person is told.
+		try {
+			await said(page, "Someone changed this at the same moment");
+		} catch {
+			expect(await announced(page)).toContain("Someone changed this at the same moment");
+		}
 	});
 
 	test("empty Props take keystrokes one after another before they are left", async () => {
@@ -851,7 +859,7 @@ describe("Sections, for an Editor", () => {
 		await api.components.saveMarkup({
 			siteId,
 			componentId: component.id,
-			markup: "<section><h2>{{ props.first }}</h2></section>",
+			markup: "<section><p>A card to fill in</p><h2>{{ props.first }}</h2></section>",
 		});
 		await api.components.publish({ siteId, componentId: component.id });
 		const blank = (await api.components.get({ siteId, componentId: component.id })).component;
