@@ -233,15 +233,13 @@ export function RemovedToast({ sections, words }: { sections: MemberSections; wo
 	if (!removed) return null;
 	const said = words.sections;
 	return (
-		// biome-ignore lint/a11y/noStaticElementInteractions: hovering only pauses the toast's timer.
-		<div
+		<section
 			key={removed.key}
 			className="pointer-events-none fixed inset-x-0 top-3 z-[60] flex justify-center"
 			onPointerEnter={() => setHeld(true)}
 			onPointerLeave={() => setHeld(false)}
 			onFocus={() => setHeld(true)}
 			onBlur={() => setHeld(false)}
-			role="region"
 			aria-label={said.removed}
 			data-wc-section-toast=""
 		>
@@ -265,6 +263,6 @@ export function RemovedToast({ sections, words }: { sections: MemberSections; wo
 					<XIcon aria-hidden="true" className="size-3.5" />
 				</button>
 			</div>
-		</div>
+		</section>
 	);
 }
