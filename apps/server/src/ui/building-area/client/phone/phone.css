@@ -1,0 +1,74 @@
+/*
+ * Client editing on a phone and with a finger (BA-19; SPEC 13.9, `client-flows/06`). Compiled into the
+ * shell's stylesheet after the chrome's colours (`site/building-area/assets.ts`). The client shell says
+ * its layout on its root (`data-wc-layout`: phone, tablet or desktop, `client/phone/layout.ts`); the
+ * parts other tickets draw are restyled here by their data attributes, so they stay one component.
+ */
+
+/* A finger gets targets of at least 44 px, whatever the window's width. */
+@media (pointer: coarse) {
+	[data-wc-client]
+		:is(
+			button,
+			a[href],
+			select,
+			textarea,
+			summary,
+			input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="range"], [type="file"]),
+			[role="button"],
+			[role="switch"],
+			[role="tab"],
+			[role="menuitem"],
+			[role="menuitemradio"],
+			[role="menuitemcheckbox"],
+			[role="option"],
+			[role="treeitem"]
+		):not(.sr-only) {
+		min-height: 44px;
+		min-width: 44px;
+	}
+	/* The bar's switches grow with their buttons. */
+	[data-wc-client] :is([data-wc-modes], [data-wc-widths]) {
+		height: auto;
+	}
+}
+
+/* The phone: the page edge to edge, square. */
+[data-wc-layout="phone"] :is([data-wc-frame-box], [data-wc-frame-focus]) {
+	border-radius: 0;
+}
+
+/*
+ * Every panel and popover a sheet from the bottom: the side panels (Page details, Sections, a list
+ * item's Fields), the photo's and the link's popovers, Publish, the list of Pages and Entries, Help.
+ * The page behind is dimmed. These rules are outside Tailwind's layers, so they win over the parts'
+ * own classes; only a popover's place, which it sets on itself, needs more.
+ */
+[data-wc-layout="phone"]
+	:is(
+		[data-wc-side-panel],
+		[data-wc-popover],
+		[data-wc-publish-sheet],
+		[data-wc-page-list],
+		[data-wc-help-card="help"]
+	) {
+	position: fixed;
+	/* biome-ignore lint/complexity/noImportantStyles: a popover places itself with its own `left` and `top`. */
+	inset: auto 0 0 0 !important;
+	width: auto;
+	max-width: none;
+	max-height: 85dvh;
+	overflow-y: auto;
+	border-width: 1px 0 0 0;
+	border-radius: 20px 20px 0 0;
+	padding-bottom: max(12px, env(safe-area-inset-bottom));
+	z-index: 50;
+	box-shadow:
+		0 -12px 32px rgba(0, 0, 0, 0.45),
+		0 0 0 100vmax rgba(0, 0, 0, 0.45);
+}
+
+/* A side panel's body scrolls inside the sheet. */
+[data-wc-layout="phone"] [data-wc-side-panel] {
+	overflow-y: hidden;
+}

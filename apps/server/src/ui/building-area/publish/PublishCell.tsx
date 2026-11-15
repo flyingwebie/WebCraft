@@ -8,6 +8,7 @@ import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
  * Publish's one cell (SPEC 4 and 10, `docking/08`, `client-flows/05`): the label with its count,
  * "Publishing…", "Published" for 2 s, "Try again"; all in one cell that never changes width. Staff's
  * bar draws it 112 × 32; the client bar 132 × 40 (BA-14). An Author's is "Send for review", 164 wide.
+ * A phone's one bar (BA-19, `client-flows/06`) draws it 96 × 32, an Author's reading "Send".
  */
 export type CellState =
 	| { kind: "ready"; count: number }
@@ -17,7 +18,7 @@ export type CellState =
 	| { kind: "review" };
 
 /** The sizes of the bars that hold the cell. */
-export type CellSize = "bar" | "client";
+export type CellSize = "bar" | "client" | "phone";
 
 const SIZES: Record<CellSize, { box: string; author: string; text: string; icon: string; badge: string }> = {
 	bar: {
@@ -33,6 +34,13 @@ const SIZES: Record<CellSize, { box: string; author: string; text: string; icon:
 		text: "text-[14px]",
 		icon: "size-4",
 		badge: "h-5 min-w-5 px-1.5 text-[12px]",
+	},
+	phone: {
+		box: "h-8 w-24 rounded-lg gap-1.5 px-1",
+		author: "h-8 w-24 rounded-lg gap-1.5 px-1",
+		text: "text-[12px]",
+		icon: "size-3.5",
+		badge: "h-[18px] min-w-[18px] px-[5px] text-[11px]",
 	},
 };
 
@@ -111,7 +119,7 @@ export function PublishCell({
 				content: (
 					<>
 						<SendIcon aria-hidden="true" className={icon} />
-						<span>{shown.sendForReview}</span>
+						<span>{size === "phone" ? shown.sendShort : shown.sendForReview}</span>
 					</>
 				),
 			};
@@ -155,6 +163,8 @@ export function PublishCell({
 			aria-controls={open ? sheetId : undefined}
 			aria-keyshortcuts={keys.aria}
 			aria-busy={state.kind === "publishing" ? true : undefined}
+			// On a phone an Author's cell reads "Send": its name says it all.
+			aria-label={size === "phone" && state.kind === "review" ? shown.sendForReview : undefined}
 			className={`inline-flex shrink-0 items-center justify-center font-semibold whitespace-nowrap aria-disabled:cursor-default ${
 				state.kind === "review" ? look.author : look.box
 			} ${look.text} ${face.colours} ${CHROME_EASE} ${FOCUS_RING}`}

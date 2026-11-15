@@ -68,8 +68,21 @@ function useCanUndo(): boolean {
  *
  * The keyboard way in is Alt+F10 from the text; the arrow keys, Home and End move between the tools,
  * Escape goes back to the text where the caret was. A pointer on a tool keeps the caret in the text.
+ *
+ * `dock` (client editing on a phone, BA-19; `client-flows/06`): the toolbar sits on the keyboard
+ * instead, a band across the bottom of the screen `dock.bottom` above it (the keyboard's height), with
+ * the tools a phone's width holds: Bold, Italic, Link, the list, Undo and Done. Its name is then said,
+ * not shown.
  */
-export function TextToolbar({ editing, words }: { editing: PageEditing; words: Words }) {
+export function TextToolbar({
+	editing,
+	words,
+	dock = null,
+}: {
+	editing: PageEditing;
+	words: Words;
+	dock?: { bottom: number } | null;
+}) {
 	const snapshot = useSyncExternalStore(editing.subscribe, editing.snapshot);
 	const { region } = snapshot;
 	// The toolbar and the note follow the region: drawn again whenever the overlay draws.
@@ -80,7 +93,7 @@ export function TextToolbar({ editing, words }: { editing: PageEditing; words: W
 	if (!box) return null;
 	return (
 		<>
-			{snapshot.toolbar ? <Toolbar editing={editing} words={words} snapshot={snapshot} box={box} /> : null}
+			{snapshot.toolbar ? <Toolbar editing={editing} words={words} snapshot={snapshot} box={box} dock={dock} /> : null}
 			{snapshot.problem ? <ProblemNote text={snapshot.problem} box={box} /> : null}
 		</>
 	);
@@ -99,11 +112,13 @@ function Toolbar({
 	words,
 	snapshot,
 	box,
+	dock,
 }: {
 	editing: PageEditing;
 	words: Words;
 	snapshot: EditingSnapshot;
 	box: DOMRect;
+	dock: { bottom: number } | null;
 }) {
 	const said = words.editing;
 	const { tools } = editing;
@@ -114,7 +129,7 @@ function Toolbar({
 	const [link, setLink] = useState<{ value: string; existing: boolean } | null>(null);
 	const [width, setWidth] = useState(0);
 
-	const all: Tool[] = [
+	const every: Tool[] = [
 		{
 			id: "bold",
 			icon: BoldIcon,
@@ -157,6 +172,8 @@ function Toolbar({
 			act: () => tools.undo(),
 		},
 	];
+	// On a phone's keyboard: one list, so the tools fit its width with 44 px targets.
+	const all = dock ? every.filter((tool) => tool.id !== "numberedList") : every;
 	/** The tools the arrow keys go through: every one that is on, then Done. */
 	const stops = all.filter((tool) => !tool.disabled).length + 1;
 
@@ -221,13 +238,18 @@ function Toolbar({
 	const left = Math.max(room.left + 4, Math.min(box.left, room.right - width - 4));
 
 	let stop = 0;
+	const place = dock ? { left: 0, right: 0, bottom: `${dock.bottom}px` } : { left: `${left}px`, top: `${top}px` };
 	return (
 		// biome-ignore lint/a11y/noStaticElementInteractions: the wrapper only keeps a pressed tool from taking the caret out of the text, and notices focus leaving; its toolbar and link field are the controls.
 		<div
 			ref={wrapper}
-			className="fixed z-30 flex flex-col gap-2"
-			style={{ left: `${left}px`, top: `${top}px` }}
-			data-wc-text-toolbar=""
+			className={
+				dock
+					? "border-chrome-line bg-chrome-menu fixed z-30 flex flex-col-reverse items-center gap-2 border-t px-2 py-2"
+					: "fixed z-30 flex flex-col gap-2"
+			}
+			style={place}
+			data-wc-text-toolbar={dock ? "docked" : ""}
 			onMouseDown={(event) => {
 				// A tool pressed keeps the caret and the selection in the text.
 				if (!(event.target instanceof HTMLInputElement)) event.preventDefault();
@@ -246,11 +268,15 @@ function Toolbar({
 				onKeyDown={onKeyDown}
 				className="border-chrome-hover bg-chrome-menu flex h-11 items-center gap-0.5 rounded-xl border ps-2.5 pe-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.35)]"
 			>
-				<TypeIcon aria-hidden="true" className="text-chrome-text size-3.5 shrink-0" />
-				<span className="text-chrome-strong ps-1.5 pe-2.5 text-[13px] font-semibold whitespace-nowrap">
-					{snapshot.region?.name}
-				</span>
-				<Divider />
+				{dock ? null : (
+					<>
+						<TypeIcon aria-hidden="true" className="text-chrome-text size-3.5 shrink-0" />
+						<span className="text-chrome-strong ps-1.5 pe-2.5 text-[13px] font-semibold whitespace-nowrap">
+							{snapshot.region?.name}
+						</span>
+						<Divider />
+					</>
+				)}
 				{all.map((tool, index) => {
 					const mine = tool.disabled ? -1 : stop++;
 					return (

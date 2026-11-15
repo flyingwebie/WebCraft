@@ -9478,6 +9478,7 @@
 			"published": "Pubblicato",
 			"tryAgain": "Riprova",
 			"sendForReview": "Invia in revisione",
+			"sendShort": "Invia",
 			"title": "Pubblica {title}",
 			"titleNoPage": "Pubblica queste modifiche",
 			"intro": "I visitatori vedono queste modifiche quando pubblichi.",
@@ -9984,6 +9985,14 @@
 				"finished": "Modifica di {name} terminata",
 				"dropHere": "Rilascia per usare questa foto",
 				"blocks": "Blocchi"
+			},
+			"phone": {
+				"more": "Altro",
+				"close": "Chiudi",
+				"language": "Lingua",
+				"back": "Indietro",
+				"languages": "Lingue della pagina",
+				"hint": "Tocca il contorno tratteggiato per fare modifiche."
 			},
 			"photo": {
 				"region": "{name}: cambia la foto",
