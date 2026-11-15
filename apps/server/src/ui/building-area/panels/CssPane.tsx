@@ -4,6 +4,7 @@ import { PaintbrushIcon, PlusIcon, XIcon } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 
 import { editorHistory, type HistoryResult } from "../../builder/editor-history.ts";
+import { matches } from "../../builder/shortcuts.ts";
 import { nodeAt, pathOfId, replaceAt } from "../../builder/tree.ts";
 import { fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING, Tip } from "../controls.tsx";
@@ -925,7 +926,15 @@ export function CssBody({ pane, words, settings }: { pane: CssPane; words: Words
 			</p>
 		);
 	const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-		formatting.onKeyDown(event);
+		if (formatting.onKeyDown(event)) return;
+		// ⌘S / Ctrl+S saves at once (BA-32), as in the HTML and JS panes: never the browser's Save page.
+		if (
+			matches(event.nativeEvent, "editor.save") ||
+			((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s")
+		) {
+			event.preventDefault();
+			void pane.flush();
+		}
 	};
 	return (
 		<div className="flex min-h-0 grow flex-col gap-1.5 pt-1.5" data-wc-css-pane="ready">
