@@ -125,6 +125,7 @@ export function QuickActions({
 	favourites,
 	toggleFavourite,
 	announce,
+	atWidth = breakpointQuery,
 }: {
 	words: Words;
 	text: string;
@@ -138,6 +139,11 @@ export function QuickActions({
 	favourites: readonly string[];
 	toggleFavourite(value: string): void;
 	announce(text: string): void;
+	/**
+	 * The query "At this width" writes for the canvas's width now: from that width up, as a Breakpoint's
+	 * (the Styles place); the CSS pane writes the frames' rule at this width, under it (BA-11).
+	 */
+	atWidth?(width: number): string;
 }) {
 	const shown = words.styles.quick;
 	const [open, setOpen] = useState<ActionWord | null>(null);
@@ -276,7 +282,7 @@ export function QuickActions({
 													? [
 															{
 																label: fill(shown.atWidth, { width: String(width) }),
-																value: breakpointQuery(width),
+																value: atWidth(width),
 																detail: "",
 															},
 														]

@@ -75,8 +75,12 @@ export type AgentHost = {
 	event(kind: AgentEventKind, event: Event): boolean;
 	/** The frame's window gained or lost focus. */
 	focus(inside: boolean): void;
-	/** An error the page reported (an uncaught exception, a script that didn't load). */
-	error(message: string, source: string | null): void;
+	/**
+	 * A line of the page's console (BA-11, `agent/console.ts`): what its scripts wrote with `console.*`,
+	 * an uncaught exception, a promise rejected with nothing to catch it, a script that didn't load. The
+	 * JS pane lists them, each against the script and line it came from when the browser says.
+	 */
+	log(entry: ConsoleEntry): void;
 	/**
 	 * A link of the page was clicked while the shell lets links be followed (editing is off: the
 	 * interface is hidden). The agent stops the browser following it and hands its address here; the
@@ -94,4 +98,15 @@ export type PageAgent = {
 	adopt(nodes: readonly Node[]): void;
 	/** Whether a region is plain text (one line) or rich text. */
 	isRichText(region: Element): boolean;
+};
+
+/** One line of the page's console, as the agent hands it to the shell (BA-11). */
+export type ConsoleEntry = {
+	level: "log" | "info" | "warn" | "error";
+	/** What was written, as text (values written as JSON where they can be). */
+	text: string;
+	/** The address of the script it came from (an error's file), when the browser says. */
+	source: string | null;
+	/** Its 1-based line in that script, when the browser says. */
+	line: number | null;
 };

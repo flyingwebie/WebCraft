@@ -22,6 +22,7 @@ import { TextToolbar } from "./editing/TextToolbar.tsx";
 import { type RegionCycle, regionCycle } from "./keyboard.ts";
 import { NarrowNotice } from "./NarrowNotice.tsx";
 import { useOpenDocument } from "./open-document.ts";
+import { codePaneParts, useCodePanes } from "./panels/code-panes.tsx";
 import { EntryPanel, EntryPanelActions, useEntryPanelView } from "./panels/EntryFields.tsx";
 import { Inspector } from "./panels/Inspector.tsx";
 import { Layers } from "./panels/Layers.tsx";
@@ -339,11 +340,31 @@ export function Shell({ config }: { config: ShellConfig }) {
 	// The Entry panel (BA-13): the page's Entry filled in without leaving it; a page never published
 	// follows its new slug. (A Member gets Page details in client editing's side panel instead.)
 	const entryView = useEntryPanelView();
+	// The code panes (BA-11): their own file, fetched the first time something is selected.
+	const codePanes = useCodePanes(
+		{
+			config,
+			words,
+			structure: pageStructure,
+			history: undoHistory,
+			frame,
+			announce,
+			path: () => {
+				const address = shownAddress.current;
+				return address && !address.startsWith(`${BUILDING_STAND_IN_PREFIX}/`) ? (address.split("?")[0] ?? "/") : null;
+			},
+		},
+		staff && panelSelection !== null,
+	);
+	const codeParts = staff ? codePaneParts(codePanes, words, panelSelection?.name ?? "") : null;
 	const docks = useDocks({
 		config,
 		context,
 		announce,
-		panelActions: { entry: <EntryPanelActions words={words} view={entryView} /> },
+		panelActions: { entry: <EntryPanelActions words={words} view={entryView} />, ...codeParts?.actions },
+		subs: codeParts?.subs,
+		menus: codeParts?.menus,
+		wide: codePanes.wide,
 		headings: {
 			layers: (
 				<DocumentSwitcher
@@ -381,6 +402,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 								onOpenComponent={(componentId) => opened.open({ kind: "component", componentId })}
 							/>
 						),
+						...codeParts?.bodies,
 					}
 				: {}),
 		},
@@ -389,8 +411,9 @@ export function Shell({ config }: { config: ShellConfig }) {
 	const exit = async () => {
 		setExiting(true);
 		announce(words.exiting);
-		// Whatever was typed and not saved yet is saved before the session ends.
+		// Whatever was typed and not saved yet is saved before the session ends (the page, the code panes).
 		await frame.current?.flush();
+		await codePanes.panes?.flush();
 		const answer = await request("end", {});
 		if (!answer.ok && answer.code !== "EDIT_MODE_ENDED") {
 			setExiting(false);

@@ -50,6 +50,8 @@ export type ShellConfig = {
 	layout: Layout | null;
 	/** Whether the person has seen the first-visit card of client editing (their editor preferences, BA-14). */
 	hintSeen: boolean;
+	/** Whether the code panes format a box when the person leaves it (their editor preferences, BA-11; SPEC 5.1). */
+	formatOnLeave: boolean;
 	/**
 	 * Who built the Site, for Help's "Ask your agency" (BA-14): Install branding's sender name, and its
 	 * footer text, which is where an agency puts how to reach it (null when it has none).
