@@ -209,9 +209,8 @@ export function MoreSheet({
 							icon={Redo2Icon}
 							chevron={false}
 							disabled={!history.redo || history.busy}
-							onClick={() => {
-								onRedo();
-							}}
+							// The sheet goes first: what the step says is heard once the page can be reached again.
+							onClick={then(onRedo)}
 							data={{ "data-wc-phone-row": "redo" }}
 						>
 							{redoLabel}

@@ -453,10 +453,9 @@ describe("client editing on a phone", () => {
 		await more(page).tap();
 		const redo = moreSheet(page).getByRole("button", { name: "Redo Edit Tagline", exact: true });
 		await redo.tap();
+		await moreSheet(page).waitFor({ state: "hidden" });
 		await said(page, "Redid Edit Tagline");
 		expect(await eventually(taglineNow, (now) => now === "Typed on a phone")).toBe("Typed on a phone");
-		await page.keyboard.press("Escape");
-		await moreSheet(page).waitFor({ state: "hidden" });
 
 		// Back as it was, for the next checks.
 		await undo.tap();
