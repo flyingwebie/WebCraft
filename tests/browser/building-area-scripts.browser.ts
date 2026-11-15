@@ -24,6 +24,15 @@ import { announced, enterBuildingArea, frameOf, settled } from "./building-area.
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, forgetPageErrors, startBrowserInstall } from "./harness.ts";
 
+/**
+ * The accessibility checks, once the size readout a previous keyboard walk opened (focus on a gutter)
+ * has left: its controls would count as stops while they are going.
+ */
+async function accessible(page: Page, where: string): Promise<void> {
+	await page.waitForTimeout(1800);
+	await expectAccessibleScreen(page, where);
+}
+
 let install: BrowserInstall;
 let api: ApiClient;
 let staff: TestAccount;
@@ -149,12 +158,20 @@ function shared(as: "staff" | "member"): Promise<Page> {
 	const make = async () => {
 		const page = await install.newPage("light");
 		await page.setViewportSize({ width: 1440, height: 900 });
-		await enterBuildingArea(install, page, {
-			as: as === "staff" ? staff : member,
-			siteId,
-			slug,
-			open: "/page/blog/fresh-bread",
-		});
+		try {
+			await enterBuildingArea(install, page, {
+				as: as === "staff" ? staff : member,
+				siteId,
+				slug,
+				open: "/page/blog/fresh-bread",
+			});
+		} catch (failure) {
+			const text = await page
+				.locator("body")
+				.textContent()
+				.catch(() => "");
+			throw new Error(`Entering as ${as} failed at ${page.url()}: ${(text ?? "").slice(0, 400)}`, { cause: failure });
+		}
 		await settled(page);
 		return page;
 	};
@@ -192,6 +209,21 @@ async function reloaded(page: Page, safe: boolean): Promise<Frame> {
 		await page.waitForTimeout(50);
 	}
 	throw new Error(`The page never showed with Safe mode ${safe ? "on" : "off"}.`);
+}
+
+/** Puts the caret at the end of the JS box (the End keys differ between systems). */
+async function toEnd(page: Page): Promise<void> {
+	await box(page, "js").evaluate((area: HTMLTextAreaElement) =>
+		area.setSelectionRange(area.value.length, area.value.length),
+	);
+}
+
+/** Turns Safe mode off when a check left it on, so the next checks see the Site's scripts run. */
+async function leaveSafeMode(page: Page): Promise<void> {
+	const control = page.locator("[data-wc-safe-mode]");
+	if ((await control.count()) === 0) return;
+	await control.getByRole("button", { name: "Turn off Safe mode" }).click();
+	await reloaded(page, false);
 }
 
 /** What each Counter's root says about its calls, in the page's order. */
@@ -265,6 +297,14 @@ async function componentTab(page: Page, label: string): Promise<void> {
 describe("Staff", () => {
 	test("a failing Site script: the notice names it; Safe mode opens from it, and the bar turns it off", async () => {
 		const page = await shared("staff");
+		try {
+			await failingSiteScript(page);
+		} finally {
+			await leaveSafeMode(page);
+		}
+	});
+
+	async function failingSiteScript(page: Page): Promise<void> {
 		let frame = await frameOf(page);
 		await frame.waitForFunction(() => document.documentElement.dataset.siteScript === "ran");
 		const shown = notice(page);
@@ -274,7 +314,7 @@ describe("Staff", () => {
 		// The Counter that throws failed too: the notice counts it.
 		await shown.getByText("Other scripts failed too: 1.").waitFor();
 		forgetScriptErrors(page);
-		await expectAccessibleScreen(page, "a failing Site script's notice, light");
+		await accessible(page, "a failing Site script's notice, light");
 		await page.emulateMedia({ colorScheme: "dark" });
 		await expectNoAxeViolations(page, "a failing Site script's notice, dark");
 		await page.emulateMedia({ colorScheme: "light" });
@@ -294,9 +334,9 @@ describe("Staff", () => {
 		await frame.locator("h1[contenteditable]").waitFor();
 		expect(await control.textContent()).toContain("Safe mode");
 		forgetScriptErrors(page);
-		await expectAccessibleScreen(page, "Safe mode on the bar, light");
+		await accessible(page, "Safe mode on the bar, light");
 		await page.emulateMedia({ colorScheme: "dark" });
-		await expectAccessibleScreen(page, "Safe mode on the bar, dark");
+		await accessible(page, "Safe mode on the bar, dark");
 		await page.emulateMedia({ colorScheme: "light" });
 
 		// Turn off, on the bar: the Site's scripts run again, and the notice is back.
@@ -310,7 +350,7 @@ describe("Staff", () => {
 		expect(await notice(page).count()).toBe(0);
 		expect(await page.evaluate(() => document.activeElement?.hasAttribute("data-wc-frame") ?? false)).toBe(true);
 		forgetScriptErrors(page);
-	});
+	}
 
 	test("Component scripts run once per Placement, also for one added later; a failing call shows its notice", async () => {
 		const page = await shared("staff");
@@ -329,6 +369,8 @@ describe("Staff", () => {
 		await page.emulateMedia({ colorScheme: "light" });
 
 		// A Placement duplicated in Layers (BA-09): the page is drawn again with it, and it gets its call.
+		// Selecting inside it opens the tree towards it: the Placements' rows show.
+		await clickIn(page, frame, "main [data-label='Three'] > p");
 		const tree = page.getByRole("tree", { name: "Elements of the page" });
 		const three = tree.getByRole("treeitem", { name: /^Counter/ }).nth(2);
 		await three.click();
@@ -347,6 +389,7 @@ describe("Staff", () => {
 	});
 
 	test("the JS pane's Component tab: chosen for a Placement, its warning, ⌘S saving it, Run, a failing call", async () => {
+		await api.components.saveScriptDraft({ siteId, componentId: counterId, code: COUNTER });
 		const page = await shared("staff");
 		await open(page, "/blog/rye");
 		// Before anything inside a Placement is selected, there is no Component tab.
@@ -369,7 +412,7 @@ describe("Staff", () => {
 		// ⌘S saves at once: the Draft holds exactly what the box shows, and it is said.
 		const typed = `${COUNTER}// saved from the keyboard\n`;
 		await box(page, "js").click();
-		await page.keyboard.press("ControlOrMeta+End");
+		await toEnd(page);
 		await page.keyboard.insertText("// saved from the keyboard\n");
 		await page.keyboard.press("ControlOrMeta+s");
 		await said(page, "Saved the Component script to the Draft.");
@@ -462,13 +505,14 @@ describe("Staff", () => {
 	});
 
 	test("Undo waits for a Component script's save before it takes a step back", async () => {
+		await api.components.saveScriptDraft({ siteId, componentId: counterId, code: COUNTER });
 		const page = await shared("staff");
 		await open(page, "/blog/rye");
 		await componentTab(page, "Three");
 		// One saved step first.
 		const first = `${COUNTER}// first\n`;
 		await box(page, "js").click();
-		await page.keyboard.press("ControlOrMeta+End");
+		await toEnd(page);
 		await page.keyboard.insertText("// first\n");
 		await page.keyboard.press("ControlOrMeta+s");
 		await said(page, "Saved the Component script to the Draft.");
@@ -484,7 +528,7 @@ describe("Staff", () => {
 		});
 		try {
 			await box(page, "js").click();
-			await page.keyboard.press("ControlOrMeta+End");
+			await toEnd(page);
 			await page.keyboard.insertText("// second\n");
 			await page.locator('[data-wc-bar="undo"]').click();
 			await held.promise;
@@ -511,6 +555,14 @@ describe("Staff", () => {
 describe("a Member", () => {
 	test("a failing Site script, in client editing's words; Safe mode from the notice, turned off on the bar", async () => {
 		const page = await shared("member");
+		try {
+			await memberFailingSiteScript(page);
+		} finally {
+			await leaveSafeMode(page);
+		}
+	});
+
+	async function memberFailingSiteScript(page: Page): Promise<void> {
 		let frame = await frameOf(page);
 		await frame.waitForFunction(() => document.documentElement.dataset.siteScript === "ran");
 		const shown = notice(page);
@@ -522,7 +574,7 @@ describe("a Member", () => {
 		expect(await shown.textContent()).not.toContain("startSlider");
 		await shown.getByText("You can keep editing.", { exact: false }).waitFor();
 		forgetScriptErrors(page);
-		await expectAccessibleScreen(page, "a Member's notice, light");
+		await accessible(page, "a Member's notice, light");
 		await page.emulateMedia({ colorScheme: "dark" });
 		await expectNoAxeViolations(page, "a Member's notice, dark");
 		await page.emulateMedia({ colorScheme: "light" });
@@ -535,7 +587,7 @@ describe("a Member", () => {
 		expect(await frame.evaluate(() => document.documentElement.dataset.siteScript ?? null)).toBeNull();
 		expect(await notice(page).count()).toBe(0);
 		forgetScriptErrors(page);
-		await expectAccessibleScreen(page, "a Member's bar in Safe mode, light");
+		await accessible(page, "a Member's bar in Safe mode, light");
 		await page.emulateMedia({ colorScheme: "dark" });
 		await expectNoAxeViolations(page, "a Member's bar in Safe mode, dark");
 		await page.emulateMedia({ colorScheme: "light" });
@@ -546,7 +598,7 @@ describe("a Member", () => {
 		await notice(page).waitFor();
 		expect(await control.count()).toBe(0);
 		forgetScriptErrors(page);
-	});
+	}
 
 	test("a section a Member adds runs its Component's script, which the page hadn't loaded", async () => {
 		const page = await shared("member");
