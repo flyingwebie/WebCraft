@@ -10078,6 +10078,81 @@
 				"missing": "not translated yet",
 				"hidden": "hidden in this language"
 			}
+		},
+		"code": {
+			"loading": "Opening the code panes…",
+			"loadFailed": "The code panes couldn't be loaded. Check the connection, then select the element again.",
+			"expand": "Expand",
+			"restore": "Back to its share",
+			"copyAll": "Copy all",
+			"copied": "Copied.",
+			"copyFailed": "Couldn't copy: this browser didn't allow it.",
+			"formatOnLeave": "Format when I leave the box",
+			"wrap": "Wrap long lines",
+			"preferenceFailed": "Couldn't keep that choice on your account. It stays for this visit.",
+			"saving": "Saving…",
+			"notRead": "Couldn't read it: {reason}",
+			"notPreviewed": "Couldn't show it on the page: {reason}",
+			"notSaved": "Couldn't save: {reason}",
+			"conflict": {
+				"title": "Someone saved a newer version",
+				"text": "{name} was changed since you started typing. Reload theirs, or overwrite it with yours?",
+				"reload": "Reload theirs",
+				"overwrite": "Overwrite with mine",
+				"cancel": "Keep typing"
+			},
+			"html": {
+				"label": "HTML of {name}",
+				"loading": "Reading the markup…",
+				"help": "Shown on the page as you type. Saved when you leave the box, or with ⌘S.",
+				"previewing": "Shown on the page, not saved yet. Saved when you leave the box, or with ⌘S.",
+				"problemAt": "Line {line}, column {column}: {message}",
+				"problems": "The markup can't be read: each problem is listed under the box.",
+				"step": "Changed the HTML of {name}",
+				"saved": "Saved the HTML of {name}.",
+				"placementHelp": "A Placement of a Component on this page: change its Props in the Inspector."
+			},
+			"css": {
+				"label": "CSS of .{name}",
+				"loading": "Reading the Classes…",
+				"noClass": "This element has no Class yet. Add one with + to style it.",
+				"help": "Saved as you type: its styles, its own rules with &, and a block per width.",
+				"notRead": "Couldn't read the Design system. Select the element again to try again.",
+				"step": "Changed the CSS of .{name}"
+			},
+			"js": {
+				"loading": "Reading the scripts…",
+				"tabs": "Script",
+				"tabNames": {
+					"page": "Page",
+					"site": "Site",
+					"component": "Component"
+				},
+				"titles": {
+					"page": "Page script",
+					"site": "Site script",
+					"component": "Component script"
+				},
+				"help": "Saved as you type. It runs on the page when you press Run, or when the page loads again.",
+				"noPage": "This page shows no Entry, so it has no script of its own.",
+				"usedOn": "{name} is on {count} pages: changing its script changes all of them.",
+				"run": "Run",
+				"running": "Running…",
+				"ran": "Ran the scripts on a fresh page.",
+				"console": "Console",
+				"clear": "Clear the console",
+				"empty": "Nothing written yet.",
+				"oneError": "1 error",
+				"errors": "{count} errors",
+				"at": "{script} · line {line}",
+				"didNotLoad": "{script} didn't load.",
+				"levels": {
+					"log": "Log:",
+					"info": "Information:",
+					"warn": "Warning:",
+					"error": "Error:"
+				}
+			}
 		}
 	},
 	"auth": {

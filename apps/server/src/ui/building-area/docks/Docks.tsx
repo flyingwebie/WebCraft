@@ -76,6 +76,10 @@ export type Docks = {
 	headings: Partial<Record<PanelKey, ReactNode>>;
 	/** What each panel shows under its header (BA-08 onwards: Layers, the Inspector); empty when none. */
 	bodies: Partial<Record<PanelKey, ReactNode>>;
+	/** Beside a panel's title, muted: what it shows now (`h1 · Heading`); the Inspector's is the selection's name. */
+	subs: Partial<Record<PanelKey, string>>;
+	/** A panel's own entries at the top of its header's menu (BA-11: a code pane's Expand, Copy all, its switches). */
+	menus: Partial<Record<PanelKey, readonly MenuEntry[]>>;
 	change(next: Layout | null, said?: string): void;
 	/** A panel switched off or on in the Panels menu. */
 	toggle(id: PanelKey): void;
@@ -89,7 +93,7 @@ export type Docks = {
 	setDrawer(side: DockSide | null): void;
 	/** A panel whose menu button takes focus once the docks have drawn (after a move from its menu). */
 	focusLater(id: string | null): void;
-	/** The actions each panel's header shows beside its title (BA-13: the Entry panel's Find and Collapse). */
+	/** The actions each panel's header shows beside its title (BA-13: the Entry panel's Find and Collapse; BA-11: the code panes' Classes, Format and Expand). */
 	panelActions: Partial<Record<PanelKey, ReactNode>>;
 };
 
@@ -119,6 +123,9 @@ export function useDocks({
 	context,
 	headings = {},
 	bodies = {},
+	subs = {},
+	menus = {},
+	wide = null,
 	announce,
 	panelActions = {},
 }: {
@@ -126,6 +133,10 @@ export function useDocks({
 	context: PanelContext;
 	headings?: Partial<Record<PanelKey, ReactNode>>;
 	bodies?: Partial<Record<PanelKey, ReactNode>>;
+	subs?: Partial<Record<PanelKey, string>>;
+	menus?: Partial<Record<PanelKey, readonly MenuEntry[]>>;
+	/** A panel opened wide (a code pane's Expand, BA-11): the only one its dock draws while it shows. Not stored. */
+	wide?: PanelKey | null;
 	announce(text: string, urgent?: boolean): void;
 	panelActions?: Partial<Record<PanelKey, ReactNode>>;
 }): Docks {
@@ -169,8 +180,13 @@ export function useDocks({
 				const definition = panelOf(placement.id);
 				return definition && !placement.hidden && definition.shows(context) ? [{ placement, definition }] : [];
 			});
-		return { left: of("left"), right: of("right"), bottom: of("bottom") };
-	}, [layout, context]);
+		// A panel opened wide is the only one its dock draws, while it shows there.
+		const widened = (panels: ShownPanel[]) => {
+			const only = panels.find((each) => each.placement.id === wide && !each.placement.collapsed);
+			return only ? [only] : panels;
+		};
+		return { left: widened(of("left")), right: widened(of("right")), bottom: widened(of("bottom")) };
+	}, [layout, context, wide]);
 
 	const toggle = useCallback(
 		(id: PanelKey) => {
@@ -301,6 +317,8 @@ export function useDocks({
 		context,
 		headings,
 		bodies,
+		subs,
+		menus,
 		change,
 		toggle,
 		reset,
@@ -541,7 +559,10 @@ function Dock({
 				docks.focusLater(id);
 			},
 		}));
+		const own = docks.menus[id as PanelKey] ?? [];
 		return [
+			...own,
+			...(own.length > 0 ? [{ kind: "separator", key: "own" } as const] : []),
 			...moves,
 			{
 				kind: "item",
@@ -635,7 +656,10 @@ function Dock({
 								id={placement.id}
 								kind={across ? "side" : "bottom"}
 								title={titleOf(shownPanel, docks)}
-								sub={placement.id === "inspector" ? docks.context.selection?.name : undefined}
+								sub={
+									docks.subs[placement.id as PanelKey] ??
+									(placement.id === "inspector" ? docks.context.selection?.name : undefined)
+								}
 								actions={docks.panelActions[placement.id as PanelKey]}
 								heading={docks.headings[placement.id as PanelKey]}
 								collapsed={Boolean(placement.collapsed)}
