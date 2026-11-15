@@ -15,7 +15,7 @@ import type { ElementTree, TreeNode } from "@webcraft/renderer/builder";
 import type { Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
-import { announced, drift, enterBuildingArea, frameOf, settled } from "./building-area.ts";
+import { drift, enterBuildingArea, frameOf, settled } from "./building-area.ts";
 import { expectAccessibleScreen } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
 
