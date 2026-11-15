@@ -56,6 +56,9 @@ export async function buildingAreaEndpoint(
 	if (request.method !== "GET" && request.method !== "HEAD") {
 		return plainText(405, "Method Not Allowed", { allow: "GET, HEAD", "x-robots-tag": "noindex" });
 	}
+	if (fromAnotherSitesPage(request)) {
+		return plainText(403, "Forbidden", { "cache-control": "no-store", "x-robots-tag": "noindex" });
+	}
 	if (url.pathname === root || url.pathname === BUILDING_AREA_PATH) {
 		return new Response(null, {
 			status: 303,
@@ -137,6 +140,18 @@ export async function buildingAreaEndpoint(
 		status: document ? 200 : 404,
 		headers: shellHeaders(url),
 	});
+}
+
+/**
+ * Whether another site's page asks for the building area (`Sec-Fetch-Site`): a script, a fetch or a
+ * frame of it, which gets nothing, whatever cookies the browser sends along. Only the browser's own
+ * window may arrive from another site (`navigate` to a `document`), since the admin's link into the
+ * building area is on another site and a browser calls every step of its redirect that.
+ */
+function fromAnotherSitesPage(request: Request): boolean {
+	const fetchSite = request.headers.get("sec-fetch-site");
+	if (fetchSite === null || fetchSite === "same-origin" || fetchSite === "none") return false;
+	return request.headers.get("sec-fetch-mode") !== "navigate" || request.headers.get("sec-fetch-dest") !== "document";
 }
 
 /** The shell's own parameters, which belong to no document: the open place, its view and the selection. */

@@ -10556,6 +10556,304 @@
 				"bad": "Questa prova non si legge: {problem}",
 				"name": "Se {test}"
 			}
+		},
+		"insert": {
+			"row": "Inserisci",
+			"items": {
+				"section": {
+					"name": "Sezione",
+					"hint": "Una nuova sezione di primo livello, dopo questa",
+					"page": "Un nuovo Component di primo livello, dopo questo",
+					"tip": "Sezione: crea qui un nuovo Component"
+				},
+				"container": {
+					"name": "Contenitore",
+					"hint": "Un involucro di larghezza limitata"
+				},
+				"div": {
+					"name": "Div",
+					"hint": "Un involucro semplice"
+				},
+				"header": {
+					"name": "Intestazione",
+					"hint": "Un punto di riferimento di intestazione"
+				},
+				"footer": {
+					"name": "Piè di pagina",
+					"hint": "Un punto di riferimento di piè di pagina"
+				},
+				"heading": {
+					"name": "Titolo",
+					"hint": "Un titolo, da h1 a h6"
+				},
+				"text": {
+					"name": "Testo",
+					"menu": "Paragrafo",
+					"hint": "Un paragrafo di testo"
+				},
+				"link": {
+					"name": "Link",
+					"hint": "Un link a una Page o a un indirizzo"
+				},
+				"button": {
+					"name": "Pulsante",
+					"hint": "Un link con l'aspetto di un pulsante"
+				},
+				"list": {
+					"name": "Elenco",
+					"hint": "Un elenco puntato o numerato"
+				},
+				"image": {
+					"name": "Immagine",
+					"hint": "Un'immagine da Media"
+				},
+				"video": {
+					"name": "Video",
+					"hint": "Un video da Media"
+				},
+				"icon": {
+					"name": "Icona",
+					"hint": "Una piccola immagine da Media, letta come decorazione"
+				},
+				"loop": {
+					"name": "Loop",
+					"hint": "Ripete ciò che contiene per ogni elemento di un Loop"
+				},
+				"condition": {
+					"name": "Condition",
+					"hint": "Mostra ciò che contiene solo se è vera"
+				},
+				"form": {
+					"name": "Form",
+					"hint": "Un Form inserito qui"
+				},
+				"outlet": {
+					"name": "Contenuto della pagina",
+					"hint": "Dove compare il contenuto di ogni pagina"
+				},
+				"component": {
+					"name": "Component",
+					"hint": "Aggiungi il Component {name}"
+				},
+				"more": {
+					"name": "Altro da inserire"
+				},
+				"element": {
+					"hint": "L'elemento {tag}"
+				},
+				"value": {
+					"hint": "Il valore {path}"
+				}
+			},
+			"templateGroup": "Comandi del Template",
+			"defaults": {
+				"heading": "Titolo",
+				"text": "Scrivi qui qualcosa.",
+				"link": "Link",
+				"button": "Pulsante",
+				"listItem": "Voce dell'elenco"
+			},
+			"steps": {
+				"insert": "Inserisci {name}",
+				"add": "Aggiungi {name}"
+			},
+			"forceAfter": "Tieni premuto ⌘ o Ctrl per inserire dopo la selezione.",
+			"inserted": "{name} inserito {where}.",
+			"whereInside": "dentro {name}",
+			"whereAfter": "dopo {name}",
+			"whereEnd": "alla fine di {name}",
+			"wherePage": "nel Page layout",
+			"refusals": {
+				"page": "Una Page contiene Component: aggiungi prima una Sezione o un Component.",
+				"placement": "{name} è un Component: modificalo sul posto per aggiungervi qualcosa.",
+				"nothing": "Qui non si può aggiungere nulla: apri una pagina che mostra questo Template o Component.",
+				"notAllowed": "{name} non può stare qui.",
+				"connecting": "Sto ancora aprendo gli elementi della pagina. Riprova tra un momento."
+			},
+			"section": {
+				"making": "Creo {name}…",
+				"made": "{name} è sulla pagina. Il suo contenitore è selezionato: Titolo, Testo e Div vanno dentro.",
+				"failed": "Non è stato possibile creare la sezione: {reason}"
+			},
+			"media": {
+				"image": "Scegli un'immagine",
+				"video": "Scegli un video"
+			},
+			"emptySlot": "vuoto",
+			"dropComponent": "Trascina qui un Component"
+		},
+		"commandMenu": {
+			"title": "Menu dei comandi",
+			"open": "Menu dei comandi",
+			"close": "Chiudi il menu dei comandi",
+			"tabsLabel": "Schede del menu dei comandi",
+			"tabs": {
+				"actions": "Azioni",
+				"goTo": "Vai a",
+				"insert": "Inserisci"
+			},
+			"switchHint": "Tab per cambiare",
+			"placeholder": {
+				"actions": "Cerca un'azione…",
+				"goTo": "Cerca Page, Entry, Template, Component ed elementi…",
+				"goToMember": "Cerca Page ed Entry…",
+				"insert": "Cerca elementi, Component, Loop…"
+			},
+			"where": "Dove:",
+			"inside": "Dentro",
+			"after": "Dopo",
+			"inverse": "{keys} inserisce invece {way}",
+			"inverseInside": "dentro",
+			"inverseAfter": "dopo",
+			"recent": "Recenti",
+			"none": "Nessun risultato.",
+			"loading": "Caricamento…",
+			"countOne": "1 risultato",
+			"countOther": "{count} risultati",
+			"option": "{label}, {group}",
+			"optionKeys": "{label}, {group}, {keys}",
+			"disabled": "{label}, {reason}",
+			"keyNames": {
+				"command": "Comando",
+				"control": "Controllo",
+				"shift": "Maiuscole",
+				"option": "Opzione",
+				"alt": "Alt",
+				"up": "Su",
+				"down": "Giù",
+				"left": "Sinistra",
+				"right": "Destra",
+				"enter": "Invio",
+				"delete": "Cancella",
+				"forwardDelete": "Cancella avanti",
+				"escape": "Esc",
+				"space": "Spazio",
+				"slash": "Barra",
+				"letter": "una lettera",
+				"asterisk": "Asterisco",
+				"leftBracket": "Parentesi quadra aperta",
+				"rightBracket": "Parentesi quadra chiusa"
+			},
+			"groups": {
+				"editor": "Editor",
+				"element": "Elemento",
+				"placement": "Placement",
+				"places": "Luoghi",
+				"format": "Formatta",
+				"pages": "Page",
+				"templates": "Template",
+				"components": "Component",
+				"layers": "Elementi della pagina",
+				"sections": "Sezioni",
+				"text": "Testo",
+				"media": "Media",
+				"commands": "Comandi del Template",
+				"other": "Altri elementi",
+				"values": "Valori"
+			},
+			"actions": {
+				"undo": "Annulla",
+				"redo": "Ripeti",
+				"undoStep": "Annulla {step}",
+				"redoStep": "Ripeti {step}",
+				"nothingToUndo": "Niente da annullare.",
+				"nothingToRedo": "Niente da ripetere.",
+				"publish": "Pubblica",
+				"sendForReview": "Invia in revisione",
+				"openPlace": "Apri {place}",
+				"backToCanvas": "Torna alla tela",
+				"hideInterface": "Nascondi l'interfaccia",
+				"showInterface": "Mostra l'interfaccia",
+				"exit": "Esci dall'area di costruzione",
+				"copy": "Copia",
+				"paste": "Incolla",
+				"duplicate": "Duplica",
+				"delete": "Elimina",
+				"parent": "Seleziona il contenitore",
+				"wrap": "Avvolgi in {what}",
+				"unwrap": "Togli l'involucro",
+				"makeComponent": "Crea un Component",
+				"newComponent": "Nuovo Component",
+				"editComponent": "Modifica il Component",
+				"hidePlacement": "Nascondi il Placement",
+				"showPlacement": "Mostra il Placement",
+				"formatHtml": "Formatta l'HTML",
+				"formatCss": "Formatta il CSS",
+				"formatJs": "Formatta il JS",
+				"formatAll": "Formatta tutti e tre",
+				"preview": "Anteprima",
+				"edit": "Modifica",
+				"pageDetails": "Dettagli della pagina",
+				"sections": "Sezioni",
+				"help": "Aiuto"
+			},
+			"wrap": {
+				"div": "un Div",
+				"section": "una Sezione",
+				"a": "un Link",
+				"loop": "un Loop",
+				"condition": "una Condition"
+			},
+			"templates": {
+				"siteTemplate": "Template del sito",
+				"searchTemplate": "Template dei risultati di ricerca",
+				"entryTemplate": "Template della Entry · {postType}",
+				"archiveTemplate": "Template dell'archivio · {postType}"
+			},
+			"steps": {
+				"loop": "Quale Loop?",
+				"form": "Quale Form?",
+				"component": "Quale Component?",
+				"condition": "Scrivi la condizione, poi Invio: {example}",
+				"conditionLabel": "Condizione",
+				"noLoops": "Questo sito non ha ancora Loop: creane uno nel luogo Loop.",
+				"noForms": "Questo sito non ha ancora Form.",
+				"back": "Torna a tutto"
+			},
+			"loadFailed": "Non è stato possibile caricare il menu dei comandi. Riprova.",
+			"narrow": "Il menu dei comandi richiede una finestra più larga."
+		},
+		"emptyPage": {
+			"title": "Questa Page è vuota",
+			"text": "Inizia con un Component, o costruisci una tua sezione.",
+			"addComponent": "Aggiungi un Component",
+			"newSection": "Nuova sezione",
+			"orPress": "oppure premi {keys}"
+		},
+		"rowMenu": {
+			"label": "Azioni per {name}",
+			"copy": "Copia",
+			"paste": "Incolla",
+			"duplicate": "Duplica",
+			"wrapIn": "Avvolgi in",
+			"makeComponent": "Crea un Component",
+			"delete": "Elimina",
+			"copied": "{name} copiato.",
+			"pasted": "{name} incollato dopo {after}.",
+			"nothingToPaste": "Non c'è nulla di copiato da incollare.",
+			"notHere": "{name} non può essere incollato qui.",
+			"parentNone": "{name} è al primo livello: non ha un contenitore da selezionare.",
+			"unwrapRefused": "Non si può togliere l'involucro a {name}: contiene un ramo o uno stato vuoto che andrebbe perso.",
+			"steps": {
+				"paste": "Incolla {name}",
+				"wrap": "Avvolgi {name} in {what}",
+				"unwrap": "Togli l'involucro a {name}"
+			}
+		},
+		"componentDialog": {
+			"makeTitle": "Crea un Component",
+			"makeText": "{name} passa in un nuovo Component, inserito dov'era. La pagina resta uguale.",
+			"newTitle": "Nuovo Component",
+			"newText": "Un Component vuoto, inserito {where}. Si apre perché tu possa costruirlo.",
+			"name": "Nome",
+			"nameHint": "Iniziale maiuscola, solo lettere e cifre, come CustomerQuote.",
+			"badName": "Usa un'iniziale maiuscola, poi solo lettere e cifre, con almeno una lettera minuscola.",
+			"taken": "Il sito ha già un Component chiamato {name}.",
+			"make": "Crea",
+			"create": "Crea",
+			"cancel": "Annulla",
+			"made": "Component {name} creato.",
+			"refused": "Non è stato possibile creare il Component: {reason}"
 		}
 	},
 	"auth": {

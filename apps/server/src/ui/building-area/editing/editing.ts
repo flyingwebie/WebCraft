@@ -1,10 +1,12 @@
 import type { Json } from "@webcraft/core/draft-document";
 
 import type { HistoryLocation } from "../../builder/editor-history.ts";
+import { matches } from "../../builder/shortcuts.ts";
 import { TEXT_REGION } from "../agent/contract.ts";
 import { fill, type PageState, type Words } from "../api.ts";
 import { nameOf, type Overlay, type OverlayMark } from "../canvas/overlay.ts";
 import type { RegionSaving, SavedAnswer, SaveWatch } from "../canvas/regions.ts";
+import { COMMAND_MENU_EVENT, type MenuTab } from "../command-menu/state.ts";
 import { PUBLISH_OPEN_EVENT } from "../publish/sources.ts";
 import { type PageDrafts, pageDrafts, type SharedDraft } from "./drafts.ts";
 import type { ShellHistory } from "./history.ts";
@@ -469,6 +471,18 @@ export function pageEditing(options: {
 						return true;
 					}
 					const region = regionOf(event.target);
+					// ⌘K, ⌘P and ⌘I in the page open the Command menu (BA-10), except ⌘I in rich text (italic).
+					const tab: MenuTab | null = matches(key, "menu.actions")
+						? "actions"
+						: matches(key, "menu.goTo")
+							? "goTo"
+							: matches(key, "menu.insert") && region?.getAttribute("data-wc-type") !== "richText"
+								? "insert"
+								: null;
+					if (tab) {
+						document.dispatchEvent(new CustomEvent(COMMAND_MENU_EVENT, { detail: { tab } }));
+						return true;
+					}
 					if (key.key === "F10" && key.altKey && region && region.getAttribute("data-wc-type") === "richText") {
 						// The selection as it is now: a "selectionchange" for it may not have come yet.
 						if (region !== current) startEditing(region);
