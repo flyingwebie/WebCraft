@@ -34,6 +34,13 @@ export type PageDrafts = {
 	others(): ReadonlyMap<string, readonly Participant[]>;
 	/** Called when someone comes, goes or moves. Answers how to stop listening. */
 	subscribe(listener: () => void): () => void;
+	/**
+	 * An open Draft's client (`entry:<id>`), for a part that changes it itself (BA-09: a Page's Page
+	 * layout), through this one socket: a second one would show the person to themselves as someone else.
+	 */
+	client(item: string): DraftClient | null;
+	/** Called on every change of an open Draft (the person's, someone else's, a step taken back). */
+	onChange(listener: (item: string, draft: Json) => void): () => void;
 	/** Stops for good: every socket closes. */
 	destroy(): void;
 };
@@ -160,6 +167,7 @@ export function pageDrafts(options: {
 	type Open = { client: DraftClient; participants: Participant[]; stop: () => void; unregister: () => void };
 	const open = new Map<string, Open>();
 	const listeners = new Set<() => void>();
+	const changeListeners = new Set<(item: string, draft: Json) => void>();
 	const tell = () => {
 		for (const listener of listeners) listener();
 	};
@@ -174,6 +182,7 @@ export function pageDrafts(options: {
 			client: createDraftClient({
 				onChange: (draft, from) => {
 					if (from === "remote") options.onRemote(item, draft, false);
+					for (const listener of changeListeners) listener(item, draft);
 				},
 				onPresence: (participants) => {
 					entry.participants = participants;
@@ -228,9 +237,17 @@ export function pageDrafts(options: {
 				listeners.delete(listener);
 			};
 		},
+		client: (item) => open.get(item)?.client ?? null,
+		onChange(listener) {
+			changeListeners.add(listener);
+			return () => {
+				changeListeners.delete(listener);
+			};
+		},
 		destroy() {
 			for (const item of [...open.keys()]) closeDraft(item);
 			listeners.clear();
+			changeListeners.clear();
 		},
 	};
 }

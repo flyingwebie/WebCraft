@@ -52,6 +52,8 @@ export type PageEditing = {
 	/** Where an element of the page is on the shell's window, and a listener for when it moves. */
 	boxOf(element: Element): DOMRect | null;
 	onMove(listener: () => void): () => void;
+	/** The page's shared Drafts (its Entry's, the Globals'), as BA-09's Page layout changes them. */
+	drafts(): PageDrafts;
 	/** Stops for good: closes the page's Drafts. */
 	destroy(): void;
 };
@@ -520,6 +522,7 @@ export function pageEditing(options: {
 				moves.delete(listener);
 			};
 		},
+		drafts: () => drafts,
 		destroy() {
 			window.clearTimeout(refreshTimer);
 			drafts.destroy();

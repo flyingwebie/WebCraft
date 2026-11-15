@@ -1,20 +1,21 @@
 import type { FieldDefinition } from "@webcraft/core";
-import { createDraftClient, type DraftClient, type Json, sameValue } from "@webcraft/core/draft-document";
+import { type DraftClient, type Json, sameValue } from "@webcraft/core/draft-document";
 
 import { editorHistory } from "../../builder/editor-history.ts";
 import { type DocumentValues, writeField } from "../../co-editing/values.ts";
 import type { Json as FieldJson } from "../../content/model.ts";
 import { draftLayout } from "../../page-layouts/props-input.ts";
 import { fill, type Words } from "../api.ts";
-import { connect, draftResource } from "./drafts.ts";
+import { draftResource, type PageDrafts } from "./drafts.ts";
 import type { LayoutInfo, LayoutPlacement } from "./selection.ts";
 
 /**
  * A Page's Page layout as Staff arrange it in the building area (BA-09; ADR 0037 › 1.5): its
  * Placements moved, hidden, duplicated and deleted from the Layers panel, and their Props' values
  * changed in the Props panel. Each is one change of the Page's shared Draft (its Entry's `layout`,
- * Co-editing, ADR 0025), recorded as one step of the tab's Undo history; the Entry's Draft is taken
- * back through the shell's own copy of it (`drafts.ts`), as text typed in place is. The server checks
+ * Co-editing, ADR 0025), made through the shell's one copy of it (`drafts.ts`, which text typed in place
+ * uses too: a second socket would show the person to themselves as someone else), and recorded as one
+ * step of the tab's Undo history, taken back through the same copy. The server checks
  * every Page layout it saves (`writePageLayout`): only the Component's own Props, locks for Members.
  *
  * The rules of what may move where are the Page layout controller's (`ui/page-layouts/controller.ts`,
@@ -56,8 +57,9 @@ type DraftPlacement = {
 };
 
 export function pageLayoutEditor(options: {
-	token: string;
 	siteId: string;
+	/** The page's shared Drafts: the Page's Entry's is changed through them. */
+	drafts: PageDrafts;
 	words: Words;
 	announce(text: string, urgent?: boolean): void;
 	/** The Page layout changed (the person's change saved, someone else's, a step taken back): read it and draw the page again. */
@@ -67,40 +69,22 @@ export function pageLayoutEditor(options: {
 }): PageLayoutEditor {
 	const said = options.words.placements;
 	let info: LayoutInfo | null = null;
-	let open: { entryId: string; client: DraftClient; stop: () => void } | null = null;
-	/** The Page layout as this tab last saw it in the Draft: someone else's change differs from it. */
+	/** The Page layout as this tab last saw it in the Draft: a change from elsewhere differs from it. */
 	let seen: Json = null;
+	/** Whether the person's own change is on its way: the Draft's echo of it isn't someone else's. */
+	let own = false;
 
 	const layoutOf = (draft: Json): Json => ((draft as { layout?: Json } | null)?.layout ?? null) as Json;
+	const item = () => (info ? `entry:${info.entryId}` : null);
 
-	const close = () => {
-		open?.client.close();
-		open?.stop();
-		open = null;
-	};
-
-	const openDraft = (entryId: string) => {
-		const url = new URL(`/_webcraft/edit/drafts/entry/${entryId}`, window.location.href);
-		url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-		const client = createDraftClient({
-			onChange: (draft, from) => {
-				const layout = layoutOf(draft);
-				if (from !== "remote" || sameValue(layout, seen)) {
-					seen = layout;
-					return;
-				}
-				// Someone else's change, or one of the person's steps taken back through the shell's other copy.
-				seen = layout;
-				options.changed();
-			},
-			onRefused: (refusal) => {
-				options.failed();
-				options.announce(fill(said.refused, { reason: refusal.code }), true);
-				options.changed();
-			},
-		});
-		open = { entryId, client, stop: connect(client, url, options.token) };
-	};
+	// Someone else's change to the Page layout, or one of the person's steps taken back: read and drawn again.
+	const stopListening = options.drafts.onChange((changedItem, draft) => {
+		if (changedItem !== item()) return;
+		const layout = layoutOf(draft);
+		if (sameValue(layout, seen)) return;
+		seen = layout;
+		if (!own) options.changed();
+	});
 
 	/** Waits until the Draft has saved what was sent (or can't): true when it has. */
 	const saved = async (client: DraftClient): Promise<boolean> => {
@@ -143,17 +127,21 @@ export function pageLayoutEditor(options: {
 		ref: string,
 		change: (placements: DraftPlacement[]) => DraftPlacement[] | null,
 	): string | null => {
-		const client = open?.client;
+		const at = item();
+		const client = at ? options.drafts.client(at) : null;
 		const status = client?.status();
-		if (!client || !open || (status !== "saved" && status !== "saving" && status !== "offline")) return said.connecting;
+		if (!at || !client || (status !== "saved" && status !== "saving" && status !== "offline")) return said.connecting;
 		const before = client.draft();
 		const placements = draftLayout(before).placements as unknown as DraftPlacement[];
 		const next = change(structuredClone(placements));
 		if (!next) return said.connecting;
 		const after = { ...(before as Record<string, Json>), layout: { placements: next } as unknown as Json };
-		if (!client.change(after)) return said.connecting;
+		own = true;
+		const changed = client.change(after);
+		own = false;
+		if (!changed) return said.connecting;
 		seen = layoutOf(client.draft());
-		const resource = draftResource(options.siteId, `entry:${open.entryId}`);
+		const resource = draftResource(options.siteId, at);
 		editorHistory().record({
 			resource,
 			before,
@@ -177,11 +165,8 @@ export function pageLayoutEditor(options: {
 
 	return {
 		page(next) {
+			if (next?.entryId !== info?.entryId) seen = null;
 			info = next;
-			if (open && open.entryId === next?.entryId) return;
-			close();
-			seen = null;
-			if (next) openDraft(next.entryId);
 		},
 		move(placements, id, to) {
 			const name = nameOf(placements, id);
@@ -240,6 +225,6 @@ export function pageLayoutEditor(options: {
 				),
 			);
 		},
-		destroy: close,
+		destroy: stopListening,
 	};
 }

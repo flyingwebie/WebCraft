@@ -213,8 +213,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 	const layoutEditor = useMemo(
 		() =>
 			pageLayoutEditor({
-				token: config.token,
 				siteId: config.site.id,
+				drafts: editing.drafts(),
 				words,
 				announce: (text, urgent) => announceRef.current(text, urgent),
 				changed: () => {
@@ -223,7 +223,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 				},
 				failed: () => setSaving("failed"),
 			}),
-		[config.token, config.site.id, words, pageStructure],
+		[config.site.id, words, pageStructure, editing],
 	);
 	useEffect(() => () => layoutEditor.destroy(), [layoutEditor]);
 	useEffect(

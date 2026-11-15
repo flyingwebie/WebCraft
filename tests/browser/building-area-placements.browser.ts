@@ -298,6 +298,10 @@ describe("a Page's Placements, for Staff", () => {
 		expect((await eventually(homeLayout, (layout) => layout.quote === "The cardamom buns are the reason")).quote).toBe(
 			"The cardamom buns are the reason",
 		);
+		// The Page's Draft is changed through the shell's one copy of it: the person is never shown to
+		// themselves as someone else editing the page.
+		expect(await page.locator("[data-wc-messages]").textContent()).not.toContain("is editing this page too");
+		expect(await page.locator('[data-wc-mark="person"]').count()).toBe(0);
 	});
 
 	test("a Placement moves in Layers by Alt with the arrows and by dragging; the Site template's rows refuse it", async () => {
