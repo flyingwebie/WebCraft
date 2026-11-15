@@ -15,11 +15,10 @@ import {
 } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-
-import type { Command } from "../../builder/commands.ts";
-import { recentCommands, rememberCommand, visibleCommands } from "../../builder/commands.ts";
-import { ariaKeys, chordText, type SpokenKey, shortcutSpoken, shortcutText } from "../../builder/shortcuts.ts";
 import { formatTarget } from "../../code-format/targets.ts";
+import type { Command } from "../../editor/commands.ts";
+import { recentCommands, rememberCommand, visibleCommands } from "../../editor/commands.ts";
+import { ariaKeys, chordText, type SpokenKey, shortcutSpoken, shortcutText } from "../../editor/shortcuts.ts";
 import { fill } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING, type Icon } from "../controls.tsx";
 import type { InsertKind, Landing } from "../editing/insert.ts";

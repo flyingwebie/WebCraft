@@ -1,7 +1,7 @@
 import type { FieldDefinition, Json } from "@webcraft/core";
 import { type Json as DocumentJson, sameValue } from "@webcraft/core/draft-document";
-import type { SharedDraft } from "../../site/edit-bar/kit.ts";
 import { readFieldValues, type ValueLanguages, writeField } from "../co-editing/values.ts";
+import type { SharedDraft } from "../page-kit.ts";
 import type { LayoutState } from "./controller.ts";
 
 type Layout = LayoutState["layout"];

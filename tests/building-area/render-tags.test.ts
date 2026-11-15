@@ -132,8 +132,8 @@ describe("a page in the building area's frame, for Staff", () => {
 		expect(siteStylesheetIn(html)).toMatch(/^\/_webcraft\/edit\/css\/[0-9a-f]{16}\.css$/);
 		const scripts = [...headOf(html).matchAll(/<script src="([^"]+)"><\/script>/g)].map((match) => match[1]);
 		expect(scripts).toEqual([expect.stringMatching(/^\/_webcraft\/edit\/assets\/agent-[0-9a-f]{16}\.js$/)]);
-		expect(html).not.toContain("webcraft-code-mode");
-		expect(html).not.toContain("<webcraft-edit-bar");
+		expect(html).not.toContain("/_webcraft/edit/assets/code-");
+		expect(html).not.toContain("/_webcraft/edit/assets/bar-");
 	});
 
 	test("ignores Code mode's cookie: the same page with it or without it", async () => {
@@ -145,7 +145,7 @@ describe("a page in the building area's frame, for Staff", () => {
 		const body = await withCookie.text();
 		expect(codeTagsIn(body)).toEqual(codeTagsIn(html));
 		expect(body).toContain("data-wc-item");
-		expect(body).not.toContain("webcraft-code-mode");
+		expect(body).not.toContain("/_webcraft/edit/assets/code-");
 	});
 
 	test("shows a Template that was never published on the page it makes: an Archive template", async () => {

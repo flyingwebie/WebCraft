@@ -4437,7 +4437,6 @@
 		},
 		"notMade": "Not made yet",
 		"noAddress": "No archive address: the URL pattern starts with '{slug}'",
-		"open": "Open in builder",
 		"openNamed": ": {name}"
 	},
 	"components": {
@@ -8457,8 +8456,6 @@
 	},
 	"buildingArea": {
 		"pageTitle": "Building area",
-		"open": "Open the building area (in progress)",
-		"openHelp": "The new editor, while it is being built",
 		"opening": "Opening the building area…",
 		"skipToContent": "Skip to main content",
 		"shellFailed": "The building area couldn't be loaded. Check the connection, then reload the page.",

@@ -20,7 +20,7 @@ import {
 	useState,
 } from "react";
 
-import type { EditorLayout } from "../../builder/editor-fit.ts";
+import type { EditorLayout } from "../../editor/editor-fit.ts";
 import { fill, type ShellConfig, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING, Tip } from "../controls.tsx";
 import {

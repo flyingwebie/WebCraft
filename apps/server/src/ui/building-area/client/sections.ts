@@ -1,9 +1,8 @@
 import type { FieldDefinition } from "@webcraft/core";
 import { type DraftClient, type Json, reverseChange } from "@webcraft/core/draft-document";
-
-import type { BarKit, SharedDraft } from "../../../site/edit-bar/kit.ts";
-import { editorHistory, type HistoryLocation } from "../../builder/editor-history.ts";
+import { editorHistory, type HistoryLocation } from "../../editor/editor-history.ts";
 import type { MediaItem } from "../../media/preview.ts";
+import type { BarKit, SharedDraft } from "../../page-kit.ts";
 import {
 	FOOTER_ROW,
 	HEADER_ROW,

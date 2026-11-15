@@ -1,4 +1,4 @@
-import { type CssTokenKind, cssLines } from "../../builder/css-tokens.ts";
+import { type CssTokenKind, cssLines } from "../../editor/css-tokens.ts";
 
 /**
  * The code panes' highlighting (BA-11): Template markup, CSS and JavaScript split into pieces of the

@@ -19,9 +19,8 @@ import {
 	XIcon,
 } from "lucide-react";
 import { useRef, useState, useSyncExternalStore } from "react";
-
-import { identifyNewProps } from "../../builder/prop-identities.ts";
 import { draftsOf, freeKey, newField } from "../../content/field-drafts.ts";
+import { identifyNewProps } from "../../editor/prop-identities.ts";
 import { fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
 import { ChromeMenu, type MenuEntry } from "../docks/Menu.tsx";

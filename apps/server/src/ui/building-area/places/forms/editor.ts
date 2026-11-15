@@ -1,7 +1,7 @@
 import type { Json } from "@webcraft/core/draft-document";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { editorHistory } from "../../../builder/editor-history.ts";
+import { editorHistory } from "../../../editor/editor-history.ts";
 import { changeOf, type FormField, type FormProblem, type FormVersion, problemsOf } from "../../../forms/model.ts";
 import { fill, type Words } from "../../api.ts";
 import { changesOf } from "./build-tab/layout.ts";

@@ -2,10 +2,10 @@ import type { BuilderCatalogue, BuilderOpened, BuilderTarget, FieldDefinition } 
 import { createDraftClient, type DraftClient, type Json, sameValue } from "@webcraft/core/draft-document";
 import type { ElementTree, TreeNode } from "@webcraft/renderer/builder";
 
-import { editorHistory } from "../../builder/editor-history.ts";
-import type { Selection } from "../../builder/model.ts";
-import { selectionKey, selectionOf } from "../../builder/selection-ref.ts";
-import { childLists, type NodePath, nodeAt, treeProblem } from "../../builder/tree.ts";
+import { editorHistory } from "../../editor/editor-history.ts";
+import type { Selection } from "../../editor/model.ts";
+import { selectionKey, selectionOf } from "../../editor/selection-ref.ts";
+import { childLists, type NodePath, nodeAt, treeProblem } from "../../editor/tree.ts";
 import { type EditRequests, fill, type Words } from "../api.ts";
 import type { SelectionKind } from "../docks/panels.ts";
 import { managementApi } from "../management.ts";

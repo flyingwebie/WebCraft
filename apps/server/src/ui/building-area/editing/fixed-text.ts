@@ -1,10 +1,9 @@
 import type { FieldDefinition, FieldInput } from "@webcraft/core";
 import { FIELD_KEY } from "@webcraft/core/field-rules";
 import type { ElementNode, TreeNode } from "@webcraft/renderer/builder";
-
-import { type FixedTextLocation, rememberFixedText, resolveFixedText } from "../../builder/fixed-text.ts";
-import { isFixedText, type NodePath, replaceAt } from "../../builder/tree.ts";
 import { draftsOf, inputsOf, keyFromLabel, newField } from "../../content/field-drafts.ts";
+import { type FixedTextLocation, rememberFixedText, resolveFixedText } from "../../editor/fixed-text.ts";
+import { isFixedText, type NodePath, replaceAt } from "../../editor/tree.ts";
 import { type EditRequests, fill, type Words } from "../api.ts";
 import type { Structure, StructureSource } from "./selection.ts";
 

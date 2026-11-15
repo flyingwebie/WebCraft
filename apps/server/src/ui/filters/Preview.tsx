@@ -9,7 +9,7 @@ import { changeOf, type FilterProblem, type FilterVersion, problemsOf } from "./
 import { Segmented } from "./Segmented.tsx";
 
 /** Where the canvas document is on the admin host: an empty page that runs no script (the visual builder's). */
-const CANVAS_URL = "/api/builder/canvas";
+const CANVAS_URL = "/api/preview/canvas";
 
 /** How wide the preview shows the page: a desktop's width, scaled to fit, or a phone's. */
 const WIDTHS = { desktop: 1024, phone: 390 } as const;

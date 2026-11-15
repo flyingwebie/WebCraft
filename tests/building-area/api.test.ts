@@ -222,7 +222,7 @@ describe("anything not on the list", () => {
 			["media.suggestAltText", { siteId: site.siteId, mediaId: crypto.randomUUID() }],
 			["domains.list", { siteId: site.siteId }],
 			["sites.get", { siteId: site.siteId }],
-			["builder.transferHistory", { siteId: site.siteId, payload: "x" }],
+			["builder.historyDesign", { siteId: site.siteId }],
 			// Workspace, Install and account procedures.
 			["workspaces.list", {}],
 			["members.list", { workspaceId }],

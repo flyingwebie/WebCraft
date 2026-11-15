@@ -153,7 +153,7 @@ describe("a page shown in the building area's frame", () => {
 		const html = await response.text();
 
 		expect(response.status).toBe(200);
-		expect(html).not.toContain("<webcraft-edit-bar");
+		expect(html).not.toContain("/_webcraft/edit/assets/bar-");
 		expect(html).not.toMatch(/\/_webcraft\/edit\/assets\/(bar|code|page)-/);
 		const scripts = headScripts(html);
 		expect(scripts[0]).toMatch(/^<script src="\/_webcraft\/edit\/assets\/agent-[0-9a-f]{16}\.js"><\/script>$/);
@@ -217,7 +217,7 @@ describe("a page shown in the building area's frame", () => {
 
 		const html = await (await staffBuilding.page("/")).text();
 
-		expect(html).not.toContain('<meta name="webcraft-code-mode" content="on">');
+		expect(html).not.toContain("/_webcraft/edit/assets/code-");
 		// Staff's frame tags every element (BA-08), with the cookie or without it.
 		expect(codeTagsIn(html)).toEqual(codeTagsIn(before));
 		expect(headScripts(html)[0]).toMatch(/\/_webcraft\/edit\/assets\/agent-/);

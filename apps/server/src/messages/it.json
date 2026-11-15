@@ -4437,7 +4437,6 @@
 		},
 		"notMade": "Non ancora creato",
 		"noAddress": "Nessun indirizzo d'archivio: lo schema dell'URL inizia con '{slug}'",
-		"open": "Apri nel builder",
 		"openNamed": ": {name}"
 	},
 	"components": {
@@ -8457,8 +8456,6 @@
 	},
 	"buildingArea": {
 		"pageTitle": "Area di costruzione",
-		"open": "Apri l'area di costruzione (in sviluppo)",
-		"openHelp": "Il nuovo editor, mentre viene costruito",
 		"opening": "Apertura dell'area di costruzione…",
 		"skipToContent": "Vai al contenuto principale",
 		"shellFailed": "Impossibile caricare l'area di costruzione. Controlla la connessione, poi ricarica la pagina.",

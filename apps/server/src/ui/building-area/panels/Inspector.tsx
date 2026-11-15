@@ -2,7 +2,7 @@ import type { ElementNode, TreeNode } from "@webcraft/renderer/builder";
 import { ComponentIcon, PlusIcon, XIcon } from "lucide-react";
 import { type ReactNode, useEffect, useId, useMemo, useState, useSyncExternalStore } from "react";
 
-import { replaceAt } from "../../builder/tree.ts";
+import { replaceAt } from "../../editor/tree.ts";
 import { editRequests, fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
 import {

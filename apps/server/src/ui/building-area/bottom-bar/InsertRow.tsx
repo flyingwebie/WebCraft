@@ -18,7 +18,7 @@ import {
 import type { KeyboardEvent, MouseEvent, PointerEvent } from "react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
-import { ariaKeys, shortcutText } from "../../builder/shortcuts.ts";
+import { ariaKeys, shortcutText } from "../../editor/shortcuts.ts";
 import type { Words } from "../api.ts";
 import type { DropDetail } from "../canvas/Frame.tsx";
 import type { MenuRequest } from "../command-menu/state.ts";

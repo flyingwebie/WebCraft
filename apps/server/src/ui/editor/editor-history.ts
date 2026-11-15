@@ -47,51 +47,12 @@ export class EditorHistory {
 	private label = (message: string) => message;
 	private words = (key: string, label: string, _title?: string) => `${key} ${label}`;
 	private fallback?: (resource: string) => Promise<HistoryPort | undefined>;
-
-	private transfer?: (payload: string) => Promise<string>;
-	transport(
-		fallback: (resource: string) => Promise<HistoryPort | undefined>,
-		transfer: (payload: string) => Promise<string>,
-	) {
+	/**
+	 * Where a step's Draft is reached when no open part registered it (a Draft the building area doesn't
+	 * hold open now, a page left earlier): opened for the step alone.
+	 */
+	reachWith(fallback: (resource: string) => Promise<HistoryPort | undefined>) {
 		this.fallback = fallback;
-		this.transfer = transfer;
-	}
-	/** A newer own edit or history command cancels a handoff; the caller keeps this editor open. */
-	async departure(url: string): Promise<string | null> {
-		for (const listener of this.listeners) listener.finish?.();
-		const revision = this.revision;
-		await Promise.all([...this.actions].map((action) => action.catch(() => {})));
-		await this.pending;
-		if (revision !== this.revision) return null;
-		this.boundary();
-		if (!this.transfer || (!this.past.length && !this.future.length)) return url;
-		const serialise = (steps: Step[]) =>
-			steps
-				.map((step) => ({ ...step, changes: step.changes.filter((change) => !change.resource.startsWith("input:")) }))
-				.filter((step) => step.changes.length);
-		const token = await this.transfer(JSON.stringify({ past: serialise(this.past), future: serialise(this.future) }));
-		if (revision !== this.revision) return null;
-		const destination = new URL(url, location.href);
-		if (destination.pathname.endsWith("/edit/enter")) destination.searchParams.set("history", token);
-		else {
-			const hash = new URLSearchParams(destination.hash.slice(1));
-			hash.set("wc-history", token);
-			destination.hash = hash.toString();
-		}
-		return destination.href;
-	}
-	restore(payload: string) {
-		if (this.past.length || this.future.length) return;
-		try {
-			const value = JSON.parse(payload) as { past: Step[]; future: Step[] };
-			if (!Array.isArray(value.past) || !Array.isArray(value.future)) return;
-			this.past = value.past.slice(-200);
-			this.future = value.future.slice(-200);
-			this.serial = Math.max(0, ...this.past.map((s) => s.id), ...this.future.map((s) => s.id));
-			this.notify();
-		} catch {
-			/* Expired/invalid navigation never prevents opening the editor. */
-		}
 	}
 
 	/** A first Template acquires its stable document id on its first accepted save. */

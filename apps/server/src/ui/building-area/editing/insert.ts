@@ -1,7 +1,7 @@
 import type { BuilderCatalogue, FieldDefinition } from "@webcraft/core";
 import type { ElementNode, ElementTree, TreeNode } from "@webcraft/renderer/builder";
 
-import { selectionOf } from "../../builder/selection-ref.ts";
+import { selectionOf } from "../../editor/selection-ref.ts";
 import {
 	canHoldChildren,
 	childLists,
@@ -14,7 +14,7 @@ import {
 	type Place,
 	placeBy,
 	placeOf,
-} from "../../builder/tree.ts";
+} from "../../editor/tree.ts";
 import { fill, type Words } from "../api.ts";
 import type { BuildingDocument } from "../documents.ts";
 import { managementApi } from "../management.ts";

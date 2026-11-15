@@ -1,4 +1,4 @@
-// The tab's Undo history (`ui/builder/editor-history.ts`, one instance in the building area's shell):
+// The tab's Undo history (`ui/editor/editor-history.ts`, one instance in the building area's shell):
 // - it keeps the last 200 finished steps, and Undo goes back through exactly those;
 // - a new step after Undo ends Redo;
 // - typing while Redo waits for its save still leaves 200 steps at most;
@@ -9,7 +9,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Json } from "@webcraft/core/draft-document";
 
-import { EditorHistory, type HistoryLocation } from "../../apps/server/src/ui/builder/editor-history.ts";
+import { EditorHistory, type HistoryLocation } from "../../apps/server/src/ui/editor/editor-history.ts";
 
 const where: HistoryLocation = { siteId: "site", panel: "html", title: "Home" };
 

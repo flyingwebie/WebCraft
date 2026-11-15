@@ -27,7 +27,7 @@ import {
 	useSyncExternalStore,
 } from "react";
 
-import { matches } from "../../builder/shortcuts.ts";
+import { matches } from "../../editor/shortcuts.ts";
 import {
 	canHoldChildren,
 	childLists,
@@ -48,7 +48,7 @@ import {
 	removeAt,
 	replaceAt,
 	withNewIds,
-} from "../../builder/tree.ts";
+} from "../../editor/tree.ts";
 import { fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING, Tip } from "../controls.tsx";
 import { holdsFixedText } from "../editing/fixed-text.ts";

@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 
-import { nodeAt, pathOfFilter, pathOfId } from "../builder/tree.ts";
+import { nodeAt, pathOfFilter, pathOfId } from "../editor/tree.ts";
 import { keyIn, type Structure, type StructureSnapshot } from "./editing/selection.ts";
 
 /**

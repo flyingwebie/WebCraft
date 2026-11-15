@@ -1,9 +1,9 @@
 import { type ElementTree, readExpression, type TreeNode } from "@webcraft/renderer/builder";
 import { PencilIcon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { useEditorFit } from "../builder/editor-fit.ts";
-import { editorHistory } from "../builder/editor-history.ts";
-import { childLists, newElement, withNewIds } from "../builder/tree.ts";
+import { useEditorFit } from "../editor/editor-fit.ts";
+import { editorHistory } from "../editor/editor-history.ts";
+import { childLists, newElement, withNewIds } from "../editor/tree.ts";
 import { BUILDING_STAND_IN_PREFIX } from "./agent/contract.ts";
 import { type EditAnswer, editRequests, fill, type PageState, type ShellConfig } from "./api.ts";
 import { BottomBar } from "./bottom-bar/BottomBar.tsx";

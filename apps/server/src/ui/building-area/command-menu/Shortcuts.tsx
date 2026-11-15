@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useSyncExternalStore } from "react";
 
-import { type ShortcutId, shortcutText } from "../../builder/shortcuts.ts";
+import { type ShortcutId, shortcutText } from "../../editor/shortcuts.ts";
 import type { Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
 

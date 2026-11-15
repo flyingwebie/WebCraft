@@ -1,20 +1,21 @@
 /**
- * The visual builder's canvas (#66): an empty page on the admin host that the builder loads in an
- * iframe and fills itself, with a tree rendered as the Site renders it and the Site's Draft
- * stylesheet (a constructed stylesheet, which no policy blocks). It never runs a script: the builder
- * frames it sandboxed without scripts, and its own policy allows none either, so the Site's scripts
- * and anything in a Template that could run never do. Only the admin's own pages may frame it.
+ * The admin's preview canvas: an empty page on the admin host that a screen loads in an iframe and
+ * fills itself (the Filter builder's live preview, the Design system's style preview), with HTML
+ * rendered as the Site renders it and the Site's Draft stylesheet (a constructed stylesheet, which no
+ * policy blocks). It never runs a script: the screens frame it sandboxed without scripts, and its own
+ * policy allows none either, so the Site's scripts and anything in a Template that could run never do.
+ * Only the admin's own pages may frame it. (It began as the old visual builder's canvas.)
  */
 
 /** Where the canvas is on the admin host. */
-export const BUILDER_CANVAS_PATH = "/api/builder/canvas";
+export const PREVIEW_CANVAS_PATH = "/api/preview/canvas";
 
 const CANVAS_HTML = '<!doctype html><html><head><meta charset="utf-8"><title>Canvas</title></head><body></body></html>';
 
 /**
  * No script and no default: images and video as Site pages show them (Templates may show outside
  * images, Media from the admin host), fonts from the admin host or outside, styles only from files
- * on it (the builder's constructed stylesheet isn't one a policy governs), nothing posted or framed.
+ * on it (the screen's constructed stylesheet isn't one a policy governs), nothing posted or framed.
  */
 const CANVAS_POLICY = [
 	"default-src 'none'",
@@ -27,7 +28,7 @@ const CANVAS_POLICY = [
 	"form-action 'none'",
 ].join("; ");
 
-export function builderCanvas(): Response {
+export function previewCanvas(): Response {
 	return new Response(CANVAS_HTML, {
 		headers: {
 			"content-type": "text/html; charset=utf-8",

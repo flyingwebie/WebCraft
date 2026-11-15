@@ -3,8 +3,8 @@ import type { ElementTree } from "@webcraft/renderer/builder";
 import { TriangleAlertIcon } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 
-import { editorHistory } from "../../builder/editor-history.ts";
-import { matches } from "../../builder/shortcuts.ts";
+import { editorHistory } from "../../editor/editor-history.ts";
+import { matches } from "../../editor/shortcuts.ts";
 import { fill, type Words } from "../api.ts";
 import { FOCUS_RING } from "../controls.tsx";
 import { keyOf, type StructureSelection, type StructureSource } from "../editing/selection.ts";

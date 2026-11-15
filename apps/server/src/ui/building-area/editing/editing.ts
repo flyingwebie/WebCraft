@@ -1,7 +1,7 @@
 import type { Json } from "@webcraft/core/draft-document";
 
-import type { HistoryLocation } from "../../builder/editor-history.ts";
-import { matches } from "../../builder/shortcuts.ts";
+import type { HistoryLocation } from "../../editor/editor-history.ts";
+import { matches } from "../../editor/shortcuts.ts";
 import { TEXT_REGION } from "../agent/contract.ts";
 import { fill, type PageState, type Words } from "../api.ts";
 import { nameOf, type Overlay, type OverlayMark } from "../canvas/overlay.ts";

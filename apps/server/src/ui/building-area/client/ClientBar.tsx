@@ -16,8 +16,8 @@ import {
 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 
-import { editorHistory } from "../../builder/editor-history.ts";
-import { ariaKeys, shortcutText } from "../../builder/shortcuts.ts";
+import { editorHistory } from "../../editor/editor-history.ts";
+import { ariaKeys, shortcutText } from "../../editor/shortcuts.ts";
 import { fill, type Words } from "../api.ts";
 import { LanguageMenu, type PageLanguage } from "../bottom-bar/LanguageMenu.tsx";
 import { SafeModeControl } from "../bottom-bar/SafeMode.tsx";

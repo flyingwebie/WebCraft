@@ -107,25 +107,6 @@ test("a newer edit to the same value makes a step obsolete, and refused inverses
 	}
 });
 
-test("history navigation transfers are person-bound, single-use and expire", async () => {
-	const site = await coEditingSite(install);
-	const other = await install.createStaff({ workspaces: [site.workspaceId] });
-	const { token } = await site.staff.api.builder.transferHistory({
-		siteId: site.siteId,
-		payload: '{"past":[],"future":[]}',
-	});
-	expect(await other.browser.api.builder.claimHistory({ siteId: site.siteId, token })).toEqual({ payload: null });
-	expect(await site.staff.api.builder.claimHistory({ siteId: site.siteId, token })).toEqual({
-		payload: '{"past":[],"future":[]}',
-	});
-	expect(await site.staff.api.builder.claimHistory({ siteId: site.siteId, token })).toEqual({ payload: null });
-	const expired = await site.staff.api.builder.transferHistory({ siteId: site.siteId, payload: "expired" });
-	await install.clock.advance(61_000);
-	expect(await site.staff.api.builder.claimHistory({ siteId: site.siteId, token: expired.token })).toEqual({
-		payload: null,
-	});
-});
-
 test("saved CSS history recognises canonical declarations and keeps a peer's other Class properties", async () => {
 	const site = await coEditingSite(install);
 	const api = site.staff.api;

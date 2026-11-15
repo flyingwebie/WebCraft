@@ -11,7 +11,7 @@ import {
 	unwrapAt,
 	withNewIds,
 	wrapAt,
-} from "../../builder/tree.ts";
+} from "../../editor/tree.ts";
 import { fill, type Words } from "../api.ts";
 import { managementApi } from "../management.ts";
 import { anchorName, keyAt } from "./insert.ts";

@@ -13,7 +13,7 @@ import { Label } from "@webcraft/ui/components/label.tsx";
 import { ImagesIcon, LoaderIcon, SearchIcon } from "lucide-react";
 import { useContext, useEffect, useRef, useState } from "react";
 
-import { EditorEnvironment, useMediaApi } from "../builder/editor-api.tsx";
+import { EditorEnvironment, useMediaApi } from "../editor/editor-api.tsx";
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { useMediaHost } from "./host.tsx";

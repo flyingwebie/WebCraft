@@ -100,16 +100,12 @@ test("a Member is refused Templates, Components and Structure, on the Site and i
 	const { siteId, postTypeId, componentId } = await site("menu-structure");
 	const editing = await openEditMode(install, editor, siteId, "/");
 
-	// Code mode and everything it serves: Templates' and Components' markup, CSS, scripts, its own menu.
+	// The code panes' requests: Templates' and Components' markup, scripts, Classes.
 	const structureOnSite: [string, unknown][] = [
-		["code/start", {}],
-		["code/commandMenu", {}],
 		["code/editor", { path: "/", ref: null }],
 		["code/open", { path: "/", ref: null }],
 		["code/save", { path: "/", ref: "template:site", markup: "<main></main>", version: null }],
-		["code/saveCss", { target: { kind: "site" }, text: "body{}", version: null }],
 		["code/saveScript", { path: "/", kind: "site", code: "", version: null }],
-		["code/createComponent", { name: "Mine" }],
 		["code/createClass", { name: "mine" }],
 	];
 	for (const [action, body] of structureOnSite) {
@@ -118,9 +114,7 @@ test("a Member is refused Templates, Components and Structure, on the Site and i
 		expect([action, refused.status]).toEqual([action, 403]);
 	}
 	// Page layout settings are Structure too: refused as any other missing Permission is, and left as they were.
-	const settings = await editing.edit("layout/configure", { enabled: true });
-	expect(settings.status).toBe(403);
-	await expectRefused(Promise.resolve(settings), "FORBIDDEN");
+	await expect(editor.api.pageLayouts.configure({ siteId, enabled: true })).rejects.toMatchObject({ status: 403 });
 	expect(await staff.api.pageLayouts.settings({ siteId })).toEqual({ enabled: false, allowedComponents: [] });
 
 	const api = editor.api;

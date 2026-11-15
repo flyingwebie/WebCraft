@@ -1,8 +1,8 @@
 import type { Json } from "@webcraft/core/draft-document";
 
-import { editorHistory, type HistoryLocation, type HistoryPort } from "../../builder/editor-history.ts";
-import { historyWords } from "../../builder/history-words.ts";
-import { matches } from "../../builder/shortcuts.ts";
+import { editorHistory, type HistoryLocation, type HistoryPort } from "../../editor/editor-history.ts";
+import { historyWords } from "../../editor/history-words.ts";
+import { matches } from "../../editor/shortcuts.ts";
 import { fill, type Words } from "../api.ts";
 import type { SavedAnswer, SaveWatch } from "../canvas/regions.ts";
 
@@ -123,10 +123,9 @@ export function shellHistory(options: {
 			() => said.refused,
 		),
 	});
-	// The shell never hands its history over: it is one tab's, from the shell's start to a reload.
-	history.transport(options.fallback, () =>
-		Promise.reject(new Error("The building area keeps its Undo history in the tab.")),
-	);
+	// The history is one tab's, from the shell's start to a reload: a step on a Draft no longer open is
+	// taken back by opening that Draft for the step alone.
+	history.reachWith(options.fallback);
 	const order = inOrder();
 	let page: HistoryPage | null = null;
 	const stop = history.listen({

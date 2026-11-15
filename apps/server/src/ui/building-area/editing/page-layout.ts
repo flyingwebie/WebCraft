@@ -1,9 +1,8 @@
 import type { FieldDefinition } from "@webcraft/core";
 import { type DraftClient, type Json, sameValue } from "@webcraft/core/draft-document";
-
-import { editorHistory } from "../../builder/editor-history.ts";
 import { type DocumentValues, writeField } from "../../co-editing/values.ts";
 import type { Json as FieldJson } from "../../content/model.ts";
+import { editorHistory } from "../../editor/editor-history.ts";
 import { draftLayout } from "../../page-layouts/props-input.ts";
 import { fill, type Words } from "../api.ts";
 import { draftResource, type PageDrafts } from "./drafts.ts";

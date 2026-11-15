@@ -7,26 +7,20 @@ import {
 	CODE_MODE_SCRIPT_PATH,
 	CODE_MODE_STYLESHEET_PATH,
 	CONSENT_CATEGORIES,
-	componentSourceTarget,
-	configureLayout,
 	EDIT_MODE_PATH,
 	type EditSession,
 	editModePolicy,
 	type FieldInput,
 	framedEditModePolicy,
 	getPageLayout,
-	HISTORY_TRANSFER_MAX_LENGTH,
 	type InstallServices,
 	isAdminLanguage,
 	isAdminReturnPath,
 	isBuildingDocument,
-	isEditPageAddress,
 	LIBRARIES_PER_SITE,
 	limitBody,
 	MEDIA_TEXT_MAX_LENGTH,
 	MediaTooLargeError,
-	madeTexts,
-	newComponentPlace,
 	PASTE_MAX_LENGTH,
 	type PageEditing,
 	RateLimitedError,
@@ -34,7 +28,6 @@ import {
 	SCRIPT_MAX_LENGTH,
 	type SiteHost,
 	type SiteScope,
-	treePath,
 } from "@webcraft/core";
 import { BODY_LIMITS } from "@webcraft/renderer";
 import { z } from "zod";
@@ -43,9 +36,8 @@ import { clientAddress } from "../client-address.ts";
 import en from "../messages/en.json" with { type: "json" };
 import it from "../messages/it.json" with { type: "json" };
 import { json, plainText } from "../responses.ts";
-import { buildingAreaAssets, isBuildingAreaAsset } from "./building-area/assets.ts";
+import { buildingAreaAssets, EDIT_ASSETS_PATH, isBuildingAreaAsset } from "./building-area/assets.ts";
 import { BUILDING_AREA_COOKIE, cookieValue, siteCookie, siteCookieName } from "./cookies.ts";
-import { EDIT_ASSETS_PATH, editBarAssets } from "./edit-bar/assets.ts";
 
 /**
  * Edit mode on a Site's own domain (ADR 0022), at the path the Install keeps for it,
@@ -63,10 +55,6 @@ export async function editModeEndpoint(
 	if (rest === "enter") {
 		if (request.method !== "GET") return plainText(405, "Method Not Allowed", { allow: "GET" });
 		return enter(services, request, host, url.searchParams.get("token") ?? "");
-	}
-	if (rest === "again") {
-		if (request.method !== "GET") return plainText(405, "Method Not Allowed", { allow: "GET" });
-		return showAgain(services, request, host, url.searchParams);
 	}
 	if (rest.startsWith(EDIT_API_PREFIX)) return editRequest(services, request, host, rest.slice(EDIT_API_PREFIX.length));
 	if (url.pathname.startsWith(CODE_MODE_STYLESHEET_PATH)) {
@@ -120,17 +108,6 @@ export const EDIT_TOKEN_HEADER = "x-webcraft-edit-token";
 /** What an edit request may do, by action: each gets the session and the request's JSON body. */
 const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 	/**
-	 * Turns Code mode on for this browser (ADR 0016): its pages then show the Drafts of the Site's
-	 * Structure, every element tagged. Only for someone who may change the Structure (`structure.edit`).
-	 */
-	"code/start": async (services, session, _body, request) => {
-		await services.codeMode.access(session);
-		const response = json(200, { code: true });
-		const maxAge = Math.max(0, Math.floor((session.expiresAt.getTime() - services.clock.now().getTime()) / 1000));
-		response.headers.append("set-cookie", siteCookie(new URL(request.url).hostname, "code", "on", maxAge));
-		return response;
-	},
-	/**
 	 * Opens what an element comes from (by the reference the page tags it with): its Template or
 	 * Component as Template markup, for Code mode's HTML panel.
 	 */
@@ -140,31 +117,6 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 			...(await services.codeMode.editor(scope, host, parse(codeSource, body))),
 			adminOrigin: services.config.adminOrigin,
 		});
-	},
-	"code/historyDesign": async (services, session) => {
-		const scope = await services.codeMode.access(session);
-		return json(200, await services.builder.historyDesign(scope));
-	},
-	"code/transferHistory": async (services, session, body) => {
-		const scope = await services.codeMode.access(session);
-		return json(200, await services.builder.transferHistory(scope, parse(historyTransfer, body).payload));
-	},
-	"code/claimHistory": async (services, session, body) => {
-		const scope = await services.codeMode.access(session);
-		return json(200, await services.builder.claimHistory(scope, parse(historyClaim, body).token));
-	},
-	"code/reverseHistory": async (services, session, body) => {
-		const scope = await services.codeMode.access(session);
-		const input = parse(z.object({ resource: z.string().max(1000), from: z.json(), to: z.json() }), body);
-		return json(200, await services.builder.reverseHistory(scope, input.resource, input.from, input.to));
-	},
-	/**
-	 * What the Command menu needs in Code mode: the Permissions the person holds on the Site (checked
-	 * with `can()`) and Go to's Pages, Entries by Post Type, Templates and Components.
-	 */
-	"code/commandMenu": async (services, session) => {
-		const scope = await services.codeMode.access(session);
-		return json(200, await services.builder.commandMenu(scope));
 	},
 	/**
 	 * What the Command menu needs in Edit mode (#139), for everyone in it: the Permissions the person
@@ -301,32 +253,6 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 		const scope = await services.codeMode.access(session);
 		return json(200, await services.codeMode.save(scope, host, parse(codeSave, body)));
 	},
-	/** What the CSS panel shows for an element: its Classes with their uses, the breakpoints, the Site CSS and the tokens. */
-	"code/css": async (services, session, body, _request, host) => {
-		const scope = await services.codeMode.access(session);
-		return json(200, await services.codeMode.css(scope, host, parse(codeCss, body)));
-	},
-	/** Saves a piece of a Class, or the Site CSS, to the Design system's Draft, based on the version it was opened at. */
-	"code/saveCss": async (services, session, body) => {
-		const scope = await services.codeMode.access(session);
-		return json(200, await services.codeMode.saveCss(scope, parse(codeSaveCss, body)));
-	},
-	/**
-	 * Make Component (#134): moves an element or Placement of a Template's or Component's Draft into a
-	 * new Component, with Props for what it read there, and places it instead, in one step
-	 * (`components.make`).
-	 */
-	"code/makeComponent": async (services, session, body) => {
-		const scope = await services.codeMode.access(session);
-		return json(200, await services.components.make(scope, parse(codeMakeComponent, body)));
-	},
-	/** New Component (#134): an empty Component, placed at the insert point when `place` is given (`components.create`). */
-	"code/createComponent": async (services, session, body) => {
-		const scope = await services.codeMode.access(session);
-		const { place, ...input } = parse(codeCreateComponent, body);
-		if (place) return json(200, await services.components.createPlaced(scope, input, place));
-		return json(200, { component: await services.components.create(scope, input) });
-	},
 	/** Makes a Class of the Design system's Draft from a name the HTML panel doesn't know. */
 	"code/createClass": async (services, session, body) => {
 		const scope = await services.codeMode.access(session);
@@ -371,12 +297,6 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 		response.headers.append("set-cookie", siteCookie(new URL(request.url).hostname, SAFE_COOKIE, "", 0));
 		return response;
 	},
-	/** Turns Code mode off for this browser: its pages are Content editing's again. */
-	"code/stop": async (_services, _session, _body, request) => {
-		const response = json(200, { code: false });
-		response.headers.append("set-cookie", siteCookie(new URL(request.url).hostname, "code", "", 0));
-		return response;
-	},
 	/** Saves a value typed in place to the Draft (a body's Blocks too, when the shared Draft isn't open). */
 	save: async (services, session, body) => json(200, await services.editMode.save(session, parse(regionChange, body))),
 	/** The block editor: a body's Blocks in the page's language, and the Blocks and Components it may add. */
@@ -415,9 +335,6 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 	/** Where a query Loop's items (Entries) are changed: their own pages, or the admin's editor. */
 	"loop/entries": async (services, session, body) =>
 		json(200, await services.editMode.loops.entries(session, parse(loopEntries, body))),
-	/** The image popover's Media library: the Site's images (a search, a folder, a page) and its folders. */
-	"media/list": async (services, session, body) =>
-		json(200, await services.editMode.media.list(session, parse(mediaQuery, body))),
 	/** One image, its alt text in a language, and whether alt text can be suggested. */
 	"media/get": async (services, session, body) => {
 		const input = parse(mediaOne, body);
@@ -444,21 +361,6 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 		const input = parse(z.object({ mediaId: z.uuid() }), body);
 		return json(200, { media: await services.media.get(session.scope, input.mediaId) });
 	},
-	"layout/media": async (services, session, body) =>
-		json(
-			200,
-			await services.media.list(
-				session.scope,
-				parse(
-					z.object({
-						search: z.string().max(200).optional(),
-						limit: z.number().int().min(1).max(100).optional(),
-						offset: z.number().int().min(0).optional(),
-					}),
-					body,
-				),
-			),
-		),
 	"layout/get": async (_services, session, body) => {
 		const input = parse(z.object({ entryId: z.uuid(), language: z.string().optional() }), body);
 		return json(200, await getPageLayout(session.scope, input.entryId, input.language));
@@ -481,27 +383,6 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 			return json(200, await getPageLayout(tx, input.entryId, input.language));
 		});
 	},
-	// Structure: opened with `structure.edit` as every Code mode route is, not on the Edit mode scope.
-	"layout/configure": async (services, session, body) =>
-		json(
-			200,
-			await configureLayout(
-				await services.codeMode.access(session),
-				parse(
-					z.object({ enabled: z.boolean().optional(), allowedComponents: z.array(z.string()).max(1000).optional() }),
-					body,
-				),
-			),
-		),
-	/**
-	 * The Undo history's handoff to the next page (ADR 0036), for everyone in Edit mode: kept for a
-	 * minute for this person on this Site and claimed once. It holds the person's own steps only;
-	 * taking one back is an ordinary write through their own Draft, which is checked as any other.
-	 */
-	"history/transfer": async (services, session, body) =>
-		json(200, await services.builder.transferHistory(session.scope, parse(historyTransfer, body).payload)),
-	"history/claim": async (services, session, body) =>
-		json(200, await services.builder.claimHistory(session.scope, parse(historyClaim, body).token)),
 	state: async (services, session, body, _request, host) => {
 		const state = await services.editMode.pageState(session, host, parse(pagePath, body).path);
 		const chosen = state.person.adminLanguage;
@@ -555,10 +436,6 @@ type EditAction = (
 
 const pagePath = z.object({ path: z.string().max(2000) });
 
-/** The Undo history as its editor hands it to the next page, and the token that claims it there. */
-const historyTransfer = z.object({ payload: z.string().max(HISTORY_TRANSFER_MAX_LENGTH) });
-const historyClaim = z.object({ token: z.string().max(100) });
-
 /** What the building area's Publish asks about: the page the frame shows (none: null) and what the shell names besides. */
 const publishItems = z.object({
 	path: z.string().max(2000).nullable(),
@@ -587,16 +464,6 @@ const reviewSubmission = z.object({
 const codeRef = z.string().max(1000).nullable();
 
 const codeSource = z.object({ path: z.string().max(2000), ref: codeRef });
-
-/** Make Component and New Component (#134): the Management API's inputs, as Code mode sends them. */
-const codeMakeComponent = z.object({
-	name: z.string().max(200),
-	source: componentSourceTarget,
-	path: treePath,
-	node: z.unknown(),
-	texts: madeTexts.optional(),
-});
-const codeCreateComponent = z.object({ name: z.string().max(200), place: newComponentPlace.optional() });
 
 /** The longest Template markup Code mode sends, in characters, as the Management API takes it. */
 const MARKUP_MAX_LENGTH = 2_000_000;
@@ -627,15 +494,7 @@ const codePreview = z.object({
 	css: z.object({ target: cssTarget, text: z.string().max(CSS_MAX_LENGTH) }).optional(),
 });
 
-const codeSaveCss = z.object({ target: cssTarget, text: z.string().max(CSS_MAX_LENGTH), version: draftVersion });
-
 const codeClassName = z.object({ name: z.string().max(200) });
-
-/**
- * What the CSS panel reads for an element: by the Classes its shared document gives it now (ids in
- * order, token utilities among them), else by its reference.
- */
-const codeCss = codeSource.extend({ classes: z.array(z.string().max(200)).max(500).optional() });
 
 const codeScripts = z.object({ path: z.string().max(2000), ref: z.string().max(1000).nullable().optional() });
 
@@ -746,13 +605,6 @@ const loopAdd = z.object({ loop: z.string().max(100), after: z.string().max(64).
 const loopRestore = z.object({ restore: z.string().max(2_000_000) });
 
 const mediaId = z.string().max(100);
-
-const mediaQuery = z.object({
-	search: z.string().max(200).optional(),
-	folderId: z.string().max(100).optional(),
-	offset: z.number().int().min(0).max(100_000).optional(),
-	language: z.string().max(35).optional(),
-});
 
 const mediaOne = z.object({ media: mediaId, language: z.string().max(35).optional() });
 
@@ -882,14 +734,12 @@ export function fromSitePages(request: Request): boolean {
 }
 
 /**
- * One of the editing bar's files. Each is named by the hash of its content, so browsers keep it for
- * a year; it holds nothing about the Site or the person, so anyone may load it.
+ * One of the building area's files (ADR 0037). Each is named by the hash of its content, so browsers
+ * keep it for a year; it holds nothing about the Site or the person, so anyone may load it.
  */
 async function assetFile(request: Request, name: string): Promise<Response> {
-	// The building area's files (ADR 0037) are made only once something asks for one of them.
-	const file = isBuildingAreaAsset(name)
-		? (await buildingAreaAssets()).byName.get(name)
-		: (await editBarAssets()).byName.get(name);
+	// They are made only once something asks for one of them.
+	const file = isBuildingAreaAsset(name) ? (await buildingAreaAssets()).byName.get(name) : undefined;
 	if (!file) return plainText(404, "Not Found", { "x-robots-tag": "noindex" });
 	return new Response(request.method === "HEAD" ? null : file.body, {
 		headers: {
@@ -1088,39 +938,9 @@ function enterBuildingArea(
 	const answer = new Response(null, { status: 303, headers: { location, "cache-control": "no-store", ...headers } });
 	answer.headers.append("set-cookie", editCookie(hostname, entered.cookie, maxAge));
 	answer.headers.append("set-cookie", siteCookie(hostname, BUILDING_AREA_COOKIE, encodeURIComponent(returnTo), maxAge));
-	// The building area has no Code mode to switch: its code panes follow the selection.
-	if (cookieValue(request, siteCookieName(hostname, "code")) === "on") {
-		answer.headers.append("set-cookie", siteCookie(hostname, "code", "", 0));
-	}
 	safeModeFollows(request, answer, query.get("safe") === "1", maxAge);
 	return answer;
 }
-
-/**
- * Sends a browser in Edit mode back to the page it is on, with the Undo history's handoff token in the
- * address's fragment (ADR 0036). The editing bar goes through it after a switch only a request makes
- * (Code mode, Safe mode): a browser stays on a page whose address changes in its fragment alone, so
- * the token couldn't reach the page loaded again any other way. It changes nothing and reads nothing:
- * the token is claimed by the page, as the person, like any other handoff.
- */
-async function showAgain(
-	services: InstallServices,
-	request: Request,
-	host: SiteHost,
-	query: URLSearchParams,
-): Promise<Response> {
-	const headers = { "cache-control": "no-store", "referrer-policy": "no-referrer", "x-robots-tag": "noindex" };
-	const to = query.get("to") ?? "";
-	const history = query.get("history") ?? "";
-	const edit = await editSessionOf(services, request, host);
-	if (!edit.session || !isEditPageAddress(to) || !HISTORY_TOKEN.test(history)) {
-		return plainText(404, "Not Found", headers);
-	}
-	return new Response(null, { status: 303, headers: { location: `${to}#wc-history=${history}`, ...headers } });
-}
-
-/** The Undo history's handoff token, as a link carries it. */
-const HISTORY_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 
 /**
  * The edit cookie's name: with the `__Host-` prefix (only this hostname, `Secure`, path `/`), except

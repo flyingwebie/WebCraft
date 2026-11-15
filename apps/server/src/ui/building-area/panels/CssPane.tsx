@@ -3,9 +3,9 @@ import type { ElementNode, ElementTree } from "@webcraft/renderer/builder";
 import { PaintbrushIcon, PlusIcon, XIcon } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 
-import { editorHistory, type HistoryResult } from "../../builder/editor-history.ts";
-import { matches } from "../../builder/shortcuts.ts";
-import { nodeAt, pathOfId, replaceAt } from "../../builder/tree.ts";
+import { editorHistory, type HistoryResult } from "../../editor/editor-history.ts";
+import { matches } from "../../editor/shortcuts.ts";
+import { nodeAt, pathOfId, replaceAt } from "../../editor/tree.ts";
 import { fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING, Tip } from "../controls.tsx";
 import { connect } from "../editing/drafts.ts";

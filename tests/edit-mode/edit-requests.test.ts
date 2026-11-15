@@ -361,17 +361,18 @@ describe("an edit request's size", () => {
 		const site = await bakery();
 		const editing = await openEditMode(install, editor, site.siteId, "/blog/fresh-bread");
 
-		// The undo history handed from one page to the next: text of up to 8 million characters.
-		const response = await editing.edit("history/transfer", { payload: "h".repeat(4 * MB) });
+		// Well past what any one value may hold: the action's own rules answer, never the size limit.
+		const response = await editing.edit("body/paste", { text: "h".repeat(4 * MB) });
 
-		expect(response.status).toBe(200);
+		expect(response.status).not.toBe(413);
+		expect((await json(response)) as { code?: string }).not.toMatchObject({ code: "PAYLOAD_TOO_LARGE" });
 	});
 
 	test("is refused past that, as the Management API refuses it", async () => {
 		const site = await bakery();
 		const editing = await openEditMode(install, editor, site.siteId, "/blog/fresh-bread");
 
-		const response = await editing.edit("history/transfer", { payload: "h".repeat(33 * MB) });
+		const response = await editing.edit("body/paste", { text: "h".repeat(33 * MB) });
 
 		expect(response.status).toBe(413);
 		expect(await json(response)).toMatchObject({ code: "PAYLOAD_TOO_LARGE", data: { maxBytes: 32 * MB } });
