@@ -55,9 +55,9 @@ test("Checks collect composed Draft pages, fragments and SEO warnings, clear aft
 		]),
 	);
 	expect(checks.some((c) => c.check === "missingMain" || c.check === "missingLanguage")).toBe(false);
-	expect(checks.every((c) => c.href.startsWith(`/sites/${siteId}/`) || c.href.startsWith(`/builder/${siteId}/`))).toBe(
-		true,
-	);
+	expect(
+		checks.every((c) => c.href.startsWith(`/sites/${siteId}/`) || c.href.startsWith(`/sites/${siteId}/build?`)),
+	).toBe(true);
 	await staff.api.templates.publish({ siteId, templateId: template.id });
 	await staff.api.entries.publish({ siteId, entryId: entry.id });
 	await staff.api.templates.saveEntryTemplateMarkup({
@@ -77,8 +77,8 @@ test("Checks collect composed Draft pages, fragments and SEO warnings, clear aft
 	expect((await staff.api.checks.list({ siteId })).checks.filter((c) => c.item.id === component.id)).toEqual([]);
 });
 
-test("Code mode checks the unsaved composition without adding check markup to the page", async () => {
-	const { openCodeMode } = await import("../harness/code-mode.ts");
+test("the building area's preview of unsaved markup adds no check markup to the page", async () => {
+	const { openBuildingArea } = await import("../harness/building-area.ts");
 	const { postType } = await staff.api.postTypes.create({
 		siteId,
 		name: "Previews",
@@ -93,7 +93,7 @@ test("Code mode checks the unsaved composition without adding check markup to th
 	await staff.api.templates.publish({ siteId, templateId: template.id });
 	const { entry } = await staff.api.entries.create({ siteId, postTypeId: postType.id, title: "Preview" });
 	await staff.api.entries.publish({ siteId, entryId: entry.id });
-	const coding = await openCodeMode(install, staff, siteId, "/previews/preview");
+	const coding = await openBuildingArea(install, staff, siteId, { path: "/previews/preview" });
 	const response = await coding.edit("code/preview", {
 		path: "/previews/preview",
 		markup: {
@@ -103,8 +103,10 @@ test("Code mode checks the unsaved composition without adding check markup to th
 	});
 	expect(response.status).toBe(200);
 	const result = (await response.json()) as { html: string; checks: { check: string; at: string; detail?: string }[] };
-	expect(result.checks).toContainEqual({ check: "skippedHeading", at: "content#skip", detail: "H1 → H3" });
-	expect(result.checks.some((c) => c.check === "missingAlt")).toBe(false);
+	// Code mode's panel listed the Checks of what was typed; the building area's frame has no such
+	// panel (the admin's Checks list them once saved), so the preview reads none.
+	expect(result.checks).toEqual([]);
+	expect(result.html).toContain("Skipped");
 	expect(result.html).not.toContain("data-wc-decorative");
 	expect(result.html).not.toContain("data-wc-check");
 });
@@ -172,7 +174,7 @@ test("all rules use resolved Props and composed Body headings; reusable fragment
 		(c) => c.componentId === component.id,
 	);
 	expect(changed?.check).toBe("skippedHeading");
-	expect(changed?.href).toBe(`/builder/${siteId}/component/${component.id}?element=deep`);
+	expect(changed?.href).toBe(`/sites/${siteId}/build?open=%2Fcomponent%2F${component.id}&element=deep`);
 	const simple = await staff.api.components.create({ siteId, name: "Rules", props: [] });
 	await staff.api.components.saveMarkup({
 		siteId,
@@ -286,7 +288,7 @@ test("Search and Archive Checks use the whole page and link to the template that
 	const missing = (await api.checks.entry({ siteId: localSite, entryId: search.entry.id })).checks.find(
 		(c) => c.check === "missingH1",
 	);
-	expect(missing?.href).toBe(`/builder/${localSite}/search-template`);
+	expect(missing?.href).toBe(`/sites/${localSite}/build?open=%2Fsearch-template`);
 	const { postType } = await api.postTypes.create({
 		siteId: localSite,
 		name: "Recipes",
@@ -302,7 +304,7 @@ test("Search and Archive Checks use the whole page and link to the template that
 		expect.objectContaining({
 			check: "missingH1",
 			item: expect.objectContaining({ id: archive.template.id }),
-			href: `/builder/${localSite}/archive-template/${postType.id}`,
+			href: `/sites/${localSite}/build?open=%2Farchive-template%2F${postType.id}`,
 		}),
 	);
 	await api.templates.saveArchiveTemplateMarkup({
@@ -343,7 +345,7 @@ test("fragment Checks distinguish unfilled Props from empty placements and locat
 		expect.objectContaining({
 			check: "vagueLink",
 			componentId: component.id,
-			href: `/builder/${siteId}/component/${component.id}?element=action`,
+			href: `/sites/${siteId}/build?open=%2Fcomponent%2F${component.id}&element=action`,
 		}),
 	);
 	await staff.api.components.saveMarkup({
@@ -437,7 +439,7 @@ test("Checks inspect a Component Block's root rich text without duplicating ordi
 				check: "vagueLink",
 				detail: "Click here",
 				componentId: component.id,
-				href: `/builder/${localSite}/component/${component.id}`,
+				href: `/sites/${localSite}/build?open=%2Fcomponent%2F${component.id}`,
 			}),
 		);
 		expect(checks.filter((c) => c.check === "vagueLink" && c.at === "fields.body[1]")).toHaveLength(1);

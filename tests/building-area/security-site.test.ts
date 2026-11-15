@@ -164,7 +164,7 @@ describe("Safe mode in the building area", () => {
 		expect(safe.browser.cookies.has(SAFE_COOKIE)).toBe(true);
 		expect(siteScriptsIn(await (await safe.page("/")).text())).toEqual([]);
 
-		const { url } = await editor.api.editMode.open({ siteId, building: true });
+		const { url } = await editor.api.editMode.open({ siteId });
 		const entered = await safe.browser.request(url);
 
 		expect(entered.headers.getSetCookie()).toContain(

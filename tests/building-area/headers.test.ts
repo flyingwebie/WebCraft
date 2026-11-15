@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { type BuildingAreaBrowser, openBuildingArea } from "../harness/building-area.ts";
 import { codeTagsIn, headOf } from "../harness/code-mode.ts";
-import { openEditMode } from "../harness/edit-mode.ts";
+import { holdCookie, openEditMode, withoutBuildingAreaCookie } from "../harness/edit-mode.ts";
 import { fakeNpmPackage } from "../harness/fake-npm.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { goLive } from "../harness/staging.ts";
@@ -212,7 +212,8 @@ describe("a page shown in the building area's frame", () => {
 	test("Code mode's cookie changes nothing in it: the agent, never Code mode's script", async () => {
 		const staffBuilding = await openBuildingArea(install, staff, siteId);
 		const before = await (await staffBuilding.page("/")).text();
-		expect((await staffBuilding.edit("code/start")).status).toBe(200);
+		// As a browser may still hold it from before the building area.
+		holdCookie(staffBuilding.browser, "__Host-webcraft.code", "on");
 
 		const html = await (await staffBuilding.page("/")).text();
 
@@ -223,16 +224,17 @@ describe("a page shown in the building area's frame", () => {
 	});
 });
 
-describe("without the building-area cookie", () => {
-	test("a page in Edit mode is served exactly as before: the editing bar, never framed", async () => {
+describe("without the building-area cookie (a session from before it)", () => {
+	test("a page in Edit mode is the frame's all the same: the agent, framed by its own origin only", async () => {
 		const editing = await openEditMode(install, editor, siteId, "/");
+		withoutBuildingAreaCookie(editing.browser);
 
 		const response = await editing.page("/");
 
-		expect(response.headers.get("x-frame-options")).toBe("DENY");
-		expect(response.headers.get("content-security-policy")).toContain("frame-ancestors 'none'");
+		expect(response.headers.get("x-frame-options")).toBe("SAMEORIGIN");
+		expect(response.headers.get("content-security-policy")).toContain("frame-ancestors 'self'");
 		const html = await response.text();
-		expect(headScripts(html)[0]).toMatch(/\/_webcraft\/edit\/assets\/bar-[0-9a-f]{16}\.js/);
-		expect(html).not.toContain("/_webcraft/edit/assets/agent-");
+		expect(headScripts(html)[0]).toMatch(/\/_webcraft\/edit\/assets\/agent-[0-9a-f]{16}\.js/);
+		expect(html).not.toContain("/_webcraft/edit/assets/bar-");
 	});
 });

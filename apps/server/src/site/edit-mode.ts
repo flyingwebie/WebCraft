@@ -20,7 +20,6 @@ import {
 	isAdminLanguage,
 	isAdminReturnPath,
 	isBuildingDocument,
-	isCodeSelection,
 	isEditPageAddress,
 	LIBRARIES_PER_SITE,
 	limitBody,
@@ -45,7 +44,7 @@ import en from "../messages/en.json" with { type: "json" };
 import it from "../messages/it.json" with { type: "json" };
 import { json, plainText } from "../responses.ts";
 import { buildingAreaAssets, isBuildingAreaAsset } from "./building-area/assets.ts";
-import { BUILDING_AREA_COOKIE, buildingAreaCookieOf, cookieValue, siteCookie, siteCookieName } from "./cookies.ts";
+import { BUILDING_AREA_COOKIE, cookieValue, siteCookie, siteCookieName } from "./cookies.ts";
 import { EDIT_ASSETS_PATH, editBarAssets } from "./edit-bar/assets.ts";
 
 /**
@@ -294,7 +293,7 @@ const EDIT_ACTIONS: Readonly<Record<string, EditAction>> = {
 		const input = parse(codePreview, body);
 		// The building area's frame shows the page as it loads it there (both kinds of tags, BA-11), and
 		// in Safe mode with none of the Site's scripts, nor their Drafts.
-		const editing = await pageEditing(session, scope, safeModeOf(request), inBuildingArea(request));
+		const editing = await pageEditing(session, scope, safeModeOf(request));
 		return json(200, await services.codeMode.preview(host, editing, input));
 	},
 	/** Saves markup to its Template's or Component's Draft, based on the version it was opened at. */
@@ -942,69 +941,25 @@ export function safeModeOf(request: Request): boolean {
 }
 
 /**
- * What a page needs to render for Edit mode: the person's scope, and WebCraft's files in <head>. With
- * `code` (the Site opened with `structure.edit`), the page is rendered for Code mode, which loads its
- * own script after the editing bar's. With `safe`, it runs none of the Site's own scripts (Safe mode).
- * With `building`, it is rendered for the building area's frame (ADR 0037): the page agent comes first
- * instead of the editing bar, and Code mode's script never loads; with `code` as well (Staff, whatever
- * Code mode's cookie says), it shows the Drafts of the Structure with both kinds of tags, every
- * element's source and the editable regions (`PageEditing.regions`).
+ * What a page needs to render for Edit mode, in the building area's frame (ADR 0037): the person's
+ * scope, and the page agent first in <head>. With `code` (the Site opened with `structure.edit`:
+ * Staff), it shows the Drafts of the Structure with both kinds of tags, every element's source and
+ * the editable regions (`PageEditing.regions`); otherwise only the regions. With `safe`, it runs none
+ * of the Site's own scripts (Safe mode).
  */
-export async function pageEditing(
-	session: EditSession,
-	code?: SiteScope | null,
-	safe = false,
-	building = false,
-): Promise<PageEditing> {
+export async function pageEditing(session: EditSession, code?: SiteScope | null, safe = false): Promise<PageEditing> {
 	const safeMeta: [string, string][] = safe ? [["webcraft-safe-mode", "on"]] : [];
-	if (building) {
-		const files = await buildingAreaAssets();
-		return {
-			scope: code ?? session.scope,
-			...(code ? { code: true, regions: true } : {}),
-			safe,
-			head: {
-				meta: [["webcraft-edit-token", session.headerToken], ...safeMeta],
-				scripts: [files.agent.path],
-				stylesheets: [files.agentStyles.path],
-			},
-		};
-	}
-	const files = await editBarAssets();
-	if (code) {
-		return {
-			scope: code,
-			code: true,
-			safe,
-			head: {
-				meta: [["webcraft-edit-token", session.headerToken], ["webcraft-code-mode", "on"], ...safeMeta],
-				scripts: [files.script.path, files.codeScript.path],
-				stylesheets: [files.pageStyles.path],
-			},
-		};
-	}
+	const files = await buildingAreaAssets();
 	return {
-		scope: session.scope,
+		scope: code ?? session.scope,
+		...(code ? { code: true, regions: true } : {}),
 		safe,
 		head: {
 			meta: [["webcraft-edit-token", session.headerToken], ...safeMeta],
-			scripts: [files.script.path],
-			stylesheets: [files.pageStyles.path],
+			scripts: [files.agent.path],
+			stylesheets: [files.agentStyles.path],
 		},
 	};
-}
-
-/**
- * The Site opened for Code mode when the request asks for it (its Code mode cookie) and the person
- * may change the Site's Structure; null otherwise, and the page is Content editing's.
- */
-export async function codeModeOf(
-	services: InstallServices,
-	request: Request,
-	session: EditSession,
-): Promise<SiteScope | null> {
-	if (cookieValue(request, siteCookieName(new URL(request.url).hostname, "code")) !== "on") return null;
-	return services.codeMode.openIfAllowed(session);
 }
 
 /**
@@ -1051,35 +1006,20 @@ async function codeModeStylesheet(services: InstallServices, request: Request, h
 }
 
 /**
- * A page in Edit mode, as HTML with Edit mode's headers (and the page's own policy, when given). A page
- * `framed` for the building area (ADR 0037) may be framed by its own origin, and by no other.
+ * A page in Edit mode, as HTML with Edit mode's headers (and the page's own policy, when given),
+ * framed by the building area (ADR 0037): it may be framed by its own origin, and by no other.
  */
-export function editModeHtml(
-	status: number,
-	html: string,
-	headers: Record<string, string> = {},
-	framed = false,
-): Response {
+export function editModeHtml(status: number, html: string, headers: Record<string, string> = {}): Response {
 	const all: Record<string, string> = {
 		"content-type": "text/html; charset=utf-8",
 		...EDIT_MODE_PAGE_HEADERS,
 		...headers,
 	};
-	if (framed) {
-		all["x-frame-options"] = "SAMEORIGIN";
-		all["content-security-policy"] = framedEditModePolicy(
-			all["content-security-policy"] ?? EDIT_MODE_PAGE_HEADERS["content-security-policy"] ?? "",
-		);
-	}
+	all["x-frame-options"] = "SAMEORIGIN";
+	all["content-security-policy"] = framedEditModePolicy(
+		all["content-security-policy"] ?? EDIT_MODE_PAGE_HEADERS["content-security-policy"] ?? "",
+	);
 	return new Response(html, { status, headers: all });
-}
-
-/**
- * Whether a request in Edit mode is the building area's (ADR 0037): it carries the building-area
- * cookie. Its pages are then rendered for the frame, and a page opened at the top level goes into the shell.
- */
-export function inBuildingArea(request: Request): boolean {
-	return buildingAreaCookieOf(request) !== null;
 }
 
 /** The `Set-Cookie` line that clears an edit cookie that no longer opens Edit mode. */
@@ -1089,8 +1029,8 @@ export function clearEditCookie(request: Request): string {
 
 /**
  * Follows an "Edit on site" link: uses it up, sets the edit cookie and sends the browser on to the
- * page, so the link's token never stays in the address bar or the history. A link that doesn't work
- * (used, expired, another Site's) says so plainly.
+ * building area (`enterBuildingArea`), so the link's token never stays in the address bar or the
+ * history. A link that doesn't work (used, expired, another Site's) says so plainly.
  */
 async function enter(services: InstallServices, request: Request, host: SiteHost, token: string): Promise<Response> {
 	const headers = { "referrer-policy": "no-referrer", "x-robots-tag": "noindex" };
@@ -1105,7 +1045,6 @@ async function enter(services: InstallServices, request: Request, host: SiteHost
 		});
 	}
 	const entered = token ? await services.editMode.enter(host, token) : null;
-	const safe = new URL(request.url).searchParams.get("safe") === "1";
 	if (!entered) {
 		return plainText(
 			403,
@@ -1113,38 +1052,8 @@ async function enter(services: InstallServices, request: Request, host: SiteHost
 			headers,
 		);
 	}
-	const query = new URL(request.url).searchParams;
-	const hostname = new URL(request.url).hostname;
 	const maxAge = Math.max(0, Math.floor((entered.expiresAt.getTime() - services.clock.now().getTime()) / 1000));
-	if (query.get("build") === "1") return enterBuildingArea(request, host, entered, query, maxAge, headers);
-	const code = query.get("code") === "1";
-	if (code) {
-		const session = await services.editMode.session(host, entered.cookie);
-		if (!session) return plainText(403, "Code mode is unavailable.", headers);
-		if (!(await services.codeMode.openIfAllowed(session)))
-			return plainText(403, "Code mode needs permission to edit Structure.", headers);
-	}
-	const selection = query.get("selection");
-	const history = new URL(request.url).searchParams.get("history");
-	const selected =
-		code && selection && isCodeSelection(selection) ? `#wc-selection=${encodeURIComponent(selection)}` : "";
-	const answer = new Response(null, {
-		status: 303,
-		headers: {
-			location:
-				entered.path +
-				selected +
-				(history && HISTORY_TOKEN.test(history) ? `${selected ? "&" : "#"}wc-history=${history}` : ""),
-			"cache-control": "no-store",
-			...headers,
-		},
-	});
-	answer.headers.append("set-cookie", editCookie(hostname, entered.cookie, maxAge));
-	if (code) answer.headers.append("set-cookie", siteCookie(hostname, "code", "on", maxAge));
-	safeModeFollows(request, answer, safe, maxAge);
-	// A link that doesn't open the building area leaves it: pages show the editing bar again.
-	if (inBuildingArea(request)) answer.headers.append("set-cookie", siteCookie(hostname, BUILDING_AREA_COOKIE, "", 0));
-	return answer;
+	return enterBuildingArea(request, host, entered, new URL(request.url).searchParams, maxAge, headers);
 }
 
 /** A link opened from "Edit in Safe mode" starts Safe mode; any other link ends it. */

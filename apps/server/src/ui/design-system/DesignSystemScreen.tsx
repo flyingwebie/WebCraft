@@ -96,16 +96,19 @@ export function DesignSystemScreen({
 		}
 	};
 
-	// Edit mode shows the Site's pages with the Design system's Draft.
+	// The building area shows the Site's pages with the Design system's Draft; its logo tile comes back here.
 	const previewInEditMode = async () => {
 		setOpening(true);
 		try {
 			if (!(await flush())) return;
-			const api = await getApi();
-			const { url } = await api.editMode.open({ siteId, path: "/", safeMode: false });
-			window.location.assign(url);
+			await navigate({
+				to: "/sites/$siteId/build",
+				params: { siteId },
+				search: { open: "/page/", returnTo: `${window.location.pathname}${window.location.search}` },
+			});
 		} catch (error) {
 			showFailure(error);
+		} finally {
 			setOpening(false);
 		}
 	};

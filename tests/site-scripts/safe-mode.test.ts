@@ -1,7 +1,7 @@
 // Safe mode (ADR 0022): Edit mode with none of the Site's own scripts (no Libraries, no Site script,
 // no page script), so a broken script can never lock anyone out of editing. It opens from the admin's
-// "Edit on site" menu (a link that says so) or from the editing bar, and lasts for the browser's Edit
-// mode session. Outside scripts never run in Edit mode at all.
+// "Edit on site" menu (a link that says so) or from the building area (its notice and its bar), and
+// lasts for the browser's Edit mode session. Outside scripts never run in Edit mode at all.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { headOf } from "../harness/code-mode.ts";
@@ -69,12 +69,12 @@ function inSafeMode(html: string): boolean {
 }
 
 describe("Edit mode", () => {
-	test("runs the Site's own scripts and Libraries, each saying what it is, so the bar can name one that fails", async () => {
+	test("runs the Site's own scripts and Libraries, each saying what it is, so the building area can name one that fails", async () => {
 		const editing = await openEditMode(install, editor, siteId, "/");
 		const html = await expectSafePage(await editing.page("/"), "editMode");
 
 		const scripts = headScripts(html);
-		expect(scripts[0]).toMatch(/^<script src="\/_webcraft\/edit\/assets\/bar-[0-9a-f]{16}\.js"><\/script>$/);
+		expect(scripts[0]).toMatch(/^<script src="\/_webcraft\/edit\/assets\/agent-[0-9a-f]{16}\.js"><\/script>$/);
 		expect(scripts.slice(1)).toEqual([
 			`<script src="${library.src}" integrity="${(await staff.api.libraries.list({ siteId })).libraries[0]?.integrity}" defer data-wc-library="motion-kit"></script>`,
 			expect.stringMatching(/^<script src="\/_wc\/js\/[0-9a-f]{16}\.js" defer data-wc-script="site"><\/script>$/),
@@ -94,7 +94,7 @@ describe("Safe mode", () => {
 
 		expect(inSafeMode(html)).toBe(true);
 		expect(headScripts(html)).toEqual([
-			expect.stringMatching(/^<script src="\/_webcraft\/edit\/assets\/bar-[0-9a-f]{16}\.js"><\/script>$/),
+			expect.stringMatching(/^<script src="\/_webcraft\/edit\/assets\/agent-[0-9a-f]{16}\.js"><\/script>$/),
 		]);
 		expect(html).not.toContain("/_wc/lib/");
 		expect(html).not.toContain("/_wc/js/");
@@ -106,8 +106,8 @@ describe("Safe mode", () => {
 		expect(await missing.text()).not.toContain("/_wc/js/");
 	});
 
-	test("the editing bar turns it on and off for this browser's Edit mode session", async () => {
-		const editing = await openEditMode(install, staff, siteId, "/");
+	test("the building area turns it on and off for this browser's Edit mode session", async () => {
+		const editing = await openEditMode(install, editor, siteId, "/");
 		expect(inSafeMode(await (await editing.page("/")).text())).toBe(false);
 
 		const started = await editing.edit("safe/start");
@@ -127,13 +127,13 @@ describe("Safe mode", () => {
 		expect(again).toContain("/_wc/js/");
 	});
 
-	test("in Code mode it runs none of the scripts' Drafts either", async () => {
+	test("for Staff, whose frame shows the Drafts of the Structure, it runs none of the scripts' Drafts either", async () => {
 		const editing = await openEditMode(install, staff, siteId, "/");
-		await editing.edit("code/start");
+		expect(await (await editing.page("/")).text()).toContain("/_webcraft/edit/js/");
 		await editing.edit("safe/start");
 
 		const html = await (await editing.page("/")).text();
-		expect(html).toContain('<meta name="webcraft-code-mode" content="on">');
+		expect(html).toContain('data-wc-code="site#');
 		expect(inSafeMode(html)).toBe(true);
 		expect(html).not.toContain("/_webcraft/edit/js/");
 		expect(html).not.toContain("/_wc/lib/");

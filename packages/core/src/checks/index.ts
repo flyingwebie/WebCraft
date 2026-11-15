@@ -121,7 +121,9 @@ export function createChecks(pages: SitePages, sources: ComponentSources) {
 								: undefined
 						: undefined;
 			const href =
-				structure && target ? builderLink(scope.site.id, target, c.at) : `${base.href}#${encodeURIComponent(c.at)}`;
+				structure && target
+					? buildingAreaLink(scope.site.id, target, c.at)
+					: `${base.href}#${encodeURIComponent(c.at)}`;
 			return { ...c, ...base, href };
 		});
 	};
@@ -211,7 +213,7 @@ export function createChecks(pages: SitePages, sources: ComponentSources) {
 						...check,
 						item,
 						language: language.code,
-						href: builderLink(
+						href: buildingAreaLink(
 							scope.site.id,
 							check.componentId
 								? `component/${check.componentId}`
@@ -256,7 +258,13 @@ export function createChecks(pages: SitePages, sources: ComponentSources) {
 export type ChecksService = ReturnType<typeof createChecks>;
 export type { QualityCheck };
 
-function builderLink(siteId: string, target: string, at: string): string {
-	if (!at.includes("#")) return `/builder/${siteId}/${target}`;
-	return `/builder/${siteId}/${target}?element=${encodeURIComponent((at.split("#").at(-1) ?? "").replace(/(?:\.\d+)+$/, ""))}`;
+/**
+ * The admin's way into the building area (ADR 0037) for a Check found in a Template or Component: the
+ * document opened (`target`, as `/_webcraft/build` names it) with the element the Check is about
+ * selected, when the Check names one. The admin adds where its logo tile goes back to.
+ */
+function buildingAreaLink(siteId: string, target: string, at: string): string {
+	const query = new URLSearchParams({ open: `/${target}` });
+	if (at.includes("#")) query.set("element", (at.split("#").at(-1) ?? "").replace(/(?:\.\d+)+$/, ""));
+	return `/sites/${siteId}/build?${query.toString()}`;
 }

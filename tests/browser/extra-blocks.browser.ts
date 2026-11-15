@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { photo, upload } from "../harness/images.ts";
 import type { TestAccount, TestBrowser } from "../harness/index.ts";
+import { enterBuildingArea } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
 
@@ -181,23 +182,15 @@ for (const theme of THEMES) {
 }
 
 for (const theme of THEMES) {
-	test(`Edit and Safe modes use the permitted Block catalogue without enhancement (${theme})`, async () => {
+	test(`the building area and Safe mode use the permitted Block catalogue without enhancement (${theme})`, async () => {
 		const page = await install.newPage(theme);
 		const requests: string[] = [];
 		page.on("request", (request) => requests.push(request.url()));
-		await install.signIn(page, staff);
-		await page.goto(install.adminUrl(`/sites/${siteId}`));
-		await page.getByRole("button", { name: "Edit on site", exact: true }).click();
-		await page.waitForURL((url) => url.hostname === new URL(install.liveUrl("extra", "/")).hostname);
-		await page.addInitScript(() => {
-			window.localStorage.setItem("webcraft-edit-hint", "seen");
-		});
-		await page.goto(install.liveUrl("extra", path));
-		await page.locator("webcraft-edit-bar").waitFor({ state: "attached" });
-		expect(await page.locator('script[data-wc-module="extra-blocks"]').count()).toBe(0);
-		expect(await page.getByRole("tab").count()).toBe(0);
-		expect(await page.locator("iframe").count()).toBe(0);
-		const paragraph = page.locator('[data-wc-type="body"] p[contenteditable]').last();
+		let frame = await enterBuildingArea(install, page, { as: staff, siteId, slug: "extra", open: `/page${path}` });
+		expect(await frame.locator('script[data-wc-module="extra-blocks"]').count()).toBe(0);
+		expect(await frame.getByRole("tab").count()).toBe(0);
+		expect(await frame.locator("iframe").count()).toBe(0);
+		const paragraph = frame.locator('[data-wc-type="body"] p[contenteditable]').last();
 		await paragraph.click();
 		await page.keyboard.press("End");
 		await page.keyboard.press("Enter");
@@ -207,13 +200,19 @@ for (const theme of THEMES) {
 		await page.keyboard.press("Enter");
 		const props = page.getByRole("dialog", { name: "Map embed: Props", exact: true });
 		await props.waitFor();
-		await expectNoAxeViolations(page, `Extra blocks Edit Props ${theme}`, ["region"]);
+		await expectNoAxeViolations(page, `Extra blocks, building area Props ${theme}`, ["region"]);
 		await page.keyboard.press("Escape");
-		await page.getByRole("button", { name: /: Edit mode menu$/ }).click();
-		await page.getByRole("menuitem", { name: "Edit in Safe mode", exact: true }).click();
-		await page.getByText("Safe mode", { exact: true }).waitFor();
-		expect(await page.locator('script[data-wc-module="extra-blocks"]').count()).toBe(0);
-		expect(await page.locator("iframe").count()).toBe(0);
+		// Safe mode, as "Edit in Safe mode" opens it: the frame runs none of the Site's scripts.
+		frame = await enterBuildingArea(install, page, {
+			as: staff,
+			siteId,
+			slug: "extra",
+			open: `/page${path}`,
+			safeMode: true,
+		});
+		await page.locator("[data-wc-safe-mode]").waitFor();
+		expect(await frame.locator('script[data-wc-module="extra-blocks"]').count()).toBe(0);
+		expect(await frame.locator("iframe").count()).toBe(0);
 		await expectNoAxeViolations(page, `Extra blocks Safe mode ${theme}`);
 		expect(requests.some((url) => url.includes("openstreetmap.org"))).toBe(false);
 		await page.close();

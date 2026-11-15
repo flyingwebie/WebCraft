@@ -3,6 +3,7 @@ import {
 	BUILDING_AREA_PAGE_PATH,
 	BUILDING_AREA_PATH,
 	BUILDING_AREA_STAND_IN_PATH,
+	BUILDING_ELEMENT_PARAMETER,
 	BUILDING_FILTER_PARAMETER,
 	can,
 	type InstallServices,
@@ -157,9 +158,9 @@ function fromAnotherSitesPage(request: Request): boolean {
 
 /**
  * The shell's own parameters, which belong to no document: the open place, its view, the selection,
- * and a Filter to select (BA-34).
+ * and a Filter (BA-34) or an element (BA-28) to select.
  */
-const SHELL_PARAMETERS = ["wc-place", "wc-view", "wc-select", BUILDING_FILTER_PARAMETER];
+const SHELL_PARAMETERS = ["wc-place", "wc-view", "wc-select", BUILDING_FILTER_PARAMETER, BUILDING_ELEMENT_PARAMETER];
 
 /**
  * The document part of a shell address (after `/_webcraft/build`, with the document's own query, the

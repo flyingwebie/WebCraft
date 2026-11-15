@@ -5,7 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { openBuildingArea, shellConfigIn } from "../harness/building-area.ts";
-import { openEditMode } from "../harness/edit-mode.ts";
+import { openEditMode, withoutBuildingAreaCookie } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -136,8 +136,9 @@ describe("someone not in the building area", () => {
 		expect(shellConfigIn(await response.text())).toBeUndefined();
 	});
 
-	test("in Edit mode without having entered the building area gets the same page", async () => {
+	test("in Edit mode without the building-area cookie (a session from before it) gets the same page", async () => {
 		const editing = await openEditMode(install, editor, siteId, "/");
+		withoutBuildingAreaCookie(editing.browser);
 
 		const response = await editing.browser.request(`${origin}/_webcraft/build/page/`);
 
@@ -156,7 +157,7 @@ describe("someone not in the building area", () => {
 	});
 });
 
-describe("a page opened at the top level with the building-area cookie", () => {
+describe("a page opened at the top level in Edit mode", () => {
 	test("goes into the shell, at that page", async () => {
 		const building = await openBuildingArea(install, editor, siteId);
 
@@ -177,13 +178,16 @@ describe("a page opened at the top level with the building-area cookie", () => {
 		}
 	});
 
-	test("without the cookie, Edit mode opens the page as before", async () => {
+	test("without the cookie (a session from before it), goes into the shell all the same", async () => {
 		const editing = await openEditMode(install, editor, siteId, "/blog/fresh-bread");
+		withoutBuildingAreaCookie(editing.browser);
 
 		const response = await editing.browser.request(`${origin}/blog/fresh-bread`, {
 			headers: { "sec-fetch-dest": "document" },
 		});
 
-		expect(response.status).toBe(200);
+		// There is no other way to edit a page: the shell then asks to open Edit mode again from the admin.
+		expect(response.status).toBe(303);
+		expect(response.headers.get("location")).toBe("/_webcraft/build/page/blog/fresh-bread");
 	});
 });

@@ -10188,7 +10188,9 @@
 				"delete": "Elimina {name}",
 				"move": "Sposta {name}",
 				"hide": "Nascondi {name}",
-				"show": "Mostra {name}"
+				"show": "Mostra {name}",
+				"decorative": "Segna {name} come decorativa",
+				"meaningful": "Segna {name} come significativa"
 			},
 			"inspector": {
 				"tag": "Tag",
@@ -10213,7 +10215,8 @@
 				"inside": "Dentro il Component {name}",
 				"placementOf": "Una Placement di {name}",
 				"notOpen": "Il Template o il Component di questo elemento non è aperto qui: selezionalo di nuovo quando la pagina è caricata.",
-				"badValue": "Questo non è un valore: {value}. Scrivi il nome di un valore tra doppie graffe."
+				"badValue": "Questo non è un valore: {value}. Scrivi il nome di un valore tra doppie graffe.",
+				"decorative": "Decorativa: questa immagine non comunica informazioni"
 			}
 		},
 		"details": {
@@ -10673,6 +10676,40 @@
 				},
 				"value": {
 					"hint": "Il valore {path}"
+				}
+			},
+			"commands": {
+				"popup": {
+					"name": "Popup: {name}",
+					"hint": "Mostra qui il Popup {name}"
+				},
+				"filter": {
+					"name": "Filtro: {name}",
+					"hint": "Il Filtro intero (il suo modulo), per il Loop {loop}"
+				},
+				"filterControl": {
+					"name": "Filtro {name}: {control}",
+					"hint": "Solo questo controllo del Filtro, da solo"
+				},
+				"pagination": {
+					"name": "Paginazione di {loop}",
+					"hint": "I link alle pagine del Loop {loop}"
+				},
+				"search": {
+					"name": "Casella di ricerca",
+					"hint": "La casella di ricerca del sito"
+				},
+				"themeToggle": {
+					"name": "Selettore del tema",
+					"hint": "Fa scegliere ai visitatori chiaro o scuro"
+				},
+				"languageSwitcher": {
+					"name": "Selettore della lingua",
+					"hint": "La pagina nelle sue altre lingue"
+				},
+				"consentSettings": {
+					"name": "Impostazioni dei cookie",
+					"hint": "Riapre le scelte del banner del Consenso"
 				}
 			},
 			"templateGroup": "Comandi del Template",

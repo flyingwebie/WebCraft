@@ -45,7 +45,6 @@ export async function openBuildingArea(
 ): Promise<BuildingAreaBrowser> {
 	const { url } = await admin.api.editMode.open({
 		siteId,
-		building: true,
 		...(options.path ? { path: options.path } : {}),
 		...(options.open ? { open: options.open } : {}),
 		...(options.returnTo ? { returnTo: options.returnTo } : {}),

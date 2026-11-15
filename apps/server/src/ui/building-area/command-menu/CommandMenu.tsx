@@ -563,8 +563,69 @@ export function CommandMenu({
 					}
 				},
 			});
-		// Searching reaches every other element the tree may hold, and its values.
+		// Searching reaches every other element the tree may hold, the other Template commands, and its values.
 		if (query.trim()) {
+			const placed = words.insert.commands;
+			const command = (id: string, name: string, hint: string, node: TreeNode, keywords: string[]): Row => ({
+				id: `insert:command:${id}`,
+				tab: "insert",
+				group: said.groups.commands,
+				label: name,
+				detail: hint,
+				tag: `{{@${node.type}}}`,
+				icon: parts?.icons.form ?? CodeXmlIcon,
+				keywords: [node.type, ...keywords],
+				permission: "structure.edit",
+				canvases: ALL_CANVASES as never,
+				run: ({ inverse }) => insertNodes([node], name, "form", inverse),
+			});
+			if (commands.has("popup"))
+				for (const popup of catalogue?.popups ?? [])
+					rows.push(
+						command(
+							`popup:${popup.id}`,
+							fill(placed.popup.name, { name: popup.name }),
+							fill(placed.popup.hint, { name: popup.name }),
+							{ type: "popup", popup: popup.id } as TreeNode,
+							["popup", popup.key],
+						),
+					);
+			if (commands.has("filter"))
+				for (const filter of catalogue?.filters ?? []) {
+					rows.push(
+						command(
+							`filter:${filter.id}`,
+							fill(placed.filter.name, { name: filter.name }),
+							fill(placed.filter.hint, { loop: filter.loop }),
+							{ type: "filter", filter: filter.id, loop: filter.loop } as TreeNode,
+							["filter", filter.loop],
+						),
+					);
+					for (const control of filter.controls)
+						rows.push(
+							command(
+								`filter:${filter.id}:${control.id}`,
+								fill(placed.filterControl.name, { name: filter.name, control: control.label ?? control.type }),
+								placed.filterControl.hint,
+								{ type: "filter", filter: filter.id, loop: filter.loop, control: control.id } as TreeNode,
+								["filter", filter.loop, control.type],
+							),
+						);
+				}
+			if (commands.has("pagination"))
+				for (const loop of catalogue?.loops ?? [])
+					rows.push(
+						command(
+							`pagination:${loop.name}`,
+							fill(placed.pagination.name, { loop: loop.name }),
+							fill(placed.pagination.hint, { loop: loop.name }),
+							{ type: "pagination", loop: loop.name } as TreeNode,
+							["pagination", "pages"],
+						),
+					);
+			for (const name of ["search", "themeToggle", "languageSwitcher", "consentSettings"] as const)
+				if (commands.has(name))
+					rows.push(command(name, placed[name].name, placed[name].hint, { type: name } as TreeNode, [name]));
 			for (const tag of catalogue?.elements ?? []) {
 				if (NAMED_TAGS.has(tag)) continue;
 				rows.push({

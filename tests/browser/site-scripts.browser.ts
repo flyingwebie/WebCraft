@@ -1,8 +1,9 @@
 // Site script safety in a real browser: Site › Libraries and Site › Outside scripts with their menus
-// and dialogs, the "Edit on site" menu with Safe mode, and in Edit mode the notice a failing Site
-// script shows, Safe mode opened from it, and outside scripts' placeholders. Light and dark.
+// and dialogs, and the "Edit on site" menu with Safe mode. Light and dark. In the building area, the
+// notice a failing Site script shows and Safe mode opened from it are `building-area-scripts`' checks,
+// and outside scripts' placeholders `building-area-frame`'s.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { Cookie, Page } from "playwright";
+import type { Page } from "playwright";
 
 import { fakeNpmPackage } from "../harness/fake-npm.ts";
 import type { TestAccount } from "../harness/index.ts";
@@ -88,25 +89,6 @@ async function adminPage(theme: Theme, path: string): Promise<Page> {
 	return page;
 }
 
-/** The edit cookie from the first time Edit mode opened, handed to later pages (the link works once). */
-let editCookies: Cookie[] | undefined;
-
-async function editModePage(theme: Theme): Promise<Page> {
-	const page = await install.newPage(theme);
-	if (editCookies) {
-		await page.context().addCookies(editCookies);
-	} else {
-		await install.signIn(page, staff);
-		await page.goto(install.adminUrl(`/sites/${siteId}`));
-		await page.getByRole("button", { name: "Edit on site" }).click();
-		await page.waitForURL((url) => url.hostname === new URL(install.siteUrl(slug, "/")).hostname);
-		editCookies = (await page.context().cookies()).filter((cookie) => cookie.name === "webcraft.edit");
-	}
-	await page.goto(install.siteUrl(slug, "/"));
-	await page.getByRole("button", { name: "Publish", exact: true }).waitFor();
-	return page;
-}
-
 for (const theme of THEMES) {
 	describe(`Site › Libraries, ${theme}`, () => {
 		test("the screen, the add sheet, and a Library's menu from the keyboard", async () => {
@@ -185,31 +167,6 @@ for (const theme of THEMES) {
 				"menu",
 				`Edit on site menu (${theme})`,
 			);
-		});
-	});
-
-	describe(`Edit mode with a failing Site script, ${theme}`, () => {
-		test("the bar says which script failed; Safe mode opens from it and runs none of the Site's scripts", async () => {
-			const page = await editModePage(theme);
-			const notice = page.getByRole("alert").filter({ hasText: "The Site script failed." });
-			await notice.waitFor();
-			expect(await notice.textContent()).toContain("startSlider");
-			// Outside scripts don't run: a labelled placeholder shows each.
-			await page.getByText("Visitor counter").waitFor();
-			expect(await page.getByText("doesn't run while editing").count()).toBe(2);
-			await expectNoAxeViolations(page, `Edit mode › a failing Site script (${theme})`);
-
-			await notice.getByRole("button", { name: "Open in Safe mode" }).click();
-			await page.getByText("Safe mode", { exact: true }).waitFor();
-			await page.getByRole("button", { name: "Publish", exact: true }).waitFor();
-			expect(await page.getByRole("alert").filter({ hasText: "failed" }).count()).toBe(0);
-			expect(await page.evaluate(() => document.documentElement.dataset.siteScript)).toBeUndefined();
-			await expectNoAxeViolations(page, `Edit mode › Safe mode (${theme})`);
-
-			// The bar's menu turns it off again.
-			await page.getByRole("button", { name: "Ciara Byrne: Edit mode menu" }).click();
-			await page.getByRole("menuitem", { name: "Turn off Safe mode" }).click();
-			await page.getByRole("alert").filter({ hasText: "The Site script failed." }).waitFor();
 		});
 	});
 }

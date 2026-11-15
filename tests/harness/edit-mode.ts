@@ -89,3 +89,19 @@ export async function openEditMode(
 		},
 	};
 }
+
+/** The building area's cookie on a Site's address (ADR 0037), as every Edit mode link now sets it. */
+export const BUILDING_AREA_COOKIE = "__Host-webcraft.build";
+
+/**
+ * Makes a browser's Edit mode session one from before the building area: it keeps the edit cookie but
+ * not the building area's, which the shell, its API and the Drafts' sockets require.
+ */
+export function withoutBuildingAreaCookie(browser: TestBrowser): void {
+	(browser.cookies as Map<string, string>).delete(BUILDING_AREA_COOKIE);
+}
+
+/** Gives a browser a cookie on the Site's address, as one left from before (Code mode's `webcraft.code`). */
+export function holdCookie(browser: TestBrowser, name: string, value: string): void {
+	(browser.cookies as Map<string, string>).set(name, value);
+}

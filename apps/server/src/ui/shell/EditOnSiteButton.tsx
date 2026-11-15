@@ -6,14 +6,9 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@webcraft/ui/components/dropdown-menu.tsx";
-import { ChevronDownIcon, EllipsisIcon, EyeIcon, HammerIcon, ShieldIcon, SquarePenIcon } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
+import { ChevronDownIcon, EllipsisIcon, EyeIcon, ShieldIcon, SquarePenIcon } from "lucide-react";
 
-import { getApi } from "../api.ts";
-import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
-import type { AdminPlace } from "./levels.ts";
 import { useOpenStaging } from "./StagingButton.tsx";
 
 /** What the admin knows of the Entry on screen, enough to write its address on the Site. */
@@ -71,66 +66,35 @@ function entryPath({ postType }: PostTypeOnScreen, { entry }: EntryOnScreen): st
 }
 
 /**
- * Opens a page of the Site on its own address in Edit mode (ADR 0022): the admin asks for a
- * single-use link, valid 60 seconds, and goes there; following it signs this browser into Edit mode
- * on the Site's domain. Safe mode is Edit mode with none of the Site's own scripts, for when a broken
- * one gets in the way.
+ * Opens a page of the Site in the building area (ADR 0037), on the Site's own address in Edit mode
+ * (ADR 0022), through the admin's one way in (`/sites/$siteId/build`), whose logo tile comes back to
+ * the screen the person was on. Safe mode is Edit mode with none of the Site's own scripts, for when
+ * a broken one gets in the way.
  */
-function useOpenEditMode(siteId: string): { opening: boolean; open(path: string, safeMode: boolean): Promise<void> } {
-	const t = useT();
-	const [opening, setOpening] = useState(false);
-	const open = async (path: string, safeMode: boolean) => {
-		setOpening(true);
-		try {
-			const api = await getApi();
-			const { url } = await api.editMode.open({ siteId, path, safeMode });
-			window.location.assign(url);
-		} catch (error) {
-			toast.error(t(errorMessage(error)));
-			setOpening(false);
-		}
-	};
-	return { opening, open };
-}
-
-/**
- * The building area (ADR 0037) while it is being built: offered to those who may change the Site's
- * Structure, it opens the same page and comes back to the screen the person was on.
- */
-function useOpenBuildingArea(siteId: string): { mayBuild: boolean; open(path: string): void } {
+function useOpenEditMode(siteId: string): { open(path: string, safeMode: boolean): void } {
 	const navigate = useNavigate();
 	const here = useRouterState({ select: (state) => state.location.href });
-	const mayBuild = useMatches({
-		select: (matches) =>
-			matches.some((match) => {
-				const place = (match.context as { place?: AdminPlace } | undefined)?.place;
-				return place?.level === "site" && place.site.id === siteId && place.permissions.includes("structure.edit");
-			}),
-	});
-	const open = (path: string) =>
-		void navigate({ to: "/sites/$siteId/build", params: { siteId }, search: { open: `/page${path}`, returnTo: here } });
-	return { mayBuild, open };
+	const open = (path: string, safeMode: boolean) => {
+		void navigate({
+			to: "/sites/$siteId/build",
+			params: { siteId },
+			search: { open: `/page${path}`, returnTo: here, ...(safeMode ? { safe: true } : {}) },
+		});
+	};
+	return { open };
 }
 
 /**
  * "Edit on site": opens the page the person is on (a Page or an Entry), or the Site's home page
- * from any other screen, in Edit mode. Its menu opens Safe mode instead, and (for now, Staff only)
- * the building area.
+ * from any other screen, in the building area. Its menu opens Safe mode instead.
  */
 export function EditOnSiteButton({ siteId, className }: { siteId: string; className?: string }) {
 	const t = useT();
 	const path = useEditPath();
-	const { opening, open } = useOpenEditMode(siteId);
-	const building = useOpenBuildingArea(siteId);
+	const { open } = useOpenEditMode(siteId);
 	return (
 		<div className={`flex ${className ?? ""}`}>
-			<Button
-				variant="outline"
-				size="sm"
-				className="rounded-e-none"
-				onClick={() => open(path, false)}
-				disabled={opening}
-			>
+			<Button variant="outline" size="sm" className="rounded-e-none" onClick={() => open(path, false)}>
 				<SquarePenIcon aria-hidden="true" />
 				{t("site.editOnSite")}
 			</Button>
@@ -142,7 +106,6 @@ export function EditOnSiteButton({ siteId, className }: { siteId: string; classN
 							size="icon-sm"
 							className="rounded-s-none border-s-0"
 							aria-label={t("site.editOptions")}
-							disabled={opening}
 						/>
 					}
 				>
@@ -156,15 +119,6 @@ export function EditOnSiteButton({ siteId, className }: { siteId: string; classN
 							<span className="text-muted-foreground text-xs">{t("site.editInSafeModeHelp")}</span>
 						</span>
 					</DropdownMenuItem>
-					{building.mayBuild ? (
-						<DropdownMenuItem onClick={() => building.open(path)}>
-							<HammerIcon aria-hidden="true" />
-							<span className="grid">
-								<span>{t("buildingArea.open")}</span>
-								<span className="text-muted-foreground text-xs">{t("buildingArea.openHelp")}</span>
-							</span>
-						</DropdownMenuItem>
-					) : null}
 				</DropdownMenuContent>
 			</DropdownMenu>
 		</div>
@@ -199,7 +153,7 @@ export function SiteActionsMenu({
 						size="icon-sm"
 						className={className}
 						aria-label={t("shell.siteActions")}
-						disabled={editMode.opening || stage.opening}
+						disabled={stage.opening}
 					/>
 				}
 			>

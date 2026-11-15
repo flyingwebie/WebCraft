@@ -1,6 +1,7 @@
 // A page in Edit mode is the real page on the Site's own domain, showing the Drafts of its Content,
-// with every editable region tagged from the Template's bindings and WebCraft's editing bar loaded
-// first. It is never cached and never indexed. Visitors get the published page, with none of it.
+// with every editable region tagged from the Template's bindings and the building area's page agent
+// loaded first (ADR 0037): the building area frames it. It is never cached, never indexed and framed
+// by its own origin only. Visitors get the published page, with none of it.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { type EditModeBrowser, openEditMode } from "../harness/edit-mode.ts";
@@ -159,7 +160,7 @@ describe("a page in Edit mode", () => {
 		expect(body).toContain("<footer><p>Call 021 455 0199</p></footer>");
 	});
 
-	test("loads WebCraft's editing bar first, as files from the Site's own domain, and is never indexed", async () => {
+	test("loads the building area's page agent first, as files from the Site's own domain, and is never indexed", async () => {
 		const head = headOf(await (await editing.page("/blog/fresh-bread")).text());
 
 		expect(head).toMatch(
@@ -169,15 +170,16 @@ describe("a page in Edit mode", () => {
 					'<meta name="viewport" content="width=device-width, initial-scale=1">',
 					'<meta name="robots" content="noindex, nofollow">',
 					'<meta name="webcraft-edit-token" content="[A-Za-z0-9_-]{43}">',
-					'<script src="/_webcraft/edit/assets/bar-[0-9a-f]{16}\\.js"></script>',
-					'<link rel="stylesheet" href="/_webcraft/edit/assets/page-[0-9a-f]{16}\\.css">',
+					'<script src="/_webcraft/edit/assets/agent-[0-9a-f]{16}\\.js"></script>',
+					'<link rel="stylesheet" href="/_webcraft/edit/assets/agent-[0-9a-f]{16}\\.css">',
 					"<title>Fresher bread · Acme Bakery</title>",
 				].join("\n"),
 			),
 		);
+		expect(head).not.toContain("/_webcraft/edit/assets/bar-");
 	});
 
-	test("the editing bar's files answer at their hashed names, for a year, and nothing else does", async () => {
+	test("the page agent's files answer at their hashed names, for a year, and nothing else does", async () => {
 		const head = headOf(await (await editing.page("/blog/fresh-bread")).text());
 		const script = /<script src="([^"]+)">/.exec(head)?.[1] ?? "";
 		const stylesheet = /<link rel="stylesheet" href="([^"]+)">/.exec(head)?.[1] ?? "";
@@ -193,7 +195,7 @@ describe("a page in Edit mode", () => {
 			expect(response.headers.get("x-content-type-options")).toBe("nosniff");
 			expect((await response.text()).length).toBeGreaterThan(0);
 		}
-		const made = await install.request(`${site.origin}/_webcraft/edit/assets/bar-0000000000000000.js`);
+		const made = await install.request(`${site.origin}/_webcraft/edit/assets/agent-0000000000000000.js`);
 		expect(made.status).toBe(404);
 	});
 
@@ -208,8 +210,20 @@ describe("a page in Edit mode", () => {
 		const policy = response.headers.get("content-security-policy") ?? "";
 		expect(policy).toContain("script-src 'self'");
 		expect(policy).toContain("style-src 'self'");
-		expect(policy).toContain("frame-ancestors 'none'");
+		// The building area frames it, from the Site's own origin and no other.
+		expect(policy).toContain("frame-ancestors 'self'");
+		expect(policy).not.toContain("frame-ancestors 'none'");
+		expect(response.headers.get("x-frame-options")).toBe("SAMEORIGIN");
 		expect(policy).not.toContain("unsafe-inline");
+	});
+
+	test("opened at the top level, goes into the building area, which frames it", async () => {
+		const response = await editing.browser.request(new URL("/blog/fresh-bread?q=1", editing.origin), {
+			headers: { "sec-fetch-dest": "document" },
+		});
+		expect(response.status).toBe(303);
+		expect(response.headers.get("location")).toBe("/_webcraft/build/page/blog/fresh-bread?q=1");
+		expect(response.headers.get("cache-control")).toBe("no-store");
 	});
 
 	test("carries no script but WebCraft's own, and nothing inline", async () => {
@@ -221,7 +235,7 @@ describe("a page in Edit mode", () => {
 		expect(html).not.toMatch(/<script>|<style|\sstyle=|\son[a-z]+=/i);
 	});
 
-	test("leaves what visitors get alone: the published page, without tags or the editing bar", async () => {
+	test("leaves what visitors get alone: the published page, without tags or the page agent", async () => {
 		await editing.page("/blog/fresh-bread");
 
 		const response = await install.request(`${site.origin}/blog/fresh-bread`);

@@ -120,10 +120,12 @@ describe("the fragments", () => {
 
 		expect(response.status).toBe(200);
 		const parts = (await response.json()) as Fragments;
-		// With Edit mode's marks around the Loop and its items, so the editing bar finds them again.
+		// With Edit mode's marks around the Loop and its items, so the building area finds them again, and
+		// for Staff the tag of where each element comes from (ADR 0037 › 1.3).
 		const html = parts.regions[0]?.html ?? "";
-		expect(html.replace(/<!--[^>]*-->/g, "")).toBe("<li>Birthday cake</li>");
-		expect(html).toMatch(/^<!--wc-loop [^>]+ query products--><!--wc-item entry%3A[^>]+--><li>/);
+		expect(html.replace(/<!--[^>]*-->/g, "").replace(/ data-wc-code="[^"]*"/g, "")).toBe("<li>Birthday cake</li>");
+		const marks = html.replace(/<!--wc-code-[^>]*-->/g, "").replace(/ data-wc-code="[^"]*"/g, "");
+		expect(marks).toMatch(/^<!--wc-loop [^>]+ query products--><!--wc-item entry%3A[^>]+--><li>/);
 	});
 });
 

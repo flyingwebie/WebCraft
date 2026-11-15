@@ -6,6 +6,15 @@ import { type MessageKey, useT } from "./i18n.tsx";
 
 type Check = Pick<SiteCheck, "check" | "at" | "detail" | "params"> &
 	Partial<Pick<SiteCheck, "href" | "item" | "language">>;
+
+/** A Check's link into the building area comes back to the screen it was followed from (its logo tile). */
+function withReturn(href: string): string {
+	if (!/^\/sites\/[^/]+\/build\?/.test(href) || typeof window === "undefined") return href;
+	const url = new URL(href, window.location.origin);
+	if (!url.searchParams.has("returnTo"))
+		url.searchParams.set("returnTo", `${window.location.pathname}${window.location.search}`);
+	return `${url.pathname}${url.search}`;
+}
 export function Checks({ checks, onSelect }: { checks: readonly Check[]; onSelect?: (at: string) => void }) {
 	const t = useT();
 	return (
@@ -33,7 +42,7 @@ export function Checks({ checks, onSelect }: { checks: readonly Check[]; onSelec
 								</span>
 							) : null}
 							{c.href ? (
-								<a className="underline underline-offset-4" href={c.href}>
+								<a className="underline underline-offset-4" href={withReturn(c.href)}>
 									{t("checks.open")}
 								</a>
 							) : onSelect && c.at.includes("#") ? (

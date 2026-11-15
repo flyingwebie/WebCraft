@@ -72,6 +72,7 @@ export {
 	BUILDING_AREA_PAGE_PATH,
 	BUILDING_AREA_PATH,
 	BUILDING_AREA_STAND_IN_PATH,
+	BUILDING_ELEMENT_PARAMETER,
 	BUILDING_FILTER_PARAMETER,
 	type BuildingDocument,
 	buildingAreaPageAddress,
@@ -145,13 +146,12 @@ export type EditSession = {
 export type EditMode = {
 	/**
 	 * Makes an "Edit on site" link for the person, from their admin session (open the Site with
-	 * `entry.edit`): it opens `path` on the Site's own address, works once, within 60 seconds, and
-	 * only on that Site. With `safeMode`, the link opens Safe mode (ADR 0022): pages run none of the
-	 * Site's own scripts. With `building`, it opens the building area (ADR 0037) instead, at `open` (a
+	 * `entry.edit`): it opens the building area (ADR 0037) on the Site's own address at `open` (a
 	 * document, as `isBuildingDocument` takes it; the page at `path` unless given), its logo tile going
-	 * back to `returnTo` on the admin. Refuses a path that isn't one on the Site, a document or an admin
-	 * path that isn't one (`EditPathInvalidError`), and a Site with no address yet
-	 * (`EditModeUnavailableError`).
+	 * back to `returnTo` on the admin; it works once, within 60 seconds, and only on that Site. With
+	 * `safeMode`, the link opens Safe mode (ADR 0022): pages run none of the Site's own scripts.
+	 * Refuses a path that isn't one on the Site, a document or an admin path that isn't one
+	 * (`EditPathInvalidError`), and a Site with no address yet (`EditModeUnavailableError`).
 	 */
 	openLink(
 		scope: SiteScope,
@@ -159,9 +159,6 @@ export type EditMode = {
 			adminSessionId: string;
 			path: string;
 			safeMode?: boolean;
-			code?: boolean;
-			selection?: string;
-			building?: boolean;
 			open?: string;
 			returnTo?: string;
 		},
@@ -365,16 +362,10 @@ export function createEditMode(options: {
 			url.searchParams.set("token", token);
 			// Safe mode only takes scripts away, so the link may say it openly.
 			if (input.safeMode) url.searchParams.set("safe", "1");
-			if (input.building) {
-				// The building area (ADR 0037): what it opens and where its logo tile goes back to. Both are
-				// checked again as the link is followed, so a changed link can't lead anywhere else.
-				url.searchParams.set("build", "1");
-				url.searchParams.set("open", input.open ?? `/page${input.path}`);
-				if (input.returnTo) url.searchParams.set("return", input.returnTo);
-			} else if (input.code) {
-				url.searchParams.set("code", "1");
-				if (input.selection) url.searchParams.set("selection", input.selection);
-			}
+			// What the building area opens and where its logo tile goes back to. Both are checked again
+			// as the link is followed, so a changed link can't lead anywhere else.
+			url.searchParams.set("open", input.open ?? `/page${input.path}`);
+			if (input.returnTo) url.searchParams.set("return", input.returnTo);
 			return { url: url.toString(), expiresAt };
 		},
 

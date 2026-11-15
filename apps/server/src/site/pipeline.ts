@@ -44,12 +44,10 @@ import { contentApiAnswer, isContentApiPath } from "./content-api.ts";
 import { discoveryFile, stagingRobots } from "./discovery.ts";
 import {
 	clearEditCookie,
-	codeModeOf,
 	EDIT_MODE_PAGE_HEADERS,
 	editModeEndpoint,
 	editModeHtml,
 	editSessionOf,
-	inBuildingArea,
 	pageEditing,
 	safeModeOf,
 } from "./edit-mode.ts";
@@ -248,35 +246,22 @@ async function pageAnswer(
 	const number = pageNumberIn(url.searchParams);
 	if (number === undefined) return notFoundPage(services, request, host, url.pathname);
 	if (edit.session) {
-		if (inBuildingArea(request)) {
-			// A page opened at the top level goes into the building area's shell, which frames it. The
-			// page agent does the same in browsers that don't say what a request is for.
-			if (request.headers.get("sec-fetch-dest") === "document") {
-				return new Response(null, {
-					status: 303,
-					headers: { location: buildingAreaPageAddress(`${url.pathname}${url.search}`), ...EDIT_MODE_PAGE_HEADERS },
-				});
-			}
-			// Staff see the Drafts of the Structure in the frame, every element tagged (ADR 0037 › 1.3);
-			// Members see Content editing's page. Code mode's cookie means nothing here.
-			return editModePage(
-				services,
-				host,
-				edit.session,
-				url.pathname,
-				await services.codeMode.openIfAllowed(edit.session),
-				safeModeOf(request),
-				number,
-				url.searchParams,
-				true,
-			);
+		// A page opened at the top level goes into the building area's shell, which frames it (ADR 0037).
+		// The page agent does the same in browsers that don't say what a request is for.
+		if (request.headers.get("sec-fetch-dest") === "document") {
+			return new Response(null, {
+				status: 303,
+				headers: { location: buildingAreaPageAddress(`${url.pathname}${url.search}`), ...EDIT_MODE_PAGE_HEADERS },
+			});
 		}
+		// Staff see the Drafts of the Structure in the frame, every element tagged (ADR 0037 › 1.3);
+		// Members see Content editing's page.
 		return editModePage(
 			services,
 			host,
 			edit.session,
 			url.pathname,
-			await codeModeOf(services, request, edit.session),
+			await services.codeMode.openIfAllowed(edit.session),
 			safeModeOf(request),
 			number,
 			url.searchParams,
@@ -521,10 +506,10 @@ async function draftPage(services: InstallServices, request: Request, host: Site
 const DRAFT_CACHE_CONTROL = "private, no-store";
 
 /**
- * The page at a path in Edit mode: the same page visitors would get, rendered afresh for the person
- * with the Drafts of its Content and its editable regions tagged; in Code mode (`code`, the Site
- * opened with `structure.edit`), with the Drafts of the Structure too, every element tagged. It never
- * touches the page cache. `building` renders it for the building area's frame (ADR 0037).
+ * The page at a path in Edit mode, for the building area's frame (ADR 0037): the same page visitors
+ * would get, rendered afresh for the person with the Drafts of its Content and its editable regions
+ * tagged; for Staff (`code`, the Site opened with `structure.edit`), with the Drafts of the Structure
+ * too, every element tagged. It never touches the page cache, and only its own origin may frame it.
  */
 async function editModePage(
 	services: InstallServices,
@@ -535,9 +520,8 @@ async function editModePage(
 	safe: boolean,
 	page: number,
 	query: URLSearchParams,
-	building = false,
 ): Promise<Response> {
-	const editing = await pageEditing(session, code, safe, building);
+	const editing = await pageEditing(session, code, safe);
 	const answer = pathSegments(pathname)
 		? await services.sitePages.render(host, pathname, editing, { page, search: searchQueryIn(query), query })
 		: null;
@@ -547,9 +531,9 @@ async function editModePage(
 			headers: { location: answer.location, ...EDIT_MODE_PAGE_HEADERS },
 		});
 	}
-	if (answer) return editModeHtml(200, answer.html, answer.headers, building);
+	if (answer) return editModeHtml(200, answer.html, answer.headers);
 	const notFoundPage = await services.sitePages.notFound(host, pathname, editing);
-	return editModeHtml(404, notFoundPage.html, notFoundPage.headers, building);
+	return editModeHtml(404, notFoundPage.html, notFoundPage.headers);
 }
 
 /**

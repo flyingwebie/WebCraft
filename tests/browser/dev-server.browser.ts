@@ -188,7 +188,7 @@ describe("the building area under the dev server", () => {
 			const url = new URL(request.url());
 			if (/^\/_webcraft\/edit\/assets\/shell-[^/]+\.js$/.test(url.pathname)) scripts.add(url.href);
 		});
-		const { url } = await admin.api.editMode.open({ siteId, building: true, open: `/page${path}` });
+		const { url } = await admin.api.editMode.open({ siteId, open: `/page${path}` });
 		await page.goto(url);
 		await page.locator("iframe[data-wc-frame]").waitFor();
 		await page.locator('[data-wc-place="content"]').waitFor();

@@ -65,7 +65,7 @@ async function bakery() {
 	await staff.api.templates.publish({ siteId, templateId: template.template.id });
 	const { entry } = await editor.api.entries.create({ siteId, postTypeId: postType.id, title: "Fresh bread" });
 	await editor.api.entries.publish({ siteId, entryId: entry.id });
-	return { siteId, slug, postTypeId: postType.id, componentId: component.id };
+	return { siteId, slug, postTypeId: postType.id, componentId: component.id, entryId: entry.id };
 }
 
 async function refusal(response: Response, status: number): Promise<Refusal> {
@@ -77,20 +77,25 @@ describe("the preview while typing", () => {
 	let site: Awaited<ReturnType<typeof bakery>>;
 	let coding: EditModeBrowser;
 
+	/** The title's editable region, as Staff's frame tags it beside its source. */
+	let titleRegion = "";
+
 	beforeAll(async () => {
 		site = await bakery();
 		coding = await openCodeMode(install, staff, site.siteId, path);
+		titleRegion = `data-wc-item="entry:${site.entryId}" data-wc-field="title" data-wc-type="text" data-wc-id="title"`;
 	});
 
-	test("renders the page with the unsaved markup, as Code mode shows it, and saves nothing", async () => {
+	test("renders the page with the unsaved markup, as the building area's frame shows it, and saves nothing", async () => {
 		const markup = ARTICLE.replace("</article>", '<p data-wc-id="typed">Only a preview</p></article>');
 
 		const preview = await answer<Preview>(
 			coding.edit("code/preview", { path, markup: { ref: "content", text: markup } }),
 		);
 
+		// Both kinds of tags (ADR 0037 › 1.3): where each element comes from, and the title's region.
 		expect(mainOf(preview.html)).toBe(
-			'<article data-wc-code="content#article"><h1 data-wc-code="content#title">Fresh bread</h1><div data-wc-code="content/placed#strap"><h2 data-wc-code="content/placed#heading">Fresh</h2></div><p data-wc-code="content#typed">Only a preview</p></article>',
+			`<article data-wc-code="content#article"><h1 ${titleRegion} data-wc-code="content#title">Fresh bread</h1><div data-wc-code="content/placed#strap"><h2 data-wc-code="content/placed#heading">Fresh</h2></div><p data-wc-code="content#typed">Only a preview</p></article>`,
 		);
 		const draft = await staff.api.templates.getEntryTemplateMarkup({
 			siteId: site.siteId,
@@ -144,10 +149,10 @@ describe("the preview while typing", () => {
 		expect(refused.data?.problems?.[0]).toMatchObject({ line: 2, column: 7 });
 	});
 
-	test("without changes, previews the page as Code mode shows it", async () => {
+	test("without changes, previews the page as the building area's frame shows it", async () => {
 		const preview = await answer<Preview>(coding.edit("code/preview", { path }));
 
-		expect(mainOf(preview.html)).toContain('<h1 data-wc-code="content#title">Fresh bread</h1>');
+		expect(mainOf(preview.html)).toContain(`<h1 ${titleRegion} data-wc-code="content#title">Fresh bread</h1>`);
 		expect(preview.stylesheet.hash).toMatch(/^[0-9a-f]{16}$/);
 	});
 });

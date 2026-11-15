@@ -337,18 +337,18 @@ describe("navigation", () => {
 		await page.getByRole("progressbar", { name: "Loading the page" }).waitFor({ state: "hidden" });
 	});
 
-	test("Edit on site opens the Page or Entry on screen, and the home page elsewhere", async () => {
+	test("Edit on site opens the Page or Entry on screen in the building area, and the home page elsewhere", async () => {
 		const page = await install.newPage("light");
 		const asked: string[] = [];
 		await page.route("**/api/rpc/editMode/open", async (route) => {
-			asked.push(/"path":"([^"]*)"/.exec(route.request().postData() ?? "")?.[1] ?? "");
+			asked.push(/"open":"([^"]*)"/.exec(route.request().postData() ?? "")?.[1] ?? "");
 			await route.abort();
 		});
 		const editOnSite = page.getByRole("button", { name: "Edit on site", exact: true });
 		for (const [path, expected] of [
-			[`/sites/${siteId}/entries/${pagesId}/${menuId}`, "/menu"],
-			[`/sites/${siteId}/entries/${blogId}/${breadId}`, "/blog/fresh-bread"],
-			[`/sites/${siteId}/media`, "/"],
+			[`/sites/${siteId}/entries/${pagesId}/${menuId}`, "/page/menu"],
+			[`/sites/${siteId}/entries/${blogId}/${breadId}`, "/page/blog/fresh-bread"],
+			[`/sites/${siteId}/media`, "/page/"],
 		] as const) {
 			await open(page, path);
 			const before = asked.length;

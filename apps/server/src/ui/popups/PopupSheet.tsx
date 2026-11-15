@@ -320,8 +320,12 @@ export function PopupSheet({
 								<SettingsRow className={ROW} label={t("popups.build")} help={t("popups.buildHelp")}>
 									<Link
 										className={buttonVariants({ variant: "outline" })}
-										to="/builder/$siteId/$"
-										params={{ siteId, _splat: `component/${view.popup.componentId}` }}
+										to="/sites/$siteId/build"
+										params={{ siteId }}
+										search={{
+											open: `/component/${view.popup.componentId}`,
+											returnTo: `/sites/${siteId}/popups?popup=${popupId}`,
+										}}
 									>
 										<WrenchIcon aria-hidden="true" />
 										{t("popups.build")}

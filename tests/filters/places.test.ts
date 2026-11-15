@@ -3,6 +3,7 @@
 // the page's language, the Staging address shows Filters' Drafts, and Edit mode filters as visitors do.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
+import { withoutCodeRanges } from "../harness/code-mode.ts";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
@@ -170,7 +171,9 @@ describe("the Staging address and Edit mode", () => {
 
 		const page = await edit.page("/shop?shop.category=pastries");
 		const html = await expectSafePage(page, "editMode");
-		expect(listed(html)).toEqual(["Butter croissant", "Cinnamon bun", "Pain au chocolat"]);
+		// Staff's frame tags where each element comes from (ADR 0037 › 1.3): read past those tags.
+		const shown = withoutCodeRanges(html).replaceAll(/ data-wc-code="[^"]*"/g, "");
+		expect(listed(shown)).toEqual(["Butter croissant", "Cinnamon bun", "Pain au chocolat"]);
 		expect(html).toMatch(/<script src="\/_wc\/js\/[0-9a-f]{16}\.js" defer><\/script>/);
 		const sent = await edit.page("/shop?shop.category=pastries&shop.category=bread");
 		expect(sent.status).toBe(302);

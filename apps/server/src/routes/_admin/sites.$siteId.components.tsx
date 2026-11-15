@@ -15,7 +15,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ComponentIcon, PlusIcon } from "lucide-react";
 import { type FormEvent, useRef, useState } from "react";
 import { getApi } from "../../ui/api.ts";
-import { BuilderNavigation } from "../../ui/builder/BuilderNavigation.tsx";
 import { StatusBadge } from "../../ui/content/DraftParts.tsx";
 import { errorMessage } from "../../ui/errors.ts";
 import { HistoryLink } from "../../ui/history/HistoryLink.tsx";
@@ -25,7 +24,7 @@ import { PageLayoutSettings } from "../../ui/page-layouts/Settings.tsx";
 
 /**
  * Site › Components (Structure, Staff only): the Site's Components (and those of the Modules running
- * on it), where each is used, and a new one, each of the Site's own opened in the visual builder.
+ * on it), where each is used, and a new one, each of the Site's own opened in the building area.
  */
 export const Route = createFileRoute("/_admin/sites/$siteId/components")({
 	staticData: { crumb: "components.pageTitle" },
@@ -85,25 +84,12 @@ function ComponentsPage() {
 								<TableCell className="text-end">
 									{component.module ? null : (
 										<span className="inline-flex flex-wrap justify-end gap-2">
-											<BuilderNavigation
-												siteId={siteId}
-												target={{ kind: "component", componentId: component.id }}
-												list
-											/>
 											<HistoryLink
 												siteId={siteId}
 												item={{ kind: "component", id: component.id }}
 												name={component.name}
 												size="sm"
 											/>
-											<Link
-												to="/builder/$siteId/$"
-												params={{ siteId, _splat: `component/${component.id}` }}
-												className={buttonVariants({ variant: "outline", size: "sm" })}
-											>
-												{t("templates.open")}
-												<span className="sr-only">{t("templates.openNamed", { name: component.name })}</span>
-											</Link>
 											<Link
 												to="/sites/$siteId/build"
 												params={{ siteId }}
@@ -126,7 +112,7 @@ function ComponentsPage() {
 	);
 }
 
-/** Creates a Component from its name (its PascalCase tag in Template markup), then opens it in the builder. */
+/** Creates a Component from its name (its PascalCase tag in Template markup), then opens it in the building area. */
 function NewComponentDialog({ siteId }: { siteId: string }) {
 	const t = useT();
 	const navigate = useNavigate();
@@ -147,7 +133,11 @@ function NewComponentDialog({ siteId }: { siteId: string }) {
 			const api = await getApi();
 			const { component } = await api.components.create({ siteId, name: name.trim() });
 			setOpen(false);
-			await navigate({ to: "/builder/$siteId/$", params: { siteId, _splat: `component/${component.id}` } });
+			await navigate({
+				to: "/sites/$siteId/build",
+				params: { siteId },
+				search: { open: `/component/${component.id}`, returnTo: `/sites/${siteId}/components` },
+			});
 		} catch (failure) {
 			const problems = (failure as { data?: { problems?: { message: string }[] } }).data?.problems;
 			setError(problems?.length ? problems.map((problem) => problem.message).join(" ") : t(errorMessage(failure)));

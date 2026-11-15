@@ -10,7 +10,7 @@ import { can, EDITOR_LAYOUT_VERSION, type EditSessionActor, type PersonActor } f
 
 import { type BuildingAreaBrowser, openBuildingArea } from "../harness/building-area.ts";
 import { type BuildingAreaApi, buildingAreaApi, refusalOf } from "../harness/building-area-api.ts";
-import { openEditMode } from "../harness/edit-mode.ts";
+import { openEditMode, withoutBuildingAreaCookie } from "../harness/edit-mode.ts";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { goLive } from "../harness/staging.ts";
@@ -230,7 +230,7 @@ describe("anything not on the list", () => {
 			["audit.list", {}],
 			["me.sessions.list", {}],
 			["session.signOut", {}],
-			["editMode.open", { siteId: site.siteId, building: true }],
+			["editMode.open", { siteId: site.siteId }],
 			["shell.context", {}],
 			// No procedure at all, and a Module's.
 			["entries.nothing", { siteId: site.siteId }],
@@ -336,7 +336,9 @@ describe("what every call must carry, as an edit request does", () => {
 			403,
 			"EDIT_REQUEST_REFUSED",
 		);
+		// A session from before the building area: the edit cookie without the building area's.
 		const editing = await openEditMode(install, staff, site.siteId, "/blog/fresh-bread");
+		withoutBuildingAreaCookie(editing.browser);
 		const response = await install.request(
 			new Request(`${editing.origin}/_webcraft/build/api/rpc/entries/create`, {
 				method: "POST",
