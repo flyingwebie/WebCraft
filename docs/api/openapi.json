@@ -9711,6 +9711,59 @@
 				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
+		"/forms/translateMissing": {
+			"post": {
+				"operationId": "forms.translateMissing",
+				"summary": "Fills a Form's missing translations in one language with AI, into its Draft.",
+				"tags": ["forms"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"formId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"language": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 35
+									}
+								},
+								"required": ["siteId", "formId", "language"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["forms", "translation"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
 		"/forms/publish": {
 			"post": {
 				"operationId": "forms.publish",

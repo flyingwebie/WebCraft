@@ -1,5 +1,6 @@
 import { TEXT_REGION } from "../agent/contract.ts";
-import type { Words } from "../api.ts";
+import { fill, type Words } from "../api.ts";
+import { formIdOf, formNameOf, PLACED_FORM } from "./placed-form.ts";
 
 /**
  * The overlay over the building area's frame (ADR 0037): outlines and the selected element's chip,
@@ -361,6 +362,11 @@ function personIcon(doc: Document): SVGSVGElement {
  * `data-wc-code`), its tag and then its name (`h1 · Heading`); else its name.
  */
 export function chipName(element: Element, words: Words): string {
+	// A placed Form is one thing on the canvas, named as a Form (BA-27).
+	if (element.matches(PLACED_FORM)) {
+		const name = formNameOf(formIdOf(element));
+		return name ? fill(words.forms.onPage.chip, { name }) : words.forms.onPage.unnamed;
+	}
 	return element.hasAttribute("data-wc-code")
 		? `${element.localName} · ${nameOf(element, words)}`
 		: nameOf(element, words);

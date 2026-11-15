@@ -57,6 +57,11 @@ export type ShellConfig = {
 	 * footer text, which is where an agency puts how to reach it (null when it has none).
 	 */
 	agency: { name: string; note: string | null };
+	/**
+	 * The block editor's file (the editing bar's `body-*.js`, `body-editor/edit-mode.ts`), which client
+	 * editing loads into the frame the first time a page shows a body (BA-18).
+	 */
+	bodyEditor: string;
 };
 
 /**

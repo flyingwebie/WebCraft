@@ -75,6 +75,11 @@ export type BarKit = {
 	word(key: string, values?: Record<string, string | number>): string;
 	/** Says something in the bar's live region. */
 	announce(text: string): void;
+	/**
+	 * Where the Page layout's controller says what it did (or what was refused, `urgent`): the building
+	 * area's shell (BA-17) has its own live region; without it, the page's editor regions say it.
+	 */
+	say?(text: string, urgent: boolean): void;
 	/** A refusal's code in words. */
 	errorText(code: string): string;
 	/**
@@ -138,6 +143,22 @@ export type BarKit = {
 	shared(item: string): SharedDraft | null;
 	/** Edit mode's Undo history, once its owner handed it over (`webcraft:edit-history`); null before or without one. */
 	history(): EditHistory | null;
+	/**
+	 * How the block editor's `/` menu draws its choices, when its host draws them as tiles (the building
+	 * area's client editing, BA-18): each choice's words and icon, and a Component's line under its name.
+	 * Without it the menu is a list of names.
+	 */
+	chooser?: BodyChooserLook;
+};
+
+/** What `BarKit.chooser` gives the block editor's `/` menu. */
+export type BodyChooserLook = {
+	/** A Block choice's words on its tile (`paragraph`, `heading2`, `image`, …), by the choice's id. */
+	label(choice: string): string;
+	/** The icon of a Block choice (by its id) or of a Component (`component`). */
+	icon(choice: string): Element | null;
+	/** The line under a Component's name: what it asks for. */
+	detail(component: { name: string; props: readonly { label: string }[] }): string;
 };
 
 /**

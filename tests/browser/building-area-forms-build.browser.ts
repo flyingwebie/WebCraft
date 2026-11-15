@@ -213,11 +213,10 @@ describe("the Forms place, for Staff", () => {
 		// Nothing chosen: "Add a field", the kinds then Section and Step.
 		expect(await page.locator("[data-wc-kind]").count()).toBe(KINDS.length + 1);
 
-		// A later tab says so, and links to the Form's page in the admin.
+		// Each tab is an address of the place (the other tabs: `building-area-forms.browser.ts`, BA-27).
 		await page.locator('[data-wc-form-tab="emails"]').click();
 		await page.waitForURL((url) => url.searchParams.get("wc-place") === `forms/${contactId}/emails`);
-		const later = page.locator("[data-wc-place-later] a");
-		expect(await later.getAttribute("href")).toEndWith(`/sites/${siteId}/forms/${contactId}?tab=emails`);
+		await page.locator("[data-wc-emails]").waitFor();
 		await page.goBack();
 		await page.locator("[data-wcb-empty]").waitFor();
 	});

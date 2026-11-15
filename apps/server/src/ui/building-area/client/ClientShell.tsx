@@ -7,6 +7,7 @@ import type { PageLanguage } from "../bottom-bar/LanguageMenu.tsx";
 import { Frame, type FrameHandle } from "../canvas/Frame.tsx";
 import { PRESETS, type Preset } from "../canvas/gutters.ts";
 import { NoDocument } from "../canvas/NoDocument.tsx";
+import { readFormNames } from "../canvas/placed-form.ts";
 import type { SavingStatus } from "../canvas/regions.ts";
 import type { MenuHost } from "../command-menu/host.ts";
 import { CommandMenuHost, useCommandMenu } from "../command-menu/loader.tsx";
@@ -24,8 +25,12 @@ import { PlaceLoader } from "../places/PlaceLoader.tsx";
 import { PLACE_EVENT, placeEntry, placeKeyOf, reopenPlace } from "../places/registry.ts";
 import { Publish } from "../publish/Publish.tsx";
 import { PUBLISH_OPEN_EVENT } from "../publish/sources.ts";
+import { AddSectionLine } from "./AddSection.tsx";
+import { BodyInPlace } from "./BodyInPlace.tsx";
+import { bodyInPlace } from "./body-in-place.ts";
 import { ClientBar, type ClientPanel, clientDraftStateOf } from "./ClientBar.tsx";
 import { CLIENT_PLACES, type ClientPlace, ClientRail } from "./ClientRail.tsx";
+import { FormLockPopover, useFormLocks } from "./FormLock.tsx";
 import { HelpCard } from "./HelpCard.tsx";
 import { ItemPanel } from "./ItemPanel.tsx";
 import { LoopItems } from "./LoopItems.tsx";
@@ -35,7 +40,10 @@ import { MemberDetails } from "./PageDetails.tsx";
 import { PageSwitcher } from "./PageSwitcher.tsx";
 import { regionPopovers } from "./popovers.ts";
 import { RegionPopover } from "./RegionPopover.tsx";
+import { RemovedToast, SectionMarks } from "./SectionBar.tsx";
+import { SectionsSidePanel } from "./SectionsPanel.tsx";
 import { SidePanel } from "./SidePanel.tsx";
+import { memberSections } from "./sections.ts";
 
 /** What the `state` edit request says beyond what Staff's shell reads: whether it may publish, and a Page layout. */
 type ClientPageState = PageState & { page: PageState["page"] & { layout: boolean } };
@@ -133,6 +141,21 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 		return true;
 	}, []);
 
+	// The Sections panel opened from the page (BA-17): a section's settings, or the picker at a boundary.
+	const sectionsRef = useRef<ReturnType<typeof memberSections> | null>(null);
+	const closeItemPanel = useRef<() => void>(() => {});
+	const openSectionSettings = useCallback((id: string) => {
+		closeItemPanel.current();
+		setPanel("sections");
+		sectionsRef.current?.select(id, { onPage: true });
+		sectionsRef.current?.view("settings");
+	}, []);
+	const openSectionPicker = useCallback((after: string) => {
+		closeItemPanel.current();
+		setPanel("sections");
+		sectionsRef.current?.view("add", { after });
+	}, []);
+
 	// The tab's one Undo history and Content typed in place, as for Staff (BA-07), with the client's
 	// marks and keys around it.
 	const undoHistory = useMemo(
@@ -166,6 +189,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 		[config.token, words],
 	);
 	useEffect(() => () => popovers.destroy(), [popovers]);
+	const formLocks = useFormLocks();
 	// A Loop's own items and a query Loop's (BA-16): selected, moved, added, their Fields in the side panel.
 	const openRef = useRef<(path: string) => void>(() => {});
 	const items = useMemo(
@@ -183,7 +207,42 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 	);
 	useEffect(() => () => items.destroy(), [items]);
 	const itemsNow = useSyncExternalStore(items.subscribe, items.snapshot);
+	// An Entry's body written in place as Blocks (BA-18): its editor loads into the page the first time one shows.
+	const bodies = useMemo(
+		() =>
+			bodyInPlace({
+				token: config.token,
+				words,
+				request,
+				src: config.bodyEditor,
+				announce: (text, urgent) => announceRef.current(text, urgent),
+				saving: (status) => savingRef.current(status),
+				refresh: () => refreshRef.current(),
+			}),
+		[config.token, config.bodyEditor, words, request],
+	);
+	useEffect(() => () => bodies.destroy(), [bodies]);
 	const goTo = useCallback(() => api.builder.commandMenu({ siteId: config.site.id }), [api, config.site.id]);
+	// Sections (BA-17): the page's Page layout, arranged where the Site lets Members arrange.
+	const titleRef = useRef("");
+	closeItemPanel.current = () => items.closePanel({ deselect: true });
+	const sections = useMemo(
+		() =>
+			memberSections({
+				token: config.token,
+				siteId: config.site.id,
+				words,
+				request,
+				announce: (text, urgent) => announceRef.current(text, urgent),
+				refresh: () => refreshRef.current(),
+				saving: (status) => savingRef.current(status),
+				undo: () => void undoHistory.undo(),
+				title: () => titleRef.current,
+			}),
+		[config.token, config.site.id, words, request, undoHistory],
+	);
+	sectionsRef.current = sections;
+	useEffect(() => () => sections.destroy(), [sections]);
 	const editing = useMemo(() => {
 		const inner = pageEditing({
 			token: config.token,
@@ -194,17 +253,24 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 			refresh: () => refreshRef.current(),
 			failed: () => setSaving("failed"),
 		});
-		return items.wrap(
-			clientEditing({
-				inner,
-				words,
-				announce: (text, urgent) => announceRef.current(text, urgent),
-				// Escape in the page closes the panel and leaves focus where it is, in the page.
-				closePanel: () => closePanel(false),
-				popovers,
-			}),
+		return sections.wrap(
+			items.wrap(
+				bodies.wrap(
+					clientEditing({
+						inner,
+						words,
+						announce: (text, urgent) => announceRef.current(text, urgent),
+						// Escape in the page closes the panel and leaves focus where it is, in the page.
+						closePanel: () => closePanel(false),
+						popovers,
+						bodies,
+						// A Form the agency built is locked; its popover links to its Submissions (BA-27).
+						onForm: (form) => formLocks.open(form),
+					}),
+				),
+			),
 		);
-	}, [config.token, config.site.id, words, undoHistory, closePanel, popovers, items]);
+	}, [config.token, config.site.id, words, undoHistory, closePanel, popovers, items, bodies, formLocks, sections]);
 	useEffect(() => () => editing.destroy(), [editing]);
 	useEffect(() => editing.setMode(mode), [editing, mode]);
 
@@ -387,9 +453,13 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 	};
 
 	const pageTitle = opened.address.document?.kind === "page" ? opened.title.name : null;
-	const sections = arranging && shown?.layout === true;
+	titleRef.current = opened.title.name;
+	// An Entry that isn't a Page: its details are Post details (`client-flows/01`).
+	const postPage =
+		pageState?.page.item?.startsWith("entry:") === true && (pageState as ClientPageState).page.layout !== true;
+	const arrangeable = arranging && shown?.layout === true;
 	const draft = clientDraftStateOf(saving, justSaved, shown);
-	const panelShown = place ? null : panel === "sections" && !sections ? null : panel;
+	const panelShown = place ? null : panel === "sections" && !arrangeable ? null : panel;
 	const current = opened.address.document?.kind === "page" ? opened.address.document.page.split("?")[0] : null;
 	// The Members' shorter Command menu (BA-10, SPEC 13.9): ⌘K Actions and ⌘P Go to, in their words.
 	const menu = useCommandMenu({ tabs: ["actions", "goTo"], announce });
@@ -419,6 +489,11 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 			help: () => setCard("help"),
 		},
 	};
+	const sectionsOpen = panelShown === "sections";
+	// The Sections panel closed: what was typed in it is finished, and it opens on the list next time.
+	useEffect(() => {
+		if (!sectionsOpen) sections.closed();
+	}, [sectionsOpen, sections]);
 
 	return (
 		<div
@@ -464,7 +539,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 				onWidth={setWidth}
 				languages={shown?.languages ?? []}
 				onLanguage={(language) => frame.current?.navigate(language.path)}
-				sections={sections}
+				sections={arrangeable}
 				panel={panelShown}
 				panelId={panelId}
 				onPanel={(next) => {
@@ -487,6 +562,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 				onUndo={() => void undoHistory.undo()}
 				onRedo={() => void undoHistory.redo()}
 				place={place !== null}
+				detailsLabel={postPage ? words.details.postDetails : undefined}
 			/>
 			<div
 				className="relative col-start-2 row-start-1 grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_auto]"
@@ -502,34 +578,37 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 						request={request}
 						languages={shown?.languages.length ?? 1}
 					/>
+				) : panelShown === "sections" ? (
+					<SectionsSidePanel
+						id={panelId}
+						sections={sections}
+						words={words}
+						page={pageTitle ?? ""}
+						language={config.language}
+						onClose={() => closePanel()}
+					/>
 				) : panelShown ? (
 					<SidePanel
 						id={panelId}
 						kind={panelShown}
 						words={words}
-						title={panelShown === "sections" ? said.sections : (detailsHeading?.title ?? said.pageDetails)}
-						page={panelShown === "sections" ? (pageTitle ?? "") : (detailsHeading?.sub ?? pageTitle ?? "")}
+						title={detailsHeading?.title ?? said.pageDetails}
+						page={detailsHeading?.sub ?? pageTitle ?? ""}
 						onClose={() => closePanel()}
 					>
-						{panelShown === "pageDetails" ? (
-							// Page details, or Post details on an Entry (BA-13): a page never published follows its new slug.
-							<MemberDetails
-								token={config.token}
-								siteId={config.site.id}
-								words={words}
-								request={request}
-								page={pageState}
-								onSaving={onSaving}
-								onMoved={(path) => opened.documents.replace({ kind: "page", page: path })}
-								announce={announce}
-								admin={config.admin}
-								onHeading={setDetailsHeading}
-							/>
-						) : (
-							<p className="text-chrome-muted m-0 text-[13px]" data-wc-side-panel-later="">
-								{fill(said.panelLater, { panel: said.sections })}
-							</p>
-						)}
+						{/* Page details, or Post details on an Entry (BA-13): a page never published follows its new slug. */}
+						<MemberDetails
+							token={config.token}
+							siteId={config.site.id}
+							words={words}
+							request={request}
+							page={pageState}
+							onSaving={onSaving}
+							onMoved={(path) => opened.documents.replace({ kind: "page", page: path })}
+							announce={announce}
+							admin={config.admin}
+							onHeading={setDetailsHeading}
+						/>
 					</SidePanel>
 				) : null}
 				<main
@@ -558,7 +637,18 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 						{/* Before the frame in the Tab order: the page stays the last stop. */}
 						{opened.shown?.status === "shown" ? <TextToolbar editing={editing} words={words} /> : null}
 						{opened.shown?.status === "shown" ? <RegionPopover popovers={popovers} words={words} goTo={goTo} /> : null}
+						{/* A section chosen on the page: its name and bar, and "+ Add section" between two (BA-17). */}
+						{opened.shown?.status === "shown" ? (
+							<SectionMarks sections={sections} words={words} onSettings={openSectionSettings} />
+						) : null}
+						{opened.shown?.status === "shown" ? (
+							<AddSectionLine sections={sections} words={words} onAdd={openSectionPicker} />
+						) : null}
+						{opened.shown?.status === "shown" ? (
+							<FormLockPopover locks={formLocks} popovers={popovers} words={words} admin={config.admin} />
+						) : null}
 						{opened.shown?.status === "shown" ? <LoopItems items={items} words={words} /> : null}
+						{opened.shown?.status === "shown" ? <BodyInPlace body={bodies} /> : null}
 						{opened.shown?.status === "shown" ? (
 							// 12 from the rail, the panel and the bar: the frame keeps 12 left, right and below.
 							<div className="absolute inset-x-0 top-3 bottom-0">
@@ -577,6 +667,8 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 									onSaving={onSaving}
 									editing={editing}
 									sheet={{ width: PRESETS[width] }}
+									// The names of the Forms on the page, for their lock chips (BA-27).
+									onReady={(document) => readFormNames(document, () => api.forms.list({ siteId: config.site.id }))}
 								/>
 							</div>
 						) : null}
@@ -607,6 +699,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 					{message.urgent ? message.text : ""}
 				</p>
 			</div>
+			<RemovedToast sections={sections} words={words} />
 			<NarrowNotice covered={fit.covered} words={words} back={config.returnTo} />
 			<CommandMenuHost host={menuHost} request={menu.request} onRequest={menu.setRequest} />
 			<MediaShellHost config={config} />
