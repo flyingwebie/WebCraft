@@ -265,14 +265,16 @@ export function createJsPane(deps: () => CodePanesDeps, request: CodeRequests): 
 
 	const flush = async () => {
 		window.clearTimeout(saveTimer);
-		if (saving) await saving;
-		saving = (async () => {
+		// One save at a time: several waiting (quick Library ticks) each go in turn, never two at once.
+		while (saving) await saving;
+		const mine = (async () => {
 			for (const tab of ["site", "page", "component"] as const) await save(tab);
 		})();
+		saving = mine;
 		try {
-			await saving;
+			await mine;
 		} finally {
-			saving = null;
+			if (saving === mine) saving = null;
 			release();
 			// Typed while the save was under way: the history waits for that too.
 			const dirty = store.get().dirty;
