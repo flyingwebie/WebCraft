@@ -1,7 +1,7 @@
 import { type Json, sameValue } from "@webcraft/core/draft-document";
 import type { ElementTree } from "@webcraft/renderer/builder";
 import { TriangleAlertIcon } from "lucide-react";
-import { type KeyboardEvent, useId, useRef } from "react";
+import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 
 import { editorHistory } from "../../builder/editor-history.ts";
 import { matches } from "../../builder/shortcuts.ts";
@@ -24,6 +24,13 @@ import {
 	useFormatSlot,
 } from "./pane-parts.tsx";
 import { type PaneStore, paneStore, usePane } from "./pane-store.ts";
+import {
+	applySuggestion,
+	type MarkupSuggestions,
+	markupSuggestions,
+	type SuggestContext,
+	suggestionCount,
+} from "./suggest.ts";
 
 /**
  * The HTML pane (BA-11; SPEC 5, `builder/02`, `05`, `07`, `10`): the Template markup of the selection's
@@ -114,6 +121,9 @@ export type HtmlPane = {
 	/** Saves what was typed: on leaving the box, ⌘S, before the selection moves to another source. */
 	save(): Promise<void>;
 	choose(choice: "reload" | "overwrite" | "cancel"): void;
+	/** What typing `{{`, `{{@` or `<` offers in the source shown now (BA-33), read once per source. */
+	suggestions(): Promise<MarkupSuggestions | null>;
+	announce(text: string): void;
 	destroy(): void;
 };
 
@@ -439,6 +449,8 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 
 	const unsubscribe = deps().structure.subscribe(follow);
 	follow();
+	/** What each source's markup may read and place, as `code/open` answers it. */
+	const offered = new Map<string, Promise<MarkupSuggestions | null>>();
 
 	return {
 		store,
@@ -462,6 +474,23 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 				if (selection && source) void show(selection, source);
 			}
 		},
+		async suggestions() {
+			const source = store.get().source;
+			const path = deps().path();
+			if (!source || !path) return null;
+			let read = offered.get(source);
+			if (!read) {
+				read = request<{ suggestions: MarkupSuggestions }>("code/open", { path, ref: source }).then((answer) =>
+					answer.ok ? answer.data.suggestions : null,
+				);
+				offered.set(source, read);
+				void read.then((got) => {
+					if (!got) offered.delete(source);
+				});
+			}
+			return read;
+		},
+		announce: (text) => deps().announce(text),
 		destroy() {
 			window.clearTimeout(previewTimer);
 			unsubscribe();
@@ -479,7 +508,9 @@ export function HtmlBody({ pane, words, settings }: { pane: HtmlPane; words: Wor
 	useFormatSlot(pane.format, formatting, editable);
 	const shown = words.code.html;
 
+	const suggest = useSuggest(pane, words, area);
 	const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+		if (suggest.onKeyDown(event)) return;
 		if (formatting.onKeyDown(event)) return;
 		if (
 			matches(event.nativeEvent, "editor.save") ||
@@ -498,7 +529,7 @@ export function HtmlBody({ pane, words, settings }: { pane: HtmlPane; words: Wor
 	};
 
 	return (
-		<div className="flex min-h-0 grow flex-col gap-1" data-wc-html-pane={state.status}>
+		<div className="relative flex min-h-0 grow flex-col gap-1" data-wc-html-pane={state.status}>
 			{state.status === "loading" || state.status === "idle" ? (
 				<p className="text-chrome-muted m-0 p-3 text-[12px]" role="status">
 					{shown.loading}
@@ -508,9 +539,14 @@ export function HtmlBody({ pane, words, settings }: { pane: HtmlPane; words: Wor
 					ref={area}
 					language="html"
 					value={state.text}
-					onChange={(text) => pane.change(text)}
+					onChange={(text) => {
+						pane.change(text);
+						suggest.typed(text);
+					}}
 					onKeyDown={onKeyDown}
+					aria={suggest.aria}
 					onBlur={() => {
+						suggest.close();
 						if (!store(pane).dirty) return;
 						void (async () => {
 							const tidied =
@@ -528,6 +564,7 @@ export function HtmlBody({ pane, words, settings }: { pane: HtmlPane; words: Wor
 					data={{ "data-wc-code-box": "html" }}
 				/>
 			)}
+			{suggest.list}
 			<div id={noteId} className="flex min-h-[22px] flex-col gap-0.5 px-0.5">
 				{state.problems.length > 0 ? (
 					<ul className="m-0 flex list-none flex-col gap-0.5 p-0 text-[11px] text-red-200" data-wc-html-problems="">
@@ -568,6 +605,105 @@ export function HtmlBody({ pane, words, settings }: { pane: HtmlPane; words: Wor
 			) : null}
 		</div>
 	);
+}
+
+/**
+ * The HTML box's suggestions (BA-33): typing `{{`, `{{@` or `<` and a capital opens a list box under the
+ * box ("Suggestions"); the arrows move through it (the box says which is active), Enter or Tab puts the
+ * active one in, Escape closes it, and leaving the box closes it too. Typing goes on in the box.
+ */
+function useSuggest(pane: HtmlPane, words: Words, area: { current: HTMLTextAreaElement | null }) {
+	const [open, setOpen] = useState<(SuggestContext & { active: number }) | null>(null);
+	const offered = useRef<MarkupSuggestions | null>(null);
+	const listId = useId();
+	useEffect(() => {
+		void pane.suggestions().then((got) => {
+			offered.current = got;
+		});
+	});
+	const close = () => setOpen(null);
+	const take = (context: SuggestContext, index: number) => {
+		const item = context.items[index];
+		const box = area.current;
+		if (!item || !box) return;
+		const next = applySuggestion(box.value, context, item);
+		pane.change(next.text);
+		setOpen(null);
+		requestAnimationFrame(() => {
+			box.focus();
+			box.setSelectionRange(next.caret, next.caret);
+		});
+	};
+	const optionId = (index: number) => `${listId}-${index}`;
+	return {
+		typed(text: string) {
+			const box = area.current;
+			const known = offered.current;
+			if (!box || !known) return;
+			const context = markupSuggestions(text, box.selectionStart ?? text.length, known, words);
+			if (!context || context.items.length === 0) {
+				if (open) setOpen(null);
+				return;
+			}
+			if (!open || open.from !== context.from) pane.announce(suggestionCount(context.items.length, words));
+			setOpen({ ...context, active: 0 });
+		},
+		close,
+		onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): boolean {
+			if (!open) return false;
+			const count = open.items.length;
+			if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+				event.preventDefault();
+				setOpen({ ...open, active: (open.active + (event.key === "ArrowDown" ? 1 : count - 1)) % count });
+				return true;
+			}
+			if (event.key === "Enter" || (event.key === "Tab" && !event.shiftKey)) {
+				event.preventDefault();
+				take(open, open.active);
+				return true;
+			}
+			if (event.key === "Escape") {
+				event.preventDefault();
+				event.stopPropagation();
+				setOpen(null);
+				return true;
+			}
+			return false;
+		},
+		aria: open
+			? { "aria-activedescendant": optionId(open.active), "aria-controls": listId }
+			: ({} as Record<`aria-${string}`, string | undefined>),
+		list: open ? (
+			<div
+				id={listId}
+				role="listbox"
+				aria-label={words.suggest.label}
+				className="bg-chrome-menu border-chrome-hover absolute start-10 bottom-8 z-20 flex max-h-56 w-[360px] max-w-[calc(100%-48px)] flex-col overflow-auto rounded-md border p-1 shadow-[0_12px_32px_rgba(0,0,0,0.5)]"
+				data-wc-suggestions=""
+			>
+				{open.items.slice(0, 40).map((item, index) => (
+					<div
+						key={`${item.group}:${item.label}:${index}`}
+						id={optionId(index)}
+						role="option"
+						aria-selected={index === open.active}
+						tabIndex={-1}
+						onMouseDown={(event) => {
+							event.preventDefault();
+							take(open, index);
+						}}
+						className={`flex min-h-6 cursor-default items-baseline gap-2 rounded-[4px] px-1.5 text-[12px] ${
+							index === open.active ? "bg-chrome-hover text-chrome-strong" : "text-chrome-text"
+						}`}
+					>
+						<span className="truncate font-mono">{item.label}</span>
+						{item.detail ? <span className="text-chrome-muted truncate text-[11px]">{item.detail}</span> : null}
+						<span className="text-chrome-muted ms-auto shrink-0 text-[11px]">{item.group}</span>
+					</div>
+				))}
+			</div>
+		) : null,
+	};
 }
 
 /** The pane's state now, outside React (the box's handlers read it as it is when they run). */

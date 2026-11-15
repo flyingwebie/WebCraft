@@ -10947,6 +10947,42 @@
 			"grab": "Drag to move {name}",
 			"nothingHere": "Drop it on the page, where it should go.",
 			"intoItself": "{name} can't go inside itself."
+		},
+		"suggest": {
+			"label": "Suggestions",
+			"none": "No suggestions",
+			"one": "1 suggestion",
+			"other": "{count} suggestions",
+			"groups": {
+				"entry": "This Entry",
+				"globals": "Site options",
+				"props": "Props",
+				"loops": "Loops",
+				"components": "Components",
+				"commands": "Template commands",
+				"presets": "Presets",
+				"classes": "Classes"
+			},
+			"presets": {
+				"hasValue": "Show when a value is set",
+				"isEmpty": "Show when a value is empty",
+				"ifElse": "Show one thing or another",
+				"loopEmpty": "Show when a Loop has no items",
+				"loopFirst": "Show on a Loop's first item",
+				"loopLast": "Show on a Loop's last item",
+				"loopOddEven": "Odd and even items",
+				"currentLanguage": "Show in one language",
+				"betweenDates": "Show between two dates",
+				"inRelationship": "Show when a list holds a value"
+			}
+		},
+		"cssPane": {
+			"noLayer": "The pane places its CSS in the right cascade layer: remove @layer.",
+			"utilities": "Token utilities",
+			"removeUtility": "Remove token utility {name}",
+			"utility": "Token utility {name}: it can be removed, not edited",
+			"columns": "Columns",
+			"classes": "Classes of the element"
 		}
 	},
 	"auth": {

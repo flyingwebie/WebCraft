@@ -15,6 +15,7 @@ import { QuickActions, useFavourites } from "../places/styles/QuickActions.tsx";
 import { piecesOf, type RuleBreakpoint, ruleOf } from "../places/styles/rule.ts";
 import type { QuickTokens, StepSizes } from "../places/styles/view.ts";
 import { CodeWell } from "./CodeWell.tsx";
+import { ConflictDialog } from "./ConflictDialog.tsx";
 import { chooseClass, chosenClassOf, subscribeChosenClass } from "./chosen-class.ts";
 import type { CodePanesDeps } from "./code-panes.tsx";
 import { codeRequests } from "./code-requests.ts";
@@ -82,6 +83,10 @@ export type CssState = {
 	readOnlyReason: string | null;
 	/** The element's Classes (its own, not token utilities), in its order, by id and name; generated ones say so. */
 	classes: readonly { id: string; name: string; generated: boolean }[];
+	/** The element's token utilities (BA-33): shown as chips that can be taken off, never edited. */
+	utilities: readonly { id: string; name: string }[];
+	/** Someone saved the chosen Class since its rule was shown: Reload theirs or Overwrite with mine. */
+	conflict: boolean;
 	/** The chosen Class. */
 	classId: string | null;
 	name: string;
@@ -115,6 +120,10 @@ export type CssPane = {
 	changeOneOff(text: string): void;
 	/** Saves the one-off style being typed now (to the element it was typed for). */
 	flushOneOff(): Promise<void>;
+	/** A save conflict answered: their Class shown again, mine saved over it, or keep typing. */
+	resolve(choice: "reload" | "overwrite" | "cancel"): void;
+	/** Takes a token utility off the element (one Undo step). */
+	removeUtility(id: string): void;
 	/** Names a generated Class made normal; null keeps its name. Answers why not, or null. */
 	rename(name: string | null): Promise<string | null>;
 	flush(): Promise<void>;
@@ -128,6 +137,8 @@ const IDLE: CssState = {
 	editable: false,
 	readOnlyReason: null,
 	classes: [],
+	utilities: [],
+	conflict: false,
 	classId: null,
 	name: "",
 	text: "",
@@ -204,6 +215,8 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 	const showRule = () => {
 		const state = store.get();
 		const found = state.design?.classes.find((each) => each.id === state.classId);
+		shownClass = found ?? null;
+		previewCss(null);
 		if (!found || !state.design) {
 			store.set({ text: "", name: found?.name ?? state.name, dirty: false, problem: null });
 			return;
@@ -216,6 +229,34 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 			failure: null,
 		});
 	};
+
+	/** The chosen Class as its rule was shown: a save over a newer one asks first (BA-33). */
+	let shownClass: DesignClass | null = null;
+	/** Unsaved CSS shown on the page as it is typed (BA-33): a constructed stylesheet the page's policy allows. */
+	let previewSheet: { page: Document; sheet: CSSStyleSheet } | null = null;
+	const previewCss = (text: string | null) => {
+		const page = deps().frame.current?.page() ?? null;
+		if (previewSheet && (previewSheet.page !== page || text === null)) {
+			const { page: was, sheet } = previewSheet;
+			was.adoptedStyleSheets = was.adoptedStyleSheets.filter((each) => each !== sheet);
+			previewSheet = null;
+		}
+		const view = page?.defaultView as (Window & typeof globalThis) | null | undefined;
+		if (!page || !view || text === null) return;
+		if (!previewSheet) {
+			const sheet = new view.CSSStyleSheet();
+			page.adoptedStyleSheets = [...page.adoptedStyleSheets, sheet];
+			previewSheet = { page, sheet };
+		}
+		try {
+			previewSheet.sheet.replaceSync(text);
+		} catch {
+			// CSS that can't be read yet shows nothing new.
+		}
+	};
+	const sameClass = (a: DesignClass | null | undefined, b: DesignClass | null | undefined) =>
+		JSON.stringify([a?.name, a?.styles, a?.css, a?.breakpoints]) ===
+		JSON.stringify([b?.name, b?.styles, b?.css, b?.breakpoints]);
 
 	const follow = () => {
 		const snapshot = deps().structure.snapshot();
@@ -260,13 +301,18 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 			void flush().then(follow);
 			return;
 		}
+		const utilities = source.catalogue.utilities
+			.filter((each) => element.classes.includes(each.id))
+			.map(({ id, name }) => ({ id, name }));
 		store.set({
 			ref: selection.ref,
 			source: source.ref,
 			editable: source.editable,
 			readOnlyReason: readOnlyReason(words(), source),
 			classes,
+			utilities,
 			classId,
+			...(moved ? { conflict: false } : {}),
 		});
 		if (moved) {
 			if (!store.get().design) {
@@ -282,10 +328,17 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 		}
 	};
 
-	const save = async () => {
+	const save = async (overwrite = false) => {
 		const state = store.get();
 		const design = state.design;
-		if (!state.dirty || !state.classId || !design) return;
+		if (!state.dirty || !state.classId || !design || state.conflict) return;
+		// The pane places its CSS in the Class's cascade layer itself.
+		const layer = state.text.split("\n").findIndex((line) => /@layer\b/.test(line));
+		if (layer >= 0) {
+			store.set({ problem: { text: words().cssPane.noLayer, line: layer + 1 } });
+			deps().announce(words().cssPane.noLayer, true);
+			return;
+		}
 		const pieces = piecesOf(state.text, state.name, design.breakpoints);
 		if (!pieces.ok) {
 			const said = words().styles.classes.problems;
@@ -298,6 +351,20 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 			return;
 		}
 		store.set({ saving: true, problem: null });
+		// Someone saved this Class since its rule was shown: theirs or mine, never silently over theirs.
+		if (!overwrite && shownClass) {
+			try {
+				const fresh = await api().designSystem.get({ siteId: siteId() });
+				const now = (fresh.designSystem.draft.classes as DesignClass[]).find((each) => each.id === state.classId);
+				if (now && !sameClass(now, shownClass)) {
+					store.set({ saving: false, conflict: true, design: designOf(fresh.designSystem.draft, design.sizes) });
+					deps().announce(fill(words().code.conflict.text, { name: `.${state.name}` }), true);
+					return;
+				}
+			} catch {
+				// Unread, the save goes ahead and the server still checks it.
+			}
+		}
 		const wasGenerated = Boolean(design.classes.find((each) => each.id === state.classId)?.generated);
 		try {
 			const saved = await api().designSystem.updateClass({
@@ -318,11 +385,13 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 			const typedSince = store.get().text !== state.text;
 			const nextDesign = designOf(saved.designSystem.draft, design.sizes);
 			store.set({ design: nextDesign, dirty: typedSince, failure: null });
+			shownClass = nextDesign.classes.find((each) => each.id === state.classId) ?? null;
 			// A generated Class whose rule changed is a normal one now: the pane offers to name it.
 			const now = nextDesign.classes.find((each) => each.id === state.classId);
 			if (wasGenerated && now && !now.generated) store.set({ renaming: { classId: now.id, name: now.name } });
 			follow();
 			await deps().frame.current?.rerender();
+			if (!typedSince) previewCss(null);
 		} catch (error) {
 			const code = (error as { code?: string }).code ?? "generic";
 			const message = (error as { message?: string }).message ?? "";
@@ -506,6 +575,7 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 			const state = store.get();
 			if (!state.editable || !state.classId) return;
 			store.set({ text, dirty: true, failure: null, problem: null });
+			previewCss(text);
 			window.clearTimeout(saveTimer);
 			saveTimer = window.setTimeout(() => void flush(), SAVE_AFTER_MS);
 		},
@@ -574,6 +644,25 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 			oneOffTimer = window.setTimeout(() => void flushOneOff(), SAVE_AFTER_MS);
 		},
 		flushOneOff,
+		resolve(choice) {
+			store.set({ conflict: false });
+			if (choice === "overwrite") void save(true);
+			else if (choice === "reload") {
+				store.set({ dirty: false });
+				showRule();
+				void deps().frame.current?.rerender();
+			}
+		},
+		removeUtility(id) {
+			const state = store.get();
+			const named = state.utilities.find((each) => each.id === id)?.name ?? "";
+			const element = elementOf(deps().structure.snapshot().selection);
+			const refused = changeClasses(
+				(element?.classes ?? []).filter((each) => each !== id),
+				fill(words().structure.steps.removeClass, { className: named, name: element?.label ?? element?.tag ?? "" }),
+			);
+			if (refused) deps().announce(refused, true);
+		},
 		async rename(name) {
 			const renaming = store.get().renaming;
 			if (!renaming) return null;
@@ -634,6 +723,31 @@ export function CssActions({ pane, words }: { pane: CssPane; words: Words }) {
 	useEffect(() => {
 		if (adding) field.current?.focus();
 	}, [adding]);
+	// An unfinished + form belongs to the element it was opened on: another selection closes it.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: closed whenever the element changes.
+	useEffect(() => {
+		setAdding(false);
+		setTyped("");
+		setRefusal(null);
+	}, [state.ref]);
+	/** The arrows, Home and End move between the chips (BA-33), as they moved between Code mode's tabs. */
+	const onChipKeys = (event: KeyboardEvent<HTMLDivElement>) => {
+		if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+		const chips = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button[aria-pressed]")];
+		const at = chips.indexOf(document.activeElement as HTMLButtonElement);
+		if (at < 0 || chips.length === 0) return;
+		event.preventDefault();
+		const rtl = getComputedStyle(event.currentTarget).direction === "rtl";
+		const forward = event.key === (rtl ? "ArrowLeft" : "ArrowRight");
+		const next =
+			event.key === "Home"
+				? 0
+				: event.key === "End"
+					? chips.length - 1
+					: (at + (forward ? 1 : -1) + chips.length) % chips.length;
+		chips[next]?.focus();
+		chips[next]?.click();
+	};
 	const submit = async () => {
 		const refused = await pane.add(typed);
 		setRefusal(refused);
@@ -644,7 +758,12 @@ export function CssActions({ pane, words }: { pane: CssPane; words: Words }) {
 	};
 	return (
 		<>
-			<div className="flex min-w-0 grow-[6] basis-0 items-center gap-1.5 overflow-x-auto py-px" data-wc-css-classes="">
+			{/* biome-ignore lint/a11y/noStaticElementInteractions: the chips' own keys (arrows, Home, End), as a toolbar. */}
+			<div
+				className="flex min-w-0 grow-[6] basis-0 items-center gap-1.5 overflow-x-auto py-px"
+				data-wc-css-classes=""
+				onKeyDown={onChipKeys}
+			>
 				{state.classes.map((each) => {
 					const on = state.classId === each.id;
 					return (
@@ -724,6 +843,32 @@ export function CssActions({ pane, words }: { pane: CssPane; words: Words }) {
 						<Tip label={said.addClassLabel} side="bottom" />
 					</span>
 				) : null}
+				{state.utilities.length > 0 ? (
+					<ul
+						aria-label={words.cssPane.utilities}
+						className="m-0 flex list-none items-center gap-1 p-0"
+						data-wc-css-utilities=""
+					>
+						{state.utilities.map((each) => (
+							<li
+								key={each.id}
+								className="border-chrome-line text-chrome-muted inline-flex h-[26px] items-center rounded-[4px] border border-dashed ps-1.5 font-mono text-[11px]"
+								title={fill(words.cssPane.utility, { name: each.name })}
+							>
+								{each.name}
+								<button
+									type="button"
+									disabled={!state.editable}
+									aria-label={fill(words.cssPane.removeUtility, { name: each.name })}
+									onClick={() => pane.removeUtility(each.id)}
+									className={`hover:text-chrome-strong grid h-full w-6 place-items-center rounded-e-[4px] disabled:hidden ${FOCUS_RING}`}
+								>
+									<XIcon aria-hidden="true" className="size-3" />
+								</button>
+							</li>
+						))}
+					</ul>
+				) : null}
 				{state.editable && !adding && !state.oneOff && !state.classes.some((each) => each.generated) ? (
 					<span className="group relative inline-flex">
 						<button
@@ -778,6 +923,30 @@ export function CssBody({ pane, words, settings }: { pane: CssPane; words: Words
 	return (
 		<div className="flex min-h-0 grow flex-col gap-1.5 pt-1.5" data-wc-css-pane="ready">
 			{state.renaming ? <RenamePrompt pane={pane} words={words} name={state.renaming.name} /> : null}
+			{state.conflict ? (
+				<ConflictDialog
+					words={words}
+					text={fill(words.code.conflict.text, { name: `.${state.name}` })}
+					onChoose={(choice) => pane.resolve(choice)}
+				/>
+			) : null}
+			{editable && /display:\s*grid\b/.test(state.text) ? (
+				<label className="text-chrome-muted flex items-center gap-1.5 px-2 text-[11px]">
+					{words.cssPane.columns}
+					<input
+						type="number"
+						min={1}
+						max={24}
+						value={/grid-template-columns:\s*repeat\((\d+),\s*1fr\)/.exec(state.text)?.[1] ?? ""}
+						onChange={(event) => {
+							const count = Number.parseInt(event.target.value, 10);
+							if (count >= 1 && count <= 24) pane.change(withColumns(state.text, count));
+						}}
+						className={`bg-chrome-raised text-chrome-strong h-6 w-14 rounded-[4px] px-1.5 text-[12px] ${FOCUS_RING}`}
+						data-wc-css-columns=""
+					/>
+				</label>
+			) : null}
 			{state.design ? (
 				<div className="flex min-w-0 items-center overflow-x-auto px-1.5">
 					<QuickActions
@@ -954,6 +1123,16 @@ function RenamePrompt({ pane, words, name }: { pane: CssPane; words: Words; name
 				</p>
 			) : null}
 		</form>
+	);
+}
+
+/** A rule with its grid's columns set to `count` equal ones (`repeat(n, 1fr)`), after its `display: grid`. */
+export function withColumns(text: string, count: number): string {
+	const declaration = `grid-template-columns: repeat(${count}, 1fr);`;
+	if (/grid-template-columns:[^;]*;?/.test(text)) return text.replace(/grid-template-columns:[^;]*;?/, declaration);
+	return text.replace(
+		/^([ \t]*)display:\s*grid;?/m,
+		(whole, indent: string) => `${whole.endsWith(";") ? whole : `${whole};`}\n${indent}${declaration}`,
 	);
 }
 

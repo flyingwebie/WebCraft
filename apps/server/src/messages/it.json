@@ -10947,6 +10947,42 @@
 			"grab": "Trascina per spostare {name}",
 			"nothingHere": "Lascialo sulla pagina, dove deve andare.",
 			"intoItself": "{name} non può andare dentro se stesso."
+		},
+		"suggest": {
+			"label": "Suggerimenti",
+			"none": "Nessun suggerimento",
+			"one": "1 suggerimento",
+			"other": "{count} suggerimenti",
+			"groups": {
+				"entry": "Questa voce",
+				"globals": "Opzioni del sito",
+				"props": "Proprietà",
+				"loops": "Cicli",
+				"components": "Componenti",
+				"commands": "Comandi del template",
+				"presets": "Modelli pronti",
+				"classes": "Classi"
+			},
+			"presets": {
+				"hasValue": "Mostra quando un valore c'è",
+				"isEmpty": "Mostra quando un valore è vuoto",
+				"ifElse": "Mostra una cosa o un'altra",
+				"loopEmpty": "Mostra quando un loop non ha elementi",
+				"loopFirst": "Mostra sul primo elemento di un loop",
+				"loopLast": "Mostra sull'ultimo elemento di un loop",
+				"loopOddEven": "Elementi dispari e pari",
+				"currentLanguage": "Mostra in una lingua",
+				"betweenDates": "Mostra tra due date",
+				"inRelationship": "Mostra quando un elenco contiene un valore"
+			}
+		},
+		"cssPane": {
+			"noLayer": "Il pannello mette il suo CSS nel livello a cascata giusto: togli @layer.",
+			"utilities": "Utility dei token",
+			"removeUtility": "Togli la utility del token {name}",
+			"utility": "Utility del token {name}: si può togliere, non modificare",
+			"columns": "Colonne",
+			"classes": "Class dell'elemento"
 		}
 	},
 	"auth": {
