@@ -8,6 +8,7 @@ import {
 	PermissionDeniedError,
 	publishPermission,
 	type SiteScope,
+	withMissingTranslations,
 } from "@webcraft/core";
 import {
 	FORM_AUTOCOMPLETE,
@@ -241,6 +242,29 @@ export const forms = {
 		.handler(async ({ context, input }) => {
 			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
 			return { form: await context.services.forms.saveDraft(site, input.formId, input.form) };
+		}),
+
+	/**
+	 * Fills the texts of a Form's Draft that have no translation in one of the Site's other languages
+	 * (labels, help, placeholders, error messages, options, the button, the message once sent) with AI,
+	 * through the Workspace's AI key, and saves them to the Draft; the translations already written stay.
+	 * Answers the Form and how many texts were filled (none: nothing was asked or saved).
+	 */
+	translateMissing: signedIn
+		.input(z.object({ siteId: id, formId: id, language: z.string().trim().min(1).max(35) }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			const { form } = await context.services.forms.get(site, input.formId);
+			const { version, filled } = await withMissingTranslations(form.draft, input.language, (texts) =>
+				context.services.translations.texts(site, input.language, texts),
+			);
+			if (filled === 0) return { form, filled };
+			const saved = await context.services.forms.saveDraft(site, input.formId, {
+				fields: version.fields,
+				submitLabel: version.submitLabel,
+				success: version.success,
+			});
+			return { form: saved, filled };
 		}),
 
 	/** Publishes a Form's Draft: what visitors fill in from now on. */

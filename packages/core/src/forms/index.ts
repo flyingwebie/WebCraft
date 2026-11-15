@@ -45,6 +45,7 @@ export {
 	SENT_PARAMETER,
 } from "./receive.ts";
 export { createFormTokens, type FormTokens } from "./tokens.ts";
+export { withMissingTranslations } from "./translate.ts";
 export {
 	createFormUploads,
 	FORM_UPLOADS_PATH,

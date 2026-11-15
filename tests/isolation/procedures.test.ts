@@ -668,6 +668,9 @@ describe("Forms", () => {
 	isolation.refuses("forms.publish", async (api, target) =>
 		api.forms.publish({ siteId: target.siteId, formId: await formIn(target) }),
 	);
+	isolation.refuses("forms.translateMissing", async (api, target) =>
+		api.forms.translateMissing({ siteId: target.siteId, formId: await formIn(target), language: "it" }),
+	);
 	isolation.refuses("forms.rename", async (api, target) =>
 		api.forms.rename({ siteId: target.siteId, formId: await formIn(target), name: "Renamed" }),
 	);
