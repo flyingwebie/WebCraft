@@ -1,6 +1,6 @@
 // The shell's code in files of its own (BA-30): the file the shell's document loads imports nothing at
 // once, and names the rest of the shell's files (each person's shell, each place's, the Media
-// picker's, the parts they share) only for when they are needed; the document preloads its person's.
+// picker's, the code panes', the parts they share) only for when they are needed; the document preloads its person's.
 // Every one of them is served from the Site's address as the shell's first file is: hashed, kept a
 // year, with nothing about the Site or the person in it.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
@@ -33,7 +33,7 @@ function namedIn(code: string): { now: string[]; later: string[] } {
 }
 
 describe("the shell's files", () => {
-	test("the first file imports nothing at once; each person's shell, each place and the Media picker are files of their own", async () => {
+	test("the first file imports nothing at once; each person's shell, each place, the Media picker and the code panes are files of their own", async () => {
 		const building = await openBuildingArea(install, staff, siteId);
 		const html = await (await building.shell("/_webcraft/build/page/")).text();
 		const first = /src="\/_webcraft\/edit\/assets\/(shell-[0-9a-f]{16}\.js)"/.exec(html)?.[1] ?? "";
@@ -59,6 +59,7 @@ describe("the shell's files", () => {
 		}
 		expect([...fetchedLater].sort()).toEqual(
 			[
+				"shell-CodePanes",
 				"shell-ComponentsPlace",
 				"shell-ContentPlace",
 				"shell-FormsPlace",
@@ -113,8 +114,8 @@ describe("the shell's files", () => {
 			const { now, later } = namedIn(await file.text());
 			waiting.push(...now, ...later);
 		}
-		// The first file, the two shells, eight files of their own and the parts they share.
-		expect(seen.size).toBeGreaterThan(11);
+		// The first file, the two shells, nine files of their own (the code panes too) and the parts they share.
+		expect(seen.size).toBeGreaterThan(12);
 		const head = await anyone.request(`${building.origin}/_webcraft/edit/assets/${first}`, { method: "HEAD" });
 		expect(head.status).toBe(200);
 		expect(

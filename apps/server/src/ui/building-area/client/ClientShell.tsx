@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
 import { useEditorFit } from "../../builder/editor-fit.ts";
 import { type EditAnswer, editRequests, fill, type PageState, type ShellConfig } from "../api.ts";
@@ -24,6 +24,9 @@ import { AddSectionLine } from "./AddSection.tsx";
 import { ClientBar, type ClientPanel, clientDraftStateOf } from "./ClientBar.tsx";
 import { CLIENT_PLACES, type ClientPlace, ClientRail } from "./ClientRail.tsx";
 import { HelpCard } from "./HelpCard.tsx";
+import { ItemPanel } from "./ItemPanel.tsx";
+import { LoopItems } from "./LoopItems.tsx";
+import { loopItems } from "./loop-items.ts";
 import { type ClientMode, clientEditing } from "./marks.ts";
 import { MemberDetails } from "./PageDetails.tsx";
 import { PageSwitcher } from "./PageSwitcher.tsx";
@@ -132,12 +135,15 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 
 	// The Sections panel opened from the page (BA-17): a section's settings, or the picker at a boundary.
 	const sectionsRef = useRef<ReturnType<typeof memberSections> | null>(null);
+	const closeItemPanel = useRef<() => void>(() => {});
 	const openSectionSettings = useCallback((id: string) => {
+		closeItemPanel.current();
 		setPanel("sections");
 		sectionsRef.current?.select(id, { onPage: true });
 		sectionsRef.current?.view("settings");
 	}, []);
 	const openSectionPicker = useCallback((after: string) => {
+		closeItemPanel.current();
 		setPanel("sections");
 		sectionsRef.current?.view("add", { after });
 	}, []);
@@ -175,9 +181,27 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 		[config.token, words],
 	);
 	useEffect(() => () => popovers.destroy(), [popovers]);
+	// A Loop's own items and a query Loop's (BA-16): selected, moved, added, their Fields in the side panel.
+	const openRef = useRef<(path: string) => void>(() => {});
+	const items = useMemo(
+		() =>
+			loopItems({
+				token: config.token,
+				words,
+				announce: (text, urgent) => announceRef.current(text, urgent),
+				saving: (status) => savingRef.current(status),
+				// One side panel at a time: the item's closes the bar's.
+				panelOpened: () => setPanel(null),
+				openPage: (path) => openRef.current(path),
+			}),
+		[config.token, words],
+	);
+	useEffect(() => () => items.destroy(), [items]);
+	const itemsNow = useSyncExternalStore(items.subscribe, items.snapshot);
 	const goTo = useCallback(() => api.builder.commandMenu({ siteId: config.site.id }), [api, config.site.id]);
 	// Sections (BA-17): the page's Page layout, arranged where the Site lets Members arrange.
 	const titleRef = useRef("");
+	closeItemPanel.current = () => items.closePanel({ deselect: true });
 	const sections = useMemo(
 		() =>
 			memberSections({
@@ -206,16 +230,18 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 			failed: () => setSaving("failed"),
 		});
 		return sections.wrap(
-			clientEditing({
-				inner,
-				words,
-				announce: (text, urgent) => announceRef.current(text, urgent),
-				// Escape in the page closes the panel and leaves focus where it is, in the page.
-				closePanel: () => closePanel(false),
-				popovers,
-			}),
+			items.wrap(
+				clientEditing({
+					inner,
+					words,
+					announce: (text, urgent) => announceRef.current(text, urgent),
+					// Escape in the page closes the panel and leaves focus where it is, in the page.
+					closePanel: () => closePanel(false),
+					popovers,
+				}),
+			),
 		);
-	}, [config.token, config.site.id, words, undoHistory, closePanel, popovers, sections]);
+	}, [config.token, config.site.id, words, undoHistory, closePanel, popovers, items, sections]);
 	useEffect(() => () => editing.destroy(), [editing]);
 	useEffect(() => editing.setMode(mode), [editing, mode]);
 
@@ -245,6 +271,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 
 	const opened = useOpenDocument(config, announce);
 	const { framed } = opened;
+	openRef.current = (path) => opened.open({ kind: "page", page: path });
 
 	const onPage = useCallback(
 		(address: string, answer: Promise<EditAnswer<PageState>>) => {
@@ -455,7 +482,11 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 				sections={arrangeable}
 				panel={panelShown}
 				panelId={panelId}
-				onPanel={(next) => setPanel((was) => (was === next ? null : next))}
+				onPanel={(next) => {
+					// One side panel at a time: the bar's closes the item's.
+					items.closePanel({ deselect: true });
+					setPanel((was) => (was === next ? null : next));
+				}}
 				publish={
 					<Publish
 						config={config}
@@ -477,7 +508,16 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 				data-wc-work=""
 			>
 				{/* The side panel before the canvas in the Tab order: the page stays the last stop. */}
-				{panelShown === "sections" ? (
+				{itemsNow.selected?.panel && !place ? (
+					<ItemPanel
+						id={`${panelId}-item`}
+						items={items}
+						words={words}
+						selected={itemsNow.selected}
+						request={request}
+						languages={shown?.languages.length ?? 1}
+					/>
+				) : panelShown === "sections" ? (
 					<SectionsSidePanel
 						id={panelId}
 						sections={sections}
@@ -543,6 +583,7 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 						{opened.shown?.status === "shown" ? (
 							<AddSectionLine sections={sections} words={words} onAdd={openSectionPicker} />
 						) : null}
+						{opened.shown?.status === "shown" ? <LoopItems items={items} words={words} /> : null}
 						{opened.shown?.status === "shown" ? (
 							// 12 from the rail, the panel and the bar: the frame keeps 12 left, right and below.
 							<div className="absolute inset-x-0 top-3 bottom-0">

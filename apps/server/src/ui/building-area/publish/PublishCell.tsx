@@ -121,7 +121,7 @@ export function PublishCell({
 			const form = new Intl.PluralRules(language).select(count) === "one" ? "one" : "other";
 			face = {
 				colours:
-					count > 0 ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-chrome-raised text-chrome-faint",
+					count > 0 ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-chrome-raised text-chrome-muted",
 				content: (
 					<>
 						{size === "client" ? <UploadIcon aria-hidden="true" className={icon} /> : null}
