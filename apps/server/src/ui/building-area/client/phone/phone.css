@@ -72,3 +72,48 @@
 [data-wc-layout="phone"] [data-wc-side-panel] {
 	overflow-y: hidden;
 }
+
+/*
+ * The page's name shrinks with the room the bar leaves it, its words cut short (a button sizes to its
+ * words otherwise, even when what holds it is narrower). On a phone it has no fill, as the bar draws it.
+ */
+[data-wc-client] [data-wc-page-switcher] {
+	max-width: min(220px, 100%);
+}
+[data-wc-layout="phone"] [data-wc-page-switcher]:not(:hover) {
+	background-color: transparent;
+}
+[data-wc-layout="phone"] [data-wc-page-switcher] {
+	padding-inline: 8px;
+}
+[data-wc-layout="phone"] [data-wc-page-switcher] > svg:last-child {
+	display: none;
+}
+
+/*
+ * A tablet: the language and the page's name keep their icons (their names say the rest), so the
+ * page's name and the Draft's state have room.
+ */
+[data-wc-layout="tablet"] [data-wc-client-bar] [data-wc-language] {
+	padding-inline: 0;
+	width: 36px;
+	justify-content: center;
+}
+[data-wc-layout="tablet"] [data-wc-draft-state] {
+	padding-inline: 4px;
+	flex-shrink: 3;
+}
+[data-wc-layout="tablet"] [data-wc-client-bar] [data-wc-publish]:not([data-wc-publish="review"]) {
+	width: 116px;
+}
+[data-wc-layout="tablet"] [data-wc-client-bar] [data-wc-language] > :not(:first-child),
+[data-wc-layout="tablet"] [data-wc-page-switcher] > svg:last-child {
+	display: none;
+}
+
+/* A tablet under 900 px: the page already shows at about its width, so the bar leaves out the widths. */
+@media (max-width: 899px) {
+	[data-wc-widths-compact] {
+		display: none;
+	}
+}

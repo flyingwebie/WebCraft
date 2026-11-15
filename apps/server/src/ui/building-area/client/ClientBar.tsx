@@ -232,7 +232,8 @@ function Segmented<Value extends string>({
  *
  * `compact` (a tablet's window, 641 to 1023 px; BA-19): the same bar, keeping only the words it needs:
  * Edit and Preview, Sections and Page details show their icons, their words in tooltips and names, and
- * the page's name and the Draft's state take what room is left.
+ * the page's name and the Draft's state take what room is left; under 900 px the widths go too (the
+ * page already shows at about a tablet's width there).
  */
 export function ClientBar({
 	words,
@@ -330,7 +331,7 @@ export function ClientBar({
 				</p>
 			</div>
 			<div
-				className={`flex h-full items-center justify-center gap-2.5 ${compact ? "shrink-0 px-2" : "min-w-0 grow"}`}
+				className={`flex h-full items-center justify-center gap-2.5 ${compact ? "shrink-0 px-1" : "min-w-0 grow"}`}
 				data-wc-bar-cluster="centre"
 			>
 				{place ? null : (
@@ -364,7 +365,7 @@ export function ClientBar({
 									word: false,
 								},
 							]}
-							data={{ "data-wc-widths": "" }}
+							data={{ "data-wc-widths": "", ...(compact ? { "data-wc-widths-compact": "" } : {}) }}
 						/>
 					</>
 				)}
