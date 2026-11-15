@@ -271,6 +271,7 @@ describe("fixed text becomes a value clients edit", () => {
 		await question.waitFor({ state: "detached" });
 
 		await clickIn(page, "p.hours");
+		await says(inspector(page).locator("[data-wc-fixed-texts]"), "“Open daily”");
 		question = await ask(page, "Make it a Global");
 		await question.getByLabel("Label").fill("Hours");
 		await question.getByRole("button", { name: "Make it a Global" }).click();
@@ -297,6 +298,7 @@ describe("fixed text becomes a value clients edit", () => {
 	test("in a Component it becomes a Prop, the text its default; Undo takes back both in one step", async () => {
 		const page = await shared();
 		await clickIn(page, "aside.notice p");
+		await says(inspector(page).locator("[data-wc-fixed-texts]"), "“Closed on Sundays”");
 		const question = await ask(page, "Bind to Prop");
 		await question.getByLabel("Label").fill("Message");
 		await question.getByRole("button", { name: "Bind to Prop" }).click();
@@ -325,6 +327,7 @@ describe("fixed text becomes a value clients edit", () => {
 	test("the question follows its element: a peer's change elsewhere is kept; text a peer changed is never replaced", async () => {
 		const page = await shared();
 		await clickIn(page, "p.by");
+		await says(inspector(page).locator("[data-wc-fixed-texts]"), "“Baked by hand.”");
 		let question = await ask(page, "Make it a Field");
 		// A peer adds an element before it meanwhile: the text is found where it is now.
 		await peerChanges(
@@ -350,6 +353,7 @@ describe("fixed text becomes a value clients edit", () => {
 
 		// A peer changes the text itself meanwhile: nothing is replaced and nothing is added.
 		await clickIn(page, "article > p:last-of-type");
+		await says(inspector(page).locator("[data-wc-fixed-texts]"), "“Ask at the counter.”");
 		question = await ask(page, "Make it a Field");
 		await peerChanges(
 			inArticle((children) =>

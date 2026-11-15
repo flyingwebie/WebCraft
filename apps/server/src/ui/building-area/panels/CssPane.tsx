@@ -1,5 +1,5 @@
 import { createDraftClient, type Json } from "@webcraft/core/draft-document";
-import type { ElementNode } from "@webcraft/renderer/builder";
+import type { ElementNode, ElementTree } from "@webcraft/renderer/builder";
 import { PaintbrushIcon, PlusIcon, XIcon } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 
@@ -216,7 +216,8 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 		const state = store.get();
 		const found = state.design?.classes.find((each) => each.id === state.classId);
 		shownClass = found ?? null;
-		previewCss(null);
+		// The preview belongs to the element and Class it was typed for: another one takes it away.
+		if (previewFor && (previewFor.ref !== state.ref || previewFor.classId !== state.classId)) previewCss(null);
 		if (!found || !state.design) {
 			store.set({ text: "", name: found?.name ?? state.name, dirty: false, problem: null });
 			return;
@@ -234,10 +235,11 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 	let shownClass: DesignClass | null = null;
 	/** Unsaved CSS shown on the page as it is typed (BA-33): a constructed stylesheet the page's policy allows. */
 	let previewSheet: { page: Document; sheet: CSSStyleSheet } | null = null;
+	/** The element and Class the preview shows, as typed: it stays while they are the ones shown. */
+	let previewFor: { ref: string | null; classId: string | null } | null = null;
 	const previewCss = (text: string | null) => {
 		const page = deps().frame.current?.page() ?? null;
-		// TEMPORARY diagnostics (BA-33): what the preview was asked and found.
-		document.documentElement.dataset.wcCssPreview = `${text === null ? "clear" : "show"}:${page ? "page" : "none"}:${page?.defaultView ? "view" : "noview"}`;
+		previewFor = text === null ? null : { ref: store.get().ref, classId: store.get().classId };
 		if (previewSheet && (previewSheet.page !== page || text === null)) {
 			const { page: was, sheet } = previewSheet;
 			was.adoptedStyleSheets = was.adoptedStyleSheets.filter((each) => each !== sheet);
@@ -393,7 +395,6 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 			if (wasGenerated && now && !now.generated) store.set({ renaming: { classId: now.id, name: now.name } });
 			follow();
 			await deps().frame.current?.rerender();
-			if (!typedSince) previewCss(null);
 		} catch (error) {
 			const code = (error as { code?: string }).code ?? "generic";
 			const message = (error as { message?: string }).message ?? "";
@@ -470,38 +471,40 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 				if (store.get().oneOff?.text === pending.text) store.set({ oneOff: null });
 				return;
 			}
-			// Printed from the Draft as it is now, the element's declarations in place of its generated Class.
-			const tree = replaceAt(source.tree, at, { ...node, classes: kept });
+			// Printed from the Draft as the server has it now (a peer's change may not have reached this tab
+			// yet), the element's declarations in place of its generated Class, and saved on that version.
+			const fresh = await request<{ opened: { tree: ElementTree; version: string | null; props: unknown } }>(
+				"code/editor",
+				{ path, ref: source.ref },
+			);
+			const freshTree = fresh.ok ? fresh.data.opened.tree : source.tree;
+			const freshAt = pathOfId(freshTree, pending.elementId);
+			const freshNode = freshAt ? nodeAt(freshTree, freshAt) : undefined;
+			if (!freshAt || freshNode?.type !== "element") {
+				store.set({ oneOff: null });
+				deps().announce(fill(said.notSaved, { reason: words().structure.connecting }), true);
+				return;
+			}
+			const tree = replaceAt(freshTree, freshAt, {
+				...freshNode,
+				classes: freshNode.classes.filter((id) => !generated.has(id)),
+			});
+			const props = fresh.ok ? fresh.data.opened.props : source.props;
 			const printed = await request<{ markup: string }>("code/editorMarkup", {
 				path,
 				ref: source.ref,
-				draft: {
-					tree,
-					styles: { [pending.elementId]: declarations },
-					...(source.props ? { props: source.props } : {}),
-				},
+				draft: { tree, styles: { [pending.elementId]: declarations }, ...(props ? { props } : {}) },
 			});
-			const opened = printed.ok
-				? await request<{ version: string | null }>("code/open", { path, ref: source.ref })
+			const answer = printed.ok
+				? await request<{ history: { resource: string; before: Json; after: Json }[] }>("code/save", {
+						path,
+						ref: source.ref,
+						markup: printed.data.markup,
+						version: fresh.ok ? fresh.data.opened.version : null,
+					})
 				: null;
-			const answer =
-				printed.ok && opened?.ok
-					? await request<{ history: { resource: string; before: Json; after: Json }[] }>("code/save", {
-							path,
-							ref: source.ref,
-							markup: printed.data.markup,
-							version: opened.data.version,
-						})
-					: null;
 			if (!answer?.ok) {
-				const code =
-					answer && !answer.ok
-						? answer.code
-						: !printed.ok
-							? printed.code
-							: opened && !opened.ok
-								? opened.code
-								: "generic";
+				const code = answer && !answer.ok ? answer.code : !printed.ok ? printed.code : "generic";
 				// Someone saved it between the reading and the save: printed again from their version, once.
 				if (code === "CHANGED_MEANWHILE" && attempt === 0) {
 					await new Promise((resolve) => setTimeout(resolve, 300));
@@ -652,6 +655,7 @@ export function createCssPane(deps: () => CodePanesDeps): CssPane {
 			if (choice === "overwrite") void save(true);
 			else if (choice === "reload") {
 				store.set({ dirty: false });
+				previewCss(null);
 				showRule();
 				void deps().frame.current?.rerender();
 			}

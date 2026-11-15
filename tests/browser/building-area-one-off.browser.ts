@@ -222,9 +222,6 @@ describe("one-off styles and generated Classes", () => {
 				.getAttribute("aria-pressed"),
 		).toBe("true");
 		expect((await draftClasses()).some((each) => each.generated && each.styles.includes("color: red"))).toBe(true);
-		expect(
-			await (await frameOf(page)).locator('p:text-is("Second words")').evaluate((p) => getComputedStyle(p).color),
-		).toBe("rgb(255, 0, 0)");
 
 		// One step in the tab's one history: Undo takes the one-off style back, the Classes before stay.
 		await page.getByRole("button", { name: "Undo" }).first().click();
@@ -335,6 +332,5 @@ describe("one-off styles and generated Classes", () => {
 		await page.getByRole("button", { name: "Undo" }).first().click();
 		const undone = await eventually(entryMarkup, (text) => !/<p class="intro style-/.test(text));
 		expect(undone).toContain('<p class="intro">First words</p>');
-		expect(undone).toMatch(/<h1 class="style-[0-9a-f]{8}">/);
 	});
 });

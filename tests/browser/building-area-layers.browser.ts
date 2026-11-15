@@ -194,6 +194,7 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 			"Card",
 			"Card",
 		]);
+		await focusRow(page, /^p\b/);
 		await page.keyboard.press("ControlOrMeta+d");
 		await announces(page, "Duplicate p");
 		await eventually(order, (tags) => tags.filter((tag) => tag === "p").length === 3);
@@ -371,7 +372,7 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 			(got) => got.markup.draft.replace(/ data-wc-id="[^"]*"/g, "").includes("<h3>"),
 		);
 		expect(read.markup.draft.replace(/ data-wc-id="[^"]*"/g, "")).toContain(
-			'<div class="card"><h4>Card title</h4></div>',
+			'<div class="card"><h3>Card title</h3></div>',
 		);
 	});
 });

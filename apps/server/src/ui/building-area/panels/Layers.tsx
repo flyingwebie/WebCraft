@@ -617,7 +617,13 @@ export function Layers({
 			);
 			if (refused) announceRefusal(refused);
 		} else announceRefusal(fill(said2.putBack, { name: picked.name }));
-		focusRow(rows.find((each) => each.kind === "node" && each.ref === picked.ref)?.key ?? null);
+		// Back where it was: its row is found by its reference once the tree shows it there.
+		const ref = picked.ref;
+		requestAnimationFrame(() =>
+			requestAnimationFrame(() =>
+				list.current?.querySelector<HTMLElement>(`[data-wc-ref="${CSS.escape(ref)}"]`)?.focus(),
+			),
+		);
 	};
 	/** Moves the picked layer one step (no Undo step of its own). */
 	const movePicked = (row: Extract<Row, { kind: "node" }>, how: "up" | "down" | "in" | "out") => {
@@ -1201,7 +1207,10 @@ function TreeRow({
 							{named.name}
 						</span>
 						{named.detail ? (
-							<span className="text-chrome-muted truncate font-mono text-[11px]">{named.detail}</span>
+							<>
+								{" "}
+								<span className="text-chrome-muted truncate font-mono text-[11px]">{named.detail}</span>
+							</>
 						) : null}
 					</>
 				) : (
@@ -1220,7 +1229,10 @@ function TreeRow({
 							{named.name}
 						</span>
 						{named.detail ? (
-							<span className="text-chrome-muted truncate font-mono text-[11px]">{named.detail}</span>
+							<>
+								{" "}
+								<span className="text-chrome-muted truncate font-mono text-[11px]">{named.detail}</span>
+							</>
 						) : null}
 					</>
 				)}
