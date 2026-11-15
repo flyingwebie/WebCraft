@@ -241,6 +241,8 @@ export function RemovedToast({ sections, words }: { sections: MemberSections; wo
 			onPointerLeave={() => setHeld(false)}
 			onFocus={() => setHeld(true)}
 			onBlur={() => setHeld(false)}
+			role="region"
+			aria-label={said.removed}
 			data-wc-section-toast=""
 		>
 			<div className="border-chrome-hover bg-chrome-menu text-chrome-strong pointer-events-auto flex items-center gap-3 rounded-[10px] border py-2 ps-3 pe-2 text-[14px] font-medium shadow-[0_12px_32px_rgba(0,0,0,0.55)]">

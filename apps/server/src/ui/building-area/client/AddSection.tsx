@@ -259,7 +259,6 @@ function Card({
 	return (
 		<button
 			type="button"
-			aria-label={`${component.name}. ${line}`}
 			aria-disabled={busy ? true : undefined}
 			onClick={() => {
 				if (!busy) onAdd();
