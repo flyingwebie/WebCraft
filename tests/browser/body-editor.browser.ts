@@ -1,6 +1,9 @@
 // The block editor of a Body field in a browser: axe and keyboard checks in light and dark with every
 // Block, its problems and Checks showing; the `/` menu and Markdown shortcuts from the keyboard; and
-// moving a Block without dragging. What is typed autosaves to the Draft.
+// moving a Block without dragging. What is typed autosaves to the Draft. Also the admin's own cases of
+// Components and pasting: the `/` menu offering the Components a Body field allows (their Props filled
+// before one goes in), a pasted document and image file turned into Blocks and Media, and Staff choosing
+// the Components a Body field allows.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Page } from "playwright";
 
@@ -12,6 +15,7 @@ import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
 let install: BrowserInstall;
 let staff: TestAccount;
 let owner: TestAccount;
+let workspaceId: string;
 let siteId: string;
 let articlesId: string;
 let entryId: string;
@@ -23,7 +27,7 @@ beforeAll(async () => {
 	install = await startBrowserInstall();
 	await install.createSuperadmin();
 	const local = install.install;
-	const workspaceId = (await local.createWorkspace("Acme Ltd")).id;
+	workspaceId = (await local.createWorkspace("Acme Ltd")).id;
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
 	staff = (await local.createStaff({ workspaces: [workspaceId], name: "Ciara Byrne" })).account;
 	owner = (await local.createMember({ workspaceId, role: "owner", name: "Sarah Murphy" })).account;
@@ -262,4 +266,175 @@ describe("writing with the keyboard", () => {
 			{ text: "daily", link: "/hours" },
 		]);
 	});
+});
+
+describe("Components and pasting in the admin", () => {
+	let editor: TestAccount;
+	let storiesId: string;
+	let noteId: string;
+	let stories = 0;
+
+	beforeAll(async () => {
+		editor = (await install.install.createMember({ workspaceId, role: "editor", name: "Erin Editor" })).account;
+		const { component } = await admin.api.components.create({
+			siteId,
+			name: "Note",
+			props: [{ key: "text", label: "Note text", type: "text", required: true }],
+		});
+		await admin.api.components.saveMarkup({
+			siteId,
+			componentId: component.id,
+			markup: "<aside><p>{{ props.text }}</p></aside>",
+		});
+		await admin.api.components.publish({ siteId, componentId: component.id });
+		noteId = component.id;
+		const { postType } = await admin.api.postTypes.create({
+			siteId,
+			name: "Stories",
+			urlPattern: "/stories/{slug}",
+			fields: [{ key: "body", label: "Story", type: "body", components: [noteId] }],
+		});
+		storiesId = postType.id;
+	});
+
+	/** A published Story with a body of a few Blocks; answers its id. */
+	async function story(): Promise<string> {
+		const { entry } = await admin.api.entries.create({
+			siteId,
+			postTypeId: storiesId,
+			title: "Spring menu",
+			slug: `story-${++stories}`,
+			fields: {
+				body: [
+					{ type: "heading", level: 2, text: "Breads" },
+					{ type: "paragraph", text: [{ text: "Fresh " }, { text: "every", marks: ["bold"] }, { text: " day." }] },
+					{ type: "list", style: "bulleted", items: ["Sourdough", "Rye"] },
+					{ type: "callout", tone: "info", text: "Order by noon." },
+					{ type: "component", component: noteId, props: [{ name: "text", value: "Closed on Mondays." }] },
+				],
+			},
+		});
+		await admin.api.entries.publish({ siteId, entryId: entry.id });
+		return entry.id;
+	}
+
+	type Block = { id: string; type: string; text?: { text: string }[]; component?: string; props?: unknown[] };
+
+	/** A Story's body once `done` accepts it, waiting up to 8 seconds. */
+	async function bodyWhen(storyId: string, done: (body: Block[]) => boolean): Promise<Block[]> {
+		const read = async () =>
+			(await admin.api.entries.get({ siteId, entryId: storyId })).entry.draft.fields.body as Block[];
+		const deadline = Date.now() + 8000;
+		let body = await read();
+		while (!done(body) && Date.now() < deadline) {
+			await Bun.sleep(200);
+			body = await read();
+		}
+		return body;
+	}
+
+	for (const theme of THEMES) {
+		test(`the admin offers allowed Components and their Props from the same / menu, ${theme}`, async () => {
+			const storyId = await story();
+			const page = await install.newPage(theme);
+			await install.signIn(page, editor);
+			await page.goto(install.adminUrl(`/sites/${siteId}/entries/${storiesId}/${storyId}`));
+			await page.getByRole("textbox", { name: "Paragraph, block 2" }).click();
+			await page.keyboard.press("End");
+			await page.keyboard.press("Enter");
+			await page.keyboard.press("/");
+			await page.getByRole("combobox", { name: "Blocks" }).fill("Note");
+			await page.getByRole("option", { name: "Note", exact: true }).waitFor();
+			// The list's items, one under the other, are each a target of at least 24 px (WCAG 2.5.8): axe
+			// judges them only when it finds them beside the chooser, so their size is read here too.
+			const items = await page
+				.getByRole("textbox", { name: /^Item \d+$/ })
+				.evaluateAll((all) => all.map((each) => Math.round(each.getBoundingClientRect().height)));
+			expect(items.length).toBe(2);
+			expect(items.filter((height) => height < 24)).toEqual([]);
+			await expectNoAxeViolations(page, `admin Component chooser (${theme})`);
+			await page.keyboard.press("Enter");
+			const form = page.getByRole("dialog", { name: "Note: Props" });
+			await form.waitFor();
+			await expectNoAxeViolations(page, `admin Component Props (${theme})`);
+			await form.getByLabel("Note text", { exact: false }).fill("From the admin.");
+			await form.getByRole("button", { name: "Insert", exact: true }).click();
+			const blocks = await bodyWhen(storyId, (body) => JSON.stringify(body).includes("From the admin."));
+			expect(blocks[2]).toMatchObject({
+				type: "component",
+				component: noteId,
+				props: [{ name: "text", value: "From the admin." }],
+			});
+			await page.close();
+		});
+	}
+
+	test("pasting a document and an image file in the admin converts Blocks and uploads Media", async () => {
+		const storyId = await story();
+		const page = await install.newPage("light");
+		await install.signIn(page, editor);
+		await page.goto(install.adminUrl(`/sites/${siteId}/entries/${storiesId}/${storyId}`));
+		const paragraph = page.getByRole("textbox", { name: "Paragraph, block 2" });
+		await paragraph.click();
+		await paragraph.evaluate((element) => {
+			const clipboardData = new DataTransfer();
+			clipboardData.setData(
+				"text/html",
+				'<h1>Pasted heading</h1><p>A <strong>fresh</strong> loaf.</p><img src="https://example.com/loaf.jpg">',
+			);
+			clipboardData.setData("text/plain", "Pasted heading\nA fresh loaf.");
+			element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+		});
+		await page.getByRole("textbox", { name: "Heading 2, block 3" }).waitFor();
+		const blocks = await bodyWhen(storyId, (body) => body.length === 8);
+		expect(blocks.slice(2, 5)).toMatchObject([
+			{ type: "heading", level: 2, text: [{ text: "Pasted heading" }] },
+			{ type: "paragraph", text: [{ text: "A " }, { text: "fresh", marks: ["bold"] }, { text: " loaf." }] },
+			{ type: "image", media: null },
+		]);
+		await paragraph.click();
+		await paragraph.evaluate((element) => {
+			const clipboardData = new DataTransfer();
+			clipboardData.items.add(
+				new File(
+					[
+						'<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="red"/></svg>',
+					],
+					"clipboard.svg",
+					{ type: "image/svg+xml" },
+				),
+			);
+			element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
+		});
+		const withImage = await bodyWhen(storyId, (body) => body.length === 9);
+		expect(withImage[2]).toMatchObject({ type: "image", media: expect.any(String) });
+		await page.close();
+	});
+
+	for (const theme of THEMES) {
+		test(`Staff choose the Components allowed in a Body field, ${theme}`, async () => {
+			const { postType } = await admin.api.postTypes.create({
+				siteId,
+				name: `Notes ${theme}`,
+				urlPattern: `/notes-${theme}/{slug}`,
+				fields: [{ key: "body", label: "Story", type: "body" }],
+			});
+			const page = await install.newPage(theme);
+			await install.signIn(page, staff);
+			await page.goto(install.adminUrl(`/sites/${siteId}/post-types/${postType.id}`));
+			await page.getByRole("button", { name: /^Story/ }).click();
+			const allowed = page.getByRole("group", { name: "Allowed Components" });
+			await allowed.getByRole("checkbox", { name: "Note", exact: true }).check();
+			await expectNoAxeViolations(page, `allowed Body Components (${theme})`);
+			await page.getByRole("button", { name: "Save changes", exact: true }).click();
+			let fields: unknown;
+			for (let look = 0; look < 40; look++) {
+				fields = (await admin.api.postTypes.get({ siteId, postTypeId: postType.id })).postType.fields;
+				if (JSON.stringify(fields).includes(noteId)) break;
+				await Bun.sleep(200);
+			}
+			expect((fields as unknown[])[0]).toMatchObject({ components: [noteId] });
+			await page.close();
+		});
+	}
 });

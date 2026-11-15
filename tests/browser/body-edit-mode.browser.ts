@@ -293,93 +293,6 @@ test("a refused Component save is announced and is not refreshed as a saved inse
 	}
 });
 
-for (const theme of THEMES) {
-	test(`the admin offers allowed Components and their Props from the same / menu, ${theme}`, async () => {
-		const { entryId } = await article();
-		const page = await install.newPage(theme);
-		await install.signIn(page, editor);
-		await page.goto(install.adminUrl(`/sites/${siteId}/entries/${postTypeId}/${entryId}`));
-		await page.getByRole("textbox", { name: "Paragraph, block 2" }).click();
-		await page.keyboard.press("End");
-		await page.keyboard.press("Enter");
-		await page.keyboard.press("/");
-		await page.getByRole("combobox", { name: "Blocks" }).fill("Note");
-		await page.getByRole("option", { name: "Note", exact: true }).waitFor();
-		// The list's items, one under the other, are each a target of at least 24 px (WCAG 2.5.8): axe
-		// judges them only when it finds them beside the chooser, so their size is read here too.
-		const items = await page
-			.getByRole("textbox", { name: /^Item \d+$/ })
-			.evaluateAll((all) => all.map((each) => Math.round(each.getBoundingClientRect().height)));
-		expect(items.length).toBe(2);
-		expect(items.filter((height) => height < 24)).toEqual([]);
-		await expectNoAxeViolations(page, `admin Component chooser (${theme})`);
-		await page.keyboard.press("Enter");
-		const form = page.getByRole("dialog", { name: "Note: Props" });
-		await form.waitFor();
-		await expectNoAxeViolations(page, `admin Component Props (${theme})`);
-		await form.getByLabel("Note text", { exact: false }).fill("From the admin.");
-		await form.getByRole("button", { name: "Insert", exact: true }).click();
-		const blocks = await eventually(
-			() => bodyOf(entryId),
-			(body) => JSON.stringify(body).includes("From the admin."),
-		);
-		expect(blocks[2]).toMatchObject({
-			type: "component",
-			component: noteId,
-			props: [{ name: "text", value: "From the admin." }],
-		});
-		await page.close();
-	});
-}
-
-test("pasting a document and an image file in the admin converts Blocks and uploads Media", async () => {
-	const { entryId } = await article();
-	const page = await install.newPage("light");
-	await install.signIn(page, editor);
-	await page.goto(install.adminUrl(`/sites/${siteId}/entries/${postTypeId}/${entryId}`));
-	const paragraph = page.getByRole("textbox", { name: "Paragraph, block 2" });
-	await paragraph.click();
-	await paragraph.evaluate((element) => {
-		const clipboardData = new DataTransfer();
-		clipboardData.setData(
-			"text/html",
-			'<h1>Pasted heading</h1><p>A <strong>fresh</strong> loaf.</p><img src="https://example.com/loaf.jpg">',
-		);
-		clipboardData.setData("text/plain", "Pasted heading\nA fresh loaf.");
-		element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
-	});
-	await page.getByRole("textbox", { name: "Heading 2, block 3" }).waitFor();
-	const blocks = await eventually(
-		() => bodyOf(entryId),
-		(body) => body.length === 8,
-	);
-	expect(blocks.slice(2, 5)).toMatchObject([
-		{ type: "heading", level: 2, text: [{ text: "Pasted heading" }] },
-		{ type: "paragraph", text: [{ text: "A " }, { text: "fresh", marks: ["bold"] }, { text: " loaf." }] },
-		{ type: "image", media: null },
-	]);
-	await paragraph.click();
-	await paragraph.evaluate((element) => {
-		const clipboardData = new DataTransfer();
-		clipboardData.items.add(
-			new File(
-				[
-					'<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="red"/></svg>',
-				],
-				"clipboard.svg",
-				{ type: "image/svg+xml" },
-			),
-		);
-		element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData }));
-	});
-	const withImage = await eventually(
-		() => bodyOf(entryId),
-		(body) => body.length === 9,
-	);
-	expect(withImage[2]).toMatchObject({ type: "image", media: expect.any(String) });
-	await page.close();
-});
-
 test("Edit mode keeps the original paste position while conversion is pending", async () => {
 	const { entryId, path } = await article();
 	const { api } = await install.install.superadmin();
@@ -496,32 +409,6 @@ test("Edit mode does not upload pasted image files when the Body field switches 
 		await page.close();
 	}
 });
-
-for (const theme of THEMES) {
-	test(`Staff choose the Components allowed in a Body field, ${theme}`, async () => {
-		const { api } = await install.install.superadmin();
-		const { postType } = await api.postTypes.create({
-			siteId,
-			name: `Notes ${theme}`,
-			urlPattern: `/notes-${theme}/{slug}`,
-			fields: [{ key: "body", label: "Story", type: "body" }],
-		});
-		const page = await install.newPage(theme);
-		await install.signIn(page, staff);
-		await page.goto(install.adminUrl(`/sites/${siteId}/post-types/${postType.id}`));
-		await page.getByRole("button", { name: /^Story/ }).click();
-		const allowed = page.getByRole("group", { name: "Allowed Components" });
-		await allowed.getByRole("checkbox", { name: "Note", exact: true }).check();
-		await expectNoAxeViolations(page, `allowed Body Components (${theme})`);
-		await page.getByRole("button", { name: "Save changes", exact: true }).click();
-		const result = await eventually(
-			() => api.postTypes.get({ siteId, postTypeId: postType.id }),
-			(value) => JSON.stringify(value.postType.fields).includes(noteId),
-		);
-		expect(result.postType.fields[0]).toMatchObject({ components: [noteId] });
-		await page.close();
-	});
-}
 
 test("the admin and Edit mode see each other's Body changes without reloading", async () => {
 	const { entryId, path } = await article();
