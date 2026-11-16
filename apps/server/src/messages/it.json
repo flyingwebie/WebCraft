@@ -1399,7 +1399,18 @@
 			"created": "Cartella {name} creata.",
 			"renamed": "Cartella rinominata.",
 			"deleted": "Cartella {name} eliminata.",
-			"nameRequired": "Dai un nome alla cartella."
+			"nameRequired": "Dai un nome alla cartella.",
+			"add": "Aggiungi cartella",
+			"addName": "Nome della nuova cartella",
+			"addHint": "Invio per salvare, Esc per annullare.",
+			"order": "Ordine delle cartelle",
+			"orderName": "A–Z",
+			"orderCustom": "Personalizzato",
+			"moveUp": "Sposta su",
+			"moveDown": "Sposta giù",
+			"moved": "{name} spostata al posto {position} di {count}.",
+			"dragHint": "Trascina una cartella per spostarla, o usa Sposta su e Sposta giù nel suo menu.",
+			"orderFailed": "L'ordine delle cartelle non è stato salvato ({reason})."
 		},
 		"search": "Cerca per nome o testo alternativo",
 		"kinds": {
@@ -7228,7 +7239,9 @@
 			"mediaFolder": {
 				"create": "Cartella multimediale creata",
 				"delete": "Cartella multimediale eliminata",
-				"rename": "Cartella multimediale rinominata"
+				"order": "Ordine delle cartelle multimediali cambiato",
+				"rename": "Cartella multimediale rinominata",
+				"reorder": "Cartelle multimediali riordinate"
 			},
 			"mediaMaxFileSize": {
 				"change": "Dimensione massima dei file multimediali modificata"
@@ -10419,7 +10432,9 @@
 				"problems": "Il markup non si può leggere: ogni problema è elencato sotto il riquadro.",
 				"step": "HTML di {name} modificato",
 				"saved": "HTML di {name} salvato.",
-				"placementHelp": "Un Placement di un Component su questa pagina: cambia le sue Props nell'Inspector."
+				"placementHelp": "Un Placement di un Component su questa pagina: cambia le sue Props nell'Inspector.",
+				"breadcrumb": "Dove si trova in {name}",
+				"elementOnly": "Solo l'elemento selezionato"
 			},
 			"css": {
 				"label": "CSS di .{name}",

@@ -403,9 +403,13 @@ describe("the HTML pane, with answers that come late", () => {
 describe("a one-off style's generated Class a peer changed", () => {
 	test("Undo skips the one-off style, and the peer's CSS stays", async () => {
 		const page = await shared();
-		await select(page, "p.alpha");
+		// The box shows the selected element alone (FX-02): the paragraph styled is the one selected.
+		await select(page, 'p:text-is("Gamma words")');
 		const html = box(page, "html");
-		const before = await html.inputValue();
+		const before = await eventually(
+			() => html.inputValue(),
+			(text) => text.includes("Gamma words"),
+		);
 		const styled = before.replace(
 			/<p((?: data-wc-id="[^"]*")?)>Gamma words/,
 			'<p$1 style="color: rgb(5, 5, 5)">Gamma words',
