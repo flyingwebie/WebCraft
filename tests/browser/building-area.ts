@@ -53,7 +53,12 @@ export function enginePages(install: BrowserInstall) {
 			return { page, errors };
 		},
 		async close() {
-			await Promise.all([...launched.values()].map(async (browser) => (await browser).close()));
+			// Only the engines that launched: one that couldn't has failed its own checks already, and
+			// failing again here would leave the rest of the file's clean-up undone.
+			const browsers = await Promise.allSettled(launched.values());
+			await Promise.all(
+				browsers.map((browser) => (browser.status === "fulfilled" ? browser.value.close() : undefined)),
+			);
 		},
 	};
 }
