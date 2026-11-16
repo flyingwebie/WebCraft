@@ -139,9 +139,11 @@ export function CommandMenu({
 	}, [open, host.config.token, host.config.site.id]);
 
 	const can = (permission: Permission) =>
-		data
-			? (data.permissions as readonly string[]).includes(permission)
-			: host.config.permissions.includes(permission as never) || permission === "site.view";
+		host.permissions
+			? host.permissions.includes(permission) || permission === "site.view"
+			: data
+				? (data.permissions as readonly string[]).includes(permission)
+				: host.config.permissions.includes(permission as never) || permission === "site.view";
 
 	// ── Insert: where things land ──
 	const inserter = staff?.inserter;

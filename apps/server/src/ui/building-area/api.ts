@@ -65,7 +65,22 @@ export type ShellConfig = {
 	 * editing loads into the frame the first time a page shows a body (BA-18).
 	 */
 	bodyEditor: string;
+	/** Staff: the Member roles "View as a client" offers (FX-04); none for a Member. */
+	clientRoles: ClientRole[];
 };
+
+/**
+ * A Member role Staff may see the page as (FX-04's "View as a client"), with what it may do on a Site.
+ * Owners and Editors change the same things in the building area (they publish, and manage the Media
+ * library), so they are one view; Authors are the other (they send changes for review).
+ */
+export type ClientRole = { key: "editor" | "author"; permissions: Permission[] };
+
+/**
+ * What Staff's shell hands over as it gives the tab to client editing (FX-04): the role, Staff's own
+ * address to come back to (the document, the place and the selection), and the panels as they are.
+ */
+export type ViewAsClient = { role: ClientRole; back: string; layout: Layout | null };
 
 /**
  * The Permissions the shell draws by, beyond Go to's (`builder.commandMenu`): uploading and changing

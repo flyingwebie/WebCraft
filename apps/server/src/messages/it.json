@@ -8526,6 +8526,25 @@
 			"draft": "Anteprima della Bozza sul sito (si apre in una nuova scheda)",
 			"published": "Vedi la pagina pubblicata (si apre in una nuova scheda). Le Bozze vi compaiono una volta pubblicate"
 		},
+		"viewAs": {
+			"button": "Vedi come un cliente",
+			"menu": "Vedi la pagina come un cliente",
+			"roles": {
+				"editor": "Owner o Editor",
+				"author": "Author"
+			},
+			"details": {
+				"editor": "Pubblica e gestisce la libreria Media",
+				"author": "Invia le modifiche in revisione"
+			},
+			"banner": "Stai vedendo come un cliente",
+			"role": "Come {role}",
+			"note": "Ciò che cambi qui viene salvato nella Bozza, come ovunque nell'area di costruzione.",
+			"back": "Torna alla vista Staff",
+			"entered": "Stai vedendo la pagina come un cliente: {role}.",
+			"left": "Di nuovo nella vista Staff.",
+			"failed": "Impossibile cambiare vista. Ricarica la pagina per riprovare."
+		},
 		"draftState": {
 			"label": "Stato della Bozza",
 			"saved": "Salvato",
