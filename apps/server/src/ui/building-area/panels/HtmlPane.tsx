@@ -6,6 +6,7 @@ import { type KeyboardEvent, useEffect, useId, useLayoutEffect, useRef, useState
 import { format } from "../../code-format/format.ts";
 import { matches } from "../../editor/shortcuts.ts";
 import { nodeAt } from "../../editor/tree.ts";
+import { BUILDING_STAND_IN_PREFIX } from "../agent/contract.ts";
 import { fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
 import { keyOf, type StructureSelection, type StructureSource } from "../editing/selection.ts";
@@ -556,7 +557,8 @@ export function createHtmlPane(
 	const preview = async () => {
 		const state = store.get();
 		const path = deps().path();
-		if (!state.source || !path) return;
+		// A stand-in is no page the server renders with markup in place: it shows what is saved.
+		if (!state.source || !path || path.startsWith(`${BUILDING_STAND_IN_PREFIX}/`)) return;
 		const asked = ++previewRun;
 		if (!state.dirty) {
 			// Back to the Draft's markup: nothing to show or to report.

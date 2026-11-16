@@ -144,8 +144,14 @@ export type Builder = {
 	 * Renders a tree for the canvas, checked as saving checks it (`ElementTreeInvalidError` with each
 	 * problem and where; a one-off style that can't be one at `styles.<element id>`), with the
 	 * Design system's Draft's stylesheet, its one-off styles as generated Classes for the preview only.
+	 * `codeSource` is the tag its elements carry (`CANVAS_SOURCE` unless given: the stand-in tags them
+	 * as the building area's Structure reads a page, `site` or `content`).
 	 */
-	preview(scope: SiteScope, target: BuilderTarget, draft: BuilderDraft & { entryId?: string }): Promise<BuilderPreview>;
+	preview(
+		scope: SiteScope,
+		target: BuilderTarget,
+		draft: BuilderDraft & { entryId?: string; codeSource?: string },
+	): Promise<BuilderPreview>;
 	/**
 	 * A tree as Template markup, its pending one-off styles as inline styles: what the Template
 	 * markup view shows and what a save sends. Checked as `preview` checks it.
@@ -237,6 +243,7 @@ export function createBuilder(options: {
 			const { html, checks } = await renderPreview(scope, sources, {
 				kind: source.kind,
 				entryId: draft.entryId,
+				...(draft.codeSource ? { codeSource: draft.codeSource } : {}),
 				postType: source.postType,
 				props: source.props,
 				tree,

@@ -83,6 +83,8 @@ export type PreviewInput = {
 	language?: string;
 	/** The Filter builder's preview: this Filter shows for real rather than as a placeholder. */
 	filter?: PreviewFilter;
+	/** The tag its elements carry: `CANVAS_SOURCE` unless given. */
+	codeSource?: string;
 };
 
 /**
@@ -200,7 +202,7 @@ export async function renderPreview(
 		loop: loops.run,
 		component: placed.render,
 		time: { now: scope.now(), changesAt: () => {} },
-		codeSource: CANVAS_SOURCE,
+		codeSource: input.codeSource ?? CANVAS_SOURCE,
 		showHiddenPlacements: true,
 	};
 	const html = renderTree(input.tree, options);

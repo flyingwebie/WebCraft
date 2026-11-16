@@ -9,6 +9,7 @@ import {
 	printBuildingDocument,
 	type SiteHost,
 	type StandInDocument,
+	standInCodeSource,
 	standInDocumentOf,
 } from "@webcraft/core";
 
@@ -79,6 +80,9 @@ export async function standInEndpoint(services: InstallServices, request: Reques
 		const preview = await services.builder.preview(scope, target, {
 			tree: opened.tree,
 			...(document.kind === "entryTemplate" && document.entryId ? { entryId: document.entryId } : {}),
+			// Tagged as Staff's pages are, so the building area's Structure opens it: the Site template's
+			// elements as `site`, anything else's as the page's content (`content`, see Code mode's stand-in).
+			codeSource: standInCodeSource(document),
 		});
 		drawn = { html: preview.html, css: preview.css, language: opened.language };
 	} catch (error) {
