@@ -84,7 +84,7 @@ beforeAll(async () => {
 	const template = await api.templates.saveEntryTemplateMarkup({
 		siteId,
 		postTypeId: postType.id,
-		markup: '<article><h1>{{ title }}</h1><p>{{ subtitle }}</p></article>',
+		markup: "<article><h1>{{ title }}</h1><p>{{ subtitle }}</p></article>",
 	});
 	await api.templates.publish({ siteId, templateId: template.template.id });
 	const { entry } = await api.entries.create({
