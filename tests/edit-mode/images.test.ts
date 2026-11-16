@@ -258,56 +258,6 @@ type LibraryItem = {
 	canEdit: boolean;
 };
 
-describe("the Media library in Edit mode", () => {
-	let site: Bakery;
-	let editing: EditModeBrowser;
-
-	beforeAll(async () => {
-		site = await bakery();
-		editing = await openEditMode(install, editor, site.siteId, "/recipes/sourdough");
-	});
-
-	test("lists the Site's images, newest first, with a small file to show each and its alt text", async () => {
-		await editor.api.media.update({ siteId: site.siteId, mediaId: site.rolls, alt: "Six rolls on a tray" });
-		await editor.api.media.upload({ siteId: site.siteId, file: upload(await pdf(), "allergens.pdf") });
-
-		const response = await editing.edit("media/list", {});
-
-		expect(response.status).toBe(200);
-		const listed = (await json(response)) as { items: LibraryItem[]; total: number };
-		expect(listed.items.map((item) => item.fileName)).toEqual(["rolls.jpg", "loaf.jpg"]);
-		expect(listed.total).toBe(2);
-		const [rolls] = listed.items;
-		expect(rolls).toMatchObject({ id: site.rolls, alt: "Six rolls on a tray", status: "ready", canEdit: true });
-		expect(rolls?.url).toStartWith("/_media/");
-		expect(rolls?.thumbnail).toMatch(/^\/_media\/[0-9a-f]{16}-rolls-320\.webp$/);
-	});
-
-	test("searches by name, title and alt text, and opens folders", async () => {
-		const { folder } = await editor.api.media.folders.create({ siteId: site.siteId, name: "Breads" });
-		await editor.api.media.update({ siteId: site.siteId, mediaId: site.loaf, folderId: folder.id });
-
-		const searched = (await json(await editing.edit("media/list", { search: "tray" }))) as { items: LibraryItem[] };
-		expect(searched.items.map((item) => item.id)).toEqual([site.rolls]);
-		const inFolder = (await json(await editing.edit("media/list", { folderId: folder.id }))) as {
-			items: LibraryItem[];
-			folders: { id: string; name: string; count: number }[];
-		};
-		expect(inFolder.items.map((item) => item.id)).toEqual([site.loaf]);
-		expect(inFolder.folders).toEqual([{ id: folder.id, name: "Breads", count: 1 }]);
-	});
-
-	test("never lists another Site's images", async () => {
-		const other = await bakery();
-
-		const listed = (await json(await editing.edit("media/list", {}))) as { items: LibraryItem[] };
-
-		expect(listed.items.map((item) => item.id)).not.toContain(other.loaf);
-		const elsewhere = await editing.edit("media/get", { media: other.loaf });
-		expect(elsewhere.status).toBe(404);
-	});
-});
-
 describe("alt text and the Focal point", () => {
 	let site: Bakery;
 	let editing: EditModeBrowser;
@@ -364,9 +314,10 @@ describe("alt text and the Focal point", () => {
 		expect(theirs.status).toBe(200);
 		const editors = await authoring.edit("media/update", { media: site.loaf, alt: "Not mine" });
 		expect({ status: editors.status, code: (await json(editors)).code }).toEqual({ status: 403, code: "FORBIDDEN" });
-		const listed = (await json(await authoring.edit("media/list", {}))) as { items: LibraryItem[] };
-		expect(listed.items.find((item) => item.id === site.loaf)?.canEdit).toBe(false);
-		expect(listed.items.find((item) => item.id === own)?.canEdit).toBe(true);
+		const shown = async (media: string) =>
+			((await json(await authoring.edit("media/get", { media }))) as { media: LibraryItem }).media.canEdit;
+		expect(await shown(site.loaf)).toBe(false);
+		expect(await shown(own)).toBe(true);
 	});
 
 	test("suggests alt text in a language where the Workspace has an AI key; nothing is saved", async () => {
@@ -500,8 +451,8 @@ describe("uploading in Edit mode", () => {
 			}),
 		);
 		expect(elsewhere.status).toBe(403);
-		const listed = (await json(await editing.edit("media/list", { search: "sneaky" }))) as { items: LibraryItem[] };
-		expect(listed.items).toEqual([]);
+		const { items } = await editor.api.media.list({ siteId: site.siteId, search: "sneaky" });
+		expect(items).toEqual([]);
 	});
 });
 

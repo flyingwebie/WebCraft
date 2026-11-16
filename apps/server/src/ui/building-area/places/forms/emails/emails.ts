@@ -2,7 +2,7 @@ import type { Json } from "@webcraft/core/draft-document";
 import type { FormEmails } from "@webcraft/renderer/forms/emails";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { editorHistory } from "../../../../builder/editor-history.ts";
+import { editorHistory } from "../../../../editor/editor-history.ts";
 import { type FormProblem, problemsOf } from "../../../../forms/model.ts";
 import { fill, type Words } from "../../../api.ts";
 import { type FormsApi, type OpenedForm, reasonText } from "../data.ts";

@@ -9,6 +9,7 @@ import type { Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
 import { expectAccessibleScreen, expectNoAxeViolations, expectOverlayUsable } from "./checks.ts";
+import { chooseEditOnSite } from "./edit-on-site.ts";
 import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
 
 let install: BrowserInstall;
@@ -337,18 +338,18 @@ describe("navigation", () => {
 		await page.getByRole("progressbar", { name: "Loading the page" }).waitFor({ state: "hidden" });
 	});
 
-	test("Edit on site opens the Page or Entry on screen, and the home page elsewhere", async () => {
+	test("Edit on site opens the Page or Entry on screen in the building area, and the home page elsewhere", async () => {
 		const page = await install.newPage("light");
 		const asked: string[] = [];
 		await page.route("**/api/rpc/editMode/open", async (route) => {
-			asked.push(/"path":"([^"]*)"/.exec(route.request().postData() ?? "")?.[1] ?? "");
+			asked.push(/"open":"([^"]*)"/.exec(route.request().postData() ?? "")?.[1] ?? "");
 			await route.abort();
 		});
 		const editOnSite = page.getByRole("button", { name: "Edit on site", exact: true });
 		for (const [path, expected] of [
-			[`/sites/${siteId}/entries/${pagesId}/${menuId}`, "/menu"],
-			[`/sites/${siteId}/entries/${blogId}/${breadId}`, "/blog/fresh-bread"],
-			[`/sites/${siteId}/media`, "/"],
+			[`/sites/${siteId}/entries/${pagesId}/${menuId}`, "/page/menu"],
+			[`/sites/${siteId}/entries/${blogId}/${breadId}`, "/page/blog/fresh-bread"],
+			[`/sites/${siteId}/media`, "/page/"],
 		] as const) {
 			await open(page, path);
 			const before = asked.length;
@@ -356,6 +357,21 @@ describe("navigation", () => {
 			for (let wait = 0; wait < 50 && asked.length === before; wait++) await page.waitForTimeout(100);
 			expect({ path, opened: asked.at(-1) }).toEqual({ path, opened: expected });
 		}
+	});
+
+	test("where the top bar is narrow, Edit on site is in More for this Site, and opens the building area the same way", async () => {
+		const page = await install.newPage("light");
+		await page.setViewportSize({ width: 390, height: 844 });
+		const asked: string[] = [];
+		await page.route("**/api/rpc/editMode/open", async (route) => {
+			asked.push(/"open":"([^"]*)"/.exec(route.request().postData() ?? "")?.[1] ?? "");
+			await route.abort();
+		});
+		await open(page, `/sites/${siteId}/entries/${pagesId}/${menuId}`);
+		expect(await page.getByRole("button", { name: "Edit on site", exact: true }).isVisible()).toBe(false);
+		await chooseEditOnSite(page);
+		for (let wait = 0; wait < 50 && asked.length === 0; wait++) await page.waitForTimeout(100);
+		expect(asked).toEqual(["/page/menu"]);
 	});
 
 	test("the person's menu holds the theme: System follows the device, Light and Dark are kept", async () => {

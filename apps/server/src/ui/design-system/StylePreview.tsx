@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ColourMode } from "./model.ts";
 
 /** Where the canvas document is on the admin host: an empty page that runs no script (the visual builder's). */
-const CANVAS_URL = "/api/builder/canvas";
+const CANVAS_URL = "/api/preview/canvas";
 
 /**
  * A live preview of the Design system's Draft: sample markup styled by the Draft's compiled

@@ -1,6 +1,6 @@
 import { type ComponentType, useEffect, useRef, useState } from "react";
 
-import { matches } from "../../builder/shortcuts.ts";
+import { matches } from "../../editor/shortcuts.ts";
 import type { MenuHost } from "./host.ts";
 import { ShortcutsList, toggleShortcuts } from "./Shortcuts.tsx";
 import { COMMAND_MENU_EVENT, type MenuRequest, type MenuTab } from "./state.ts";

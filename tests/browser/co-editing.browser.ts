@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
+import { enterBuildingArea } from "./building-area.ts";
 import { expectAccessibleScreen } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
 
@@ -121,32 +122,30 @@ describe("without the server", () => {
 	}
 });
 
-describe("Edit mode", () => {
+describe("the building area", () => {
 	for (const theme of THEMES) {
 		test(`shows who is editing the page's Draft in the admin, where, and their changes (${theme})`, async () => {
 			const eve = await install.newPage(theme);
-			await install.signIn(eve, editor);
-			await eve.goto(install.adminUrl(`/sites/${siteId}`));
-			await eve.getByRole("button", { name: "Edit on site" }).click();
-			await eve.waitForURL((url) => url.hostname === new URL(install.siteUrl("bakery", "/")).hostname);
-			await eve.goto(install.siteUrl("bakery", "/recipes/fresh-bread"));
-			await eve.getByRole("button", { name: "Publish", exact: true }).waitFor();
+			await eve.setViewportSize({ width: 1440, height: 900 });
+			const frame = await enterBuildingArea(install, eve, {
+				as: editor,
+				siteId,
+				slug: "bakery",
+				open: "/page/recipes/fresh-bread",
+			});
 
 			const ada = await install.newPage(theme);
 			await openEntry(ada, staff);
 			await ada.getByLabel("Summary").focus();
-			await eve.getByText("Ada Staff is here").waitFor();
-			await eve
-				.getByRole("list", { name: "Also editing this page" })
-				.getByText("Ada Staff")
-				.waitFor({ state: "attached" });
+			// Her name on the region she is in.
+			await eve.locator("[data-wc-mark-name]").filter({ hasText: "Ada Staff" }).waitFor({ timeout: 8000 });
 
 			await ada.getByLabel("Summary").fill(`Crusty, said in the admin (${theme})`);
-			await eve
+			await frame
 				.locator("article p")
 				.filter({ hasText: `Crusty, said in the admin (${theme})` })
 				.waitFor();
-			await expectAccessibleScreen(eve, `Edit mode with someone else in a region (${theme})`);
+			await expectAccessibleScreen(eve, `the building area with someone else in a region (${theme})`);
 			await ada.close();
 			await eve.close();
 		});

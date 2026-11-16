@@ -12,12 +12,15 @@
  *   `wc-select` (what is selected). They carry a prefix so they never clash with a page's own query.
  *   `wc-filter` (a Filter's id, from the admin's Filters screen) asks for the element placing that
  *   Filter to be selected once the page shows it; the selection then takes its place (BA-34).
+ *   `wc-element` (an element's id in the document's markup, from the admin's Checks) does the same for
+ *   that element (BA-28).
  * - Opening a document or a place adds a history entry; selecting replaces the current one.
  * - Each document remembers what was selected in it for the shell's life, so switching to another
  *   document and coming back (from the switcher, "Back to {page}", Back) selects it again (BA-34).
  */
 import {
 	BUILDING_AREA_PATH,
+	BUILDING_ELEMENT_PARAMETER,
 	BUILDING_FILTER_PARAMETER,
 	type BuildingDocument,
 	parseBuildingDocument,
@@ -38,6 +41,9 @@ export const SELECT_PARAMETER = "wc-select";
 /** The shell's parameter for a Filter whose element is to be selected (BA-34): read once, then the selection. */
 export const FILTER_PARAMETER = BUILDING_FILTER_PARAMETER;
 
+/** The shell's parameter for an element to be selected by its id (BA-28): read once, then the selection. */
+export const ELEMENT_PARAMETER = BUILDING_ELEMENT_PARAMETER;
+
 /**
  * The shell's parameter for the open place's view: its search, filters and sorting, a query string
  * the place reads and prints (`places/content/view.ts`). It goes with the place: no place, no view.
@@ -57,11 +63,14 @@ export type ShellAddress = {
 	view?: string | null;
 	select: string | null;
 	filter?: string | null;
+	element?: string | null;
 };
 
 const ID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
 
 const FILTER_ID = new RegExp(`^${ID}$`);
+
+const ELEMENT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 /**
  * The places (plan 1.4): Content (Pages, a Post Type's Entries, Fields or Settings, Post Types, the
@@ -94,12 +103,14 @@ export function readAddress(pathname: string, search: string): ShellAddress {
 	const view = params.get(VIEW_PARAMETER);
 	const select = params.get(SELECT_PARAMETER);
 	const filter = params.get(FILTER_PARAMETER);
+	const element = params.get(ELEMENT_PARAMETER);
 	let documentSearch = search;
-	if (place !== null || view !== null || select !== null || filter !== null) {
+	if (place !== null || view !== null || select !== null || filter !== null || element !== null) {
 		params.delete(PLACE_PARAMETER);
 		params.delete(VIEW_PARAMETER);
 		params.delete(SELECT_PARAMETER);
 		params.delete(FILTER_PARAMETER);
+		params.delete(ELEMENT_PARAMETER);
 		documentSearch = params.size ? `?${params.toString()}` : "";
 	}
 	const placed = place !== null && isPlace(place) ? place : null;
@@ -111,12 +122,14 @@ export function readAddress(pathname: string, search: string): ShellAddress {
 	const viewed = placed !== null && view !== null && isView(view) ? view : null;
 	// A Filter to select, likewise only when there is one.
 	const filtered = filter !== null && FILTER_ID.test(filter) ? filter : null;
+	const chosen = element !== null && ELEMENT_ID.test(element) ? element : null;
 	return {
 		document,
 		place: placed,
 		...(viewed ? { view: viewed } : {}),
 		select: select !== null && isCodeSelection(select) ? select : null,
 		...(filtered ? { filter: filtered } : {}),
+		...(chosen ? { element: chosen } : {}),
 	};
 }
 
@@ -128,6 +141,7 @@ export function printAddress(address: ShellAddress): string {
 	if (address.place && address.view) extra.set(VIEW_PARAMETER, address.view);
 	if (address.select) extra.set(SELECT_PARAMETER, address.select);
 	if (address.filter) extra.set(FILTER_PARAMETER, address.filter);
+	if (address.element) extra.set(ELEMENT_PARAMETER, address.element);
 	const joined = extra.size ? `${document.includes("?") ? "&" : "?"}${extra.toString()}` : "";
 	return `${BUILDING_AREA_PATH.slice(0, -1)}${document}${joined}`;
 }
@@ -245,6 +259,7 @@ export function shellDocuments(win: Window = window): Documents {
 					view: !place && keep ? (now.view ?? null) : null,
 					select: keep ? now.select : null,
 					filter: keep ? (now.filter ?? null) : null,
+					element: keep ? (now.element ?? null) : null,
 				},
 				"replace",
 				keep ? (stateOf()?.from ?? null) : null,
@@ -270,14 +285,15 @@ export function shellDocuments(win: Window = window): Documents {
 		},
 		select(ref) {
 			const now = read();
-			// Nothing selected yet while a Filter waits to be: the Filter stays asked for.
-			if (now.select === ref && (!now.filter || ref === null)) return;
+			// Nothing selected yet while a Filter or an element waits to be: it stays asked for.
+			const asked = Boolean(now.filter || now.element);
+			if (now.select === ref && (!asked || ref === null)) return;
 			remember({ ...now, select: ref });
-			const next = printAddress({ ...now, select: ref, filter: null });
+			const next = printAddress({ ...now, select: ref, filter: null, element: null });
 			// Not a history entry, and nothing to tell: the selection is already on screen (but a Filter
-			// the address asked for is done with, which those following the address learn).
+			// or an element the address asked for is done with, which those following the address learn).
 			win.history.replaceState(stateOf() ?? { webcraftBuilding: true, from: null, previous: false }, "", next);
-			if (now.filter) tell("replace");
+			if (asked) tell("replace");
 		},
 		back() {
 			const state = stateOf();

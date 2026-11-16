@@ -3,8 +3,6 @@ import { buttonVariants } from "@webcraft/ui/components/button.tsx";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
 import { LayoutTemplateIcon } from "lucide-react";
 import { getApi } from "../../ui/api.ts";
-import { BuilderNavigation } from "../../ui/builder/BuilderNavigation.tsx";
-import { targetFromPath } from "../../ui/builder/model.ts";
 import { StatusBadge } from "../../ui/content/DraftParts.tsx";
 import { HistoryLink } from "../../ui/history/HistoryLink.tsx";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
@@ -12,7 +10,7 @@ import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 
 /**
  * Site › Templates (Structure, Staff only): every Template the Site can have, made or not, each
- * opened in the visual builder. Pages have none: they are arranged with Page layouts.
+ * opened in the building area. Pages have none: they are arranged with Page layouts.
  */
 export const Route = createFileRoute("/_admin/sites/$siteId/templates")({
 	staticData: { crumb: "templates.pageTitle" },
@@ -59,7 +57,6 @@ function TemplatesPage() {
 								: row.kind === "search"
 									? "search-template"
 									: `${row.kind}-template/${row.postType?.id ?? ""}`;
-						const target = targetFromPath(splat);
 						return (
 							<TableRow key={`${row.kind}-${row.postType?.id ?? ""}`}>
 								<TableCell>
@@ -88,7 +85,6 @@ function TemplatesPage() {
 													size="sm"
 												/>
 											) : null}
-											{target ? <BuilderNavigation siteId={siteId} target={target} list /> : null}
 											<Link
 												to="/sites/$siteId/build"
 												params={{ siteId }}
@@ -97,14 +93,6 @@ function TemplatesPage() {
 												data-building-area=""
 											>
 												{t("buildingArea.documents.openIn")}
-												<span className="sr-only">{t("templates.openNamed", { name })}</span>
-											</Link>
-											<Link
-												to="/builder/$siteId/$"
-												params={{ siteId, _splat: splat }}
-												className={buttonVariants({ variant: "outline", size: "sm" })}
-											>
-												{t("templates.open")}
 												<span className="sr-only">{t("templates.openNamed", { name })}</span>
 											</Link>
 										</span>

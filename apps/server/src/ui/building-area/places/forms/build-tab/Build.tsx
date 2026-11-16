@@ -4,7 +4,7 @@ import { formWords as formWordsIn } from "@webcraft/renderer/forms/words";
 import { PlusIcon } from "lucide-react";
 import { type KeyboardEvent, type PointerEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { editorHistory } from "../../../../builder/editor-history.ts";
+import { editorHistory } from "../../../../editor/editor-history.ts";
 import { FIELD_ICONS } from "../../../../forms/icons.ts";
 import { duplicateField, fieldIndexOf, newField } from "../../../../forms/model.ts";
 import { fill, type ShellConfig, type Words } from "../../../api.ts";

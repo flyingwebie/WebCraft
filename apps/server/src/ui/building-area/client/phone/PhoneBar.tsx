@@ -1,8 +1,8 @@
 import { EllipsisIcon, PencilIcon, Undo2Icon } from "lucide-react";
 import { type ReactNode, useEffect, useState, useSyncExternalStore } from "react";
 
-import { editorHistory } from "../../../builder/editor-history.ts";
-import { ariaKeys, shortcutText } from "../../../builder/shortcuts.ts";
+import { editorHistory } from "../../../editor/editor-history.ts";
+import { ariaKeys, shortcutText } from "../../../editor/shortcuts.ts";
 import { fill, type Words } from "../../api.ts";
 import { CHROME_EASE, FOCUS_RING, Tip } from "../../controls.tsx";
 import type { PageEditing } from "../../editing/editing.ts";

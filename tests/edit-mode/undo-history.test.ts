@@ -1,15 +1,13 @@
 // The Undo history in Edit mode (ADR 0036), as the server sees it: a save of a typed value answers the
-// exact change it made, own steps are taken back through the person's own Draft socket (so the
-// ordinary write rules decide), and the history's page-to-page handoff belongs to the Edit mode
-// session's person and Site. Nothing here gives a Member more than their Edit session already may do.
+// exact change it made, and own steps are taken back through the person's own Draft socket (so the
+// ordinary write rules decide). The building area keeps the history in its tab (ADR 0037), so nothing
+// is handed from page to page. Nothing here gives a Member more than their Edit session already may do.
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { API_BODY_MAX_BYTES } from "@webcraft/api";
-import { type DocumentJson, HISTORY_TRANSFER_MAX_LENGTH } from "@webcraft/core";
+import type { DocumentJson } from "@webcraft/core";
 
 import { openDraftInEditMode, upgradeDraftInEditMode } from "../harness/co-editing.ts";
-import { EDIT_TOKEN_HEADER, type EditModeBrowser, openEditMode } from "../harness/edit-mode.ts";
+import { type EditModeBrowser, openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
-import { expectSiteHeaders } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -296,146 +294,23 @@ test("a Member's step across a Placement Staff have since locked is refused, and
 	}
 });
 
-test("the history handoff belongs to the Edit mode session's person and Site, works once and expires", async () => {
-	const site = await bakery();
-	const other = await bakery();
-	const member = await openEditMode(install, editor, site.siteId, "/");
-	const staffEditing = await openEditMode(install, staff, site.siteId, "/");
-	const elsewhere = await openEditMode(install, editor, other.siteId, "/");
-	const payload = '{"past":[],"future":[]}';
-	const transfer = async (editing: EditModeBrowser) => {
-		const response = await editing.edit("history/transfer", { payload });
-		expect(response.status).toBe(200);
-		return ((await response.json()) as { token: string }).token;
-	};
-	const claim = async (editing: EditModeBrowser, token: string) =>
-		(await (await editing.edit("history/claim", { token })).json()) as { payload: string | null };
-
-	const token = await transfer(member);
-	expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
-	// Not another person's, not on another Site, and only once.
-	expect(await claim(staffEditing, token)).toEqual({ payload: null });
-	expect(await claim(elsewhere, token)).toEqual({ payload: null });
-	expect(await claim(member, token)).toEqual({ payload });
-	expect(await claim(member, token)).toEqual({ payload: null });
-	const late = await transfer(member);
-	await install.clock.advance(61_000);
-	expect(await claim(member, late)).toEqual({ payload: null });
-
-	// The handoff is every Edit mode person's; what Code mode alone may take back stays Staff's.
-	for (const [action, body] of [
-		["code/transferHistory", { payload }],
-		["code/claimHistory", { token: "x".repeat(43) }],
-		["code/reverseHistory", { resource: `css:${site.siteId}:{"kind":"site"}`, from: "a{}", to: "" }],
-	] as const) {
-		const refused = await member.edit(action, body);
-		expect({ action, status: refused.status }).toEqual({ action, status: 403 });
-	}
-	// A request without the session's header token is refused like every other edit request.
-	expect((await member.edit("history/transfer", { payload }, { headerToken: null })).status).toBe(403);
-	expect((await member.edit("history/transfer", { payload: 7 })).status).toBe(400);
-});
-
-test("a person keeps one handoff on a Site at a time, of a bounded size", async () => {
-	const site = await bakery();
-	const other = await bakery();
-	const member = await openEditMode(install, editor, site.siteId, "/");
-	const staffEditing = await openEditMode(install, staff, site.siteId, "/");
-	const elsewhere = await openEditMode(install, editor, other.siteId, "/");
-	const transfer = async (editing: EditModeBrowser, payload: string) =>
-		((await (await editing.edit("history/transfer", { payload })).json()) as { token: string }).token;
-	const claim = async (editing: EditModeBrowser, token: string) =>
-		(await (await editing.edit("history/claim", { token })).json()) as { payload: string | null };
-
-	// A newer handoff replaces the person's earlier one on that Site: nothing piles up unclaimed.
-	const first = await transfer(member, '{"past":[1]}');
-	const staffs = await transfer(staffEditing, '{"past":["staff"]}');
-	const onOther = await transfer(elsewhere, '{"past":["other"]}');
-	const second = await transfer(member, '{"past":[2]}');
-	expect(await claim(member, first)).toEqual({ payload: null });
-	expect(await claim(member, second)).toEqual({ payload: '{"past":[2]}' });
-	// Another person's, and the same person's on another Site, are untouched by it.
-	expect(await claim(staffEditing, staffs)).toEqual({ payload: '{"past":["staff"]}' });
-	expect(await claim(elsewhere, onOther)).toEqual({ payload: '{"past":["other"]}' });
-
-	// A history longer than the handoff takes is refused, and so is a body that says it is larger than
-	// any edit request may be, before it is read.
-	const tooLong = await member.edit("history/transfer", { payload: "x".repeat(HISTORY_TRANSFER_MAX_LENGTH + 1) });
-	expect(tooLong.status).toBe(400);
-	const tooLarge = await member.browser.request(
-		new Request(`${member.origin}/_webcraft/edit/api/history/transfer`, {
-			method: "POST",
-			headers: {
-				"content-type": "application/json",
-				"content-length": String(API_BODY_MAX_BYTES + 1),
-				[EDIT_TOKEN_HEADER]: await member.headerToken(),
-			},
-			body: JSON.stringify({ payload: "{}" }),
-		}),
-	);
-	expectSiteHeaders(tooLarge);
-	expect(tooLarge.status).toBe(413);
-	expect(((await tooLarge.json()) as { code: string }).code).toBe("PAYLOAD_TOO_LARGE");
-	// The Management API's handoff (the Builder's) keeps to the same length.
-	await expect(
-		staff.api.builder.transferHistory({ siteId: site.siteId, payload: "x".repeat(HISTORY_TRANSFER_MAX_LENGTH + 1) }),
-	).rejects.toMatchObject({ status: 400 });
-});
-
-test("losing access ends the handoff and the Draft socket with Edit mode", async () => {
+test("losing access ends the Draft socket with Edit mode: a step can't be taken back any more", async () => {
 	const site = await bakery();
 	const leaving = await install.createMember({ workspaceId, role: "editor", name: "Lee Leaving" });
 	const editing = await openEditMode(install, leaving.browser, site.siteId, "/blog/fresh-bread");
 	const step = await saved(
 		await editing.edit("save", { item: `entry:${site.entryId}`, field: "subtitle", value: "Mine" }),
 	);
-	const token = ((await (await editing.edit("history/transfer", { payload: "{}" })).json()) as { token: string }).token;
 	const draft = await openDraftInEditMode(editing, { kind: "entry", id: site.entryId });
 	try {
 		await staff.api.members.remove({ workspaceId, personId: leaving.personId });
-		expect((await editing.edit("history/claim", { token })).status).toBe(401);
-		expect((await editing.edit("history/transfer", { payload: "{}" })).status).toBe(401);
+		expect(
+			(await editing.edit("save", { item: `entry:${site.entryId}`, field: "subtitle", value: "Again" })).status,
+		).toBe(401);
 		expect(await draft.reverse(step.history.after, step.history.before)).toMatchObject({ ok: false });
 	} finally {
 		draft.close();
 	}
 	const { entry } = await staff.api.entries.get({ siteId: site.siteId, entryId: site.entryId });
 	expect(entry.draft.fields.subtitle).toBe("Mine");
-});
-
-test("a mode switch shows the same page again with the handoff, only for a browser in Edit mode", async () => {
-	const site = await bakery();
-	const editing = await openEditMode(install, editor, site.siteId, "/blog/fresh-bread");
-	const token = ((await (await editing.edit("history/transfer", { payload: "{}" })).json()) as { token: string }).token;
-	const again = (to: string, history = token, browser = editing.browser) =>
-		browser.request(`${editing.origin}/_webcraft/edit/again?to=${encodeURIComponent(to)}&history=${history}`);
-
-	const answer = await again("/blog/fresh-bread?page=2");
-	expect(answer.status).toBe(303);
-	expect(answer.headers.get("location")).toBe(`/blog/fresh-bread?page=2#wc-history=${token}`);
-	expect(answer.headers.get("cache-control")).toBe("no-store");
-	// It only sends the browser back to a page of this Site: no other address, no made-up token.
-	for (const to of ["//elsewhere.test/", "https://elsewhere.test/", "/\\elsewhere.test", "/a#b", "/a b", "blog"]) {
-		expect({ to, status: (await again(to)).status }).toEqual({ to, status: 404 });
-	}
-	expect((await again("/blog/fresh-bread", "not-a-token")).status).toBe(404);
-	// An address a header can't carry is no page's either: refused, never an error of the server's.
-	for (const to of ["/\u4e2d", "/caf\u00e9", "/a\u0000b", "/a\u007fb", "/ok?q=\u00e9"]) {
-		expect({ to, status: (await again(to)).status }).toEqual({ to, status: 404 });
-	}
-	// Such a page's address goes through as the browser writes it, percent-encoded.
-	expect((await again("/caf%C3%A9?q=%E4%B8%AD")).headers.get("location")).toBe(
-		`/caf%C3%A9?q=%E4%B8%AD#wc-history=${token}`,
-	);
-	// Without Edit mode there is nothing to hand over to.
-	expect((await again("/blog/fresh-bread", token, install.browser({ origin: editing.origin }))).status).toBe(404);
-	expect(
-		(
-			await editing.browser.request(
-				new Request(`${editing.origin}/_webcraft/edit/again?to=%2F&history=${token}`, { method: "POST" }),
-			)
-		).status,
-	).toBe(405);
-	// It claimed nothing: the page still can.
-	expect(await (await editing.edit("history/claim", { token })).json()).toEqual({ payload: "{}" });
 });

@@ -1,8 +1,8 @@
 import { ExternalLinkIcon, Redo2Icon, Undo2Icon } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
 
-import { editorHistory } from "../../builder/editor-history.ts";
-import { ariaKeys, shortcutText } from "../../builder/shortcuts.ts";
+import { editorHistory } from "../../editor/editor-history.ts";
+import { ariaKeys, shortcutText } from "../../editor/shortcuts.ts";
 import { fill, type Words } from "../api.ts";
 import { IconButton, IconLink } from "../controls.tsx";
 import { type DraftState, DraftStateCell } from "./DraftState.tsx";

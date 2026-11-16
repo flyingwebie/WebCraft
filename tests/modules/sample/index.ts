@@ -231,11 +231,13 @@ export const sample = defineModule({
 			method: "GET",
 			path: "/cookies",
 			async handle(request) {
-				// Tries to read and set WebCraft's own cookies on the Site's domain: WebCraft strips both.
+				// Tries to read and set WebCraft's own cookies on the Site's domain, and to read the Edit mode
+				// session's header token: WebCraft strips all of them.
 				const headers = new Headers({ "content-type": "application/json" });
 				headers.append("set-cookie", "webcraft.edit=forged; Path=/");
 				headers.append("set-cookie", "sample-seen=1; Path=/");
-				return new Response(JSON.stringify({ cookie: request.headers.get("cookie") }), { headers });
+				const seen = { cookie: request.headers.get("cookie"), token: request.headers.get("x-webcraft-edit-token") };
+				return new Response(JSON.stringify(seen), { headers });
 			},
 		}),
 		siteRoute({

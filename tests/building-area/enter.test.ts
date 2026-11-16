@@ -1,11 +1,11 @@
-// The way into the building area (ADR 0037): "Edit on site"'s link, asked for with `building`, names
-// the document to open and the admin path to go back to. Following it sets the edit cookie and the
+// The way into the building area (ADR 0037): "Edit on site"'s link names the document to open and
+// the admin path to go back to; every Edit mode link opens the building area. Following it sets the edit cookie and the
 // building-area cookie on the Site's own address and lands on the shell. Both are checked when the
 // link is made and again when it is followed, so a changed link can't lead anywhere else.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { openBuildingArea } from "../harness/building-area.ts";
-import { openEditMode } from "../harness/edit-mode.ts";
+import { holdCookie, openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 
 let install: TestInstall;
@@ -70,7 +70,6 @@ describe("a link that opens the building area", () => {
 
 		const { url } = await staff.api.editMode.open({
 			siteId,
-			building: true,
 			open: "/page/blog/fresh-bread",
 			returnTo: `/sites/${siteId}/entries`,
 		});
@@ -78,7 +77,6 @@ describe("a link that opens the building area", () => {
 		const link = new URL(url);
 		expect(link.origin).toBe(origin);
 		expect(link.pathname).toBe("/_webcraft/edit/enter");
-		expect(link.searchParams.get("build")).toBe("1");
 		expect(link.searchParams.get("open")).toBe("/page/blog/fresh-bread");
 		expect(link.searchParams.get("return")).toBe(`/sites/${siteId}/entries`);
 		// The building area has no Code mode to start.
@@ -88,7 +86,7 @@ describe("a link that opens the building area", () => {
 	test("opens the page at `path` when it names no document", async () => {
 		const { siteId } = await siteWithPost();
 
-		const { url } = await editor.api.editMode.open({ siteId, building: true, path: "/blog/fresh-bread" });
+		const { url } = await editor.api.editMode.open({ siteId, path: "/blog/fresh-bread" });
 
 		expect(new URL(url).searchParams.get("open")).toBe("/page/blog/fresh-bread");
 	});
@@ -96,7 +94,7 @@ describe("a link that opens the building area", () => {
 	test("refuses a document or an admin path that isn't one", async () => {
 		const { siteId } = await siteWithPost();
 		const refused = async (input: { open?: string; returnTo?: string }) => {
-			const error = await staff.api.editMode.open({ siteId, building: true, ...input }).catch((caught) => caught);
+			const error = await staff.api.editMode.open({ siteId, ...input }).catch((caught) => caught);
 			expect(error).toMatchObject({ code: "BAD_REQUEST" });
 		};
 
@@ -113,7 +111,6 @@ describe("a link that opens the building area", () => {
 		const { siteId, origin } = await siteWithPost();
 		const { url } = await staff.api.editMode.open({
 			siteId,
-			building: true,
 			open: "/page/blog/fresh-bread",
 			returnTo: `/sites/${siteId}/entries?postType=1`,
 		});
@@ -152,7 +149,7 @@ describe("a link that opens the building area", () => {
 
 	test("a link changed on the way opens the link's page and goes back to the Site in the admin", async () => {
 		const { siteId, origin } = await siteWithPost();
-		const { url } = await staff.api.editMode.open({ siteId, building: true, path: "/blog/fresh-bread" });
+		const { url } = await staff.api.editMode.open({ siteId, path: "/blog/fresh-bread" });
 		const changed = new URL(url);
 		changed.searchParams.set("open", "//evil.example/");
 		changed.searchParams.set("return", "https://evil.example/");
@@ -166,7 +163,7 @@ describe("a link that opens the building area", () => {
 
 	test("with Safe mode, starts Safe mode as well", async () => {
 		const { siteId, origin } = await siteWithPost();
-		const { url } = await staff.api.editMode.open({ siteId, building: true, safeMode: true });
+		const { url } = await staff.api.editMode.open({ siteId, safeMode: true });
 
 		const response = await install.browser({ origin }).request(url);
 
@@ -174,25 +171,33 @@ describe("a link that opens the building area", () => {
 		expect(cookieOf(response, BUILD_COOKIE)).toBeDefined();
 	});
 
-	test("an ordinary Edit mode link leaves the building area: its cookie is cleared", async () => {
+	test("a link asked for without a document opens the page at `path` in the building area, again and again", async () => {
 		const { siteId } = await siteWithPost();
 		const building = await openBuildingArea(install, staff, siteId);
 		expect(building.browser.cookies.has(BUILD_COOKIE)).toBe(true);
 
-		const { url } = await staff.api.editMode.open({ siteId, path: "/" });
+		const { url } = await staff.api.editMode.open({ siteId, path: "/blog/fresh-bread" });
 		const response = await building.browser.request(url);
 
-		expect(response.headers.get("location")).toBe("/");
-		expect(cookieOf(response, BUILD_COOKIE)?.attributes["max-age"]).toBe("0");
-		expect(building.browser.cookies.has(BUILD_COOKIE)).toBe(false);
+		expect(response.headers.get("location")).toBe("/_webcraft/build/page/blog/fresh-bread");
+		expect(cookieOf(response, BUILD_COOKIE)?.attributes["max-age"]).toBe(String(8 * 60 * 60));
+		expect(building.browser.cookies.has(BUILD_COOKIE)).toBe(true);
 	});
 
-	test("an ordinary Edit mode link doesn't touch the building-area cookie of a browser that has none", async () => {
+	test("there is no other way into Edit mode: every link sets the building-area cookie", async () => {
 		const { siteId } = await siteWithPost();
 
-		const editing = await openEditMode(install, staff, siteId, "/");
+		const editing = await openEditMode(install, editor, siteId, "/");
 
-		expect(editing.browser.cookies.has(BUILD_COOKIE)).toBe(false);
+		expect(editing.browser.cookies.has(BUILD_COOKIE)).toBe(true);
+		// Links of the old editors' ways in (`code`, `selection`) open the building area all the same.
+		const { url } = await staff.api.editMode.open({ siteId, path: "/" });
+		const old = new URL(url);
+		old.searchParams.delete("open");
+		old.searchParams.set("code", "1");
+		const response = await install.browser({ origin: old.origin }).request(old);
+		expect(response.headers.get("location")).toBe("/_webcraft/build/page/");
+		expect(cookieOf(response, "__Host-webcraft.code")).toBeUndefined();
 	});
 });
 
@@ -200,9 +205,8 @@ describe("ending Edit mode", () => {
 	test("clears the building-area cookie, and Code mode's and Safe mode's with the edit cookie", async () => {
 		const { siteId } = await siteWithPost();
 		const building = await openBuildingArea(install, staff, siteId, { safeMode: true });
-		// Code mode's cookie, as the editing bar's Code button would have set it earlier in the session.
-		expect((await building.edit("code/start")).status).toBe(200);
-		expect(building.browser.cookies.has("__Host-webcraft.code")).toBe(true);
+		// Code mode's cookie, as a browser may still hold it from before the building area.
+		holdCookie(building.browser, "__Host-webcraft.code", "on");
 
 		const ended = await building.edit("end");
 

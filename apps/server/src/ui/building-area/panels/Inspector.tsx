@@ -2,7 +2,7 @@ import type { ElementNode, TreeNode } from "@webcraft/renderer/builder";
 import { ComponentIcon, PlusIcon, XIcon } from "lucide-react";
 import { type ReactNode, useEffect, useId, useMemo, useState, useSyncExternalStore } from "react";
 
-import { replaceAt } from "../../builder/tree.ts";
+import { replaceAt } from "../../editor/tree.ts";
 import { editRequests, fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
 import { askToBind, type BindAsk, bindKindOf, boundPathOf, propBindings } from "../editing/bind-prop.ts";
@@ -27,7 +27,8 @@ import { PropsPanel } from "./Props.tsx";
  * The Inspector panel for Staff (SPEC 5, `builder/02`; BA-08): what the selected element of a Template
  * or Component is. Element: its Tag, its Layer label, its Classes as chips with "+ Class" (a name the
  * Site doesn't have yet makes a Class), its Content as the Template has it, its `id` and its other
- * attributes ("Add attribute"), and, for an element of a Component, "Inside the {name} Component". Each
+ * attributes ("Add attribute"), an image's Decorative switch (BA-28: the old visual builder's, where the
+ * admin's Checks lead), and, for an element of a Component, "Inside the {name} Component". Each
  * change is one Undo step, made through the Template's or Component's shared Draft; the page in the
  * frame is drawn again in place. A Module's Component is shown read only, with the reason.
  *
@@ -457,6 +458,29 @@ function ElementInspector({
 					/>
 				</Field>
 			</div>
+			{node.tag === "img" ? (
+				// An image that carries no meaning (the admin's Checks ask for it): its alt text stays empty.
+				<label
+					className="bg-chrome-raised text-chrome-text flex items-center gap-2 rounded-md px-2 py-1.5 text-[12px] font-medium"
+					data-wc-decorative-switch=""
+				>
+					<input
+						type="checkbox"
+						checked={node.decorative === true}
+						disabled={readOnly}
+						onChange={(event) => {
+							const { decorative: _old, ...rest } = node;
+							const on = event.target.checked;
+							update(
+								on ? { ...rest, decorative: true } : rest,
+								fill(on ? said.steps.decorative : said.steps.meaningful, { name }),
+							);
+						}}
+						className={`size-4 shrink-0 accent-[#6366f1] ${FOCUS_RING}`}
+					/>
+					{said.inspector.decorative}
+				</label>
+			) : null}
 			<Field
 				label={said.inspector.classes}
 				aside={<span className="text-chrome-muted truncate text-[11px]">{said.inspector.classesHint}</span>}

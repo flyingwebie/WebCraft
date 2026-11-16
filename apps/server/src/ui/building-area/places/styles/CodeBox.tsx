@@ -1,10 +1,9 @@
 import { BracesIcon, CheckIcon, LoaderCircleIcon, TriangleAlertIcon } from "lucide-react";
 import { type KeyboardEvent, type ReactNode, type Ref, type RefObject, useMemo, useRef, useState } from "react";
-
-import { type CssTokenKind, cssLines } from "../../../builder/css-tokens.ts";
-import { editorHistory } from "../../../builder/editor-history.ts";
-import { ariaKeys, withKeys } from "../../../builder/shortcuts.ts";
 import type { CodeFormat } from "../../../code-format/FormatControl.tsx";
+import { type CssTokenKind, cssLines } from "../../../editor/css-tokens.ts";
+import { editorHistory } from "../../../editor/editor-history.ts";
+import { ariaKeys, withKeys } from "../../../editor/shortcuts.ts";
 import { fill, type Words } from "../../api.ts";
 import { CHROME_EASE, FOCUS_RING, Tip } from "../../controls.tsx";
 

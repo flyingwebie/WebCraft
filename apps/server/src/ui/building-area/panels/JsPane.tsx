@@ -2,8 +2,8 @@ import type { Json } from "@webcraft/core/draft-document";
 import { CircleAlertIcon, InfoIcon, PlayIcon, TrashIcon, TriangleAlertIcon } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useRef, useSyncExternalStore } from "react";
 
-import { editorHistory, type HistoryResult } from "../../builder/editor-history.ts";
-import { matches } from "../../builder/shortcuts.ts";
+import { editorHistory, type HistoryResult } from "../../editor/editor-history.ts";
+import { matches } from "../../editor/shortcuts.ts";
 import { fill, type Words } from "../api.ts";
 import type { SaveWatch } from "../canvas/regions.ts";
 import { CHROME_EASE, FOCUS_RING, Tip } from "../controls.tsx";

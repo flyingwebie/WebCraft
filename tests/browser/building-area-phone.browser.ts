@@ -427,6 +427,12 @@ describe("client editing on a phone", () => {
 			.first()
 			.tap();
 		await eventually(taglineNow, (now) => now === "Baked daily");
+		// The row leaves with its Revert, and focus is put back in the sheet once Publish has read the page
+		// again: Escape pressed before that would reach the page's body, not the sheet.
+		await page.waitForFunction(() => document.querySelector("[data-wc-publish-change]") === null);
+		await page.waitForFunction(
+			() => document.querySelector("[data-wc-publish-sheet]")?.contains(document.activeElement) === true,
+		);
 		await page.keyboard.press("Escape");
 		await publish.waitFor({ state: "hidden" });
 	});

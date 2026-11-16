@@ -3,7 +3,7 @@ import type { ElementTree } from "@webcraft/renderer/builder";
 import { TriangleAlertIcon } from "lucide-react";
 import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
 
-import { matches } from "../../builder/shortcuts.ts";
+import { matches } from "../../editor/shortcuts.ts";
 import { fill, type Words } from "../api.ts";
 import { FOCUS_RING } from "../controls.tsx";
 import { keyOf, type StructureSelection, type StructureSource } from "../editing/selection.ts";
@@ -264,7 +264,8 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 			store.set({ previewing: false });
 			void deps().frame.current?.rerender();
 		}
-		void locate(markup, source.ref, selection);
+		// The selection may have moved within the source while its markup came.
+		void locate(markup, source.ref, deps().structure.snapshot().selection ?? selection);
 	};
 
 	/** A Placement of a Page's Page layout: its Component tag, read only. */
@@ -339,7 +340,9 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 		}
 		if (selection.ref !== state.ref) {
 			store.set({ ref: selection.ref });
-			if (!state.dirty) void locate(state.text, source.ref, selection);
+			// While the source's markup is on its way the text is still the previous source's: its own
+			// lines are found once it comes (`show`).
+			if (!state.dirty && state.status === "ready") void locate(state.text, source.ref, selection);
 		}
 		// The source changed (the Inspector, Layers, Undo, someone else): shown again unless typed over.
 		if (source.tree !== shownTree && !sameValue(source.tree as unknown as Json, shownTree as unknown as Json)) {

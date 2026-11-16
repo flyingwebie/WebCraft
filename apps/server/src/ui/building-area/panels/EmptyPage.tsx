@@ -1,7 +1,7 @@
 import { ComponentIcon, LayoutDashboardIcon, SquareDashedBottomIcon } from "lucide-react";
 import { type RefObject, useEffect, useState } from "react";
 
-import { shortcutText } from "../../builder/shortcuts.ts";
+import { shortcutText } from "../../editor/shortcuts.ts";
 import { fill, type Words } from "../api.ts";
 import type { FrameHandle } from "../canvas/Frame.tsx";
 

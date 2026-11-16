@@ -11,7 +11,7 @@ import {
 	type EditorCommandTarget,
 	editorCommands,
 	visibleCommands,
-} from "../../apps/server/src/ui/builder/commands.ts";
+} from "../../apps/server/src/ui/editor/commands.ts";
 
 const t = createTranslator({ locale: "en", messages: en }) as unknown as Parameters<typeof editorCommands>[1];
 

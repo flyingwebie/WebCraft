@@ -4437,7 +4437,6 @@
 		},
 		"notMade": "Not made yet",
 		"noAddress": "No archive address: the URL pattern starts with '{slug}'",
-		"open": "Open in builder",
 		"openNamed": ": {name}"
 	},
 	"components": {
@@ -8457,8 +8456,6 @@
 	},
 	"buildingArea": {
 		"pageTitle": "Building area",
-		"open": "Open the building area (in progress)",
-		"openHelp": "The new editor, while it is being built",
 		"opening": "Opening the building area…",
 		"skipToContent": "Skip to main content",
 		"shellFailed": "The building area couldn't be loaded. Check the connection, then reload the page.",
@@ -10188,7 +10185,9 @@
 				"delete": "Delete {name}",
 				"move": "Move {name}",
 				"hide": "Hide {name}",
-				"show": "Show {name}"
+				"show": "Show {name}",
+				"decorative": "Mark {name} as decorative",
+				"meaningful": "Mark {name} as meaningful"
 			},
 			"inspector": {
 				"tag": "Tag",
@@ -10213,7 +10212,8 @@
 				"inside": "Inside the {name} Component",
 				"placementOf": "A Placement of {name}",
 				"notOpen": "This element's Template or Component isn't open here: select it again once the page has loaded.",
-				"badValue": "This isn't a value: {value}. Write a value's name between double braces."
+				"badValue": "This isn't a value: {value}. Write a value's name between double braces.",
+				"decorative": "Decorative: this image carries no meaning"
 			}
 		},
 		"details": {
@@ -10673,6 +10673,40 @@
 				},
 				"value": {
 					"hint": "The value {path}"
+				}
+			},
+			"commands": {
+				"popup": {
+					"name": "Popup: {name}",
+					"hint": "Shows the Popup {name} here"
+				},
+				"filter": {
+					"name": "Filter: {name}",
+					"hint": "The whole Filter (its form), for the Loop {loop}"
+				},
+				"filterControl": {
+					"name": "Filter {name}: {control}",
+					"hint": "Only this control of the Filter, on its own"
+				},
+				"pagination": {
+					"name": "Pagination of {loop}",
+					"hint": "Links to the pages of the Loop {loop}"
+				},
+				"search": {
+					"name": "Search box",
+					"hint": "The Site's search box"
+				},
+				"themeToggle": {
+					"name": "Theme toggle",
+					"hint": "Lets visitors choose light or dark"
+				},
+				"languageSwitcher": {
+					"name": "Language switcher",
+					"hint": "The page in its other languages"
+				},
+				"consentSettings": {
+					"name": "Cookie settings",
+					"hint": "Opens the Consent banner's choices again"
 				}
 			},
 			"templateGroup": "Template commands",

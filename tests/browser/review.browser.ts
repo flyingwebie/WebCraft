@@ -1,11 +1,12 @@
 // Review in a real browser (GLOSSARY.md › Review): the Author's "Submit for review" and its dialog, an
 // item In review as its Author sees it (Withdraw) and as a reviewer sees it (Send back and its
 // dialog), the Review sheet opened from the editor and from Publish all, a sent-back comment, the
-// Site overview's "Waiting for review" list with the sidebar's count, the Entries list's chips, and
-// Edit mode's Publish menu for an Author (Submit for review, then In review), in light and dark, with
-// axe and the keyboard; and submitting, sending back and publishing a Review without a mouse.
+// Site overview's "Waiting for review" list with the sidebar's count and the Entries list's chips, in
+// light and dark, with axe and the keyboard; and submitting, sending back and publishing a Review
+// without a mouse. Sending a page for review from the building area is `building-area-publish`'s
+// "Send for review" check.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { Cookie, Page } from "playwright";
+import type { Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
 import { expectAccessibleScreen, expectNoAxeViolations, expectOverlayUsable } from "./checks.ts";
@@ -30,7 +31,6 @@ let soupId: string;
 let pieId: string;
 
 const slug = "review-bakery";
-const path = "/blog/fresh-bread";
 
 beforeAll(async () => {
 	install = await startBrowserInstall();
@@ -105,26 +105,6 @@ async function open(theme: Theme, account: TestAccount, pagePath: string): Promi
 }
 
 const editorOf = (entryId: string) => `/sites/${siteId}/entries/${postTypeId}/${entryId}`;
-
-/** The Author's edit cookie from the first time Edit mode opened, handed to later pages (the link works once). */
-let editCookies: Cookie[] | undefined;
-
-/** A page in Edit mode at /blog/fresh-bread, as the Author: the first time through "Edit on site". */
-async function editModePage(theme: Theme): Promise<Page> {
-	const page = await install.newPage(theme);
-	if (editCookies) {
-		await page.context().addCookies(editCookies);
-	} else {
-		await install.signIn(page, author);
-		await page.goto(install.adminUrl(`/sites/${siteId}`));
-		await page.getByRole("button", { name: "Edit on site" }).click();
-		await page.waitForURL((url) => url.hostname === new URL(install.siteUrl(slug, "/")).hostname);
-		editCookies = (await page.context().cookies()).filter((cookie) => cookie.name === "webcraft.edit");
-	}
-	await page.goto(install.siteUrl(slug, path));
-	await page.getByRole("button", { name: "Changes", exact: true }).waitFor();
-	return page;
-}
 
 /** Whether focus is on `element` within a second (a dialog moves focus as it opens). */
 function focusedSoon(element: Element): Promise<boolean> {
@@ -210,16 +190,6 @@ for (const theme of THEMES) {
 			await page.getByText("Sent back").first().waitFor();
 			await expectAccessibleScreen(page, `Entries list with Reviews (${theme})`);
 		});
-
-		test("Edit mode's Publish menu offers an Author Submit for review, with a note", async () => {
-			const page = await editModePage(theme);
-			await expectOverlayUsable(
-				page,
-				page.getByRole("button", { name: "Changes", exact: true }),
-				"dialog",
-				`Edit mode › Changes with Submit for review (${theme})`,
-			);
-		});
 	});
 }
 
@@ -291,26 +261,5 @@ describe("without a mouse", () => {
 		expect(entry.published?.title).toBe("Apple pie");
 		const { reviews } = await (await install.install.superadmin()).api.reviews.list({ siteId });
 		expect(reviews.some((review) => review.item.kind === "entry" && review.item.id === pieId)).toBe(false);
-	});
-
-	test("in Edit mode an Author submits the page with a note, then sees it In review with Withdraw", async () => {
-		const page = await editModePage("light");
-		const trigger = page.getByRole("button", { name: "Changes", exact: true });
-		await trigger.focus();
-		await page.keyboard.press("Enter");
-		const note = page.getByLabel("Note for the reviewer (optional)");
-		await note.waitFor();
-		await note.focus();
-		await page.keyboard.type("New subtitle.");
-		await page.keyboard.press("Tab");
-		await page.keyboard.press("Enter");
-		await page.getByRole("button", { name: "Withdraw from review" }).waitFor();
-		await page.getByText(/In review · submitted by you/).waitFor();
-		// The panel is open over the page: axe checks it as it checks open overlays.
-		await expectNoAxeViolations(page, "Edit mode › Changes In review (light, open)", ["region"]);
-		expect({ chip: await page.getByText("In review", { exact: true }).count() }).toEqual({ chip: 1 });
-
-		const { reviews } = await (await install.install.superadmin()).api.reviews.list({ siteId });
-		expect(reviews.some((review) => review.note === "New subtitle.")).toBe(true);
 	});
 });

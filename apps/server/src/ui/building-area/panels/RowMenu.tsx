@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 
-import { shortcutText } from "../../builder/shortcuts.ts";
+import { shortcutText } from "../../editor/shortcuts.ts";
 import { fill, type Words } from "../api.ts";
 import type { InsertQuestion } from "../command-menu/state.ts";
 import type { Icon } from "../controls.tsx";

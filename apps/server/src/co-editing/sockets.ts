@@ -19,7 +19,7 @@ import {
 
 import { clientAddress } from "../client-address.ts";
 import { json, plainText } from "../responses.ts";
-import { cookieValue } from "../site/cookies.ts";
+import { buildingAreaCookieOf, cookieValue } from "../site/cookies.ts";
 import { editCookieName, editSessionOf } from "../site/edit-mode.ts";
 import { ADMIN_DRAFTS_PREFIX, EDIT_DRAFTS_PREFIX } from "./paths.ts";
 
@@ -133,6 +133,11 @@ export function createDraftSockets(services: InstallServices): DraftSockets {
 			const edit = await editSessionOf(services, request, host);
 			if (!edit.session) {
 				return json(401, { code: "EDIT_MODE_ENDED", message: "Edit mode has ended. Open it again from the admin." });
+			}
+			// Only the building area opens Drafts on the Site's address (ADR 0037): its cookie as well as the
+			// session's, as its Management API asks for (`site/building-area/api.ts`).
+			if (buildingAreaCookieOf(request) === null) {
+				return json(403, { code: "EDIT_REQUEST_REFUSED", message: "Open the building area from the admin first." });
 			}
 			const token = protocolsOf(request)
 				.find((protocol) => protocol.startsWith(EDIT_TOKEN_PROTOCOL_PREFIX))

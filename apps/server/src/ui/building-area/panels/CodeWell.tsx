@@ -9,10 +9,10 @@ import {
 	useState,
 } from "react";
 
-import { codeKeyEdit } from "../../builder/code-keys.ts";
-import type { CssTokenKind } from "../../builder/css-tokens.ts";
-import { editorHistory } from "../../builder/editor-history.ts";
-import { matches } from "../../builder/shortcuts.ts";
+import { codeKeyEdit } from "../../editor/code-keys.ts";
+import type { CssTokenKind } from "../../editor/css-tokens.ts";
+import { editorHistory } from "../../editor/editor-history.ts";
+import { matches } from "../../editor/shortcuts.ts";
 import { type CodeLanguage, codeLines } from "./code-tokens.ts";
 
 /** Each kind of piece on the chrome's code well (each at least 4.5:1 on it), as the Styles place's box. */

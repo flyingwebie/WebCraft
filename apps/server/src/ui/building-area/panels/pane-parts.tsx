@@ -1,11 +1,11 @@
 import { BracesIcon, CheckIcon, LoaderCircleIcon, Maximize2Icon, Minimize2Icon } from "lucide-react";
 import { type KeyboardEvent, type RefObject, useCallback, useEffect, useRef, useState } from "react";
-import { editorHistory } from "../../builder/editor-history.ts";
-import { ariaKeys, shortcutText } from "../../builder/shortcuts.ts";
 import { FORMAT_SHOWN_MS, FORMAT_SPINNER_MS, formatTextArea, isFormatKey } from "../../code-format/box.ts";
 import type { CodeFormat, FormatNote } from "../../code-format/FormatControl.tsx";
 import { type CodeLanguage, format } from "../../code-format/format.ts";
 import { registerFormatTarget } from "../../code-format/targets.ts";
+import { editorHistory } from "../../editor/editor-history.ts";
+import { ariaKeys, shortcutText } from "../../editor/shortcuts.ts";
 import type { Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING, Tip } from "../controls.tsx";
 import { type PaneStore, paneStore, usePane } from "./pane-store.ts";

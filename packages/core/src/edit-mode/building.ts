@@ -46,6 +46,17 @@ const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 export const BUILDING_FILTER_PARAMETER = "wc-filter";
 
 /**
+ * The shell's own parameter that opens a document with one of its elements selected, by the element's
+ * id in its Template's or Component's markup (the admin's Checks, which name the element a finding is
+ * about): `/component/<id>?wc-element=photo`. Like `wc-filter`, it is the shell's, read once, then
+ * the selection.
+ */
+export const BUILDING_ELEMENT_PARAMETER = "wc-element";
+
+/** An element's id as `wc-element` takes it: a Template element's id. */
+const ELEMENT_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/**
  * Whether `path` is a page of the Site the building area may frame: a path as Edit mode takes it, and
  * not one of the paths the Install keeps on every Site's address (`/_…`, such as `/_webcraft/` and
  * `/_media/`), which are never a Site's pages.
@@ -59,7 +70,8 @@ function isSitePageAddress(address: string): boolean {
  * `/_webcraft/build`, with its query (`/page/blog/fresh-bread`, `/entry-template/<id>?entry=<id>`).
  * Null for anything that names no document: another form, an id that isn't one, a path off the Site.
  * A page's query is the page's own; the other documents take no query but an Entry template's `entry`
- * and the shell's `wc-filter` (a Filter to select, `BUILDING_FILTER_PARAMETER`), which is left out.
+ * and the shell's `wc-filter` and `wc-element` (a Filter or an element to select,
+ * `BUILDING_FILTER_PARAMETER`, `BUILDING_ELEMENT_PARAMETER`), which are left out.
  */
 export function parseBuildingDocument(open: string): BuildingDocument | null {
 	if (open.length > 4000) return null;
@@ -78,10 +90,13 @@ export function parseBuildingDocument(open: string): BuildingDocument | null {
 	}
 	const [empty, kind = "", id = "", ...rest] = path.split("/");
 	if (empty !== "" || rest.length > 0) return null;
-	// A Filter to select, once: the shell's, so it is left out of the document.
+	// A Filter or an element to select, once: the shell's, so they are left out of the document.
 	const filter = params.getAll(BUILDING_FILTER_PARAMETER);
 	if (filter.length > 1 || filter.some((each) => !ID.test(each))) return null;
 	params.delete(BUILDING_FILTER_PARAMETER);
+	const element = params.getAll(BUILDING_ELEMENT_PARAMETER);
+	if (element.length > 1 || element.some((each) => !ELEMENT_ID.test(each))) return null;
+	params.delete(BUILDING_ELEMENT_PARAMETER);
 	const keys = [...params.keys()];
 	if (kind === "entry-template" && ID.test(id)) {
 		const entry = params.get("entry");

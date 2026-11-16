@@ -65,7 +65,7 @@ describe("every answer on the admin host", () => {
 
 describe("an answer that brings its own policy", () => {
 	test("the builder's canvas keeps it: only the admin's own pages frame it", async () => {
-		const response = await install.request(install.adminUrl("/api/builder/canvas"));
+		const response = await install.request(install.adminUrl("/api/preview/canvas"));
 		expect(response.status).toBe(200);
 		const policy = expectAdminHeaders(response);
 		expect(policy.get("frame-ancestors")).toEqual(["'self'"]);

@@ -77,7 +77,7 @@ describe("a Module's Site routes, beside the building area", () => {
 
 		const answer = await area.browser.request(`${origin}/_wc/m/sample/cookies`);
 
-		expect(await answer.json()).toEqual({ cookie: null });
+		expect(await answer.json()).toEqual({ cookie: null, token: null });
 		expect(new Map(area.browser.cookies)).toEqual(new Map([...held, ["sample-seen", "1"]]));
 		// The session goes on as it was: the shell, and its edit requests.
 		expect(shellConfigIn(await (await area.shell(area.landed)).text())?.token).toBeString();
@@ -98,7 +98,17 @@ describe("a Module's Site routes, beside the building area", () => {
 			},
 		});
 
-		expect(await answer.json()).toEqual({ cookie: "theme=dark" });
+		expect(await answer.json()).toEqual({ cookie: "theme=dark", token: null });
+	});
+
+	test("never see the Edit mode session's header token, sent by a page in the building area (BA-28)", async () => {
+		const area = await openBuildingArea(install, staff, siteId);
+
+		const answer = await area.browser.request(`${origin}/_wc/m/sample/cookies`, {
+			headers: { "x-webcraft-edit-token": await area.headerToken() },
+		});
+
+		expect(await answer.json()).toEqual({ cookie: null, token: null });
 	});
 
 	test("answer under WebCraft's policy, never the Module's own, for a browser in the building area", async () => {
@@ -164,7 +174,7 @@ describe("Safe mode in the building area", () => {
 		expect(safe.browser.cookies.has(SAFE_COOKIE)).toBe(true);
 		expect(siteScriptsIn(await (await safe.page("/")).text())).toEqual([]);
 
-		const { url } = await editor.api.editMode.open({ siteId, building: true });
+		const { url } = await editor.api.editMode.open({ siteId });
 		const entered = await safe.browser.request(url);
 
 		expect(entered.headers.getSetCookie()).toContain(

@@ -9,7 +9,7 @@ import {
 	type ServerMessage,
 } from "@webcraft/core/draft-document";
 
-import type { HistoryPort, HistoryResult } from "../../builder/editor-history.ts";
+import type { HistoryPort, HistoryResult } from "../../editor/editor-history.ts";
 
 /**
  * The shared Drafts of the page in the frame (Co-editing, ADR 0025; ADR 0037 › 1.5): the shell opens

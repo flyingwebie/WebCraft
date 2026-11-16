@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
+import { eventually } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations, expectOverlayUsable } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall, THEMES, type Theme } from "./harness.ts";
 
@@ -42,6 +43,13 @@ async function savedNames(): Promise<string[]> {
 	return (await api.servicesList.get()).services.map((service) => service.name);
 }
 
+/** The saved list once it is `names`: the screen shows a change before its save has landed. */
+function savedAs(names: string[]): Promise<string[]> {
+	return eventually(savedNames, (saved) => JSON.stringify(saved) === JSON.stringify(names), {
+		what: "The saved Services list",
+	});
+}
+
 for (const theme of THEMES) {
 	describe(`Install › Services list, ${theme}`, () => {
 		test("the rows, the add sheet and a row's menu from the keyboard", async () => {
@@ -76,7 +84,11 @@ describe("changing the list", () => {
 		await sheet.getByRole("button", { name: "Add service" }).click();
 		await sheet.waitFor({ state: "hidden" });
 		await page.getByRole("cell", { name: "Photography", exact: true }).waitFor();
-		expect(await savedNames()).toEqual(["Search engine optimisation", "Monthly content", "Photography"]);
+		expect(await savedAs(["Search engine optimisation", "Monthly content", "Photography"])).toEqual([
+			"Search engine optimisation",
+			"Monthly content",
+			"Photography",
+		]);
 	});
 
 	test("Move down in a row's menu moves the service, says so and saves the order", async () => {
@@ -103,6 +115,9 @@ describe("changing the list", () => {
 		await dialog.getByRole("button", { name: "Remove" }).click();
 		await dialog.waitFor({ state: "hidden" });
 		await page.getByRole("cell", { name: "Photography", exact: true }).waitFor({ state: "detached" });
-		expect(await savedNames()).toEqual(["Monthly content", "Search engine optimisation"]);
+		expect(await savedAs(["Monthly content", "Search engine optimisation"])).toEqual([
+			"Monthly content",
+			"Search engine optimisation",
+		]);
 	});
 });

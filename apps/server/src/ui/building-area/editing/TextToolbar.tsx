@@ -20,8 +20,8 @@ import {
 	useSyncExternalStore,
 } from "react";
 
-import { editorHistory } from "../../builder/editor-history.ts";
-import { ariaKeys, chordText, onApple, shortcutText } from "../../builder/shortcuts.ts";
+import { editorHistory } from "../../editor/editor-history.ts";
+import { ariaKeys, chordText, onApple, shortcutText } from "../../editor/shortcuts.ts";
 import { fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING, type Icon, Tip } from "../controls.tsx";
 import type { EditingSnapshot, PageEditing } from "./editing.ts";

@@ -2,7 +2,7 @@ import { type ElementTree, readExpression, type TreeNode, writeExpression } from
 import { ChevronDownIcon, ExternalLinkIcon, RepeatIcon } from "lucide-react";
 import { useEffect, useId, useMemo, useState } from "react";
 
-import { type NodePath, nodeAt, replaceAt } from "../../builder/tree.ts";
+import { type NodePath, nodeAt, replaceAt } from "../../editor/tree.ts";
 import { fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
 import type { Structure, StructureSource } from "../editing/selection.ts";

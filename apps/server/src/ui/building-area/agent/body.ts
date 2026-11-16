@@ -10,7 +10,7 @@
  * Only a page showing a body loads it, and only once per page: nothing of it is in the shell's own
  * files.
  */
-import type { BarKit, BodyTools } from "../../../site/edit-bar/kit.ts";
+import type { BarKit, BodyTools } from "../../page-kit.ts";
 
 /** What the block editor's module hands over (`body-editor/edit-mode.ts`'s `BODY_LOADED_EVENT` detail). */
 export type BodyToolsFactory = (kit: BarKit) => BodyTools;

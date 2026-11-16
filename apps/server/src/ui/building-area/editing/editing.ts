@@ -1,7 +1,7 @@
 import type { Json } from "@webcraft/core/draft-document";
 
-import type { HistoryLocation } from "../../builder/editor-history.ts";
-import { matches } from "../../builder/shortcuts.ts";
+import type { HistoryLocation } from "../../editor/editor-history.ts";
+import { matches } from "../../editor/shortcuts.ts";
 import { TEXT_REGION } from "../agent/contract.ts";
 import { fill, type PageState, type Words } from "../api.ts";
 import { nameOf, type Overlay, type OverlayMark } from "../canvas/overlay.ts";
@@ -174,6 +174,8 @@ export function pageEditing(options: {
 
 	let parts: { frame: HTMLIFrameElement; overlay: Overlay; saving: RegionSaving } | null = null;
 	let doc: Document | null = null;
+	/** The address of the page shown now, as its agent said it. */
+	let shownAddress = "";
 	let state: PageState | null = null;
 	let current: HTMLElement | null = null;
 	/** Done put the toolbar away: it comes back with the next keystroke or the next region. */
@@ -401,9 +403,10 @@ export function pageEditing(options: {
 				parts = null;
 			};
 		},
-		page(document, _address, isPage) {
+		page(document, address, isPage) {
 			stopEditing();
 			doc = document;
+			shownAddress = address.split("?")[0] ?? "";
 			state = null;
 			// Nothing of a stand-in is the Site's Content: no Draft of it opens.
 			if (!isPage) drafts.show([]);
@@ -509,7 +512,9 @@ export function pageEditing(options: {
 			const step = history.watch({
 				label: nameOf(region, words),
 				field,
-				title: state?.page.title || state?.page.path || "",
+				// Where the step was made, for "Undid … on {page}": the page's title once its state is read,
+				// else its address (a step typed before the state arrived still says where it was made).
+				title: state?.page.title || state?.page.path || shownAddress,
 			});
 			return {
 				saved(answer: SavedAnswer) {

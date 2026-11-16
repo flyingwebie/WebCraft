@@ -1,6 +1,7 @@
-// The builder's canvas is an iframe on the admin host: an empty page the builder fills with the
-// rendered tree and the Draft stylesheet. Its own policy runs no script at all (the Site's scripts
-// never load there), lets only the admin frame it, and loads images and fonts as Site pages may.
+// The admin's preview canvas is an iframe on the admin host: an empty page a screen (the Filter
+// builder's preview, the Design system's style preview) fills with rendered HTML and the Draft
+// stylesheet. Its own policy runs no script at all (the Site's scripts never load there), lets only
+// the admin frame it, and loads images and fonts as Site pages may.
 import { afterAll, beforeAll, expect, test } from "bun:test";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
@@ -17,7 +18,7 @@ afterAll(async () => {
 });
 
 test("is an empty page that runs no script and only the admin may frame", async () => {
-	const response = await install.request(install.adminUrl("/api/builder/canvas"));
+	const response = await install.request(install.adminUrl("/api/preview/canvas"));
 
 	expect(response.status).toBe(200);
 	expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
@@ -44,6 +45,6 @@ test("is an empty page that runs no script and only the admin may frame", async 
 });
 
 test("answers only GET and HEAD, and only on the admin host", async () => {
-	expect((await install.request(install.adminUrl("/api/builder/canvas"), { method: "POST" })).status).toBe(405);
-	expect((await install.request("https://bakery.sites.test/api/builder/canvas")).status).toBe(404);
+	expect((await install.request(install.adminUrl("/api/preview/canvas"), { method: "POST" })).status).toBe(405);
+	expect((await install.request("https://bakery.sites.test/api/preview/canvas")).status).toBe(404);
 });

@@ -78,6 +78,11 @@ export async function enterBuildingArea(
 		firstVisit?: boolean;
 	},
 ): Promise<Frame> {
+	// The link is made in the test process, whose clock stands still, and followed by the web process on
+	// the real clock: brought up to the real time first, a link asked for later in a file isn't already
+	// past its 60 seconds.
+	const real = new Date();
+	if (install.install.clock.now() < real) await install.install.clock.set(real);
 	const admin = await install.install.signIn(options.as);
 	if (!options.firstVisit) {
 		await admin.api.me.saveEditorPreferences({
@@ -87,12 +92,12 @@ export async function enterBuildingArea(
 	}
 	const { url } = await admin.api.editMode.open({
 		siteId: options.siteId,
-		building: true,
 		...(options.open ? { open: options.open } : {}),
 		...(options.returnTo ? { returnTo: options.returnTo } : {}),
 		...(options.safeMode ? { safeMode: true } : {}),
 	});
-	// The link names the test Install's own address for the Site; the web process serves it on `.localhost`.
+	// The link names the test Install's own address for the Site; the web process serves it on `.localhost`,
+	// and the browser follows it on the Site's Staging address, where the checks then go on.
 	const link = new URL(url);
 	await page.goto(install.siteUrl(options.slug, `${link.pathname}${link.search}`));
 	return frameOf(page);

@@ -1,12 +1,11 @@
-import type { DraftClient, Json } from "@webcraft/core/draft-document";
-import type { HistoryTarget } from "../../ui/builder/commands.ts";
-import type { PageLayoutController } from "../../ui/page-layouts/controller.ts";
+import type { DraftClient } from "@webcraft/core/draft-document";
+import type { HistoryTarget } from "./editor/commands.ts";
 
 /**
- * What the editing bar hands its parts (the image popover, Loop item tools, Page details): the
- * browser functions it kept before any Site script ran, its words, its requests and its shared
- * elements. Each part is, like the bar, one self-contained function served as source text in the bar's
- * script (`assets.ts`), so it uses nothing from outside itself but this kit. Types only.
+ * What the building area hands the parts that run in the page's own realm (the block editor, ADR 0037
+ * › BA-18) and the Page layout's controller (BA-17): the browser functions kept before any Site script
+ * ran, the person's words, the edit requests and the shared Drafts. It began as the editing bar's kit
+ * (ADR 0022), which those parts were first written against. Types only.
  */
 
 export type Words = { [key: string]: string | Words };
@@ -174,32 +173,6 @@ export type EditHistory = HistoryTarget & {
 };
 
 /**
- * What only the bar does, for the Command menu's Actions (#139). The menu's own module is handed this
- * with the kit when it mounts.
- */
-export type BarCommands = {
-	/** The bar's search button: hidden until the menu sets its name, tooltip and keys, and opens from it. */
-	button: HTMLButtonElement;
-	/**
-	 * Save Draft: saves what is still on its way to the Draft (text being typed, a Page layout change,
-	 * the shared Drafts' batches), then says the Draft is saved, or, for everyone to see, that not
-	 * everything is.
-	 */
-	save(): Promise<void>;
-	/**
-	 * Go to: leaves for another address once everything is saved, with the Undo history handed over
-	 * (ADR 0036). While something isn't saved the person stays, and the bar says why.
-	 */
-	go(url: string): void;
-	/** Opens the bar's Publish menu (Changes, with "Submit for review", for those who can't publish). */
-	publish(): void;
-	/** Turns editing in place on (Edit) or off (Preview). */
-	edit(on: boolean): void;
-	/** Ends Edit mode and shows the page as visitors see it. */
-	leave(): void;
-};
-
-/**
  * One of the page's shared Drafts (Co-editing, ADR 0025), as a part changes it: what its copy holds
  * (the Draft as its document does: values by key and language), a change made at once and sent with
  * the next batch, and others' changes as they come.
@@ -221,58 +194,6 @@ export type SharedDraft = {
 	 * shows it, as it shows someone else's change.
 	 */
 	reverse: DraftClient["reverse"];
-};
-
-/** The exact change a save made to a Draft, as the `save` edit request answers it (`RegionHistory` on the server). */
-export type SavedChange = { resource: string; before: Json; after: Json };
-
-/** A place kept in the Undo history for an own action while its save is on its way. */
-export type HistoryPlace = {
-	/** The action was accepted: its change becomes a step, labelled, shown again at the region of `field`. */
-	record(change: SavedChange, label: string, field: string): void;
-	/** The action is over, accepted or refused: later actions no longer wait behind it. */
-	settle(): void;
-};
-
-/** One of the bar's Undo and Redo buttons, as the history words it now. */
-export type HistoryButton = {
-	/** "Undo Edit Subtitle": what it does to which step, or plain "Undo" when there is none. */
-	label: string;
-	/** The label with the keys, for a tooltip: "Undo Edit Subtitle (⌘Z)". */
-	title: string;
-	/** The keys, for `aria-keyshortcuts`. */
-	keys: string;
-	enabled: boolean;
-};
-
-/** What the Undo history's module (`ui/edit-history`) gives the bar back. */
-export type HistoryTools = {
-	target: EditHistory;
-	buttons(): { undo: HistoryButton; redo: HistoryButton };
-	/** Keeps the next place among the person's steps for an action being saved. */
-	reserve(): HistoryPlace;
-	/** One of the page's shared Drafts opened: its steps are taken back through it. */
-	opened(item: string): void;
-	/** The Page layout's controller, once it is there: its finished actions are steps. */
-	layout(controller: PageLayoutController): void;
-	/**
-	 * The address to leave for with the history handed over (#136's `departure`), once what the person
-	 * was typing is saved and recorded. Null cancels leaving: the history changed while it was handed over.
-	 */
-	departure(url: string): Promise<string | null>;
-};
-
-/** What the bar gives the Undo history's module. */
-export type HistoryHost = {
-	/** Saves what the person is still typing, and waits until each save is answered. */
-	finish(): Promise<void>;
-	/** Brings a region into view without moving focus; false when the page doesn't show it. */
-	reveal(item: string, field: string): boolean;
-	/**
-	 * Says something under the bar for everyone to see, and reads it out (a step kept or skipped, a
-	 * history that didn't arrive), until it is dismissed; null takes it away.
-	 */
-	say(message: string | null): void;
 };
 
 /** What `kit.panel` takes: everything the mechanic needs but what the caller's own panel differs in. */
@@ -310,39 +231,6 @@ export type PanelHandle = {
 	close(returnFocus: boolean): void;
 	/** Moves a floating panel (one with an `anchor`) to where its anchor is now; does nothing for a static one or a phone sheet. */
 	reposition(): void;
-};
-
-/** What the image tools give the bar back. */
-export type ImageTools = {
-	/** Makes the image regions inside `scope` choosable (click, Enter or Space opens the popover). */
-	setUp(scope: ParentNode): void;
-	/** Edit turned on or off (Preview, Edit mode ended): image regions stop or start answering. */
-	mode(on: boolean): void;
-	/** The image regions others may be in. */
-	targets(): PresenceTarget[];
-	pick: BarKit["pickImage"];
-	open(region: HTMLElement): void;
-	/** Closes what is open (Escape outside, another panel opening). */
-	close(): void;
-};
-
-/** What the Loop item tools give the bar back. */
-export type LoopTools = {
-	/** Finds the Loops marked on the page (again, after a part of it changed) and sets up their items. */
-	scan(): void;
-	mode(on: boolean): void;
-	targets(): PresenceTarget[];
-	close(): void;
-	/** Moves the item tools to where the items are now (after scrolling). */
-	reposition(): void;
-};
-
-/** What Page details gives the bar back. */
-export type DetailsPanel = {
-	/** Opens the drawer (a bottom sheet on a phone), from the element that opened it. */
-	open(from: HTMLElement | null): void;
-	close(returnFocus: boolean): void;
-	isOpen(): boolean;
 };
 
 /** What the body part (the block editor in Edit mode, #79) gives the bar back. */

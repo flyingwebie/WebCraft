@@ -7,7 +7,7 @@ import type {
 	BodyChooserLook,
 	BodyTools,
 	MediaChoice,
-} from "../../../site/edit-bar/kit.ts";
+} from "../../page-kit.ts";
 import { loadBodyEditor } from "../agent/body.ts";
 import { BODY_REGION } from "../agent/contract.ts";
 import { type EditRequests, fill, type PageState, type Words } from "../api.ts";

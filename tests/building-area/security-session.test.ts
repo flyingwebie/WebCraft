@@ -139,7 +139,7 @@ describe("a building-area session ends", () => {
 			site = await bakery();
 			const member = await install.createMember({ workspaceId, role: "editor" });
 			editing = await enter(site, member.browser);
-			link = (await member.browser.api.editMode.open({ siteId: site.siteId, building: true })).url;
+			link = (await member.browser.api.editMode.open({ siteId: site.siteId })).url;
 			await addAuthenticator(install, staff);
 			await setRequired(true);
 		});
@@ -164,7 +164,7 @@ describe("a building-area session ends", () => {
 describe("the link that opens the building area", () => {
 	test("works once", async () => {
 		const site = await bakery();
-		const { url } = await editor.api.editMode.open({ siteId: site.siteId, building: true });
+		const { url } = await editor.api.editMode.open({ siteId: site.siteId });
 
 		const first = await install.browser({ origin: site.origin }).request(url);
 		expect(first.status).toBe(303);
@@ -178,7 +178,7 @@ describe("the link that opens the building area", () => {
 
 	test("works for 60 seconds", async () => {
 		const site = await bakery();
-		const { url, expiresAt } = await editor.api.editMode.open({ siteId: site.siteId, building: true });
+		const { url, expiresAt } = await editor.api.editMode.open({ siteId: site.siteId });
 		expect(expiresAt).toEqual(new Date(install.clock.now().getTime() + 60_000));
 
 		await install.clock.advance(60_000);
@@ -191,7 +191,7 @@ describe("the link that opens the building area", () => {
 	test("works only at the address of the Site it was made for", async () => {
 		const ours = await bakery();
 		const other = await bakery();
-		const { url } = await editor.api.editMode.open({ siteId: ours.siteId, building: true });
+		const { url } = await editor.api.editMode.open({ siteId: ours.siteId });
 		expect(new URL(url).origin).toBe(ours.origin);
 
 		for (const host of [new URL(other.origin).host, `${other.slug}.sites.test`]) {
@@ -225,7 +225,7 @@ describe("the link that opens the building area", () => {
 		const site = await bakery();
 		const { account } = await install.createMember({ workspaceId, role: "author" });
 		const author = await install.signIn(account);
-		const { url } = await author.api.editMode.open({ siteId: site.siteId, building: true });
+		const { url } = await author.api.editMode.open({ siteId: site.siteId });
 
 		await author.api.session.signOut();
 
@@ -237,7 +237,7 @@ describe("the link that opens the building area", () => {
 	test("for a person who lost access between making it and following it, it opens nothing", async () => {
 		const site = await bakery();
 		const { personId, browser } = await install.createMember({ workspaceId, role: "editor" });
-		const { url } = await browser.api.editMode.open({ siteId: site.siteId, building: true });
+		const { url } = await browser.api.editMode.open({ siteId: site.siteId });
 
 		await (await install.superadmin()).api.members.remove({ workspaceId, personId });
 
@@ -250,9 +250,7 @@ describe("the link that opens the building area", () => {
 		const site = await bakery();
 
 		for (const path of ["https://elsewhere.example/", "//elsewhere.example/", "/\\elsewhere.example", "about"]) {
-			const code = await editor.api.editMode
-				.open({ siteId: site.siteId, building: true, path })
-				.catch((error) => error.code);
+			const code = await editor.api.editMode.open({ siteId: site.siteId, path }).catch((error) => error.code);
 			expect({ path, code }).toEqual({ path, code: "EDIT_PATH_INVALID" });
 		}
 	});
@@ -262,13 +260,13 @@ describe("the link that opens the building area", () => {
 		const elsewhere = await install.createWorkspace("Someone else");
 		const outsider = (await install.createMember({ workspaceId: elsewhere.id, role: "owner" })).browser;
 
-		expect(await outsider.api.editMode.open({ siteId: site.siteId, building: true }).catch((error) => error.code)).toBe(
+		expect(await outsider.api.editMode.open({ siteId: site.siteId }).catch((error) => error.code)).toBe(
 			"SITE_NOT_FOUND",
 		);
 		expect(
 			await install
 				.browser()
-				.api.editMode.open({ siteId: site.siteId, building: true })
+				.api.editMode.open({ siteId: site.siteId })
 				.catch((error) => error.code),
 		).toBe("UNAUTHORIZED");
 	});
@@ -280,7 +278,7 @@ describe("the link that opens the building area", () => {
 			const site = await bare.createSite(workspace.id);
 			const admin = await bare.superadmin();
 
-			expect(await admin.api.editMode.open({ siteId: site.id, building: true }).catch((error) => error.code)).toBe(
+			expect(await admin.api.editMode.open({ siteId: site.id }).catch((error) => error.code)).toBe(
 				"EDIT_MODE_UNAVAILABLE",
 			);
 		} finally {

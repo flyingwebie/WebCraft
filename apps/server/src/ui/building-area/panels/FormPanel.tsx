@@ -3,7 +3,7 @@ import type { FormVersion } from "@webcraft/renderer/forms";
 import { InboxIcon, SquarePenIcon } from "lucide-react";
 import { type ReactNode, useEffect, useId, useState, useSyncExternalStore } from "react";
 
-import { replaceAt } from "../../builder/tree.ts";
+import { replaceAt } from "../../editor/tree.ts";
 import { fill, type ShellConfig, type Words } from "../api.ts";
 import { rememberFormNames } from "../canvas/placed-form.ts";
 import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";

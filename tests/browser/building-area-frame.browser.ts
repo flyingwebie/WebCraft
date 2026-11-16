@@ -371,6 +371,9 @@ for (const engine of ENGINES) {
 			await page.waitForURL((url) => url.pathname === "/_webcraft/build/page/");
 			const home = await frameOf(page);
 			expect(new URL(home.url()).pathname).toBe("/");
+			// The shell's first reads answered before leaving: WebKit words a read cut off by the next
+			// page as an error of the page.
+			await page.waitForLoadState("networkidle");
 
 			await page.goto(install.siteUrl(slug, path));
 			await page.waitForURL((url) => url.pathname === `/_webcraft/build/page${path}`);
@@ -410,12 +413,11 @@ describe("the shell in Chromium", () => {
 		});
 	}
 
-	test("the admin's way in opens it for Staff, and the logo tile goes back to where they came from", async () => {
+	test("Edit on site opens it for Staff, and the logo tile goes back to where they came from", async () => {
 		const page = await install.newPage("light");
 		await install.signIn(page, staff);
 		await page.goto(install.adminUrl(`/sites/${siteId}/media`));
-		await page.getByRole("button", { name: "More ways to open Edit mode" }).click();
-		await page.getByRole("menuitem", { name: /Open the building area/ }).click();
+		await page.getByRole("button", { name: "Edit on site", exact: true }).click();
 		await page.waitForURL((url) => url.pathname === "/_webcraft/build/page/");
 		await frameOf(page);
 
@@ -426,13 +428,17 @@ describe("the shell in Chromium", () => {
 		await page.context().close();
 	});
 
-	test("Members don't get the way in from the menu while the building area is in progress", async () => {
+	test("Edit on site opens it for Members too; its menu's Safe mode opens it in Safe mode, and no other row", async () => {
 		const page = await install.newPage("light");
 		await install.signIn(page, editor);
 		await page.goto(install.adminUrl(`/sites/${siteId}`));
 		await page.getByRole("button", { name: "More ways to open Edit mode" }).click();
-		await page.getByRole("menuitem", { name: /Edit in Safe mode/ }).waitFor();
-		expect(await page.getByRole("menuitem", { name: /Open the building area/ }).count()).toBe(0);
+		const rows = page.getByRole("menuitem");
+		await rows.first().waitFor();
+		expect(await rows.allTextContents()).toEqual([expect.stringMatching(/^Edit in Safe mode/)]);
+		await page.getByRole("menuitem", { name: /Edit in Safe mode/ }).click();
+		await page.waitForURL((url) => url.pathname === "/_webcraft/build/page/");
+		await page.locator("[data-wc-safe-mode]").waitFor();
 		await page.context().close();
 	});
 });

@@ -133,6 +133,12 @@ describe("the Drafts' sockets, from the building area", () => {
 		expect(statusOf(await upgrade({ leaving: [EDIT_COOKIE, BUILD_COOKIE] }))).toBe(401);
 	});
 
+	test("refuse a browser with the session's cookie and token but without the building-area cookie (BA-28)", async () => {
+		const refused = await upgrade({ leaving: [BUILD_COOKIE] });
+		expect(statusOf(refused)).toBe(403);
+		expect(refused instanceof Response && (await refused.json())).toMatchObject({ code: "EDIT_REQUEST_REFUSED" });
+	});
+
 	test("refuse a connection without the header token, or with one that isn't this session's", async () => {
 		expect(statusOf(await upgrade({ token: null }))).toBe(403);
 		expect(statusOf(await upgrade({ token: "0".repeat(64) }))).toBe(403);

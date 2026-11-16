@@ -60,7 +60,7 @@ describe("the HTML pane's preview in the building area", () => {
 			/<h1 data-wc-item="entry:[0-9a-f-]+" data-wc-field="title"[^>]* data-wc-code="content#title">/,
 		);
 		expect(html).toMatch(/<script src="\/_webcraft\/edit\/assets\/agent-[0-9a-f]+\.js"/);
-		expect(html).not.toContain("webcraft-code-mode");
+		expect(html).not.toContain("/_webcraft/edit/assets/code-");
 		expect(html).not.toMatch(/\/_webcraft\/edit\/assets\/(bar|code)-/);
 		expect(typeof stylesheet.css).toBe("string");
 		const saved = await staff.api.templates.getEntryTemplateMarkup({ siteId, postTypeId });

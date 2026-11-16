@@ -1,7 +1,7 @@
 import { LockIcon, SparklesIcon } from "lucide-react";
 import { type ReactNode, useEffect, useId, useRef } from "react";
 
-import { shortcutText } from "../../builder/shortcuts.ts";
+import { shortcutText } from "../../editor/shortcuts.ts";
 import { fill, type ShellConfig } from "../api.ts";
 import { FOCUS_RING } from "../controls.tsx";
 

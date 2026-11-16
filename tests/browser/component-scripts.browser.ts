@@ -2,20 +2,16 @@
 // script exports runs once for each of its Placements' roots, each call on its own (one that throws
 // doesn't stop the others), a Component placed inside another getting its own call; only exposed
 // Props reach the root as `data-` attributes; the Site script runs first, then the Component scripts,
-// then the page script; a script in a Consent category the visitor hasn't accepted doesn't run. In
-// Edit mode it also runs for Placements added later, and Code mode's JS panel has a Component tab for
-// the Placement selected, showing its errors in the console against that Placement.
+// then the page script; a script in a Consent category the visitor hasn't accepted doesn't run. In the
+// building area, Component scripts running in the frame (also for Placements added later) and the JS
+// pane's Component tab are `building-area-scripts`' checks.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { Cookie, Page } from "playwright";
+import type { Page } from "playwright";
 
-import type { TestAccount } from "../harness/index.ts";
-import { expectNoAxeViolations } from "./checks.ts";
-import { type BrowserInstall, startBrowserInstall, THEMES, type Theme } from "./harness.ts";
+import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
 
 let install: BrowserInstall;
-let staff: TestAccount;
 let siteId: string;
-let counterId: string;
 const slug = "bakery";
 const path = "/blog/fresh-bread";
 
@@ -33,7 +29,6 @@ beforeAll(async () => {
 	const { api } = await local.superadmin();
 	const workspaceId = (await local.createWorkspace("Acme Ltd")).id;
 	siteId = (await local.createSite(workspaceId, { name: "Acme Bakery", slug })).id;
-	staff = (await local.createStaff({ workspaces: [workspaceId], name: "Ciara Byrne" })).account;
 
 	const make = async (name: string, markup: string, code: string, consentCategory?: "marketing") => {
 		const { component } = await api.components.create({ siteId, name });
@@ -47,7 +42,7 @@ beforeAll(async () => {
 		"<span>New</span>",
 		'(window.order ||= []).push("badge");\nexport default (root) => { root.dataset.badge = String(Number(root.dataset.badge || 0) + 1); };',
 	);
-	counterId = await make(
+	await make(
 		"Counter",
 		"{{@props}}\nlabel: text exposed\nsecret: text\n{{/props}}\n<div><p>{{ props.label }}</p><Badge /></div>",
 		COUNTER,
@@ -146,161 +141,5 @@ describe("on a visitor's page", () => {
 		await page.getByRole("button", { name: "Accept all", exact: true }).focus();
 		await page.keyboard.press("Enter");
 		await page.waitForFunction(() => document.documentElement.dataset.tracked === "yes");
-	});
-});
-
-/** The edit and Code mode cookies from the first time Edit mode opened, handed to later pages. */
-let cookies: Cookie[] | undefined;
-
-/** A page in Edit mode, through "Edit on site" in the admin the first time. */
-async function editModePage(theme: Theme): Promise<Page> {
-	const page = await install.newPage(theme);
-	if (cookies) {
-		await page.context().addCookies(cookies);
-	} else {
-		await install.signIn(page, staff);
-		await page.goto(install.adminUrl(`/sites/${siteId}`));
-		await page.getByRole("button", { name: "Edit on site" }).click();
-		await page.waitForURL((url) => url.hostname !== new URL(install.adminUrl("/")).hostname);
-		cookies = (await page.context().cookies()).filter((cookie) => cookie.name === "webcraft.edit");
-	}
-	await page.goto(install.liveUrl(slug, path));
-	await page.getByRole("button", { name: "Publish", exact: true }).waitFor();
-	return page;
-}
-
-describe("in Edit mode", () => {
-	test("Component scripts run, also for a Placement added later; a call that fails shows in the bar", async () => {
-		const page = await editModePage("light");
-		await page.waitForFunction(() => document.querySelectorAll("[data-badge]").length === 3);
-		const notice = page.getByRole("alert").filter({ hasText: "The Component script of Counter failed." });
-		await notice.waitFor();
-		expect(await notice.textContent()).toContain("Counter broke");
-
-		// A Placement added to the page later gets its call too.
-		await page.evaluate((id) => {
-			const added = document.createElement("div");
-			added.setAttribute("data-wc-component", id);
-			added.setAttribute("data-label", "Added");
-			added.innerHTML = "<p>Added</p>";
-			document.querySelector("main article")?.append(added);
-		}, counterId);
-		await page.waitForFunction(
-			() => document.querySelector('[data-label="Added"]')?.getAttribute("data-calls") === "1",
-		);
-		// One inside a Hidden placement gets none.
-		await page.evaluate((id) => {
-			const hidden = document.createElement("section");
-			hidden.setAttribute("data-wc-hidden", "");
-			hidden.innerHTML = `<div data-wc-component="${id}" data-label="Hidden"><p>Hidden</p></div>`;
-			document.querySelector("main article")?.append(hidden);
-		}, counterId);
-		await page.waitForTimeout(300);
-		expect(
-			await page.evaluate(() => document.querySelector('[data-label="Hidden"]')?.getAttribute("data-calls") ?? null),
-		).toBeNull();
-		// The Marketing script runs: people editing are never asked for consent.
-		expect(await page.evaluate(() => document.documentElement.dataset.tracked ?? null)).toBe("yes");
-	});
-});
-
-/** A page in Code mode: Edit mode, then Code in the editing bar. */
-async function codeModePage(theme: Theme): Promise<Page> {
-	const page = await editModePage(theme);
-	if (!(await page.getByRole("textbox", { name: /^JS: / }).count())) {
-		await page.getByRole("button", { name: "Code", exact: true }).click();
-	}
-	await page.getByRole("textbox", { name: /^JS: / }).waitFor();
-	return page;
-}
-
-for (const theme of THEMES) {
-	describe(`Code mode's JS panel, ${theme}`, () => {
-		test("a Placement selected shows its Component tab, with where it is used, its Consent category and Libraries", async () => {
-			const page = await codeModePage(theme);
-			const tab = page
-				.getByRole("group", { name: "Which script", exact: true })
-				.getByRole("button", { name: "Component", exact: true });
-			expect(await tab.isVisible()).toBe(false);
-
-			await page.locator("main [data-label='One'] > p").click();
-			await tab.waitFor();
-			await tab.click();
-
-			const js = page.getByRole("textbox", { name: "JS: Counter · Component script" });
-			await js.waitFor();
-			expect(await js.inputValue()).toBe(COUNTER);
-			await page.getByText("Counter is used on 1 page: changes apply to it").last().waitFor();
-			const consent = page.getByRole("combobox", { name: "Consent category" });
-			expect(await consent.inputValue()).toBe("necessary");
-			await page.getByText("The Site has no Libraries: add them in Site › Libraries.").waitFor();
-			await expectNoAxeViolations(page, `Code mode › Component tab (${theme})`);
-		});
-	});
-}
-
-describe("Code mode's JS panel from the keyboard", () => {
-	test("saves the Component script and its category, runs it, and shows a failing call against its Placement", async () => {
-		const page = await codeModePage("light");
-		await page.locator("main [data-label='Three'] > p").click();
-		const tab = page
-			.getByRole("group", { name: "Which script", exact: true })
-			.getByRole("button", { name: "Component", exact: true });
-		await tab.waitFor();
-		await tab.focus();
-		await page.keyboard.press("Enter");
-		const js = page.getByRole("textbox", { name: "JS: Counter · Component script" });
-		await js.waitFor();
-
-		const consent = page.getByRole("combobox", { name: "Consent category" });
-		await consent.focus();
-		await consent.selectOption("analytics");
-		await js.focus();
-		await page.keyboard.press("ControlOrMeta+End");
-		await page.keyboard.type("// saved from the keyboard\n");
-		await page.keyboard.press("ControlOrMeta+s");
-		await page.getByText("Saved to Draft · Counter · Component script").first().waitFor();
-		const { api } = await install.install.superadmin();
-		const { script } = await api.components.getScript({ siteId, componentId: counterId });
-		expect(script?.draft.consentCategory).toBe("analytics");
-		expect(script?.draft.code).toContain("// saved from the keyboard");
-
-		await page.getByRole("button", { name: "Run", exact: true }).click();
-		const log = page.getByRole("log", { name: "Console" });
-		await log.getByText("Counter failed on a Placement: Counter broke").first().waitFor();
-		// Each Placement on the freshly rendered page ran the new Draft once.
-		await page.waitForFunction(() =>
-			[...document.querySelectorAll("main [data-label]")].every((root) => root.getAttribute("data-calls") === "1"),
-		);
-		await expectNoAxeViolations(page, "Code mode › a Component script failing");
-
-		await log.getByRole("button", { name: "Show on the page" }).first().click();
-		await page.getByRole("textbox", { name: "HTML of Counter · Component" }).waitFor();
-		await api.components.saveScriptDraft({
-			siteId,
-			componentId: counterId,
-			code: COUNTER,
-			consentCategory: "necessary",
-		});
-	});
-});
-
-describe("Code mode's JS panel while Staff type", () => {
-	test("selecting a Placement keeps unsaved text in the Page tab; its Component tab just appears", async () => {
-		const page = await codeModePage("light");
-		await page.getByRole("button", { name: "Page", exact: true }).click();
-		const js = page.getByRole("textbox", { name: "JS: Page script" });
-		await js.waitFor();
-		const typed = `${await js.inputValue()}\n// not saved yet`;
-		await js.fill(typed);
-
-		await page.locator("main [data-label='One'] > p").click();
-		await page
-			.getByRole("group", { name: "Which script", exact: true })
-			.getByRole("button", { name: "Component", exact: true })
-			.waitFor();
-		await page.getByRole("textbox", { name: "HTML of Counter · Component" }).waitFor();
-
-		expect(await js.inputValue()).toBe(typed);
 	});
 });

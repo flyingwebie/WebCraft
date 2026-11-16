@@ -1,13 +1,17 @@
-// The Site's open Checks, their editor links and placement settings, plus the optional Staff form.
+// The Site's open Checks, their links into the building area and an image's Decorative switch there,
+// plus the optional Staff form.
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import en from "../../apps/server/src/messages/en.json";
 import { photo, upload } from "../harness/images.ts";
 import type { TestAccount } from "../harness/index.ts";
+import { enterBuildingArea, frameOf } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall, THEMES } from "./harness.ts";
 
 let install: BrowserInstall;
 let staff: TestAccount;
+/** A Member: the Body is written in place in client editing (BA-18). */
+let member: TestAccount;
 let siteId: string;
 let postTypeId: string;
 let entryId: string;
@@ -20,6 +24,7 @@ beforeAll(async () => {
 	const workspace = (await local.createWorkspace()).id;
 	siteId = (await local.createSite(workspace, { slug: "checks" })).id;
 	staff = (await local.createStaff({ workspaces: [workspace] })).account;
+	member = (await local.createMember({ workspaceId: workspace, role: "editor" })).account;
 	const { api } = await local.superadmin();
 	mediaId = (await api.media.upload({ siteId, file: upload(await photo({ width: 32, height: 32 }), "leaf.jpg") })).media
 		.id;
@@ -52,23 +57,40 @@ for (const theme of THEMES) {
 		const page = await install.newPage(theme);
 		await install.signIn(page, staff);
 		await page.goto(install.adminUrl(`/sites/${siteId}/checks`));
-		const link = page.locator(`a[href='/builder/${siteId}/entry-template/${postTypeId}?element=photo']`).first();
+		// The building area's way in, the image the Check is about selected, coming back to the Checks.
+		// (Its `returnTo` follows the screen's own address, which its filters change.)
+		const link = page
+			.locator(
+				`a[href^='/sites/${siteId}/build?open=%2Fentry-template%2F${postTypeId}&element=photo&returnTo=%2Fsites%2F${siteId}%2Fchecks']`,
+			)
+			.first();
 		await link.waitFor();
 		// Each Check says since when it has been there, the exact time as its title.
 		expect(await page.locator("main li time").count()).toBeGreaterThan(0);
 		await expectAccessibleScreen(page, `Checks with open warnings (${theme})`);
 		await link.focus();
 		await page.keyboard.press("Enter");
-		const decorative = page.getByRole("checkbox", { name: en.checks.decorative });
+		await page.waitForURL((url) => url.pathname.startsWith(`/_webcraft/build/entry-template/${postTypeId}`));
+		await frameOf(page);
+		const decorative = page.getByRole("checkbox", { name: en.buildingArea.structure.inspector.decorative });
 		await decorative.waitFor();
-		await expectAccessibleScreen(page, `Image placement settings (${theme})`, { exclude: ["iframe[title^='Canvas']"] });
+		expect(new URL(page.url()).searchParams.get("wc-select")).toBe("content#photo");
+		await expectAccessibleScreen(page, `The image selected in the building area (${theme})`);
 		await decorative.focus();
 		await page.keyboard.press("Space");
 		expect(await decorative.isChecked()).toBe(true);
-		await page.keyboard.press("ControlOrMeta+s");
-		await page.getByRole("button", { name: "Save", exact: true }).and(page.locator("[disabled]")).waitFor();
+		// Saved as it is changed, through the Template's Draft.
+		for (let attempt = 0; attempt < 50; attempt++) {
+			const draft = (await api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).markup?.draft ?? "";
+			if (draft.includes("data-wc-decorative")) break;
+			await page.waitForTimeout(100);
+		}
 		expect((await api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).markup?.draft).toContain(
 			'data-wc-decorative="true"',
+		);
+		// "Open the admin" goes back to the Checks.
+		expect(await page.getByRole("link", { name: "Back to the admin" }).getAttribute("href")).toStartWith(
+			install.adminUrl(`/sites/${siteId}/checks`),
 		);
 		await page.goto(install.adminUrl(`/sites/${siteId}/entries/${postTypeId}/${entryId}`));
 		await page.waitForLoadState("networkidle");
@@ -121,7 +143,7 @@ for (const theme of THEMES) {
 	});
 }
 
-test("Edit mode keeps Decorative placements empty when the shared Media alt text changes", async () => {
+test("the building area keeps Decorative placements empty when the shared Media alt text changes", async () => {
 	const { api } = await install.install.superadmin();
 	await api.media.update({ siteId, mediaId, alt: "" });
 	const { template: saved } = await api.templates.saveEntryTemplateMarkup({
@@ -142,17 +164,14 @@ test("Edit mode keeps Decorative placements empty when the shared Media alt text
 	});
 	await api.entries.publish({ siteId, entryId });
 	const page = await install.newPage("light");
-	await install.signIn(page, staff);
-	await page.goto(install.adminUrl(`/sites/${siteId}`));
-	await page.getByRole("button", { name: "Edit on site" }).click();
-	await page.waitForURL((url) => url.hostname === new URL(install.siteUrl("checks", "/")).hostname);
-	await page.addInitScript(() => {
-		localStorage.setItem("webcraft-edit-hint", "seen");
+	let frame = await enterBuildingArea(install, page, {
+		as: member,
+		siteId,
+		slug: "checks",
+		open: "/page/stories/leaves",
 	});
-	await page.goto(install.siteUrl("checks", "/stories/leaves"));
-	await page.locator("webcraft-edit-bar").waitFor({ state: "attached" });
-	await page.waitForLoadState("networkidle");
-	await page.locator('[data-wc-block-id="ornament"]').focus();
+	await frame.locator('[data-wc-block-id="ornament"]').waitFor();
+	await frame.locator('[data-wc-block-id="ornament"]').focus();
 	await page.keyboard.press("Alt+F10");
 	await page
 		.getByRole("toolbar", { name: /^Image, block 1: tools$/ })
@@ -163,17 +182,20 @@ test("Edit mode keeps Decorative placements empty when the shared Media alt text
 	const decorative = imageSettings.getByRole("checkbox", { name: en.body.image.decorative });
 	await decorative.focus();
 	await page.keyboard.press("Space");
-	await expectNoAxeViolations(page, "Edit mode Decorative image settings", ["region"]);
+	await expectNoAxeViolations(page, "building area › Decorative image settings", ["region"]);
 	await imageSettings.getByRole("button", { name: "Done", exact: true }).click();
-	await page.locator('[data-wc-block-id="ornament"] img[data-wc-image-decorative="true"]').waitFor();
-	const meaningful = page.locator('[data-wc-block-id="meaning"] img');
-	await meaningful.click();
-	await page.getByRole("textbox", { name: "Alt text · English" }).fill("A fresh leaf");
-	await page.getByRole("textbox", { name: "Alt text · English" }).blur();
-	await page.waitForFunction(() => [...document.querySelectorAll("img")].some((img) => img.alt === "A fresh leaf"));
-	await page.keyboard.press("Escape");
-	await page.getByRole("button", { name: "Preview", exact: true }).click();
-	expect(await page.locator('main img[alt=""]').count()).toBe(2);
-	expect(await page.locator('main img[alt="A fresh leaf"]').count()).toBe(1);
+	await frame.locator('[data-wc-block-id="ornament"] img[data-wc-image-decorative="true"]').waitFor();
+	for (let attempt = 0; attempt < 50; attempt++) {
+		const { entry } = await api.entries.get({ siteId, entryId });
+		if (JSON.stringify(entry.draft.fields).includes('"decorative":true')) break;
+		await page.waitForTimeout(100);
+	}
+	// The shared Media item gets a description (in the Media place, or a photo's popover).
+	await api.media.update({ siteId, mediaId, alt: "A fresh leaf" });
+	await page.reload();
+	frame = await frameOf(page);
+	await frame.locator('main img[alt="A fresh leaf"]').waitFor();
+	expect(await frame.locator('main img[alt=""]').count()).toBe(2);
+	expect(await frame.locator('main img[alt="A fresh leaf"]').count()).toBe(1);
 	await page.close();
 });

@@ -18,9 +18,9 @@ import { clientAddress } from "../client-address.ts";
 import { mediaFileResponse } from "../media-response.ts";
 import { recordedAddress } from "../recorded-address.ts";
 import { type Handler, json, notFound, plainText, readOnly, withinBodyCeiling } from "../responses.ts";
-import { BUILDER_CANVAS_PATH, builderCanvas } from "./builder-canvas.ts";
 import { CADDY_ASK_PATH, caddyAsk } from "./caddy-ask.ts";
 import { healthz, readyz } from "./health.ts";
+import { PREVIEW_CANVAS_PATH, previewCanvas } from "./preview-canvas.ts";
 import { type AdminApp, withAdminHeaders } from "./security-headers.ts";
 
 /**
@@ -28,8 +28,8 @@ import { type AdminApp, withAdminHeaders } from "./security-headers.ts";
  * `/readyz`, Caddy's ask at `/caddy/ask`, the Management API at `/api/rpc` for the admin's pages
  * and at `/api/v1` for API tokens, the MCP server at `/mcp`, the OAuth endpoints its AI clients use
  * (`/.well-known/…`, `/oauth/register`, `/oauth/token`, `/oauth/revoke`), Media previews at
- * `/api/media/…`, Form uploads at `/api/forms/uploads/…`, the builder's canvas at
- * `/api/builder/canvas`); the admin app renders the rest,
+ * `/api/media/…`, Form uploads at `/api/forms/uploads/…`, the admin's preview canvas at
+ * `/api/preview/canvas`); the admin app renders the rest,
  * the approval pages at `/oauth/authorize` and `/oauth/device` included.
  *
  * Every answer leaves with the admin's security headers (`withAdminHeaders`), an unexpected failure's
@@ -49,8 +49,8 @@ export function createAdminSide(services: InstallServices, adminApp?: AdminApp):
 				return readyz(request, services);
 			case CADDY_ASK_PATH:
 				return caddyAsk(services, request);
-			case BUILDER_CANVAS_PATH:
-				return readOnly(request, builderCanvas);
+			case PREVIEW_CANVAS_PATH:
+				return readOnly(request, previewCanvas);
 		}
 		if (pathname === ADMIN_API_PREFIX || pathname.startsWith(`${ADMIN_API_PREFIX}/`)) {
 			// Only POST: a link or a top-level navigation from another site (which carries the

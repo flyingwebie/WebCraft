@@ -38,37 +38,6 @@ export type Selection = { kind: "node"; path: NodePath } | { kind: "list"; list:
 
 type T = ReturnType<typeof useT>;
 
-/** The address of a target in the builder: `/builder/<site>/entry-template/<post type>`. */
-export function targetPath(target: BuilderTarget): string {
-	switch (target.kind) {
-		case "siteTemplate":
-			return "site-template";
-		case "searchTemplate":
-			return "search-template";
-		case "entryTemplate":
-			return `entry-template/${target.postTypeId}`;
-		case "archiveTemplate":
-			return `archive-template/${target.postTypeId}`;
-		case "component":
-			return `component/${target.componentId}`;
-	}
-}
-
-const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/** A target from its address in the builder, or undefined for an address that names none. */
-export function targetFromPath(path: string): BuilderTarget | undefined {
-	const [kind = "", id = "", ...rest] = path.split("/");
-	if (rest.length > 0) return undefined;
-	if (kind === "site-template" && !id) return { kind: "siteTemplate" };
-	if (kind === "search-template" && !id) return { kind: "searchTemplate" };
-	if (!ID.test(id)) return undefined;
-	if (kind === "entry-template") return { kind: "entryTemplate", postTypeId: id };
-	if (kind === "archive-template") return { kind: "archiveTemplate", postTypeId: id };
-	if (kind === "component") return { kind: "component", componentId: id };
-	return undefined;
-}
-
 /** What the builder calls a Template or Component: "Blog posts · Entry template", "Card". */
 export function targetTitle(t: T, opened: Opened, target: BuilderTarget): string {
 	switch (target.kind) {

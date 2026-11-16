@@ -24,7 +24,7 @@ import {
 	widestFor,
 } from "./gutters.ts";
 import { chipName, createOverlay, nameOf, type Overlay } from "./overlay.ts";
-import { chosenRefOf, PLACED_FORM, placedFormAt, placedFormOf } from "./placed-form.ts";
+import { chosenRefOf, commandElementAt, PLACED_FORM, placedFormAt, placedFormOf } from "./placed-form.ts";
 import { endPreview, showPreview } from "./preview.ts";
 import { answerRedraws } from "./redraw.ts";
 import { regionSaving, type SavingStatus } from "./regions.ts";
@@ -90,6 +90,9 @@ export type PageTheme = "dark" | "light" | null;
 function elementOfRef(page: Document, ref: string): Element | null {
 	const exact = page.querySelector(`[data-wc-code="${CSS.escape(ref)}"]`);
 	if (exact) return exact;
+	// A command (a Filter, a Condition) carries no reference of its own: the first element it draws.
+	const drawn = commandElementAt(page, ref);
+	if (drawn) return drawn;
 	const source = ref.includes("#") ? ref.replace("#", "/") : ref;
 	return page.querySelector(`[data-wc-code^="${CSS.escape(`${source}#`)}"]`);
 }

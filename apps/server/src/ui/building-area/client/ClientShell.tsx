@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
-import { editorHistory } from "../../builder/editor-history.ts";
+import { editorHistory } from "../../editor/editor-history.ts";
 import { type EditAnswer, editRequests, fill, type PageState, type ShellConfig } from "../api.ts";
 import type { PageLanguage } from "../bottom-bar/LanguageMenu.tsx";
 import { Frame, type FrameHandle } from "../canvas/Frame.tsx";

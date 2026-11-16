@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import type { StatementForm, StatementSettings } from "@webcraft/core";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
@@ -176,9 +177,14 @@ function StatementPage({
 				>
 					{t("statement.edit")}
 				</a>
-				<a className="underline underline-offset-4" href={`/builder/${siteId}/component/${settings.componentId}`}>
+				<Link
+					className="underline underline-offset-4"
+					to="/sites/$siteId/build"
+					params={{ siteId }}
+					search={{ open: `/component/${settings.componentId}`, returnTo: `/sites/${siteId}/accessibility-statement` }}
+				>
 					{t("statement.component")}
-				</a>
+				</Link>
 			</div>
 			<SettingsRows>
 				<SettingsRow label={t("statement.enabled")} htmlFor={`${id}-enabled`}>

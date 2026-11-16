@@ -1,15 +1,12 @@
-import { Link, useRouteContext } from "@tanstack/react-router";
+import { Link, useNavigate, useRouteContext } from "@tanstack/react-router";
 import type { ApiClient } from "@webcraft/api";
 import { Avatar, AvatarFallback } from "@webcraft/ui/components/avatar.tsx";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button, buttonVariants } from "@webcraft/ui/components/button.tsx";
 import { ExternalLinkIcon, FilePlusIcon, SquarePenIcon, UploadIcon } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { toast } from "sonner";
 
-import { getApi } from "../api.ts";
 import { useAuditWords } from "../audit/AuditLog.tsx";
-import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
 import { type ReviewView, reviewItemName } from "../review/Review.tsx";
 import { SettingsCard, StateBadge, type StateTone } from "../settings/layout.tsx";
@@ -197,21 +194,21 @@ function QuickActions({
 }) {
 	const t = useT();
 	const impersonating = Boolean(useRouteContext({ from: "__root__" }).shell.impersonation);
+	const navigate = useNavigate();
 	const [opening, setOpening] = useState(false);
 	const canEdit = permissions.includes("entry.edit");
 	const pages = postTypes.find((postType) => postType.builtIn === "page");
 	const others = postTypes.filter((postType) => postType.builtIn !== "page").slice(0, 2);
 	const actionClass = "w-full justify-start";
 
-	const editOnSite = async () => {
+	// The building area on the home page, through the admin's way in; its logo tile comes back here.
+	const editOnSite = () => {
 		setOpening(true);
-		try {
-			const { url } = await (await getApi()).editMode.open({ siteId, path: "/", safeMode: false });
-			window.location.assign(url);
-		} catch (failure) {
-			toast.error(t(errorMessage(failure)));
-			setOpening(false);
-		}
+		void navigate({
+			to: "/sites/$siteId/build",
+			params: { siteId },
+			search: { open: "/page/", returnTo: `/sites/${siteId}` },
+		});
 	};
 
 	const actions: ReactNode[] = [];

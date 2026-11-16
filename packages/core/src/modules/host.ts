@@ -1693,14 +1693,19 @@ function keyOf(permission: AddedPermission | Permission): string {
 	return typeof permission === "string" ? permission : permission.key;
 }
 
+/** The header Edit mode's requests carry the session's header token in (the building area's, ADR 0037). */
+const EDIT_TOKEN_HEADER = "x-webcraft-edit-token";
+
 /**
- * The request as a Module's Site route sees it: without WebCraft's own cookies (Edit mode's, and
- * any other WebCraft sets on the Site's domain), so a Module never acts with them.
+ * The request as a Module's Site route sees it: without WebCraft's own cookies (Edit mode's and the
+ * building area's, and any other WebCraft sets on the Site's domain), nor an Edit mode session's
+ * header token a page sent along, so a Module never acts with them.
  */
 function forModule(request: Request): Request {
 	const cookie = request.headers.get("cookie");
-	if (cookie === null) return request;
+	if (cookie === null && !request.headers.has(EDIT_TOKEN_HEADER)) return request;
 	const headers = new Headers(request.headers);
+	headers.delete(EDIT_TOKEN_HEADER);
 	const kept = withoutWebCraftCookies(cookie);
 	if (kept === null) headers.delete("cookie");
 	else headers.set("cookie", kept);

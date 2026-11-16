@@ -1,14 +1,12 @@
-// Code mode as the editing bar uses it (ADR 0016): Staff in Edit mode turn it on with an edit
-// request, then pages show the Drafts of the Site's Structure with every element tagged with where
-// it comes from, and Code mode's own requests read and save Template markup, CSS and scripts.
-import { expect } from "bun:test";
-
+// Staff's code panes in the building area (ADR 0037; the requests Code mode had, ADR 0016): a page
+// Staff open in Edit mode shows the Drafts of the Site's Structure with every element tagged with
+// where it comes from, and the `code/*` edit requests read and save Template markup, CSS and scripts.
 import { type EditModeBrowser, openEditMode } from "./edit-mode.ts";
 import type { TestBrowser, TestInstall } from "./index.ts";
 
 /**
- * Opens a Site in Edit mode for the person whose admin browser this is, and turns Code mode on
- * there, as the editing bar's Code button does.
+ * Opens a Site in Edit mode for the person whose admin browser this is (Staff, for the code panes),
+ * loading the page at `path` as the building area's frame does.
  */
 export async function openCodeMode(
 	install: TestInstall,
@@ -16,11 +14,7 @@ export async function openCodeMode(
 	siteId: string,
 	path = "/",
 ): Promise<EditModeBrowser> {
-	const editing = await openEditMode(install, admin, siteId, path);
-	const started = await editing.edit("code/start");
-	expect(started.status).toBe(200);
-	await editing.page(path);
-	return editing;
+	return openEditMode(install, admin, siteId, path);
 }
 
 /** An edit request's JSON answer, failing the test unless it answered 200. */

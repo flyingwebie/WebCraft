@@ -77,7 +77,12 @@ export const editSessions = pgTable(
 	],
 );
 
-/** Ephemeral, single-use editor navigation payloads; reload never claims one again. */
+/**
+ * Ephemeral, single-use editor navigation payloads (the Undo history handed between the old editors,
+ * ADR 0036). Nothing writes or reads it since the building area keeps the history in its tab (ADR
+ * 0037, BA-29). Dropping it is a migration of its own after a release (ADR 0031: an Install a release
+ * behind still holds rows); until then it stays declared so the schema matches the database.
+ */
 export const editorHistoryTransfers = pgTable(
 	"editor_history_transfers",
 	{

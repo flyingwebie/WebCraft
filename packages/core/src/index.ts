@@ -66,7 +66,6 @@ export {
 	type CommandMenuData,
 	GO_TO_ENTRIES,
 	type GoToPage,
-	HISTORY_TRANSFER_MAX_LENGTH,
 	type PendingStyles,
 } from "./builder/index.ts";
 export * from "./cdns/index.ts";
@@ -126,6 +125,7 @@ export {
 	BUILDING_AREA_PAGE_PATH,
 	BUILDING_AREA_PATH,
 	BUILDING_AREA_STAND_IN_PATH,
+	BUILDING_ELEMENT_PARAMETER,
 	BUILDING_FILTER_PARAMETER,
 	type BuildingDocument,
 	buildingAreaPageAddress,

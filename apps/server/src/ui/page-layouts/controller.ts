@@ -1,9 +1,9 @@
 import type { ApiClient } from "@webcraft/api";
 import type { FieldDefinition, Json } from "@webcraft/core";
 import { type Json as DocumentJson, sameValue } from "@webcraft/core/draft-document";
-import type { BarKit } from "../../site/edit-bar/kit.ts";
-import { editorAccessibility } from "../builder/editor-accessibility.ts";
 import { readFieldValues } from "../co-editing/values.ts";
+import { editorAccessibility } from "../editor/editor-accessibility.ts";
+import type { BarKit } from "../page-kit.ts";
 
 import { draftLayout, propsInput } from "./props-input.ts";
 

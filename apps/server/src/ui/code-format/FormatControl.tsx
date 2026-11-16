@@ -2,8 +2,8 @@ import { Button } from "@webcraft/ui/components/button.tsx";
 import { BracesIcon, CheckIcon, LoaderCircleIcon, TriangleAlertIcon } from "lucide-react";
 import { type KeyboardEvent, type RefObject, useCallback, useEffect, useRef, useState } from "react";
 
-import { editorHistory } from "../builder/editor-history.ts";
-import { ariaKeys, withKeys } from "../builder/shortcuts.ts";
+import { editorHistory } from "../editor/editor-history.ts";
+import { ariaKeys, withKeys } from "../editor/shortcuts.ts";
 import { useT } from "../i18n.tsx";
 import { FORMAT_SHOWN_MS, FORMAT_SPINNER_MS, formatTextArea, isFormatKey } from "./box.ts";
 import { type CodeLanguage, format } from "./format.ts";

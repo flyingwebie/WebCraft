@@ -58,13 +58,12 @@ import { siteFormList } from "../forms/forms.ts";
 import type { SitePages } from "../site-pages/index.ts";
 import type { SiteScope } from "../tenancy/data-layer.ts";
 import { type CommandMenuData, commandMenuData } from "./command-menu.ts";
-import { claimHistory, reverseHttpHistory, transferHistory } from "./history.ts";
+import { reverseHttpHistory } from "./history.ts";
 import { type BuilderDestinations, builderDestinations } from "./navigation.ts";
 import { adminMediaPath, renderPreview } from "./preview.ts";
 import { type BuilderSource, type BuilderTarget, readSource } from "./sources.ts";
 
 export { COMMAND_PERMISSIONS, type CommandMenuData, GO_TO_ENTRIES, type GoToPage } from "./command-menu.ts";
-export { HISTORY_TRANSFER_MAX_LENGTH } from "./history.ts";
 export { CANVAS_SOURCE, type CanvasPlaceholder } from "./preview.ts";
 export type { BuilderTarget } from "./sources.ts";
 
@@ -132,8 +131,6 @@ export type BuilderPreview = { html: string; css: string; checks: import("@webcr
 
 export type Builder = {
 	historyDesign: typeof draftDesignSystem;
-	transferHistory: typeof transferHistory;
-	claimHistory: typeof claimHistory;
 	reverseHistory: typeof reverseHttpHistory;
 	/**
 	 * What the Command menu needs on either canvas: the Permissions the person holds on the Site
@@ -190,8 +187,6 @@ export function createBuilder(options: {
 }): Builder {
 	const { sources } = options;
 	return {
-		transferHistory,
-		claimHistory,
 		reverseHistory: reverseHttpHistory,
 		historyDesign: draftDesignSystem,
 		commandMenu: (scope) => commandMenuData(scope, sources),

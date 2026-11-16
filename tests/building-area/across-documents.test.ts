@@ -73,7 +73,6 @@ describe("a Template opened with a Filter selected", () => {
 		await expect(
 			staff.api.editMode.open({
 				siteId,
-				building: true,
 				open: `/archive-template/${postTypeId}?wc-filter=<script>`,
 			}),
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });

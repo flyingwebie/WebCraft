@@ -3,7 +3,8 @@ import { fileURLToPath } from "node:url";
 import { compile, optimize } from "@tailwindcss/node";
 import { Scanner } from "@tailwindcss/oxide";
 
-import { EDIT_ASSETS_PATH, editBarAssets, formatEngine } from "../edit-bar/assets.ts";
+/** Where WebCraft's own files for editing are served on every Site's domain (ADR 0023). */
+export const EDIT_ASSETS_PATH = "/_webcraft/edit/assets/";
 
 /** One of the building area's files: named by the hash of its content, so it never changes. */
 export type BuildingAreaAsset = {
@@ -36,12 +37,20 @@ export type BuildingAreaAssets = {
 	agentStyles: BuildingAreaAsset;
 	/** Inter's files, which the shell's stylesheet names. */
 	fonts: readonly BuildingAreaAsset[];
+	/**
+	 * The block editor's body part (#79, `body-editor/edit-mode.ts`, with the editor model it shares
+	 * with the admin), an ES module the page agent loads in the page's own realm on pages showing a
+	 * body (BA-18).
+	 */
+	body: BuildingAreaAsset;
+	/** Format's engine (Prettier, `ui/code-format/engine.ts`), an ES module loaded the first time Format is used. */
+	format: BuildingAreaAsset;
 	/** Every file by its name. */
 	byName: ReadonlyMap<string, BuildingAreaAsset>;
 };
 
 /** The stems the building area's files are named with, so a request for one makes only these. */
-const STEMS = ["shell", "agent", "inter"] as const;
+const STEMS = ["shell", "agent", "inter", "body", "format"] as const;
 
 /** Whether `name` is one of the building area's files, by its stem (it may still name none). */
 export function isBuildingAreaAsset(name: string): boolean {
@@ -52,7 +61,7 @@ let assets: Promise<BuildingAreaAssets> | undefined;
 
 /**
  * The building area's files (ADR 0037; ADR 0023: WebCraft's own scripts are hashed files on the Site's
- * domain, never inline), served beside the editing bar's at `/_webcraft/edit/assets/<stem>-<hash>`.
+ * domain, never inline), served at `/_webcraft/edit/assets/<stem>-<hash>`.
  * They are made once per web process, the first time something asks for one of them.
  */
 export function buildingAreaAssets(): Promise<BuildingAreaAssets> {
@@ -73,13 +82,16 @@ async function makeAssets(): Promise<BuildingAreaAssets> {
 			return asset("inter", "woff2", new Uint8Array(await Bun.file(path).arrayBuffer()), "font/woff2");
 		}),
 	);
-	// Format's engine (Prettier) is the editing bar's file of its own, loaded the first time Format is used.
-	const { format } = await editBarAssets();
-	const [{ shell, shellChunks, shellPreload }, agentCode, styles] = await Promise.all([
+	// Format's engine (Prettier), a file of its own: loaded only the first time Format is used.
+	const format = await asset("format", "js", await esModule("@webcraft/server/editor/code-format"), JS);
+	const [{ shell, shellChunks, shellPreload }, agentCode, styles, bodyCode] = await Promise.all([
 		shellModules(formatEngine(format.path)),
 		bundle("@webcraft/server/building-area/agent", "iife"),
 		shellStylesheet(theme, fonts),
+		// Resolved through the server package's own name, so it is found from the built bundle too.
+		esModule("@webcraft/server/body-editor/edit-mode"),
 	]);
+	const body = await asset("body", "js", bodyCode, JS);
 	const agent = await asset("agent", "js", agentCode, "text/javascript; charset=utf-8");
 	const shellStyles = await asset("shell", "css", styles, "text/css; charset=utf-8");
 	const agentStyles = await asset("agent", "css", AGENT_STYLES, "text/css; charset=utf-8");
@@ -91,9 +103,37 @@ async function makeAssets(): Promise<BuildingAreaAssets> {
 		agent,
 		agentStyles,
 		fonts,
+		body,
+		format,
 		byName: new Map(
-			[shell, ...shellChunks, shellStyles, agent, agentStyles, ...fonts].map((file) => [file.name, file]),
+			[shell, ...shellChunks, shellStyles, agent, agentStyles, ...fonts, body, format].map((file) => [file.name, file]),
 		),
+	};
+}
+
+const JS = "text/javascript; charset=utf-8";
+
+/** An ES module bundled by Bun from the sources the web process runs from, through a package's own name. */
+async function esModule(entryName: string): Promise<string> {
+	const entry = Bun.resolveSync(entryName, dirname(fileURLToPath(import.meta.url)));
+	const built = await Bun.build({ entrypoints: [entry], target: "browser", format: "esm", minify: true });
+	const [output] = built.outputs;
+	if (!built.success || !output) throw new Error(`${entryName} couldn't be built: ${built.logs.join("; ")}`);
+	return output.text();
+}
+
+/**
+ * Makes the shell load Format's engine from its own file when Format is first used, rather than carry
+ * Prettier in its bundle (`format.ts` imports `./engine.ts` on demand).
+ */
+function formatEngine(formatPath: string): Bun.BunPlugin {
+	return {
+		name: "format-engine-file",
+		setup(build) {
+			build.onResolve({ filter: /^\.\/engine\.ts$/ }, (found) =>
+				/[\\/]code-format[\\/]format\.ts$/.test(found.importer) ? { path: formatPath, external: true } : undefined,
+			);
+		},
 	};
 }
 

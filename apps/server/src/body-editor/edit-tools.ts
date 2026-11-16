@@ -9,7 +9,7 @@ import {
 	videoAt,
 } from "@webcraft/renderer/body/editing";
 
-import type { BarKit, BodyTools, PresenceTarget, SharedDraft } from "../site/edit-bar/kit.ts";
+import type { BarKit, BodyTools, PresenceTarget, SharedDraft } from "../ui/page-kit.ts";
 import {
 	caretOffset,
 	caretOnEdgeLine,

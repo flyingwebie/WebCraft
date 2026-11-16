@@ -9,7 +9,7 @@ import { createHash } from "node:crypto";
 
 import { type BuildingAreaBrowser, openBuildingArea, shellConfigIn } from "../harness/building-area.ts";
 import { headOf } from "../harness/code-mode.ts";
-import { openEditMode } from "../harness/edit-mode.ts";
+import { openEditMode, withoutBuildingAreaCookie } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -155,9 +155,9 @@ describe("the shell's addresses", () => {
 		});
 		expect(entry.landed).toBe(`/_webcraft/build/entry-template/${postTypeId}?entry=${firstId}`);
 
-		await expect(
-			staff.api.editMode.open({ siteId, building: true, open: "/component/not-an-id" }),
-		).rejects.toMatchObject({ status: 400 });
+		await expect(staff.api.editMode.open({ siteId, open: "/component/not-an-id" })).rejects.toMatchObject({
+			status: 400,
+		});
 	});
 });
 
@@ -247,8 +247,9 @@ describe("the stand-in", () => {
 		expect(anonymous.status).toBe(401);
 		expect(await anonymous.text()).not.toContain("Best rye");
 
-		// In Edit mode with the editing bar, without having entered the building area.
+		// In Edit mode without the building-area cookie (a session from before it).
 		const editing = await openEditMode(install, staff, siteId, "/");
+		withoutBuildingAreaCookie(editing.browser);
 		const plain = await editing.browser.request(`${origin}/_webcraft/build/stand-in/component/${componentId}`, {
 			headers: { "sec-fetch-dest": "iframe" },
 		});
