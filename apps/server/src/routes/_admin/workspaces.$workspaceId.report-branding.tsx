@@ -6,7 +6,7 @@ import { Forbidden } from "../../ui/PageHeader.tsx";
 import { WorkspaceBrandingPage } from "../../ui/reports/Branding.tsx";
 
 export const Route = createFileRoute("/_admin/workspaces/$workspaceId/report-branding")({
-	staticData: { crumb: "branding.workspacePageTitle" },
+	staticData: { crumb: "branding.workspacePageTitle", width: "form" },
 	loader: async ({ params, context }) => {
 		if (!context.place.permissions.includes("reportBranding.manage")) return null;
 		return (await (await getApi()).reportBranding.workspace.get({ workspaceId: params.workspaceId })).branding;
@@ -23,5 +23,5 @@ function WorkspaceReportBranding() {
 	const branding = Route.useLoaderData();
 	const { workspaceId } = Route.useParams();
 	if (!branding) return <Forbidden heading={t("forbidden.heading")} body={t("forbidden.body")} />;
-	return <WorkspaceBrandingPage key={JSON.stringify(branding)} workspaceId={workspaceId} branding={branding} />;
+	return <WorkspaceBrandingPage workspaceId={workspaceId} branding={branding} />;
 }

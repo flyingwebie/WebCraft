@@ -118,6 +118,7 @@ describe("building a Form", () => {
 			placeholder: null,
 			message: null,
 			required: true,
+			width: "whole",
 			minLength: null,
 			maxLength: null,
 			pattern: null,

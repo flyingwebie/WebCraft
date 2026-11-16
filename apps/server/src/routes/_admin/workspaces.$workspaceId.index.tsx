@@ -1,6 +1,5 @@
 import { createFileRoute, Link, useNavigate, useRouter } from "@tanstack/react-router";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import { Card, CardDescription, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
 import {
 	Dialog,
 	DialogClose,
@@ -14,24 +13,42 @@ import {
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@webcraft/ui/components/empty.tsx";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
-import { AppWindowIcon, ArchiveRestoreIcon, GlobeIcon, PlusIcon } from "lucide-react";
+import { ArchiveRestoreIcon, GlobeIcon, PlusIcon } from "lucide-react";
 import { type FormEvent, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../../ui/api.ts";
+import { ActivityCard, DomainState } from "../../ui/content/SiteOverview.tsx";
 import { errorCode, errorMessage } from "../../ui/errors.ts";
 import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
 import { formatBytes } from "../../ui/media/preview.ts";
 import { type MediaStorageView, QuotaNotice, StorageMeter } from "../../ui/media/StorageCard.tsx";
 import { PageHeader } from "../../ui/PageHeader.tsx";
+import { SettingsCard, StateBadge } from "../../ui/settings/layout.tsx";
 import type { AdminPlace } from "../../ui/shell/levels.ts";
 import { slugFrom } from "../../ui/site-slug.ts";
 
+/** How many of the Workspace's newest Audit log entries "Recent activity" shows. */
+const ACTIVITY = 5;
+
 export const Route = createFileRoute("/_admin/workspaces/$workspaceId/")({
-	staticData: { crumb: "sites.pageTitle" },
-	loader: async ({ params }) => {
+	staticData: { crumb: "sites.pageTitle", width: "wide" },
+	loader: async ({ params, context }) => {
 		const api = await getApi();
-		return { storage: await api.workspaces.storage({ workspaceId: params.workspaceId }) };
+		const sites = context.place.level === "workspace" ? context.place.sites : [];
+		const [storage, activity, cards] = await Promise.all([
+			api.workspaces.storage({ workspaceId: params.workspaceId }),
+			// Only those who read the Audit log (Staff, Owners) get "Recent activity"; it is never asked for the others.
+			context.place.level === "workspace" && context.place.permissions.includes("audit.view")
+				? api.audit.list({ workspaceId: params.workspaceId, limit: ACTIVITY }).catch(() => null)
+				: null,
+			Promise.all(sites.map((site) => siteCardOf(api, site.id))),
+		]);
+		return {
+			storage,
+			activity,
+			cards: Object.fromEntries(sites.map((site, index) => [site.id, cards[index] ?? null])),
+		};
 	},
 	head: ({ match }) => ({ meta: [{ title: pageTitle(match.context.shell.language.code, "sites.pageTitle") }] }),
 	component: SitesPage,
@@ -39,16 +56,43 @@ export const Route = createFileRoute("/_admin/workspaces/$workspaceId/")({
 
 type WorkspacePlace = Extract<AdminPlace, { level: "workspace" }>;
 
-/** Workspace › Sites: the Workspace's websites the person reaches; Staff create them here. */
+/** What a Site's card says: its Primary domain and its state, its languages and how many changes wait. */
+type SiteCardData = {
+	domain: { name: string; status: "active" | "waiting" | "unreachable" } | null;
+	staging: string | null;
+	languages: string[];
+	changes: number;
+};
+
+async function siteCardOf(api: Awaited<ReturnType<typeof getApi>>, siteId: string): Promise<SiteCardData | null> {
+	try {
+		const [domains, { settings }, { count }] = await Promise.all([
+			api.domains.list({ siteId }),
+			api.languages.list({ siteId }),
+			api.publishing.count({ siteId }),
+		]);
+		const primary = domains.domains.find((domain) => domain.role === "primary");
+		return {
+			domain: primary ? { name: primary.displayName, status: primary.status } : null,
+			staging: domains.stagingUrl ? new URL(domains.stagingUrl).host : null,
+			languages: settings.languages.map((language) => language.code),
+			changes: count,
+		};
+	} catch {
+		return null;
+	}
+}
+
+/** Workspace › Sites (frame 06): the Workspace's websites the person reaches, and what happened lately; Staff create them here. */
 function SitesPage() {
 	const t = useT();
 	const place = Route.useRouteContext().place as WorkspacePlace;
 	const canCreate = place.permissions.includes("site.create");
 	const canImport = place.permissions.includes("site.import");
-	const { storage } = Route.useLoaderData();
+	const { storage, activity, cards } = Route.useLoaderData();
 	const actions =
 		canCreate || canImport ? (
-			<div className="flex flex-wrap gap-2">
+			<>
 				{canImport ? (
 					<Button
 						variant="outline"
@@ -60,7 +104,7 @@ function SitesPage() {
 					</Button>
 				) : null}
 				{canCreate ? <NewSiteDialog place={place} /> : null}
-			</div>
+			</>
 		) : undefined;
 
 	return (
@@ -68,54 +112,87 @@ function SitesPage() {
 			<PageHeader heading={t("sites.heading")} action={actions}>
 				{t("sites.intro")}
 			</PageHeader>
-			{place.sites.length === 0 ? (
-				<Empty className="border">
-					<EmptyHeader>
-						<EmptyMedia variant="icon">
-							<GlobeIcon aria-hidden="true" />
-						</EmptyMedia>
-						<EmptyTitle>
-							<h2>{t("sites.empty.heading")}</h2>
-						</EmptyTitle>
-						<EmptyDescription>{canCreate ? t("sites.empty.bodyStaff") : t("sites.empty.body")}</EmptyDescription>
-					</EmptyHeader>
-				</Empty>
-			) : (
-				<ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-					{place.sites.map((site) => (
-						<li key={site.id}>
-							<Card className="relative h-full overflow-hidden pt-0">
-								<div className="bg-muted text-muted-foreground flex h-24 items-center justify-center">
-									<AppWindowIcon className="size-8" aria-hidden="true" />
-								</div>
-								<CardHeader>
-									<CardTitle>
-										<h2>
-											<Link
-												to="/sites/$siteId"
-												params={{ siteId: site.id }}
-												className="after:absolute after:inset-0 hover:underline"
-											>
-												{site.name}
-											</Link>
-										</h2>
-									</CardTitle>
-									<CardDescription>
-										<span className="sr-only">{t("sites.slugLabel")}: </span>
-										{site.slug}
-									</CardDescription>
-								</CardHeader>
-							</Card>
-						</li>
-					))}
-				</ul>
-			)}
-			<WorkspaceStorage
-				workspaceId={place.workspace.id}
-				storage={storage}
-				canSetQuota={place.permissions.includes("quota.manage")}
-			/>
+			<div className="grid gap-6">
+				{place.sites.length === 0 ? (
+					<Empty className="border">
+						<EmptyHeader>
+							<EmptyMedia variant="icon">
+								<GlobeIcon aria-hidden="true" />
+							</EmptyMedia>
+							<EmptyTitle>
+								<h2>{t("sites.empty.heading")}</h2>
+							</EmptyTitle>
+							<EmptyDescription>{canCreate ? t("sites.empty.bodyStaff") : t("sites.empty.body")}</EmptyDescription>
+						</EmptyHeader>
+					</Empty>
+				) : (
+					<ul className="grid gap-6 @2xl/page:grid-cols-2 @4xl/page:grid-cols-3">
+						{place.sites.map((site) => (
+							<li key={site.id}>
+								<SiteCard site={site} card={cards[site.id] ?? null} />
+							</li>
+						))}
+					</ul>
+				)}
+				{activity ? (
+					<div className="@4xl/page:max-w-216">
+						<ActivityCard activity={activity} withSite />
+					</div>
+				) : null}
+				<WorkspaceStorage
+					workspaceId={place.workspace.id}
+					storage={storage}
+					canSetQuota={place.permissions.includes("quota.manage")}
+				/>
+			</div>
 		</>
+	);
+}
+
+/** One Site: a picture, its name and whether its domain is live, the domain, its languages and how many changes wait. */
+function SiteCard({ site, card }: { site: { id: string; name: string; slug: string }; card: SiteCardData | null }) {
+	const t = useT();
+	const facts = [
+		card?.languages.map((code) => code.toUpperCase()).join(" · "),
+		card && card.changes > 0 ? t("sites.card.changes", { count: card.changes }) : null,
+	].filter(Boolean);
+	return (
+		<article className="bg-card text-card-foreground ring-foreground/10 relative h-full overflow-hidden rounded-xl shadow-xs ring-1">
+			<SitePicture />
+			<div className="grid gap-1.5 p-4">
+				<div className="flex items-center justify-between gap-2">
+					<h2 className="min-w-0 truncate text-base font-medium">
+						<Link
+							to="/sites/$siteId"
+							params={{ siteId: site.id }}
+							className="focus-visible:ring-ring/50 rounded-sm outline-none after:absolute after:inset-0 hover:underline focus-visible:underline focus-visible:ring-3"
+						>
+							{site.name}
+						</Link>
+					</h2>
+					{card?.domain ? (
+						<DomainState status={card.domain.status} />
+					) : (
+						<StateBadge tone="neutral">{t("site.overview.noDomainBadge")}</StateBadge>
+					)}
+				</div>
+				<p className="text-muted-foreground truncate font-mono text-sm">
+					<span className="sr-only">{t("sites.card.address")}: </span>
+					{card?.domain?.name ?? card?.staging ?? site.slug}
+				</p>
+				{facts.length > 0 ? <p className="text-muted-foreground text-[13px]">{facts.join(" · ")}</p> : null}
+			</div>
+		</article>
+	);
+}
+
+/** The card's picture: a Site has none of its own yet, so a quiet drawing in the theme's colours stands in. */
+function SitePicture() {
+	return (
+		<div aria-hidden="true" className="bg-muted relative h-30 overflow-hidden">
+			<div className="bg-foreground/5 absolute -end-10 -top-16 size-48 rounded-full" />
+			<div className="bg-foreground/10 absolute start-1/5 bottom-4 h-12 w-3/5 rounded-[50%]" />
+		</div>
 	);
 }
 
@@ -134,16 +211,12 @@ function WorkspaceStorage({
 }) {
 	const t = useT();
 	return (
-		<section aria-labelledby="workspace-storage-heading" className="mt-10 grid max-w-xl gap-4">
-			<div className="flex flex-wrap items-start justify-between gap-3">
-				<div className="grid gap-1">
-					<h2 id="workspace-storage-heading" className="text-lg font-semibold tracking-tight">
-						{t("workspaceStorage.heading")}
-					</h2>
-					<p className="text-muted-foreground text-sm">{t("workspaceStorage.intro")}</p>
-				</div>
-				{canSetQuota ? <QuotaDialog workspaceId={workspaceId} storage={storage} /> : null}
-			</div>
+		<SettingsCard
+			title={t("workspaceStorage.heading")}
+			description={t("workspaceStorage.intro")}
+			action={canSetQuota ? <QuotaDialog workspaceId={workspaceId} storage={storage} /> : null}
+			className="@4xl/page:max-w-216"
+		>
 			<QuotaNotice storage={storage} />
 			<StorageMeter storage={storage} />
 			<p className="text-muted-foreground text-sm">
@@ -151,7 +224,7 @@ function WorkspaceStorage({
 					? t("workspaceStorage.noQuota")
 					: t("workspaceStorage.quota", { quota: formatBytes(storage.quotaBytes) })}
 			</p>
-		</section>
+		</SettingsCard>
 	);
 }
 

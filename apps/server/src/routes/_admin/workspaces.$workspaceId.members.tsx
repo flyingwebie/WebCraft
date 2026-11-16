@@ -39,6 +39,7 @@ import { toast } from "sonner";
 
 import { type AccountChange, AccountChangeDialog } from "../../ui/accounts/AccountDialogs.tsx";
 import { getApi } from "../../ui/api.ts";
+import { When } from "../../ui/content/When.tsx";
 import { errorMessage } from "../../ui/errors.ts";
 import { formatUtcDate } from "../../ui/format.ts";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
@@ -52,9 +53,11 @@ import {
 	type MemberInvite,
 	type SiteOption,
 } from "../../ui/members/MemberSheets.tsx";
-import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
+import { Forbidden } from "../../ui/PageHeader.tsx";
+import { StateBadge } from "../../ui/settings/layout.tsx";
 import { initials } from "../../ui/shell/context.ts";
 import type { AdminPlace } from "../../ui/shell/levels.ts";
+import { PageHeader } from "../../ui/shell/page.tsx";
 import { ResetTwoFactorDialog } from "../../ui/two-factor/ResetDialog.tsx";
 
 export const Route = createFileRoute("/_admin/workspaces/$workspaceId/members")({
@@ -120,9 +123,9 @@ function MembersPage() {
 			>
 				{t("members.intro", { workspace: place.workspace.name })}
 			</PageHeader>
-			<div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_16rem]">
-				<div className="grid min-w-0 content-start gap-10">
-					<div className="grid gap-4">
+			<div className="grid gap-8">
+				<div className="grid gap-4">
+					{data.members.length > 3 ? (
 						<div className="flex flex-wrap items-end justify-between gap-3">
 							<div className="grid w-full max-w-xs gap-1.5">
 								<Label htmlFor="members-search" className="sr-only">
@@ -158,99 +161,105 @@ function MembersPage() {
 								</NativeSelect>
 							</div>
 						</div>
-						{data.members.length === 0 ? (
-							<p className="text-muted-foreground rounded-lg border border-dashed p-8 text-center">
-								{t("members.empty")}
-							</p>
-						) : (
-							<div className="rounded-lg border">
-								<Table>
-									<TableHeader>
+					) : null}
+					{data.members.length === 0 ? (
+						<p className="text-muted-foreground rounded-xl border border-dashed p-8 text-center">
+							{t("members.empty")}
+						</p>
+					) : (
+						<div className="overflow-hidden rounded-xl border">
+							<Table>
+								<TableHeader className="bg-muted/50 [&_th]:text-muted-foreground [&_th]:font-normal">
+									<TableRow>
+										<TableHead className="ps-4">{t("members.columns.member")}</TableHead>
+										<TableHead>{t("members.columns.role")}</TableHead>
+										<TableHead>{t("members.columns.sites")}</TableHead>
+										<TableHead>{t("members.columns.lastSeen")}</TableHead>
+										<TableHead>{t("members.columns.twoFactor")}</TableHead>
+										<TableHead className="pe-4 text-end">
+											<span className="sr-only">{t("members.columns.actions")}</span>
+										</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
+									{shown.length === 0 ? (
 										<TableRow>
-											<TableHead className="ps-4">{t("members.columns.member")}</TableHead>
-											<TableHead>{t("members.columns.role")}</TableHead>
-											<TableHead>{t("members.columns.sites")}</TableHead>
-											<TableHead>{t("members.columns.twoFactor")}</TableHead>
-											<TableHead className="pe-4 text-end">
-												<span className="sr-only">{t("members.columns.actions")}</span>
-											</TableHead>
+											<TableCell colSpan={6} className="text-muted-foreground p-6 text-center">
+												{t("members.noMatch")}
+											</TableCell>
 										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{shown.length === 0 ? (
-											<TableRow>
-												<TableCell colSpan={5} className="text-muted-foreground p-6 text-center">
-													{t("members.noMatch")}
+									) : (
+										shown.map((member) => (
+											<TableRow key={member.id}>
+												<TableCell className="py-2.5 ps-4">
+													<div className="flex items-center gap-3">
+														<Avatar size="sm">
+															<AvatarFallback aria-hidden="true" className="text-[10px] font-semibold">
+																{initials(member.name)}
+															</AvatarFallback>
+														</Avatar>
+														<div className="min-w-0">
+															<span className="block font-medium">
+																{member.name}
+																{member.id === person.id ? (
+																	<span className="text-muted-foreground font-normal"> ({t("members.you")})</span>
+																) : null}
+																{member.deactivated ? (
+																	<Badge variant="outline" className="ms-2">
+																		{t("accounts.deactivated")}
+																	</Badge>
+																) : null}
+															</span>
+															<span className="text-muted-foreground block text-[13px]">{member.email}</span>
+														</div>
+													</div>
+												</TableCell>
+												<TableCell>
+													<RoleBadge role={member.role as AccessOffer["role"]} />
+												</TableCell>
+												<TableCell className="text-muted-foreground whitespace-normal">
+													<SiteAccessText access={member} />
+												</TableCell>
+												<TableCell className="text-muted-foreground">
+													{member.lastSignedInAt ? <When value={member.lastSignedInAt} /> : t("members.neverSignedIn")}
+												</TableCell>
+												<TableCell className="text-muted-foreground">
+													<TwoFactorText methods={methodsOf.get(member.id) ?? []} />
+												</TableCell>
+												<TableCell className="pe-4 text-end">
+													{member.manageable ? (
+														<MemberActions
+															member={member}
+															workspace={place.workspace}
+															offer={data.offer}
+															sites={sites}
+															isYou={member.id === person.id}
+															mayResetTwoFactor={
+																canReset && member.id !== person.id && (methodsOf.get(member.id) ?? []).length > 0
+															}
+															impersonator={
+																canImpersonate && member.id !== person.id && !member.deactivated ? person.name : null
+															}
+															accountChange={
+																canDeactivate && member.id !== person.id
+																	? member.deactivated
+																		? "reactivate"
+																		: "deactivate"
+																	: null
+															}
+														/>
+													) : null}
 												</TableCell>
 											</TableRow>
-										) : (
-											shown.map((member) => (
-												<TableRow key={member.id}>
-													<TableCell className="ps-4">
-														<div className="flex items-center gap-3">
-															<Avatar>
-																<AvatarFallback aria-hidden="true">{initials(member.name)}</AvatarFallback>
-															</Avatar>
-															<div className="min-w-0">
-																<span className="block font-medium">
-																	{member.name}
-																	{member.id === person.id ? (
-																		<span className="text-muted-foreground font-normal"> ({t("members.you")})</span>
-																	) : null}
-																	{member.deactivated ? (
-																		<Badge variant="outline" className="ms-2">
-																			{t("accounts.deactivated")}
-																		</Badge>
-																	) : null}
-																</span>
-																<span className="text-muted-foreground block text-xs">{member.email}</span>
-															</div>
-														</div>
-													</TableCell>
-													<TableCell>
-														<Badge variant="secondary">{t(`roles.${member.role as AccessOffer["role"]}`)}</Badge>
-													</TableCell>
-													<TableCell className="whitespace-normal">
-														<SiteAccessText access={member} />
-													</TableCell>
-													<TableCell>
-														<TwoFactorText methods={methodsOf.get(member.id) ?? []} />
-													</TableCell>
-													<TableCell className="pe-4 text-end">
-														{member.manageable ? (
-															<MemberActions
-																member={member}
-																workspace={place.workspace}
-																offer={data.offer}
-																sites={sites}
-																isYou={member.id === person.id}
-																mayResetTwoFactor={
-																	canReset && member.id !== person.id && (methodsOf.get(member.id) ?? []).length > 0
-																}
-																impersonator={
-																	canImpersonate && member.id !== person.id && !member.deactivated ? person.name : null
-																}
-																accountChange={
-																	canDeactivate && member.id !== person.id
-																		? member.deactivated
-																			? "reactivate"
-																			: "deactivate"
-																		: null
-																}
-															/>
-														) : null}
-													</TableCell>
-												</TableRow>
-											))
-										)}
-									</TableBody>
-								</Table>
-							</div>
-						)}
-					</div>
-					<PendingInvites invites={data.invites} workspaceId={place.workspace.id} canInvite={canInvite} />
+										))
+									)}
+								</TableBody>
+							</Table>
+						</div>
+					)}
 				</div>
-				<div className="grid content-start gap-4">
+				<PendingInvites invites={data.invites} workspaceId={place.workspace.id} canInvite={canInvite} />
+				<div className="grid gap-4 @4xl/page:grid-cols-3">
 					<RequireTwoFactorCard
 						workspaceId={place.workspace.id}
 						required={data.twoFactor.required}
@@ -264,22 +273,33 @@ function MembersPage() {
 	);
 }
 
-/** "All Sites", or the Sites the person can see by name and how many more there are. */
+/** A Member's role in words, as a small badge. */
+function RoleBadge({ role }: { role: AccessOffer["role"] }) {
+	const t = useT();
+	return <StateBadge tone={role === "owner" ? "neutral" : "info"}>{t(`roles.${role}`)}</StateBadge>;
+}
+
+/**
+ * "All Sites", or how many Sites the Membership reaches ("2 Sites"), with their names for those who
+ * point at it and for screen readers.
+ */
 function SiteAccessText({ access }: { access: { sites: "all" | SiteOption[]; otherSites: number } }) {
 	const t = useT();
 	if (access.sites === "all") return <>{t("members.allSites")}</>;
+	const count = access.sites.length + access.otherSites;
+	if (count === 0) return <>{t("members.noSites")}</>;
 	const names = access.sites.map(({ name }) => name).join(", ");
-	if (access.sites.length === 0) {
-		return (
-			<>{access.otherSites > 0 ? t("members.onlyOtherSites", { count: access.otherSites }) : t("members.noSites")}</>
-		);
-	}
-	return (
-		<>
-			{access.otherSites > 0
+	const full =
+		access.sites.length === 0
+			? t("members.onlyOtherSites", { count: access.otherSites })
+			: access.otherSites > 0
 				? t("members.someAndOtherSites", { names, count: access.otherSites })
-				: t("members.someSites", { names })}
-		</>
+				: t("members.someSites", { names });
+	return (
+		<span title={full}>
+			<span aria-hidden="true">{t("members.siteCount", { count })}</span>
+			<span className="sr-only">{full}</span>
+		</span>
 	);
 }
 

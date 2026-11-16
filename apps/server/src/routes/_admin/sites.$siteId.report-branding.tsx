@@ -6,7 +6,7 @@ import { Forbidden } from "../../ui/PageHeader.tsx";
 import { SiteBrandingPage } from "../../ui/reports/Branding.tsx";
 
 export const Route = createFileRoute("/_admin/sites/$siteId/report-branding")({
-	staticData: { crumb: "branding.sitePageTitle" },
+	staticData: { crumb: "branding.sitePageTitle", width: "form" },
 	loader: async ({ params, context }) => {
 		if (!context.place.permissions.includes("reportBranding.manage")) return null;
 		return (await (await getApi()).reportBranding.site.get({ siteId: params.siteId })).branding;
@@ -23,5 +23,5 @@ function SiteReportBranding() {
 	const branding = Route.useLoaderData();
 	const { siteId } = Route.useParams();
 	if (!branding) return <Forbidden heading={t("forbidden.heading")} body={t("forbidden.body")} />;
-	return <SiteBrandingPage key={JSON.stringify(branding)} siteId={siteId} branding={branding} />;
+	return <SiteBrandingPage siteId={siteId} branding={branding} />;
 }

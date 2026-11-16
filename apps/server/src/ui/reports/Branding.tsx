@@ -1,25 +1,15 @@
-import { useRouter } from "@tanstack/react-router";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
-import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
-import {
-	Field,
-	FieldDescription,
-	FieldError,
-	FieldGroup,
-	FieldLabel,
-	FieldLegend,
-	FieldSet,
-} from "@webcraft/ui/components/field.tsx";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
-import { type FormEvent, useId, useState } from "react";
-import { toast } from "sonner";
+import { useId } from "react";
 
 import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { PageHeader } from "../PageHeader.tsx";
+import { SettingsForm, useSettingsSection } from "../settings/form.tsx";
+import { SettingsCard, SettingsRow, SettingsRows, Switch } from "../settings/layout.tsx";
 import { type InstallBranding, kilobytes, type LogoView, logoFrom, type WorkspaceBranding } from "./model.ts";
 
 /** A logo change: undefined leaves it, null removes it, a file read replaces it. */
@@ -156,6 +146,11 @@ function AgencyFields({
 	);
 }
 
+/** A card's error that belongs to no one field (a refusal, a failure to reach the server). */
+function formProblem(problem: Problem) {
+	return problem && problem.field === null ? problem : null;
+}
+
 /**
  * Install settings › Reports (the Superadmin): the agency brand on every Report and Share link of the
  * Install, and whether the agency brand, the client brand and "Made with WebCraft" show. Workspaces
@@ -163,97 +158,80 @@ function AgencyFields({
  */
 export function InstallBrandingPage({ branding }: { branding: InstallBranding }) {
 	const t = useT();
-	const router = useRouter();
+	return (
+		<>
+			<PageHeader heading={t("branding.installHeading")}>{t("branding.installIntro")}</PageHeader>
+			<SettingsForm>
+				<InstallBrandingForm branding={branding} />
+			</SettingsForm>
+		</>
+	);
+}
+
+function InstallBrandingForm({ branding }: { branding: InstallBranding }) {
+	const t = useT();
 	const id = useId();
-	const [name, setName] = useState(branding.name ?? "");
-	const [accent, setAccent] = useState(branding.accentColour ?? "");
-	const [logo, setLogo] = useState<LogoChange>(undefined);
-	const [showAgency, setShowAgency] = useState(branding.showAgency);
-	const [showClient, setShowClient] = useState(branding.showClient);
-	const [madeWith, setMadeWith] = useState(branding.madeWith);
-	const [problem, setProblem] = useState<Problem>(null);
-	const [busy, setBusy] = useState(false);
-	const save = async (event: FormEvent) => {
-		event.preventDefault();
-		setBusy(true);
-		setProblem(null);
-		try {
-			await (await getApi()).reportBranding.install.update({
+	const section = useSettingsSection({
+		saved: {
+			// The logo kept now: when it changes, the form starts again from it.
+			current: branding.logo,
+			name: branding.name ?? "",
+			accent: branding.accentColour ?? "",
+			logo: undefined as LogoChange,
+			showAgency: branding.showAgency,
+			showClient: branding.showClient,
+			madeWith: branding.madeWith,
+		},
+		save: async ({ name, accent, logo, showAgency, showClient, madeWith }) =>
+			(await getApi()).reportBranding.install.update({
 				name: name.trim() || null,
 				accentColour: accent.trim() || null,
 				...(logo !== undefined ? { logo } : {}),
 				showAgency,
 				showClient,
 				madeWith,
-			});
-			setLogo(undefined);
-			toast.success(t("branding.saved"));
-			await router.invalidate();
-		} catch (error) {
-			const found = problemOf(error);
-			if (found.field) setProblem(found);
-			else toast.error(t(found.message));
-		} finally {
-			setBusy(false);
-		}
-	};
+			}),
+	});
+	const problem = section.failure ? problemOf(section.failure) : null;
+	const { values, set } = section;
 	return (
-		<div className="max-w-3xl">
-			<PageHeader heading={t("branding.installHeading")}>{t("branding.installIntro")}</PageHeader>
-			<form onSubmit={save} noValidate className="space-y-6">
-				<Card>
-					<CardHeader>
-						<CardTitle>
-							<h2>{t("branding.agencyTitle")}</h2>
-						</CardTitle>
-						<CardDescription>{t("branding.agencyIntro")}</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<FieldGroup className="gap-5">
-							<AgencyFields
-								id={id}
-								name={name}
-								setName={setName}
-								accent={accent}
-								setAccent={setAccent}
-								logo={logo}
-								setLogo={setLogo}
-								current={branding.logo}
-								problem={problem}
+		<form {...section.formProps} className="space-y-6">
+			<SettingsCard title={t("branding.agencyTitle")} description={t("branding.agencyIntro")}>
+				<FieldGroup className="gap-5">
+					<AgencyFields
+						id={id}
+						name={values.name}
+						setName={(name) => set({ name })}
+						accent={values.accent}
+						setAccent={(accent) => set({ accent })}
+						logo={values.logo}
+						setLogo={(logo) => set({ logo })}
+						current={branding.logo}
+						problem={problem}
+					/>
+				</FieldGroup>
+			</SettingsCard>
+			<SettingsCard title={t("branding.showTitle")} description={t("branding.showIntro")}>
+				<SettingsRows>
+					{(
+						[
+							["agency", "showAgency"],
+							["client", "showClient"],
+							["madeWith", "madeWith"],
+						] as const
+					).map(([key, field]) => (
+						<SettingsRow key={key} label={t(`branding.show.${key}`)} htmlFor={`${id}-${key}`}>
+							<Switch
+								id={`${id}-${key}`}
+								checked={values[field]}
+								onCheckedChange={(checked) => set({ [field]: checked })}
 							/>
-						</FieldGroup>
-					</CardContent>
-				</Card>
-				<Card>
-					<CardHeader>
-						<CardTitle>
-							<h2>{t("branding.showTitle")}</h2>
-						</CardTitle>
-						<CardDescription>{t("branding.showIntro")}</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<FieldSet>
-							<FieldLegend className="sr-only">{t("branding.showTitle")}</FieldLegend>
-							{(
-								[
-									["agency", showAgency, setShowAgency],
-									["client", showClient, setShowClient],
-									["madeWith", madeWith, setMadeWith],
-								] as const
-							).map(([key, checked, set]) => (
-								<Field key={key} orientation="horizontal">
-									<Checkbox id={`${id}-${key}`} checked={checked} onCheckedChange={(value) => set(value === true)} />
-									<FieldLabel htmlFor={`${id}-${key}`}>{t(`branding.show.${key}`)}</FieldLabel>
-								</Field>
-							))}
-						</FieldSet>
-					</CardContent>
-				</Card>
-				<Button type="submit" disabled={busy}>
-					{t("branding.save")}
-				</Button>
-			</form>
-		</div>
+						</SettingsRow>
+					))}
+				</SettingsRows>
+			</SettingsCard>
+			{formProblem(problem) ? <FieldError>{t(problem?.message ?? "errors.generic")}</FieldError> : null}
+		</form>
 	);
 }
 
@@ -273,8 +251,7 @@ function InheritedSwitch({
 }) {
 	const t = useT();
 	return (
-		<Field>
-			<FieldLabel htmlFor={id}>{label}</FieldLabel>
+		<SettingsRow label={label} htmlFor={id}>
 			<NativeSelect
 				id={id}
 				value={value === null ? "install" : value ? "on" : "off"}
@@ -286,7 +263,7 @@ function InheritedSwitch({
 				<NativeSelectOption value="on">{t("branding.shown")}</NativeSelectOption>
 				<NativeSelectOption value="off">{t("branding.hidden")}</NativeSelectOption>
 			</NativeSelect>
-		</Field>
+		</SettingsRow>
 	);
 }
 
@@ -297,134 +274,114 @@ function InheritedSwitch({
  */
 export function WorkspaceBrandingPage({ workspaceId, branding }: { workspaceId: string; branding: WorkspaceBranding }) {
 	const t = useT();
-	const router = useRouter();
-	const id = useId();
-	const [ownAgency, setOwnAgency] = useState(branding.ownAgency);
-	const [name, setName] = useState(branding.agency.name ?? "");
-	const [accent, setAccent] = useState(branding.agency.accentColour ?? "");
-	const [agencyLogo, setAgencyLogo] = useState<LogoChange>(undefined);
-	const [clientName, setClientName] = useState(branding.client.name ?? "");
-	const [clientLogo, setClientLogo] = useState<LogoChange>(undefined);
-	const [showAgency, setShowAgency] = useState(branding.showAgency);
-	const [showClient, setShowClient] = useState(branding.showClient);
-	const [madeWith, setMadeWith] = useState(branding.madeWith);
-	const [problem, setProblem] = useState<Problem>(null);
-	const [busy, setBusy] = useState(false);
-	const save = async (event: FormEvent) => {
-		event.preventDefault();
-		setBusy(true);
-		setProblem(null);
-		try {
-			await (await getApi()).reportBranding.workspace.update({
-				workspaceId,
-				ownAgency,
-				agency: {
-					name: name.trim() || null,
-					accentColour: accent.trim() || null,
-					...(agencyLogo !== undefined ? { logo: agencyLogo } : {}),
-				},
-				client: { name: clientName.trim() || null, ...(clientLogo !== undefined ? { logo: clientLogo } : {}) },
-				showAgency,
-				showClient,
-				madeWith,
-			});
-			setAgencyLogo(undefined);
-			setClientLogo(undefined);
-			toast.success(t("branding.saved"));
-			await router.invalidate();
-		} catch (error) {
-			const found = problemOf(error);
-			if (found.field) setProblem(found);
-			else toast.error(t(found.message));
-		} finally {
-			setBusy(false);
-		}
-	};
 	return (
-		<div className="max-w-3xl">
+		<>
 			<PageHeader heading={t("branding.workspaceHeading")}>{t("branding.workspaceIntro")}</PageHeader>
-			<form onSubmit={save} noValidate className="space-y-6">
-				<Card>
-					<CardHeader>
-						<CardTitle>
-							<h2>{t("branding.agencyTitle")}</h2>
-						</CardTitle>
-						<CardDescription>{t("branding.workspaceAgencyIntro")}</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<FieldGroup className="gap-5">
-							<Field orientation="horizontal">
-								<Checkbox
-									id={`${id}-own`}
-									checked={ownAgency}
-									onCheckedChange={(value) => setOwnAgency(value === true)}
-								/>
-								<FieldLabel htmlFor={`${id}-own`}>{t("branding.ownAgency")}</FieldLabel>
-							</Field>
-							{ownAgency ? (
-								<AgencyFields
-									id={id}
-									name={name}
-									setName={setName}
-									accent={accent}
-									setAccent={setAccent}
-									logo={agencyLogo}
-									setLogo={setAgencyLogo}
-									current={branding.agency.logo}
-									problem={problem}
-								/>
-							) : null}
-						</FieldGroup>
-					</CardContent>
-				</Card>
-				<ClientCard
-					id={id}
-					intro={t("branding.workspaceClientIntro")}
-					name={clientName}
-					setName={setClientName}
-					logo={clientLogo}
-					setLogo={setClientLogo}
-					current={branding.client.logo}
-					problem={problem}
-				/>
-				<Card>
-					<CardHeader>
-						<CardTitle>
-							<h2>{t("branding.showTitle")}</h2>
-						</CardTitle>
-						<CardDescription>{t("branding.workspaceShowIntro")}</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<FieldGroup className="gap-4">
-							<InheritedSwitch
-								id={`${id}-show-agency`}
-								label={t("branding.show.agency")}
-								value={showAgency}
-								installValue={branding.install.showAgency}
-								onChange={setShowAgency}
-							/>
-							<InheritedSwitch
-								id={`${id}-show-client`}
-								label={t("branding.show.client")}
-								value={showClient}
-								installValue={branding.install.showClient}
-								onChange={setShowClient}
-							/>
-							<InheritedSwitch
-								id={`${id}-made-with`}
-								label={t("branding.show.madeWith")}
-								value={madeWith}
-								installValue={branding.install.madeWith}
-								onChange={setMadeWith}
-							/>
-						</FieldGroup>
-					</CardContent>
-				</Card>
-				<Button type="submit" disabled={busy}>
-					{t("branding.save")}
-				</Button>
-			</form>
-		</div>
+			<SettingsForm>
+				<WorkspaceBrandingForm workspaceId={workspaceId} branding={branding} />
+			</SettingsForm>
+		</>
+	);
+}
+
+function WorkspaceBrandingForm({ workspaceId, branding }: { workspaceId: string; branding: WorkspaceBranding }) {
+	const t = useT();
+	const id = useId();
+	const section = useSettingsSection({
+		saved: {
+			currentAgencyLogo: branding.agency.logo,
+			currentClientLogo: branding.client.logo,
+			ownAgency: branding.ownAgency,
+			name: branding.agency.name ?? "",
+			accent: branding.agency.accentColour ?? "",
+			agencyLogo: undefined as LogoChange,
+			clientName: branding.client.name ?? "",
+			clientLogo: undefined as LogoChange,
+			showAgency: branding.showAgency,
+			showClient: branding.showClient,
+			madeWith: branding.madeWith,
+		},
+		save: async (values) =>
+			(await getApi()).reportBranding.workspace.update({
+				workspaceId,
+				ownAgency: values.ownAgency,
+				agency: {
+					name: values.name.trim() || null,
+					accentColour: values.accent.trim() || null,
+					...(values.agencyLogo !== undefined ? { logo: values.agencyLogo } : {}),
+				},
+				client: {
+					name: values.clientName.trim() || null,
+					...(values.clientLogo !== undefined ? { logo: values.clientLogo } : {}),
+				},
+				showAgency: values.showAgency,
+				showClient: values.showClient,
+				madeWith: values.madeWith,
+			}),
+	});
+	const problem = section.failure ? problemOf(section.failure) : null;
+	const { values, set } = section;
+	return (
+		<form {...section.formProps} className="space-y-6">
+			<SettingsCard title={t("branding.agencyTitle")} description={t("branding.workspaceAgencyIntro")}>
+				<SettingsRows>
+					<SettingsRow label={t("branding.ownAgency")} htmlFor={`${id}-own`}>
+						<Switch id={`${id}-own`} checked={values.ownAgency} onCheckedChange={(ownAgency) => set({ ownAgency })} />
+					</SettingsRow>
+				</SettingsRows>
+				{values.ownAgency ? (
+					<FieldGroup className="gap-5">
+						<AgencyFields
+							id={id}
+							name={values.name}
+							setName={(name) => set({ name })}
+							accent={values.accent}
+							setAccent={(accent) => set({ accent })}
+							logo={values.agencyLogo}
+							setLogo={(agencyLogo) => set({ agencyLogo })}
+							current={branding.agency.logo}
+							problem={problem}
+						/>
+					</FieldGroup>
+				) : null}
+			</SettingsCard>
+			<ClientCard
+				id={id}
+				intro={t("branding.workspaceClientIntro")}
+				name={values.clientName}
+				setName={(clientName) => set({ clientName })}
+				logo={values.clientLogo}
+				setLogo={(clientLogo) => set({ clientLogo })}
+				current={branding.client.logo}
+				problem={problem}
+			/>
+			<SettingsCard title={t("branding.showTitle")} description={t("branding.workspaceShowIntro")}>
+				<SettingsRows>
+					<InheritedSwitch
+						id={`${id}-show-agency`}
+						label={t("branding.show.agency")}
+						value={values.showAgency}
+						installValue={branding.install.showAgency}
+						onChange={(showAgency) => set({ showAgency })}
+					/>
+					<InheritedSwitch
+						id={`${id}-show-client`}
+						label={t("branding.show.client")}
+						value={values.showClient}
+						installValue={branding.install.showClient}
+						onChange={(showClient) => set({ showClient })}
+					/>
+					<InheritedSwitch
+						id={`${id}-made-with`}
+						label={t("branding.show.madeWith")}
+						value={values.madeWith}
+						installValue={branding.install.madeWith}
+						onChange={(madeWith) => set({ madeWith })}
+					/>
+				</SettingsRows>
+			</SettingsCard>
+			{formProblem(problem) ? <FieldError>{t(problem?.message ?? "errors.generic")}</FieldError> : null}
+		</form>
 	);
 }
 
@@ -449,37 +406,29 @@ function ClientCard({
 }) {
 	const t = useT();
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("branding.clientTitle")}</h2>
-				</CardTitle>
-				<CardDescription>{intro}</CardDescription>
-			</CardHeader>
-			<CardContent>
-				<FieldGroup className="gap-5">
-					<Field>
-						<FieldLabel htmlFor={`${id}-client-name`}>{t("branding.clientName")}</FieldLabel>
-						<Input
-							id={`${id}-client-name`}
-							value={name}
-							maxLength={100}
-							onChange={(change) => setName(change.target.value)}
-							aria-describedby={`${id}-client-name-help`}
-						/>
-						<FieldDescription id={`${id}-client-name-help`}>{t("branding.clientNameHelp")}</FieldDescription>
-					</Field>
-					<LogoField
-						id={`${id}-client-logo`}
-						label={t("branding.clientLogo")}
-						current={current}
-						change={logo}
-						onChange={setLogo}
-						problem={problem}
+		<SettingsCard title={t("branding.clientTitle")} description={intro}>
+			<FieldGroup className="gap-5">
+				<Field>
+					<FieldLabel htmlFor={`${id}-client-name`}>{t("branding.clientName")}</FieldLabel>
+					<Input
+						id={`${id}-client-name`}
+						value={name}
+						maxLength={100}
+						onChange={(change) => setName(change.target.value)}
+						aria-describedby={`${id}-client-name-help`}
 					/>
-				</FieldGroup>
-			</CardContent>
-		</Card>
+					<FieldDescription id={`${id}-client-name-help`}>{t("branding.clientNameHelp")}</FieldDescription>
+				</Field>
+				<LogoField
+					id={`${id}-client-logo`}
+					label={t("branding.clientLogo")}
+					current={current}
+					change={logo}
+					onChange={setLogo}
+					problem={problem}
+				/>
+			</FieldGroup>
+		</SettingsCard>
 	);
 }
 
@@ -492,50 +441,47 @@ export function SiteBrandingPage({
 	branding: { client: { name: string | null; logo: LogoView } };
 }) {
 	const t = useT();
-	const router = useRouter();
+	return (
+		<>
+			<PageHeader heading={t("branding.siteHeading")}>{t("branding.siteIntro")}</PageHeader>
+			<SettingsForm>
+				<SiteBrandingForm siteId={siteId} branding={branding} />
+			</SettingsForm>
+		</>
+	);
+}
+
+function SiteBrandingForm({
+	siteId,
+	branding,
+}: {
+	siteId: string;
+	branding: { client: { name: string | null; logo: LogoView } };
+}) {
+	const t = useT();
 	const id = useId();
-	const [name, setName] = useState(branding.client.name ?? "");
-	const [logo, setLogo] = useState<LogoChange>(undefined);
-	const [problem, setProblem] = useState<Problem>(null);
-	const [busy, setBusy] = useState(false);
-	const save = async (event: FormEvent) => {
-		event.preventDefault();
-		setBusy(true);
-		setProblem(null);
-		try {
-			await (await getApi()).reportBranding.site.update({
+	const section = useSettingsSection({
+		saved: { current: branding.client.logo, name: branding.client.name ?? "", logo: undefined as LogoChange },
+		save: async ({ name, logo }) =>
+			(await getApi()).reportBranding.site.update({
 				siteId,
 				client: { name: name.trim() || null, ...(logo !== undefined ? { logo } : {}) },
-			});
-			setLogo(undefined);
-			toast.success(t("branding.saved"));
-			await router.invalidate();
-		} catch (error) {
-			const found = problemOf(error);
-			if (found.field) setProblem(found);
-			else toast.error(t(found.message));
-		} finally {
-			setBusy(false);
-		}
-	};
+			}),
+	});
+	const problem = section.failure ? problemOf(section.failure) : null;
 	return (
-		<div className="max-w-3xl">
-			<PageHeader heading={t("branding.siteHeading")}>{t("branding.siteIntro")}</PageHeader>
-			<form onSubmit={save} noValidate className="space-y-6">
-				<ClientCard
-					id={id}
-					intro={t("branding.siteClientIntro")}
-					name={name}
-					setName={setName}
-					logo={logo}
-					setLogo={setLogo}
-					current={branding.client.logo}
-					problem={problem}
-				/>
-				<Button type="submit" disabled={busy}>
-					{t("branding.save")}
-				</Button>
-			</form>
-		</div>
+		<form {...section.formProps} className="space-y-6">
+			<ClientCard
+				id={id}
+				intro={t("branding.siteClientIntro")}
+				name={section.values.name}
+				setName={(name) => section.set({ name })}
+				logo={section.values.logo}
+				setLogo={(logo) => section.set({ logo })}
+				current={branding.client.logo}
+				problem={problem}
+			/>
+			{formProblem(problem) ? <FieldError>{t(problem?.message ?? "errors.generic")}</FieldError> : null}
+		</form>
 	);
 }

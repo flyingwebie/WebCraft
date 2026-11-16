@@ -1,6 +1,7 @@
 // The Post Types & Fields screen, the Entries list, the Entry editor and the Globals editor in a
 // browser: axe and keyboard checks in light and dark, with a Field's settings open, problems showing,
-// dialogs and menus opened from the keyboard, and the keyboard way to move what can be dragged.
+// dialogs and menus opened from the keyboard, and the keyboard way to move what can be dragged. A link
+// Field keeps "Open in a new tab" through the editor's saves.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Page } from "playwright";
 
@@ -226,15 +227,28 @@ for (const theme of THEMES) {
 		test("Pages as a tree, and the New dialog from the keyboard", async () => {
 			const page = await install.newPage(theme);
 			await open(page, staff, `/sites/${siteId}/entries/${pagesId}`);
-			await page.getByText("/about-us/our-team").waitFor();
+			const table = page.getByRole("table", { name: "Pages" });
+			await table.getByRole("link", { name: "Our team" }).waitFor();
+			// Each Page sits right under its parent Page.
+			const titles = await table.getByRole("link").allTextContents();
+			expect(titles.indexOf("Our team")).toBe(titles.indexOf("About us") + 1);
 			await expectAccessibleScreen(page, `Pages (${theme})`);
 
-			await expectOverlayUsable(
-				page,
-				page.getByRole("button", { name: "New in Pages" }),
-				"dialog",
-				`New Page (${theme})`,
-			);
+			await expectOverlayUsable(page, page.getByRole("button", { name: "New page" }), "dialog", `New Page (${theme})`);
+		});
+
+		test("the create row makes a Draft from its title and opens it", async () => {
+			const page = await install.newPage(theme);
+			await open(page, owner, `/sites/${siteId}/entries/${blogId}`);
+			await page.getByLabel("Title of a new Entry…").fill(`Opening hours (${theme})`);
+			await page.keyboard.press("Enter");
+
+			await page.waitForURL((url) => /\/entries\/[^/]+\/[^/]+$/.test(url.pathname));
+			await page.getByRole("heading", { level: 1, name: `Opening hours (${theme})` }).waitFor();
+			const admin = await install.install.superadmin();
+			const { entries } = await admin.api.entries.list({ siteId, postTypeId: blogId });
+			const made = entries.find((entry) => entry.draft.title === `Opening hours (${theme})`);
+			expect(made?.status).toBe("draft");
 		});
 
 		test("the Entry editor with every Field type, problems showing next to their values", async () => {
@@ -315,8 +329,46 @@ for (const theme of THEMES) {
 	});
 }
 
+describe("a link Field in the Entry editor", () => {
+	test("keeps Open in a new tab through a save, and switching it off takes it away", async () => {
+		const admin = await install.install.superadmin();
+		const { entry } = await admin.api.entries.create({
+			siteId,
+			postTypeId: blogId,
+			title: "Opening hours",
+			fields: { more: { url: "https://acme.test/hours", text: "Our hours", newTab: true } },
+		});
+		const more = async () => (await admin.api.entries.get({ siteId, entryId: entry.id })).entry.draft.fields.more;
+		/** Waits until the Draft's link reads `wanted`. */
+		const saved = async (wanted: Record<string, string | boolean>) => {
+			let seen = await more();
+			for (let look = 0; look < 80 && JSON.stringify(seen) !== JSON.stringify(wanted); look++) {
+				await new Promise((resolve) => setTimeout(resolve, 100));
+				seen = await more();
+			}
+			expect(seen).toEqual(wanted);
+		};
+
+		const page = await install.newPage("light");
+		await open(page, owner, `/sites/${siteId}/entries/${blogId}/${entry.id}`);
+		const link = page.locator("fieldset").filter({ has: page.locator("legend", { hasText: "Read more" }) });
+		const newTab = link.getByRole("checkbox", { name: "Open in a new tab" });
+		await newTab.waitFor();
+		expect(await newTab.getAttribute("aria-checked")).toBe("true");
+
+		// A change to the words saves the link with its new tab kept.
+		await link.getByLabel("Text", { exact: true }).fill("Opening hours");
+		await saved({ url: "https://acme.test/hours", text: "Opening hours", newTab: true });
+
+		// Switched off, the link has no new tab any more.
+		await newTab.click();
+		await saved({ url: "https://acme.test/hours", text: "Opening hours" });
+		expect(await newTab.getAttribute("aria-checked")).toBe("false");
+	});
+});
+
 describe("Members see Content only", () => {
-	test("an Owner's sidebar has no Structure group, and Post Types & Fields says they can't open it", async () => {
+	test("an Owner's sidebar has no Structure row, and Post Types & Fields says they can't open it", async () => {
 		const page = await install.newPage("light");
 		await open(page, owner, `/sites/${siteId}`);
 		const navigation = page.getByRole("navigation", { name: "Admin" });
@@ -330,11 +382,13 @@ describe("Members see Content only", () => {
 		await expectNoAxeViolations(page, "Post Types & Fields as an Owner");
 	});
 
-	test("Staff see the Structure group", async () => {
+	test("Staff see Structure, one row whose secondary sidebar holds Post Types & Fields", async () => {
 		const page = await install.newPage("light");
 		await open(page, staff, `/sites/${siteId}`);
 		const navigation = page.getByRole("navigation", { name: "Admin" });
 
-		await navigation.getByRole("link", { name: "Post Types & Fields" }).waitFor();
+		await navigation.getByRole("link", { name: /^Structure/ }).click();
+		const structure = page.getByRole("navigation", { name: "Structure" });
+		await structure.getByRole("link", { name: "Post Types & Fields" }).waitFor();
 	});
 });

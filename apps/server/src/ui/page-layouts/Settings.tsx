@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getApi } from "../api.ts";
-import { useEditorAnnouncement } from "../builder/use-editor-announcement.ts";
+import { useEditorAnnouncement } from "../editor/use-editor-announcement.ts";
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
 /** Staff's Site switch and per-Component allowance, changing Structure rather than Content. */

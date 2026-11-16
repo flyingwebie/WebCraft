@@ -76,12 +76,12 @@ export function FirstClientStep({ onBack }: StepPanelProps) {
 		[help, errors[field] ? `${FIELD_IDS[field]}-error` : undefined].filter(Boolean).join(" ") || undefined;
 
 	return (
-		<form onSubmit={submit} className="flex flex-1 flex-col gap-8" noValidate>
+		<form onSubmit={submit} className="flex flex-1 flex-col gap-5" noValidate>
 			<StepHeader heading={t("setup.steps.firstClient.heading")}>
 				<p>{t("setup.steps.firstClient.intro")}</p>
 				<p>{t("setup.steps.firstClient.later")}</p>
 			</StepHeader>
-			<FieldGroup className="gap-5">
+			<FieldGroup className="gap-4">
 				<Field data-invalid={errors.workspaceName ? true : undefined}>
 					<FieldLabel htmlFor={FIELD_IDS.workspaceName}>{t("setup.steps.firstClient.workspaceName")}</FieldLabel>
 					<Input
@@ -114,7 +114,7 @@ export function FirstClientStep({ onBack }: StepPanelProps) {
 					</label>
 				</div>
 				{withSite ? (
-					<div className="grid gap-5 border-s-2 ps-4 md:grid-cols-2">
+					<div className="grid gap-4 border-s-2 ps-4">
 						<Field data-invalid={errors.siteName ? true : undefined}>
 							<FieldLabel htmlFor={FIELD_IDS.siteName}>{t("setup.steps.firstClient.siteName")}</FieldLabel>
 							<Input

@@ -116,8 +116,9 @@ export async function liveSite(
 	staff: TestBrowser,
 	workspaceId: string,
 	domain: string,
+	name = "Bakery",
 ): Promise<{ siteId: string; origin: string; staging: string }> {
-	const { id: siteId, slug } = await install.createSite(workspaceId, { name: "Bakery" });
+	const { id: siteId, slug } = await install.createSite(workspaceId, { name });
 	const pages = (await staff.api.postTypes.list({ siteId })).postTypes.find((postType) => postType.builtIn === "page");
 	const { entry } = await staff.api.entries.create({ siteId, postTypeId: pages?.id as string, title: "Home" });
 	await staff.api.entries.publish({ siteId, entryId: entry.id });

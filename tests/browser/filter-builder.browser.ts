@@ -128,7 +128,11 @@ describe("the Filter builder from the keyboard", () => {
 		await page.getByRole("status").filter({ hasText: "Moved Search the shop: 2 of 9." }).waitFor({ state: "attached" });
 
 		// The preview shows the new order before anything is saved.
-		await page.getByRole("button", { name: "Save draft" }).focus();
+		// The foot bar saves the Draft, as on every settings screen.
+		await page
+			.getByRole("region", { name: "Saving this screen" })
+			.getByRole("button", { name: "Save", exact: true })
+			.focus();
 		await page.keyboard.press("Enter");
 		await page.getByText("The Filter's Draft is saved.").waitFor();
 		const { filter } = await shop.staff.api.filters.get({ siteId: shop.siteId, filterId: shop.filterId });
@@ -156,7 +160,11 @@ describe("the Filter builder from the keyboard", () => {
 		// The move actually reordered the options, not just announced it.
 		expect(await rows.first().locator('input[value="price-desc"]').count()).toBe(1);
 
-		await page.getByRole("button", { name: "Save draft" }).focus();
+		// The foot bar saves the Draft, as on every settings screen.
+		await page
+			.getByRole("region", { name: "Saving this screen" })
+			.getByRole("button", { name: "Save", exact: true })
+			.focus();
 		await page.keyboard.press("Enter");
 		await page.getByText("The Filter's Draft is saved.").waitFor();
 		const { filter } = await shop.staff.api.filters.get({ siteId: shop.siteId, filterId: shop.filterId });
@@ -316,40 +324,49 @@ describe("from the keyboard on the Site", () => {
 	});
 });
 
-describe("the visual builder", () => {
-	test("Open in visual builder opens the Template holding the Filter, the Filter selected", async () => {
+describe("the building area", () => {
+	// The building area took the visual builder's place here (BA-34): `building-area-switching` checks it in full.
+	test("Open in the building area opens the Template holding the Filter, the Filter selected", async () => {
 		const page = await openBuilder("light", "layout");
-		await page.getByRole("link", { name: "Open Products · Archive template in the visual builder" }).click();
-		await page.getByRole("tree", { name: "Layers" }).waitFor();
-
-		const selected = page.getByRole("treeitem", { selected: true });
+		await page.getByRole("link", { name: "Open Products · Archive template in the building area" }).click();
+		await page.waitForURL((url) => url.pathname === `/_webcraft/build/archive-template/${shop.productsId}`);
+		const selected = page.getByRole("tree", { name: "Elements of the page" }).getByRole("treeitem", { selected: true });
+		await selected.waitFor();
 		expect(await selected.count()).toBe(1);
-		expect(await selected.textContent()).toContain("Filter shop");
+		expect(await selected.textContent()).toContain("{{@filter}}");
+		expect(new URL(page.url()).searchParams.get("wc-filter")).toBeNull();
 	});
 
-	test("its insert menu places a Filter, or one of its controls on its own", async () => {
-		const page = await install.newPage("light");
-		await install.signIn(page, staff);
-		await page.goto(
-			install.adminUrl(`/builder/${shop.siteId}/archive-template/${shop.productsId}?filter=${shop.filterId}`),
-		);
-		await page.getByRole("tree", { name: "Layers" }).waitFor();
-		await page.getByRole("button", { name: "Insert" }).click();
-		await page.getByRole("combobox", { name: "Find an element" }).fill("Filter");
-		await page.keyboard.press("Enter");
-		await page.getByRole("combobox", { name: "Filter" }).selectOption({ label: "shop (products)" });
-		await page.getByRole("combobox", { name: "Show" }).selectOption({ label: "Only Search the shop (search)" });
-		await expectNoAxeViolations(page, "the insert menu's Filter step", ["region"], {
-			exclude: ["iframe[title^='Canvas']"],
-		});
-		await page.getByRole("button", { name: "Insert", exact: true }).last().click();
-		await page.keyboard.press("ControlOrMeta+s");
-		await page.getByRole("button", { name: "Save" }).and(page.locator("[disabled]")).waitFor();
-
-		const { markup } = await shop.staff.api.templates.getArchiveTemplateMarkup({
-			siteId: shop.siteId,
-			postTypeId: shop.productsId,
-		});
-		expect(markup?.draft).toContain('{{@filter shop for="products" control="search"}}');
+	test("Insert places a Filter, or one of its controls on its own", async () => {
+		const page = await openBuilder("light", "layout");
+		await page.getByRole("link", { name: "Open Products · Archive template in the building area" }).click();
+		await page.waitForURL((url) => url.pathname === `/_webcraft/build/archive-template/${shop.productsId}`);
+		const tree = page.getByRole("tree", { name: "Elements of the page" });
+		await tree.getByRole("treeitem", { selected: true }).waitFor();
+		await tree.getByRole("treeitem", { selected: true }).focus();
+		await page.keyboard.press("ControlOrMeta+i");
+		const menu = page.locator("dialog[data-wc-command-menu]");
+		const search = menu.getByRole("combobox");
+		await search.waitFor();
+		await page.waitForFunction(() => document.activeElement?.getAttribute("role") === "combobox");
+		await search.fill("search the shop");
+		const control = menu.getByRole("option", { name: /^Filter shop: Search the shop/ });
+		await control.waitFor();
+		// The whole Filter is there too.
+		await search.fill("filter shop");
+		await menu.getByRole("option", { name: /^Filter: shop/ }).waitFor();
+		await expectNoAxeViolations(page, "Insert's Template commands, a Filter");
+		await search.fill("search the shop");
+		await control.click();
+		await menu.waitFor({ state: "hidden" });
+		let markup = "";
+		for (let attempt = 0; attempt < 50 && !markup.includes('control="search"'); attempt++) {
+			markup =
+				(await shop.staff.api.templates.getArchiveTemplateMarkup({ siteId: shop.siteId, postTypeId: shop.productsId }))
+					.markup?.draft ?? "";
+			await page.waitForTimeout(100);
+		}
+		expect(markup).toContain('{{@filter shop for="products" control="search"}}');
+		expect(markup).toContain('{{@filter shop for="products"}}');
 	});
 });

@@ -1,0 +1,181 @@
+import { CheckIcon, LoaderIcon, SendIcon, TriangleAlertIcon, UploadIcon } from "lucide-react";
+import type { ReactNode, Ref } from "react";
+
+import { fill, type Words } from "../api.ts";
+import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
+
+/**
+ * Publish's one cell (SPEC 4 and 10, `docking/08`, `client-flows/05`): the label with its count,
+ * "Publishing…", "Published" for 2 s, "Try again"; all in one cell that never changes width, its words
+ * at least 4.5:1 on its colour in every state. Staff's
+ * bar draws it 112 × 32; the client bar 132 × 40 (BA-14). An Author's is "Send for review", 164 wide.
+ * A phone's one bar (BA-19, `client-flows/06`) draws it 96 × 32, an Author's reading "Send".
+ */
+export type CellState =
+	| { kind: "ready"; count: number }
+	| { kind: "publishing" }
+	| { kind: "published" }
+	| { kind: "failed" }
+	| { kind: "review" };
+
+/** The sizes of the bars that hold the cell. */
+export type CellSize = "bar" | "client" | "phone";
+
+const SIZES: Record<CellSize, { box: string; author: string; text: string; icon: string; badge: string }> = {
+	bar: {
+		box: "h-8 w-28 rounded-lg gap-1.5",
+		author: "h-8 w-[164px] rounded-lg gap-1.5",
+		text: "text-[13px]",
+		icon: "size-3.5",
+		badge: "h-[18px] min-w-[18px] px-[5px] text-[11px]",
+	},
+	client: {
+		box: "h-10 w-[132px] rounded-[10px] gap-2",
+		author: "h-10 w-[164px] rounded-[10px] gap-2",
+		text: "text-[14px]",
+		icon: "size-4",
+		badge: "h-5 min-w-5 px-1.5 text-[12px]",
+	},
+	phone: {
+		box: "h-8 w-24 rounded-lg gap-1.5 px-1",
+		author: "h-8 w-24 rounded-lg gap-1.5 px-1",
+		text: "text-[12px]",
+		icon: "size-3.5",
+		badge: "h-[18px] min-w-[18px] px-[5px] text-[11px]",
+	},
+};
+
+/** The keys that open Publish (SPEC 13.9): ⌘↵, or Ctrl+Enter away from Apple. */
+export function publishKeys(): { shown: string; aria: string } {
+	const apple = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+	return apple ? { shown: "⌘↵", aria: "Meta+Enter" } : { shown: "Ctrl+↵", aria: "Control+Enter" };
+}
+
+export function PublishCell({
+	state,
+	words,
+	language,
+	size = "bar",
+	open,
+	opensSheet,
+	sheetId,
+	disabled,
+	onPress,
+	ref,
+}: {
+	state: CellState;
+	words: Words;
+	language: string;
+	size?: CellSize;
+	/** Whether the sheet above it is open. */
+	open: boolean;
+	/** Whether a press opens the sheet; false when it publishes at once (Try again, a place's own Publish). */
+	opensSheet: boolean;
+	sheetId: string;
+	disabled: boolean;
+	onPress(): void;
+	ref?: Ref<HTMLButtonElement>;
+}) {
+	const shown = words.publishing;
+	const look = SIZES[size];
+	const icon = `${look.icon} shrink-0`;
+	let face: { colours: string; content: ReactNode };
+	switch (state.kind) {
+		case "publishing":
+			face = {
+				colours: "bg-primary text-primary-foreground",
+				content: (
+					<>
+						<LoaderIcon aria-hidden="true" className={`${icon} animate-spin motion-reduce:animate-none`} />
+						<span>{shown.publishing}</span>
+					</>
+				),
+			};
+			break;
+		case "published":
+			face = {
+				colours: "bg-[#14532d] text-[#86efac]",
+				content: (
+					<>
+						<CheckIcon aria-hidden="true" className={icon} />
+						<span>{shown.published}</span>
+					</>
+				),
+			};
+			break;
+		case "failed":
+			face = {
+				colours: "bg-[#3b1212] text-[#fecaca] hover:bg-[#4c1717]",
+				content: (
+					<>
+						<TriangleAlertIcon aria-hidden="true" className={icon} />
+						<span>{shown.tryAgain}</span>
+					</>
+				),
+			};
+			break;
+		case "review":
+			face = {
+				colours: "bg-primary text-primary-foreground hover:bg-primary/90",
+				content: (
+					<>
+						<SendIcon aria-hidden="true" className={icon} />
+						<span>{size === "phone" ? shown.sendShort : shown.sendForReview}</span>
+					</>
+				),
+			};
+			break;
+		default: {
+			const count = state.count;
+			const form = new Intl.PluralRules(language).select(count) === "one" ? "one" : "other";
+			face = {
+				colours:
+					count > 0 ? "bg-primary text-primary-foreground hover:bg-primary/90" : "bg-chrome-raised text-chrome-muted",
+				content: (
+					<>
+						{size === "client" ? <UploadIcon aria-hidden="true" className={icon} /> : null}
+						<span>{shown.cell}</span>
+						{count > 0 ? (
+							<>
+								<span
+									aria-hidden="true"
+									className={`inline-grid place-items-center rounded-full bg-black/25 font-bold ${look.badge}`}
+								>
+									{count}
+								</span>
+								<span className="sr-only">{`, ${fill(shown.changes[form], { count: String(count) })}`}</span>
+							</>
+						) : null}
+					</>
+				),
+			};
+		}
+	}
+	const keys = publishKeys();
+	// The words, icons and badge take the cell's colour as it changes, never easing on their own: with
+	// reduced motion each element eases every property for 0.01 ms (globals.css), so a word would keep
+	// the last state's colour on the new state's for a frame, a long one on a busy machine.
+	const inner = "[&_*]:transition-none";
+	return (
+		<button
+			ref={ref}
+			type="button"
+			// Off by `aria-disabled`, never `disabled`: the button keeps focus while it publishes and after.
+			aria-disabled={disabled || undefined}
+			onClick={disabled ? undefined : onPress}
+			aria-haspopup={opensSheet ? "dialog" : undefined}
+			aria-expanded={opensSheet ? open : undefined}
+			aria-controls={open ? sheetId : undefined}
+			aria-keyshortcuts={keys.aria}
+			aria-busy={state.kind === "publishing" ? true : undefined}
+			// On a phone an Author's cell reads "Send": its name says it all.
+			aria-label={size === "phone" && state.kind === "review" ? shown.sendForReview : undefined}
+			className={`inline-flex shrink-0 items-center justify-center font-semibold whitespace-nowrap aria-disabled:cursor-default ${
+				state.kind === "review" ? look.author : look.box
+			} ${look.text} ${face.colours} ${CHROME_EASE} ${inner} ${FOCUS_RING}`}
+			data-wc-publish={state.kind}
+		>
+			{face.content}
+		</button>
+	);
+}

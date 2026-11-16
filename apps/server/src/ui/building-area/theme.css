@@ -1,0 +1,35 @@
+/*
+ * The building area's chrome (SPEC 4): always dark, whatever the device or the page inside the frame.
+ * Compiled with the admin's theme into the shell's stylesheet (`site/building-area/assets.ts`), so each
+ * colour is a Tailwind colour: `bg-chrome`, `text-chrome-muted`, `ring-chrome-focus`, …
+ */
+@theme {
+	/* Rail, docks, bottom bar, the canvas pane. */
+	--color-chrome: #121214;
+	/* Cards, rows, fields, filled selects. */
+	--color-chrome-raised: #1e1e22;
+	/* Hover or selected on the chrome; lines between its parts. */
+	--color-chrome-hover: #2a2a30;
+	--color-chrome-line: #2a2a30;
+	/* Code wells and the size readout's field. */
+	--color-chrome-well: #0c0c0e;
+	/* Menus, popovers and the size readout. */
+	--color-chrome-menu: #18181b;
+	/* Tooltips. */
+	--color-chrome-tip: #09090b;
+	--color-chrome-text: #e4e4e7;
+	--color-chrome-strong: #fafafa;
+	--color-chrome-muted: #a1a1aa;
+	--color-chrome-faint: #71717a;
+	/* The focus ring of the chrome's controls. */
+	--color-chrome-focus: #fb923c;
+	--color-chrome-accent: #a5b4fc;
+	--color-chrome-warn: #fdba74;
+	--color-chrome-danger: #f87171;
+	--color-chrome-ok: #4ade80;
+	/* Outlines and the chip on the canvas; what each kind of thing is drawn in. */
+	--color-selection: #6366f1;
+	--color-component: #a78bfa;
+	--color-loop: #fbbf24;
+	--color-condition: #60a5fa;
+}

@@ -1,8 +1,8 @@
-import { createFileRoute, Link, notFound, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, notFound, useNavigate, useRouter } from "@tanstack/react-router";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import { ArrowLeftIcon, SaveIcon, UploadIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { UploadIcon } from "lucide-react";
+import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -10,15 +10,16 @@ import { useAfterRender } from "../../ui/after-render.ts";
 import { getApi } from "../../ui/api.ts";
 import { errorCode, errorMessage } from "../../ui/errors.ts";
 import { ControlsTab } from "../../ui/filters/ControlsTab.tsx";
+import { FilterStatus } from "../../ui/filters/FilterStatus.tsx";
 import { LayoutTab, placementName } from "../../ui/filters/LayoutTab.tsx";
 import { changeOf, type FilterProblem, type FilterVersion, problemsOf, untranslated } from "../../ui/filters/model.ts";
 import { Preview } from "../../ui/filters/Preview.tsx";
 import { Segmented } from "../../ui/filters/Segmented.tsx";
 import { SettingsTab } from "../../ui/filters/SettingsTab.tsx";
 import { TranslationsTab } from "../../ui/filters/TranslationsTab.tsx";
-import { StatusBadge } from "../../ui/forms/StatusBadge.tsx";
 import { pageTitleOf, useT } from "../../ui/i18n.tsx";
-import { Forbidden } from "../../ui/PageHeader.tsx";
+import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
+import { SaveBar, type SaveState } from "../../ui/shell/page.tsx";
 import { type TabSpec, Tabs } from "../../ui/Tabs.tsx";
 
 /** The tab shown (`?tab=layout`) and the control selected (`?control=<id>`), so a link can open either. */
@@ -28,7 +29,7 @@ const search = z.object({
 });
 
 export const Route = createFileRoute("/_admin/sites/$siteId/filters/$filterId")({
-	staticData: { wide: true },
+	staticData: { width: "wide" },
 	validateSearch: search,
 	loader: async ({ context, params }) => {
 		if (!context.place.permissions.includes("structure.edit")) return { details: null, crumb: "" };
@@ -63,21 +64,20 @@ function FilterPage() {
 	const router = useRouter();
 	const navigate = useNavigate({ from: Route.fullPath });
 	const saved = data.details?.filter.draft ?? null;
-	const [version, setVersion] = useState<FilterVersion | null>(saved);
+	const [version, setDraft] = useState<FilterVersion | null>(saved);
 	const [problems, setProblems] = useState<FilterProblem[]>([]);
 	const [busy, setBusy] = useState(false);
+	// How the last save went, for the foot bar: "Saved" until the next change, or why it failed.
+	const [lastSave, setLastSave] = useState<"saved" | "failed" | null>(null);
 	const [selected, setSelected] = useState<string | null>(query.control ?? saved?.controls[0]?.id ?? null);
 	const [phoneWidth, setPhoneWidth] = useState<number | null>(null);
 	const summary = useRef<HTMLDivElement>(null);
+	const setVersion = (next: FilterVersion) => {
+		setDraft(next);
+		setLastSave((before) => (before === "failed" ? before : null));
+	};
 	const afterRender = useAfterRender();
 	const changed = saved !== null && version !== null && JSON.stringify(version) !== JSON.stringify(saved);
-
-	useEffect(() => {
-		if (!changed) return;
-		const warn = (event: BeforeUnloadEvent) => event.preventDefault();
-		window.addEventListener("beforeunload", warn);
-		return () => window.removeEventListener("beforeunload", warn);
-	}, [changed]);
 
 	if (!data.details || !version || place.level !== "site") {
 		return <Forbidden heading={t("forbidden.heading")} body={t("forbidden.body")} />;
@@ -100,11 +100,13 @@ function FilterPage() {
 		try {
 			const api = await getApi();
 			const { filter: stored } = await api.filters.saveDraft({ siteId, filterId: filter.id, ...changeOf(version) });
-			setVersion(stored.draft);
+			setDraft(stored.draft);
 			await router.invalidate();
+			setLastSave("saved");
 			toast.success(t("filters.savedDraft"));
 			return true;
 		} catch (error) {
+			setLastSave("failed");
 			refused(error);
 			return false;
 		} finally {
@@ -187,55 +189,62 @@ function FilterPage() {
 		},
 	];
 
+	const saveState: SaveState = busy
+		? "saving"
+		: changed
+			? lastSave === "failed"
+				? "failed"
+				: "dirty"
+			: lastSave === "saved"
+				? "saved"
+				: "clean";
+
 	return (
 		<div className="grid gap-6">
-			<div className="flex flex-wrap items-start justify-between gap-4">
-				<div className="flex min-w-0 items-start gap-3">
-					<Link
-						to="/sites/$siteId/filters"
-						params={{ siteId }}
-						aria-label={t("filters.back")}
-						className="focus-visible:ring-ring/50 hover:bg-muted mt-1 rounded-md p-1.5 outline-none focus-visible:ring-3"
-					>
-						<ArrowLeftIcon className="size-4 rtl:rotate-180" aria-hidden="true" />
-					</Link>
-					<div className="min-w-0 space-y-1">
-						<div className="flex flex-wrap items-center gap-2">
-							<h1 className="text-2xl font-semibold tracking-tight">{filter.name}</h1>
-							<StatusBadge status={filter.status} />
-							<Badge variant="outline">{t("filters.structure")}</Badge>
-							{changed ? <Badge variant="outline">{t("filters.unsaved")}</Badge> : null}
-						</div>
-						<p className="text-muted-foreground text-sm">
-							{t("filters.narrows")} <span className="font-mono">{filter.loop}</span>
-							{usage.usedIn.length > 0
-								? ` · ${t("filters.placedOn", { places: usage.usedIn.map((placement) => placementName(t, placement)).join(", ") })}`
-								: ` · ${t("filters.notPlaced")}`}
-							{" · "}
-							<span className="font-mono">{markup}</span>
-						</p>
-					</div>
-				</div>
-				<div className="flex flex-wrap items-center gap-2">
-					<Segmented
-						label={t("filters.mode.label")}
-						value={version.mode}
-						onChange={(mode) => setVersion({ ...version, mode })}
-						options={[
-							{ value: "live", label: t("filters.mode.live") },
-							{ value: "submit", label: t("filters.mode.submit") },
-						]}
-					/>
-					<Button variant="outline" onClick={() => void save()} disabled={busy || !changed}>
-						<SaveIcon data-icon="inline-start" />
-						{t("filters.saveDraft")}
-					</Button>
-					<Button onClick={() => void publish()} disabled={busy || (filter.status === "published" && !changed)}>
-						<UploadIcon data-icon="inline-start" />
-						{t("filters.publish")}
-					</Button>
-				</div>
-			</div>
+			<PageHeader
+				heading={filter.name}
+				badge={
+					<>
+						<FilterStatus status={filter.status} />
+						<Badge variant="outline">{t("filters.structure")}</Badge>
+					</>
+				}
+				action={
+					<>
+						<Segmented
+							label={t("filters.mode.label")}
+							value={version.mode}
+							onChange={(mode) => setVersion({ ...version, mode })}
+							options={[
+								{ value: "live", label: t("filters.mode.live") },
+								{ value: "submit", label: t("filters.mode.submit") },
+							]}
+						/>
+						<Button onClick={() => void publish()} disabled={busy || (filter.status === "published" && !changed)}>
+							<UploadIcon data-icon="inline-start" />
+							{t("filters.publish")}
+						</Button>
+					</>
+				}
+			>
+				<span className="text-sm">
+					{t("filters.narrows")} <span className="font-mono">{filter.loop}</span>
+					{usage.usedIn.length > 0
+						? ` · ${t("filters.placedOn", { places: usage.usedIn.map((placement) => placementName(t, placement)).join(", ") })}`
+						: ` · ${t("filters.notPlaced")}`}
+					{" · "}
+					<span className="font-mono">{markup}</span>
+				</span>
+			</PageHeader>
+			<SaveBar
+				state={saveState}
+				onSave={() => void save()}
+				onDiscard={() => {
+					if (saved) setDraft(saved);
+					setProblems([]);
+					setLastSave(null);
+				}}
+			/>
 			{problems.length > 0 ? (
 				<div
 					ref={summary}

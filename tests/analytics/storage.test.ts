@@ -17,7 +17,7 @@ let domains = 0;
 
 beforeAll(async () => {
 	install = await createTestInstall({ now: new Date("2026-03-02T09:00:00Z") });
-	await (await install.superadmin()).api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
+	await (await install.superadmin()).api.modules.approve({ moduleId: "site-analytics", version: "1.2.0" });
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	staffAccount = (await install.createStaff({ workspaces: [workspaceId] })).account;
 });
@@ -145,7 +145,10 @@ describe("raw events", () => {
 		const site = await newSite();
 		const start = install.clock.now();
 		const day = dayOf(start);
+		// Nothing counted yet: no visitor has been counted since the Module ran here.
+		expect((await (await stats()).coverage({ siteId: site.siteId })).counted).toBe(false);
 		await analyticsVisitor(install, site.origin, { address: "203.0.113.14" }).view("/");
+		expect((await (await stats()).coverage({ siteId: site.siteId })).counted).toBe(true);
 		await install.clock.set(new Date(day.to.getTime() + 3 * HOUR));
 		await install.drainJobs();
 		const lines = await partitionLines();
@@ -168,6 +171,8 @@ describe("raw events", () => {
 		expect(await partitionLines()).toContain(`Dropped a month's partition, past keeping. ${month(0)}`);
 		const coverage = await (await stats()).coverage({ siteId: site.siteId });
 		expect(coverage.rawEventsFrom).toBeNull();
+		// Its rollups stay, so the Site still counted something once.
+		expect(coverage.counted).toBe(true);
 		expect((await (await stats()).totals({ siteId: site.siteId, ...day })).totals).toEqual({
 			pageviews: 1,
 			visitors: 1,

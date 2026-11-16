@@ -5,9 +5,10 @@ import { pageTitle, useT } from "../../ui/i18n.tsx";
 import type { MediaItem } from "../../ui/media/preview.ts";
 import { PageHeader } from "../../ui/PageHeader.tsx";
 import { SiteSeoSettings } from "../../ui/seo/SiteSeoSettings.tsx";
+import { SettingsForm } from "../../ui/settings/form.tsx";
 
 export const Route = createFileRoute("/_admin/sites/$siteId/seo")({
-	staticData: { crumb: "shell.nav.seo" },
+	staticData: { crumb: "shell.nav.seo", width: "form" },
 	loader: async ({ params, context }) => {
 		if (!context.place.permissions.includes("structure.edit")) return null;
 		const api = await getApi();
@@ -46,14 +47,15 @@ function SeoPage() {
 	return (
 		<>
 			<PageHeader heading={t("seo.site.heading")}>{t("seo.site.intro")}</PageHeader>
-			<SiteSeoSettings
-				key={JSON.stringify(loaded.settings)}
-				siteId={siteId}
-				siteName={site.name}
-				settings={loaded.settings}
-				globals={loaded.globals}
-				media={loaded.media}
-			/>
+			<SettingsForm>
+				<SiteSeoSettings
+					siteId={siteId}
+					siteName={site.name}
+					settings={loaded.settings}
+					globals={loaded.globals}
+					media={loaded.media}
+				/>
+			</SettingsForm>
 		</>
 	);
 }

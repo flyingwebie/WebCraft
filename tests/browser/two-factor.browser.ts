@@ -1,7 +1,8 @@
 // Two-factor authentication in the admin, in light and dark: the second sign-in step, Your
 // account's settings (an authenticator app with its QR code and key as text, backup codes shown and
 // downloaded, passkeys through a virtual authenticator), the screen a person who must set it up
-// lands on, the reminder, and the reset dialogs. Behaviour is tested at seam 1 (tests/auth).
+// lands on, the reminder (with the toast that puts it off, at the top centre), and the reset dialogs.
+// Behaviour is tested at seam 1 (tests/auth).
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { readFile } from "node:fs/promises";
 import type { Page } from "playwright";
@@ -77,7 +78,7 @@ for (const theme of THEMES) {
 			await page.locator("#sign-in-email").fill(person.account.email);
 			await page.locator("#sign-in-password").fill(person.account.password);
 			await page.locator("form button[type=submit]").click();
-			await page.getByRole("heading", { level: 1, name: "Two-step verification" }).waitFor();
+			await page.getByRole("heading", { level: 1, name: "Enter the code" }).waitFor();
 			expect(await page.evaluate(() => document.activeElement?.tagName)).toBe("H1");
 			await expectAccessibleScreen(page, `second sign-in step (${theme})`);
 
@@ -231,6 +232,26 @@ for (const theme of THEMES) {
 
 			await page.getByRole("button", { name: "Remind me later" }).click();
 			await reminder.waitFor({ state: "hidden" });
+
+			// The toast saying so shows at the top centre, inside the toasts' live region.
+			const notifications = page.getByRole("region", { name: /^Notifications/ });
+			const toast = notifications
+				.locator("[data-sonner-toast]")
+				.filter({ hasText: "We'll remind you again in 7 days." });
+			await toast.waitFor();
+			expect(await notifications.getAttribute("aria-live")).toBe("polite");
+			const box = await toast.boundingBox();
+			const width = await page.evaluate(() => document.documentElement.clientWidth);
+			expect(Math.abs((box?.x ?? 0) + (box?.width ?? 0) / 2 - width / 2)).toBeLessThan(2);
+			expect(box?.y ?? Number.POSITIVE_INFINITY).toBeLessThan(100);
+			if (theme === "light") {
+				// It waits while the pointer is on it, longer than it shows by itself, and goes once the pointer leaves.
+				await toast.hover();
+				await Bun.sleep(6_000);
+				expect(await toast.isVisible()).toBe(true);
+				await page.mouse.move(0, (page.viewportSize()?.height ?? 0) - 1);
+				await toast.waitFor({ state: "detached", timeout: 10_000 });
+			}
 		});
 
 		test("the reset dialogs: a Member's from the Members screen, a Staff member's from the Staff screen", async () => {

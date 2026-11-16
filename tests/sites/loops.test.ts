@@ -9,6 +9,7 @@ import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
+let member: TestBrowser;
 let siteId: string;
 let recipesId: string;
 let chefsId: string;
@@ -23,6 +24,7 @@ beforeAll(async () => {
 	siteId = (await install.createSite(workspaceId, { name: "Acme Bakery", slug: "bakery" })).id;
 	await goLive(install, siteId);
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
+	member = (await install.createMember({ workspaceId, role: "editor" })).browser;
 	await staff.api.languages.add({ siteId, code: "fr" });
 	chefsId = (
 		await staff.api.postTypes.create({
@@ -427,7 +429,8 @@ describe("Edit mode", () => {
 			recipesId,
 			`<h1>{{ title }}</h1><ul>{{@loop ${name} as r}}<li>{{ r.title }}</li><li>{{ title }}</li>{{/loop}}</ul>`,
 		);
-		const editing = await openEditMode(install, staff, siteId, "/recipes/crumble");
+		// A Member's Edit mode: the regions' tags only (Staff's frame carries where each element comes from too).
+		const editing = await openEditMode(install, member, siteId, "/recipes/crumble");
 
 		const html = await (await editing.page("/recipes/crumble")).text();
 

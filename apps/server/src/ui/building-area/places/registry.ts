@@ -1,0 +1,132 @@
+import type { ComponentType } from "react";
+
+import type { ShellConfig, Words } from "../api.ts";
+import type { BuildingDocument, Documents } from "../documents.ts";
+import { MORE_PLACE_KEYS, type PlaceKey, placeKeyOf } from "./keys.ts";
+import { leftAt } from "./memory.ts";
+
+export { MORE_PLACE_KEYS, PLACE_KEYS } from "./keys.ts";
+export { type PlaceKey, placeKeyOf };
+
+/**
+ * The places (SPEC 2 and 8, plan BA-20): what opens over the working area from the rail, replacing the
+ * canvas and the docks and keeping the rail and the bottom bar. Each has an address of its own in
+ * `wc-place` (`content/pages`, `media/<folder>`, …; `documents.ts`), and the rail reads this registry:
+ * a rail button whose place isn't here yet stays "not available yet".
+ */
+
+/** What a place is given by the shell. */
+export type PlaceProps = {
+	config: ShellConfig;
+	words: Words;
+	/** The place's address (`content/pages`), and its view (search, filters and sorting; null: the default). */
+	place: string;
+	view: string | null;
+	documents: Documents;
+	/** The open document's name, for a Member's back button ("Back to {page}"). */
+	documentName: string;
+	/** Leaves the place: back to the canvas, its selection and its panels as they were. */
+	leave(): void;
+	/** Opens a document on the canvas (the place closes, as opening any document does). */
+	open(document: BuildingDocument): void;
+	announce(text: string, urgent?: boolean): void;
+	/** What the place is saving, for the Draft state beside Publish. */
+	onSaving(status: "saving" | "saved" | "failed"): void;
+	/**
+	 * What the place has of its own for the bottom bar (the Forms place's Form, BA-26): its Draft's
+	 * changes for the Draft state, and Publish; null gives them back to the page.
+	 */
+	onBar?(bar: PlaceBar | null): void;
+};
+
+/** A place's own Draft state and Publish (`PlaceProps.onBar`). */
+export type PlaceBar = {
+	/** How many changes its Draft holds. */
+	changes: number;
+	/** Publishes them; answers whether they were published. */
+	publish(): Promise<boolean>;
+};
+
+/** What draws a place. */
+export type PlaceComponent = ComponentType<PlaceProps>;
+
+/** One place: how the rail opens it, and how its code is loaded. */
+export type PlaceEntry = {
+	key: PlaceKey;
+	/** Its address when the rail opens it for the first time in this tab. */
+	first: string;
+	/**
+	 * Loads what draws it (BA-30): each place's code is a file of its own, fetched the first time the
+	 * place is opened (`PlaceLoader.tsx`), so the shell's first load carries none of it. A place module
+	 * exports its component by name; nothing else in the shell imports a place's code.
+	 */
+	load(): Promise<PlaceComponent>;
+	/** Whether a Member's back button names the page ("Back to {page}"), as the place draws it (Content). */
+	namesPage?: boolean;
+};
+
+/**
+ * The places that exist so far: the rail offers these, and says "not available yet" of the rest. Each
+ * `import()` names its place's module literally, so the bundler makes it a file of its own.
+ */
+const PLACES: Partial<Record<PlaceKey, PlaceEntry>> = {
+	content: {
+		key: "content",
+		first: "content/pages",
+		namesPage: true,
+		load: () => import("./content/ContentPlace.tsx").then((module) => module.ContentPlace),
+	},
+	media: {
+		key: "media",
+		first: "media",
+		load: () => import("./media/MediaPlace.tsx").then((module) => module.MediaPlace),
+	},
+	templates: {
+		key: "templates",
+		first: "templates",
+		load: () => import("./templates/TemplatesPlace.tsx").then((module) => module.TemplatesPlace),
+	},
+	styles: {
+		key: "styles",
+		first: "styles/classes",
+		load: () => import("./styles/StylesPlace.tsx").then((module) => module.StylesPlace),
+	},
+	components: {
+		key: "components",
+		first: "components",
+		load: () => import("./components/ComponentsPlace.tsx").then((module) => module.ComponentsPlace),
+	},
+	loops: {
+		key: "loops",
+		first: "loops",
+		load: () => import("./loops/LoopsPlace.tsx").then((module) => module.LoopsPlace),
+	},
+	forms: {
+		key: "forms",
+		first: "forms",
+		load: () => import("./forms/FormsPlace.tsx").then((module) => module.FormsPlace),
+	},
+};
+
+/** The place registered for a rail button, if it exists yet. */
+export function placeEntry(key: PlaceKey): PlaceEntry | null {
+	return PLACES[key] ?? null;
+}
+
+/** The places behind the rail's "more" that exist so far (Forms). */
+export function morePlaces(): PlaceEntry[] {
+	return MORE_PLACE_KEYS.flatMap((key) => placeEntry(key) ?? []);
+}
+
+/** Where the rail opens a place: where it was left in this tab, else its first address. */
+export function reopenPlace(key: PlaceKey): { place: string; view: string | null } | null {
+	const entry = placeEntry(key);
+	if (!entry) return null;
+	return leftAt(key) ?? { place: entry.first, view: null };
+}
+
+/**
+ * The event the Command menu (BA-10) sends on the shell's document to open a place or leave the open
+ * one: `new CustomEvent("webcraft:place", { detail: { place: "content" } })`, `{ place: null }` to leave.
+ */
+export const PLACE_EVENT = "webcraft:place";

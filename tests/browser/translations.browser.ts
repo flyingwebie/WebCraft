@@ -1,4 +1,4 @@
-// AI translation in a real browser: Site › Translations with the Review queue (a line opened),
+// AI translation in a real browser: Site › Translations with a tab per language (an item chosen),
 // Site settings › AI translation, Workspace › Protected terms and a term's menu, Workspace › AI keys
 // and the dialog removing the key, Install settings › AI and the dialog adding a shared key, and the
 // Entry editor showing an Outdated translation, each in light and dark, with axe and the keyboard.
@@ -89,15 +89,23 @@ for (const theme of THEMES) {
 			return page;
 		};
 
-		test("Site › Translations: each language, and the Review queue with a line opened", async () => {
+		test("Site › Translations: a tab per language, and what waits in it beside the item chosen", async () => {
 			const page = await open(owner, `/sites/${siteId}/translations`);
-			await page.getByRole("heading", { name: "Review queue" }).waitFor();
-			await page.getByRole("heading", { name: /Italiano/ }).waitFor();
+			await page.getByRole("tab", { name: /Italiano/, selected: true }).waitFor();
+			await page.getByRole("heading", { name: "Spring menu 2027", level: 2 }).waitFor();
 			await expectAccessibleScreen(page, `Translations (${theme})`);
 
+			// The arrow keys move between the languages' tabs, and the address keeps the one open.
+			await page.getByRole("tab", { name: /Italiano/ }).focus();
+			await page.keyboard.press("ArrowRight");
+			await page.getByRole("tab", { name: /Français/, selected: true }).waitFor();
+			await page.waitForURL(/language=fr/);
+			await page.keyboard.press("ArrowLeft");
+			await page.getByRole("tab", { name: /Italiano/, selected: true }).waitFor();
+
 			await page.getByRole("button", { name: "Spring menu 2027" }).first().click();
-			await page.getByRole("button", { name: "Approve", exact: true }).waitFor();
-			await expectAccessibleScreen(page, `Translations › a line opened (${theme})`);
+			await page.getByRole("button", { name: "Translate again" }).waitFor();
+			await expectAccessibleScreen(page, `Translations › an item chosen (${theme})`);
 		});
 
 		test("Site settings › AI translation", async () => {
@@ -108,7 +116,7 @@ for (const theme of THEMES) {
 
 		test("Workspace › Protected terms, and a term's menu", async () => {
 			const page = await open(owner, `/workspaces/${workspaceId}/protected-terms`);
-			await page.getByRole("cell", { name: "Panettone Sunday" }).first().waitFor();
+			await page.getByText("Panettone Sunday", { exact: true }).first().waitFor();
 			await expectAccessibleScreen(page, `Protected terms (${theme})`);
 			await expectOverlayUsable(
 				page,
@@ -132,7 +140,7 @@ for (const theme of THEMES) {
 
 		test("Install settings › AI, and the dialog adding a shared key", async () => {
 			const page = await open(superadmin, "/settings/ai");
-			await page.getByRole("cell", { name: "Northwind shared key" }).first().waitFor();
+			await page.getByText("Northwind shared key", { exact: true }).first().waitFor();
 			await expectAccessibleScreen(page, `Install settings › AI (${theme})`);
 			await expectOverlayUsable(
 				page,

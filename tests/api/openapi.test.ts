@@ -163,6 +163,7 @@ describe("the document", () => {
 			"publishing.scheduleUnpublish",
 			"publishing.updateScheduled",
 			"entries.delete",
+			"postTypes.delete",
 			"components.delete",
 			"forms.delete",
 			"designSystem.deleteClass",

@@ -1,17 +1,9 @@
-import { useRouter } from "@tanstack/react-router";
+import { Link, useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import type { ApiClient } from "@webcraft/api";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
-import {
-	Dialog,
-	DialogClose,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "@webcraft/ui/components/dialog.tsx";
+import { cn } from "@webcraft/ui/lib/utils.ts";
 import {
 	BlocksIcon,
 	CalendarClockIcon,
@@ -21,13 +13,13 @@ import {
 	CodeIcon,
 	FileTextIcon,
 	FilterIcon,
-	InfoIcon,
 	LayoutTemplateIcon,
 	ListIcon,
 	type LucideIcon,
 	MailIcon,
 	PaletteIcon,
 	RepeatIcon,
+	SearchCheckIcon,
 	ShieldCheckIcon,
 	SlidersHorizontalIcon,
 	UploadIcon,
@@ -36,12 +28,23 @@ import { type RefObject, useCallback, useEffect, useId, useMemo, useRef, useStat
 import { toast } from "sonner";
 
 import { getApi } from "../api.ts";
+import { When } from "../content/When.tsx";
 import { errorMessage } from "../errors.ts";
 import { formatUtc } from "../format.ts";
-import { type MessageKey, useT } from "../i18n.tsx";
-import { ReviewBadge } from "../review/Review.tsx";
+import { useT } from "../i18n.tsx";
+import { useOpenReview } from "../review/Review.tsx";
+import { Switch } from "../settings/layout.tsx";
+import type { AdminPlace } from "../shell/levels.ts";
+import { PageSheet } from "../shell/page.tsx";
 import { useOpenStaging } from "../shell/StagingButton.tsx";
-import { CancelScheduleDialog, ScheduleDialog, ScheduledTime } from "./schedule.tsx";
+import {
+	CancelScheduleDialog,
+	ScheduleDialog,
+	ScheduledTime,
+	ScheduleFields,
+	scheduleProblem,
+	useScheduleBoxes,
+} from "./schedule.tsx";
 
 /** One Draft of the Site, as `publishing.drafts` lists it. */
 export type SiteDraft = Awaited<ReturnType<ApiClient["publishing"]["drafts"]>>["drafts"][number];
@@ -75,11 +78,25 @@ export function PublishAllButton({
 	open?: boolean;
 }) {
 	const t = useT();
+	const navigate = useNavigate();
 	const [open, setOpen] = useState(openAtStart);
 	const trigger = useRef<HTMLButtonElement>(null);
 	useEffect(() => {
 		if (openAtStart) setOpen(true);
 	}, [openAtStart]);
+	const close = () => {
+		setOpen(false);
+		// Opened by its address: closing takes `publishAll` out of it, so a link to that address (the
+		// Overview's own "Publish all") opens the list again.
+		if (openAtStart) {
+			void navigate({
+				to: ".",
+				search: ((before: Record<string, unknown>) => ({ ...before, publishAll: undefined })) as never,
+				replace: true,
+				resetScroll: false,
+			});
+		}
+	};
 	return (
 		<>
 			<Button ref={trigger} size="sm" onClick={() => setOpen(true)} aria-haspopup="dialog">
@@ -91,12 +108,97 @@ export function PublishAllButton({
 				{/* Its name says what the number counts: "Publish all 3 changes". */}
 				<span className="sr-only"> {t("publishAll.changesCounted", { count })}</span>
 			</Button>
-			{open ? <PublishAllDialog siteId={siteId} onClose={() => setOpen(false)} finalFocus={trigger} /> : null}
+			{open ? <PublishAllDialog siteId={siteId} onClose={close} finalFocus={trigger} /> : null}
 		</>
 	);
 }
 
-/** The list of Drafts, ticked, and the publish that follows. */
+/** A group of the list: its heading, and the Drafts in it. */
+type DraftGroup = { key: string; label: string; staffOnly: boolean; drafts: SiteDraft[] };
+
+/**
+ * The Drafts in the groups people know them by: the Entries of each Post Type (Pages first, as the
+ * Site lists them), then the Site's other content by kind, the Emails of Forms, and Structure last
+ * (Templates and Components, Staff only).
+ */
+function groupsOf(t: T, drafts: readonly SiteDraft[], postTypeOrder: readonly string[]): DraftGroup[] {
+	const groups = new Map<string, DraftGroup>();
+	const add = (key: string, label: string, staffOnly: boolean, draft: SiteDraft) => {
+		const group = groups.get(key) ?? { key, label, staffOnly, drafts: [] };
+		group.drafts.push(draft);
+		groups.set(key, group);
+	};
+	const structure: SiteDraft[] = [];
+	const emails: SiteDraft[] = [];
+	for (const draft of drafts) {
+		if (draft.group === "structure") structure.push(draft);
+		else if (draft.item.kind === "formEmails") emails.push(draft);
+		else if (draft.item.kind === "entry")
+			add(`postType:${draft.postType?.id ?? ""}`, draft.postType?.name ?? t("publishAll.kinds.entry"), false, draft);
+		else add(`kind:${contentGroupOf(draft.item.kind)}`, contentGroupLabel(t, draft.item.kind), false, draft);
+	}
+	for (const draft of emails) add("formEmails", t("publishAll.groups.formEmails"), false, draft);
+	// "Templates and Components" while that is all there is; Structure when it holds more kinds.
+	const onlyTemplates = structure.every((draft) => draft.item.kind === "template" || draft.item.kind === "component");
+	const structureLabel = onlyTemplates ? t("publishAll.groups.templatesAndComponents") : t("publishAll.structure");
+	for (const draft of structure) add("structure", structureLabel, true, draft);
+	// Post Types in the order the Site lists them (Pages first); the rest after them as they came.
+	const rank = (group: DraftGroup) => {
+		const at = postTypeOrder.indexOf(group.key.replace(/^postType:/, ""));
+		return group.key.startsWith("postType:") ? (at === -1 ? postTypeOrder.length : at) : postTypeOrder.length + 1;
+	};
+	return [...groups.values()].sort((a, b) => rank(a) - rank(b));
+}
+
+/** The Site's Post Types' ids in the order its sidebar lists them, Pages first. */
+function usePostTypeOrder(): readonly string[] {
+	const order = useRouterState({
+		select: (state) => {
+			for (const match of state.matches) {
+				const place = (match.context as { place?: AdminPlace } | undefined)?.place;
+				if (place?.level === "site")
+					return [...place.postTypes]
+						.sort((a, b) => Number(b.builtIn === "page") - Number(a.builtIn === "page"))
+						.map((postType) => postType.id)
+						.join(" ");
+			}
+			return "";
+		},
+	});
+	return useMemo(() => order.split(" ").filter(Boolean), [order]);
+}
+
+/** The content groups other than Entries: Popups' parts go together. */
+function contentGroupOf(kind: Item["kind"]): string {
+	return kind === "popupContent" ? "popup" : kind;
+}
+
+function contentGroupLabel(t: T, kind: Item["kind"]): string {
+	switch (kind) {
+		case "globals":
+			return t("publishAll.groups.globals");
+		case "consentBanner":
+			return t("publishAll.groups.consentBanner");
+		case "form":
+			return t("publishAll.groups.forms");
+		case "popup":
+		case "popupContent":
+			return t("popups.title");
+		default:
+			return t("publishAll.content");
+	}
+}
+
+/** A Check's item, keyed as a Draft's item is. */
+function checkKeyOf(item: { kind: string; id: string }): string {
+	return item.kind === "designSystem" ? "designSystem:" : `${item.kind}:${item.id}`;
+}
+
+/**
+ * Publish all's sheet (frame "Publish all"): the Drafts in their groups, each ticked, with what
+ * changed, who changed it and when; the open Checks on them (they never stop publishing); Publish
+ * later, which opens the date and time; and at the foot Select all, Cancel and Publish N.
+ */
 function PublishAllDialog({
 	siteId,
 	onClose,
@@ -111,12 +213,16 @@ function PublishAllDialog({
 	const id = useId();
 	const [drafts, setDrafts] = useState<SiteDraft[] | null>(null);
 	const [scheduled, setScheduled] = useState<Scheduled[]>([]);
-	const [inReview, setInReview] = useState<ReadonlySet<string>>(new Set());
+	// The Reviews waiting, by the item they are of.
+	const [inReview, setInReview] = useState<ReadonlyMap<string, string>>(new Map());
+	const openReview = useOpenReview();
 	const [unticked, setUnticked] = useState<ReadonlySet<string>>(new Set());
 	const [busy, setBusy] = useState(false);
 	const [problem, setProblem] = useState<string | null>(null);
-	const [scheduling, setScheduling] = useState(false);
-	const scheduleButton = useRef<HTMLButtonElement>(null);
+	const [later, setLater] = useState(false);
+	const when = useScheduleBoxes();
+	// The Site's open Checks by item; null until they are read (they take longer than the list).
+	const [checks, setChecks] = useState<ReadonlyMap<string, number> | null>(null);
 
 	// The Drafts and the Scheduled publishes, read again after each change made here.
 	const load = useCallback(async () => {
@@ -128,12 +234,28 @@ function PublishAllDialog({
 		]);
 		setDrafts(listed);
 		setScheduled(waiting);
-		setInReview(new Set(reviews.map((review) => keyOf(review.item))));
+		setInReview(new Map(reviews.map((review) => [keyOf(review.item), review.id])));
 	}, [siteId]);
 	const reload = useCallback(() => {
 		load().catch((failure: unknown) => setProblem(t(errorMessage(failure))));
 	}, [load, t]);
 	useEffect(() => reload(), [reload]);
+	useEffect(() => {
+		let current = true;
+		getApi()
+			.then((api) => api.checks.list({ siteId }))
+			.then(({ checks: open }) => {
+				if (!current) return;
+				const counted = new Map<string, number>();
+				for (const check of open) counted.set(checkKeyOf(check.item), (counted.get(checkKeyOf(check.item)) ?? 0) + 1);
+				setChecks(counted);
+			})
+			// Checks are advice: when they can't be read, the list goes on without them.
+			.catch(() => undefined);
+		return () => {
+			current = false;
+		};
+	}, [siteId]);
 
 	// Each item waiting in a Scheduled publish of its Draft: when, and whether its Draft changed since.
 	const waiting = useMemo(() => {
@@ -146,9 +268,12 @@ function PublishAllDialog({
 		return found;
 	}, [scheduled]);
 
+	const postTypeOrder = usePostTypeOrder();
+	const groups = useMemo(() => groupsOf(t, drafts ?? [], postTypeOrder), [t, drafts, postTypeOrder]);
 	const mine = useMemo(() => (drafts ?? []).filter((draft) => draft.canPublish), [drafts]);
 	const ticked = mine.filter((draft) => !unticked.has(keyOf(draft.item)));
 	const allTicked = ticked.length === mine.length && mine.length > 0;
+	const openChecks = (drafts ?? []).reduce((sum, draft) => sum + (checks?.get(keyOf(draft.item)) ?? 0), 0);
 
 	const toggle = (draft: SiteDraft, on: boolean) => {
 		const next = new Set(unticked);
@@ -158,16 +283,39 @@ function PublishAllDialog({
 	};
 	const toggleAll = (on: boolean) => setUnticked(on ? new Set() : new Set(mine.map((draft) => keyOf(draft.item))));
 
+	const publishNow = async () => {
+		const api = await getApi();
+		const items = ticked.map((draft) => draft.item);
+		const preview = await api.publishing.publishAll({ siteId, items });
+		if (preview.published || !preview.confirmation) return;
+		const done = await api.publishing.publishAll({ siteId, items, confirmation: preview.confirmation.id });
+		toast.success(t("publishAll.published", { count: done.published ? done.items.length : 0 }));
+	};
+
+	// Publish later: the same two calls as Publish all, with the time chosen.
+	const publishLater = async (at: Date) => {
+		const api = await getApi();
+		const items = ticked.map((draft) => draft.item);
+		const preview = await api.publishing.scheduleAll({ siteId, items, at });
+		if (!("confirmation" in preview)) return;
+		await api.publishing.scheduleAll({ siteId, items, at, confirmation: preview.confirmation.id });
+		toast.success(t("schedule.scheduled", { time: formatUtc(at) }));
+	};
+
 	const publish = async () => {
-		setBusy(true);
 		setProblem(null);
+		const at = later ? when.chosen : null;
+		if (later) {
+			const refused = scheduleProblem(t, at);
+			if (refused) {
+				setProblem(refused);
+				return;
+			}
+		}
+		setBusy(true);
 		try {
-			const api = await getApi();
-			const items = ticked.map((draft) => draft.item);
-			const preview = await api.publishing.publishAll({ siteId, items });
-			if (preview.published || !preview.confirmation) return;
-			const done = await api.publishing.publishAll({ siteId, items, confirmation: preview.confirmation.id });
-			toast.success(t("publishAll.published", { count: done.published ? done.items.length : 0 }));
+			if (at) await publishLater(at);
+			else await publishNow();
 			onClose();
 			await router.invalidate();
 		} catch (failure) {
@@ -177,99 +325,137 @@ function PublishAllDialog({
 		}
 	};
 
-	// "Publish all at…": the same two calls as Publish all, with the time chosen.
-	const scheduleAll = async (at: Date) => {
-		const api = await getApi();
-		const items = ticked.map((draft) => draft.item);
-		try {
-			const preview = await api.publishing.scheduleAll({ siteId, items, at });
-			if (!("confirmation" in preview)) return;
-			await api.publishing.scheduleAll({ siteId, items, at, confirmation: preview.confirmation.id });
-		} catch (failure) {
-			throw new Error(refusalText(t, failure));
-		}
-		setScheduling(false);
-		toast.success(t("schedule.scheduled", { time: formatUtc(at) }));
-		reload();
-		await router.invalidate();
-	};
-
-	const groups: { key: "content" | "structure"; label: MessageKey }[] = [
-		{ key: "content", label: "publishAll.content" },
-		{ key: "structure", label: "publishAll.structure" },
-	];
+	const count = ticked.length;
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent closeLabel={t("publishAll.close")} finalFocus={finalFocus} className="sm:max-w-2xl">
-				<DialogHeader>
-					<DialogTitle>{t("publishAll.title")}</DialogTitle>
-					<DialogDescription>
-						{drafts === null
-							? t("publishAll.loading")
-							: drafts.length === 0
-								? t("publishAll.none")
-								: t("publishAll.intro", { count: drafts.length })}
-					</DialogDescription>
-				</DialogHeader>
-				{scheduled.length > 0 || (drafts && drafts.length > 0) ? (
-					<div className="-mx-1 grid max-h-[60vh] gap-4 overflow-y-auto px-1">
-						{scheduled.length > 0 ? (
-							<ScheduledSection siteId={siteId} scheduled={scheduled} onChanged={reload} />
-						) : null}
-						{inReview.size > 0 ? (
-							<p className="flex items-center gap-2 text-sm">
-								<ClipboardCheckIcon aria-hidden="true" className="text-muted-foreground size-4 shrink-0" />
-								{t("publishAll.inReview", { count: inReview.size })}
-							</p>
-						) : null}
-						{drafts && drafts.length > 0 ? (
-							<div className="flex items-center gap-3">
-								<Checkbox
-									id={`${id}-all`}
-									checked={allTicked}
-									indeterminate={ticked.length > 0 && !allTicked}
-									disabled={mine.length === 0}
-									onCheckedChange={(value) => toggleAll(value === true)}
+		<PageSheet
+			open
+			onOpenChange={(open) => !open && onClose()}
+			finalFocus={finalFocus}
+			title={t("publishAll.title")}
+			description={
+				drafts === null
+					? t("publishAll.loading")
+					: drafts.length === 0
+						? t("publishAll.none")
+						: t("publishAll.intro", { count: drafts.length })
+			}
+			className="data-[side=right]:sm:max-w-[520px]"
+			footer={
+				<div className="flex w-full items-center justify-between gap-2">
+					{mine.length > 0 ? (
+						<div className="flex items-center gap-2 ps-2.5">
+							<Checkbox
+								id={`${id}-all`}
+								checked={allTicked}
+								indeterminate={count > 0 && !allTicked}
+								onCheckedChange={(value) => toggleAll(value === true)}
+							/>
+							<label htmlFor={`${id}-all`} className="text-sm font-medium">
+								{t("publishAll.selectAll")}
+							</label>
+						</div>
+					) : (
+						<span />
+					)}
+					<div className="flex gap-2">
+						<Button type="button" variant="outline" onClick={onClose}>
+							{t("publishAll.cancel")}
+						</Button>
+						<Button type="button" onClick={publish} disabled={busy || count === 0}>
+							{later ? t("schedule.scheduleAllSubmit", { count }) : t("publishAll.publish", { count })}
+						</Button>
+					</div>
+				</div>
+			}
+		>
+			<div className="grid gap-5">
+				{scheduled.length > 0 ? (
+					<>
+						<ScheduledSection siteId={siteId} scheduled={scheduled} onChanged={reload} />
+						<hr />
+					</>
+				) : null}
+				{inReview.size > 0 ? (
+					<p className="flex items-center gap-2 text-sm">
+						<ClipboardCheckIcon aria-hidden="true" className="text-muted-foreground size-4 shrink-0" />
+						{t("publishAll.inReview", { count: inReview.size })}
+					</p>
+				) : null}
+				{groups.map((group, index) => (
+					<section
+						key={group.key}
+						aria-labelledby={`${id}-${group.key}`}
+						className={cn("grid gap-2.5", index > 0 && "border-t pt-5")}
+					>
+						<h3
+							id={`${id}-${group.key}`}
+							className="text-muted-foreground flex items-center gap-2 text-xs font-semibold"
+						>
+							{group.label}
+							{group.staffOnly ? (
+								<Badge variant="outline" className="text-foreground font-medium">
+									{t("publishAll.staffOnly")}
+								</Badge>
+							) : null}
+						</h3>
+						<ul className="grid gap-2.5">
+							{group.drafts.map((draft) => (
+								<DraftRow
+									key={keyOf(draft.item)}
+									id={`${id}-${keyOf(draft.item)}`}
+									siteId={siteId}
+									draft={draft}
+									waiting={waiting.get(keyOf(draft.item)) ?? null}
+									review={inReview.get(keyOf(draft.item)) ?? null}
+									onReview={(reviewId) => {
+										onClose();
+										openReview(reviewId);
+									}}
+									ticked={draft.canPublish && !unticked.has(keyOf(draft.item))}
+									onToggle={(on) => toggle(draft, on)}
 								/>
-								<label htmlFor={`${id}-all`} className="text-sm font-medium">
-									{t("publishAll.selected", { selected: ticked.length, total: mine.length })}
+							))}
+						</ul>
+					</section>
+				))}
+				{openChecks > 0 ? (
+					<div className="grid gap-1.5 border-t pt-5">
+						<div className="flex items-center gap-2">
+							<SearchCheckIcon aria-hidden="true" className="text-muted-foreground size-4 shrink-0" />
+							<p id={`${id}-checks`} className="flex-1 text-sm">
+								{t("publishAll.checksOpen", { count: openChecks })}
+							</p>
+							<Button
+								variant="link"
+								size="sm"
+								aria-describedby={`${id}-checks`}
+								render={<Link to="/sites/$siteId/checks" params={{ siteId }} />}
+							>
+								{t("publishAll.seeChecks")}
+							</Button>
+						</div>
+						<p className="text-muted-foreground text-xs">{t("publishAll.checksNeverStop")}</p>
+					</div>
+				) : null}
+				{mine.length > 0 ? (
+					<div className="grid gap-4 border-t pt-5">
+						<div className="flex items-center justify-between gap-4">
+							<div className="grid gap-0.5">
+								<label htmlFor={`${id}-later`} className="text-sm font-medium">
+									{t("publishAll.later")}
 								</label>
+								<p id={`${id}-later-help`} className="text-muted-foreground text-sm">
+									{t("publishAll.laterHelp")}
+								</p>
 							</div>
-						) : null}
-						{groups.map((group) => {
-							const listed = (drafts ?? []).filter((draft) => draft.group === group.key);
-							if (listed.length === 0) return null;
-							const staffOnly = group.key === "structure" && listed.every((draft) => !draft.canPublish);
-							return (
-								<section key={group.key} aria-labelledby={`${id}-${group.key}`} className="grid gap-2">
-									<h3
-										id={`${id}-${group.key}`}
-										className="text-muted-foreground flex items-center gap-2 text-xs font-medium uppercase"
-									>
-										{t(group.label)}
-										{staffOnly ? (
-											<Badge variant="outline" className="font-normal normal-case">
-												{t("publishAll.staffOnly")}
-											</Badge>
-										) : null}
-									</h3>
-									<ul className="grid gap-2">
-										{listed.map((draft) => (
-											<DraftRow
-												key={keyOf(draft.item)}
-												id={`${id}-${keyOf(draft.item)}`}
-												siteId={siteId}
-												draft={draft}
-												waiting={waiting.get(keyOf(draft.item)) ?? null}
-												inReview={inReview.has(keyOf(draft.item))}
-												ticked={draft.canPublish && !unticked.has(keyOf(draft.item))}
-												onToggle={(on) => toggle(draft, on)}
-											/>
-										))}
-									</ul>
-								</section>
-							);
-						})}
+							<Switch
+								id={`${id}-later`}
+								checked={later}
+								onCheckedChange={setLater}
+								aria-describedby={`${id}-later-help`}
+							/>
+						</div>
+						{later ? <ScheduleFields state={when} /> : null}
 					</div>
 				) : null}
 				{problem ? (
@@ -277,41 +463,8 @@ function PublishAllDialog({
 						{problem}
 					</p>
 				) : null}
-				<DialogFooter className="items-center sm:justify-between">
-					<p className="text-muted-foreground flex items-center gap-2 text-sm">
-						<InfoIcon aria-hidden="true" className="size-4 shrink-0" />
-						{t("publishAll.cacheNote")}
-					</p>
-					<div className="flex flex-wrap gap-2">
-						<DialogClose render={<Button variant="outline" type="button" />}>{t("publishAll.cancel")}</DialogClose>
-						<Button
-							ref={scheduleButton}
-							variant="outline"
-							onClick={() => setScheduling(true)}
-							disabled={busy || ticked.length === 0}
-							aria-haspopup="dialog"
-						>
-							<CalendarClockIcon aria-hidden="true" />
-							{t("schedule.publishAllAtCount", { count: ticked.length })}
-						</Button>
-						<Button onClick={publish} disabled={busy || ticked.length === 0}>
-							<UploadIcon aria-hidden="true" />
-							{t("publishAll.publish", { count: ticked.length })}
-						</Button>
-					</div>
-				</DialogFooter>
-				{scheduling ? (
-					<ScheduleDialog
-						title={t("schedule.scheduleAllTitle")}
-						description={t("schedule.scheduleAllDescription", { count: ticked.length })}
-						submitLabel={t("schedule.scheduleAllSubmit", { count: ticked.length })}
-						onSubmit={scheduleAll}
-						onClose={() => setScheduling(false)}
-						finalFocus={scheduleButton}
-					/>
-				) : null}
-			</DialogContent>
-		</Dialog>
+			</div>
+		</PageSheet>
 	);
 }
 
@@ -491,13 +644,26 @@ function ScheduledSection({
 	);
 }
 
-/** One Draft: its tick, what it is, what changed and who changed it, its status, and View on the Staging address. */
+/** What changed, in a few words: new, the values that differ, or that it changed. */
+function changeWords(t: T, draft: SiteDraft): string {
+	if (draft.status === "new") return t("publishAll.new");
+	if (draft.changes.length === 0) return t("publishAll.changed");
+	const labels = draft.changes.map((change) => changeLabel(t, draft, change));
+	if (labels.length <= 2) return t("publishAll.changes", { list: labels.join(", ") });
+	return t("publishAll.changesMore", { list: labels.slice(0, 2).join(", "), count: labels.length - 2 });
+}
+
+/**
+ * One Draft: its tick and its name, then what changed, who changed it and when; a Scheduled publish or
+ * a Review it waits in, and View on the Staging address.
+ */
 function DraftRow({
 	id,
 	siteId,
 	draft,
 	waiting,
-	inReview,
+	review,
+	onReview,
 	ticked,
 	onToggle,
 }: {
@@ -506,56 +672,69 @@ function DraftRow({
 	draft: SiteDraft;
 	/** The Scheduled publish it waits in, if any: when, and whether its Draft changed since. */
 	waiting: { at: Date | string; changedSinceScheduled: boolean } | null;
-	/** Its Author submitted it for Review, and it waits: publishing it ends the Review. */
-	inReview: boolean;
+	/** The Review it waits in, if its Author submitted it: publishing it ends the Review. */
+	review: string | null;
+	/** Opens that Review's sheet. */
+	onReview: (reviewId: string) => void;
 	ticked: boolean;
 	onToggle: (on: boolean) => void;
 }) {
 	const t = useT();
 	const Icon = iconOf(draft);
 	const title = titleOf(t, draft);
-	const details = [
-		kindOf(t, draft),
-		draft.changes.length > 0
-			? t("publishAll.changes", { list: draft.changes.map((change) => changeLabel(t, draft, change)).join(", ") })
-			: null,
-		draft.changedBy
-			? draft.changedBy.via
-				? t("publishAll.changedVia", { person: draft.changedBy.name, client: draft.changedBy.via })
-				: draft.changedBy.name
-			: null,
-		formatUtc(draft.changedAt),
-	].filter((part): part is string => part !== null);
+	const who = draft.changedBy
+		? draft.changedBy.via
+			? t("publishAll.changedVia", { person: draft.changedBy.name, client: draft.changedBy.via })
+			: draft.changedBy.name
+		: null;
+	// Structure's kind says what an item is when the group holds several kinds.
+	const kind = draft.group === "structure" && draft.name ? kindOf(t, draft) : null;
 	return (
-		<li className="flex items-center gap-3 rounded-lg border p-3">
+		<li className="flex items-start gap-2.5">
 			<Checkbox
 				id={id}
+				className="mt-0.5"
 				checked={ticked}
 				disabled={!draft.canPublish}
 				onCheckedChange={(value) => onToggle(value === true)}
 				aria-describedby={`${id}-details`}
 			/>
-			<Icon aria-hidden="true" className="text-muted-foreground size-5 shrink-0" />
+			<Icon aria-hidden="true" className="text-muted-foreground mt-0.5 size-4 shrink-0" />
 			<div className="grid min-w-0 flex-1 gap-0.5">
 				<label htmlFor={id} className="truncate text-sm font-medium">
 					{title}
 				</label>
-				<p id={`${id}-details`} className="text-muted-foreground truncate text-xs">
-					{details.join(" · ")}
+				<p id={`${id}-details`} className="text-muted-foreground text-[13px]">
+					{kind ? `${kind} · ` : ""}
+					{changeWords(t, draft)}
+					{who ? ` · ${who}` : ""} · <When value={draft.changedAt} />
 					{!draft.canPublish ? ` · ${t("publishAll.staffOnly")}` : ""}
 				</p>
+				{waiting || review ? (
+					<div className="flex flex-wrap gap-1 pt-1">
+						{waiting ? (
+							<Badge variant="outline" title={formatUtc(waiting.at)}>
+								<CalendarClockIcon aria-hidden="true" />
+								{t(waiting.changedSinceScheduled ? "schedule.changedSince" : "schedule.badge")}
+								<span className="sr-only"> {formatUtc(waiting.at)}</span>
+							</Badge>
+						) : null}
+						{review ? (
+							<Button
+								type="button"
+								variant="outline"
+								size="xs"
+								aria-haspopup="dialog"
+								aria-label={t("publishAll.openReview", { name: title })}
+								onClick={() => onReview(review)}
+							>
+								<ClipboardCheckIcon aria-hidden="true" />
+								{t("review.badge")}
+							</Button>
+						) : null}
+					</div>
+				) : null}
 			</div>
-			{waiting ? (
-				<Badge variant="outline" title={formatUtc(waiting.at)}>
-					<CalendarClockIcon aria-hidden="true" />
-					{t(waiting.changedSinceScheduled ? "schedule.changedSince" : "schedule.badge")}
-					<span className="sr-only"> {formatUtc(waiting.at)}</span>
-				</Badge>
-			) : null}
-			{inReview ? <ReviewBadge status="inReview" /> : null}
-			<Badge variant={draft.status === "new" ? "secondary" : "outline"}>
-				{t(draft.status === "new" ? "publishAll.new" : "publishAll.changed")}
-			</Badge>
 			<ViewOnStaging siteId={siteId} path={draft.path ?? "/"} name={title} />
 		</li>
 	);
@@ -569,7 +748,8 @@ function ViewOnStaging({ siteId, path, name }: { siteId: string; path: string; n
 	return (
 		<Button
 			variant="ghost"
-			size="sm"
+			size="xs"
+			className="text-muted-foreground"
 			onClick={view}
 			disabled={opening}
 			aria-label={t("publishAll.viewLabel", { name })}

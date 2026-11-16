@@ -5,7 +5,7 @@ import { DomainsPage } from "../../ui/domains/Domains.tsx";
 import { pageTitle } from "../../ui/i18n.tsx";
 
 export const Route = createFileRoute("/_admin/sites/$siteId/domains")({
-	staticData: { crumb: "domains.pageTitle" },
+	staticData: { crumb: "domains.pageTitle", width: "form" },
 	loader: async ({ params }) => {
 		const api = await getApi();
 		const [domains, { settings }, staging, paused] = await Promise.all([

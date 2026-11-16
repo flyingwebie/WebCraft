@@ -59,7 +59,7 @@ async function expectListUsable(page: Page, where: string): Promise<void> {
 	await trigger.focus();
 	await page.keyboard.press("Enter");
 	const dialog = page.getByRole("dialog");
-	await dialog.getByText(/\d+ of \d+ selected/).waitFor();
+	await dialog.getByRole("checkbox", { name: "Select all" }).waitFor();
 	// An open dialog sits outside the landmarks, as dialogs do: people reach it from its button.
 	await expectNoAxeViolations(page, `${where} (open)`, ["region"]);
 	expect(await dialog.evaluate((element) => element.contains(document.activeElement))).toBe(true);
@@ -94,17 +94,32 @@ for (const theme of THEMES) {
 	});
 }
 
+test("the Site overview's address with publishAll=1 opens Publish all at once, as any screen's does", async () => {
+	const page = await install.newPage("light");
+	await install.signIn(page, staff);
+	await page.goto(install.adminUrl(`/sites/${siteId}?publishAll=1`));
+	await page.getByRole("dialog").getByRole("checkbox", { name: "Select all" }).waitFor();
+	// Closing it takes `publishAll` out of the address, so the Overview's own link opens it again.
+	await page.keyboard.press("Escape");
+	await page.getByRole("dialog").waitFor({ state: "hidden" });
+	await page.waitForURL((url) => !url.searchParams.has("publishAll"));
+	await page.getByRole("link", { name: /^Publish all/ }).click();
+	await page.getByRole("dialog").getByRole("checkbox", { name: "Select all" }).waitFor();
+	expect(new URL(page.url()).searchParams.has("publishAll")).toBe(true);
+});
+
 describe("publishing from the list", () => {
 	test("an item unticked with the keyboard stays a Draft; the rest go live", async () => {
 		const page = await overview("light", staff);
 		await page.getByRole("button", { name: "Publish all 3 changes" }).click();
 		const dialog = page.getByRole("dialog");
-		await dialog.getByText("3 of 3 selected").waitFor();
+		await dialog.getByRole("button", { name: "Publish 3", exact: true }).waitFor();
 
 		await dialog.getByRole("checkbox", { name: "Spring menu" }).focus();
 		await page.keyboard.press("Space");
-		await dialog.getByText("2 of 3 selected").waitFor();
-		await dialog.getByRole("button", { name: "Publish 2 items", exact: true }).focus();
+		await dialog.getByRole("button", { name: "Publish 2", exact: true }).waitFor();
+		expect(await dialog.getByRole("checkbox", { name: "Select all" }).getAttribute("aria-checked")).toBe("mixed");
+		await dialog.getByRole("button", { name: "Publish 2", exact: true }).focus();
 		await page.keyboard.press("Enter");
 
 		await dialog.waitFor({ state: "hidden" });

@@ -13,9 +13,10 @@ import { Label } from "@webcraft/ui/components/label.tsx";
 import { ImagesIcon, LoaderIcon, SearchIcon } from "lucide-react";
 import { useContext, useEffect, useRef, useState } from "react";
 
-import { EditorEnvironment, useMediaApi } from "../builder/editor-api.tsx";
+import { EditorEnvironment, useMediaApi } from "../editor/editor-api.tsx";
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
+import { useMediaHost } from "./host.tsx";
 import { formatBytes, imagePreview, KIND_ICONS, type MediaItem } from "./preview.ts";
 
 /** How many files the picker shows at once; a search finds the rest. */
@@ -24,7 +25,8 @@ const PICKER_PAGE = 60;
 /**
  * A media Field's control: the chosen file of the Site's Media library (its preview, name and size),
  * with Choose and Remove. Choosing opens the library's files in a dialog, searched by name or alt
- * text; uploads happen on the Media screen.
+ * text; uploads happen on the Media screen. A host with a picker of its own (the building area's Media
+ * place in a dialog, `host.tsx`) is asked instead.
  */
 export function MediaPicker({
 	siteId,
@@ -50,9 +52,19 @@ export function MediaPicker({
 }) {
 	const t = useT();
 	const environment = useContext(EditorEnvironment);
+	const host = useMediaHost();
 	const [open, setOpen] = useState(false);
 	const chooseButton = useRef<HTMLButtonElement>(null);
-	const preview = item ? imagePreview(siteId, item, 320, environment.siteMedia) : null;
+	const preview = item ? imagePreview(siteId, item, 320, environment.siteMedia || host.site) : null;
+	const choose = async () => {
+		if (!host.choose) {
+			setOpen(true);
+			return;
+		}
+		const chosen = await host.choose({ siteId, current: value });
+		if (chosen) onChange({ id: chosen.id, item: chosen });
+		chooseButton.current?.focus();
+	};
 	const Icon = item ? KIND_ICONS[item.kind] : ImagesIcon;
 	return (
 		<div
@@ -90,7 +102,7 @@ export function MediaPicker({
 					size="sm"
 					aria-labelledby={`${id} ${labelledBy}`}
 					aria-describedby={describedBy}
-					onClick={() => setOpen(true)}
+					onClick={() => void choose()}
 				>
 					{t(value ? "content.media.change" : "content.media.choose")}
 				</Button>
@@ -143,6 +155,7 @@ function MediaChooser({
 }) {
 	const t = useT();
 	const environment = useContext(EditorEnvironment);
+	const host = useMediaHost();
 	const getApi = useMediaApi();
 	const [query, setQuery] = useState("");
 	const [items, setItems] = useState<MediaItem[] | null>(null);
@@ -211,7 +224,7 @@ function MediaChooser({
 					) : (
 						<ul aria-label={t("media.listLabel")} className="grid grid-cols-[repeat(auto-fill,minmax(8rem,1fr))] gap-3">
 							{items.map((item) => {
-								const image = imagePreview(siteId, item, 320, environment.siteMedia);
+								const image = imagePreview(siteId, item, 320, environment.siteMedia || host.site);
 								const Icon = KIND_ICONS[item.kind];
 								const chosen = item.id === current;
 								return (

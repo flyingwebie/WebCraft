@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { openDraft } from "../harness/co-editing.ts";
-import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
@@ -207,22 +206,4 @@ test("Page layout defaults and canonical Props reach both real shared-document e
 		one.close();
 		two.close();
 	}
-});
-
-test("Edit mode's Page layout settings are Staff's: a Member is refused as on the Management API", async () => {
-	const siteId = (await install.createSite(workspaceId, { slug: "layout-configure" })).id;
-	await goLive(install, siteId);
-	const { postTypes } = await editor.api.postTypes.list({ siteId });
-	await editor.api.entries.create({ siteId, postTypeId: postTypes[0]?.id ?? "", title: "Configure" });
-
-	const asEditor = await openEditMode(install, editor, siteId, "/configure");
-	const refused = await asEditor.edit("layout/configure", { enabled: true });
-	expect(refused.status).toBe(403);
-	expect(await refused.json()).toMatchObject({ code: "FORBIDDEN" });
-	expect(await staff.api.pageLayouts.settings({ siteId })).toMatchObject({ enabled: false });
-
-	const asStaff = await openEditMode(install, staff, siteId, "/configure");
-	const allowed = await asStaff.edit("layout/configure", { enabled: true });
-	expect(allowed.status).toBe(200);
-	expect(await staff.api.pageLayouts.settings({ siteId })).toMatchObject({ enabled: true });
 });

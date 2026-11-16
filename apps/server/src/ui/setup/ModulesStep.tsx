@@ -75,7 +75,7 @@ export function ModulesStep({ isLast, onDone, onBack }: StepPanelProps) {
 	const anyTicked = (waiting ?? []).some((module) => ticked.has(module.id));
 
 	return (
-		<div className="flex flex-1 flex-col gap-8">
+		<div className="flex flex-1 flex-col gap-5">
 			<StepHeader heading={t("setup.steps.modules.heading")}>
 				<p>{t("setup.steps.modules.intro")}</p>
 				<p>{t("setup.steps.modules.later")}</p>

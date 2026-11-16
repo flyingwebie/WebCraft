@@ -15,7 +15,7 @@ const search = z.object({
 
 /** Site › Design system (Structure, Staff only): Design tokens, Classes, base styles and custom CSS. */
 export const Route = createFileRoute("/_admin/sites/$siteId/design-system")({
-	staticData: { crumb: "designSystem.pageTitle", wide: true },
+	staticData: { crumb: "designSystem.pageTitle", width: "wide" },
 	validateSearch: search,
 	loader: async ({ context, params }) => {
 		if (!context.place.permissions.includes("structure.edit")) return { designSystem: null, preview: null };

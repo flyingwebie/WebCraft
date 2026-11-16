@@ -1,3 +1,4 @@
+import { useRouterState } from "@tanstack/react-router";
 import type { SiteCheck } from "@webcraft/core";
 import { useEffect, useState } from "react";
 import { getApi } from "./api.ts";
@@ -6,8 +7,24 @@ import { type MessageKey, useT } from "./i18n.tsx";
 
 type Check = Pick<SiteCheck, "check" | "at" | "detail" | "params"> &
 	Partial<Pick<SiteCheck, "href" | "item" | "language">>;
+
+/**
+ * A Check's link into the building area comes back to the screen it was followed from (`here`, the
+ * admin's path and query, as the router has it on the server and in the browser alike).
+ */
+export function withReturn(href: string, here: string): string {
+	if (!/^\/sites\/[^/]+\/build\?/.test(href) || /[?&]returnTo=/.test(href)) return href;
+	return `${href}&${new URLSearchParams({ returnTo: here }).toString()}`;
+}
+
+/** The admin's path and query now (never a fragment: `returnTo` may hold none), for `withReturn`. */
+export function useHere(): string {
+	return useRouterState({ select: (state) => `${state.location.pathname}${state.location.searchStr}` });
+}
+
 export function Checks({ checks, onSelect }: { checks: readonly Check[]; onSelect?: (at: string) => void }) {
 	const t = useT();
+	const here = useHere();
 	return (
 		<section aria-label={t("checks.heading")} className="grid gap-3 rounded-md border p-4 text-sm">
 			<h2 className="font-semibold">{t("checks.heading")}</h2>
@@ -33,7 +50,7 @@ export function Checks({ checks, onSelect }: { checks: readonly Check[]; onSelec
 								</span>
 							) : null}
 							{c.href ? (
-								<a className="underline underline-offset-4" href={c.href}>
+								<a className="underline underline-offset-4" href={withReturn(c.href, here)}>
 									{t("checks.open")}
 								</a>
 							) : onSelect && c.at.includes("#") ? (

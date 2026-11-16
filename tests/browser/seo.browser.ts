@@ -178,8 +178,9 @@ for (const theme of THEMES) {
 			await page.getByRole("textbox", { name: "Separator" }).fill("|");
 			await page.getByRole("combobox", { name: "Kind" }).selectOption("localBusiness");
 			await page.getByRole("combobox", { name: "Telephone from" }).selectOption("phone");
-			await page.getByRole("button", { name: "Save" }).click();
-			await page.getByText("SEO settings saved.").first().waitFor();
+			const bar = page.getByRole("region", { name: "Saving this screen" });
+			await bar.getByRole("button", { name: "Save" }).click();
+			await bar.getByText("Saved", { exact: true }).waitFor();
 
 			const { api } = await install.install.superadmin();
 			const { settings } = await api.seoSettings.get({ siteId });
@@ -213,14 +214,12 @@ for (const theme of THEMES) {
 			await allowAll.focus();
 			await page.keyboard.press("ArrowDown");
 			expect(await page.getByRole("radio", { name: "Allow search, block training" }).isChecked()).toBe(true);
-			const save = page.getByRole("button", { name: "Save", exact: true });
+			const bar = page.getByRole("region", { name: "Saving this screen" });
+			const save = bar.getByRole("button", { name: "Save", exact: true });
 			await save.click();
-			await page.getByText("Saved. The Site's robots.txt says so now.").first().waitFor();
+			await bar.getByText("Saved", { exact: true }).waitFor();
 			// Nothing to save until the choice changes again.
-			await page.waitForFunction(
-				() =>
-					[...document.querySelectorAll("button")].find((button) => button.textContent?.trim() === "Save")?.disabled,
-			);
+			expect(await save.isDisabled()).toBe(true);
 			await expectAccessibleScreen(page, `Site › Crawlers, saved (${theme})`);
 
 			const { api } = await install.install.superadmin();
@@ -235,7 +234,7 @@ for (const theme of THEMES) {
 			await page.waitForLoadState("networkidle");
 			const lines = page.getByRole("textbox", { name: "Lines" });
 			await lines.fill("Disallow: /private");
-			await page.getByRole("button", { name: "Save lines" }).click();
+			await page.getByRole("region", { name: "Saving this screen" }).getByRole("button", { name: "Save" }).click();
 			const alert = page
 				.getByRole("alert")
 				.filter({ hasText: "Line 1 is a rule without a User-agent line before it." });
@@ -264,12 +263,13 @@ for (const theme of THEMES) {
 		await page.keyboard.press("Enter");
 		expect(await layout.inputValue()).toBe("orbit");
 		await page.keyboard.press("Tab");
-		const enabled = page.getByRole("checkbox", { name: "Generate Social cards" });
+		const enabled = page.getByRole("switch", { name: "Generate Social cards" });
 		await enabled.focus();
 		await page.keyboard.press("Space");
 		await expectAccessibleScreen(page, `Social card settings (${theme})`);
-		await page.getByRole("button", { name: "Save", exact: true }).click();
-		await page.getByText("SEO settings saved.").first().waitFor();
+		const bar = page.getByRole("region", { name: "Saving this screen" });
+		await bar.getByRole("button", { name: "Save", exact: true }).click();
+		await bar.getByText("Saved", { exact: true }).waitFor();
 		await page.goto(install.adminUrl(`/sites/${siteId}/post-types/${postTypeId}?tab=seo`));
 		await page.waitForLoadState("networkidle");
 		const override = page.getByRole("combobox", { name: "Social card layout", exact: true });

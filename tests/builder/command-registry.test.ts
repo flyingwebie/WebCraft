@@ -11,7 +11,7 @@ import {
 	type EditorCommandTarget,
 	editorCommands,
 	visibleCommands,
-} from "../../apps/server/src/ui/builder/commands.ts";
+} from "../../apps/server/src/ui/editor/commands.ts";
 
 const t = createTranslator({ locale: "en", messages: en }) as unknown as Parameters<typeof editorCommands>[1];
 
@@ -48,4 +48,28 @@ test("the Builder's Publish needs structure.edit; Code mode's needs entry.publis
 	expect(actionsFor("builder", ["structure.edit"])).toContain("publish");
 	expect(actionsFor("code", ["structure.edit"])).not.toContain("publish");
 	expect(actionsFor("code", ["structure.edit", "entry.publish"])).toContain("publish");
+});
+
+test("Format: a command for each code box the canvas shows, and Format all three where all three are", async () => {
+	const ran: string[] = [];
+	const formatting = (languages: readonly ("html" | "css" | "js")[]) =>
+		editorCommands(
+			{
+				...target("builder"),
+				format: {
+					languages,
+					run: async (language) => {
+						ran.push(language);
+					},
+				},
+			},
+			t,
+		).filter((command) => command.id.startsWith("format-"));
+	expect(formatting([]).map((command) => command.label)).toEqual([]);
+	expect(formatting(["html", "css"]).map((command) => command.label)).toEqual(["Format HTML", "Format CSS"]);
+	const all = formatting(["html", "css", "js"]);
+	expect(all.map((command) => command.label)).toEqual(["Format HTML", "Format CSS", "Format JS", "Format all three"]);
+	expect(new Set(all.map((command) => command.group))).toEqual(new Set(["Format"]));
+	await all.find((command) => command.id === "format-all")?.run({ inverse: false });
+	expect(ran).toEqual(["html", "css", "js"]);
 });

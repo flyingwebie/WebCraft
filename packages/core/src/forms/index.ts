@@ -1,4 +1,5 @@
 import { siteLanguages } from "../content/languages.ts";
+import type { ModuleHost } from "../modules/host.ts";
 import type { SiteHost } from "../site-pages/index.ts";
 import type { Site, SiteScope } from "../tenancy/data-layer.ts";
 import { type CaptchaView, getCaptcha, setCaptcha } from "./captcha.ts";
@@ -16,6 +17,7 @@ import {
 	renameForm,
 	saveFormDraft,
 	saveFormEmails,
+	siteFormList,
 } from "./forms.ts";
 import { type FormPost, type FormPostAnswer, type ReceiveDeps, receiveFormPost } from "./receive.ts";
 import type { FormTokens } from "./tokens.ts";
@@ -43,6 +45,7 @@ export {
 	SENT_PARAMETER,
 } from "./receive.ts";
 export { createFormTokens, type FormTokens } from "./tokens.ts";
+export { withMissingTranslations } from "./translate.ts";
 export {
 	createFormUploads,
 	FORM_UPLOADS_PATH,
@@ -78,6 +81,13 @@ export type Forms = {
 	receive(host: SiteHost, formId: string, post: FormPost): Promise<FormPostAnswer>;
 	/** A time-trap token for a page of the Site handed out now (see `FORM_TOKEN_MARK`). */
 	issueToken(site: Site): Promise<string>;
+	/**
+	 * How many Submissions wait in the Site's inbox that nobody has opened yet (never spam): for each
+	 * of its Forms (0 for none) and their sum, as the Module keeping them counts them. A deleted Form's
+	 * Submissions count for none. Null for people who may not read Submissions, and where no Module
+	 * counts them (`services.modules.unreadSubmissions`).
+	 */
+	newSubmissions(scope: SiteScope): Promise<NewSubmissions | null>;
 	/** Form uploads: the private files visitors send with file fields, downloaded through the admin. */
 	uploads: FormUploads;
 	/** The Site's CAPTCHA (`structure.edit`): off unless Staff set one up. */
@@ -88,7 +98,16 @@ export type Forms = {
 	};
 };
 
-export function createForms(deps: ReceiveDeps & { tokens: FormTokens; uploads: FormUploads }): Forms {
+/** The Site's new Submissions: by Form id (every Form of the Site), and in all. */
+export type NewSubmissions = { byForm: Record<string, number>; total: number };
+
+export function createForms(
+	deps: ReceiveDeps & {
+		tokens: FormTokens;
+		uploads: FormUploads;
+		modules: Pick<ModuleHost, "unreadSubmissions">;
+	},
+): Forms {
 	return {
 		list: listForms,
 		get: getForm,
@@ -103,6 +122,18 @@ export function createForms(deps: ReceiveDeps & { tokens: FormTokens; uploads: F
 		delete: deleteForm,
 		receive: (host, formId, post) => receiveFormPost(deps, host, formId, post),
 		issueToken: (site) => deps.tokens.issue(site.id),
+		async newSubmissions(scope) {
+			const unread = await deps.modules.unreadSubmissions(scope);
+			if (!unread) return null;
+			const byForm: Record<string, number> = {};
+			let total = 0;
+			for (const { id } of await siteFormList(scope)) {
+				const count = unread.get(id) ?? 0;
+				byForm[id] = count;
+				total += count;
+			}
+			return { byForm, total };
+		},
 		uploads: deps.uploads,
 		captcha: { get: getCaptcha, set: setCaptcha },
 	};

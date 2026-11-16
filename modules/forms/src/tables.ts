@@ -43,6 +43,8 @@ export const submissions = schema.table(
 		/** Its values as lower-case text, for search. */
 		searchText: text("search_text").notNull(),
 	},
+	// Also `submissions_site_form_unread_idx` on (site_id, form_id), partial: the inbox's unread ones
+	// (migration 0003; the SDK writes no SQL, so it is declared there alone).
 	(table) => [
 		index("submissions_site_form_received_at_idx").on(table.siteId, table.formId, table.receivedAt),
 		index("submissions_site_folder_received_at_idx").on(table.siteId, table.folder, table.receivedAt),

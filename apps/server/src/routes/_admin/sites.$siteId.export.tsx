@@ -6,7 +6,7 @@ import { Forbidden } from "../../ui/PageHeader.tsx";
 import { SiteExportPage } from "../../ui/site-transfer/SiteExport.tsx";
 
 export const Route = createFileRoute("/_admin/sites/$siteId/export")({
-	staticData: { crumb: "siteExport.pageTitle" },
+	staticData: { crumb: "siteExport.pageTitle", width: "form" },
 	loader: async ({ params, context }) => {
 		if (!context.place.permissions.includes("site.export")) return null;
 		const api = await getApi();

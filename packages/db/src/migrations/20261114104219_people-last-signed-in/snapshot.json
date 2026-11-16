@@ -1,0 +1,47 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "9aafe8a0-cdaf-48bc-b342-1bfd85e440a3",
+  "prevIds": [
+    "c19bfbda-1417-4f87-9dc8-32a1a57c0b4b"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "people",
+        "last_signed_in_at"
+      ],
+      "writes": [
+        "s|col|public.people.last_signed_in_at",
+        "n|col|public.people.last_signed_in_at",
+        "e|col|public.people.last_signed_in_at"
+      ],
+      "reads": [
+        "n|tbl|public.people",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "people",
+        "name": "last_signed_in_at",
+        "type": "timestamp with time zone",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}

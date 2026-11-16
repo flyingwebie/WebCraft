@@ -31,7 +31,7 @@ import {
 	z,
 } from "@webcraft/module-sdk";
 
-import { submissionsCsv } from "./csv.ts";
+import { type CsvWords, submissionsCsv } from "./csv.ts";
 import { migrations } from "./migrations.ts";
 import { retention, submissions } from "./tables.ts";
 
@@ -177,9 +177,39 @@ async function trimSpam(context: ModuleContext): Promise<void> {
 
 /** The words of a CSV export's own columns, in the person's Admin language. */
 const CSV_WORDS = {
-	en: { received: "Received (UTC)", language: "Language", page: "Page", yes: "Yes", no: "No" },
-	it: { received: "Ricevuto (UTC)", language: "Lingua", page: "Pagina", yes: "Sì", no: "No" },
-} as const;
+	en: {
+		received: "Received (UTC)",
+		language: "Language",
+		page: "Page",
+		yes: "Yes",
+		no: "No",
+		deliveryLog: "Delivery log",
+		kinds: { notification: "Notification to", autoReply: "Auto-reply to", webhook: "Webhook" },
+		statuses: {
+			queued: "Queued",
+			retrying: "Will retry",
+			sent: "Sent",
+			failed: "Could not send",
+			logged: "Written to the Email log",
+		},
+	},
+	it: {
+		received: "Ricevuto (UTC)",
+		language: "Lingua",
+		page: "Pagina",
+		yes: "Sì",
+		no: "No",
+		deliveryLog: "Registro degli invii",
+		kinds: { notification: "Notifica a", autoReply: "Risposta automatica a", webhook: "Webhook" },
+		statuses: {
+			queued: "In coda",
+			retrying: "Nuovo tentativo a breve",
+			sent: "Inviato",
+			failed: "Invio non riuscito",
+			logged: "Scritto nel registro email",
+		},
+	},
+} as const satisfies Record<string, CsvWords>;
 
 /** What a list or an export picks: one Form's (or all), in a folder, matching a search, read or not, in a language. */
 const filters = z.object({
@@ -224,8 +254,8 @@ export const forms = defineModule({
 			en: "Keeps what visitors send through each Site's Forms, with a Spam folder kept 30 days, sends their Notifications, Auto-replies and Webhooks, and lets people search, export and delete them. Switched off, a Site's Forms show nothing.",
 			it: "Conserva ciò che i visitatori inviano con i Form di ogni Sito, con una cartella Spam tenuta 30 giorni, invia notifiche, risposte automatiche e Webhook, e permette di cercarli, esportarli ed eliminarli. Se è spento, i Form di un Sito non si vedono.",
 		},
-		version: "1.2.0",
-		sdk: "^1.11.0",
+		version: "1.4.0",
+		sdk: "^1.15.0",
 		level: "site",
 		onByDefault: true,
 		adminLanguages: ["en", "it"],
@@ -268,6 +298,15 @@ export const forms = defineModule({
 			if (submission.spam !== null) await trimSpam(context);
 			// Module form actions (run inline once a Submission is kept) come in here later.
 			return { id: row.id };
+		},
+		// The new ones: in the inbox, opened by nobody yet (read is for everyone: one inbox per Site).
+		async unread(context) {
+			const rows = await context.data.aggregate(submissions, {
+				where: and(eq(submissions.folder, "inbox"), isNull(submissions.readAt)),
+				groupBy: { formId: submissions.formId },
+				values: { unread: count() },
+			});
+			return Object.fromEntries(rows.map((row) => [row.formId, row.unread]));
 		},
 	}),
 
@@ -424,28 +463,36 @@ export const forms = defineModule({
 
 			/**
 			 * One Form's Submissions as a CSV file (UTF-8 with a BOM, formulas made text), newest first,
-			 * picked as the list picks them. Recorded in the Audit log.
+			 * picked as the list picks them; with `deliveryLog`, a last column saying what was sent for
+			 * each (its emails and Webhook calls, and where they stand). Recorded in the Audit log.
 			 */
 			export: procedure({
 				permission: "submissions.view",
 				toolset: "submissions",
 				kind: "read",
-				input: filters.extend({ formId: z.uuid() }),
+				input: filters.extend({ formId: z.uuid(), deliveryLog: z.boolean().default(false) }),
 				async run(input, context) {
 					const rows = await context.data.select(submissions, filtered(input), {
 						orderBy: [desc(submissions.receivedAt), desc(submissions.id)],
 						limit: EXPORT_LIMIT,
 					});
 					const words = context.person.language === "it" ? CSV_WORDS.it : CSV_WORDS.en;
+					const deliveries = input.deliveryLog ? await context.submissions.deliveriesOf(rows.map((row) => row.id)) : {};
 					const csv = submissionsCsv(
-						rows.map((row) => ({ ...row, values: row.values as FormSubmission["values"] })),
+						rows.map((row) => ({
+							...row,
+							values: row.values as FormSubmission["values"],
+							deliveries: deliveries[row.id] ?? [],
+						})),
 						words,
+						{ deliveryLog: input.deliveryLog },
 					);
 					await context.audit("submissions.export", {
 						formId: input.formId,
 						count: rows.length,
 						folder: input.folder,
 						filtered: Boolean(input.search || input.language || input.read !== "all"),
+						deliveryLog: input.deliveryLog,
 					});
 					const key = rows[0]?.formKey ?? "form";
 					const day = context.now().toISOString().slice(0, 10);

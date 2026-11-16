@@ -192,12 +192,22 @@ export const components = {
 	/**
 	 * Deletes a Component, in two steps. The first call deletes nothing and answers a `confirmation`
 	 * id, valid for 5 minutes; calling again with it deletes the Component. Refused with
-	 * `COMPONENT_IN_USE` (and `data.usedIn`) while any Template or Component places it.
+	 * `COMPONENT_IN_USE` (and `data.usedIn`) while any Template, Component or Page places it, unless
+	 * `placements` is `remove` (in both calls): its Placements then go with it, Draft and published,
+	 * and the first answer's `usage` says where it is placed and on how many published pages it shows.
+	 * A Popup showing it, or the accessibility statement's link, still refuses it.
 	 */
 	delete: signedIn
-		.input(z.object({ siteId: id, componentId, confirmation: z.string().max(100).optional() }))
+		.input(
+			z.object({
+				siteId: id,
+				componentId,
+				confirmation: z.string().max(100).optional(),
+				placements: z.enum(["refuse", "remove"]).optional(),
+			}),
+		)
 		.handler(async ({ context, input }) => {
 			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
-			return context.services.components.delete(site, input.componentId, input.confirmation);
+			return context.services.components.delete(site, input.componentId, input.confirmation, input.placements);
 		}),
 };

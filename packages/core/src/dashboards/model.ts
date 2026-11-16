@@ -158,6 +158,19 @@ export function resolveRange(range: DashboardRange, now: Date): ResolvedRange {
 	return { from: new Date(from), to: new Date(to), interval: to - from <= 2 * DAY_MS ? "hour" : "day" };
 }
 
+/**
+ * The period of the same length just before a range, counted the same way (by hour or by day), so its
+ * points line up with the range's one for one: what "Compare with the period before" shows.
+ */
+export function rangeBefore(range: ResolvedRange): ResolvedRange {
+	const length = range.to.getTime() - range.from.getTime();
+	return {
+		from: new Date(range.from.getTime() - length),
+		to: new Date(range.from.getTime()),
+		interval: range.interval,
+	};
+}
+
 /** The problem with a custom range, or null: real days, the first not after the last, at most ten years. */
 export function rangeProblem(range: DashboardRange): string | null {
 	if (range.preset !== "custom") return null;
@@ -264,7 +277,12 @@ export function addUp(answers: readonly WidgetData[], limit: number): WidgetData
 			.sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
 	switch (first.shape) {
 		case "number": {
-			const values = first.values.map((value) => ({ ...value, of: value.of }));
+			// Points add hour by hour or day by day, while every Site gave them for the same periods.
+			const values = first.values.map((value) => ({
+				...value,
+				of: value.of,
+				points: value.points ? [...value.points] : undefined,
+			}));
 			for (const answer of answers.slice(1)) {
 				if (answer.shape !== "number") continue;
 				for (const value of answer.values) {
@@ -272,6 +290,11 @@ export function addUp(answers: readonly WidgetData[], limit: number): WidgetData
 					if (!into) continue;
 					into.count += value.count;
 					if (into.of !== undefined) into.of += value.of ?? 0;
+					const points = value.points;
+					into.points =
+						into.points && points?.length === into.points.length
+							? into.points.map((each, index) => each + (points[index] ?? 0))
+							: undefined;
 				}
 			}
 			return { shape: "number", values, countedFrom };

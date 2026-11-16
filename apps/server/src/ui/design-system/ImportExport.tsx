@@ -20,10 +20,10 @@ import { ChevronDownIcon, DownloadIcon, UploadIcon } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { useT } from "../i18n.tsx";
 import { ProblemList } from "./DesignSystemScreen.tsx";
+import type { DesignSystemApi } from "./editing.ts";
 import { type DesignSystemView, type ImportPreview, type Problem, problemsOf } from "./model.ts";
 
 /** Hands the browser a JSON file to save. */
@@ -40,12 +40,21 @@ function download(name: string, content: unknown) {
  * Export: the whole Design system as one file (the Draft's, or the published one), or the Design
  * tokens alone as DTCG for other tools.
  */
-export function ExportMenu({ siteId, beforeExport }: { siteId: string; beforeExport(): Promise<boolean> }) {
+export function ExportMenu({
+	siteId,
+	api: client,
+	beforeExport,
+}: {
+	siteId: string;
+	/** The client the file is asked for through. */
+	api: DesignSystemApi;
+	beforeExport(): Promise<boolean>;
+}) {
 	const t = useT();
 	const run = async (what: "draft" | "published" | "tokens") => {
 		try {
 			if (!(await beforeExport())) return;
-			const api = await getApi();
+			const api = await client();
 			if (what === "tokens") download("design-tokens.json", (await api.designSystem.exportTokens({ siteId })).tokens);
 			else
 				download(
@@ -79,10 +88,13 @@ export function ExportMenu({ siteId, beforeExport }: { siteId: string; beforeExp
  */
 export function ImportDialog({
 	siteId,
+	api: client,
 	beforeImport,
 	onImported,
 }: {
 	siteId: string;
+	/** The client the file is sent through. */
+	api: DesignSystemApi;
 	beforeImport(): Promise<boolean>;
 	onImported(designSystem: DesignSystemView): void;
 }) {
@@ -118,7 +130,7 @@ export function ImportDialog({
 				return;
 			}
 			if (!(await beforeImport())) return;
-			const api = await getApi();
+			const api = await client();
 			const answer = await api.designSystem.importFile({ siteId, file: parsed as Record<string, unknown> });
 			if ("confirmation" in answer) {
 				setFile(parsed as Record<string, unknown>);
@@ -135,7 +147,7 @@ export function ImportDialog({
 		if (!file || !asked) return;
 		setBusy(true);
 		try {
-			const api = await getApi();
+			const api = await client();
 			const answer = await api.designSystem.importFile({ siteId, file, confirmation: asked.confirmation });
 			if ("designSystem" in answer) {
 				onImported(answer.designSystem);

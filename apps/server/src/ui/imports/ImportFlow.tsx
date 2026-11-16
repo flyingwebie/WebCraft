@@ -4,7 +4,6 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "@webcraft/ui/co
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import {
-	ArrowLeftIcon,
 	ArrowRightIcon,
 	CalendarClockIcon,
 	FileCodeIcon,
@@ -35,7 +34,7 @@ import {
 import { Note } from "./Note.tsx";
 import { RemoveImport } from "./RemoveImport.tsx";
 import { type SourceChoice, SourceImportFlow } from "./SourceFlow.tsx";
-import { type ImportStep, Stepper } from "./Stepper.tsx";
+import { ImportHeader, type ImportStep } from "./Stepper.tsx";
 
 type Step = Extract<ImportStep, "source" | "map" | "preview">;
 
@@ -339,37 +338,29 @@ function CsvImportFlow({
 
 	return (
 		<div className="grid gap-8">
-			<header className="flex flex-wrap items-center gap-x-6 gap-y-4 border-b pb-6">
-				<Button
-					variant="ghost"
-					size="icon"
-					render={<Link to="/sites/$siteId/imports" params={{ siteId }} />}
-					aria-label={t("imports.flow.backToList")}
-				>
-					<ArrowLeftIcon className="rtl:rotate-180" aria-hidden="true" />
-				</Button>
-				<div className="grid min-w-48 flex-1 gap-1">
-					<h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold tracking-tight outline-none">
-						{existing ? existing.name : t("imports.flow.newTitle")}
-					</h1>
-					<p className="text-muted-foreground text-sm">{current.title}</p>
-				</div>
-				<Stepper current={step} />
-				<div className="flex items-center gap-2">
-					{back ? (
-						<Button variant="ghost" onClick={() => setStep(back)}>
-							{t("imports.flow.back")}
+			<ImportHeader
+				siteId={siteId}
+				current={step}
+				headingRef={heading}
+				heading={existing ? existing.name : t("imports.flow.newTitle")}
+				line={current.title}
+				actions={
+					<>
+						{back ? (
+							<Button variant="ghost" onClick={() => setStep(back)}>
+								{t("imports.flow.back")}
+							</Button>
+						) : (
+							<Button variant="ghost" render={<Link to="/sites/$siteId/imports" params={{ siteId }} />}>
+								{t("imports.flow.cancel")}
+							</Button>
+						)}
+						<Button onClick={current.onNext} disabled={current.disabled}>
+							{current.next}
 						</Button>
-					) : (
-						<Button variant="ghost" render={<Link to="/sites/$siteId/imports" params={{ siteId }} />}>
-							{t("imports.flow.cancel")}
-						</Button>
-					)}
-					<Button onClick={current.onNext} disabled={current.disabled}>
-						{current.next}
-					</Button>
-				</div>
-			</header>
+					</>
+				}
+			/>
 
 			{error ? (
 				<FieldError id={`${ids}-error`} className="max-w-3xl">
@@ -378,7 +369,7 @@ function CsvImportFlow({
 			) : null}
 
 			{step === "source" ? (
-				<div className="grid gap-8 lg:grid-cols-[16rem_minmax(0,1fr)_18rem]">
+				<div className="grid gap-8 @2xl/page:grid-cols-[16rem_minmax(0,1fr)_18rem]">
 					{chooser}
 					<section aria-labelledby={`${ids}-csv`} className="grid content-start gap-6 rounded-lg border p-6">
 						<div className="grid gap-1">

@@ -34,7 +34,7 @@ const NOT_THERE = [
 ];
 
 export const Route = createFileRoute("/_admin/sites/$siteId/history")({
-	staticData: { crumb: "history.pageTitle", wide: true },
+	staticData: { crumb: "history.pageTitle", width: "wide" },
 	validateSearch: search,
 	loaderDeps: ({ search: { item, itemId, copy, language } }) => ({ item, itemId, copy, language }),
 	loader: async ({ params, deps }) => {

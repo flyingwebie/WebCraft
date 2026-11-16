@@ -10,7 +10,7 @@ import {
 	seoSettings,
 	templates,
 } from "@webcraft/db/schema";
-import { and, asc, eq, or, type SQL, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, or, type SQL, sql } from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 
 import { languagesFor, siteLanguages } from "../content/languages.ts";
@@ -89,6 +89,67 @@ export async function mediaUses(scope: SiteScope, mediaId: string): Promise<Medi
 	const found: MediaUse[] = [];
 	for (const source of SOURCES) found.push(...(await source(scope, file)));
 	return found;
+}
+
+/**
+ * How many places use each of these files: what `mediaUses` lists for each, counted for a whole page
+ * of the library at once, one read per kind of place. A file used nowhere counts 0. Keep it in step
+ * with `SOURCES`.
+ */
+export async function mediaUseCounts(scope: SiteScope, mediaIds: readonly string[]): Promise<Map<string, number>> {
+	const ids = [...new Set(mediaIds)];
+	const counts = new Map(ids.map((id) => [id, 0]));
+	if (ids.length === 0) return counts;
+	const count = (id: string) => counts.set(id, (counts.get(id) ?? 0) + 1);
+	/** Each row holding a file is one place using it, as its source lists it. */
+	const rowsHolding = async (rows: Promise<{ versions: unknown[] }[]>) => {
+		for (const row of await rows) {
+			const text = row.versions.map((version) => JSON.stringify(version ?? null)).join("\n");
+			for (const id of ids) if (text.includes(id)) count(id);
+		}
+	};
+	const holdingAny = (...columns: AnyPgColumn[]) =>
+		or(...columns.flatMap((column) => ids.map((id) => holds(column, id))));
+	const versionsOf = (row: { draft: unknown; published: unknown }) => ({ versions: [row.draft, row.published] });
+
+	await rowsHolding(
+		scope.db
+			.select({ draft: entries.draft, published: entries.published })
+			.from(entries)
+			.innerJoin(postTypes, and(eq(postTypes.id, entries.postTypeId), eq(postTypes.siteId, entries.siteId)))
+			.where(scope.where(entries, holdingAny(entries.draft, entries.published)))
+			.then((rows) => rows.map(versionsOf)),
+	);
+	for (const table of [globals, templates, components, loops] as const) {
+		await rowsHolding(
+			scope
+				.select(table, holdingAny(table.draft, table.published))
+				.then((rows) => rows.map((row) => versionsOf(row as { draft: unknown; published: unknown }))),
+		);
+	}
+	await rowsHolding(
+		scope
+			.select(popups, holdingAny(popups.contentDraft, popups.contentPublished))
+			.then((rows) => rows.map((row) => ({ versions: [row.contentDraft, row.contentPublished] }))),
+	);
+
+	// The Design system names files by their address.
+	const files = await scope.select(mediaFiles, inArray(mediaFiles.mediaId, ids));
+	const design = await scope.first(designSystems);
+	if (design) {
+		const text = `${JSON.stringify(design.draft ?? null)}\n${JSON.stringify(design.published ?? null)}`;
+		for (const id of ids) {
+			const names = files.filter((row) => row.mediaId === id && (row.role === "original" || row.role === "variant"));
+			if (names.some((row) => text.includes(row.name))) count(id);
+		}
+	}
+	// The SEO settings are one place, whichever of their images is the file.
+	const seo = await scope.first(seoSettings);
+	if (seo) {
+		const logo = (seo.organization as { logo?: unknown } | null)?.logo;
+		for (const id of ids) if (seo.defaultImage === id || logo === id) count(id);
+	}
+	return counts;
 }
 
 /** Whether a stored JSON version (or text) holds `needle` anywhere. */

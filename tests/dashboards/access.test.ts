@@ -14,7 +14,7 @@ let domains = 0;
 
 beforeAll(async () => {
 	install = await createTestInstall({ now: new Date("2026-03-16T09:00:00Z") });
-	await (await install.superadmin()).api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
+	await (await install.superadmin()).api.modules.approve({ moduleId: "site-analytics", version: "1.2.0" });
 	workspaceId = (await install.createWorkspace("Acme Ltd")).id;
 	staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 });
@@ -41,7 +41,10 @@ describe("who sees a Dashboard", () => {
 		const { siteId, dashboardId, widgetId } = await siteWithDashboard();
 		const owner = (await install.createMember({ workspaceId, role: "owner", sites: [siteId] })).browser;
 
-		expect((await owner.api.dashboards.list({ siteId })).dashboards.map((each) => each.name)).toEqual(["Client board"]);
+		expect((await owner.api.dashboards.list({ siteId })).dashboards.map((each) => each.name)).toEqual([
+			"Site analytics",
+			"Client board",
+		]);
 		expect((await owner.api.dashboards.get({ siteId, dashboardId })).dashboard.canManage).toBe(false);
 		expect((await owner.api.dashboards.widgets.data({ siteId, dashboardId, widgetId })).widget.problem).toBeNull();
 		await expect(owner.api.dashboards.create({ siteId, name: "Mine" })).rejects.toMatchObject({ code: "FORBIDDEN" });

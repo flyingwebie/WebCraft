@@ -7,9 +7,10 @@
  * - `truncate: <length>` (1 to 10,000): text cut at a word boundary to at most that many
  *   characters, with `…` after it.
  *
- * A formatter turns a value into text; the renderer then escapes it for where it lands.
+ * A formatter turns a value into text (`apply-format.ts`); the renderer then escapes it for where it
+ * lands. This module reads, writes and checks them only, so the browser's markup code can use it
+ * without what reading a value as text takes.
  */
-import { isoDay, type TemplateValue, textOf, toDate, toFiniteNumber } from "./values.ts";
 
 export const DATE_STYLES = ["short", "medium", "long", "full", "time", "iso", "datetime"] as const;
 export type DateStyle = (typeof DATE_STYLES)[number];
@@ -24,60 +25,6 @@ export type ValueFormat =
 
 export const NUMBER_MAX_DIGITS = 10;
 export const TRUNCATE_MAX_LENGTH = 10_000;
-
-/** A value as text through its formatter, for the page's language. */
-export function applyFormat(value: TemplateValue, format: ValueFormat, language: string): string {
-	switch (format.type) {
-		case "date": {
-			const date = toDate(value);
-			return date ? formatDate(date, format.style ?? "medium", language) : textOf(value);
-		}
-		case "number": {
-			const number = toFiniteNumber(value);
-			if (number === undefined) return textOf(value);
-			const digits =
-				format.digits === undefined
-					? {}
-					: { minimumFractionDigits: format.digits, maximumFractionDigits: format.digits };
-			return new Intl.NumberFormat(locale(language), digits).format(number);
-		}
-		case "truncate":
-			return truncate(textOf(value), format.length);
-	}
-}
-
-function formatDate(date: Date, style: DateStyle, language: string): string {
-	switch (style) {
-		case "iso":
-			return isoDay(date);
-		case "datetime":
-			return date.toISOString().replace(/\.\d{3}Z$/, "Z");
-		case "time":
-			return new Intl.DateTimeFormat(locale(language), { timeStyle: "short", timeZone: "UTC" }).format(date);
-		default:
-			return new Intl.DateTimeFormat(locale(language), { dateStyle: style, timeZone: "UTC" }).format(date);
-	}
-}
-
-/** The language as a locale Intl accepts; English when it doesn't know it. */
-function locale(language: string): string {
-	try {
-		return Intl.getCanonicalLocales(language)[0] ?? "en";
-	} catch {
-		return "en";
-	}
-}
-
-function truncate(text: string, length: number): string {
-	const characters = Array.from(text);
-	if (characters.length <= length) return text;
-	let cut = characters.slice(0, length).join("");
-	if (!/\s/.test(characters[length] ?? "")) {
-		const lastSpace = cut.search(/\s\S*$/);
-		if (lastSpace > 0) cut = cut.slice(0, lastSpace);
-	}
-	return `${cut.trimEnd()}…`;
-}
 
 // ---------------------------------------------------------------------------------------------
 // Formatters in Template markup: `date`, `date: long`, `number: 2`, `truncate: 120`

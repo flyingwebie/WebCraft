@@ -1,15 +1,14 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
-import { toast } from "sonner";
+import { createFileRoute } from "@tanstack/react-router";
 
 import { getApi } from "../../ui/api.ts";
 import { SiteSmtpForm, type SiteSmtpView } from "../../ui/email/SiteSmtpForm.tsx";
 import { SmtpFailingNotice } from "../../ui/email/smtp-parts.tsx";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
+import { SettingsForm } from "../../ui/settings/form.tsx";
 
 export const Route = createFileRoute("/_admin/sites/$siteId/email")({
-	staticData: { crumb: "siteEmail.pageTitle" },
+	staticData: { crumb: "siteEmail.pageTitle", width: "form" },
 	loader: async ({ context, params }) => {
 		if (!context.place.permissions.includes("structure.edit")) return null;
 		const api = await getApi();
@@ -30,27 +29,23 @@ function SiteEmailPage() {
 	const view = Route.useLoaderData();
 	const { siteId } = Route.useParams();
 	const { person } = Route.useRouteContext();
-	const router = useRouter();
-	// A new form after each save, so it starts from what was saved.
-	const [version, setVersion] = useState(0);
 	if (!view) return <Forbidden heading={t("forbidden.heading")} body={t("forbidden.body")} />;
 	return (
 		<>
 			<PageHeader heading={t("siteEmail.heading")}>{t("siteEmail.intro")}</PageHeader>
-			<div className="grid gap-6">
-				<FailingNotice health={view.health} />
-				<SiteSmtpForm
-					key={version}
-					siteId={siteId}
-					view={view}
-					testTo={person.email}
-					onSaved={async (_saved: SiteSmtpView) => {
-						toast.success(t("emailSettings.saved"));
-						await router.invalidate();
-						setVersion((current) => current + 1);
-					}}
-				/>
-			</div>
+			<SettingsForm>
+				<div className="grid gap-6">
+					<FailingNotice health={view.health} />
+					{/* A new form after each save, so it starts from what was saved. */}
+					<SiteSmtpForm
+						key={JSON.stringify(view.settings)}
+						siteId={siteId}
+						view={view}
+						testTo={person.email}
+						onSaved={() => undefined}
+					/>
+				</div>
+			</SettingsForm>
 		</>
 	);
 }

@@ -14,6 +14,8 @@
 		"./filters/words": "./src/filters/words.ts",
 		"./forms": "./src/forms/version.ts",
 		"./forms/emails": "./src/forms/emails.ts",
+		"./forms/logic": "./src/forms/logic.ts",
+		"./forms/words": "./src/forms/words.ts",
 		"./forms/email-words": "./src/forms/email-words.ts",
 		"./builder": "./src/builder.ts"
 	},

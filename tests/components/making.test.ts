@@ -7,7 +7,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { openDraft } from "../harness/co-editing.ts";
-import { answer, openCodeMode } from "../harness/code-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
@@ -454,29 +453,5 @@ describe("another Workspace's sources", () => {
 		expect(await componentNames()).toEqual(names);
 		const { markup } = await superadmin.components.getMarkup({ siteId: otherSite, componentId: theirs.id });
 		expect(withoutIds(markup.draft)).toBe("{{@props}}\n{{/props}}\n<p>Theirs</p>");
-	});
-});
-
-describe("from Code mode", () => {
-	test("Make Component and New Component are Code mode actions with the same rules", async () => {
-		const { postTypeId, path } = await entryPage("<article><div><h2>{{ title }}</h2></div></article>");
-		const code = await openCodeMode(install, staff, siteId, path);
-		const node = ((await entryTemplate(postTypeId)).nodes[0] as { children: unknown[] }).children[0];
-
-		const made = await answer<{ component: { id: string; name: string }; placement: { id: string } }>(
-			code.edit("code/makeComponent", {
-				name: "CodeCard",
-				source: { kind: "entryTemplate", postTypeId },
-				path: [0, 0, 0],
-				node,
-			}),
-		);
-		expect(made.component.name).toBe("CodeCard");
-		const taken = await code.edit("code/createComponent", { name: "CodeCard" });
-		expect(taken.status).toBe(409);
-		const fresh = await answer<{ component: { name: string } }>(
-			code.edit("code/createComponent", { name: "CodeFooter" }),
-		);
-		expect(fresh.component.name).toBe("CodeFooter");
 	});
 });

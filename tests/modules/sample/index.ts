@@ -31,6 +31,7 @@ export const PROBES = [
 	"unset-secret",
 	"email",
 	"submissions",
+	"widgets",
 ] as const;
 
 const view = (note: typeof notes.$inferSelect) => ({
@@ -230,11 +231,13 @@ export const sample = defineModule({
 			method: "GET",
 			path: "/cookies",
 			async handle(request) {
-				// Tries to read and set WebCraft's own cookies on the Site's domain: WebCraft strips both.
+				// Tries to read and set WebCraft's own cookies on the Site's domain, and to read the Edit mode
+				// session's header token: WebCraft strips all of them.
 				const headers = new Headers({ "content-type": "application/json" });
 				headers.append("set-cookie", "webcraft.edit=forged; Path=/");
 				headers.append("set-cookie", "sample-seen=1; Path=/");
-				return new Response(JSON.stringify({ cookie: request.headers.get("cookie") }), { headers });
+				const seen = { cookie: request.headers.get("cookie"), token: request.headers.get("x-webcraft-edit-token") };
+				return new Response(JSON.stringify(seen), { headers });
 			},
 		}),
 		siteRoute({
@@ -359,6 +362,10 @@ async function probe(attempt: (typeof PROBES)[number], context: ModuleContext): 
 		case "submissions":
 			// Form Submissions are the Forms Module's, never another Module's (SDK 1.6).
 			await context.submissions.deliveries("00000000-0000-4000-8000-000000000001");
+			return;
+		case "widgets":
+			// Where Widgets are placed is for a Module that adds Widget kinds (SDK 1.16).
+			await context.widgets.placed();
 			return;
 	}
 }

@@ -28,6 +28,8 @@ export type ScreenFixture = {
 	mediaId: string;
 	/** A document in the Site's Trash. */
 	trashedMediaId: string;
+	/** The Site's built-in "Site analytics" Dashboard. */
+	analyticsDashboardId: string;
 };
 
 export const ADMIN_SCREENS: readonly Screen[] = [
@@ -97,23 +99,22 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 	{ name: "Workspace › Members (Owner)", path: ({ workspaceId }) => `/workspaces/${workspaceId}/members`, as: "owner" },
 	{ name: "Workspace › Dashboards", path: ({ workspaceId }) => `/workspaces/${workspaceId}/dashboards`, as: "staff" },
 	{ name: "Site › Overview", path: ({ siteId }) => `/sites/${siteId}`, as: "staff" },
-	{ name: "Site › Dashboards", path: ({ siteId }) => `/sites/${siteId}/dashboards`, as: "staff" },
+	{ name: "Site › Overview (Owner)", path: ({ siteId }) => `/sites/${siteId}`, as: "owner" },
+	// The list's address opens the first Dashboard with New Dashboard over it for Staff (checked in
+	// dashboards.browser.ts); here the Dashboard itself.
+	{
+		name: "Site › Site analytics Dashboard",
+		path: ({ siteId, analyticsDashboardId }) => `/sites/${siteId}/dashboards/${analyticsDashboardId}`,
+		as: "staff",
+	},
 	{ name: "Site › Dashboards (Owner)", path: ({ siteId }) => `/sites/${siteId}/dashboards`, as: "owner" },
 	{ name: "Site › Media", path: ({ siteId }) => `/sites/${siteId}/media`, as: "staff" },
 	{ name: "Site › Imports, none yet (Staff)", path: ({ siteId }) => `/sites/${siteId}/imports`, as: "staff" },
 	{ name: "Site › Imports, none yet (Owner)", path: ({ siteId }) => `/sites/${siteId}/imports`, as: "owner" },
-	{
-		name: "Site › Media, a file's details",
-		path: ({ siteId, mediaId }) => `/sites/${siteId}/media?file=${mediaId}`,
-		as: "owner",
-	},
+	// A file's details open in a sheet over the page (a dialog): media.browser.ts checks them.
+	{ name: "Site › Media, the grid", path: ({ siteId }) => `/sites/${siteId}/media?view=grid`, as: "staff" },
 	{ name: "Site › Media, no match", path: ({ siteId }) => `/sites/${siteId}/media?q=nothing-matches`, as: "staff" },
 	{ name: "Site › Media, the Trash", path: ({ siteId }) => `/sites/${siteId}/media?trash=true`, as: "staff" },
-	{
-		name: "Site › Media, a file in the Trash",
-		path: ({ siteId, trashedMediaId }) => `/sites/${siteId}/media?trash=true&file=${trashedMediaId}`,
-		as: "staff",
-	},
 	{ name: "Install settings › Storage", path: "/settings/storage", as: "superadmin" },
 	{ name: "Install settings › Backups, with a failed one", path: "/settings/backups", as: "superadmin" },
 	{ name: "Install settings › Email (SMTP), not set", path: "/settings/email", as: "superadmin" },
@@ -130,6 +131,10 @@ export const ADMIN_SCREENS: readonly Screen[] = [
 	},
 	{ name: "Accept an invite (link no longer works)", path: "/invite?token=used-up", as: "signed-out" },
 	{ name: "Install settings › Modules", path: "/settings/modules", as: "superadmin" },
+	{ name: "Install settings › Revisions", path: "/settings/history", as: "superadmin" },
+	{ name: "Site settings › Email (SMTP) (Staff)", path: ({ siteId }) => `/sites/${siteId}/email`, as: "staff" },
+	{ name: "Site settings › Export, none yet (Staff)", path: ({ siteId }) => `/sites/${siteId}/export`, as: "staff" },
+	{ name: "Your account › AI clients (none yet)", path: "/account/ai-clients", as: "owner" },
 	{ name: "Workspace › Modules (Staff)", path: ({ workspaceId }) => `/workspaces/${workspaceId}/modules`, as: "staff" },
 	{ name: "Site › Modules (Staff)", path: ({ siteId }) => `/sites/${siteId}/modules`, as: "staff" },
 	{ name: "Site › Languages (Staff)", path: ({ siteId }) => `/sites/${siteId}/languages`, as: "staff" },

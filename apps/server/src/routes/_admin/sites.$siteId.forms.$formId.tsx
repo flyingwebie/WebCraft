@@ -1,7 +1,7 @@
-import { createFileRoute, notFound, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, Link, notFound, useNavigate, useRouter } from "@tanstack/react-router";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
-import { Button } from "@webcraft/ui/components/button.tsx";
-import { SaveIcon, UploadIcon } from "lucide-react";
+import { Button, buttonVariants } from "@webcraft/ui/components/button.tsx";
+import { HammerIcon, InboxIcon, LanguagesIcon, MailIcon, SaveIcon, SettingsIcon, UploadIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -17,7 +17,7 @@ import { SubmissionsTab } from "../../ui/forms/SubmissionsTab.tsx";
 import { TranslationsTab } from "../../ui/forms/TranslationsTab.tsx";
 import { HistoryLink } from "../../ui/history/HistoryLink.tsx";
 import { pageTitleOf, useT } from "../../ui/i18n.tsx";
-import { Forbidden } from "../../ui/PageHeader.tsx";
+import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 import { type TabSpec, Tabs } from "../../ui/Tabs.tsx";
 
 /** The tab shown (`?tab=emails`), and the Submission open on the Submissions tab (a Notification links to it). */
@@ -27,7 +27,7 @@ const search = z.object({
 });
 
 export const Route = createFileRoute("/_admin/sites/$siteId/forms/$formId")({
-	staticData: { wide: true },
+	staticData: { width: "wide" },
 	validateSearch: search,
 	loader: async ({ context, params }) => {
 		const permissions = context.place.permissions;
@@ -64,11 +64,14 @@ export const Route = createFileRoute("/_admin/sites/$siteId/forms/$formId")({
 });
 
 /**
- * One Form, in the admin shell: its name and status, where it is placed, and its tabs. Clients
- * (Owners and Editors) have Submissions (the Forms Module's: its inbox and Spam folder) and Emails
- * (its Notifications and Auto-reply, Content with a Draft of their own). Staff have those too, and
- * Build (its fields), Settings (its name and key, button, what happens once it is sent, spam limits)
- * and Translations, Structure kept in the browser until saved to the Form's Draft and published.
+ * One Form, in the admin shell (frames 01 to 03): its name as the page header, then a tab strip with
+ * icons. Clients (Owners and Editors) have Submissions (the Forms Module's mailbox: its inbox and Spam
+ * folder, with the Form's count of new ones) and Emails (its Notifications and Auto-reply, Content
+ * with a Draft of their own, whose state and Publish emails sit in the header while the tab shows).
+ * Staff have those too, and Build (its fields), Settings (its name and key, button, what happens once
+ * it is sent, spam limits) and Translations, Structure kept in the browser until saved to the Form's
+ * Draft and published: on those tabs the header says its status, where it is placed, and holds Save
+ * draft and Publish.
  */
 function FormPage() {
 	const t = useT();
@@ -82,6 +85,8 @@ function FormPage() {
 	const [version, setVersion] = useState<FormVersion | null>(saved);
 	const [problems, setProblems] = useState<FormProblem[]>([]);
 	const [busy, setBusy] = useState(false);
+	// Where the page header holds the emails' state and Publish emails while their tab shows.
+	const [emailsSlot, setEmailsSlot] = useState<HTMLElement | null>(null);
 	const changed = saved !== null && version !== null && JSON.stringify(version) !== JSON.stringify(saved);
 
 	useEffect(() => {
@@ -99,6 +104,14 @@ function FormPage() {
 	const staff = place.permissions.includes("structure.edit");
 	const readsSubmissions = place.modulePermissions.includes("forms.submissions.view");
 	const changesEmails = place.permissions.includes("formEmails.edit");
+	// The tab that shows: the address's, else the first the person has (Submissions for one opened from a link).
+	const offered = [
+		...(readsSubmissions ? ["submissions"] : []),
+		...(changesEmails ? ["emails"] : []),
+		...(staff ? ["build", "settings", "translations"] : []),
+	];
+	const asked = query.tab ?? (query.submission ? "submissions" : undefined);
+	const current = asked && offered.includes(asked) ? asked : offered[0];
 
 	const save = async (): Promise<boolean> => {
 		setBusy(true);
@@ -146,12 +159,16 @@ function FormPage() {
 					? t("forms.placedOnArchiveTemplate", { name: placement.name ?? "" })
 					: t("forms.placedOnComponent", { name: placement.name ?? "" }),
 	);
+	// How many of its Submissions nobody has opened yet, as the sidebar's row says it.
+	const newSubmissions = place.forms.find((each) => each.id === form.id)?.newSubmissions ?? 0;
 
 	const tabs: TabSpec[] = [];
 	if (readsSubmissions) {
 		tabs.push({
 			id: "submissions",
 			label: t("forms.tabs.submissions"),
+			icon: InboxIcon,
+			badge: newSubmissions > 0 ? String(newSubmissions) : undefined,
 			panel: (
 				<SubmissionsTab
 					siteId={siteId}
@@ -160,10 +177,13 @@ function FormPage() {
 					languages={languages.all}
 					defaultLanguage={languages.default}
 					canManage={place.modulePermissions.includes("forms.submissions.manage")}
+					canResend={staff}
+					placedOn={placedOn}
 					initialSubmission={query.submission}
 					onSelect={(submission) =>
 						void navigate({ search: (before) => ({ ...before, submission: submission ?? undefined }), replace: true })
 					}
+					onCountsChanged={() => void router.invalidate()}
 				/>
 			),
 		});
@@ -172,6 +192,7 @@ function FormPage() {
 		tabs.push({
 			id: "emails",
 			label: t("forms.tabs.emails"),
+			icon: MailIcon,
 			panel: (
 				<EmailsTab
 					siteId={siteId}
@@ -180,6 +201,8 @@ function FormPage() {
 					fields={version.fields}
 					languages={languages}
 					onSaved={() => router.invalidate()}
+					active={current === "emails"}
+					actionsSlot={emailsSlot}
 				/>
 			),
 		});
@@ -189,11 +212,13 @@ function FormPage() {
 			{
 				id: "build",
 				label: t("forms.tabs.build"),
+				icon: HammerIcon,
 				panel: <BuildTab version={version} onChange={setVersion} problems={problems} />,
 			},
 			{
 				id: "settings",
 				label: t("forms.tabs.settings"),
+				icon: SettingsIcon,
 				panel: (
 					<SettingsTab
 						siteId={siteId}
@@ -208,54 +233,65 @@ function FormPage() {
 			{
 				id: "translations",
 				label: t("forms.tabs.translations"),
+				icon: LanguagesIcon,
 				panel: <TranslationsTab version={version} onChange={setVersion} languages={languages} />,
 			},
 		);
 	}
+	const structureTab = current === "build" || current === "settings" || current === "translations";
 
 	return (
-		<div className="grid gap-6">
-			<div className="flex flex-wrap items-start justify-between gap-4">
-				<div className="space-y-1">
-					<div className="flex flex-wrap items-center gap-2">
-						<h1 className="text-2xl font-semibold tracking-tight">{form.name}</h1>
-						{staff ? (
+		<div className="grid">
+			<PageHeader
+				heading={form.name}
+				badge={
+					structureTab ? (
+						<>
+							<StatusBadge status={form.status} />
+							{changed ? <Badge variant="outline">{t("forms.unsaved")}</Badge> : null}
+						</>
+					) : null
+				}
+				action={
+					<>
+						<span ref={setEmailsSlot} className="contents" />
+						{structureTab ? (
 							<>
-								<StatusBadge status={form.status} />
-								<Badge variant="outline">{t("forms.structure")}</Badge>
-								{changed ? <Badge variant="outline">{t("forms.unsaved")}</Badge> : null}
+								{/* The Forms place builds the Form (SPEC 15.1, BA-27): Build, Settings and Translations there. */}
+								<Link
+									to="/sites/$siteId/build"
+									params={{ siteId }}
+									search={{ open: `/form/${form.id}`, returnTo: `/sites/${siteId}/forms/${form.id}?tab=${current}` }}
+									className={buttonVariants({ variant: "outline" })}
+									data-building-area=""
+								>
+									<HammerIcon data-icon="inline-start" />
+									{t("buildingArea.documents.openIn")}
+								</Link>
+								<HistoryLink siteId={siteId} item={{ kind: "form", id: form.id }} />
+								<Button variant="outline" onClick={() => void save()} disabled={busy || !changed}>
+									<SaveIcon data-icon="inline-start" />
+									{t("forms.saveDraft")}
+								</Button>
+								<Button onClick={() => void publish()} disabled={busy || (form.status === "published" && !changed)}>
+									<UploadIcon data-icon="inline-start" />
+									{t("forms.publish")}
+								</Button>
 							</>
 						) : null}
-					</div>
-					<p className="text-muted-foreground text-sm">
-						{staff ? (
-							<>
-								<span className="font-mono">{`{{@form ${form.key}}}`}</span>
-								{" · "}
-							</>
-						) : null}
+					</>
+				}
+			>
+				{structureTab ? (
+					<>
+						<span className="font-mono text-sm">{`{{@form ${form.key}}}`}</span>
+						{" · "}
 						{placedOn.length > 0 ? t("forms.placedOn", { places: placedOn.join(", ") }) : t("forms.notPlaced")}
-					</p>
-				</div>
-				{staff ? (
-					<div className="flex flex-wrap gap-2">
-						<HistoryLink siteId={siteId} item={{ kind: "form", id: form.id }} />
-						{changesEmails ? <HistoryLink siteId={siteId} item={{ kind: "formEmails", id: form.id }} emails /> : null}
-						<Button variant="outline" onClick={() => void save()} disabled={busy || !changed}>
-							<SaveIcon data-icon="inline-start" />
-							{t("forms.saveDraft")}
-						</Button>
-						<Button onClick={() => void publish()} disabled={busy || (form.status === "published" && !changed)}>
-							<UploadIcon data-icon="inline-start" />
-							{t("forms.publish")}
-						</Button>
-					</div>
-				) : changesEmails ? (
-					<HistoryLink siteId={siteId} item={{ kind: "formEmails", id: form.id }} emails />
+					</>
 				) : null}
-			</div>
-			{problems.length > 0 ? (
-				<div role="alert" className="border-destructive/50 rounded-md border p-4 text-sm">
+			</PageHeader>
+			{problems.length > 0 && structureTab ? (
+				<div role="alert" className="border-destructive/50 mb-6 rounded-md border p-4 text-sm">
 					<p className="font-medium">{t("forms.problems")}</p>
 					<ul className="mt-2 list-disc ps-5">
 						{problems.map((problem) => (
@@ -269,7 +305,7 @@ function FormPage() {
 			<Tabs
 				label={t("forms.tabsLabel", { name: form.name })}
 				tabs={tabs}
-				initial={query.tab ?? (query.submission ? "submissions" : undefined)}
+				initial={current}
 				onSelect={(tab) =>
 					void navigate({
 						search: (before) => ({ ...before, tab: tab as z.infer<typeof search>["tab"] }),

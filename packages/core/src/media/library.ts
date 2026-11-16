@@ -35,12 +35,12 @@ import type { InstallStorage } from "./install-storage.ts";
 import { mediaProcess } from "./jobs.ts";
 import type { MediaKind } from "./kinds.ts";
 import { contentHash, MEDIA_PATH, SERVED_NAME, servedName } from "./names.ts";
-import { assertRoom, type MediaStorage, mediaStorage, noticeQuotaUse, setMediaQuota } from "./quota.ts";
+import { assertRoom, type MediaStorage, mediaStorage, noticeQuotaUse, setMediaQuota, siteMediaBytes } from "./quota.ts";
 import { type FileFormat, gifSize, sniff } from "./sniff.ts";
 import { type ByteRange, type StorageBackend, type StorageKind, siteFolder } from "./storage.ts";
 import { MEDIA_TEXTS, type MediaText, readText, storedTexts, writeText } from "./texts.ts";
 import { deleteForGood, removeUnusedFiles, retireFiles, TRASH_LIFETIME_MS } from "./trash.ts";
-import { type MediaUse, mediaUses } from "./usage.ts";
+import { type MediaUse, mediaUseCounts, mediaUses } from "./usage.ts";
 
 export const MEDIA_FOLDER_NAME_MAX_LENGTH = 100;
 
@@ -141,6 +141,8 @@ export type MediaOverview = {
 	maxFileBytes: number;
 	/** The Workspace's Media storage: what its Sites take, and its quota if Staff set one. */
 	storage: MediaStorage;
+	/** What this Site's own files take in storage, counted as the Workspace's are. */
+	siteBytes: number;
 	/** How many files are in the Site's Trash. */
 	trash: { count: number };
 	/** Whether "Suggest alt text" is offered: the Workspace has an AI key. */
@@ -202,7 +204,8 @@ export type MediaLibrary = {
 		address: string,
 		options?: { folderId?: string | null; uncounted?: boolean },
 	): Promise<MediaItem>;
-	list(scope: SiteScope, query?: MediaQuery): Promise<{ items: MediaItem[]; total: number }>;
+	/** A page of the library; each file says how many places use it (`uses`: what Used in lists). */
+	list(scope: SiteScope, query?: MediaQuery): Promise<{ items: (MediaItem & { uses: number })[]; total: number }>;
 	get(scope: SiteScope, mediaId: string, language?: string): Promise<MediaItem>;
 	/** Changes texts or the folder: a person's own upload, or any with `media.manage`. */
 	update(scope: SiteScope, mediaId: string, change: MediaChange): Promise<MediaItem>;
@@ -503,8 +506,15 @@ export function createMediaLibrary(options: {
 				.orderBy(...(query.trash ? [desc(media.trashedAt)] : []), desc(media.createdAt), asc(media.id))
 				.limit(Math.min(Math.max(query.limit ?? 100, 1), 200))
 				.offset(Math.max(query.offset ?? 0, 0));
+			const uses = await mediaUseCounts(
+				scope,
+				rows.map((row) => row.id),
+			);
 			return {
-				items: await views(scope, rows, language, defaultLanguage),
+				items: (await views(scope, rows, language, defaultLanguage)).map((item) => ({
+					...item,
+					uses: uses.get(item.id) ?? 0,
+				})),
 				total: await scope.count(media, where),
 			};
 		},
@@ -659,6 +669,7 @@ export function createMediaLibrary(options: {
 			return {
 				maxFileBytes,
 				storage: await mediaStorage(scope.db, scope.workspace.id),
+				siteBytes: await siteMediaBytes(scope.db, scope.site.id),
 				trash: { count: await scope.count(media, isNotNull(media.trashedAt)) },
 				altTextSuggestions: await canSuggestAltText(options.aiKeys, workspace.workspace.id),
 			};

@@ -85,6 +85,7 @@ describe("accepting a Member invite", () => {
 			invitedBy: "Ciara Byrne",
 			expiresAt: new Date(install.clock.now().getTime() + 7 * DAY),
 			workspace: { name: "Acme Ltd" },
+			sites: ["Acme Bakery"],
 			hasAccount: false,
 		});
 
@@ -126,7 +127,39 @@ describe("accepting a Member invite", () => {
 			install.browser().api.invites.accept({ token, name: "Short", password: "elevenchars", adminLanguage: "en" }),
 		).rejects.toMatchObject({ code: "PASSWORD_REFUSED" });
 
-		expect((await install.browser().api.invites.get({ token })).email).toBe("short@acmeltd.example");
+		// An invite to every Site says so, rather than naming them.
+		expect(await install.browser().api.invites.get({ token })).toMatchObject({
+			email: "short@acmeltd.example",
+			sites: "all",
+		});
+	});
+
+	test("more people than the web process has database connections accept at once, and all get in", async () => {
+		// The test Install keeps 4 connections. Accepting once held one in its transaction while the
+		// password check waited for another (it reads Install settings), so 4 at once waited for good.
+		const emails = Array.from({ length: 6 }, (_, number) => `together-${number}@acmeltd.example`);
+		for (const email of emails) {
+			await staff.browser.api.members.invite({ workspaceId: acme.id, email, role: "author", sites: "all" });
+		}
+		const tokens = await Promise.all(emails.map(tokenFor));
+
+		const accepted = await Promise.all(
+			tokens.map((token, number) =>
+				install
+					.browser()
+					.api.invites.accept({ token, name: `Together ${number}`, password: TEST_PASSWORD, adminLanguage: "en" }),
+			),
+		);
+
+		expect(accepted.map((answer) => answer.workspaceId)).toEqual(Array(6).fill(acme.id));
+	});
+
+	test("an invite link that doesn't work says so before the password is looked at", async () => {
+		await expect(
+			install
+				.browser()
+				.api.invites.accept({ token: "no-such-link", name: "Nobody", password: "short", adminLanguage: "en" }),
+		).rejects.toMatchObject({ code: "INVITE_INVALID" });
 	});
 
 	test("one person holds Memberships in several Workspaces with one account: they sign in and join", async () => {

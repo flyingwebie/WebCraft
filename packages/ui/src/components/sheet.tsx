@@ -27,7 +27,7 @@ function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
 		<SheetPrimitive.Backdrop
 			data-slot="sheet-overlay"
 			className={cn(
-				"fixed inset-0 z-50 bg-black/10 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0 supports-backdrop-filter:backdrop-blur-xs",
+				"fixed inset-0 z-50 bg-black/10 transition-opacity duration-150 data-ending-style:opacity-0 data-starting-style:opacity-0",
 				className,
 			)}
 			{...props}
@@ -41,16 +41,25 @@ function SheetContent({
 	side = "right",
 	showCloseButton = true,
 	closeLabel = "Close",
+	container,
+	overlayClassName,
 	...props
 }: SheetPrimitive.Popup.Props & {
 	/** WebCraft: the close button's accessible name, in the person's Admin language. */
 	closeLabel?: string;
 	side?: "top" | "right" | "bottom" | "left";
 	showCloseButton?: boolean;
+	/**
+	 * WebCraft: where the sheet and its dark layer are put, in place of the end of the page: a sheet
+	 * that covers one part of the screen (the admin's page card) goes inside that part.
+	 */
+	container?: SheetPrimitive.Portal.Props["container"];
+	/** WebCraft: classes for the layer behind the sheet. */
+	overlayClassName?: string;
 }) {
 	return (
-		<SheetPortal>
-			<SheetOverlay />
+		<SheetPortal container={container}>
+			<SheetOverlay className={overlayClassName} />
 			<SheetPrimitive.Popup
 				data-slot="sheet-content"
 				data-side={side}

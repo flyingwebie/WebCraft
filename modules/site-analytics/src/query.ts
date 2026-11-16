@@ -215,13 +215,18 @@ export async function breakdown(
 
 /**
  * What the Site's analytics covers: the oldest raw event still kept (visit-by-visit questions, such
- * as Funnels, reach back only that far; totals reach back forever), and how far rollups are built.
+ * as Funnels, reach back only that far; totals reach back forever), how far rollups are built, and
+ * whether it ever counted anything (`counted`: a raw event, or a rollup of one; rollups are kept
+ * forever, so it stays true once raw events are gone). Nothing counted yet: no visitor has accepted
+ * Analytics on the Consent banner since the Module ran here.
  */
 export async function coverage(
 	context: ModuleContext,
-): Promise<{ rawEventsFrom: Date | null; rolledUp: { hours: Date; days: Date } | null }> {
+): Promise<{ rawEventsFrom: Date | null; rolledUp: { hours: Date; days: Date } | null; counted: boolean }> {
 	const [row] = await context.data.aggregate(events, { values: { at: min(events.occurredAt) } });
-	return { rawEventsFrom: row?.at ? new Date(row.at) : null, rolledUp: await builtUntil(context) };
+	const rawEventsFrom = row?.at ? new Date(row.at) : null;
+	const counted = rawEventsFrom !== null || (await context.data.count(rollups)) > 0;
+	return { rawEventsFrom, rolledUp: await builtUntil(context), counted };
 }
 
 /** A Goal's counts in a range: each time it was reached, and the visitors who reached it. */

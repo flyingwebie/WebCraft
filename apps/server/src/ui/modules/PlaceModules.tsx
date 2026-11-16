@@ -1,7 +1,6 @@
 import { useRouter } from "@tanstack/react-router";
 import type { ApiClient } from "@webcraft/api";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
 import {
 	Dialog,
 	DialogClose,
@@ -18,6 +17,8 @@ import { toast } from "sonner";
 import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
+import { SettingsForm, useSettingsSection } from "../settings/form.tsx";
+import { SettingsCard, SettingsListRow, SettingsRows, StateBadge, Switch } from "../settings/layout.tsx";
 
 /** A Module where Staff switch it, as `modules.siteList` and `modules.workspaceList` answer. */
 export type PlaceModule = Awaited<ReturnType<ApiClient["modules"]["siteList"]>>["modules"][number];
@@ -33,72 +34,75 @@ type Removal = Awaited<ReturnType<ApiClient["modules"]["removeSiteData"]>>;
  */
 export function PlaceModules({ place, modules }: { place: ModulePlace; modules: PlaceModule[] }) {
 	const t = useT();
-	if (modules.length === 0) {
-		return (
-			<p className="text-muted-foreground rounded-lg border border-dashed p-8 text-center">
-				{t(place.level === "site" ? "modules.place.siteEmpty" : "modules.place.workspaceEmpty")}
-			</p>
-		);
-	}
 	return (
-		<ul className="grid gap-4">
-			{modules.map((module) => (
-				<ModuleRow key={module.id} place={place} module={module} />
-			))}
-		</ul>
+		<SettingsForm>
+			<SettingsCard title={t("modules.place.listTitle")} description={t("modules.place.listIntro")}>
+				{modules.length === 0 ? (
+					<p className="text-muted-foreground text-sm">
+						{t(place.level === "site" ? "modules.place.siteEmpty" : "modules.place.workspaceEmpty")}
+					</p>
+				) : (
+					<SettingsRows>
+						{modules.map((module) => (
+							<ModuleRow key={module.id} place={place} module={module} />
+						))}
+					</SettingsRows>
+				)}
+			</SettingsCard>
+		</SettingsForm>
 	);
 }
 
+/** One Module: its switch here (saved with the foot bar) and removing its data. */
 function ModuleRow({ place, module }: { place: ModulePlace; module: PlaceModule }) {
 	const t = useT();
-	const router = useRouter();
 	const id = useId();
-	const [busy, setBusy] = useState(false);
 	const approved = module.status === "approved";
-
-	const toggle = async (on: boolean) => {
-		setBusy(true);
-		try {
+	const section = useSettingsSection({
+		saved: { on: module.on && approved },
+		save: async ({ on }) => {
 			const api = await getApi();
 			if (place.level === "site") await api.modules.setOnSite({ siteId: place.siteId, moduleId: module.id, on });
 			else await api.modules.setOnWorkspace({ workspaceId: place.workspaceId, moduleId: module.id, on });
-			toast.success(t(on ? "modules.place.switchedOn" : "modules.place.switchedOff", { name: module.name }));
-			await router.invalidate();
-		} catch (failure) {
-			toast.error(t(errorMessage(failure)));
-		} finally {
-			setBusy(false);
-		}
-	};
-
+		},
+	});
+	const on = section.values.on;
 	return (
-		<li className="grid gap-3 rounded-lg border p-4 sm:grid-cols-[1fr_auto] sm:items-start">
-			<div className="grid gap-1">
-				<h2 className="font-medium">{module.name}</h2>
-				<p className="text-muted-foreground text-sm">{module.description}</p>
-				{approved ? null : (
-					<p id={`${id}-waiting`} className="text-muted-foreground text-sm">
-						{t("modules.place.waiting")}. {t("modules.place.cannotSwitchOn")}
-					</p>
-				)}
-			</div>
-			<div className="flex flex-wrap items-center gap-3 sm:justify-end">
-				<label className="flex items-center gap-2 text-sm" htmlFor={`${id}-on`}>
-					<Checkbox
+		<SettingsListRow
+			badge={
+				<StateBadge tone={!approved ? "warning" : module.on ? "success" : "neutral"}>
+					{!approved
+						? t("modules.place.waiting")
+						: module.on
+							? t("modules.place.onBadge")
+							: t("modules.place.offBadge")}
+				</StateBadge>
+			}
+			detail={
+				<>
+					<p>{module.description}</p>
+					{approved ? null : <p id={`${id}-waiting`}>{t("modules.place.cannotSwitchOn")}</p>}
+					{section.error ? <FieldError>{t(section.error)}</FieldError> : null}
+				</>
+			}
+			actions={
+				<>
+					<RemoveDataDialog place={place} module={module} />
+					<Switch
 						id={`${id}-on`}
-						checked={module.on && approved}
-						disabled={busy || (!approved && !module.on)}
+						checked={on}
+						disabled={!approved && !module.on}
 						aria-describedby={approved ? undefined : `${id}-waiting`}
 						aria-label={t(place.level === "site" ? "modules.place.siteSwitch" : "modules.place.workspaceSwitch", {
 							name: module.name,
 						})}
-						onCheckedChange={(checked) => toggle(checked === true)}
+						onCheckedChange={(checked) => section.set({ on: checked })}
 					/>
-					<span aria-hidden="true">{t("modules.place.on")}</span>
-				</label>
-				<RemoveDataDialog place={place} module={module} />
-			</div>
-		</li>
+				</>
+			}
+		>
+			<h3>{module.name}</h3>
+		</SettingsListRow>
 	);
 }
 

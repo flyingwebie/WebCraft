@@ -1,6 +1,7 @@
 // Edit mode starts with "Edit on site" in the admin: a single-use signed link, valid 60 seconds, for
 // one person and one Site. Following it on the Site's own domain sets the edit cookie there
-// (`HttpOnly`, `Secure`, `SameSite=Lax`, at most 8 hours) and opens the page (ADR 0022).
+// (`HttpOnly`, `Secure`, `SameSite=Lax`, at most 8 hours) and opens the page in the building area
+// (ADRs 0022, 0037).
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
@@ -55,7 +56,7 @@ function cookieAttributes(response: Response, name: string): Record<string, stri
 const EDIT_COOKIE = "__Host-webcraft.edit";
 
 describe("Edit on site", () => {
-	test("gives a link on the Site's own address; following it sets the edit cookie there and opens the page", async () => {
+	test("gives a link on the Site's own address; following it sets the edit cookie there and opens the page in the building area", async () => {
 		const { siteId, origin } = await siteWithPost();
 
 		const { url, expiresAt } = await editor.api.editMode.open({ siteId, path: "/blog/fresh-bread" });
@@ -68,7 +69,7 @@ describe("Edit on site", () => {
 		const response = await visitor.request(url);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.get("location")).toBe("/blog/fresh-bread");
+		expect(response.headers.get("location")).toBe("/_webcraft/build/page/blog/fresh-bread");
 		// The link's token never reaches another site through the Referer, nor any cache.
 		expect(response.headers.get("referrer-policy")).toBe("no-referrer");
 		expect(response.headers.get("cache-control")).toBe("no-store");

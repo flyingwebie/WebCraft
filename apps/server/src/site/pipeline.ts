@@ -1,4 +1,5 @@
 import {
+	buildingAreaPageAddress,
 	canonicalPath,
 	type EditSession,
 	FILE_POLICY,
@@ -36,12 +37,13 @@ import { FILTER_FRAGMENTS_PATH } from "@webcraft/renderer";
 import { clientAddress, recordVisitorAddress, sameClient } from "../client-address.ts";
 import { matchesETag, mediaFileResponse } from "../media-response.ts";
 import { type Handler, json, notFound, payloadTooLarge, plainText, readOnly, withinBodyCeiling } from "../responses.ts";
+import { buildingAreaApiEndpoint } from "./building-area/api.ts";
+import { buildingAreaEndpoint } from "./building-area/route.ts";
 import { consentRecordPost, isConsentPath } from "./consent.ts";
 import { contentApiAnswer, isContentApiPath } from "./content-api.ts";
 import { discoveryFile, stagingRobots } from "./discovery.ts";
 import {
 	clearEditCookie,
-	codeModeOf,
 	EDIT_MODE_PAGE_HEADERS,
 	editModeEndpoint,
 	editModeHtml,
@@ -155,6 +157,11 @@ async function siteAnswer(
 	}
 	const editing = await editModeEndpoint(services, request, host);
 	if (editing) return editing;
+	// The building area (ADR 0037): the Management API it calls, then its shell, beside Edit mode's own paths.
+	const buildingApi = await buildingAreaApiEndpoint(services, request, host);
+	if (buildingApi) return buildingApi;
+	const building = await buildingAreaEndpoint(services, request, host);
+	if (building) return building;
 	if (url.pathname === MODULE_ROUTES || url.pathname.startsWith(`${MODULE_ROUTES}/`)) {
 		// Modules' Site routes: answered by the Module, any method it declares, never cached as pages.
 		// The Module learns of the visitor only what WebCraft tells it (never the address or WebCraft's cookies).
@@ -239,12 +246,22 @@ async function pageAnswer(
 	const number = pageNumberIn(url.searchParams);
 	if (number === undefined) return notFoundPage(services, request, host, url.pathname);
 	if (edit.session) {
+		// A page opened at the top level goes into the building area's shell, which frames it (ADR 0037).
+		// The page agent does the same in browsers that don't say what a request is for.
+		if (request.headers.get("sec-fetch-dest") === "document") {
+			return new Response(null, {
+				status: 303,
+				headers: { location: buildingAreaPageAddress(`${url.pathname}${url.search}`), ...EDIT_MODE_PAGE_HEADERS },
+			});
+		}
+		// Staff see the Drafts of the Structure in the frame, every element tagged (ADR 0037 › 1.3);
+		// Members see Content editing's page.
 		return editModePage(
 			services,
 			host,
 			edit.session,
 			url.pathname,
-			await codeModeOf(services, request, edit.session),
+			await services.codeMode.openIfAllowed(edit.session),
 			safeModeOf(request),
 			number,
 			url.searchParams,
@@ -489,10 +506,10 @@ async function draftPage(services: InstallServices, request: Request, host: Site
 const DRAFT_CACHE_CONTROL = "private, no-store";
 
 /**
- * The page at a path in Edit mode: the same page visitors would get, rendered afresh for the person
- * with the Drafts of its Content and its editable regions tagged; in Code mode (`code`, the Site
- * opened with `structure.edit`), with the Drafts of the Structure too, every element tagged. It never
- * touches the page cache.
+ * The page at a path in Edit mode, for the building area's frame (ADR 0037): the same page visitors
+ * would get, rendered afresh for the person with the Drafts of its Content and its editable regions
+ * tagged; for Staff (`code`, the Site opened with `structure.edit`), with the Drafts of the Structure
+ * too, every element tagged. It never touches the page cache, and only its own origin may frame it.
  */
 async function editModePage(
 	services: InstallServices,

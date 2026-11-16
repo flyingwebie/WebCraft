@@ -1,12 +1,9 @@
 // The Command menu's data (#131): the Permissions it shows commands for, checked with can() on the
-// Site (ADR 0028), and Go to's lists, the same through the Builder's API and Code mode's Edit mode
-// endpoint.
+// Site (ADR 0028), and Go to's lists (`builder.commandMenu`, which the building area's menu reads).
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { GO_TO_ENTRIES } from "@webcraft/core";
 
-import { answer, openCodeMode } from "../harness/code-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
-import { expectSiteHeaders } from "../harness/site-safety.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -64,11 +61,6 @@ test("Go to lists Pages, each Post Type's Entries, Templates and the Site's own 
 		},
 		{ id: component.id, name: "Hero", usedIn: [] },
 	]);
-
-	const coding = await openCodeMode(install, staff, siteId, "/");
-	const response = await coding.edit("code/commandMenu", { path: "/" });
-	expectSiteHeaders(response);
-	expect(await answer(response)).toEqual(menu);
 });
 
 test("Go to lists the newest Entries of a Post Type, up to its limit, Drafts among them", async () => {

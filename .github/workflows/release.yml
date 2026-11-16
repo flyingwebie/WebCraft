@@ -1,0 +1,88 @@
+name: Release
+
+# A change merged into main makes a release only when it raises the version in the root package.json
+# (`bun run release:bump`, which also writes the release's CHANGELOG.md section; see
+# docs/development.md › Releases), and only once CI passed on that commit. Then this workflow tags
+# the commit `v<version>`, makes the GitHub release with the changelog section as its notes, and
+# starts the Images and CLI workflows on the tag, which publish the images and the CLI. (A tag this
+# workflow's own token makes starts no workflow by itself, so it starts them by name.)
+#
+# On a pull request into main it says whether merging will release, and fails when the version went
+# down, is already released or has no CHANGELOG.md section.
+#
+# Every action is named by its commit (the version beside it is for people): a tag can be moved to
+# other code, a commit can't, and the release job holds what tags and publishes.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Will merging release?
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      - name: Compare the version with main's
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: bun scripts/release.ts decide --base "$BASE" --summary "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: Tag and publish the release
+    # Only after CI passed on a push to main.
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # the tag and the GitHub release
+      actions: write # starting the Images and CLI workflows on the tag
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: package.json
+      # Against the newest release (before the first one, the commit before), so a push of several
+      # commits, or a CI run that was cancelled by the next push, still releases a raised version.
+      - id: decide
+        name: Did the version go up?
+        run: bun scripts/release.ts decide --base auto --output "$GITHUB_OUTPUT" --summary "$GITHUB_STEP_SUMMARY"
+      - name: Make the GitHub release
+        if: steps.decide.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.decide.outputs.tag }}
+          VERSION: ${{ steps.decide.outputs.version }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          bun scripts/release.ts notes "$VERSION" > "$RUNNER_TEMP/notes.md"
+          gh release create "$TAG" --target "$SHA" --title "WebCraft $VERSION" --notes-file "$RUNNER_TEMP/notes.md"
+      - name: Publish the images and the CLI for the tag
+        if: steps.decide.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.decide.outputs.tag }}
+        run: |
+          gh workflow run images.yml --ref "$TAG"
+          gh workflow run cli.yml --ref "$TAG"

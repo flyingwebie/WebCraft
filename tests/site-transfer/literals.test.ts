@@ -154,7 +154,7 @@ test("Body text, Component text Props, translations and former live history pres
 test("Form answers and labels keep UUID literals and external URLs", async () => {
 	const admin = await install.superadmin();
 	await admin.api.modules.approve({ moduleId: "forms", version: forms.manifest.version });
-	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
+	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.2.0" });
 	const workspaceId = (await install.createWorkspace("Form literals")).id;
 	const siteId = (await install.createSite(workspaceId, { slug: "form-literals" })).id;
 	await admin.api.modules.setOnSite({ siteId, moduleId: "site-analytics", on: true });

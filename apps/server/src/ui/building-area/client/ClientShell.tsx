@@ -1,0 +1,806 @@
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
+
+import { editorHistory } from "../../editor/editor-history.ts";
+import { type EditAnswer, editRequests, fill, type PageState, type ShellConfig } from "../api.ts";
+import type { PageLanguage } from "../bottom-bar/LanguageMenu.tsx";
+import { Frame, type FrameHandle } from "../canvas/Frame.tsx";
+import { PRESETS, type Preset } from "../canvas/gutters.ts";
+import { NoDocument } from "../canvas/NoDocument.tsx";
+import { readFormNames } from "../canvas/placed-form.ts";
+import type { SavingStatus } from "../canvas/regions.ts";
+import type { MenuHost } from "../command-menu/host.ts";
+import { CommandMenuHost, useCommandMenu } from "../command-menu/loader.tsx";
+import { LAYOUT_VERSION } from "../docks/layout.ts";
+import { reverseElsewhere } from "../editing/drafts.ts";
+import { pageEditing } from "../editing/editing.ts";
+import { shellHistory } from "../editing/history.ts";
+import { TextToolbar } from "../editing/TextToolbar.tsx";
+import { type RegionCycle, regionCycle } from "../keyboard.ts";
+import { managementApi } from "../management.ts";
+import { useOpenDocument } from "../open-document.ts";
+import { MediaShellHost } from "../places/media/host.tsx";
+import { PlaceLoader } from "../places/PlaceLoader.tsx";
+import { PLACE_EVENT, placeEntry, placeKeyOf, reopenPlace } from "../places/registry.ts";
+import { Publish } from "../publish/Publish.tsx";
+import { PUBLISH_OPEN_EVENT } from "../publish/sources.ts";
+import { AddSectionLine } from "./AddSection.tsx";
+import { BodyInPlace } from "./BodyInPlace.tsx";
+import { bodyInPlace } from "./body-in-place.ts";
+import { ClientBar, type ClientPanel, clientDraftStateOf } from "./ClientBar.tsx";
+import { CLIENT_PLACES, type ClientPlace, ClientRail } from "./ClientRail.tsx";
+import { FormLockPopover, useFormLocks } from "./FormLock.tsx";
+import { HelpCard } from "./HelpCard.tsx";
+import { ItemPanel } from "./ItemPanel.tsx";
+import { LoopItems } from "./LoopItems.tsx";
+import { loopItems } from "./loop-items.ts";
+import { type ClientMode, clientEditing } from "./marks.ts";
+import { MemberDetails } from "./PageDetails.tsx";
+import { PageSwitcher } from "./PageSwitcher.tsx";
+import { useKeepInView } from "./phone/keep-in-view.ts";
+import { useClientLayout, useKeyboardInset } from "./phone/layout.ts";
+import { MoreSheet } from "./phone/MoreSheet.tsx";
+import { PhoneBar } from "./phone/PhoneBar.tsx";
+import { PhoneHint } from "./phone/PhoneHint.tsx";
+import { regionPopovers } from "./popovers.ts";
+import { RegionPopover } from "./RegionPopover.tsx";
+import { RemovedToast, SectionMarks } from "./SectionBar.tsx";
+import { SectionsSidePanel } from "./SectionsPanel.tsx";
+import { SidePanel } from "./SidePanel.tsx";
+import { memberSections } from "./sections.ts";
+
+/** What the `state` edit request says beyond what Staff's shell reads: whether it may publish, and a Page layout. */
+type ClientPageState = PageState & { page: PageState["page"] & { layout: boolean } };
+
+/** What the bar shows of the page in the frame. */
+type ShownPage = {
+	address: string;
+	changes: number;
+	inReview: boolean;
+	languages: PageLanguage[];
+	/** Whether it is a Page, arranged with a Page layout (Sections, where the Site allows Members). */
+	layout: boolean;
+};
+
+/** How long "Saved" shows after a save before the Draft's state says what is left to publish (SPEC 13.8). */
+const SAVED_FOR_MS = 2000;
+
+/** Puts focus in the page shown in the frame, or in the place open over it. */
+function focusFrame(): void {
+	const place = document.querySelector<HTMLElement>("[data-wc-place-frame]");
+	if (place) {
+		place.querySelector<HTMLElement>("[data-wc-place-back]")?.focus();
+		return;
+	}
+	const frame = document.querySelector<HTMLIFrameElement>("iframe[data-wc-frame]");
+	if (!frame) return;
+	frame.focus();
+	frame.contentWindow?.focus();
+}
+
+/** Whether a key press is meant for a text field rather than the shell's shortcuts. */
+function typingIn(target: EventTarget | null): boolean {
+	return (
+		target instanceof HTMLElement &&
+		(target.isContentEditable || target.matches("input, textarea, select, [role='textbox']"))
+	);
+}
+
+/** Whether a place is one a Member opens. */
+function clientPlace(key: string | null): ClientPlace | null {
+	return CLIENT_PLACES.find((each) => each === key) ?? null;
+}
+
+/**
+ * The building area drawn for a Member (SPEC 13, BA-14): "the page is the interface". The rail (76,
+ * words under icons: Page, Content, Media; Help, Exit), the page as a light sheet (12 from everything,
+ * corners 10, no gutters: its width comes from the bar), the bar (56: Undo, Redo, the page's name, the
+ * Draft's state in words; Edit / Preview and the widths; the language, Sections, Page details,
+ * Publish), and one side panel at a time (360, pushing the page). Every area the Member may change is
+ * marked on the page (`marks.ts`). None of the Staff's parts is drawn: no docks, panels, code panes,
+ * insert row, or Templates, Styles, Loops and Components places.
+ *
+ * At every width (BA-19, `phone/`): up to 640 px the phone's one bar replaces the rail and the bar, the
+ * rest is in "More", the page is edge to edge, panels and popovers are sheets from the bottom and the
+ * text toolbar sits on the keyboard; from 641 to 1023 px (a tablet) the desktop shell with a bar that
+ * keeps only the words it needs. No window is too narrow for a Member.
+ */
+export function ClientShell({ config }: { config: ShellConfig }) {
+	const { words } = config;
+	const said = words.client;
+	const request = useMemo(() => editRequests(config.token), [config.token]);
+	const api = useMemo(() => managementApi(config.token), [config.token]);
+	const cycle = useRef<RegionCycle | null>(null);
+	const frame = useRef<FrameHandle | null>(null);
+	const [message, setMessage] = useState({ text: "", urgent: false, count: 0 });
+	const panelId = useId();
+	const layout = useClientLayout();
+	const phone = layout === "phone";
+	const keyboard = useKeyboardInset(phone);
+	const [more, setMore] = useState(false);
+
+	const [exiting, setExiting] = useState(false);
+	const [mode, setMode] = useState<ClientMode>("edit");
+	const [width, setWidth] = useState<Preset>("desktop");
+	const [panel, setPanel] = useState<ClientPanel | null>(null);
+	const [card, setCard] = useState<"first" | "help" | null>(config.hintSeen ? null : "first");
+	const [arranging, setArranging] = useState(false);
+
+	const [shown, setShown] = useState<ShownPage | null>(null);
+	const [saving, setSaving] = useState<"idle" | "saving" | "failed">("idle");
+	const [justSaved, setJustSaved] = useState(false);
+	const savedTimer = useRef<number | undefined>(undefined);
+	const shownAddress = useRef<string | null>(null);
+
+	const announce = useCallback((text: string, urgent = false) => {
+		// Alternating a trailing space makes the same words twice in a row heard twice.
+		setMessage((last) => ({ text: `${text}${last.count % 2 ? " " : ""}`, urgent, count: last.count + 1 }));
+	}, []);
+	const announceRef = useRef(announce);
+	announceRef.current = announce;
+
+	// The panel's bar button gets focus back as the panel closes.
+	const panelRef = useRef(panel);
+	panelRef.current = panel;
+	const closePanel = useCallback((focusButton = true): boolean => {
+		const open = panelRef.current;
+		if (!open) return false;
+		setPanel(null);
+		if (focusButton)
+			(
+				document.querySelector<HTMLElement>(`[data-wc-bar="${open === "sections" ? "sections" : "page-details"}"]`) ??
+				// On a phone the panel was opened from More.
+				document.querySelector<HTMLElement>('[data-wc-phone-bar="more"]')
+			)?.focus();
+		return true;
+	}, []);
+
+	// The Sections panel opened from the page (BA-17): a section's settings, or the picker at a boundary.
+	const sectionsRef = useRef<ReturnType<typeof memberSections> | null>(null);
+	const closeItemPanel = useRef<() => void>(() => {});
+	const openSectionSettings = useCallback((id: string) => {
+		closeItemPanel.current();
+		setPanel("sections");
+		sectionsRef.current?.select(id, { onPage: true });
+		sectionsRef.current?.view("settings");
+	}, []);
+	const openSectionPicker = useCallback((after: string) => {
+		closeItemPanel.current();
+		setPanel("sections");
+		sectionsRef.current?.view("add", { after });
+	}, []);
+
+	// The tab's one Undo history and Content typed in place, as for Staff (BA-07), with the client's
+	// marks and keys around it.
+	const undoHistory = useMemo(
+		() =>
+			shellHistory({
+				siteId: config.site.id,
+				words,
+				announce: (text, urgent) => announceRef.current(text, urgent),
+				fallback: async (resource) => {
+					const prefix = `draft:${config.site.id}:`;
+					if (!resource.startsWith(prefix)) return undefined;
+					const item = resource.slice(prefix.length);
+					return { reverse: (from, to) => reverseElsewhere(item, config.token, from, to) };
+				},
+			}),
+		[config.site.id, config.token, words],
+	);
+	useEffect(() => () => undoHistory.destroy(), [undoHistory]);
+	const refreshRef = useRef<() => void>(() => {});
+	const savingRef = useRef<(status: SavingStatus) => void>(() => {});
+	// The photo and link popovers (BA-15): what they change shows in the Draft's state and the page's dots.
+	const popovers = useMemo(
+		() =>
+			regionPopovers({
+				token: config.token,
+				words,
+				announce: (text, urgent) => announceRef.current(text, urgent),
+				refresh: () => refreshRef.current(),
+				saving: (status) => savingRef.current(status),
+				// A photo chosen or a link saved is an Undo step, as typed text is (BA-35).
+				history: undoHistory,
+			}),
+		[config.token, words, undoHistory],
+	);
+	useEffect(() => () => popovers.destroy(), [popovers]);
+	const formLocks = useFormLocks();
+	// A Loop's own items and a query Loop's (BA-16): selected, moved, added, their Fields in the side panel.
+	const openRef = useRef<(path: string) => void>(() => {});
+	const items = useMemo(
+		() =>
+			loopItems({
+				token: config.token,
+				words,
+				announce: (text, urgent) => announceRef.current(text, urgent),
+				saving: (status) => savingRef.current(status),
+				// One side panel at a time: the item's closes the bar's.
+				panelOpened: () => setPanel(null),
+				openPage: (path) => openRef.current(path),
+			}),
+		[config.token, words],
+	);
+	useEffect(() => () => items.destroy(), [items]);
+	const itemsNow = useSyncExternalStore(items.subscribe, items.snapshot);
+	// An Entry's body written in place as Blocks (BA-18): its editor loads into the page the first time one shows.
+	const bodies = useMemo(
+		() =>
+			bodyInPlace({
+				token: config.token,
+				words,
+				request,
+				src: config.bodyEditor,
+				announce: (text, urgent) => announceRef.current(text, urgent),
+				saving: (status) => savingRef.current(status),
+				refresh: () => refreshRef.current(),
+			}),
+		[config.token, config.bodyEditor, words, request],
+	);
+	useEffect(() => () => bodies.destroy(), [bodies]);
+	const goTo = useCallback(() => api.builder.commandMenu({ siteId: config.site.id }), [api, config.site.id]);
+	// Sections (BA-17): the page's Page layout, arranged where the Site lets Members arrange.
+	const titleRef = useRef("");
+	closeItemPanel.current = () => items.closePanel({ deselect: true });
+	const sections = useMemo(
+		() =>
+			memberSections({
+				token: config.token,
+				siteId: config.site.id,
+				words,
+				request,
+				announce: (text, urgent) => announceRef.current(text, urgent),
+				refresh: () => refreshRef.current(),
+				saving: (status) => savingRef.current(status),
+				undo: () => void undoHistory.undo(),
+				title: () => titleRef.current,
+				// A Prop's step keeps its place among the person's; Undo first finishes one still open (BA-35).
+				steps: undoHistory,
+			}),
+		[config.token, config.site.id, words, request, undoHistory],
+	);
+	sectionsRef.current = sections;
+	useEffect(() => () => sections.destroy(), [sections]);
+	const editing = useMemo(() => {
+		const inner = pageEditing({
+			token: config.token,
+			siteId: config.site.id,
+			words,
+			history: undoHistory,
+			announce: (text, urgent) => announceRef.current(text, urgent),
+			refresh: () => refreshRef.current(),
+			failed: () => setSaving("failed"),
+		});
+		return sections.wrap(
+			items.wrap(
+				bodies.wrap(
+					clientEditing({
+						inner,
+						words,
+						announce: (text, urgent) => announceRef.current(text, urgent),
+						// Escape in the page closes the panel and leaves focus where it is, in the page.
+						closePanel: () => closePanel(false),
+						popovers,
+						bodies,
+						// A Form the agency built is locked; its popover links to its Submissions (BA-27).
+						onForm: (form) => formLocks.open(form),
+					}),
+				),
+			),
+		);
+	}, [config.token, config.site.id, words, undoHistory, closePanel, popovers, items, bodies, formLocks, sections]);
+	useEffect(() => () => editing.destroy(), [editing]);
+	useEffect(() => editing.setMode(mode), [editing, mode]);
+	// On a phone, nothing covers what is being edited: a sheet, the toolbar or the keyboard (BA-19).
+	useKeepInView({ on: phone, editing, popovers, keyboard });
+	// More belongs to the phone's bar.
+	useEffect(() => {
+		if (!phone) setMore(false);
+	}, [phone]);
+
+	// What Edit mode says of the page now, and what Page details calls itself on it (Post details on an Entry; BA-13).
+	const [pageState, setPageState] = useState<PageState | null>(null);
+	const [detailsHeading, setDetailsHeading] = useState<{ title: string; sub: string } | null>(null);
+
+	/** Reads what Edit mode says of the page in the frame: the Draft's state, the languages, Publish. */
+	const takeState = useCallback(
+		(address: string, answer: Promise<EditAnswer<PageState>>) => {
+			void answer.then((state) => {
+				if (!state.ok || shownAddress.current !== address) return;
+				const data = state.data as ClientPageState;
+				editing.pageState(data);
+				setPageState(data);
+				setShown({
+					address,
+					changes: data.changes.length,
+					inReview: data.reviews.some((review) => review.status === "inReview"),
+					languages: data.languages,
+					layout: data.page.layout === true,
+				});
+			});
+		},
+		[editing],
+	);
+
+	const opened = useOpenDocument(config, announce);
+	const { framed } = opened;
+	openRef.current = (path) => opened.open({ kind: "page", page: path });
+
+	const onPage = useCallback(
+		(address: string, answer: Promise<EditAnswer<PageState>>) => {
+			shownAddress.current = address;
+			setSaving("idle");
+			// "Saved" belonged to the page before.
+			setJustSaved(false);
+			window.clearTimeout(savedTimer.current);
+			setShown(null);
+			setPageState(null);
+			takeState(address, answer);
+			framed(address, answer);
+		},
+		[takeState, framed],
+	);
+
+	/** Reads the page's `state` again: its Draft changed (a save, someone else's change, a step taken back). */
+	const refreshState = useCallback(() => {
+		const address = shownAddress.current;
+		if (address) takeState(address, request<PageState>("state", { path: address.split("?")[0] ?? "/" }));
+	}, [request, takeState]);
+	refreshRef.current = refreshState;
+
+	const onSaving = useCallback(
+		(status: SavingStatus) => {
+			setSaving(status === "saving" ? "saving" : status === "failed" ? "failed" : "idle");
+			if (status !== "saved") return;
+			// "Saved" for a moment, then what is left to publish (SPEC 13.8).
+			setJustSaved(true);
+			window.clearTimeout(savedTimer.current);
+			savedTimer.current = window.setTimeout(() => setJustSaved(false), SAVED_FOR_MS);
+			refreshState();
+		},
+		[refreshState],
+	);
+	savingRef.current = onSaving;
+	useEffect(() => () => window.clearTimeout(savedTimer.current), []);
+
+	// What Publish covers is read again whenever the page's state or a save changes (BA-12).
+	// biome-ignore lint/correctness/useExhaustiveDependencies: a new token each time either changes.
+	const publishChanged = useMemo(() => ({}), [shown, saving]);
+
+	// Whether the Site lets its Members arrange Pages: the Sections button (SPEC 13.4).
+	useEffect(() => {
+		let current = true;
+		void api.pageLayouts
+			.settings({ siteId: config.site.id })
+			.then((settings) => {
+				if (current) setArranging(settings.enabled);
+			})
+			.catch(() => {});
+		return () => {
+			current = false;
+		};
+	}, [api, config.site.id]);
+
+	// The place open over the canvas: only Content and Media for a Member (SPEC 13.6). An address naming
+	// another place opens the canvas.
+	const placeKey = clientPlace(placeKeyOf(opened.address.place));
+	const place = placeKey ? placeEntry(placeKey) : null;
+	const placeOpener = useRef<Element | null>(null);
+	const openPlace = useCallback(
+		(key: ClientPlace) => {
+			if (key === placeKey) {
+				opened.documents.openPlace(null);
+				return;
+			}
+			const at = reopenPlace(key);
+			if (!at) return;
+			if (!placeKey) placeOpener.current = document.activeElement;
+			opened.documents.openPlace(at.place, at.view);
+		},
+		[placeKey, opened.documents],
+	);
+	const leavePlace = useCallback(() => opened.documents.openPlace(null), [opened.documents]);
+	// The Command menu's way in and out of places (it comes with a later part): `webcraft:place`.
+	useEffect(() => {
+		const onPlaceEvent = (event: Event) => {
+			const wanted = (event as CustomEvent<{ place?: unknown } | null>).detail?.place;
+			if (wanted === null) leavePlace();
+			else if (typeof wanted === "string" && wanted !== placeKey) {
+				const key = clientPlace(wanted);
+				if (key) openPlace(key);
+			}
+		};
+		document.addEventListener(PLACE_EVENT, onPlaceEvent);
+		return () => document.removeEventListener(PLACE_EVENT, onPlaceEvent);
+	}, [leavePlace, openPlace, placeKey]);
+	const lastPlace = useRef<ClientPlace | null>(null);
+	useEffect(() => {
+		const was = lastPlace.current;
+		lastPlace.current = placeKey;
+		if (was === placeKey) return;
+		if (placeKey) announce(fill(words.place.opened, { place: words.places[placeKey] }));
+		else if (was) {
+			announce(words.place.left);
+			const opener = placeOpener.current;
+			placeOpener.current = null;
+			const back =
+				opener instanceof HTMLElement && opener.isConnected && !opener.closest("[data-wc-place-frame]")
+					? opener
+					: document.querySelector<HTMLElement>(`[data-wc-place="${was}"]`);
+			back?.focus();
+		}
+	}, [placeKey, announce, words]);
+
+	useEffect(() => {
+		const keys = regionCycle({ document, focusFrame });
+		cycle.current = keys;
+		const onKey = (event: KeyboardEvent) => {
+			if (document.querySelector("[data-wc-narrow]")) return;
+			if (keys.key(event)) return;
+			if (typingIn(event.target)) return;
+			if (undoHistory.key(event)) event.preventDefault();
+		};
+		document.addEventListener("keydown", onKey, true);
+		return () => {
+			document.removeEventListener("keydown", onKey, true);
+			cycle.current = null;
+		};
+	}, [undoHistory]);
+
+	const exit = async () => {
+		setExiting(true);
+		announce(words.exiting);
+		await frame.current?.flush();
+		const answer = await request("end", {});
+		if (!answer.ok && answer.code !== "EDIT_MODE_ENDED") {
+			setExiting(false);
+			announce(fill(words.exitFailed, { reason: answer.code }), true);
+			return;
+		}
+		window.location.assign(config.returnTo);
+	};
+
+	/** The first-visit card is put away: it doesn't come again for this person (their editor preferences). */
+	const closeCard = () => {
+		const was = card;
+		setCard(null);
+		if (was === "help")
+			(
+				document.querySelector<HTMLElement>('[data-wc-rail="help"]') ??
+				document.querySelector<HTMLElement>('[data-wc-phone-bar="more"]')
+			)?.focus();
+		if (was !== "first") return;
+		void api.me
+			.saveEditorPreferences({ siteId: config.site.id, preferences: { version: LAYOUT_VERSION, hintSeen: true } })
+			.catch(() => {});
+	};
+
+	const onMode = (next: ClientMode) => {
+		setMode(next);
+		announce(next === "preview" ? said.previewOn : said.editOn);
+	};
+
+	const pageTitle = opened.address.document?.kind === "page" ? opened.title.name : null;
+	titleRef.current = opened.title.name;
+	// An Entry that isn't a Page: its details are Post details (`client-flows/01`).
+	const postPage =
+		pageState?.page.item?.startsWith("entry:") === true && (pageState as ClientPageState).page.layout !== true;
+	const arrangeable = arranging && shown?.layout === true;
+	const draft = clientDraftStateOf(saving, justSaved, shown);
+	const panelShown = place ? null : panel === "sections" && !arrangeable ? null : panel;
+	const current = opened.address.document?.kind === "page" ? opened.address.document.page.split("?")[0] : null;
+	// The Members' shorter Command menu (BA-10, SPEC 13.9): ⌘K Actions and ⌘P Go to, in their words.
+	const menu = useCommandMenu({ tabs: ["actions", "goTo"], announce });
+	const menuHost: MenuHost = {
+		config,
+		words,
+		announce,
+		history: {
+			undo: () => undoHistory.undo(),
+			redo: () => undoHistory.redo(),
+			state: () => editorHistory().state(),
+		},
+		publish: () => document.dispatchEvent(new CustomEvent(PUBLISH_OPEN_EVENT)),
+		places: CLIENT_PLACES.filter((key) => placeEntry(key)).map((key) => ({ key, name: words.places[key] })),
+		place: placeKey,
+		openPlace: (key) => {
+			const wanted = clientPlace(key);
+			if (wanted) openPlace(wanted);
+		},
+		leavePlace,
+		open: opened.open,
+		exit: () => void exit(),
+		member: {
+			preview: { on: mode === "preview", set: (on) => onMode(on ? "preview" : "edit") },
+			pageDetails: () => setPanel("pageDetails"),
+			sections: arrangeable ? () => setPanel("sections") : null,
+			help: () => setCard("help"),
+		},
+	};
+	const sectionsOpen = panelShown === "sections";
+	// The Sections panel closed: what was typed in it is finished, and it opens on the list next time.
+	useEffect(() => {
+		if (!sectionsOpen) sections.closed();
+	}, [sectionsOpen, sections]);
+
+	// The page's name, which lists the Pages and Entries; Publish in the bar's size. The phone's bar and
+	// the desktop's draw the same ones.
+	const switcher = (
+		<PageSwitcher
+			config={config}
+			name={pageTitle ?? words.documents.untitled}
+			current={current ?? null}
+			data={opened.switchable}
+			onOpen={(path) => opened.open({ kind: "page", page: path })}
+			announce={announce}
+		/>
+	);
+	const publish = (size: "client" | "phone") => (
+		<Publish
+			config={config}
+			request={request}
+			path={shown ? (shown.address.split("?")[0] ?? "/") : null}
+			document={opened.address.document}
+			changed={publishChanged}
+			size={size}
+			announce={announce}
+			onPublished={refreshState}
+		/>
+	);
+	/** One side panel at a time: the bar's (or More's) closes the item's. */
+	const openBarPanel = (next: ClientPanel) => {
+		items.closePanel({ deselect: true });
+		setPanel((was) => (was === next ? null : next));
+	};
+	// A side panel on a phone is a sheet: a tap on the dimmed page puts it away.
+	const sheetShown = phone && !place && (panelShown !== null || itemsNow.selected?.panel === true);
+
+	return (
+		<div
+			className={`bg-chrome text-chrome-text grid h-dvh w-full overflow-hidden font-sans text-[13px] ${
+				phone
+					? "grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_60px]"
+					: "grid-cols-[76px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_56px]"
+			}`}
+			data-wc-client=""
+			data-wc-layout={layout}
+			data-wc-mode={mode}
+			data-place={placeKey ?? undefined}
+		>
+			<a
+				href="#wc-canvas"
+				className="focus:ring-chrome-focus focus:ring-offset-chrome sr-only rounded-md bg-white px-3 py-2 text-[13px] font-medium text-[#121214] focus:not-sr-only focus:fixed focus:start-24 focus:top-2 focus:z-50 focus:ring-2 focus:ring-offset-2"
+			>
+				{words.skipToContent}
+			</a>
+			{phone ? null : (
+				<ClientRail
+					config={config}
+					place={placeKey}
+					onPage={leavePlace}
+					onPlace={openPlace}
+					helpOpen={card === "help"}
+					onHelp={() => setCard((was) => (was === "help" ? null : "help"))}
+					onExit={() => void exit()}
+					exiting={exiting}
+				/>
+			)}
+			{/* Before the canvas in the Tab order, so the page comes last; F6 still goes rail, page, bar. */}
+			{phone ? (
+				<PhoneBar
+					words={words}
+					editing={editing}
+					switcher={switcher}
+					mode={mode}
+					onMode={onMode}
+					moreOpen={more}
+					onMore={() => setMore((was) => !was)}
+					publish={publish("phone")}
+					onUndo={() => void undoHistory.undo()}
+					place={place !== null}
+				/>
+			) : (
+				<ClientBar
+					words={words}
+					language={config.language}
+					switcher={switcher}
+					draft={draft}
+					mode={mode}
+					onMode={onMode}
+					width={width}
+					onWidth={setWidth}
+					languages={shown?.languages ?? []}
+					onLanguage={(language) => frame.current?.navigate(language.path)}
+					sections={arrangeable}
+					panel={panelShown}
+					panelId={panelId}
+					onPanel={openBarPanel}
+					publish={publish("client")}
+					onUndo={() => void undoHistory.undo()}
+					onRedo={() => void undoHistory.redo()}
+					place={place !== null}
+					detailsLabel={postPage ? words.details.postDetails : undefined}
+					compact={layout === "tablet"}
+				/>
+			)}
+			{phone && more ? (
+				<MoreSheet
+					words={words}
+					language={config.language}
+					mode={mode}
+					onMode={onMode}
+					languages={shown?.languages ?? []}
+					onLanguage={(language) => frame.current?.navigate(language.path)}
+					sections={arrangeable}
+					onSections={() => openBarPanel("sections")}
+					detailsLabel={postPage ? words.details.postDetails : said.pageDetails}
+					onDetails={() => openBarPanel("pageDetails")}
+					draft={draft}
+					onRedo={() => void undoHistory.redo()}
+					onHelp={() => setCard("help")}
+					onExit={() => void exit()}
+					exiting={exiting}
+					place={place !== null}
+					onClose={() => setMore(false)}
+				/>
+			) : null}
+			<div
+				className={`relative row-start-1 grid min-h-0 min-w-0 grid-cols-[minmax(0,1fr)_auto] ${phone ? "col-start-1" : "col-start-2"}`}
+				data-wc-work=""
+			>
+				{/* On a phone a side panel is a sheet over the dimmed page: a tap on the page puts it away. */}
+				{sheetShown ? (
+					<div
+						aria-hidden="true"
+						className="fixed inset-0 z-40"
+						onClick={() => {
+							if (itemsNow.selected?.panel) items.closePanel({ deselect: true });
+							else closePanel();
+						}}
+						data-wc-phone-dim=""
+					/>
+				) : null}
+				{/* The side panel before the canvas in the Tab order: the page stays the last stop. */}
+				{itemsNow.selected?.panel && !place ? (
+					<ItemPanel
+						id={`${panelId}-item`}
+						items={items}
+						words={words}
+						selected={itemsNow.selected}
+						request={request}
+						languages={shown?.languages.length ?? 1}
+					/>
+				) : panelShown === "sections" ? (
+					<SectionsSidePanel
+						id={panelId}
+						sections={sections}
+						words={words}
+						page={pageTitle ?? ""}
+						language={config.language}
+						onClose={() => closePanel()}
+					/>
+				) : panelShown ? (
+					<SidePanel
+						id={panelId}
+						kind={panelShown}
+						words={words}
+						title={detailsHeading?.title ?? said.pageDetails}
+						page={detailsHeading?.sub ?? pageTitle ?? ""}
+						onClose={() => closePanel()}
+					>
+						{/* Page details, or Post details on an Entry (BA-13): a page never published follows its new slug. */}
+						<MemberDetails
+							token={config.token}
+							siteId={config.site.id}
+							words={words}
+							request={request}
+							page={pageState}
+							onSaving={onSaving}
+							onMoved={(path) => opened.documents.replace({ kind: "page", page: path })}
+							announce={announce}
+							admin={config.admin}
+							onHeading={setDetailsHeading}
+						/>
+					</SidePanel>
+				) : null}
+				<main
+					id="wc-canvas"
+					tabIndex={-1}
+					onFocus={(event) => {
+						if (event.target !== event.currentTarget) return;
+						focusFrame();
+						if (location.hash) history.replaceState(history.state, "", `${location.pathname}${location.search}`);
+					}}
+					aria-label={place && placeKey ? words.places[placeKey] : words.canvas}
+					data-building-region="canvas"
+					className="relative col-start-1 row-start-1 min-h-0 min-w-0"
+				>
+					<div
+						className={`relative h-full w-full ${place ? "invisible" : ""} ${phone ? "overflow-hidden" : ""}`}
+						inert={place ? true : undefined}
+						data-wc-under-place=""
+					>
+						{card && !place ? (
+							phone && card === "first" ? (
+								<PhoneHint words={words} onClose={closeCard} />
+							) : (
+								<HelpCard config={config} page={pageTitle} help={card === "help"} onClose={closeCard} />
+							)
+						) : null}
+						{opened.shown?.status === "missing" || opened.shown?.status === "later" ? (
+							<NoDocument words={words} why={opened.shown.status} />
+						) : null}
+						{/* Before the frame in the Tab order: the page stays the last stop. */}
+						{opened.shown?.status === "shown" ? (
+							// On a phone the toolbar sits on the keyboard (BA-19).
+							<TextToolbar editing={editing} words={words} dock={phone ? { bottom: keyboard } : null} />
+						) : null}
+						{opened.shown?.status === "shown" ? <RegionPopover popovers={popovers} words={words} goTo={goTo} /> : null}
+						{/* A section chosen on the page: its name and bar, and "+ Add section" between two (BA-17). */}
+						{opened.shown?.status === "shown" ? (
+							<SectionMarks sections={sections} words={words} onSettings={openSectionSettings} />
+						) : null}
+						{opened.shown?.status === "shown" ? (
+							<AddSectionLine sections={sections} words={words} onAdd={openSectionPicker} />
+						) : null}
+						{opened.shown?.status === "shown" ? (
+							<FormLockPopover locks={formLocks} popovers={popovers} words={words} admin={config.admin} />
+						) : null}
+						{opened.shown?.status === "shown" ? <LoopItems items={items} words={words} /> : null}
+						{opened.shown?.status === "shown" ? <BodyInPlace body={bodies} /> : null}
+						{opened.shown?.status === "shown" ? (
+							// 12 from the rail, the panel and the bar: the frame keeps 12 left, right and below. On a
+							// phone the page is edge to edge: the frame's 12 fall outside the screen.
+							<div className={phone ? "absolute -inset-x-3 top-0 -bottom-3" : "absolute inset-x-0 top-3 bottom-0"}>
+								<Frame
+									address={opened.shown.frame}
+									following={mode === "preview"}
+									onFollow={opened.follow}
+									words={words}
+									request={request}
+									cycle={() => cycle.current}
+									announce={announce}
+									breakpoints={config.breakpoints}
+									theme={null}
+									handle={frame}
+									onPage={onPage}
+									onSaving={onSaving}
+									editing={editing}
+									sheet={{ width: phone ? null : PRESETS[width] }}
+									// The names of the Forms on the page, for their lock chips (BA-27).
+									onReady={(document) => readFormNames(document, () => api.forms.list({ siteId: config.site.id }))}
+								/>
+							</div>
+						) : null}
+					</div>
+					{/* Each place's code is fetched the first time it opens (BA-30): its frame shows at once meanwhile. */}
+					{place && opened.address.place ? (
+						<PlaceLoader
+							entry={place}
+							config={config}
+							words={words}
+							place={opened.address.place}
+							view={opened.address.view ?? null}
+							documents={opened.documents}
+							documentName={opened.title.name}
+							leave={leavePlace}
+							open={opened.open}
+							announce={announce}
+							onSaving={(status) => setSaving(status === "saving" ? "saving" : status === "failed" ? "failed" : "idle")}
+						/>
+					) : null}
+				</main>
+			</div>
+			<div className="sr-only" data-wc-messages="">
+				<p role="status" aria-live="polite" aria-atomic="true">
+					{message.urgent ? "" : message.text}
+				</p>
+				<p role="alert" aria-live="assertive" aria-atomic="true">
+					{message.urgent ? message.text : ""}
+				</p>
+			</div>
+			<RemovedToast sections={sections} words={words} />
+			<CommandMenuHost host={menuHost} request={menu.request} onRequest={menu.setRequest} />
+			<MediaShellHost config={config} />
+		</div>
+	);
+}

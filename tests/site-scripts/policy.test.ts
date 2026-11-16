@@ -284,8 +284,9 @@ describe("the Site's policy", () => {
 		const policy = policyOf(page);
 		expect(policy.get("script-src")).toEqual(["'self'"]);
 		expect(policy.get("connect-src")).toEqual(["'self'", "https://api.example.com"]);
-		expect(policy.get("frame-ancestors")).toEqual(["'none'"]);
-		expect(page.headers.get("x-frame-options")).toBe("DENY");
+		// The building area frames it, from the Site's own origin only (ADR 0037).
+		expect(policy.get("frame-ancestors")).toEqual(["'self'"]);
+		expect(page.headers.get("x-frame-options")).toBe("SAMEORIGIN");
 	});
 
 	test("only Staff see and change it; each change is in the Audit log", async () => {

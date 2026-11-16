@@ -1,9 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import type { SiteLanguage, SiteLanguages } from "@webcraft/core";
-import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
-import { Checkbox } from "@webcraft/ui/components/checkbox.tsx";
 import {
 	Dialog,
 	DialogClose,
@@ -19,11 +16,10 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@webcraft/ui/components/dropdown-menu.tsx";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
+import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
-import { EllipsisIcon, PencilIcon, StarIcon, TrashIcon } from "lucide-react";
+import { EllipsisIcon, PencilIcon, PlusIcon, StarIcon, TrashIcon } from "lucide-react";
 import { type FormEvent, type RefObject, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -31,9 +27,20 @@ import { getApi } from "../../ui/api.ts";
 import { errorCode, errorMessage } from "../../ui/errors.ts";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
+import { SettingsForm, useSettingsSection } from "../../ui/settings/form.tsx";
+import {
+	describedBy,
+	SettingsCard,
+	SettingsListRow,
+	SettingsRow,
+	SettingsRows,
+	StateBadge,
+	Switch,
+} from "../../ui/settings/layout.tsx";
+import { PageSheet } from "../../ui/shell/page.tsx";
 
 export const Route = createFileRoute("/_admin/sites/$siteId/languages")({
-	staticData: { crumb: "siteLanguages.pageTitle" },
+	staticData: { crumb: "siteLanguages.pageTitle", width: "form" },
 	loader: async ({ context, params }) => {
 		if (!context.place.permissions.includes("structure.edit")) return null;
 		const api = await getApi();
@@ -64,57 +71,41 @@ function LanguagesPage() {
 	return (
 		<>
 			<PageHeader heading={t("siteLanguages.heading")}>{t("siteLanguages.intro")}</PageHeader>
-			<div className="grid max-w-4xl gap-8">
-				<Card>
-					<CardHeader>
-						<CardTitle>
-							<h2>{t("siteLanguages.listTitle")}</h2>
-						</CardTitle>
-						<CardDescription>{t("siteLanguages.listIntro")}</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>{t("siteLanguages.language")}</TableHead>
-									<TableHead>{t("siteLanguages.addresses")}</TableHead>
-									<TableHead>{t("siteLanguages.direction")}</TableHead>
-									<TableHead>{t("siteLanguages.domain")}</TableHead>
-									<TableHead>
-										<span className="sr-only">{t("siteLanguages.actions")}</span>
-									</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{settings.languages.map((language) => (
-									<TableRow key={language.code}>
-										<TableCell>
-											<div className="flex flex-wrap items-center gap-2">
-												<span lang={language.code} dir={language.direction} className="font-medium">
-													{language.name}
-												</span>
-												<Badge variant="outline">{language.code}</Badge>
-												{language.default ? <Badge variant="secondary">{t("siteLanguages.default")}</Badge> : null}
-											</div>
-										</TableCell>
-										<TableCell className="font-mono text-sm">
-											{language.prefix === null ? t("siteLanguages.noPrefix") : `/${language.prefix}/…`}
-										</TableCell>
-										<TableCell>{t(`siteLanguages.directions.${language.direction}`)}</TableCell>
-										<TableCell className="text-sm">{language.domain ?? "—"}</TableCell>
-										<TableCell className="text-end">
-											<LanguageActions siteId={siteId} language={language} settings={settings} />
-										</TableCell>
-									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					</CardContent>
-				</Card>
-				<AddLanguage siteId={siteId} />
-				<BrowserRedirect siteId={siteId} on={settings.browserLanguageRedirect} />
-				<p className="text-muted-foreground text-sm">{t("siteLanguages.appliesAtOnce")}</p>
-			</div>
+			<SettingsForm>
+				<div className="grid gap-6">
+					<SettingsCard
+						title={t("siteLanguages.listTitle")}
+						description={t("siteLanguages.listIntro")}
+						action={<AddLanguage siteId={siteId} />}
+					>
+						<SettingsRows>
+							{settings.languages.map((language) => (
+								<SettingsListRow
+									key={language.code}
+									badge={
+										<>
+											<StateBadge className="font-mono">{language.code}</StateBadge>
+											{language.default ? <StateBadge tone="info">{t("siteLanguages.default")}</StateBadge> : null}
+										</>
+									}
+									detail={[
+										`${t("siteLanguages.addresses")}: ${language.prefix === null ? t("siteLanguages.noPrefix") : `/${language.prefix}/…`}`,
+										t(`siteLanguages.directions.${language.direction}`),
+										...(language.domain ? [`${t("siteLanguages.domain")}: ${language.domain}`] : []),
+									].join(" · ")}
+									actions={<LanguageActions siteId={siteId} language={language} settings={settings} />}
+								>
+									<span lang={language.code} dir={language.direction}>
+										{language.name}
+									</span>
+								</SettingsListRow>
+							))}
+						</SettingsRows>
+					</SettingsCard>
+					<BrowserRedirect siteId={siteId} on={settings.browserLanguageRedirect} />
+					<p className="text-muted-foreground text-sm">{t("siteLanguages.appliesAtOnce")}</p>
+				</div>
+			</SettingsForm>
 		</>
 	);
 }
@@ -141,11 +132,12 @@ function DirectionSelect({
 	);
 }
 
-/** Adding a language: its BCP 47 code, and optionally its name, direction and domain. */
+/** Adding a language, in a sheet: its BCP 47 code, and optionally its name, direction and domain. */
 function AddLanguage({ siteId }: { siteId: string }) {
 	const t = useT();
 	const router = useRouter();
 	const id = useId();
+	const [open, setOpen] = useState(false);
 	const [code, setCode] = useState("");
 	const [name, setName] = useState("");
 	const [direction, setDirection] = useState<Direction | "">("");
@@ -153,6 +145,7 @@ function AddLanguage({ siteId }: { siteId: string }) {
 	const [busy, setBusy] = useState(false);
 	const submit = async (event: FormEvent) => {
 		event.preventDefault();
+		if (busy || !code.trim()) return;
 		setBusy(true);
 		try {
 			const api = await getApi();
@@ -169,6 +162,7 @@ function AddLanguage({ siteId }: { siteId: string }) {
 			setName("");
 			setDirection("");
 			setDomain("");
+			setOpen(false);
 			await router.invalidate();
 		} catch (failure) {
 			toast.error(errorCode(failure) === "PATH_TAKEN" ? t("siteLanguages.prefixTaken") : t(errorMessage(failure)));
@@ -177,16 +171,29 @@ function AddLanguage({ siteId }: { siteId: string }) {
 		}
 	};
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("siteLanguages.addTitle")}</h2>
-				</CardTitle>
-				<CardDescription>{t("siteLanguages.addIntro")}</CardDescription>
-			</CardHeader>
-			<CardContent>
-				<form onSubmit={submit} noValidate>
-					<FieldGroup className="grid gap-6 sm:grid-cols-2">
+		<>
+			<Button variant="outline" onClick={() => setOpen(true)}>
+				<PlusIcon aria-hidden="true" />
+				{t("siteLanguages.add")}
+			</Button>
+			<PageSheet
+				open={open}
+				onOpenChange={setOpen}
+				title={t("siteLanguages.addTitle")}
+				description={t("siteLanguages.addIntro")}
+				footer={
+					<>
+						<Button type="button" variant="outline" onClick={() => setOpen(false)}>
+							{t("siteLanguages.cancel")}
+						</Button>
+						<Button type="submit" form={`${id}-form`} disabled={busy || !code.trim()}>
+							{t("siteLanguages.add")}
+						</Button>
+					</>
+				}
+			>
+				<form id={`${id}-form`} onSubmit={submit} noValidate>
+					<FieldGroup className="gap-5">
 						<Field>
 							<FieldLabel htmlFor={`${id}-code`}>{t("siteLanguages.code")}</FieldLabel>
 							<Input
@@ -228,67 +235,39 @@ function AddLanguage({ siteId }: { siteId: string }) {
 							<FieldDescription id={`${id}-domain-help`}>{t("siteLanguages.domainHelp")}</FieldDescription>
 						</Field>
 					</FieldGroup>
-					<div className="mt-6">
-						<Button type="submit" disabled={busy || !code.trim()}>
-							{t("siteLanguages.add")}
-						</Button>
-					</div>
 				</form>
-			</CardContent>
-		</Card>
+			</PageSheet>
+		</>
 	);
 }
 
-/** The browser-language redirect on a first visit to the home page: off by default. */
+/** The browser-language redirect on a first visit to the home page: off by default. Saved with the foot bar. */
 function BrowserRedirect({ siteId, on }: { siteId: string; on: boolean }) {
 	const t = useT();
-	const router = useRouter();
 	const id = useId();
-	const [checked, setChecked] = useState(on);
-	const [busy, setBusy] = useState(false);
-	const save = async (event: FormEvent) => {
-		event.preventDefault();
-		setBusy(true);
-		try {
-			const api = await getApi();
-			await api.languages.setBrowserRedirect({ siteId, browserLanguageRedirect: checked });
-			toast.success(t("siteLanguages.redirectSaved"));
-			await router.invalidate();
-		} catch (failure) {
-			toast.error(t(errorMessage(failure)));
-		} finally {
-			setBusy(false);
-		}
-	};
+	const section = useSettingsSection({
+		saved: { on },
+		save: async (values) =>
+			(await getApi()).languages.setBrowserRedirect({ siteId, browserLanguageRedirect: values.on }),
+	});
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("siteLanguages.redirectTitle")}</h2>
-				</CardTitle>
-			</CardHeader>
-			<CardContent>
-				<form onSubmit={save} className="grid gap-6">
-					<Field orientation="horizontal">
-						<Checkbox
-							id={`${id}-redirect`}
-							checked={checked}
-							onCheckedChange={(value) => setChecked(value === true)}
-							aria-describedby={`${id}-redirect-help`}
-						/>
-						<div className="grid gap-1">
-							<FieldLabel htmlFor={`${id}-redirect`}>{t("siteLanguages.redirectLabel")}</FieldLabel>
-							<FieldDescription id={`${id}-redirect-help`}>{t("siteLanguages.redirectHelp")}</FieldDescription>
-						</div>
-					</Field>
-					<div>
-						<Button type="submit" variant="outline" disabled={busy || checked === on}>
-							{t("siteLanguages.save")}
-						</Button>
-					</div>
-				</form>
-			</CardContent>
-		</Card>
+		<SettingsCard title={t("siteLanguages.redirectTitle")}>
+			<SettingsRows>
+				<SettingsRow
+					label={t("siteLanguages.redirectLabel")}
+					help={t("siteLanguages.redirectHelp")}
+					htmlFor={`${id}-redirect`}
+				>
+					<Switch
+						id={`${id}-redirect`}
+						checked={section.values.on}
+						onCheckedChange={(value) => section.set({ on: value })}
+						aria-describedby={describedBy(`${id}-redirect`)}
+					/>
+				</SettingsRow>
+			</SettingsRows>
+			{section.error ? <FieldError>{t(section.error)}</FieldError> : null}
+		</SettingsCard>
 	);
 }
 
@@ -395,44 +374,48 @@ function EditLanguageDialog({ siteId, language, onClose, finalFocus }: DialogPro
 		}
 	};
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent closeLabel={t("siteLanguages.close")} finalFocus={finalFocus}>
-				<form onSubmit={save} noValidate>
-					<DialogHeader>
-						<DialogTitle>{t("siteLanguages.editTitle", { name: language.name })}</DialogTitle>
-						<DialogDescription>{t("siteLanguages.editIntro", { code: language.code })}</DialogDescription>
-					</DialogHeader>
-					<FieldGroup className="my-6 gap-5">
-						<Field>
-							<FieldLabel htmlFor={`${id}-name`}>{t("siteLanguages.name")}</FieldLabel>
-							<Input id={`${id}-name`} value={name} maxLength={100} onChange={(event) => setName(event.target.value)} />
-						</Field>
-						<Field>
-							<FieldLabel htmlFor={`${id}-direction`}>{t("siteLanguages.direction")}</FieldLabel>
-							<DirectionSelect id={`${id}-direction`} value={direction} onChange={setDirection} auto={false} />
-						</Field>
-						<Field>
-							<FieldLabel htmlFor={`${id}-domain`}>{t("siteLanguages.domainOptional")}</FieldLabel>
-							<Input
-								id={`${id}-domain`}
-								value={domain}
-								maxLength={253}
-								autoComplete="off"
-								onChange={(event) => setDomain(event.target.value)}
-								aria-describedby={`${id}-domain-help`}
-							/>
-							<FieldDescription id={`${id}-domain-help`}>{t("siteLanguages.domainHelp")}</FieldDescription>
-						</Field>
-					</FieldGroup>
-					<DialogFooter>
-						<DialogClose render={<Button variant="outline" type="button" />}>{t("siteLanguages.cancel")}</DialogClose>
-						<Button type="submit" disabled={busy}>
-							{t("siteLanguages.save")}
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+		<PageSheet
+			open
+			onOpenChange={(open) => !open && onClose()}
+			title={t("siteLanguages.editTitle", { name: language.name })}
+			description={t("siteLanguages.editIntro", { code: language.code })}
+			finalFocus={finalFocus}
+			footer={
+				<>
+					<Button type="button" variant="outline" onClick={onClose}>
+						{t("siteLanguages.cancel")}
+					</Button>
+					<Button type="submit" form={`${id}-form`} disabled={busy}>
+						{t("siteLanguages.save")}
+					</Button>
+				</>
+			}
+		>
+			<form id={`${id}-form`} onSubmit={save} noValidate>
+				<FieldGroup className="gap-5">
+					<Field>
+						<FieldLabel htmlFor={`${id}-name`}>{t("siteLanguages.name")}</FieldLabel>
+						<Input id={`${id}-name`} value={name} maxLength={100} onChange={(event) => setName(event.target.value)} />
+					</Field>
+					<Field>
+						<FieldLabel htmlFor={`${id}-direction`}>{t("siteLanguages.direction")}</FieldLabel>
+						<DirectionSelect id={`${id}-direction`} value={direction} onChange={setDirection} auto={false} />
+					</Field>
+					<Field>
+						<FieldLabel htmlFor={`${id}-domain`}>{t("siteLanguages.domainOptional")}</FieldLabel>
+						<Input
+							id={`${id}-domain`}
+							value={domain}
+							maxLength={253}
+							autoComplete="off"
+							onChange={(event) => setDomain(event.target.value)}
+							aria-describedby={`${id}-domain-help`}
+						/>
+						<FieldDescription id={`${id}-domain-help`}>{t("siteLanguages.domainHelp")}</FieldDescription>
+					</Field>
+				</FieldGroup>
+			</form>
+		</PageSheet>
 	);
 }
 

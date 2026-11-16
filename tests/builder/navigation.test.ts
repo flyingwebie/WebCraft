@@ -81,32 +81,6 @@ test("destinations follow the picked Draft Entry, nested repeated Placements and
 	});
 });
 
-test("a one-use two-origin handoff starts Code mode and carries structural selection, with fresh permission", async () => {
-	const siteId = (await install.createSite(workspaceId)).id;
-	const { url } = await staff.api.editMode.open({ siteId, path: "/", code: true, selection: "site#@1.0.0" });
-	const browser = install.browser({ origin: new URL(url).origin });
-	const response = await browser.request(url);
-	expectSiteHeaders(response);
-	expect(response.status).toBe(303);
-	expect(response.headers.get("location")).toBe("/#wc-selection=site%23%401.0.0");
-	expect(response.headers.get("set-cookie")).toContain("code=on");
-	const replay = await browser.request(url);
-	expectSiteHeaders(replay);
-	expect(replay.status).toBe(403);
-	const member = (await install.createMember({ workspaceId, role: "editor" })).browser;
-	const ordinary = await member.api.editMode.open({ siteId });
-	const tampered = new URL(ordinary.url);
-	tampered.searchParams.set("code", "1");
-	const refused = await install.browser({ origin: tampered.origin }).request(tampered.href);
-	expectSiteHeaders(refused);
-	expect(refused.status).toBe(403);
-	expect(refused.headers.get("set-cookie") ?? "").not.toContain("code=on");
-	await expect(member.api.editMode.open({ siteId, code: true })).rejects.toMatchObject({ code: "FORBIDDEN" });
-	await expect(staff.api.editMode.open({ siteId, code: true, path: "//outside.test" })).rejects.toMatchObject({
-		code: "EDIT_PATH_INVALID",
-	});
-});
-
 test("an empty Component placed on a real page remains an editing destination", async () => {
 	const siteId = (await install.createSite(workspaceId)).id;
 	const api = staff.api;
@@ -129,7 +103,7 @@ test("an empty Component placed on a real page remains an editing destination", 
 	});
 });
 
-test("a Builder destination needs a Site address as well as a rendered page", async () => {
+test("a destination needs a Site address as well as a rendered page", async () => {
 	const bare = await createTestInstall({ sitesDomain: null });
 	try {
 		const workspace = await bare.createWorkspace();
@@ -139,7 +113,7 @@ test("a Builder destination needs a Site address as well as a rendered page", as
 		if (!pageType) throw new Error("Page Post Type missing");
 		const { entry } = await api.entries.create({ siteId: site.id, postTypeId: pageType.id, title: "Welcome" });
 		await api.pages.setHomePage({ siteId: site.id, pageId: entry.id });
-		await expect(api.editMode.open({ siteId: site.id, path: "/", code: true })).rejects.toMatchObject({
+		await expect(api.editMode.open({ siteId: site.id, path: "/" })).rejects.toMatchObject({
 			code: "EDIT_MODE_UNAVAILABLE",
 		});
 		expect(await api.builder.destinations({ siteId: site.id, target: { kind: "siteTemplate" } })).toMatchObject({
@@ -158,7 +132,7 @@ test("a Builder destination needs a Site address as well as a rendered page", as
 			pages: [{ path: "/", refs: ["site"] }],
 			reason: null,
 		});
-		const opened = await api.editMode.open({ siteId: site.id, path: "/", code: true });
+		const opened = await api.editMode.open({ siteId: site.id, path: "/" });
 		expect(new URL(opened.url).origin).toBe("https://builder-address.example");
 	} finally {
 		await bare.close();

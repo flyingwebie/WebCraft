@@ -1,56 +1,68 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Card, CardContent, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
+import { z } from "zod";
 
 import { getApi } from "../../ui/api.ts";
-import { formatUtcDate } from "../../ui/format.ts";
+import { SiteOverview } from "../../ui/content/SiteOverview.tsx";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
 import { PageHeader } from "../../ui/PageHeader.tsx";
-import { WaitingForReview } from "../../ui/review/Review.tsx";
+
+/** How many of the Site's newest Audit log entries "Recent activity" shows. */
+const ACTIVITY = 5;
 
 export const Route = createFileRoute("/_admin/sites/$siteId/")({
-	staticData: { crumb: "site.pageTitle" },
-	loader: async ({ params }) => {
+	staticData: { crumb: "site.pageTitle", width: "wide" },
+	// `publishAll=1` opens Publish all at once and `review=<id>` a Review's sheet (the shell reads both);
+	// "Drafts and changes" and "Waiting for review" link there. Typed in an address, `1` reads as a
+	// number, so it is taken as its text; the other keys stay for the shell.
+	validateSearch: z.looseObject({
+		publishAll: z.coerce.string().max(1).optional().catch(undefined),
+		review: z.string().max(100).optional().catch(undefined),
+	}),
+	loader: async ({ params, context }) => {
 		const api = await getApi();
-		return { reviews: (await api.reviews.list({ siteId: params.siteId })).reviews };
+		const workspaceId = context.place.level === "site" ? context.place.workspace.id : undefined;
+		// Only those who read the Workspace's Audit log (Staff, Owners) get "Recent activity"; it is
+		// never asked for the others, so they meet no refusal.
+		const readsAudit = async () =>
+			workspaceId !== undefined &&
+			(await api.workspaces.get({ workspaceId }).then(
+				({ permissions }) => permissions.includes("audit.view"),
+				() => false,
+			));
+		const [{ reviews }, domains, activity] = await Promise.all([
+			api.reviews.list({ siteId: params.siteId }),
+			api.domains.list({ siteId: params.siteId }),
+			readsAudit().then((reads) =>
+				reads ? api.audit.list({ workspaceId, siteId: params.siteId, limit: ACTIVITY }).catch(() => null) : null,
+			),
+		]);
+		return { reviews, domains, activity };
 	},
 	head: ({ match }) => ({ meta: [{ title: pageTitle(match.context.shell.language.code, "site.pageTitle") }] }),
 	component: SiteOverviewPage,
 });
 
 /**
- * Site › Overview: the Site's first page: what waits for review (GLOSSARY.md › Review), with a link to
- * each item, and the Site's details. Its other Content, Structure and settings have their own screens.
+ * Site › Overview: the Site's first page: what waits for review (GLOSSARY.md › Review), the Drafts
+ * waiting to be published, recent activity, quick actions and the Site's domain, languages and
+ * Staging address. Its other Content, Structure and settings have their own screens.
  */
 function SiteOverviewPage() {
 	const t = useT();
 	const { site, place } = Route.useRouteContext();
-	const { reviews } = Route.useLoaderData();
-	const workspace = place.level === "site" ? place.workspace.name : "";
+	const data = Route.useLoaderData();
+	if (place.level !== "site") return null;
 	return (
 		<>
-			<PageHeader heading={site.name}>{t("site.intro", { workspace })}</PageHeader>
-			<div className="grid max-w-2xl gap-6">
-				<WaitingForReview siteId={site.id} reviews={reviews} />
-				<Card>
-					<CardHeader>
-						<CardTitle>
-							<h2>{t("site.details")}</h2>
-						</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<dl className="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-3 text-sm">
-							<dt className="text-muted-foreground">{t("site.name")}</dt>
-							<dd>{site.name}</dd>
-							<dt className="text-muted-foreground">{t("site.slug")}</dt>
-							<dd className="font-mono">{site.slug}</dd>
-							<dt className="text-muted-foreground">{t("site.workspace")}</dt>
-							<dd>{workspace}</dd>
-							<dt className="text-muted-foreground">{t("site.created")}</dt>
-							<dd>{formatUtcDate(site.createdAt)}</dd>
-						</dl>
-					</CardContent>
-				</Card>
-			</div>
+			<PageHeader heading={site.name}>{t("site.intro", { workspace: place.workspace.name })}</PageHeader>
+			<SiteOverview
+				siteId={site.id}
+				data={data}
+				languages={place.languages}
+				postTypes={place.postTypes}
+				permissions={place.permissions}
+				drafts={place.drafts}
+			/>
 		</>
 	);
 }

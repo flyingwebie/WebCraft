@@ -165,7 +165,7 @@ A Placement a Member has hidden on its Page. It stays in the Draft, shown faded 
 _Avoid_: Disabled block, draft section
 
 **Page layout drawer**:
-The list of a Page's Placements, in order, that Members open from the Edit bar to move, hide, add and remove them, with the Page template's header and footer as locked rows. It is the Members' view of the layers tree: Placements only, never what is inside a Component.
+Retired: the building area's Sections panel, which client editing opens from its bar, replaced it.
 _Avoid_: Layers panel (for Members), outline, navigator
 
 **Condition**:
@@ -173,7 +173,7 @@ A rule that shows or hides an element depending on a Field or Prop value, the cu
 _Avoid_: Visibility rule, display logic
 
 **Template markup**:
-The written form of a Template or Component: HTML plus WebCraft's notation for Fields, Props, Loops, Components and Conditions. Staff read and write it in Code mode, the builder's code view, export files and through AI clients.
+The written form of a Template or Component: HTML plus WebCraft's notation for Fields, Props, Loops, Components and Conditions. Staff read and write it in the building area's code panes, export files and through AI clients.
 _Avoid_: Template language, source code, HTML view
 
 **Template command**:
@@ -407,7 +407,7 @@ A set of fields, sections and optional steps that visitors fill in on a Site. It
 _Avoid_: Contact form, form block, form widget
 
 **Submission**:
-One filled-in Form as received by the Install, kept with the language and page it came from.
+One filled-in Form as received by the Install, kept with the language and page it came from. One in a Form's inbox that nobody has opened yet is new; opening it makes it read for everyone.
 _Avoid_: Entry, lead, response, message
 
 **Spam folder**:
@@ -509,31 +509,55 @@ Changing a Site's content while browsing the Site itself, rather than through a 
 _Avoid_: Frontend editing, live editing, visual editing
 
 **Edit mode**:
-A way of viewing a Site on its own domain that shows Drafts and lets a signed-in person change Content in place. Previewing is Edit mode with the editing tools turned off.
+The session, on a Site's own address, in which the building area edits it: shows Drafts and lets a signed-in person change Content in place, with the whole building area for Staff and client editing for Members. Previewing is Edit mode with the editing tools turned off.
 _Avoid_: Preview mode, draft mode, admin bar
+
+**Building area**:
+The one shell that is Edit mode's session: on the Site's own address, showing the page in a frame of the same origin, with a rail, a canvas, docks holding movable Panels, a bottom bar, and Places that open over the canvas without leaving it. It replaced the editing bar, Code mode and the Builder.
+_Avoid_: Shell (reserve for the chrome itself), editor, visual builder
+
+**Place**:
+A screen of the building area, such as Content, Templates, Media, Styles, Loops, Components or Forms, that opens from the rail over the canvas without leaving it.
+_Avoid_: Screen, tab, panel (a Panel sits in a dock, not over the canvas)
+
+**Dock**:
+One of the three areas around the building area's canvas (left, right and bottom) that holds Panels in order; a person resizes it and moves Panels between docks.
+_Avoid_: Sidebar, drawer
+
+**Panel**:
+One piece of the building area's chrome inside a dock, such as Layers, the Inspector, the Entry panel or a code pane (its HTML, CSS or JS), shown only while its switch is on and what it needs is selected.
+_Avoid_: Pane (a code pane is one kind of Panel), widget (a Widget belongs to a Dashboard)
+
+**Page agent**:
+The one WebCraft script, loaded first in the head of every page the building area frames, that keeps the browser functions it needs before any Site script runs, makes Content editable in place, catches the page's errors, and tells the shell when the frame shows another page or a link is followed.
+_Avoid_: Editing bar (retired), content script
 
 **Page details**:
 The drawer in Edit mode with the values of a page's Entry that don't show on the page: its title, its address, its SEO fields, its Summary, its social image and noindex.
 _Avoid_: Page settings, page properties, inspector
 
 **Code mode**:
-A third way of using Edit mode, for Staff and the Superadmin only: selecting an element on the page opens its HTML (from its Template or Component), its CSS (its Class or the Site CSS) and a page or Site script, all editable and saved to the Draft.
+Retired: the building area's code panes, always there for Staff, replaced the separate mode a person used to turn on.
 _Avoid_: God mode, dev mode, developer tools
 
 **Builder**:
-The full-screen editor for Templates and Components, opened from the admin, that shows them with preview data instead of a real page. It has the same tree, Inspector, code panels and Command menu as Code mode.
+Retired: the building area replaced the full-screen editor for Templates and Components. The `builder.*` procedures keep the name, behind the stand-in and the other pieces of the building area that still need a tree outside a page.
 _Avoid_: Visual builder, page builder, editor
 
+**Stand-in**:
+Where the building area draws a Template or Component that no page shows: its tree rendered with preview data and none of the Site's scripts, in the same frame and shell as a real page.
+_Avoid_: Preview, canvas (the canvas is the frame itself, not what it shows)
+
 **Command menu**:
-A search box in Edit mode, Code mode and the Builder, opened from the keyboard or the Edit bar's search button, with three tabs: Actions (for the page, or for the selected element or Placement), Go to (Pages, Entries, Templates, Components and elements on the page) and Insert. Each person sees only the commands they have the Permission for, so Members get a smaller menu.
+A search box in the building area, opened from the keyboard or its search button, with three tabs: Actions (for the page, or for the selected element or Placement), Go to (Pages, Entries, Templates, Components and elements on the page) and Insert. Each person sees only the commands they have the Permission for, so Members get a smaller menu.
 _Avoid_: Command palette, command bar, spotlight
 
 **Undo history**:
-The list of a person's own recent steps in Edit mode, Code mode or the Builder, one per finished action, that Undo and Redo move through. It covers everything the person changes on the page, including the tree, the Inspector, the code panels, inline text, Props and Page layout moves, lasts as long as the browser tab, and never takes back anyone else's edit.
+The list of a person's own recent steps in the building area, one per finished action, that Undo and Redo move through. It covers everything the person changes, in the frame or in a Panel, including the tree, the Inspector, the code panes, inline text, Props and Page layout moves, lasts as long as the browser tab, and never takes back anyone else's edit.
 _Avoid_: Edit history, change log
 
 **Revert**:
-To take back one changed item from the Edit bar's list of changes, whenever the change was made, without stepping through the Undo history.
+To take back one changed item from the building area's list of changes, whenever the change was made, without stepping through the Undo history.
 _Avoid_: Undo (for this), discard, reset
 
 **Safe mode**:
@@ -541,15 +565,15 @@ Edit mode with none of the Site's own scripts running, so a broken script can ne
 _Avoid_: Recovery mode, scriptless mode, debug mode
 
 **Site script**:
-A script that runs on every page of a Site: the one Staff write for the whole Site in Code mode, or one a Module adds. Like every script on a Site, it is a file served from the Site's own domain, never written into the page.
+A script that runs on every page of a Site: the one Staff write for the whole Site in the building area's JS pane, or one a Module adds. Like every script on a Site, it is a file served from the Site's own domain, never written into the page.
 _Avoid_: Global script, custom code, header code
 
 **Page script**:
-A script Staff write in Code mode for one page, which runs there only, after the Site script. Both are Structure, with a Draft, published like a Template.
+A script Staff write in the building area's JS pane for one page, which runs there only, after the Site script. Both are Structure, with a Draft, published like a Template.
 _Avoid_: Inline script, page code
 
 **Component script**:
-A script Staff write in Code mode for one Component, loaded once on each page that shows it and run for each of its Placements, between the Site script and the Page script. It is Structure, with a Draft, published with the Component.
+A script Staff write in the building area's JS pane for one Component, loaded once on each page that shows it and run for each of its Placements, between the Site script and the Page script. It is Structure, with a Draft, published with the Component.
 _Avoid_: Block script, widget script, element script
 
 **Library**:
@@ -705,7 +729,7 @@ An ordered list of two to five Goals or page visits, showing how many visitors r
 _Avoid_: Journey, flow, path
 
 **Dashboard**:
-A grid of Widgets showing a Site's analytics, or all of a Workspace's Sites added together. Staff build dashboards; Owners view them.
+A grid of Widgets showing a Site's analytics, or all of a Workspace's Sites added together. Staff build dashboards; Owners view them. Every Site has a built-in one, "Site analytics", from the start: Staff arrange and rename it, nobody deletes it.
 _Avoid_: Report (that is the scheduled PDF), board, overview
 
 **Dashboard template**:
@@ -715,6 +739,14 @@ _Avoid_: Preset, layout, theme
 **Widget**:
 One chart, table, number or note on a Dashboard, chosen from WebCraft's built-in set, with its own date range and filters.
 _Avoid_: Card, tile, panel, block (a Block belongs to a Body field)
+
+**Arranging**:
+Changing a Dashboard in place: adding Widgets, moving and resizing them, removing them and changing their settings, each step saved as it is made and undone with Undo. Only Staff arrange a Dashboard.
+_Avoid_: Edit mode (that is editing a Site's pages), customising, layout mode
+
+**Widget library**:
+The kinds of Widget, in groups and with a search, that Staff add to a Dashboard from while arranging it. It takes the secondary sidebar's place, so nothing on the page moves.
+_Avoid_: Palette, gallery
 
 **Report**:
 A PDF made from a Dashboard on a schedule and emailed to its recipients, with AI-written explanations and suggestions.

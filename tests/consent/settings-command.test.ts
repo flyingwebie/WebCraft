@@ -74,7 +74,8 @@ describe("{{@consentSettings}}", () => {
 
 	test("shows nothing where WebCraft asks nothing: with None, with an outside consent service, in Edit mode", async () => {
 		const site = await newSite();
-		const editing = await openEditMode(install, staff, site.siteId, "/");
+		// A Member's Edit mode: the regions' tags only (Staff's frame carries where each element comes from too).
+		const editing = await openEditMode(install, editor, site.siteId, "/");
 		expect(footerOf(await expectSafePage(await editing.page("/"), "editMode"))).toBe("<p>© Bakery</p>");
 
 		for (const mode of ["none", "outside"] as const) {

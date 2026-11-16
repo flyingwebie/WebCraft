@@ -11,12 +11,11 @@ import {
 import { Field, FieldError, FieldLabel } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { LinkIcon, LoaderIcon } from "lucide-react";
-import { type FormEvent, useRef, useState } from "react";
-import { toast } from "sonner";
+import { type FormEvent, type RefObject, useRef, useState } from "react";
 
-import { getApi } from "../api.ts";
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
+import { useMediaHost } from "./host.tsx";
 
 /**
  * Import from URL: the address of a file on the public internet, which WebCraft fetches through its
@@ -26,14 +25,26 @@ export function ImportDialog({
 	siteId,
 	folderId,
 	onImported,
+	open: openFrom,
+	onOpenChange,
+	finalFocus,
 }: {
 	siteId: string;
 	folderId: string | null;
 	onImported(): Promise<void>;
+	/** Opened from elsewhere (a menu): the dialog has no button of its own then. */
+	open?: boolean;
+	onOpenChange?(open: boolean): void;
+	/** What takes focus when it closes, when it is opened from elsewhere. */
+	finalFocus?: RefObject<HTMLElement | null>;
 }) {
 	const t = useT();
+	const host = useMediaHost();
 	const trigger = useRef<HTMLButtonElement>(null);
-	const [open, setOpen] = useState(false);
+	const [openHere, setOpenHere] = useState(false);
+	const controlled = openFrom !== undefined;
+	const open = controlled ? openFrom : openHere;
+	const setOpen = (next: boolean) => (controlled ? onOpenChange?.(next) : setOpenHere(next));
 	const [url, setUrl] = useState("");
 	const [error, setError] = useState<MessageKey | null>(null);
 	const [busy, setBusy] = useState(false);
@@ -47,9 +58,9 @@ export function ImportDialog({
 		setBusy(true);
 		setError(null);
 		try {
-			const api = await getApi();
-			const { media } = await api.media.importUrl({ siteId, url: url.trim(), folderId });
-			toast.success(t("media.import.imported", { name: media.fileName }));
+			const api = await host.api();
+			const { media } = await api.importUrl({ siteId, url: url.trim(), folderId });
+			host.notify("success", t("media.import.imported", { name: media.fileName }));
 			setUrl("");
 			setOpen(false);
 			await onImported();
@@ -62,10 +73,12 @@ export function ImportDialog({
 
 	return (
 		<>
-			<Button ref={trigger} variant="outline" onClick={() => setOpen(true)}>
-				<LinkIcon aria-hidden="true" />
-				{t("media.importUrl")}
-			</Button>
+			{controlled ? null : (
+				<Button ref={trigger} variant="outline" onClick={() => setOpen(true)}>
+					<LinkIcon aria-hidden="true" />
+					{t("media.importUrl")}
+				</Button>
+			)}
 			<Dialog
 				open={open}
 				onOpenChange={(next) => {
@@ -73,7 +86,7 @@ export function ImportDialog({
 					if (!next) setError(null);
 				}}
 			>
-				<DialogContent closeLabel={t("media.import.close")} finalFocus={trigger}>
+				<DialogContent closeLabel={t("media.import.close")} finalFocus={finalFocus ?? trigger}>
 					<form onSubmit={submit} className="grid gap-6" noValidate>
 						<DialogHeader>
 							<DialogTitle>{t("media.import.title")}</DialogTitle>

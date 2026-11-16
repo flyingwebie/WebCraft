@@ -20,6 +20,8 @@ export const Route = createFileRoute("/_admin/sites/$siteId/m/$moduleId/$")({
 		return { modulePage: page };
 	},
 	validateSearch: search,
+	// The whole main column: the Module's screen sits in a column at the width it asks for (`ModulePage`).
+	staticData: { width: "wide" },
 	// The page's name is the Module's label for it; its screen loads what it shows for the place.
 	loader: async ({ context, params }) => ({
 		crumb: context.modulePage.label,

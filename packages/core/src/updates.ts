@@ -98,7 +98,7 @@ export function createUpdates(options: {
 				return before;
 			}
 			const now = clock.now();
-			let release: Release | null = null;
+			let release: Release | "none" | null = null;
 			let problem: string | null = null;
 			try {
 				release = await readFeed(fetch, feed);
@@ -107,17 +107,28 @@ export function createUpdates(options: {
 					error instanceof GuardedFetchError ? error.problem : error instanceof FeedError ? error.problem : "error";
 				log.warn("The update check couldn't read the release feed", { feed, problem, error });
 			}
-			// A failed check keeps the release found before, so the notice doesn't come and go.
-			const values = release
-				? {
-						checkedAt: now,
-						latestVersion: release.version,
-						releaseUrl: release.url,
-						notes: release.notes,
-						publishedAt: release.publishedAt,
-						problem: null,
-					}
-				: { checkedAt: now, problem };
+			// A failed check keeps the release found before, so the notice doesn't come and go. A feed
+			// with no release yet is an answer, not a failure: nothing is known, and nothing is wrong.
+			const values =
+				release === "none"
+					? {
+							checkedAt: now,
+							latestVersion: null,
+							releaseUrl: null,
+							notes: null,
+							publishedAt: null,
+							problem: null,
+						}
+					: release
+						? {
+								checkedAt: now,
+								latestVersion: release.version,
+								releaseUrl: release.url,
+								notes: release.notes,
+								publishedAt: release.publishedAt,
+								problem: null,
+							}
+						: { checkedAt: now, problem };
 			await db
 				.insert(updateChecks)
 				.values({ id: 1, ...values })
@@ -155,13 +166,21 @@ const plainRelease = z.object({
 	publishedAt: z.string().nullish(),
 });
 
-async function readFeed(fetch: GuardedFetch, feed: string): Promise<Release> {
+/**
+ * The feed's newest release, or `"none"` when it has none yet: GitHub's `/releases/latest` answers
+ * 404 for a project that hasn't published a release.
+ */
+async function readFeed(fetch: GuardedFetch, feed: string): Promise<Release | "none"> {
 	const request = new Request(feed, { headers: { "user-agent": USER_AGENT, accept: "application/json" } });
 	const response = await fetch(request, {
 		allowedHosts: [new URL(feed).hostname],
 		timeoutMs: 10_000,
 		maxBytes: 2 * 1024 * 1024,
 	});
+	if (response.status === 404) {
+		await response.body?.cancel();
+		return "none";
+	}
 	if (!response.ok) {
 		await response.body?.cancel();
 		throw new FeedError("status");

@@ -48,6 +48,7 @@ export {
 	assertValidEmail,
 	EmailInUseError,
 	InvalidEmailError,
+	type NewPassword,
 	type NewPerson,
 	normaliseEmail,
 } from "./people.ts";

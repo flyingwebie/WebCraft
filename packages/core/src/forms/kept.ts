@@ -59,6 +59,9 @@ export const AUTO_REPLY_TYPE = "form-auto-reply";
 /** What a Submission is in the Email log and the Webhooks' delivery log. */
 const RELATED_KIND = "submission";
 
+/** How many Submissions' delivery logs one query reads. */
+const DELIVERIES_BATCH = 1_000;
+
 export type SubmissionActions = {
 	/**
 	 * Queues what a kept Submission sets off: its Notifications, its Auto-reply (when `autoReply`) and
@@ -67,6 +70,8 @@ export type SubmissionActions = {
 	kept(site: Site, submission: KeptSubmission, options: { autoReply: boolean }): Promise<void>;
 	/** A Submission's delivery log: its emails and Webhook calls, oldest first. */
 	deliveries(site: Site, submissionId: string): Promise<SubmissionDelivery[]>;
+	/** The delivery logs of several Submissions, by Submission id; one that set off nothing is left out. */
+	deliveriesOf(site: Site, submissionIds: readonly string[]): Promise<Map<string, SubmissionDelivery[]>>;
 };
 
 export type SubmissionActionsDeps = {
@@ -78,7 +83,7 @@ export type SubmissionActionsDeps = {
 };
 
 export function createSubmissionActions(deps: SubmissionActionsDeps): SubmissionActions {
-	return {
+	const actions: SubmissionActions = {
 		async kept(site, submission, options) {
 			const scope = await deps.data.background(site.id);
 			if (!scope) return;
@@ -129,44 +134,57 @@ export function createSubmissionActions(deps: SubmissionActionsDeps): Submission
 		},
 
 		async deliveries(site, submissionId) {
+			return (await actions.deliveriesOf(site, [submissionId])).get(submissionId) ?? [];
+		},
+
+		async deliveriesOf(site, submissionIds) {
+			const logs = new Map<string, SubmissionDelivery[]>();
 			const scope = await deps.data.background(site.id);
-			if (!scope) return [];
-			const emails = await scope.db
-				.select()
-				.from(emailLog)
-				.where(
-					and(
-						eq(emailLog.siteId, site.id),
-						eq(emailLog.relatedKind, RELATED_KIND),
-						eq(emailLog.relatedId, submissionId),
-						inArray(emailLog.type, [NOTIFICATION_TYPE, AUTO_REPLY_TYPE]),
-					),
-				)
-				.orderBy(asc(emailLog.createdAt), asc(emailLog.id));
-			const calls = await scope.select(
-				webhookDeliveries,
-				and(eq(webhookDeliveries.relatedKind, RELATED_KIND), eq(webhookDeliveries.relatedId, submissionId)),
-				{ orderBy: [asc(webhookDeliveries.createdAt), asc(webhookDeliveries.id)] },
-			);
+			const ids = [...new Set(submissionIds)].filter(isUuid);
+			if (!scope || ids.length === 0) return logs;
 			const names = new Map((await scope.select(webhooks)).map((webhook) => [webhook.id, webhook.name]));
-			const delivered: SubmissionDelivery[] = [
-				...emails.map(
-					(line): SubmissionDelivery => ({
+			const add = (submissionId: string | null, delivery: SubmissionDelivery) => {
+				if (!submissionId) return;
+				logs.set(submissionId, [...(logs.get(submissionId) ?? []), delivery]);
+			};
+			for (let start = 0; start < ids.length; start += DELIVERIES_BATCH) {
+				const batch = ids.slice(start, start + DELIVERIES_BATCH);
+				const emails = await scope.db
+					.select()
+					.from(emailLog)
+					.where(
+						and(
+							eq(emailLog.siteId, site.id),
+							eq(emailLog.relatedKind, RELATED_KIND),
+							inArray(emailLog.relatedId, batch),
+							inArray(emailLog.type, [NOTIFICATION_TYPE, AUTO_REPLY_TYPE]),
+						),
+					)
+					.orderBy(asc(emailLog.createdAt), asc(emailLog.id));
+				for (const line of emails) {
+					add(line.relatedId, {
 						kind: line.type === AUTO_REPLY_TYPE ? "autoReply" : "notification",
 						id: line.id,
 						to: line.recipient,
+						webhookId: null,
 						status: line.status as SubmissionDelivery["status"],
 						attempts: line.attempts,
 						problem: line.status === "sent" ? null : line.lastResponse,
 						nextAttemptAt: line.nextAttemptAt,
 						at: line.createdAt,
-					}),
-				),
-				...calls.map(
-					(call): SubmissionDelivery => ({
+					});
+				}
+				const calls = await scope.select(
+					webhookDeliveries,
+					and(eq(webhookDeliveries.relatedKind, RELATED_KIND), inArray(webhookDeliveries.relatedId, batch)),
+					{ orderBy: [asc(webhookDeliveries.createdAt), asc(webhookDeliveries.id)] },
+				);
+				for (const call of calls) {
+					add(call.relatedId, {
 						kind: "webhook",
 						id: call.id,
 						to: names.get(call.webhookId) ?? "",
+						webhookId: call.webhookId,
 						status: call.status === "delivered" ? "sent" : (call.status as SubmissionDelivery["status"]),
 						attempts: call.attempts,
 						problem:
@@ -177,15 +195,19 @@ export function createSubmissionActions(deps: SubmissionActionsDeps): Submission
 									: call.lastProblem,
 						nextAttemptAt: call.nextAttemptAt,
 						at: call.createdAt,
-					}),
-				),
-			];
+					});
+				}
+			}
 			// Oldest first; what went out together, in the order it was queued: Notifications, then the
 			// Auto-reply, then the Webhooks.
 			const rank = { notification: 0, autoReply: 1, webhook: 2 } as const;
-			return delivered.sort((a, b) => a.at.getTime() - b.at.getTime() || rank[a.kind] - rank[b.kind]);
+			for (const delivered of logs.values()) {
+				delivered.sort((a, b) => a.at.getTime() - b.at.getTime() || rank[a.kind] - rank[b.kind]);
+			}
+			return logs;
 		},
 	};
+	return actions;
 }
 
 /** Each Notification, to each of its recipients (one email each), in the Site's Default language. */

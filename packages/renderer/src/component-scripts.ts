@@ -26,7 +26,8 @@
 import { createHash } from "node:crypto";
 
 import { SCRIPT_PATH } from "./design-system/theme-toggle.ts";
-import { textOf, type ValueReader } from "./values.ts";
+import { textOf } from "./value-text.ts";
+import type { ValueReader } from "./values.ts";
 
 /** The attribute naming the Components whose script runs on an element: their ids, space-separated. */
 export const COMPONENT_ROOT_ATTRIBUTE = "data-wc-component";

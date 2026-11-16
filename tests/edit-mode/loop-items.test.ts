@@ -458,8 +458,14 @@ describe("a query Loop's items", () => {
 		expect(response.status).toBe(200);
 		expect(await json(response)).toEqual({
 			entries: [
-				{ id: site.postIds[0], title: "Our starter, explained", href: "/it/blog/our-starter-explained", page: true },
-				{ id: site.postIds[1], title: "Spring menu", href: "/it/blog/spring-menu", page: true },
+				{
+					id: site.postIds[0],
+					title: "Our starter, explained",
+					href: "/it/blog/our-starter-explained",
+					page: true,
+					postType: "Blog posts",
+				},
+				{ id: site.postIds[1], title: "Spring menu", href: "/it/blog/spring-menu", page: true, postType: "Blog posts" },
 			],
 		});
 	});
@@ -475,7 +481,7 @@ describe("a query Loop's items", () => {
 		const other = await bakery();
 
 		const answer = (await json(await editing.edit("loop/entries", { entries: [entry.id, other.postIds[0]] }))) as {
-			entries: { id: string; title: string; href: string; page: boolean }[];
+			entries: { id: string; title: string; href: string; page: boolean; postType: string }[];
 		};
 
 		expect(answer.entries).toEqual([
@@ -484,6 +490,7 @@ describe("a query Loop's items", () => {
 				title: "Mill",
 				href: install.adminUrl(`/sites/${site.siteId}/entries/${postType.id}/${entry.id}`),
 				page: false,
+				postType: "Suppliers",
 			},
 		]);
 	});
@@ -496,6 +503,7 @@ type Change = {
 	type: string;
 	structure?: boolean;
 	by: { name: string; you: boolean } | null;
+	items?: string[];
 };
 type State = { changes: Change[]; canPublish: boolean };
 
@@ -522,6 +530,7 @@ describe("a Loop's items in the Publish menu", () => {
 				label: "our-bakes",
 				type: "loopItems",
 				structure: true,
+				items: [site.items[0] ?? ""],
 				by: { name: expect.any(String) as unknown as string, you: true },
 			},
 		]);
@@ -577,6 +586,26 @@ describe("a Loop's items in the Publish menu", () => {
 		});
 		await editing.edit("discard", { path: "/recipes/menu" });
 	});
+
+	test("a Loop's change names each item that differs: a new one, a changed one, one moved; a removed one is in none", async () => {
+		const editing = await openEditMode(install, staff, site.siteId, "/recipes/menu");
+		const items = async () =>
+			(await pageState(editing)).changes.find((change) => change.item === `loop:${site.loopId}`)?.items;
+		const [first = "", second = "", third = ""] = site.items;
+		// The last moved first: it alone is out of the published order.
+		await editing.edit("loop/move", { loop: site.loopId, item: third, to: 0 });
+		expect(await items()).toEqual([third]);
+		// Changed in place, and one added (first: `after` names no item).
+		await editing.edit("save", { item: `loop:${site.loopId}:${second}`, field: "name", value: "Bun" });
+		const added = (await json(await editing.edit("loop/add", { loop: site.loopId, after: null }))) as { item: string };
+		const addedId = added.item;
+		expect(await items()).toEqual([addedId, third, second]);
+		// Put back as published, the first removed: no item to name.
+		await editing.edit("undo", { path: "/recipes/menu", item: `loop:${site.loopId}`, key: "items" });
+		await editing.edit("loop/remove", { loop: site.loopId, item: first });
+		expect(await items()).toEqual([]);
+		await editing.edit("undo", { path: "/recipes/menu", item: `loop:${site.loopId}`, key: "items" });
+	});
 });
 
 describe("Publish refuses a page whose only changes are Loop items, for those who may not change Structure", () => {
@@ -611,6 +640,7 @@ describe("Publish refuses a page whose only changes are Loop items, for those wh
 				label: "our-bakes",
 				type: "loopItems",
 				structure: true,
+				items: [site.items[0] ?? ""],
 				by: expect.anything() as unknown as State["changes"][number]["by"],
 			},
 		]);

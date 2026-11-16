@@ -9,7 +9,7 @@ import {
 	videoAt,
 } from "@webcraft/renderer/body/editing";
 
-import type { BarKit, BodyTools, PresenceTarget, SharedDraft } from "../site/edit-bar/kit.ts";
+import type { BarKit, BodyTools, PresenceTarget, SharedDraft } from "../ui/page-kit.ts";
 import {
 	caretOffset,
 	caretOnEdgeLine,
@@ -1710,11 +1710,11 @@ export function bodyTools(kit: BarKit): BodyTools {
 			"aria-label": word("body.menu.label"),
 		});
 		const none = el("p", { class: "help", role: "status" });
-		type Option = { id: string; label: string; group: "blocks" | "components"; run(): void };
+		type Option = { id: string; label: string; group: "blocks" | "components"; detail?: string; run(): void };
 		const options: Option[] = [
 			...allowed(body).map((choice) => ({
 				id: choice.id,
-				label: word(choice.label),
+				label: kit.chooser ? kit.chooser.label(choice.id) : word(choice.label),
 				group: "blocks" as const,
 				keywords: choice.keywords,
 				type: choice.type,
@@ -1724,6 +1724,7 @@ export function bodyTools(kit: BarKit): BodyTools {
 				id: `component-${component.id}`,
 				label: component.name,
 				group: "components" as const,
+				detail: kit.chooser?.detail(component),
 				keywords: `component ${component.name}`,
 				type: "component",
 				run: () => {
@@ -1754,22 +1755,33 @@ export function bodyTools(kit: BarKit): BodyTools {
 				groups.push(
 					el(
 						"div",
-						{ role: "group", "aria-labelledby": groupId },
+						{ role: "group", "aria-labelledby": groupId, "data-group": group },
 						el(
 							"div",
 							{ class: "chooser-group", id: groupId, role: "presentation" },
 							word(group === "blocks" ? "body.menu.blocks" : "body.components.group"),
 						),
 						...inGroup.map((option) => {
+							// A host that draws tiles (BA-18) gives each its icon, and a Component the line under its name.
+							const look = kit.chooser;
+							const glyph = look?.icon(option.group === "components" ? "component" : option.id);
+							const named: (Node | string)[] = look
+								? [
+										el("span", { class: "chooser-name" }, option.label),
+										...(option.detail ? [el("span", { class: "chooser-detail" }, option.detail)] : []),
+									]
+								: [option.label];
 							const element = el(
 								"div",
 								{
 									role: "option",
 									id: `${listId}-${option.id}`,
 									class: "chooser-option",
+									"data-choice": option.id,
 									"aria-selected": String(shown[active] === option),
 								},
-								option.label,
+								...(glyph ? [glyph] : []),
+								...(look && option.group === "components" ? [el("span", { class: "chooser-words" }, ...named)] : named),
 							);
 							element.addEventListener("mousedown", (event) => event.preventDefault());
 							element.addEventListener("click", () => option.run());

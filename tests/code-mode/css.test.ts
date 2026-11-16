@@ -1,12 +1,13 @@
-// Code mode's CSS panel (ADR 0016): the selected element's Class (its styles for every width, each
-// breakpoint's, and its own CSS) or the Site CSS, read and saved through the Design system's Draft
-// and its CSS checks, with the design-token variables to suggest. The page previews unsaved CSS;
-// saving names the version it was opened at, as the HTML panel's saves do. An unknown Class name in
-// the HTML panel can be made a Class of the Draft from there.
+// The CSS the building area's CSS pane and Styles place work on (ADR 0037; Code mode's CSS panel
+// before it, ADR 0016): a Class (its styles for every width, each breakpoint's, and its own CSS) or
+// the Site CSS, read and saved through the Design system's Draft and its CSS checks (`builder.css`,
+// `builder.saveCss`), with the design-token variables to suggest. The frame previews unsaved CSS
+// (`code/preview`); saving names the version it was opened at, as the HTML pane's saves do. An unknown
+// Class name in the HTML pane can be made a Class of the Draft from there (`code/createClass`).
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { answer, openCodeMode } from "../harness/code-mode.ts";
-import { type EditModeBrowser, openEditMode } from "../harness/edit-mode.ts";
+import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 
 let install: TestInstall;
@@ -83,17 +84,50 @@ async function refusal(response: Response, status: number): Promise<Refusal> {
 	return (await response.json()) as Refusal;
 }
 
-describe("reading an element's CSS", () => {
+/** The CSS of the Classes `classes` (by id) and the Site CSS, as the CSS pane and the Styles place read it. */
+function readCss(siteId: string, classes: string[] = [], as: TestBrowser = staff): Promise<Css> {
+	return as.api.builder.css({ siteId, classes }) as Promise<Css>;
+}
+
+type CssTarget =
+	| { kind: "site" }
+	| { kind: "class"; classId: string; part: "styles" | "css" }
+	| { kind: "class"; classId: string; part: "breakpoint"; breakpointId: string };
+
+/** Saves a piece of CSS as the CSS pane does; a refusal answers its code, status and data. */
+async function saveCss(
+	siteId: string,
+	target: CssTarget,
+	text: string,
+	version: string | null | undefined,
+): Promise<{ text: string; version: string } | { refused: Refusal & { status: number } }> {
+	try {
+		return await staff.api.builder.saveCss({ siteId, target, text, version: version ?? null });
+	} catch (error) {
+		const { code, status, data } = error as { code: string; status: number; data?: Refusal["data"] };
+		return { refused: { code, status, data } };
+	}
+}
+
+function saved(answer: Awaited<ReturnType<typeof saveCss>>): { text: string; version: string } {
+	if ("refused" in answer) throw new Error(`Refused: ${JSON.stringify(answer.refused)}`);
+	return answer;
+}
+
+function refused(answer: Awaited<ReturnType<typeof saveCss>>): Refusal & { status: number } {
+	if (!("refused" in answer)) throw new Error("Saved, though a refusal was expected.");
+	return answer.refused;
+}
+
+describe("reading a Class's CSS", () => {
 	let site: Awaited<ReturnType<typeof bakery>>;
-	let coding: EditModeBrowser;
 
 	beforeAll(async () => {
 		site = await bakery();
-		coding = await openCodeMode(install, staff, site.siteId, path);
 	});
 
-	test("answers the element's Classes with each piece of their CSS, the breakpoints and the Site CSS", async () => {
-		const css = await answer<Css>(coding.edit("code/css", { path, ref: "content#title" }));
+	test("answers each Class with each piece of its CSS, the breakpoints and the Site CSS", async () => {
+		const css = await readCss(site.siteId, [site.classId]);
 
 		expect(css.classes).toEqual([
 			{
@@ -112,14 +146,14 @@ describe("reading an element's CSS", () => {
 	});
 
 	test("suggests the design tokens' custom properties with their values", async () => {
-		const css = await answer<Css>(coding.edit("code/css", { path, ref: "content#title" }));
+		const css = await readCss(site.siteId, [site.classId]);
 
 		expect(css.tokens).toContainEqual({ property: "--space-m", value: expect.any(String), kind: "space" });
 		expect(css.tokens).toContainEqual({ property: "--text-xl", value: expect.any(String), kind: "text" });
 		expect(css.tokens.some((token) => token.kind === "colour" && token.property.endsWith("-60"))).toBe(true);
 	});
 
-	test("answers the Classes an element has now, by id in its order, with how many elements and pages use each", async () => {
+	test("answers the Classes asked for by id in their order, with how many elements and pages use each", async () => {
 		const unused = await staff.api.designSystem.createClass({ siteId: site.siteId, name: "unused" });
 		const opened = await staff.api.builder.open({
 			siteId: site.siteId,
@@ -129,9 +163,7 @@ describe("reading an element's CSS", () => {
 		const utility = JSON.stringify(opened.tree).match(/"(u:[^"]+)"/)?.[1];
 		expect(utility).toBeDefined();
 
-		const css = await answer<Css>(
-			coding.edit("code/css", { path, ref: null, classes: [unused.class.id, utility, "missing", site.classId] }),
-		);
+		const css = await readCss(site.siteId, [unused.class.id, utility ?? "", "missing", site.classId]);
 
 		expect(css.classes.map((each) => [each.name, each.usage])).toEqual([
 			["unused", { elements: 0, pages: 0 }],
@@ -156,43 +188,42 @@ describe("reading an element's CSS", () => {
 		await staff.api.templates.publish({ siteId: site.siteId, templateId: layout.template.id });
 		const shown = await staff.api.components.get({ siteId: site.siteId, componentId: component.id });
 		expect(shown.usage.pages).toBeGreaterThan(0);
-		const coding = await openCodeMode(install, staff, site.siteId, path);
 
-		const css = await answer<Css>(coding.edit("code/css", { path, ref: null, classes: [badge.class.id] }));
+		const css = await readCss(site.siteId, [badge.class.id]);
 
 		expect(css.classes[0]?.usage).toEqual({ elements: 2, pages: shown.usage.pages });
 	});
 
-	test("an element without Classes, or none selected, has the Site CSS only", async () => {
-		const css = await answer<Css>(coding.edit("code/css", { path, ref: "content#article" }));
-		expect(css.classes).toEqual([]);
-		const none = await answer<Css>(coding.edit("code/css", { path, ref: null }));
+	test("no Class asked for: the Site CSS only", async () => {
+		const none = await readCss(site.siteId, []);
 		expect(none.classes).toEqual([]);
 		expect(none.siteCss.css).toBe("");
 	});
 });
 
 describe("saving CSS", () => {
-	test("saves one piece of a Class to the Design system's Draft: the page in Code mode shows it, visitors don't yet", async () => {
+	test("saves one piece of a Class to the Design system's Draft: Staff's frame shows it, visitors don't yet", async () => {
 		const site = await bakery();
 		const coding = await openCodeMode(install, staff, site.siteId, path);
-		const before = await answer<Css>(coding.edit("code/css", { path, ref: "content#title" }));
+		const before = await readCss(site.siteId, [site.classId]);
 
-		const saved = await answer<{ text: string; version: string }>(
-			coding.edit("code/saveCss", {
-				target: { kind: "class", classId: site.classId, part: "styles" },
-				text: "font-size: var(--text-xl);\ncolor: darkgreen;",
-				version: before.classes[0]?.version,
-			}),
+		const first = saved(
+			await saveCss(
+				site.siteId,
+				{ kind: "class", classId: site.classId, part: "styles" },
+				"font-size: var(--text-xl);\ncolor: darkgreen;",
+				before.classes[0]?.version,
+			),
 		);
-		expect(saved.text).toBe("font-size: var(--text-xl);\ncolor: darkgreen;");
+		expect(first.text).toBe("font-size: var(--text-xl);\ncolor: darkgreen;");
 
-		await answer(
-			coding.edit("code/saveCss", {
-				target: { kind: "class", classId: site.classId, part: "breakpoint", breakpointId: site.tablet.id },
-				text: "font-size: var(--text-3xl);",
-				version: saved.version,
-			}),
+		saved(
+			await saveCss(
+				site.siteId,
+				{ kind: "class", classId: site.classId, part: "breakpoint", breakpointId: site.tablet.id },
+				"font-size: var(--text-3xl);",
+				first.version,
+			),
 		);
 
 		const { designSystem } = await staff.api.designSystem.get({ siteId: site.siteId });
@@ -214,16 +245,9 @@ describe("saving CSS", () => {
 
 	test("saves the Site CSS", async () => {
 		const site = await bakery();
-		const coding = await openCodeMode(install, staff, site.siteId, path);
-		const before = await answer<Css>(coding.edit("code/css", { path, ref: null }));
+		const before = await readCss(site.siteId);
 
-		await answer(
-			coding.edit("code/saveCss", {
-				target: { kind: "site" },
-				text: "body {\n  margin: 0;\n}",
-				version: before.siteCss.version,
-			}),
-		);
+		saved(await saveCss(site.siteId, { kind: "site" }, "body {\n  margin: 0;\n}", before.siteCss.version));
 
 		const { designSystem } = await staff.api.designSystem.get({ siteId: site.siteId });
 		expect(designSystem.draft.customCss).toBe("body {\n  margin: 0;\n}");
@@ -231,20 +255,20 @@ describe("saving CSS", () => {
 
 	test("refuses CSS the Design system's checks refuse, with where, saving nothing", async () => {
 		const site = await bakery();
-		const coding = await openCodeMode(install, staff, site.siteId, path);
-		const before = await answer<Css>(coding.edit("code/css", { path, ref: "content#title" }));
+		const before = await readCss(site.siteId, [site.classId]);
 
-		const refused = await refusal(
-			await coding.edit("code/saveCss", {
-				target: { kind: "class", classId: site.classId, part: "styles" },
-				text: "color: red;\nbackground: url(https://elsewhere.example/a.png);",
-				version: before.classes[0]?.version,
-			}),
-			400,
+		const answer = refused(
+			await saveCss(
+				site.siteId,
+				{ kind: "class", classId: site.classId, part: "styles" },
+				"color: red;\nbackground: url(https://elsewhere.example/a.png);",
+				before.classes[0]?.version,
+			),
 		);
 
-		expect(refused.code).toBe("DESIGN_SYSTEM_INVALID");
-		expect(refused.data?.problems?.[0]).toMatchObject({ line: 2 });
+		expect(answer.status).toBe(400);
+		expect(answer.code).toBe("DESIGN_SYSTEM_INVALID");
+		expect(answer.data?.problems?.[0]).toMatchObject({ line: 2 });
 		const { designSystem } = await staff.api.designSystem.get({ siteId: site.siteId });
 		expect(designSystem.draft.classes.find((each) => each.id === site.classId)?.styles).toBe(
 			"font-size: var(--text-xl);",
@@ -253,8 +277,7 @@ describe("saving CSS", () => {
 
 	test("a save over a Class or the Site CSS someone changed meanwhile is refused with the newer version", async () => {
 		const site = await bakery();
-		const coding = await openCodeMode(install, staff, site.siteId, path);
-		const before = await answer<Css>(coding.edit("code/css", { path, ref: "content#title" }));
+		const before = await readCss(site.siteId, [site.classId]);
 		await otherStaff.api.designSystem.updateClass({
 			siteId: site.siteId,
 			classId: site.classId,
@@ -262,32 +285,30 @@ describe("saving CSS", () => {
 		});
 		await otherStaff.api.designSystem.saveDraft({ siteId: site.siteId, customCss: "p { margin: 0; }" });
 
-		const classSave = await refusal(
-			await coding.edit("code/saveCss", {
-				target: { kind: "class", classId: site.classId, part: "styles" },
-				text: "color: teal;",
-				version: before.classes[0]?.version,
-			}),
-			409,
+		const classSave = refused(
+			await saveCss(
+				site.siteId,
+				{ kind: "class", classId: site.classId, part: "styles" },
+				"color: teal;",
+				before.classes[0]?.version,
+			),
 		);
+		expect(classSave.status).toBe(409);
 		expect(classSave.code).toBe("CHANGED_MEANWHILE");
-		const now = await answer<Css>(coding.edit("code/css", { path, ref: "content#title" }));
+		const now = await readCss(site.siteId, [site.classId]);
 		expect(classSave.data?.version).toBe(now.classes[0]?.version);
 
-		const siteSave = await coding.edit("code/saveCss", {
-			target: { kind: "site" },
-			text: "p { padding: 0; }",
-			version: before.siteCss.version,
-		});
-		expect((await refusal(siteSave, 409)).code).toBe("CHANGED_MEANWHILE");
+		const siteSave = refused(await saveCss(site.siteId, { kind: "site" }, "p { padding: 0; }", before.siteCss.version));
+		expect(siteSave.code).toBe("CHANGED_MEANWHILE");
 
 		// Overwriting saves over the newer version.
-		await answer(
-			coding.edit("code/saveCss", {
-				target: { kind: "class", classId: site.classId, part: "styles" },
-				text: "color: teal;",
-				version: classSave.data?.version,
-			}),
+		saved(
+			await saveCss(
+				site.siteId,
+				{ kind: "class", classId: site.classId, part: "styles" },
+				"color: teal;",
+				classSave.data?.version,
+			),
 		);
 		const { designSystem } = await staff.api.designSystem.get({ siteId: site.siteId });
 		expect(designSystem.draft.classes.find((each) => each.id === site.classId)?.styles).toBe("color: teal;");
@@ -341,20 +362,18 @@ describe("making a Class from the HTML panel", () => {
 	});
 });
 
-test("Members in Edit mode can't read or change CSS", async () => {
+test("Members can't read or change CSS, in Edit mode or through the API", async () => {
 	const site = await bakery();
 	const editing = await openEditMode(install, editor, site.siteId, path);
 
-	for (const [action, body] of [
-		["code/css", { path, ref: "content#title" }],
-		["code/saveCss", { target: { kind: "site" }, text: "", version: null }],
-		["code/createClass", { name: "sneaky" }],
-	] as const) {
-		expect((await refusal(await editing.edit(action, body), 403)).code).toBe("FORBIDDEN");
-	}
+	expect((await refusal(await editing.edit("code/createClass", { name: "sneaky" }), 403)).code).toBe("FORBIDDEN");
+	await expect(readCss(site.siteId, [site.classId], editor)).rejects.toMatchObject({ code: "FORBIDDEN" });
+	await expect(
+		editor.api.builder.saveCss({ siteId: site.siteId, target: { kind: "site" }, text: "", version: null }),
+	).rejects.toMatchObject({ code: "FORBIDDEN" });
 });
 
-describe("a Generated Class in the CSS panel", () => {
+describe("a Generated Class in the CSS pane", () => {
 	/** A Site whose Blog post's title has a one-off style, which made it a Generated Class. */
 	async function generated() {
 		const site = await bakery();
@@ -370,37 +389,39 @@ describe("a Generated Class in the CSS panel", () => {
 				version: opened.version,
 			}),
 		);
-		const css = await answer<Css>(coding.edit("code/css", { path, ref: "content#title" }));
-		const made = css.classes.find((each) => each.generated);
+		const { designSystem } = await staff.api.designSystem.get({ siteId: site.siteId });
+		const id = designSystem.draft.classes.find((each) => each.generated)?.id;
+		const made = (await readCss(site.siteId, id ? [id] : [])).classes.find((each) => each.generated);
 		if (!made) throw new Error("The one-off style made no Generated Class.");
 		return { ...site, coding, made };
 	}
 
 	test("editing it makes it a normal Class that keeps its name", async () => {
-		const { siteId, coding, made } = await generated();
+		const { siteId, made } = await generated();
 
-		await answer(
-			coding.edit("code/saveCss", {
-				target: { kind: "class", classId: made.id, part: "styles" },
-				text: "color: olive;\nfont-weight: 700;",
-				version: made.version,
-			}),
+		saved(
+			await saveCss(
+				siteId,
+				{ kind: "class", classId: made.id, part: "styles" },
+				"color: olive;\nfont-weight: 700;",
+				made.version,
+			),
 		);
 
-		const css = await answer<Css>(coding.edit("code/css", { path, ref: null, classes: [made.id] }));
+		const css = await readCss(siteId, [made.id]);
 		expect(css.classes[0]).toMatchObject({ name: made.name, generated: false });
 		const { designSystem } = await staff.api.designSystem.get({ siteId });
 		expect(designSystem.draft.classes.find((each) => each.id === made.id)?.generated).toBe(false);
 	});
 
 	test("can be renamed from the panel, and the element keeps it", async () => {
-		const { coding, made } = await generated();
+		const { siteId, coding, made } = await generated();
 
 		await answer(
 			coding.edit("code/editorService", { method: "classes.update", input: { classId: made.id, name: "headline" } }),
 		);
 
-		const css = await answer<Css>(coding.edit("code/css", { path, ref: "content#title" }));
+		const css = await readCss(siteId, [made.id]);
 		expect(css.classes.map((each) => [each.name, each.generated])).toContainEqual(["headline", false]);
 		const opened = await answer<{ markup: string }>(coding.edit("code/open", { path, ref: "content" }));
 		expect(opened.markup).toContain('class="title p-m headline"');

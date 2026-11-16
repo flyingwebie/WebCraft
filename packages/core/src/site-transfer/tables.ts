@@ -42,6 +42,8 @@ export const LEFT_OUT_TABLES: Readonly<Record<string, LeftOutReason>> = {
 	"public.retired_library_files": "working",
 	"public.translation_tasks": "working",
 	"public.translation_cache": "working",
+	// When this Install first saw each open Check: the new Site sees its own.
+	"public.check_sightings": "working",
 	// What the Workspace that paid spent on AI stays with it.
 	"public.ai_calls": "billing",
 	"public.translation_counts": "billing",

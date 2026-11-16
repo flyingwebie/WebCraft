@@ -46,8 +46,10 @@ import type {
 	NewLoop,
 	NewPostType,
 	Pasted,
+	PlacedComponentDeletion,
 	PostType,
 	PostTypeChange,
+	PostTypeDeletion,
 	PublishAllDone,
 	PublishAllPreview,
 	Published,
@@ -112,7 +114,7 @@ import type { SiteSearch } from "./search/service.ts";
 import type { InstallSecrets } from "./secrets/store.ts";
 import type { SeoService } from "./seo/index.ts";
 import type { InstallSetup } from "./setup.ts";
-import type { DataSample } from "./site-pages/data-samples.ts";
+import type { DataSample, LoopResult } from "./site-pages/data-samples.ts";
 import type { SitePages } from "./site-pages/index.ts";
 import type { SiteScripts } from "./site-scripts/index.ts";
 import type { SiteTransfer } from "./site-transfer/index.ts";
@@ -261,6 +263,11 @@ export type InstallServices = InstallPorts & {
 		get(scope: SiteScope, postTypeId: string): Promise<PostType>;
 		create(scope: SiteScope, input: NewPostType): Promise<PostType>;
 		update(scope: SiteScope, postTypeId: string, change: PostTypeChange): Promise<PostType>;
+		/**
+		 * Deletes a Post Type with its Entries and Templates, in two steps (a confirmation); refuses the
+		 * Page Post Type, and one that other Structure names (`PostTypeInUseError`).
+		 */
+		delete(scope: SiteScope, postTypeId: string, confirmation?: string): Promise<PostTypeDeletion>;
 		/** The Data tab of its Entry template: an Entry's Draft as the template reads it, with the bindings. */
 		data(scope: SiteScope, postTypeId: string, options?: { language?: string; entryId?: string }): Promise<DataSample>;
 	};
@@ -432,8 +439,16 @@ export type InstallServices = InstallPorts & {
 		): Promise<SavedComponentMarkup>;
 		/** Renames it: Template markup writes the new name everywhere at once. */
 		rename(scope: SiteScope, componentId: string, name: string): Promise<Component>;
-		/** Deletes it in two steps (a confirmation id, then the delete); refused while anything places it. */
-		delete(scope: SiteScope, componentId: string, confirmation?: string): Promise<ComponentDeletion>;
+		/**
+		 * Deletes it in two steps (a confirmation id, then the delete); refused while anything places it,
+		 * unless `placements` is `remove`: its Placements then go with it.
+		 */
+		delete(
+			scope: SiteScope,
+			componentId: string,
+			confirmation?: string,
+			placements?: PlacedComponentDeletion,
+		): Promise<ComponentDeletion>;
 	};
 	/**
 	 * Filters: the controls visitors use to narrow, search and sort one query Loop, with a Draft and a
@@ -457,6 +472,8 @@ export type InstallServices = InstallPorts & {
 		saveItems(scope: SiteScope, loopId: string, change: LoopItemsChange): Promise<Loop>;
 		/** Its Data tab: its first item from the Drafts, as JSON, with the bindings that read it. */
 		data(scope: SiteScope, loopId: string, language?: string): Promise<DataSample>;
+		/** What its Draft lists (the Loops place's result): its items, how many in all, and the published pages showing it. */
+		result(scope: SiteScope, loopId: string, language?: string): Promise<LoopResult>;
 	};
 	/**
 	 * The Site script and page scripts (ADR 0016): Structure with a Draft, published through

@@ -60,7 +60,7 @@ import {
 	siteComponents,
 } from "../content/components.ts";
 import { draftAddresses, findDraftEntry, findDraftPage } from "../content/draft-paths.ts";
-import { editableField, imageField } from "../content/editable.ts";
+import { editableField, imageField, linkField } from "../content/editable.ts";
 import { entryStatus, entryValues } from "../content/entries.ts";
 import { homePageId, type PublishedAddress, publishedAddresses } from "../content/entry-paths.ts";
 import type { FieldDefinition } from "../content/field-types.ts";
@@ -314,6 +314,12 @@ export type PageEditing = {
 	safe?: boolean;
 	/** In Code mode, unsaved changes to show in place of the Drafts, as Staff type them. */
 	preview?: CodePreview;
+	/**
+	 * With `code`, the editable regions are tagged as well as every element (`EditModePage.regions`):
+	 * the building area's frame for Staff (ADR 0037 › 1.3), which shows the Drafts of the Structure
+	 * and lets one click select an element and, on text, start typing.
+	 */
+	regions?: boolean;
 };
 
 /**
@@ -1611,9 +1617,12 @@ function editRegions(
 ): EditModePage["region"] {
 	return (value, template, place) => {
 		if (value.format) return undefined;
-		// An image's `src` shows a media Field; everything else is typed over.
-		const editableIn = place.image ? imageField : editableField;
+		// An image's `src` shows a media Field, an `<a>` showing a whole link a link Field; everything
+		// else is typed over.
+		const editableIn = place.image ? imageField : place.link ? linkField : editableField;
 		if (place.item) {
+			// A Loop item's links change with its item (its side panel), not in the link popover.
+			if (place.link) return undefined;
 			// Inside a Loop: a Loop's own item's values are regions of that item (`loop:<id>:<item id>`);
 			// a query Loop's items are Entries, changed on their own pages; what is around the Loop
 			// repeats with every item.
@@ -1637,11 +1646,13 @@ function editRegions(
 			return body && regionTags(`entry:${entry.id}`, body.key, "media", body.label);
 		}
 		// The title is a built-in value: the editing bar names it in the person's own language.
-		if (value.path === "title" && !place.image) return regionTags(`entry:${entry.id}`, "title", "text", null);
+		if (value.path === "title" && !place.image && !place.link)
+			return regionTags(`entry:${entry.id}`, "title", "text", null);
 		// The body: its element is the block editor's region (#79).
-		const body = place.image
-			? undefined
-			: entry.fields.find((field) => field.key === value.path && field.type === "body");
+		const body =
+			place.image || place.link
+				? undefined
+				: entry.fields.find((field) => field.key === value.path && field.type === "body");
 		if (body) return regionTags(`entry:${entry.id}`, body.key, "body", body.label);
 		const editable = editableIn(entry.fields, value.path);
 		return editable && regionTags(`entry:${entry.id}`, value.path, editable.type, editable.label);
@@ -2236,6 +2247,7 @@ async function renderSitePage(
 				return shown && [`loop:${shown.id}`, shown.source, shown.name];
 			},
 			code: view.structure === "draft",
+			regions: editing.regions,
 		},
 		component: placed.render,
 		form: (id) => {
@@ -2253,12 +2265,17 @@ async function renderSitePage(
 	};
 	const rendered = renderDocument(document);
 	let formIndex = 0;
-	const checks = editing?.code
-		? renderedChecks(renderDocument({ ...document, checkMarkup: true, form: () => formHtml[formIndex++] ?? "" }).html, {
-				language: language.code,
-				complete: true,
-			})
-		: undefined;
+	// Code mode's Checks of the page; the building area's frame (`regions`) has no use for them.
+	const checks =
+		editing?.code && !editing.regions
+			? renderedChecks(
+					renderDocument({ ...document, checkMarkup: true, form: () => formHtml[formIndex++] ?? "" }).html,
+					{
+						language: language.code,
+						complete: true,
+					},
+				)
+			: undefined;
 	const hosts = await policyHosts(view, forms.captchaHost);
 	const headers = editing
 		? { "content-security-policy": editModePolicy(hosts) }

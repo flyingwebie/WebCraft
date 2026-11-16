@@ -23,10 +23,9 @@ import {
 } from "lucide-react";
 import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
-import { getApi } from "../api.ts";
 import { Segmented } from "../filters/Segmented.tsx";
 import { useT } from "../i18n.tsx";
-import type { Editing } from "./DesignSystemScreen.tsx";
+import type { Editing } from "./editing.ts";
 import {
 	BASE_STEP,
 	type ColourMode,
@@ -76,8 +75,11 @@ export function TokensTab({ editing }: { editing: Editing }) {
 		widths: tokens.widths.length,
 	};
 	return (
-		<div className="grid gap-6 lg:grid-cols-[12rem_minmax(0,1fr)]">
-			<nav aria-label={t("designSystem.tokens.groups")} className="lg:sticky lg:top-4 lg:self-start">
+		<div className="grid gap-6 @2xl/page:grid-cols-[12rem_minmax(0,1fr)]">
+			<nav
+				aria-label={t("designSystem.tokens.groups")}
+				className="@2xl/page:sticky @2xl/page:top-4 @2xl/page:self-start"
+			>
 				<ul className="grid gap-0.5">
 					{GROUPS.map((group) => (
 						<li key={group.id}>
@@ -101,16 +103,16 @@ export function TokensTab({ editing }: { editing: Editing }) {
 			<div className="grid min-w-0 gap-6">
 				<ColoursCard editing={editing} />
 				<ContrastCard editing={editing} />
-				<div className="grid gap-6 2xl:grid-cols-2">
+				<div className="grid gap-6 @6xl/page:grid-cols-2">
 					<ScaleCard editing={editing} kind="space" />
 					<ScaleCard editing={editing} kind="text" />
 				</div>
 				<FontsCard editing={editing} />
-				<div className="grid gap-6 xl:grid-cols-2">
+				<div className="grid gap-6 @4xl/page:grid-cols-2">
 					<DimensionsCard editing={editing} kind="radius" />
 					<ShadowsCard editing={editing} />
 				</div>
-				<div className="grid gap-6 xl:grid-cols-2">
+				<div className="grid gap-6 @4xl/page:grid-cols-2">
 					<BreakpointsCard editing={editing} />
 					<DimensionsCard editing={editing} kind="widths" />
 				</div>
@@ -163,7 +165,7 @@ function Uses({ count }: { count: number | undefined }) {
 /** Removes a token through an immediate save, so a token in use is refused at once, with where. */
 async function removeToken(editing: Editing, tokens: Tokens) {
 	await editing.now(async () => {
-		const api = await getApi();
+		const api = await editing.api();
 		const { designSystem } = await api.designSystem.saveDraft({ siteId: editing.siteId, tokens });
 		editing.replaceDraft(designSystem.draft);
 	});

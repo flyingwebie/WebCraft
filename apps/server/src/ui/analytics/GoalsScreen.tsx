@@ -3,7 +3,6 @@ import type { ApiClient } from "@webcraft/api";
 import type { ModuleApi } from "@webcraft/module-sdk";
 import type siteAnalytics from "@webcraft/module-site-analytics";
 import { Button } from "@webcraft/ui/components/button.tsx";
-import { Card, CardContent } from "@webcraft/ui/components/card.tsx";
 import {
 	Dialog,
 	DialogClose,
@@ -31,17 +30,31 @@ import {
 } from "@webcraft/ui/components/field.tsx";
 import { Input } from "@webcraft/ui/components/input.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
-import { RadioGroup, RadioGroupItem } from "@webcraft/ui/components/radio-group.tsx";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
-import { EllipsisIcon, PencilIcon, PlusIcon, TrashIcon } from "lucide-react";
+import { cn } from "@webcraft/ui/lib/utils.ts";
+import {
+	CheckIcon,
+	ClipboardListIcon,
+	EllipsisIcon,
+	FileTextIcon,
+	LinkIcon,
+	type LucideIcon,
+	PencilIcon,
+	PlusIcon,
+	TrashIcon,
+	ZapIcon,
+} from "lucide-react";
 import { type FormEvent, type RefObject, useEffect, useId, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { getApi } from "../api.ts";
+import { useNumbers } from "../dashboards/charts.tsx";
 import { errorCode, errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import type { ModulePageProps } from "../modules/pages.tsx";
 import { PageHeader } from "../PageHeader.tsx";
+import { PageSheet } from "../shell/page.tsx";
+import { cellClass, headClass, headRowClass, lastThirtyDays, TableFrame } from "./parts.tsx";
 
 /** Site analytics' procedures, as the admin calls them (`m.site-analytics.…`). */
 export function analyticsApi(api: ApiClient): ModuleApi<typeof siteAnalytics> {
@@ -52,18 +65,41 @@ export function analyticsApi(api: ApiClient): ModuleApi<typeof siteAnalytics> {
 
 type Answer<Call> = Call extends (...args: never[]) => Promise<infer Result> ? Result : never;
 export type GoalView = Answer<ModuleApi<typeof siteAnalytics>["goals"]["list"]>["goals"][number];
+type GoalUsage = Answer<ModuleApi<typeof siteAnalytics>["goals"]["usage"]>["goals"][number];
 type Definition = GoalView["definition"];
 
-/** What Site › Goals shows: the Site's Goals, and its Forms (a Goal can count one's Submissions). */
-export type GoalsData = { goals: GoalView[]; forms: { id: string; name: string }[] };
+/**
+ * What Site › Goals shows: the Site's Goals, its Forms (a Goal can count one's Submissions), how
+ * many times each Goal was reached in the last 30 days, by name (null when it could not be counted),
+ * and where each is used, by id (null when that could not be read).
+ */
+export type GoalsData = {
+	goals: GoalView[];
+	forms: { id: string; name: string }[];
+	reached: Record<string, number> | null;
+	usage: Record<string, GoalUsage> | null;
+};
 
 export async function goalsData(siteId: string): Promise<GoalsData> {
 	const api = await getApi();
-	const [{ goals }, { forms }] = await Promise.all([
-		analyticsApi(api).goals.list({ siteId }),
-		api.forms.list({ siteId }),
-	]);
-	return { goals, forms: forms.map(({ id, name }) => ({ id, name })) };
+	const analytics = analyticsApi(api);
+	const [{ goals }, { forms }] = await Promise.all([analytics.goals.list({ siteId }), api.forms.list({ siteId })]);
+	// The Dashboard's default range: the last 30 days. The list still shows when it can't be counted.
+	const reached =
+		goals.length === 0
+			? {}
+			: await analytics.stats.goals({ siteId, ...lastThirtyDays() }).then(
+					(counted) => Object.fromEntries(counted.goals.map((goal) => [goal.name, goal.conversions])),
+					() => null,
+				);
+	const usage =
+		goals.length === 0
+			? {}
+			: await analytics.goals.usage({ siteId }).then(
+					(found) => Object.fromEntries(found.goals.map((goal) => [goal.goalId, goal])),
+					() => null,
+				);
+	return { goals, forms: forms.map(({ id, name }) => ({ id, name })), reached, usage };
 }
 
 /** A refusal of Site analytics', in the admin's words. */
@@ -85,7 +121,7 @@ export function analyticsProblem(failure: unknown): MessageKey {
 	}
 }
 
-/** What a Goal counts, in words. */
+/** What a Goal counts, in words: its kind, then what it watches ("A Form is sent · Contact"). */
 export function useDescribeGoal(forms: readonly { id: string; name: string }[]) {
 	const t = useT();
 	return (definition: Definition): string => {
@@ -97,9 +133,7 @@ export function useDescribeGoal(forms: readonly { id: string; name: string }[]) 
 			case "page":
 				return t(
 					definition.match === "prefix" ? "analyticsGoals.describe.pagePrefix" : "analyticsGoals.describe.page",
-					{
-						path: definition.path,
-					},
+					{ path: definition.path },
 				);
 			case "link":
 				return definition.target
@@ -117,11 +151,13 @@ export function useDescribeGoal(forms: readonly { id: string; name: string }[]) 
 /**
  * Site › Goals (Site analytics' page, Staff only: Goals are Structure): what counts as a result on
  * the Site, each a Form Submission, a page visit, a click on an outbound, download, phone or email
- * link, or a custom event. Goals count visitors who accepted Analytics only. Widgets, Dashboard
+ * link, or a custom event, with how often each was reached in the last 30 days. Goals count visitors
+ * who accepted Analytics only. Adding and changing one is a sheet over the page; Widgets, Dashboard
  * templates and Workspace Dashboards find Goals by name.
  */
 export function GoalsScreen({ place, data }: ModulePageProps) {
 	const t = useT();
+	const numbers = useNumbers();
 	const siteId = place.level === "site" ? place.site.id : "";
 	const shown = (data ?? null) as GoalsData | null;
 	const describe = useDescribeGoal(shown?.forms ?? []);
@@ -130,6 +166,9 @@ export function GoalsScreen({ place, data }: ModulePageProps) {
 	const [deleting, setDeleting] = useState<{ goal: GoalView; from: RefObject<HTMLElement | null> } | null>(null);
 	if (!shown)
 		return <PageHeader heading={t("analyticsGoals.goalsHeading")}>{t("analyticsGoals.goalsIntro")}</PageHeader>;
+	const { reached, usage } = shown;
+	const most = Math.max(1, ...Object.values(reached ?? {}));
+	const columns = 3 + (reached ? 1 : 0) + (usage ? 1 : 0);
 	return (
 		<>
 			<PageHeader
@@ -143,27 +182,77 @@ export function GoalsScreen({ place, data }: ModulePageProps) {
 			>
 				{t("analyticsGoals.goalsIntro")}
 			</PageHeader>
-			<Card className="max-w-5xl">
-				<CardContent>
-					{shown.goals.length === 0 ? (
-						<p className="text-muted-foreground text-sm">{t("analyticsGoals.noGoals")}</p>
-					) : (
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>{t("analyticsGoals.name")}</TableHead>
-									<TableHead>{t("analyticsGoals.counts")}</TableHead>
-									<TableHead>
-										<span className="sr-only">{t("analyticsGoals.actions")}</span>
-									</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{shown.goals.map((goal) => (
+			<TableFrame>
+				<Table aria-label={t("analyticsGoals.goalsHeading")} className="min-w-160 table-fixed">
+					<colgroup>
+						<col className="w-[30%]" />
+						<col />
+						{reached ? <col className="w-40" /> : null}
+						{usage ? <col className="w-48" /> : null}
+						<col className="w-14" />
+					</colgroup>
+					<TableHeader>
+						<TableRow className={headRowClass}>
+							<TableHead scope="col" className={headClass}>
+								{t("analyticsGoals.name")}
+							</TableHead>
+							<TableHead scope="col" className={headClass}>
+								{t("analyticsGoals.counts")}
+							</TableHead>
+							{reached ? (
+								<TableHead scope="col" className={headClass}>
+									{t("analyticsGoals.reached")}
+								</TableHead>
+							) : null}
+							{usage ? (
+								<TableHead scope="col" className={headClass}>
+									{t("analyticsGoals.whereUsed")}
+								</TableHead>
+							) : null}
+							<TableHead scope="col" className={headClass}>
+								<span className="sr-only">{t("analyticsGoals.actions")}</span>
+							</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{shown.goals.length === 0 ? (
+							<TableRow className="hover:bg-transparent">
+								<TableCell colSpan={columns} className="text-muted-foreground px-4 py-8 text-center whitespace-normal">
+									{t("analyticsGoals.noGoals")}
+								</TableCell>
+							</TableRow>
+						) : (
+							shown.goals.map((goal) => {
+								const count = reached?.[goal.name] ?? 0;
+								return (
 									<TableRow key={goal.id}>
-										<TableCell className="font-medium break-words whitespace-normal">{goal.name}</TableCell>
-										<TableCell className="text-sm break-all whitespace-normal">{describe(goal.definition)}</TableCell>
-										<TableCell className="text-end">
+										<TableCell className={cn(cellClass, "truncate font-medium")} title={goal.name}>
+											{goal.name}
+										</TableCell>
+										<TableCell
+											className={cn(cellClass, "text-muted-foreground truncate")}
+											title={describe(goal.definition)}
+										>
+											{describe(goal.definition)}
+										</TableCell>
+										{reached ? (
+											<TableCell className={cellClass}>
+												<span className="flex items-center gap-2">
+													<span className="font-medium tabular-nums">{numbers.count(count)}</span>
+													<span aria-hidden="true" className="bg-muted flex h-1.5 w-12 overflow-hidden rounded-[3px]">
+														<span
+															className="block h-full rounded-[3px]"
+															style={{
+																width: `${Math.max(count > 0 ? 6 : 0, (count / most) * 100)}%`,
+																background: "var(--series-1)",
+															}}
+														/>
+													</span>
+												</span>
+											</TableCell>
+										) : null}
+										{usage ? <UsageCell usage={usage[goal.id]} /> : null}
+										<TableCell className={cn(cellClass, "text-end")}>
 											<RowMenu
 												label={t("analyticsGoals.actionsOf", { name: goal.name })}
 												onEdit={(from) => setEditing({ goal, from })}
@@ -171,14 +260,14 @@ export function GoalsScreen({ place, data }: ModulePageProps) {
 											/>
 										</TableCell>
 									</TableRow>
-								))}
-							</TableBody>
-						</Table>
-					)}
-				</CardContent>
-			</Card>
+								);
+							})
+						)}
+					</TableBody>
+				</Table>
+			</TableFrame>
 			{editing ? (
-				<GoalDialog
+				<GoalSheet
 					siteId={siteId}
 					goal={editing.goal}
 					forms={shown.forms}
@@ -242,10 +331,70 @@ export function RowMenu({
 	);
 }
 
-const KINDS = ["form", "page", "link", "event"] as const;
+const KINDS: readonly { kind: Definition["kind"]; icon: LucideIcon }[] = [
+	{ kind: "form", icon: ClipboardListIcon },
+	{ kind: "page", icon: FileTextIcon },
+	{ kind: "link", icon: LinkIcon },
+	{ kind: "event", icon: ZapIcon },
+];
 const LINK_KINDS = ["outbound", "download", "tel", "mailto"] as const;
 
-function GoalDialog({
+/**
+ * "What counts": the four kinds of Goal as cards, one chosen. They are a radio group: the arrow keys
+ * move between them, and the chosen one shows its check and an outline in the accent.
+ */
+function KindCards({
+	id,
+	value,
+	onChange,
+}: {
+	id: string;
+	value: Definition["kind"];
+	onChange: (kind: Definition["kind"]) => void;
+}) {
+	const t = useT();
+	return (
+		<FieldSet className="gap-2">
+			<FieldLegend variant="label" className="mb-0">
+				{t("analyticsGoals.kind")}
+			</FieldLegend>
+			{KINDS.map(({ kind, icon: Icon }) => {
+				const chosen = kind === value;
+				return (
+					<label
+						key={kind}
+						htmlFor={`${id}-${kind}`}
+						data-chosen={chosen ? "true" : undefined}
+						className={cn(
+							"flex h-12 cursor-pointer items-center gap-2.5 rounded-[10px] border px-3.5 text-sm transition-colors duration-150 ease-in-out",
+							"has-[:focus-visible]:ring-ring/50 has-[:focus-visible]:ring-3",
+							chosen ? "bg-accent border-primary outline-primary font-medium outline outline-1" : "hover:bg-muted/60",
+						)}
+					>
+						<input
+							type="radio"
+							id={`${id}-${kind}`}
+							name={`${id}-kind`}
+							value={kind}
+							checked={chosen}
+							onChange={() => onChange(kind)}
+							className="sr-only"
+						/>
+						<Icon
+							aria-hidden="true"
+							className={cn("size-4 shrink-0", chosen ? "text-primary" : "text-muted-foreground")}
+						/>
+						<span className="min-w-0 flex-1 truncate">{t(`analyticsGoals.kinds.${kind}`)}</span>
+						{chosen ? <CheckIcon aria-hidden="true" className="text-primary size-4 shrink-0" /> : null}
+					</label>
+				);
+			})}
+		</FieldSet>
+	);
+}
+
+/** Add Goal, or a Goal changed: its name, what counts (four cards), then that kind's one or two fields. */
+function GoalSheet({
 	siteId,
 	goal,
 	forms,
@@ -263,7 +412,7 @@ function GoalDialog({
 	const id = useId();
 	const start = goal?.definition;
 	const [name, setName] = useState(goal?.name ?? "");
-	const [kind, setKind] = useState<Definition["kind"]>(start?.kind ?? "page");
+	const [kind, setKind] = useState<Definition["kind"]>(start?.kind ?? (forms.length > 0 ? "form" : "page"));
 	const [formId, setFormId] = useState(start?.kind === "form" ? start.formId : (forms[0]?.id ?? ""));
 	const [path, setPath] = useState(start?.kind === "page" ? start.path : "/");
 	const [match, setMatch] = useState<"exact" | "prefix">(start?.kind === "page" ? start.match : "exact");
@@ -305,151 +454,153 @@ function GoalDialog({
 			setBusy(false);
 		}
 	};
+	const detailInvalid = problem?.field === "detail" ? true : undefined;
 	return (
-		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent closeLabel={t("analyticsGoals.close")} finalFocus={finalFocus} className="sm:max-w-xl">
-				<form onSubmit={save} noValidate>
-					<DialogHeader>
-						<DialogTitle>
-							{goal ? t("analyticsGoals.editGoalTitle", { name: goal.name }) : t("analyticsGoals.addGoalTitle")}
-						</DialogTitle>
-						<DialogDescription>{t("analyticsGoals.goalDialogIntro")}</DialogDescription>
-					</DialogHeader>
-					<FieldGroup className="my-6 gap-5">
-						<Field data-invalid={problem?.field === "name" ? true : undefined}>
-							<FieldLabel htmlFor={`${id}-name`}>{t("analyticsGoals.name")}</FieldLabel>
-							<Input
-								id={`${id}-name`}
-								value={name}
-								maxLength={100}
-								required
-								autoFocus
-								onChange={(change) => setName(change.target.value)}
-								aria-invalid={problem?.field === "name" ? true : undefined}
-								aria-describedby={problem?.field === "name" ? `${id}-name-error` : undefined}
-							/>
-							{problem?.field === "name" ? <FieldError id={`${id}-name-error`}>{t(problem.message)}</FieldError> : null}
-						</Field>
-						<FieldSet>
-							<FieldLegend variant="label">{t("analyticsGoals.kind")}</FieldLegend>
-							<RadioGroup value={kind} onValueChange={(value) => setKind(value as Definition["kind"])}>
-								{KINDS.map((each) => (
-									<Field key={each} orientation="horizontal">
-										<RadioGroupItem value={each} id={`${id}-${each}`} />
-										<FieldLabel htmlFor={`${id}-${each}`} className="font-normal">
-											{t(`analyticsGoals.kinds.${each}`)}
-										</FieldLabel>
-									</Field>
-								))}
-							</RadioGroup>
-						</FieldSet>
-						{kind === "form" ? (
-							forms.length === 0 ? (
-								<p className="text-muted-foreground text-sm">{t("analyticsGoals.noForms")}</p>
-							) : (
-								<Field>
-									<FieldLabel htmlFor={`${id}-form`}>{t("analyticsGoals.form")}</FieldLabel>
-									<NativeSelect id={`${id}-form`} value={formId} onChange={(change) => setFormId(change.target.value)}>
-										{forms.map((form) => (
-											<NativeSelectOption key={form.id} value={form.id}>
-												{form.name}
-											</NativeSelectOption>
-										))}
-									</NativeSelect>
-									<FieldDescription>{t("analyticsGoals.formHelp")}</FieldDescription>
-								</Field>
-							)
-						) : null}
-						{kind === "page" ? (
-							<div className="grid gap-4 sm:grid-cols-2">
-								<Field>
-									<FieldLabel htmlFor={`${id}-path`}>{t("analyticsGoals.path")}</FieldLabel>
-									<Input
-										id={`${id}-path`}
-										value={path}
-										maxLength={1000}
-										className="font-mono"
-										spellCheck={false}
-										onChange={(change) => setPath(change.target.value)}
-									/>
-								</Field>
-								<Field>
-									<FieldLabel htmlFor={`${id}-match`}>{t("analyticsGoals.match")}</FieldLabel>
-									<NativeSelect
-										id={`${id}-match`}
-										value={match}
-										onChange={(change) => setMatch(change.target.value === "prefix" ? "prefix" : "exact")}
-									>
-										<NativeSelectOption value="exact">{t("analyticsGoals.matchExact")}</NativeSelectOption>
-										<NativeSelectOption value="prefix">{t("analyticsGoals.matchPrefix")}</NativeSelectOption>
-									</NativeSelect>
-								</Field>
-							</div>
-						) : null}
-						{kind === "link" ? (
-							<div className="grid gap-4">
-								<Field>
-									<FieldLabel htmlFor={`${id}-link`}>{t("analyticsGoals.link")}</FieldLabel>
-									<NativeSelect
-										id={`${id}-link`}
-										value={link}
-										onChange={(change) => setLink(change.target.value as (typeof LINK_KINDS)[number])}
-									>
-										{LINK_KINDS.map((each) => (
-											<NativeSelectOption key={each} value={each}>
-												{t(`analyticsGoals.linkKinds.${each}`)}
-											</NativeSelectOption>
-										))}
-									</NativeSelect>
-								</Field>
-								<Field>
-									<FieldLabel htmlFor={`${id}-target`}>{t("analyticsGoals.target")}</FieldLabel>
-									<Input
-										id={`${id}-target`}
-										value={target}
-										maxLength={1000}
-										className="font-mono"
-										spellCheck={false}
-										placeholder="*.pdf"
-										onChange={(change) => setTarget(change.target.value)}
-										aria-describedby={`${id}-target-help`}
-									/>
-									<FieldDescription id={`${id}-target-help`}>{t("analyticsGoals.targetHelp")}</FieldDescription>
-								</Field>
-							</div>
-						) : null}
-						{kind === "event" ? (
-							<Field>
-								<FieldLabel htmlFor={`${id}-event`}>{t("analyticsGoals.event")}</FieldLabel>
+		<PageSheet
+			open
+			onOpenChange={(open) => !open && onClose()}
+			title={goal ? t("analyticsGoals.editGoalTitle", { name: goal.name }) : t("analyticsGoals.addGoal")}
+			description={goal ? t("analyticsGoals.goalDialogIntro") : undefined}
+			finalFocus={finalFocus}
+			className="data-[side=right]:sm:max-w-95"
+			footer={
+				<>
+					<Button type="button" variant="outline" onClick={onClose}>
+						{t("analyticsGoals.cancel")}
+					</Button>
+					<Button type="submit" form={`${id}-form`} disabled={busy}>
+						{goal ? t("analyticsGoals.save") : t("analyticsGoals.addGoal")}
+					</Button>
+				</>
+			}
+		>
+			<form id={`${id}-form`} onSubmit={save} noValidate>
+				<FieldGroup className="gap-5">
+					<Field data-invalid={problem?.field === "name" ? true : undefined}>
+						<FieldLabel htmlFor={`${id}-name`}>{t("analyticsGoals.name")}</FieldLabel>
+						<Input
+							id={`${id}-name`}
+							value={name}
+							maxLength={100}
+							required
+							autoFocus
+							onChange={(change) => setName(change.target.value)}
+							aria-invalid={problem?.field === "name" ? true : undefined}
+							aria-describedby={problem?.field === "name" ? `${id}-name-error` : undefined}
+						/>
+						{problem?.field === "name" ? <FieldError id={`${id}-name-error`}>{t(problem.message)}</FieldError> : null}
+					</Field>
+					<KindCards id={id} value={kind} onChange={setKind} />
+					{kind === "form" ? (
+						forms.length === 0 ? (
+							<p className="text-muted-foreground text-sm">{t("analyticsGoals.noForms")}</p>
+						) : (
+							<Field data-invalid={detailInvalid}>
+								<FieldLabel htmlFor={`${id}-form`}>{t("analyticsGoals.form")}</FieldLabel>
+								<NativeSelect
+									id={`${id}-form`}
+									className="w-full"
+									value={formId}
+									onChange={(change) => setFormId(change.target.value)}
+									aria-describedby={`${id}-form-help`}
+								>
+									{forms.map((form) => (
+										<NativeSelectOption key={form.id} value={form.id}>
+											{form.name}
+										</NativeSelectOption>
+									))}
+								</NativeSelect>
+								<FieldDescription id={`${id}-form-help`}>{t("analyticsGoals.formHelp")}</FieldDescription>
+							</Field>
+						)
+					) : null}
+					{kind === "page" ? (
+						<>
+							<Field data-invalid={detailInvalid}>
+								<FieldLabel htmlFor={`${id}-path`}>{t("analyticsGoals.path")}</FieldLabel>
 								<Input
-									id={`${id}-event`}
-									value={event}
-									maxLength={100}
+									id={`${id}-path`}
+									value={path}
+									maxLength={1000}
 									className="font-mono"
 									spellCheck={false}
-									onChange={(change) => setEvent(change.target.value)}
-									aria-describedby={`${id}-event-help`}
+									onChange={(change) => setPath(change.target.value)}
+									aria-invalid={detailInvalid}
 								/>
-								<FieldDescription id={`${id}-event-help`}>{t("analyticsGoals.eventHelp")}</FieldDescription>
 							</Field>
-						) : null}
-						{problem && problem.field !== "name" ? <FieldError>{t(problem.message)}</FieldError> : null}
-					</FieldGroup>
-					<DialogFooter>
-						<DialogClose render={<Button variant="outline" type="button" />}>{t("analyticsGoals.cancel")}</DialogClose>
-						<Button type="submit" disabled={busy}>
-							{t("analyticsGoals.save")}
-						</Button>
-					</DialogFooter>
-				</form>
-			</DialogContent>
-		</Dialog>
+							<Field>
+								<FieldLabel htmlFor={`${id}-match`}>{t("analyticsGoals.match")}</FieldLabel>
+								<NativeSelect
+									id={`${id}-match`}
+									className="w-full"
+									value={match}
+									onChange={(change) => setMatch(change.target.value === "prefix" ? "prefix" : "exact")}
+								>
+									<NativeSelectOption value="exact">{t("analyticsGoals.matchExact")}</NativeSelectOption>
+									<NativeSelectOption value="prefix">{t("analyticsGoals.matchPrefix")}</NativeSelectOption>
+								</NativeSelect>
+							</Field>
+						</>
+					) : null}
+					{kind === "link" ? (
+						<>
+							<Field>
+								<FieldLabel htmlFor={`${id}-link`}>{t("analyticsGoals.link")}</FieldLabel>
+								<NativeSelect
+									id={`${id}-link`}
+									className="w-full"
+									value={link}
+									onChange={(change) => setLink(change.target.value as (typeof LINK_KINDS)[number])}
+								>
+									{LINK_KINDS.map((each) => (
+										<NativeSelectOption key={each} value={each}>
+											{t(`analyticsGoals.linkKinds.${each}`)}
+										</NativeSelectOption>
+									))}
+								</NativeSelect>
+							</Field>
+							<Field>
+								<FieldLabel htmlFor={`${id}-target`}>{t("analyticsGoals.target")}</FieldLabel>
+								<Input
+									id={`${id}-target`}
+									value={target}
+									maxLength={1000}
+									className="font-mono"
+									spellCheck={false}
+									placeholder="*.pdf"
+									onChange={(change) => setTarget(change.target.value)}
+									aria-describedby={`${id}-target-help`}
+								/>
+								<FieldDescription id={`${id}-target-help`}>{t("analyticsGoals.targetHelp")}</FieldDescription>
+							</Field>
+						</>
+					) : null}
+					{kind === "event" ? (
+						<Field data-invalid={detailInvalid}>
+							<FieldLabel htmlFor={`${id}-event`}>{t("analyticsGoals.event")}</FieldLabel>
+							<Input
+								id={`${id}-event`}
+								value={event}
+								maxLength={100}
+								className="font-mono"
+								spellCheck={false}
+								onChange={(change) => setEvent(change.target.value)}
+								aria-invalid={detailInvalid}
+								aria-describedby={`${id}-event-help`}
+							/>
+							<FieldDescription id={`${id}-event-help`}>{t("analyticsGoals.eventHelp")}</FieldDescription>
+						</Field>
+					) : null}
+					{problem && problem.field !== "name" ? <FieldError>{t(problem.message)}</FieldError> : null}
+				</FieldGroup>
+			</form>
+		</PageSheet>
 	);
 }
 
 /**
  * Deleting Structure takes two steps: the dialog first asks what would go (and whether it may go at
- * all), then deletes with the confirmation it was given.
+ * all), then deletes with the confirmation it was given. It names the thing, and focus starts on Cancel.
  */
 export function DeleteDialog({
 	name,
@@ -467,6 +618,7 @@ export function DeleteDialog({
 }) {
 	const t = useT();
 	const router = useRouter();
+	const cancel = useRef<HTMLButtonElement>(null);
 	const [confirmation, setConfirmation] = useState<string | null>(null);
 	const [refused, setRefused] = useState<MessageKey | null>(null);
 	const [busy, setBusy] = useState(false);
@@ -497,18 +649,45 @@ export function DeleteDialog({
 	};
 	return (
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
-			<DialogContent closeLabel={t("analyticsGoals.close")} finalFocus={finalFocus}>
+			<DialogContent closeLabel={t("analyticsGoals.close")} initialFocus={cancel} finalFocus={finalFocus}>
 				<DialogHeader>
 					<DialogTitle>{words.title}</DialogTitle>
 					<DialogDescription>{refused ? t(refused, { name }) : words.intro}</DialogDescription>
 				</DialogHeader>
 				<DialogFooter>
-					<DialogClose render={<Button variant="outline" />}>{t("analyticsGoals.cancel")}</DialogClose>
+					<DialogClose ref={cancel} render={<Button variant="outline" />}>
+						{t("analyticsGoals.cancel")}
+					</DialogClose>
 					<Button variant="destructive" onClick={remove} disabled={busy || !confirmation || refused !== null}>
 						{t("analyticsGoals.delete")}
 					</Button>
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>
+	);
+}
+
+/**
+ * Where a Goal is used, in a few words ("2 Widgets, 1 Funnel", "Not used yet"), and every place by
+ * name in its title: the Dashboards and templates holding its Widgets, and its Funnels.
+ */
+function UsageCell({ usage }: { usage: GoalUsage | undefined }) {
+	const t = useT();
+	const widgets = usage?.widgets ?? [];
+	const templates = usage?.templates ?? [];
+	const funnels = usage?.funnels ?? [];
+	const words = [
+		widgets.length > 0 ? t("analyticsGoals.usedWidgets", { count: widgets.length }) : null,
+		templates.length > 0 ? t("analyticsGoals.usedTemplates", { count: templates.length }) : null,
+		funnels.length > 0 ? t("analyticsGoals.usedFunnels", { count: funnels.length }) : null,
+	].filter((each): each is string => each !== null);
+	const places = [
+		...new Set([...widgets, ...templates].map((use) => use.on.name)),
+		...funnels.map((funnel) => funnel.name),
+	];
+	return (
+		<TableCell className={cn(cellClass, "text-muted-foreground truncate")} title={places.join(", ") || undefined}>
+			{words.length > 0 ? words.join(", ") : t("analyticsGoals.notUsed")}
+		</TableCell>
 	);
 }

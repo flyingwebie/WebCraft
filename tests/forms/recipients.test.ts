@@ -88,7 +88,7 @@ async function logged(siteId: string, action: string) {
 beforeAll(async () => {
 	install = await createTestInstall();
 	superadmin = await install.superadmin();
-	await superadmin.api.modules.approve({ moduleId: "forms", version: "1.2.0" });
+	await superadmin.api.modules.approve({ moduleId: "forms", version: "1.4.0" });
 	await superadmin.api.install.smtp.update({
 		host: "smtp.agency.example",
 		port: 587,

@@ -16,7 +16,14 @@ import {
 	type PasswordCheck,
 	verifyPassword,
 } from "./passwords.ts";
-import { createPerson, type NewPerson, normaliseEmail, PASSWORD_PROVIDER } from "./people.ts";
+import {
+	createPerson,
+	type NewPassword,
+	type NewPerson,
+	newPassword,
+	normaliseEmail,
+	PASSWORD_PROVIDER,
+} from "./people.ts";
 import { SignInExpiredError, TwoFactorCodeInvalidError } from "./two-factor/errors.ts";
 import { createPasskeyStore } from "./two-factor/passkeys.ts";
 import { base64url, createPendingSignIns } from "./two-factor/pending.ts";
@@ -236,6 +243,12 @@ export type Auth = {
 	 * kept, for when they are reactivated.
 	 */
 	setDeactivated(tx: Database["db"] | Transaction, personId: string, at: Date | null): Promise<void>;
+	/**
+	 * Checks a new person's password against the password rules and hashes it, for `createPerson`.
+	 * Call it before the transaction: the leaked-password check reads Install settings and may call
+	 * out, which must never wait inside a transaction for a connection of its own.
+	 */
+	newPassword(password: string): Promise<NewPassword>;
 	/** Creates a person who signs in with an email and password, inside the caller's transaction. */
 	createPerson(tx: Transaction, person: NewPerson): Promise<{ personId: string }>;
 
@@ -384,6 +397,7 @@ export function createAuth(options: AuthOptions): Auth {
 	 */
 	const sessionStarted = async (personId: string, token: string, clientAddress: string | null) => {
 		await database.db.update(sessions).set({ ipAddress: clientAddress }).where(eq(sessions.token, token));
+		await database.db.update(people).set({ lastSignedInAt: clock.now() }).where(eq(people.id, personId));
 		await lockout.signedIn(personId, await options.networkOf(clientAddress));
 	};
 	const startSession = async (personId: string, { headers, clientAddress }: AuthRequest) => {
@@ -657,8 +671,10 @@ export function createAuth(options: AuthOptions): Auth {
 			if (at) await tx.delete(passwordResets).where(eq(passwordResets.personId, personId));
 		},
 
+		newPassword: (password) => newPassword(password, options.passwordChecks),
+
 		createPerson(tx, person) {
-			return createPerson(tx, person, { now: clock.now(), passwordChecks: options.passwordChecks });
+			return createPerson(tx, person, { now: clock.now() });
 		},
 
 		secondFactors: (personId) => factors.summary(personId),

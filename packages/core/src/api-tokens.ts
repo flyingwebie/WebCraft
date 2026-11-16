@@ -107,10 +107,15 @@ export type NewApiToken = {
 /**
  * What an API client (an API token, or an AI client's OAuth grant) may do beyond its person's
  * Permissions: only read, the Toolsets switched on, and whether it may publish.
+ *
+ * `editSession` is an Edit mode session calling the Management API on its Site's own address for
+ * the building area (ADR 0037, `createBuildingAreaApi` in `@webcraft/api`): limited by the named list
+ * of procedures served there and by its actor's pin to the Site (`EditSessionActor`), not by
+ * Toolsets, which it has none of, so `clientRefusal` refuses it everything at `/api/v1`.
  */
 export type ApiClientLimits = {
-	kind: "token" | "grant";
-	/** The token's or grant's id. */
+	kind: "token" | "grant" | "editSession";
+	/** The token's or grant's id, or the Edit mode session's. */
 	id: string;
 	/** The token's name, or the AI client's: how the Audit log names it. */
 	name: string;

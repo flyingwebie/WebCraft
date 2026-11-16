@@ -2,12 +2,11 @@ import { useNavigate, useRouter } from "@tanstack/react-router";
 import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button } from "@webcraft/ui/components/button.tsx";
 import { CircleAlertIcon, EyeIcon, UploadIcon } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useAfterRender } from "../after-render.ts";
 import { getApi } from "../api.ts";
-import { useAutosave } from "../content/autosave.ts";
 import { SaveStatusText, StatusBadge } from "../content/DraftParts.tsx";
 import { errorMessage } from "../errors.ts";
 import { HistoryLink } from "../history/HistoryLink.tsx";
@@ -15,15 +14,12 @@ import { useT } from "../i18n.tsx";
 import { Tabs } from "../Tabs.tsx";
 import { ClassesTab } from "./ClassesTab.tsx";
 import { BaseStylesTab, CustomCssTab } from "./CssTabs.tsx";
+import { type Editing, useDesignSystemEditing } from "./editing.ts";
 import { ExportMenu, ImportDialog } from "./ImportExport.tsx";
 import {
-	type Change,
-	type ClassPatch,
-	type ColourMode,
 	type DesignSystemView,
 	type Draft,
 	type EditableClass,
-	mergeChanges,
 	type Preview,
 	type Problem,
 	problemsOf,
@@ -32,22 +28,7 @@ import { TokensTab } from "./TokensTab.tsx";
 
 export type DesignSystemTab = "tokens" | "classes" | "base" | "css";
 
-/** What every tab of the screen edits with: the Draft as it is now, its preview and how to change it. */
-export type Editing = {
-	siteId: string;
-	draft: Draft;
-	preview: Preview;
-	mode: ColourMode;
-	setMode(mode: ColourMode): void;
-	/** Replaces a section of the Draft; saved a moment later. */
-	setSection<Key extends "tokens" | "baseStyles" | "customCss" | "darkMode">(key: Key, value: Draft[Key]): void;
-	/** Changes a Class; saved a moment later. */
-	changeClass(classId: string, patch: ClassPatch): void;
-	/** Saves what is waiting, then runs a change the server must answer at once (adding or removing). */
-	now<Result>(work: () => Promise<Result>): Promise<Result | undefined>;
-	/** The Draft as the server answered after such a change. */
-	replaceDraft(draft: Draft): void;
-};
+export type { Editing };
 
 /**
  * Site › Design system (ADR 0009, spec stories 63 to 70): the Site's Design tokens, Classes, base
@@ -74,11 +55,6 @@ export function DesignSystemScreen({
 	const navigate = useNavigate();
 	const afterRender = useAfterRender();
 	const alert = useRef<HTMLDivElement>(null);
-	const [view, setView] = useState(designSystem);
-	const [draft, setDraft] = useState(designSystem.draft);
-	const [preview, setPreview] = useState(firstPreview);
-	const [previewProblems, setPreviewProblems] = useState<Problem[]>([]);
-	const [mode, setMode] = useState<ColourMode>("light");
 	const [failure, setFailure] = useState<{ message: string; problems: Problem[] } | null>(null);
 	const [publishing, setPublishing] = useState(false);
 	const [opening, setOpening] = useState(false);
@@ -91,89 +67,21 @@ export function DesignSystemScreen({
 		[t, afterRender],
 	);
 
-	const autosave = useAutosave<Change>({
-		merge: mergeChanges,
-		save: async (change) => {
-			const api = await getApi();
-			const sections = change.sections ?? {};
-			if (Object.keys(sections).length > 0) {
-				const saved = await api.designSystem.saveDraft({ siteId, ...sections });
-				setView(saved.designSystem);
-			}
-			for (const [id, patch] of Object.entries(change.classes ?? {})) {
-				const saved = await api.designSystem.updateClass({ siteId, classId: id, ...patch });
-				setView(saved.designSystem);
-			}
-		},
-		onSaved: () => setFailure(null),
-		onFailed: showFailure,
-	});
-
-	// The preview follows the Draft as it is on screen, a moment after it stops changing.
-	const shown = JSON.stringify({
-		tokens: draft.tokens,
-		classes: draft.classes.map(({ id, name, styles, breakpoints, css }) => ({ id, name, styles, breakpoints, css })),
-		baseStyles: draft.baseStyles,
-		customCss: draft.customCss,
-		darkMode: draft.darkMode,
-	});
-	useEffect(() => {
-		let current = true;
-		const timer = setTimeout(async () => {
-			try {
-				const api = await getApi();
-				const answered = await api.designSystem.preview({ siteId, ...JSON.parse(shown) });
-				if (!current) return;
-				setPreview(answered.preview);
-				setPreviewProblems([]);
-			} catch (error) {
-				if (current) setPreviewProblems(problemsOf(error));
-			}
-		}, 300);
-		return () => {
-			current = false;
-			clearTimeout(timer);
-		};
-	}, [siteId, shown]);
-
-	const editing: Editing = {
+	// The admin's own Management API client: the same editing the building area's Styles place does with its own.
+	const { editing, view, setView, replaceAll, status, flush, previewProblems } = useDesignSystemEditing({
 		siteId,
-		draft,
-		preview,
-		mode,
-		setMode,
-		setSection: (key, value) => {
-			setDraft((before) => ({ ...before, [key]: value }));
-			autosave.change({ sections: { [key]: value } });
-		},
-		changeClass: (classId, patch) => {
-			setDraft((before) => ({
-				...before,
-				classes: before.classes.map((each) => (each.id === classId ? { ...each, ...patch } : each)),
-			}));
-			autosave.change({ classes: { [classId]: patch } });
-		},
-		now: async (work) => {
-			if (!(await autosave.flush())) return undefined;
-			try {
-				const result = await work();
-				setFailure(null);
-				return result;
-			} catch (error) {
-				showFailure(error);
-				return undefined;
-			}
-		},
-		replaceDraft: (next) => {
-			setDraft(next);
-			setView((before) => ({ ...before, draft: next }));
-		},
-	};
+		api: getApi,
+		designSystem,
+		preview: firstPreview,
+		onFailure: showFailure,
+		onSaved: () => setFailure(null),
+	});
+	const { draft } = editing;
 
 	const publish = async () => {
 		setPublishing(true);
 		try {
-			if (!(await autosave.flush())) return;
+			if (!(await flush())) return;
 			const api = await getApi();
 			await api.designSystem.publish({ siteId });
 			const { designSystem: after } = await api.designSystem.get({ siteId });
@@ -188,23 +96,25 @@ export function DesignSystemScreen({
 		}
 	};
 
-	// Edit mode shows the Site's pages with the Design system's Draft.
+	// The building area shows the Site's pages with the Design system's Draft; its logo tile comes back here.
 	const previewInEditMode = async () => {
 		setOpening(true);
 		try {
-			if (!(await autosave.flush())) return;
-			const api = await getApi();
-			const { url } = await api.editMode.open({ siteId, path: "/", safeMode: false });
-			window.location.assign(url);
+			if (!(await flush())) return;
+			await navigate({
+				to: "/sites/$siteId/build",
+				params: { siteId },
+				search: { open: "/page/", returnTo: `${window.location.pathname}${window.location.search}` },
+			});
 		} catch (error) {
 			showFailure(error);
+		} finally {
 			setOpening(false);
 		}
 	};
 
 	const imported = (designSystem: DesignSystemView) => {
-		setView(designSystem);
-		setDraft(designSystem.draft);
+		replaceAll(designSystem);
 		setFailure(null);
 		void router.invalidate();
 	};
@@ -248,14 +158,14 @@ export function DesignSystemScreen({
 						<StatusBadge status={view.status} />
 						<Badge variant="outline">{t("postTypes.staffOnly")}</Badge>
 						<span className="text-muted-foreground text-sm">
-							<SaveStatusText status={autosave.status} savedAt={view.updatedAt} />
+							<SaveStatusText status={status} savedAt={view.updatedAt} />
 						</span>
 					</div>
 					<p className="text-muted-foreground text-sm">{t("designSystem.intro")}</p>
 				</div>
 				<div className="flex flex-wrap gap-2">
-					<ImportDialog siteId={siteId} beforeImport={autosave.flush} onImported={imported} />
-					<ExportMenu siteId={siteId} beforeExport={autosave.flush} />
+					<ImportDialog siteId={siteId} api={getApi} beforeImport={flush} onImported={imported} />
+					<ExportMenu siteId={siteId} api={getApi} beforeExport={flush} />
 					<Button type="button" variant="outline" disabled={opening} onClick={previewInEditMode}>
 						<EyeIcon aria-hidden="true" />
 						{t("designSystem.previewInEditMode")}

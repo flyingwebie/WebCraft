@@ -52,6 +52,10 @@ services:
   web:
     image: ghcr.io/flyingwebie/webcraft-web:${WEBCRAFT_VERSION:-main}
     restart: unless-stopped
+    # The port Coolify's proxy routes to. Declared here as well as in SERVICE_FQDN_WEB_3000: some
+    # Coolify versions drop the port saved on a domain at each deploy and fall back to this one.
+    expose:
+      - "3000"
     environment:
       # Coolify routes the web service's domains to port 3000; the first one must be WEBCRAFT_ADMIN_HOST.
       SERVICE_FQDN_WEB_3000:

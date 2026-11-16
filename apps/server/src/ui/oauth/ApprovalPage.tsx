@@ -11,11 +11,12 @@ import {
 	FieldSet,
 } from "@webcraft/ui/components/field.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
-import { BotIcon, TriangleAlertIcon } from "lucide-react";
+import { TriangleAlertIcon } from "lucide-react";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
 
 import { ToolsetChoice } from "../account/ToolsetChoice.tsx";
 import { getApi } from "../api.ts";
+import { AuthHeading, AuthLead, AuthPage } from "../auth/AuthPage.tsx";
 import { errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
 import { useSensitiveAction } from "../identity-check.tsx";
@@ -32,18 +33,14 @@ export type ApprovalData = Awaited<ReturnType<ApiClient["oauth"]["check"]>> & { 
 export function ApprovalPage({ data, person }: { data: ApprovalData; person: { name: string } }) {
 	const t = useT();
 	return (
-		<main
-			id="main"
-			tabIndex={-1}
-			className="bg-muted flex min-h-svh items-start justify-center p-4 outline-none sm:p-8"
-		>
-			<div className="bg-card text-card-foreground w-full max-w-xl rounded-xl border p-6 shadow-sm sm:p-8">
-				{data.check.kind === "ask" ? (
-					<ApprovalForm data={data} request={data.check.request} person={person} />
-				) : (
-					<>
-						<h1 className="mb-3 text-2xl font-semibold tracking-tight">{t("oauth.refusedHeading")}</h1>
-						<p className="text-muted-foreground mb-6 text-sm">
+		<AuthPage width="wide">
+			{data.check.kind === "ask" ? (
+				<ApprovalForm data={data} request={data.check.request} person={person} />
+			) : (
+				<>
+					<div className="grid gap-1.5">
+						<AuthHeading>{t("oauth.refusedHeading")}</AuthHeading>
+						<AuthLead>
 							{data.check.problem === "request"
 								? t("oauth.refusedRequest", {
 										client: data.check.client.name,
@@ -52,22 +49,22 @@ export function ApprovalPage({ data, person }: { data: ApprovalData; person: { n
 								: data.check.problem === "redirectUri"
 									? t("oauth.refusedRedirect")
 									: t("oauth.refusedClient")}
-						</p>
-						<div className="flex flex-wrap gap-2">
-							<Link to="/" className={buttonVariants({ variant: "outline" })}>
-								{t("oauth.toAdmin")}
-							</Link>
-							{data.check.problem === "request" ? (
-								// Only a click goes there: the address is the app's own, and anyone may register one.
-								<a href={data.check.returnTo} rel="noreferrer" className={buttonVariants({ variant: "ghost" })}>
-									{t("oauth.backToClient", { host: data.check.client.redirectHost })}
-								</a>
-							) : null}
-						</div>
-					</>
-				)}
-			</div>
-		</main>
+						</AuthLead>
+					</div>
+					<div className="flex flex-wrap gap-2">
+						<Link to="/" className={buttonVariants({ variant: "outline" })}>
+							{t("oauth.toAdmin")}
+						</Link>
+						{data.check.problem === "request" ? (
+							// Only a click goes there: the address is the app's own, and anyone may register one.
+							<a href={data.check.returnTo} rel="noreferrer" className={buttonVariants({ variant: "ghost" })}>
+								{t("oauth.backToClient", { host: data.check.client.redirectHost })}
+							</a>
+						) : null}
+					</div>
+				</>
+			)}
+		</AuthPage>
 	);
 }
 
@@ -199,30 +196,31 @@ export function ApprovalChoices({
 	if (data.workspaces.length === 0) {
 		return (
 			<>
-				<h1 className="mb-3 text-2xl font-semibold tracking-tight">{heading}</h1>
-				<p className="text-muted-foreground mb-6 text-sm">{t("oauth.noWorkspaces")}</p>
-				<Button variant="outline" onClick={deny} disabled={busy}>
-					{t("oauth.deny")}
-				</Button>
+				<div className="grid gap-1.5">
+					<AuthHeading>{heading}</AuthHeading>
+					<AuthLead>{t("oauth.noWorkspaces")}</AuthLead>
+				</div>
+				<div>
+					<Button variant="outline" onClick={deny} disabled={busy}>
+						{t("oauth.deny")}
+					</Button>
+				</div>
 			</>
 		);
 	}
 
 	return (
 		<form onSubmit={approve} noValidate>
-			<div className="mb-6 flex items-start gap-3">
-				<BotIcon aria-hidden="true" className="text-muted-foreground mt-1 size-6 shrink-0" />
-				<div className="grid gap-1">
-					<h1 className="text-2xl font-semibold tracking-tight">{heading}</h1>
-					<p className="text-muted-foreground text-sm">{intro}</p>
-				</div>
+			<div className="mb-5 grid gap-1.5">
+				<AuthHeading>{heading}</AuthHeading>
+				<AuthLead>{intro}</AuthLead>
 			</div>
-			<dl className="bg-muted/50 mb-6 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-lg border p-3 text-sm">
+			<dl className="bg-muted/50 mb-5 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 rounded-lg border p-3 text-sm">
 				{details}
 			</dl>
 			{warning ? (
-				<p className="border-destructive/40 bg-destructive/5 mb-6 flex gap-2 rounded-md border p-3 text-sm">
-					<TriangleAlertIcon aria-hidden="true" className="text-destructive size-5 shrink-0" />
+				<p className="mb-5 flex gap-2 rounded-lg bg-amber-500/15 p-3 text-[13px] text-amber-900 dark:bg-amber-400/15 dark:text-amber-200">
+					<TriangleAlertIcon aria-hidden="true" className="mt-px size-4 shrink-0" />
 					{warning}
 				</p>
 			) : null}

@@ -111,6 +111,9 @@ function breakdownWidget(options: {
 
 const pageviews = { measure: "pageviews" as const, label: MEASURE_LABELS.pageviews };
 
+/** How many Forms a Site's Submissions are counted over, by Form: more than any Site has. */
+const FORMS_COUNTED = 1_000;
+
 export const siteAnalyticsWidgets: readonly ModuleWidget[] = [
 	widget({
 		kind: "totals",
@@ -133,12 +136,15 @@ export const siteAnalyticsWidgets: readonly ModuleWidget[] = [
 		async query(request, context) {
 			const filters = filtersOf(request);
 			const found = await totals(context, request.range, filters);
+			// Each measure hour by hour or day by day, for the small trend beside it.
+			const points = await series(context, request.range, request.interval, filters);
 			return {
 				shape: "number",
 				values: chosenMeasures(request, MEASURES).map((measure) => ({
 					key: measure,
 					label: MEASURE_LABELS[measure],
 					count: found[measure],
+					points: points.map((point) => point[measure]),
 				})),
 				countedFrom: await countedFrom(context, request, filters !== undefined),
 			};
@@ -384,6 +390,48 @@ export const siteAnalyticsWidgets: readonly ModuleWidget[] = [
 				shape: "funnel",
 				steps: funnel.steps.map((step, index) => ({ label: step.label, count: reached[index] ?? 0 })),
 				countedFrom: await countedFrom(context, request, true),
+			};
+		},
+	}),
+	widget({
+		kind: "by-site",
+		label: { en: "By Site", it: "Per sito" },
+		description: {
+			en: "Each Site's visitors, their change on the period before, and its Form Submissions.",
+			it: "I visitatori di ogni sito, la variazione sul periodo precedente e gli invii dei suoi Form.",
+		},
+		shape: "table",
+		// It lists each Site: a Workspace's Dashboard adds up one row from each.
+		workspaceOnly: true,
+		async query(request, context) {
+			const { from, to } = request.range;
+			const before = { from: new Date(from.getTime() - (to.getTime() - from.getTime())), to: from };
+			const [now, then, forms] = await Promise.all([
+				totals(context, request.range),
+				totals(context, before),
+				breakdown(context, request.range, "form", FORMS_COUNTED),
+			]);
+			const siteId = context.place.level === "site" ? context.place.siteId : "";
+			return {
+				shape: "table",
+				columns: [
+					{ key: "site", label: { en: "Site", it: "Sito" }, kind: "site" },
+					{ key: "visitors", label: MEASURE_LABELS.visitors, kind: "count" },
+					{ key: "change", label: { en: "Change", it: "Variazione" }, kind: "change" },
+					{ key: "submissions", label: { en: "Submissions", it: "Invii" }, kind: "count" },
+				],
+				rows: [
+					{
+						key: siteId,
+						cells: {
+							site: siteId,
+							visitors: now.visitors,
+							change: { count: now.visitors, of: then.visitors },
+							submissions: forms.reduce((sum, form) => sum + form.events, 0),
+						},
+					},
+				],
+				countedFrom: await countedFrom(context, request, false),
 			};
 		},
 	}),

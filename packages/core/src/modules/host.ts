@@ -215,6 +215,14 @@ export type ModuleHost = {
 	 * only then.
 	 */
 	maySeeSubmissions(scope: SiteScope): Promise<boolean>;
+	/**
+	 * How many Submissions in the Site's inbox nobody has opened yet, by Form id, as the Module keeping
+	 * them counts them (`unread`, SDK 1.14); Forms with none are left out. Only for people who may read
+	 * them (`maySeeSubmissions`): null for anyone else, where no such Module runs or it counts none,
+	 * and when it fails or takes longer than `UNREAD_TIMEOUT_MS` (said in the Module log). Never throws:
+	 * the admin loads it with every page of a Site.
+	 */
+	unreadSubmissions(scope: SiteScope): Promise<Map<string, number> | null>;
 	/** Runs one of a Module's procedures for a person, where the Module runs and they hold its Permission. */
 	callProcedure(call: ProcedureCall): Promise<unknown>;
 	/**
@@ -416,6 +424,9 @@ export const FIND_TIMEOUT_MS = 500;
 
 /** How long a list of a Site's pages waits for a Module's rules for a batch of paths, in milliseconds. */
 export const FIND_MANY_TIMEOUT_MS = 5_000;
+
+/** How long the admin waits for the Module keeping Submissions to count the new ones, in milliseconds. */
+export const UNREAD_TIMEOUT_MS = 2_000;
 
 /** How many distinct misses a web process gathers before it hands them over at once. */
 export const MISS_BATCH_SIZE = 500;
@@ -806,6 +817,8 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 		kept: submissionKept,
 		deliveries: async (site, submissionId) =>
 			(await hostOptions.submissionActions?.deliveries(site, submissionId)) ?? [],
+		deliveriesOf: async (site, submissionIds) =>
+			(await hostOptions.submissionActions?.deliveriesOf(site, submissionIds)) ?? new Map(),
 	};
 
 	return {
@@ -980,6 +993,34 @@ export function createModuleHost(hostOptions: ModuleHostOptions): ModuleHost {
 			const permission = module?.receiver?.readPermission;
 			if (!module || !permission || !(await runsAt(scope, module))) return false;
 			return holds(scope, module, permission);
+		},
+
+		async unreadSubmissions(scope) {
+			const module = receiving();
+			const unread = module?.receiver?.unread;
+			const permission = module?.receiver?.readPermission;
+			if (!module || !unread || !permission || !(await runsAt(scope, module))) return null;
+			if (!holds(scope, module, permission)) return null;
+			const place = placeOf(scope);
+			const failed = (message: string, details: Record<string, unknown>) => async () => {
+				await writeLine(options, module, place, "warn", message, details).catch(() => {});
+				return null;
+			};
+			const answer = await timedModuleCall<unknown>(
+				() => unread(moduleContext(module, scope, options)),
+				UNREAD_TIMEOUT_MS,
+				failed("It took too long to count the new Form Submissions.", {}),
+				(error) => failed("It couldn't count the new Form Submissions.", { error: describeError(error) })(),
+			);
+			if (answer === null) return null;
+			const counts = new Map<string, number>();
+			if (typeof answer === "object" && !Array.isArray(answer)) {
+				for (const [formId, count] of Object.entries(answer as Record<string, unknown>)) {
+					if (typeof count === "number" && Number.isSafeInteger(count) && count > 0) counts.set(formId, count);
+				}
+				return counts;
+			}
+			return failed("Its count of new Form Submissions isn't counts by Form.", {})();
 		},
 
 		async permissionsAt(scope) {
@@ -1652,14 +1693,19 @@ function keyOf(permission: AddedPermission | Permission): string {
 	return typeof permission === "string" ? permission : permission.key;
 }
 
+/** The header Edit mode's requests carry the session's header token in (the building area's, ADR 0037). */
+const EDIT_TOKEN_HEADER = "x-webcraft-edit-token";
+
 /**
- * The request as a Module's Site route sees it: without WebCraft's own cookies (Edit mode's, and
- * any other WebCraft sets on the Site's domain), so a Module never acts with them.
+ * The request as a Module's Site route sees it: without WebCraft's own cookies (Edit mode's and the
+ * building area's, and any other WebCraft sets on the Site's domain), nor an Edit mode session's
+ * header token a page sent along, so a Module never acts with them.
  */
 function forModule(request: Request): Request {
 	const cookie = request.headers.get("cookie");
-	if (cookie === null) return request;
+	if (cookie === null && !request.headers.has(EDIT_TOKEN_HEADER)) return request;
 	const headers = new Headers(request.headers);
+	headers.delete(EDIT_TOKEN_HEADER);
 	const kept = withoutWebCraftCookies(cookie);
 	if (kept === null) headers.delete("cookie");
 	else headers.set("cookie", kept);

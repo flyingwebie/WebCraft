@@ -19,6 +19,7 @@ import type { Access, DataLayer, Site, SiteScope } from "../tenancy/data-layer.t
 import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
 import { hashToken, newToken } from "../tokens.ts";
 import { type BodyEditing, type BodyRegion, bodyEditing, pasteIntoBody } from "./body.ts";
+import { isAdminReturnPath, isBuildingDocument } from "./building.ts";
 import { EditModeUnavailableError, EditPathInvalidError, LoopItemRestoreRefusedError } from "./errors.ts";
 import {
 	addLoopItem,
@@ -56,6 +57,7 @@ import {
 } from "./page.ts";
 import { type PageDetails, type PageDetailsChange, pageDetails, savePageDetails } from "./page-details.ts";
 import { EDIT_MODE_PATH, isEditPath } from "./paths.ts";
+import { type DocumentPublish, documentPublish, type PublishSource } from "./publish.ts";
 import {
 	type ImageChange,
 	type RegionChange,
@@ -66,6 +68,23 @@ import {
 } from "./regions.ts";
 
 export type { BodyEditing, BodyRegion } from "./body.ts";
+export {
+	BUILDING_AREA_PAGE_PATH,
+	BUILDING_AREA_PATH,
+	BUILDING_AREA_STAND_IN_PATH,
+	BUILDING_ELEMENT_PARAMETER,
+	BUILDING_FILTER_PARAMETER,
+	type BuildingDocument,
+	buildingAreaPageAddress,
+	isAdminReturnPath,
+	isBuildingDocument,
+	pageOfBuildingAddress,
+	parseBuildingDocument,
+	printBuildingDocument,
+	type StandInDocument,
+	standInAddress,
+	standInDocumentOf,
+} from "./building.ts";
 export {
 	EditFieldInvalidError,
 	EditModeUnavailableError,
@@ -83,6 +102,7 @@ export {
 	isEditPageAddress,
 	isEditPath,
 } from "./paths.ts";
+export type { DocumentPublish, PublishChange, PublishDraft, PublishSource } from "./publish.ts";
 export type { EditItem, ImageChange, RegionChange, SavedImage, SavedRegion } from "./regions.ts";
 
 /** How long an "Edit on site" link works after it is made. */
@@ -126,14 +146,22 @@ export type EditSession = {
 export type EditMode = {
 	/**
 	 * Makes an "Edit on site" link for the person, from their admin session (open the Site with
-	 * `entry.edit`): it opens `path` on the Site's own address, works once, within 60 seconds, and
-	 * only on that Site. With `safeMode`, the link opens Safe mode (ADR 0022): pages run none of the
-	 * Site's own scripts. Refuses a path that isn't one on the Site (`EditPathInvalidError`), and a Site
-	 * with no address yet (`EditModeUnavailableError`).
+	 * `entry.edit`): it opens the building area (ADR 0037) on the Site's own address at `open` (a
+	 * document, as `isBuildingDocument` takes it; the page at `path` unless given), its logo tile going
+	 * back to `returnTo` on the admin; it works once, within 60 seconds, and only on that Site. With
+	 * `safeMode`, the link opens Safe mode (ADR 0022): pages run none of the Site's own scripts.
+	 * Refuses a path that isn't one on the Site, a document or an admin path that isn't one
+	 * (`EditPathInvalidError`), and a Site with no address yet (`EditModeUnavailableError`).
 	 */
 	openLink(
 		scope: SiteScope,
-		input: { adminSessionId: string; path: string; safeMode?: boolean; code?: boolean; selection?: string },
+		input: {
+			adminSessionId: string;
+			path: string;
+			safeMode?: boolean;
+			open?: string;
+			returnTo?: string;
+		},
 	): Promise<EditLink>;
 	/**
 	 * Follows a link on the Site it was made for: uses it up and starts an Edit mode session, for at
@@ -168,6 +196,15 @@ export type EditMode = {
 	pasteBody(session: EditSession, region: BodyRegion & Pasted): Promise<{ blocks: Block[] }>;
 	/** What the editing bar shows for the page at `path`: its changes, the Site's pages, who is editing. */
 	pageState(session: EditSession, host: SiteHost, path: string): Promise<PageState>;
+	/**
+	 * What the building area's Publish shows and publishes (ADR 0037 › 1.5): the page's changes, and
+	 * for Staff the Structure it shows, with what the shell names besides (`publish.ts`).
+	 */
+	documentPublish(
+		session: EditSession,
+		host: SiteHost,
+		input: { path: string | null; sources: readonly PublishSource[] },
+	): Promise<DocumentPublish>;
 	/** Undoes one of the page's changes (`key` of `item`), answering the page's state afterwards. */
 	undo(session: EditSession, host: SiteHost, input: { path: string; item: string; key: string }): Promise<PageState>;
 	/** Discards every change of the page, answering the page's state afterwards. */
@@ -302,6 +339,8 @@ export function createEditMode(options: {
 	return {
 		async openLink(scope, input) {
 			if (!isEditPath(input.path)) throw new EditPathInvalidError();
+			if (input.open !== undefined && !isBuildingDocument(input.open)) throw new EditPathInvalidError();
+			if (input.returnTo !== undefined && !isAdminReturnPath(input.returnTo)) throw new EditPathInvalidError();
 			// The Site's Primary domain once verified (the edit cookie then lives there), else its Staging address.
 			const { primary } = await verifiedDomains(scope.db, scope.site);
 			const address = primary ? domainOrigin(config, primary) : stagingUrl(config, scope.site.slug);
@@ -323,10 +362,10 @@ export function createEditMode(options: {
 			url.searchParams.set("token", token);
 			// Safe mode only takes scripts away, so the link may say it openly.
 			if (input.safeMode) url.searchParams.set("safe", "1");
-			if (input.code) {
-				url.searchParams.set("code", "1");
-				if (input.selection) url.searchParams.set("selection", input.selection);
-			}
+			// What the building area opens and where its logo tile goes back to. Both are checked again
+			// as the link is followed, so a changed link can't lead anywhere else.
+			url.searchParams.set("open", input.open ?? `/page${input.path}`);
+			if (input.returnTo) url.searchParams.set("return", input.returnTo);
 			return { url: url.toString(), expiresAt };
 		},
 
@@ -421,6 +460,7 @@ export function createEditMode(options: {
 		body: (session, region) => bodyEditing(session.scope, region),
 		pasteBody: (session, region) => pasteIntoBody(session.scope, region),
 		pageState: (session, host, path) => pageState(deps, session, host, path),
+		documentPublish: (session, host, input) => documentPublish({ ...deps, config }, session, host, input),
 		undo: (session, host, input) => undoChange(deps, session, host, input),
 		discard: (session, host, path) => discardChanges(deps, session, host, path),
 		publish: (session, host, path) => publishPage(deps, session, host, path),

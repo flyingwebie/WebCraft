@@ -22,12 +22,14 @@ async function visit(page: Page, layout: string) {
 	}
 }
 const layouts = ["modal", "slide-in", "bar", "full-screen"] as const;
+/** Each Popup's id, by its layout (also its name). */
+const popupIds = new Map<string, string>();
 beforeAll(async () => {
 	install = await startBrowserInstall();
 	const local = install.install;
 	const { api } = await local.superadmin();
 	await api.modules.approve({ moduleId: "popups", version: "1.0.0" });
-	await api.modules.approve({ moduleId: "forms", version: "1.2.0" });
+	await api.modules.approve({ moduleId: "forms", version: "1.4.0" });
 	const ws = await local.createWorkspace();
 	siteId = (await local.createSite(ws.id, { slug })).id;
 	await install.goLive(siteId);
@@ -67,6 +69,7 @@ beforeAll(async () => {
 	let commands = "";
 	for (const layout of layouts) {
 		const { popup } = await api.popups.create({ siteId, name: layout, key: layout });
+		popupIds.set(layout, popup.id);
 		await api.components.saveMarkup({
 			siteId,
 			componentId: popup.componentId,
@@ -147,34 +150,75 @@ for (const theme of THEMES)
 				expect(pageErrors(page)).toEqual([]);
 				await page.close();
 			});
+/** What sticks out past the window's right edge inside `scope`: nothing should, on a phone. */
+async function overflowing(page: Page, scope: string) {
+	return page.evaluate(
+		(selector) =>
+			[...document.querySelectorAll<HTMLElement>(selector)]
+				.filter((e) => e.getBoundingClientRect().right > innerWidth + 1 && e.getBoundingClientRect().width > 0)
+				// A wide table scrolls sideways inside its own box, which fits: that is not the page overflowing.
+				.filter((e) => {
+					for (let box = e.parentElement; box; box = box.parentElement) {
+						const overflow = getComputedStyle(box).overflowX;
+						if (overflow === "auto" || overflow === "scroll") return box.getBoundingClientRect().right > innerWidth + 1;
+					}
+					return true;
+				})
+				.map((e) => ({
+					tag: e.tagName,
+					slot: e.dataset.slot,
+					name: e.getAttribute("aria-label"),
+					text: e.textContent?.slice(0, 60),
+				})),
+		`${scope} *`,
+	);
+}
 for (const theme of THEMES)
 	for (const phone of [false, true])
-		test(`Popup Content and Structure controls (${theme}, ${phone ? "phone" : "desktop"})`, async () => {
+		test(`the Popups list, and a Popup's sheet with its Content and Structure controls (${theme}, ${phone ? "phone" : "desktop"})`, async () => {
 			const page = await install.newPage(theme);
 			if (phone) await page.setViewportSize({ width: 390, height: 844 });
 			await install.signIn(page, staff);
 			await page.goto(install.adminUrl(`/sites/${siteId}/popups`));
 			await page.getByRole("heading", { name: "Popups", exact: true }).waitFor();
-			await expectAccessibleScreen(page, `Popup editor ${theme}`);
-			if (phone)
-				expect(
-					await page.evaluate(() =>
-						[...document.querySelectorAll<HTMLElement>("main *")]
-							.filter((e) => e.getBoundingClientRect().right > innerWidth + 1 && e.getBoundingClientRect().width > 0)
-							.map((e) => ({
-								tag: e.tagName,
-								slot: e.dataset.slot,
-								name: e.getAttribute("aria-label"),
-								text: e.textContent?.slice(0, 60),
-							})),
-					),
-				).toEqual([]);
-			await page.getByLabel("Trigger", { exact: true }).selectOption("delay");
-			await page.getByLabel("Seconds", { exact: true }).fill("8");
-			await page.getByRole("button", { name: "Save Draft", exact: true }).last().click();
-			await page.getByRole("status").filter({ hasText: "Draft saved" }).waitFor();
+			await page.getByRole("cell", { name: "Published" }).first().waitFor();
+			await expectAccessibleScreen(page, `Popups list ${theme}`);
+			if (phone) expect(await overflowing(page, "main")).toEqual([]);
+			// A Popup opens in a sheet from its row, from the keyboard; the address names it.
+			const row = page.getByRole("link", { name: "modal", exact: true });
+			await row.focus();
+			await page.keyboard.press("Enter");
+			const sheet = page.getByRole("dialog", { name: "modal", exact: true });
+			await sheet.getByLabel("Trigger", { exact: true }).waitFor();
+			expect(new URL(page.url()).searchParams.has("popup")).toBe(true);
+			await expectNoAxeViolations(page, `Popup sheet ${theme}`, ["region"]);
+			if (phone) expect(await overflowing(page, '[role="dialog"]')).toEqual([]);
+			await sheet.getByLabel("Trigger", { exact: true }).selectOption("delay");
+			await sheet.getByLabel("Seconds", { exact: true }).fill("8");
+			await sheet.getByRole("button", { name: "Save Draft", exact: true }).click();
+			await sheet.getByRole("status").filter({ hasText: "Draft saved" }).waitFor();
+			// Escape closes the sheet and focus goes back to the Popup's row.
+			await page.keyboard.press("Escape");
+			await sheet.waitFor({ state: "hidden" });
+			await page.waitForURL((url) => !url.searchParams.has("popup"));
+			await page.waitForFunction(
+				() => document.activeElement?.tagName === "A" && document.activeElement.textContent === "modal",
+			);
 			await page.close();
 		});
+for (const theme of THEMES)
+	test(`a Popup's sheet opens when the page is loaded at its address (${theme})`, async () => {
+		const page = await install.newPage(theme);
+		await install.signIn(page, staff);
+		await page.goto(install.adminUrl(`/sites/${siteId}/popups?popup=${popupIds.get("slide-in")}`));
+		const sheet = page.getByRole("dialog", { name: "slide-in", exact: true });
+		await sheet.getByLabel("Trigger", { exact: true }).waitFor();
+		await expectNoAxeViolations(page, `Popup sheet opened by its address ${theme}`, ["region"]);
+		await page.keyboard.press("Escape");
+		await sheet.waitFor({ state: "hidden" });
+		await page.waitForURL((url) => !url.searchParams.has("popup"));
+		await page.close();
+	});
 test("click Popup remains useful without JavaScript", async () => {
 	const page = await install.newPage("light", { javaScript: false });
 	await page.goto(install.liveUrl(slug, "/offers/modal"));

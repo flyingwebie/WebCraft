@@ -1,9 +1,7 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import type { ApiClient } from "@webcraft/api";
 import { ADMIN_LANGUAGES, type AdminLanguageCode, isAdminLanguage } from "@webcraft/core/admin-languages";
-import { Badge } from "@webcraft/ui/components/badge.tsx";
 import { Button, buttonVariants } from "@webcraft/ui/components/button.tsx";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@webcraft/ui/components/card.tsx";
 import {
 	Field,
 	FieldDescription,
@@ -14,7 +12,6 @@ import {
 	FieldSet,
 } from "@webcraft/ui/components/field.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
 import { type FormEvent, useState } from "react";
 import { toast } from "sonner";
 
@@ -25,10 +22,22 @@ import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
 import { useSensitiveAction } from "../../ui/identity-check.tsx";
 import { PageHeader } from "../../ui/PageHeader.tsx";
 import { PasswordInput } from "../../ui/PasswordInput.tsx";
+import { ConfirmDialog } from "../../ui/settings/confirm.tsx";
+import { SettingsForm, useSettingsSection } from "../../ui/settings/form.tsx";
+import {
+	describedBy,
+	SettingsCard,
+	SettingsListRow,
+	SettingsRow,
+	SettingsRows,
+	StateBadge,
+	Switch,
+} from "../../ui/settings/layout.tsx";
 import { roleLabel, type SignedInPerson } from "../../ui/shell/context.ts";
 import { TwoFactorCard } from "../../ui/two-factor/TwoFactorCard.tsx";
 
 export const Route = createFileRoute("/_admin/account/")({
+	staticData: { width: "form" },
 	loader: async () => {
 		const api = await getApi();
 		const [{ emails }, { sessions }, twoFactor] = await Promise.all([
@@ -64,14 +73,9 @@ function AccountPage() {
 			<PageHeader heading={t("account.heading")}>
 				{shell.impersonation ? t("impersonation.accountNotice", { name: person.name }) : null}
 			</PageHeader>
-			<div className="grid max-w-2xl gap-6">
-				<Card>
-					<CardHeader>
-						<CardTitle>
-							<h2>{t("account.profile.heading")}</h2>
-						</CardTitle>
-					</CardHeader>
-					<CardContent>
+			<SettingsForm>
+				<div className="grid gap-6">
+					<SettingsCard title={t("account.profile.heading")}>
 						<dl className="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-3 text-sm">
 							<dt className="text-muted-foreground">{t("account.profile.name")}</dt>
 							<dd>{person.name}</dd>
@@ -80,107 +84,85 @@ function AccountPage() {
 							<dt className="text-muted-foreground">{t("account.profile.role")}</dt>
 							<dd>{role}</dd>
 						</dl>
-					</CardContent>
-				</Card>
-				<PreferencesCard person={person} />
-				<PasswordCard />
-				<TwoFactorCard state={twoFactor} account={person.email} />
-				<SessionsCard />
-				<Card id="api-tokens" tabIndex={-1} className="outline-none">
-					<CardHeader>
-						<CardTitle>
-							<h2>{t("account.apiTokens.heading")}</h2>
-						</CardTitle>
-						<CardDescription>{t("account.apiTokens.cardIntro")}</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<Link to="/account/api-tokens" className={buttonVariants({ variant: "outline" })}>
-							{t("account.apiTokens.manage")}
-						</Link>
-					</CardContent>
-				</Card>
-				<Card id="ai-clients" tabIndex={-1} className="outline-none">
-					<CardHeader>
-						<CardTitle>
-							<h2>{t("account.aiClients.heading")}</h2>
-						</CardTitle>
-						<CardDescription>{t("account.aiClients.cardIntro")}</CardDescription>
-					</CardHeader>
-					<CardContent>
-						<Link to="/account/ai-clients" className={buttonVariants({ variant: "outline" })}>
-							{t("account.aiClients.manage")}
-						</Link>
-					</CardContent>
-				</Card>
-				<EmailsCard />
-			</div>
+					</SettingsCard>
+					<PreferencesCard person={person} />
+					<PasswordCard />
+					<TwoFactorCard state={twoFactor} account={person.email} />
+					<SessionsCard />
+					<SettingsCard
+						id="api-tokens"
+						tabIndex={-1}
+						className="outline-none"
+						title={t("account.apiTokens.heading")}
+						description={t("account.apiTokens.cardIntro")}
+						action={
+							<Link to="/account/api-tokens" className={buttonVariants({ variant: "outline" })}>
+								{t("account.apiTokens.manage")}
+							</Link>
+						}
+					/>
+					<SettingsCard
+						id="ai-clients"
+						tabIndex={-1}
+						className="outline-none"
+						title={t("account.aiClients.heading")}
+						description={t("account.aiClients.cardIntro")}
+						action={
+							<Link to="/account/ai-clients" className={buttonVariants({ variant: "outline" })}>
+								{t("account.aiClients.manage")}
+							</Link>
+						}
+					/>
+					<EmailsCard />
+				</div>
+			</SettingsForm>
 		</>
 	);
 }
 
+/** The person's Admin language and theme, saved with the foot bar. */
 function PreferencesCard({ person }: { person: SignedInPerson }) {
 	const t = useT();
-	const router = useRouter();
 	const { shell } = Route.useRouteContext();
-	const [language, setLanguage] = useState<AdminLanguageCode | "">(person.adminLanguage ?? "");
-	const [theme, setTheme] = useState<Theme>(person.adminTheme);
-	const [error, setError] = useState<MessageKey | null>(null);
-	const [busy, setBusy] = useState(false);
 	const installDefault = ADMIN_LANGUAGES.find((option) => option.code === shell.install.defaultAdminLanguage)?.name;
-
-	const submit = async (event: FormEvent) => {
-		event.preventDefault();
-		setBusy(true);
-		setError(null);
-		try {
-			const api = await getApi();
-			await api.me.updatePreferences({ adminLanguage: language === "" ? null : language, adminTheme: theme });
-			toast.success(t("account.preferences.saved"));
-			await router.invalidate();
-		} catch (failure) {
-			setError(errorMessage(failure));
-		} finally {
-			setBusy(false);
-		}
-	};
-
+	const section = useSettingsSection({
+		saved: { language: (person.adminLanguage ?? "") as AdminLanguageCode | "", theme: person.adminTheme },
+		save: async ({ language, theme }) =>
+			(await getApi()).me.updatePreferences({ adminLanguage: language === "" ? null : language, adminTheme: theme }),
+	});
+	const { language, theme } = section.values;
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("account.preferences.heading")}</h2>
-				</CardTitle>
-			</CardHeader>
-			<CardContent>
-				<form onSubmit={submit} noValidate>
-					<FieldGroup className="gap-6">
-						<Field>
-							<FieldLabel htmlFor="account-admin-language">{t("account.preferences.language")}</FieldLabel>
-							<NativeSelect
-								id="account-admin-language"
-								value={language}
-								onChange={(event) => {
-									const value = event.target.value;
-									setLanguage(isAdminLanguage(value) ? value : "");
-								}}
-								aria-describedby="account-admin-language-help"
-							>
-								<NativeSelectOption value="">
-									{t("account.preferences.installDefault", { language: installDefault ?? "" })}
+		<SettingsCard title={t("account.preferences.heading")}>
+			<form {...section.formProps}>
+				<SettingsRows>
+					<SettingsRow
+						label={t("account.preferences.language")}
+						help={t("account.preferences.languageHelp")}
+						htmlFor="account-admin-language"
+					>
+						<NativeSelect
+							id="account-admin-language"
+							value={language}
+							onChange={(event) => {
+								const value = event.target.value;
+								section.set({ language: isAdminLanguage(value) ? value : "" });
+							}}
+							aria-describedby={describedBy("account-admin-language")}
+						>
+							<NativeSelectOption value="">
+								{t("account.preferences.installDefault", { language: installDefault ?? "" })}
+							</NativeSelectOption>
+							{ADMIN_LANGUAGES.map((option) => (
+								<NativeSelectOption key={option.code} value={option.code} lang={option.code}>
+									{option.name}
 								</NativeSelectOption>
-								{ADMIN_LANGUAGES.map((option) => (
-									<NativeSelectOption key={option.code} value={option.code} lang={option.code}>
-										{option.name}
-									</NativeSelectOption>
-								))}
-							</NativeSelect>
-							<FieldDescription id="account-admin-language-help">
-								{t("account.preferences.languageHelp")}
-							</FieldDescription>
-						</Field>
+							))}
+						</NativeSelect>
+					</SettingsRow>
+					<div className="pt-4">
 						<FieldSet>
 							<FieldLegend variant="label">{t("account.preferences.theme")}</FieldLegend>
-							<div className="flex flex-col gap-2">
+							<div className="flex flex-wrap gap-x-5 gap-y-2">
 								{THEMES.map((option) => (
 									<label key={option.value} className="flex items-center gap-2 text-sm">
 										<input
@@ -188,7 +170,7 @@ function PreferencesCard({ person }: { person: SignedInPerson }) {
 											name="admin-theme"
 											value={option.value}
 											checked={theme === option.value}
-											onChange={() => setTheme(option.value)}
+											onChange={() => section.set({ theme: option.value })}
 											className="accent-primary size-4"
 										/>
 										{t(option.label)}
@@ -196,16 +178,11 @@ function PreferencesCard({ person }: { person: SignedInPerson }) {
 								))}
 							</div>
 						</FieldSet>
-						{error ? <FieldError>{t(error)}</FieldError> : null}
-						<div>
-							<Button type="submit" disabled={busy}>
-								{t("account.preferences.save")}
-							</Button>
-						</div>
-					</FieldGroup>
-				</form>
-			</CardContent>
-		</Card>
+					</div>
+				</SettingsRows>
+				{section.error ? <FieldError className="mt-3">{t(section.error)}</FieldError> : null}
+			</form>
+		</SettingsCard>
 	);
 }
 
@@ -253,54 +230,52 @@ function PasswordCard() {
 		[help, error?.field === field ? `account-${field}-error` : undefined].filter(Boolean).join(" ") || undefined;
 
 	return (
-		<Card id="password" tabIndex={-1} className="outline-none">
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("account.password.heading")}</h2>
-				</CardTitle>
-				<CardDescription>{t("account.password.intro")}</CardDescription>
-			</CardHeader>
-			<CardContent>
-				<form onSubmit={submit} noValidate>
-					<FieldGroup className="gap-6">
-						<Field data-invalid={invalid("password")}>
-							<FieldLabel htmlFor="account-password">{t("account.password.newPassword")}</FieldLabel>
-							<PasswordInput
-								id="account-password"
-								value={password}
-								onChange={(event) => setPassword(event.target.value)}
-								autoComplete="new-password"
-								required
-								aria-invalid={invalid("password")}
-								aria-describedby={describedBy("password", "account-password-help")}
-							/>
-							<FieldDescription id="account-password-help">{t("account.password.newPasswordHelp")}</FieldDescription>
-							{error?.field === "password" ? (
-								<FieldError id="account-password-error">{t(error.message)}</FieldError>
-							) : null}
-						</Field>
-						<Field data-invalid={invalid("repeat")}>
-							<FieldLabel htmlFor="account-repeat">{t("account.password.repeat")}</FieldLabel>
-							<PasswordInput
-								id="account-repeat"
-								value={repeat}
-								onChange={(event) => setRepeat(event.target.value)}
-								autoComplete="new-password"
-								required
-								aria-invalid={invalid("repeat")}
-								aria-describedby={describedBy("repeat")}
-							/>
-							{error?.field === "repeat" ? <FieldError id="account-repeat-error">{t(error.message)}</FieldError> : null}
-						</Field>
-						<div>
-							<Button type="submit" disabled={busy}>
-								{t("account.password.save")}
-							</Button>
-						</div>
-					</FieldGroup>
-				</form>
-			</CardContent>
-		</Card>
+		<SettingsCard
+			id="password"
+			tabIndex={-1}
+			className="outline-none"
+			title={t("account.password.heading")}
+			description={t("account.password.intro")}
+		>
+			<form onSubmit={submit} noValidate>
+				<FieldGroup className="gap-6">
+					<Field data-invalid={invalid("password")}>
+						<FieldLabel htmlFor="account-password">{t("account.password.newPassword")}</FieldLabel>
+						<PasswordInput
+							id="account-password"
+							value={password}
+							onChange={(event) => setPassword(event.target.value)}
+							autoComplete="new-password"
+							required
+							aria-invalid={invalid("password")}
+							aria-describedby={describedBy("password", "account-password-help")}
+						/>
+						<FieldDescription id="account-password-help">{t("account.password.newPasswordHelp")}</FieldDescription>
+						{error?.field === "password" ? (
+							<FieldError id="account-password-error">{t(error.message)}</FieldError>
+						) : null}
+					</Field>
+					<Field data-invalid={invalid("repeat")}>
+						<FieldLabel htmlFor="account-repeat">{t("account.password.repeat")}</FieldLabel>
+						<PasswordInput
+							id="account-repeat"
+							value={repeat}
+							onChange={(event) => setRepeat(event.target.value)}
+							autoComplete="new-password"
+							required
+							aria-invalid={invalid("repeat")}
+							aria-describedby={describedBy("repeat")}
+						/>
+						{error?.field === "repeat" ? <FieldError id="account-repeat-error">{t(error.message)}</FieldError> : null}
+					</Field>
+					<div>
+						<Button type="submit" variant="outline" disabled={busy}>
+							{t("account.password.save")}
+						</Button>
+					</div>
+				</FieldGroup>
+			</form>
+		</SettingsCard>
 	);
 }
 
@@ -312,6 +287,7 @@ function SessionsCard() {
 	const router = useRouter();
 	const { sessions } = Route.useLoaderData();
 	const [busy, setBusy] = useState(false);
+	const [confirming, setConfirming] = useState<SessionRow | "others" | null>(null);
 	const others = sessions.filter((session) => !session.current);
 
 	const device = (session: SessionRow) =>
@@ -348,67 +324,67 @@ function SessionsCard() {
 		});
 
 	return (
-		<Card id="sessions" tabIndex={-1} className="outline-none">
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("account.sessions.heading")}</h2>
-				</CardTitle>
-				<CardDescription>{t("account.sessions.intro")}</CardDescription>
-			</CardHeader>
-			<CardContent className="flex flex-col gap-4">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>{t("account.sessions.browser")}</TableHead>
-							<TableHead>{t("account.sessions.network")}</TableHead>
-							<TableHead>{t("account.sessions.lastUsed")}</TableHead>
-							<TableHead>
-								<span className="sr-only">{t("account.sessions.actions")}</span>
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{sessions.map((session) => (
-							<TableRow key={session.id}>
-								<TableCell>
-									<span className="flex flex-wrap items-center gap-2">
-										{device(session)}
-										{session.current ? <Badge variant="outline">{t("account.sessions.current")}</Badge> : null}
-									</span>
-								</TableCell>
-								<TableCell className="font-mono text-xs">
-									{session.network ?? t("account.sessions.networkUnknown")}
-								</TableCell>
-								<TableCell>{formatUtc(session.lastUsedAt)}</TableCell>
-								<TableCell className="text-end">
-									{session.current ? null : (
-										<Button
-											variant="outline"
-											size="sm"
-											disabled={busy}
-											onClick={() => revoke(session)}
-											aria-label={t("account.sessions.signOutLabel", {
-												device: device(session),
-												lastUsed: formatUtc(session.lastUsedAt),
-											})}
-										>
-											{t("account.sessions.signOut")}
-										</Button>
-									)}
-								</TableCell>
-							</TableRow>
-						))}
-					</TableBody>
-				</Table>
-				{others.length > 0 ? (
-					<div>
-						<Button variant="outline" disabled={busy} onClick={revokeOthers}>
-							{t("account.sessions.signOutOthers")}
-						</Button>
-					</div>
-				) : null}
-			</CardContent>
-		</Card>
+		<SettingsCard
+			id="sessions"
+			tabIndex={-1}
+			className="outline-none"
+			title={t("account.sessions.heading")}
+			description={t("account.sessions.intro")}
+			action={
+				others.length > 0 ? (
+					<Button variant="outline" disabled={busy} onClick={() => setConfirming("others")}>
+						{t("account.sessions.signOutOthers")}
+					</Button>
+				) : null
+			}
+		>
+			<SettingsRows>
+				{sessions.map((session) => (
+					<SettingsListRow
+						key={session.id}
+						badge={session.current ? <StateBadge tone="success">{t("account.sessions.current")}</StateBadge> : null}
+						detail={
+							<>
+								<span className="font-mono">{session.network ?? t("account.sessions.networkUnknown")}</span>
+								{" · "}
+								{t("account.sessions.lastUsed")}: {formatUtc(session.lastUsedAt)}
+							</>
+						}
+						actions={
+							session.current ? null : (
+								<Button
+									variant="outline"
+									size="sm"
+									disabled={busy}
+									onClick={() => setConfirming(session)}
+									aria-label={t("account.sessions.signOutLabel", {
+										device: device(session),
+										lastUsed: formatUtc(session.lastUsedAt),
+									})}
+								>
+									{t("account.sessions.signOut")}
+								</Button>
+							)
+						}
+					>
+						<span>{device(session)}</span>
+					</SettingsListRow>
+				))}
+			</SettingsRows>
+			<ConfirmDialog
+				open={confirming !== null}
+				onOpenChange={(open) => !open && setConfirming(null)}
+				title={
+					confirming === "others"
+						? t("account.sessions.signOutOthersTitle", { count: others.length })
+						: t("account.sessions.signOutTitle", { device: confirming ? device(confirming) : "" })
+				}
+				confirm={confirming === "others" ? t("account.sessions.signOutOthers") : t("account.sessions.signOut")}
+				onConfirm={() => (confirming === "others" ? revokeOthers() : confirming ? revoke(confirming) : undefined)}
+			>
+				{t("account.sessions.signOutBody")}
+			</ConfirmDialog>
+		</SettingsCard>
 	);
 }
 
@@ -422,86 +398,56 @@ const EMAIL_GROUPS: { category: "work" | "alert"; legend: MessageKey }[] = [
 /** Which work and alert emails the person gets. Security emails always go, so they have no switch. */
 function EmailsCard() {
 	const t = useT();
-	const router = useRouter();
 	const { emails } = Route.useLoaderData();
-	const [off, setOff] = useState<Set<EmailSwitch["type"]>>(
-		() => new Set(emails.filter((email) => !email.on).map((email) => email.type)),
-	);
-	const [error, setError] = useState<MessageKey | null>(null);
-	const [busy, setBusy] = useState(false);
-
-	const toggle = (type: EmailSwitch["type"], on: boolean) => {
-		setOff((current) => {
-			const next = new Set(current);
-			if (on) next.delete(type);
-			else next.add(type);
-			return next;
-		});
-	};
-
-	const submit = async (event: FormEvent) => {
-		event.preventDefault();
-		setBusy(true);
-		setError(null);
-		try {
-			const api = await getApi();
-			await api.me.emails.update({ turnedOff: [...off] });
-			toast.success(t("account.emails.saved"));
-			await router.invalidate();
-		} catch (failure) {
-			setError(errorMessage(failure));
-		} finally {
-			setBusy(false);
-		}
-	};
+	const section = useSettingsSection({
+		saved: {
+			turnedOff: emails
+				.filter((email) => !email.on)
+				.map((email) => email.type)
+				.sort(),
+		},
+		save: async ({ turnedOff }) => (await getApi()).me.emails.update({ turnedOff }),
+	});
+	const off = section.values.turnedOff;
+	const toggle = (type: EmailSwitch["type"], on: boolean) =>
+		section.set({ turnedOff: on ? off.filter((each) => each !== type) : [...new Set([...off, type])].sort() });
 
 	return (
-		<Card id="emails" tabIndex={-1} className="outline-none">
-			<CardHeader>
-				<CardTitle>
-					<h2>{t("account.emails.heading")}</h2>
-				</CardTitle>
-				<CardDescription>{t("account.emails.intro")}</CardDescription>
-			</CardHeader>
-			<CardContent>
-				<form onSubmit={submit} noValidate>
-					<FieldGroup className="gap-6">
-						{EMAIL_GROUPS.map((group) => (
-							<FieldSet key={group.category}>
-								<FieldLegend variant="label">{t(group.legend)}</FieldLegend>
-								<div className="flex flex-col gap-3">
-									{emails
-										.filter((email) => email.category === group.category)
-										.map((email) => (
-											<label key={email.type} className="flex items-start gap-3 text-sm">
-												<input
-													type="checkbox"
-													checked={!off.has(email.type)}
-													onChange={(event) => toggle(email.type, event.target.checked)}
-													aria-describedby={`email-${email.type}-description`}
-													className="accent-primary mt-0.5 size-4 shrink-0"
-												/>
-												<span className="flex flex-col gap-0.5">
-													<span className="font-medium">{t(`emailTypes.${email.type}.name` as MessageKey)}</span>
-													<span id={`email-${email.type}-description`} className="text-muted-foreground">
-														{t(`emailTypes.${email.type}.description` as MessageKey)}
-													</span>
-												</span>
-											</label>
-										))}
-								</div>
-							</FieldSet>
-						))}
-						<p className="text-muted-foreground text-sm">{t("account.emails.security")}</p>
-						{error ? <FieldError>{t(error)}</FieldError> : null}
-						<div>
-							<Button type="submit" disabled={busy}>
-								{t("account.emails.save")}
-							</Button>
-						</div>
-					</FieldGroup>
-				</form>
-			</CardContent>
-		</Card>
+		<SettingsCard
+			id="emails"
+			tabIndex={-1}
+			className="outline-none"
+			title={t("account.emails.heading")}
+			description={t("account.emails.intro")}
+		>
+			<form {...section.formProps} className="grid gap-6">
+				{EMAIL_GROUPS.map((group) => (
+					<FieldSet key={group.category}>
+						<FieldLegend variant="label">{t(group.legend)}</FieldLegend>
+						<SettingsRows>
+							{emails
+								.filter((email) => email.category === group.category)
+								.map((email) => (
+									<SettingsRow
+										key={email.type}
+										label={t(`emailTypes.${email.type}.name` as MessageKey)}
+										help={t(`emailTypes.${email.type}.description` as MessageKey)}
+										htmlFor={`email-${email.type}`}
+									>
+										<Switch
+											id={`email-${email.type}`}
+											checked={!off.includes(email.type)}
+											onCheckedChange={(on) => toggle(email.type, on)}
+											aria-describedby={describedBy(`email-${email.type}`)}
+										/>
+									</SettingsRow>
+								))}
+						</SettingsRows>
+					</FieldSet>
+				))}
+				<p className="text-muted-foreground text-sm">{t("account.emails.security")}</p>
+				{section.error ? <FieldError>{t(section.error)}</FieldError> : null}
+			</form>
+		</SettingsCard>
 	);
 }

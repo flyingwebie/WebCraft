@@ -231,19 +231,32 @@ describe("a Submission", () => {
 				expect.objectContaining({
 					kind: "notification",
 					to: "orders@acmebakery.example",
+					webhookId: null,
 					status: "sent",
 					problem: null,
 				}),
-				expect.objectContaining({ kind: "autoReply", to: "niamh@example.ie", status: "sent" }),
+				expect.objectContaining({ kind: "autoReply", to: "niamh@example.ie", webhookId: null, status: "sent" }),
 				expect.objectContaining({
 					kind: "webhook",
 					to: "CRM",
+					// The Webhook itself, so "Send again" finds it whatever it is called now.
+					webhookId: webhook.id,
 					status: "retrying",
 					attempts: 1,
 					problem: "503",
 					nextAttemptAt: new Date(install.clock.now().getTime() + 60_000),
 				}),
 			]);
+
+			// Exported with its delivery log: one more column, what was sent and where it stands.
+			const { csv } = await submissions(owner).submissions.export({ siteId, formId, deliveryLog: true });
+			const [header, newest] = csv.slice(1).split("\r\n");
+			expect(header?.endsWith(',"Delivery log"')).toBe(true);
+			expect(newest).toContain(
+				'"Notification to orders@acmebakery.example: Sent; Auto-reply to niamh@example.ie: Sent; Webhook CRM: Will retry (503)"',
+			);
+			const { entries } = await (await install.superadmin()).api.audit.list({ limit: 1 });
+			expect(entries[0]).toMatchObject({ action: "forms.submissions.export", details: { deliveryLog: true } });
 		} finally {
 			await confirmed(staff, staffAccount, () =>
 				staff.api.webhooks.setEnabled({ siteId, webhookId: webhook.id, enabled: false }),
@@ -370,6 +383,7 @@ describe("CSV export", () => {
 		expect(filename).toMatch(/^export-submissions-\d{4}-\d{2}-\d{2}\.csv$/);
 		expect(csv.startsWith("﻿")).toBe(true);
 		const lines = csv.slice(1).split("\r\n");
+		// Without the delivery log unless asked for.
 		expect(lines[0]).toBe('"Received (UTC)","Language","Page","Your name","Email","Message","I agree to be contacted"');
 		expect(lines[1]).toContain(`"'＝Hana","x@example.ie","'＠SUM(1+1)","Yes"`);
 		expect(csv).toContain(`"'+353 Luca","x@example.ie","Line one\nline two, with a comma","Yes"`);

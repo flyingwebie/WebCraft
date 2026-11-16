@@ -94,6 +94,7 @@ describe("inviting Staff", () => {
 			invitedBy: "Sam Superadmin",
 			expiresAt: new Date(install.clock.now().getTime() + 7 * DAY),
 			workspace: null,
+			sites: null,
 			hasAccount: false,
 		});
 

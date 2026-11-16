@@ -76,7 +76,7 @@ export function DataTab({
 				</p>
 			) : null}
 			{sample ? (
-				<div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+				<div className="grid gap-6 @2xl/page:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
 					<section aria-labelledby={`${ids}-item`} className="grid min-w-0 content-start gap-2">
 						<h2 id={`${ids}-item`} className="font-semibold">
 							{sample.item ? t("data.itemHeading", { label: sample.item.label }) : t("data.noItemHeading")}

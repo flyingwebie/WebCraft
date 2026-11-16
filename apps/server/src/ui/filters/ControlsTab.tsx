@@ -13,6 +13,7 @@ import { type KeyboardEvent, useRef, useState } from "react";
 import { useAfterRender } from "../after-render.ts";
 import { Announcer, DragHandle, moveItem, useDragOrder } from "../content/reorder.tsx";
 import { useT } from "../i18n.tsx";
+import { SettingsCard } from "../settings/layout.tsx";
 import { ControlSettings } from "./ControlSettings.tsx";
 import { CONTROL_ICONS } from "./icons.ts";
 import {
@@ -101,12 +102,11 @@ export function ControlsTab({
 	const full = controls.length >= FILTER_LIMITS.controls;
 
 	return (
-		<div className="grid gap-6 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]">
-			<section aria-labelledby="filter-controls-heading" className="grid min-w-0 content-start gap-3">
-				<div className="flex items-center justify-between gap-2">
-					<h2 id="filter-controls-heading" className="text-muted-foreground text-xs font-medium uppercase">
-						{t("filters.controls.heading")}
-					</h2>
+		<div className="grid gap-6 @2xl/page:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
+			<SettingsCard
+				title={t("filters.controls.heading")}
+				className="min-w-0 self-start"
+				action={
 					<DropdownMenu>
 						<DropdownMenuTrigger render={<Button variant="outline" size="sm" disabled={full} />}>
 							<PlusIcon data-icon="inline-start" />
@@ -125,7 +125,8 @@ export function ControlsTab({
 							})}
 						</DropdownMenuContent>
 					</DropdownMenu>
-				</div>
+				}
+			>
 				{controls.length === 0 ? (
 					<p className="text-muted-foreground rounded-md border border-dashed p-6 text-sm">
 						{t("filters.controls.none")}
@@ -212,14 +213,16 @@ export function ControlsTab({
 					{t("filters.controls.combining")}
 				</p>
 				<Announcer message={said} />
-			</section>
+			</SettingsCard>
 
-			<section aria-labelledby="filter-control-settings-heading" className="grid min-w-0 content-start gap-3">
-				<h2 id="filter-control-settings-heading" className="text-muted-foreground text-xs font-medium uppercase">
-					{controls[current]
+			<SettingsCard
+				className="min-w-0 self-start"
+				title={
+					controls[current]
 						? t("filters.controls.settingsOf", { name: nameOf(controls[current]) })
-						: t("filters.controls.settings")}
-				</h2>
+						: t("filters.controls.settings")
+				}
+			>
 				{controls[current] ? (
 					<ControlSettings
 						key={controls[current].id}
@@ -236,7 +239,7 @@ export function ControlsTab({
 				) : (
 					<p className="text-muted-foreground text-sm">{t("filters.controls.select")}</p>
 				)}
-			</section>
+			</SettingsCard>
 		</div>
 	);
 }

@@ -36,6 +36,7 @@ export {
 	type ModuleComponent,
 	type NewComponent,
 	NO_MODULE_COMPONENTS,
+	type PlacedComponentDeletion,
 	readComponentMarkup,
 	renameComponent,
 	type SavedComponentMarkup,
@@ -93,9 +94,12 @@ export {
 	PagesHaveNoEntryTemplateError,
 	type PathHolder,
 	PathTakenError,
+	PostTypeBuiltInError,
+	PostTypeInUseError,
 	PostTypeInvalidError,
 	PostTypeNotFoundError,
 	PostTypeTakenError,
+	type PostTypeUse,
 	PublishInvalidError,
 	ReviewDecidedError,
 	ReviewInvalidError,
@@ -190,12 +194,14 @@ export {
 export { MAX_PAGE_DEPTH, PAGE_BUILT_IN_FIELDS, PAGE_POST_TYPE } from "./pages.ts";
 export {
 	createPostType,
+	deletePostType,
 	getPostType,
 	listPostTypes,
 	type NewPostType,
 	POST_TYPE_NAME_MAX_LENGTH,
 	type PostType,
 	type PostTypeChange,
+	type PostTypeDeletion,
 	updatePostType,
 } from "./post-types.ts";
 export {

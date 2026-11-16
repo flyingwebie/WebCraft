@@ -55,8 +55,11 @@ export type Json = string | number | boolean | null | Json[] | { [key: string]: 
 /** One choice of a select Field: the value stored, and the label people and visitors see. */
 export type SelectOption = { value: string; label: string };
 
-/** A link Field's value: where it goes and the text it shows. */
-export type LinkValue = { url: string; text: string };
+/**
+ * A link Field's value: where it goes and the text it shows, and whether it opens in a new tab
+ * (`newTab`, kept only when true; an `<a>` showing the link gets `target="_blank"` then).
+ */
+export type LinkValue = { url: string; text: string; newTab?: true };
 
 /** What every Field has, whatever its type. */
 type Common<Type extends FieldType, Default> = {
@@ -761,14 +764,18 @@ const link: FieldTypeSpec<LinkField> = {
 		empty: () => null,
 		parse(input, _field, fail) {
 			if (input === null) return null;
-			const { url, text } = (typeof input === "object" && !Array.isArray(input) ? input : {}) as Record<
+			const { url, text, newTab } = (typeof input === "object" && !Array.isArray(input) ? input : {}) as Record<
 				string,
 				unknown
 			>;
-			if (typeof url !== "string" || (text !== undefined && typeof text !== "string")) {
+			if (
+				typeof url !== "string" ||
+				(text !== undefined && typeof text !== "string") ||
+				(newTab !== undefined && typeof newTab !== "boolean")
+			) {
 				return fail("A link is an address (url) and its text.");
 			}
-			const value = { url: url.trim(), text: (text ?? "").trim() };
+			const value: LinkValue = { url: url.trim(), text: (text ?? "").trim(), ...(newTab ? { newTab: true } : {}) };
 			if (value.url.length > URL_MAX_LENGTH) return fail(`A link's address has at most ${URL_MAX_LENGTH} characters.`);
 			if (value.text.length > LINK_TEXT_MAX_LENGTH)
 				return fail(`A link's text has at most ${LINK_TEXT_MAX_LENGTH} characters.`);
@@ -778,8 +785,10 @@ const link: FieldTypeSpec<LinkField> = {
 			return value.url === "" && value.text === "" ? null : value;
 		},
 		read(stored) {
-			const { url, text } = (stored ?? {}) as Record<string, unknown>;
-			return typeof url === "string" && typeof text === "string" ? { url, text } : null;
+			const { url, text, newTab } = (stored ?? {}) as Record<string, unknown>;
+			return typeof url === "string" && typeof text === "string"
+				? { url, text, ...(newTab === true ? { newTab: true as const } : {}) }
+				: null;
 		},
 		// Its address, without text.
 		fromText: (text) => ({ input: { url: text.trim(), text: "" }, rule: "link" }),

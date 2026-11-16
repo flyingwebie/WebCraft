@@ -7,7 +7,6 @@ import { Input } from "@webcraft/ui/components/input.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { cn } from "@webcraft/ui/lib/utils.ts";
 import {
-	ArrowLeftIcon,
 	ArrowRightIcon,
 	CalendarClockIcon,
 	ChevronLeftIcon,
@@ -42,7 +41,7 @@ import {
 } from "./model.ts";
 import { Note } from "./Note.tsx";
 import { RemoveImport } from "./RemoveImport.tsx";
-import { type ImportStep, Stepper } from "./Stepper.tsx";
+import { ImportHeader, type ImportStep } from "./Stepper.tsx";
 
 type Step = Extract<ImportStep, "source" | "map" | "preview">;
 
@@ -240,39 +239,31 @@ export function SourceImportFlow({
 
 	return (
 		<div className="grid gap-8">
-			<header className="flex flex-wrap items-center gap-x-6 gap-y-4 border-b pb-6">
-				<Button
-					variant="ghost"
-					size="icon"
-					render={<Link to="/sites/$siteId/imports" params={{ siteId }} />}
-					aria-label={t("imports.flow.backToList")}
-				>
-					<ArrowLeftIcon className="rtl:rotate-180" aria-hidden="true" />
-				</Button>
-				<div className="grid min-w-48 flex-1 gap-1">
-					<h1 ref={heading} tabIndex={-1} className="text-2xl font-semibold tracking-tight outline-none">
-						{existing?.name ?? (step === "source" ? t("imports.flow.newTitle") : name || t("imports.flow.newTitle"))}
-					</h1>
-					<p className="text-muted-foreground text-sm">
-						{step === "source" ? current.intro : `${source.label} · ${file?.fileName ?? ""}`}
-					</p>
-				</div>
-				<Stepper current={step} />
-				<div className="flex items-center gap-2">
-					{back ? (
-						<Button variant="ghost" onClick={() => setStep(back)}>
-							{t("imports.flow.back")}
+			<ImportHeader
+				siteId={siteId}
+				current={step}
+				headingRef={heading}
+				heading={
+					existing?.name ?? (step === "source" ? t("imports.flow.newTitle") : name || t("imports.flow.newTitle"))
+				}
+				line={step === "source" ? current.intro : `${source.label} · ${file?.fileName ?? ""}`}
+				actions={
+					<>
+						{back ? (
+							<Button variant="ghost" onClick={() => setStep(back)}>
+								{t("imports.flow.back")}
+							</Button>
+						) : (
+							<Button variant="ghost" render={<Link to="/sites/$siteId/imports" params={{ siteId }} />}>
+								{t("imports.flow.cancel")}
+							</Button>
+						)}
+						<Button onClick={current.onNext} disabled={current.disabled}>
+							{current.next}
 						</Button>
-					) : (
-						<Button variant="ghost" render={<Link to="/sites/$siteId/imports" params={{ siteId }} />}>
-							{t("imports.flow.cancel")}
-						</Button>
-					)}
-					<Button onClick={current.onNext} disabled={current.disabled}>
-						{current.next}
-					</Button>
-				</div>
-			</header>
+					</>
+				}
+			/>
 
 			{error ? (
 				<FieldError id={`${ids}-error`} className="max-w-3xl">
@@ -280,7 +271,7 @@ export function SourceImportFlow({
 				</FieldError>
 			) : null}
 
-			<div className={cn("grid gap-8 lg:grid-cols-[16rem_minmax(0,1fr)_18rem]", step !== "source" && "hidden")}>
+			<div className={cn("grid gap-8 @2xl/page:grid-cols-[16rem_minmax(0,1fr)_18rem]", step !== "source" && "hidden")}>
 				{chooser}
 				<section aria-labelledby={`${ids}-file-title`} className="grid content-start gap-6 rounded-lg border p-6">
 					<div className="grid gap-1">
@@ -555,7 +546,7 @@ function MapStep({
 		onChange({ ...settings, types: settings.types.map((each) => (each.type === next.type ? next : each)) });
 
 	return (
-		<div className="grid gap-6 xl:grid-cols-[17rem_minmax(0,1fr)_20rem]">
+		<div className="grid gap-6 @4xl/page:grid-cols-[17rem_minmax(0,1fr)_20rem]">
 			<nav aria-labelledby={`${ids}-types`} className="grid content-start gap-2">
 				<h2 id={`${ids}-types`} className="text-muted-foreground text-xs font-medium tracking-wide uppercase">
 					{t("imports.sourceFlow.types")}
@@ -844,7 +835,8 @@ function KeyCard({
 		<li
 			className={cn(
 				"grid gap-3 rounded-lg border p-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(12rem,16rem)] sm:items-center",
-				target === null && "opacity-75",
+				// Not imported: a dashed edge, never a lower opacity (dimmed muted text fell under 4.5:1).
+				target === null && "border-dashed",
 			)}
 		>
 			<div className="grid gap-1">
@@ -1143,7 +1135,7 @@ function PreviewEntries({
 	const [chosen, setChosen] = useState(entries[0]?.sourceId ?? "");
 	const entry = entries.find((each) => each.sourceId === chosen) ?? shown[0];
 	return (
-		<div className="grid gap-6 lg:grid-cols-[20rem_minmax(0,1fr)]">
+		<div className="grid gap-6 @2xl/page:grid-cols-[20rem_minmax(0,1fr)]">
 			<div className="grid content-start gap-3">
 				<Field>
 					<FieldLabel htmlFor={`${ids}-search`} className="sr-only">
@@ -1218,7 +1210,7 @@ function PreviewEntryDetail({ entry }: { entry: PreviewEntryView }) {
 					{t("imports.sourceFlow.sourceId")} <code>{entry.sourceId}</code>
 				</p>
 			</div>
-			<div className="grid gap-4 xl:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
+			<div className="grid gap-4 @4xl/page:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
 				<div className="grid content-start gap-4 rounded-lg border p-4">
 					<h3 className="font-medium">{t("imports.sourceFlow.fields")}</h3>
 					<EntrySummary entry={{ ...entry, body: null, leftovers: [], skippedKeys: [] }} />

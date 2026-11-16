@@ -28,8 +28,8 @@ beforeAll(async () => {
 	const admin = await install.superadmin();
 	await admin.api.modules.approve({ moduleId: "sample", version: "1.0.0" });
 	await admin.api.modules.approve({ moduleId: "sample-board", version: "1.0.0" });
-	await admin.api.modules.approve({ moduleId: "forms", version: "1.2.0" });
-	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.1.0" });
+	await admin.api.modules.approve({ moduleId: "forms", version: "1.4.0" });
+	await admin.api.modules.approve({ moduleId: "site-analytics", version: "1.2.0" });
 	await admin.api.modules.approve({ moduleId: "redirects", version: "1.1.0" });
 	await admin.api.modules.approve({ moduleId: "wordpress-import", version: "1.1.0" });
 	install.dns.answer("isolated.example", ["93.184.216.34"]);
@@ -176,6 +176,9 @@ describe("Post Types", () => {
 	);
 	isolation.refuses("postTypes.data", async (api, target) =>
 		api.postTypes.data({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
+	);
+	isolation.refuses("postTypes.delete", async (api, target) =>
+		api.postTypes.delete({ siteId: target.siteId, postTypeId: (await contentIn(target)).postTypeId }),
 	);
 });
 
@@ -542,12 +545,6 @@ describe("the visual builder", () => {
 		kind: "entryTemplate" as const,
 		postTypeId: (await contentIn(target)).postTypeId,
 	});
-	isolation.refuses("builder.transferHistory", (api, target) =>
-		api.builder.transferHistory({ siteId: target.siteId, payload: "{}" }),
-	);
-	isolation.refuses("builder.claimHistory", (api, target) =>
-		api.builder.claimHistory({ siteId: target.siteId, token: "missing" }),
-	);
 	isolation.refuses("builder.reverseHistory", (api, target) =>
 		api.builder.reverseHistory({
 			siteId: target.siteId,
@@ -664,6 +661,25 @@ describe("Forms", () => {
 	);
 	isolation.refuses("forms.publish", async (api, target) =>
 		api.forms.publish({ siteId: target.siteId, formId: await formIn(target) }),
+	);
+	/** A Form in a target's Site, which has Italian too, with every text already in Italian (nothing for AI). */
+	const translatedFormIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		await api.languages.add({ siteId: target.siteId, code: "it" }).catch(() => {});
+		const formId = await formIn(target);
+		await api.forms.saveDraft({
+			siteId: target.siteId,
+			formId,
+			form: {
+				fields: [],
+				submitLabel: { text: "Send", translations: { it: "Invia" } },
+				success: { kind: "message", message: { text: "Thanks", translations: { it: "Grazie" } } },
+			},
+		});
+		return formId;
+	};
+	isolation.refuses("forms.translateMissing", async (api, target) =>
+		api.forms.translateMissing({ siteId: target.siteId, formId: await translatedFormIn(target), language: "it" }),
 	);
 	isolation.refuses("forms.rename", async (api, target) =>
 		api.forms.rename({ siteId: target.siteId, formId: await formIn(target), name: "Renamed" }),
@@ -860,6 +876,9 @@ describe("Loops", () => {
 	);
 	isolation.refuses("loops.data", async (api, target) =>
 		api.loops.data({ siteId: target.siteId, loopId: await loopIn(target) }),
+	);
+	isolation.refuses("loops.result", async (api, target) =>
+		api.loops.result({ siteId: target.siteId, loopId: await loopIn(target) }),
 	);
 	isolation.refuses("loops.publish", async (api, target) =>
 		api.loops.publish({ siteId: target.siteId, loopId: await loopIn(target) }),
@@ -1888,6 +1907,9 @@ describe("Site analytics", () => {
 		async (api, { siteId }) => (await analytics(api, siteId)).goals.list({ siteId }),
 		{ as: ["staff", "owner"] },
 	);
+	isolation.refuses("m.site-analytics.goals.usage", async (api, { siteId }) =>
+		(await analytics(api, siteId)).goals.usage({ siteId }),
+	);
 	isolation.refuses("m.site-analytics.goals.create", async (api, { siteId }) =>
 		(await analytics(api, siteId)).goals.create({
 			siteId,
@@ -2041,6 +2063,10 @@ describe("Dashboards", () => {
 	isolation.refuses(
 		"dashboards.widgets.add",
 		both((api, place, board) => api.dashboards.widgets.add({ ...place, dashboardId: board.dashboardId, kind: "note" })),
+	);
+	isolation.refuses(
+		"dashboards.widgets.duplicate",
+		both((api, place, board) => api.dashboards.widgets.duplicate({ ...place, ...board })),
 	);
 	isolation.refuses(
 		"dashboards.widgets.update",
@@ -2592,3 +2618,13 @@ describe("Page layouts", () => {
 		return api.pageLayouts.save({ siteId: target.siteId, entryId, basedOn: state.version, layout: state.layout });
 	});
 });
+
+// The person's own editor preferences, asked for by the building area of one Site.
+isolation.refuses("me.editorPreferences", (api, { siteId }) => api.me.editorPreferences({ siteId }), {
+	as: ["staff", "owner", "editor", "author"],
+});
+isolation.refuses(
+	"me.saveEditorPreferences",
+	(api, { siteId }) => api.me.saveEditorPreferences({ siteId, preferences: { version: 1, hintSeen: true } }),
+	{ as: ["staff", "owner", "editor", "author"] },
+);

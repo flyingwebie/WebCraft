@@ -1,3 +1,4 @@
+import { applyFormat } from "./apply-format.ts";
 import type { HoldEmbed } from "./body/blocks.ts";
 import { renderBody, renderToc } from "./body/body.ts";
 import { bodyChecks } from "./body/checks.ts";
@@ -6,7 +7,6 @@ import { COMPONENT_ROOT_ATTRIBUTE } from "./component-scripts.ts";
 import { blockPlacement, COMPONENT_LIMITS, type PlacementNode, type PropArgument } from "./components.ts";
 import { escapeAttribute, escapeText, safeAttributeValue, safeUrl, URL_ATTRIBUTES } from "./escape.ts";
 import type { RenderTime } from "./expressions.ts";
-import { applyFormat } from "./formatters.ts";
 import { textIn } from "./languages.ts";
 import {
 	isLoopValuePath,
@@ -19,6 +19,7 @@ import {
 } from "./loops.ts";
 import { type ImagePriority, type MediaReader, mediaReference, renderMediaImage } from "./media.ts";
 import { cleanRichText } from "./rich-text.ts";
+import { passes } from "./run-expression.ts";
 import {
 	type Attribute,
 	childListsOf,
@@ -30,17 +31,8 @@ import {
 	type ValueNode,
 	VOID_ELEMENTS,
 } from "./tree.ts";
-import {
-	isBody,
-	isList,
-	isPresent,
-	isRichText,
-	isToc,
-	joinList,
-	type TemplateValue,
-	textOf,
-	type ValueReader,
-} from "./values.ts";
+import { isPresent, textOf } from "./value-text.ts";
+import { isBody, isList, isRichText, isToc, joinList, type TemplateValue, type ValueReader } from "./values.ts";
 
 export { escapeAttribute, escapeText, safeUrl } from "./escape.ts";
 
@@ -321,7 +313,9 @@ function renderNodeContent(node: TreeNode, options: RenderOptions, state: Render
 			for (const attribute of elementAttributes(node, options)) {
 				attributes += renderAttribute(attribute, options);
 			}
-			const tags = editTags(node, options);
+			attributes += linkTarget(node, options);
+			const link = linkTags(node, options);
+			const tags = link.length > 0 ? link : editTags(node, options);
 			const inlineProp = tags.some(([name]) => name === "data-wc-placement-prop");
 			for (const [name, value] of [
 				...(options.extraAttributes?.(node) ?? []),
@@ -334,7 +328,13 @@ function renderNodeContent(node: TreeNode, options: RenderOptions, state: Render
 				attributes += ` ${CODE_ATTRIBUTE}="${escapeAttribute(`${options.codeSource}#${node.id}`)}"`;
 			}
 			if (VOID_ELEMENTS.has(node.tag)) return `<${node.tag}${attributes}>`;
-			let children = renderNodes(node.children, { ...options, placementRoot: undefined }, state);
+			// An editable region holds one binding, typed over in place: Code mode's comment ranges around
+			// it would end up in what is typed (the building area tags both, `EditModePage.regions`).
+			let children = renderNodes(
+				node.children,
+				{ ...options, placementRoot: undefined, ...(tags.length > 0 ? { codeSource: undefined } : {}) },
+				state,
+			);
 			if (inlineProp)
 				children = `<span${tags.map(([name, value]) => ` ${name}="${escapeAttribute(value)}"`).join("")}>${children}</span>`;
 			if (node.tag === "footer") children += options.footer?.() ?? "";
@@ -349,7 +349,7 @@ function renderNodeContent(node: TreeNode, options: RenderOptions, state: Render
 	if (!command) return "";
 	return command.render(node, {
 		read: options.values,
-		time: options.time,
+		passes: (test) => passes(test, options.values, options.time),
 		nodes: (children) => {
 			const list = childListsOf(node).indexOf(children);
 			return codeRange(renderNodes(children, options, state), options, `${state.paths?.get(node)}/${list}`);
@@ -609,6 +609,52 @@ function editTags(node: ElementNode, options: RenderOptions): readonly (readonly
 	if (content.length !== 1 || only?.type !== "value") return [];
 	const region = options.editRegion(only, {});
 	return region ? [...region, ["data-wc-id", node.id]] : [];
+}
+
+/**
+ * The binding an `<a>` shows whole, when its `href` is one link value's address (`{{ cta.url }}`) and
+ * its only content (comments aside) that link's words (`{{ cta.text }}`, or `{{ cta }}`), neither
+ * through a formatter: the link's own binding (`cta`). Undefined for any other element.
+ */
+function linkBinding(node: ElementNode): ValueNode | undefined {
+	const address = hrefBinding(node);
+	if (!address) return undefined;
+	const content = node.children.filter((child) => child.type !== "comment");
+	const [words] = content;
+	if (content.length !== 1 || words?.type !== "value" || words.format) return undefined;
+	return words.path === address.path || words.path === `${address.path}.text` ? address : undefined;
+}
+
+/** The link an `<a>`'s `href` is the address of (`{{ cta.url }}` gives `cta`), without a formatter. */
+function hrefBinding(node: ElementNode): ValueNode | undefined {
+	if (node.tag !== "a") return undefined;
+	const href = node.attributes.find((attribute) => attribute.name === "href");
+	const [only] = href?.value ?? [];
+	if (href?.value.length !== 1 || only?.type !== "value" || only.format || !only.path.endsWith(".url")) {
+		return undefined;
+	}
+	return { type: "value", path: only.path.slice(0, -".url".length) };
+}
+
+/**
+ * Edit mode's tags for an `<a>` showing a whole link (`linkBinding`), when that link is editable
+ * (`editRegion` with `link`): the region's attributes and the element's id. Nothing otherwise.
+ */
+function linkTags(node: ElementNode, options: RenderOptions): readonly (readonly [string, string])[] {
+	if (!options.editRegion) return [];
+	const link = linkBinding(node);
+	const region = link && options.editRegion(link, { link: true });
+	return region ? [...region, ["data-wc-id", node.id]] : [];
+}
+
+/**
+ * An `<a>` whose `href` is a link value's address opens in a new tab when that link says so (its
+ * `newTab`), unless the Template gives the `<a>` a `target` of its own.
+ */
+function linkTarget(node: ElementNode, options: RenderOptions): string {
+	const link = hrefBinding(node);
+	if (!link || node.attributes.some((attribute) => attribute.name === "target")) return "";
+	return options.values(`${link.path}.newTab`) === true ? ' target="_blank" rel="noopener"' : "";
 }
 
 /**

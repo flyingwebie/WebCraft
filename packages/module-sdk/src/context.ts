@@ -3,6 +3,7 @@ import type { AnyPgColumn, PgTable } from "drizzle-orm/pg-core";
 
 import type { ConsentCategory, Label } from "./manifest.ts";
 import type { ModuleSubmissions } from "./submissions.ts";
+import type { ModuleWidgets } from "./widgets.ts";
 
 /**
  * What a Module's code gets when it runs: in a procedure, a Site route, an event or a job. It is
@@ -44,6 +45,8 @@ export type ModuleContext = {
 	readonly log: ModuleLog;
 	/** The Form Submissions it keeps, for the Module keeping them, at a Site (SDK 1.6). */
 	readonly submissions: ModuleSubmissions;
+	/** Where Staff placed its Widgets, for a Module that adds Widget kinds, at a Site (SDK 1.16). */
+	readonly widgets: ModuleWidgets;
 	/** Runs `work` in one transaction: its table changes and Audit log entries are saved together or not at all. */
 	transaction<Result>(work: (context: ModuleContext) => Promise<Result>): Promise<Result>;
 };

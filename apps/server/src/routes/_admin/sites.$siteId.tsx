@@ -6,16 +6,18 @@ import type { AdminPlace } from "../../ui/shell/levels.ts";
 
 /**
  * The Site level: every page below is about one Site. Loads the Site, its Workspace, the person's
- * Permissions on it, its Post Types (the sidebar lists their Entries), its Forms and languages, how
- * many of its Drafts they may publish (Publish all in the top bar) and how many Reviews wait for them
- * (the Overview item), and the Workspace's other Sites they reach (for the context switcher). A Site the person can't reach is "not found".
+ * Permissions on it, its Post Types (the sidebar lists their Entries), its Forms (with how many new
+ * Submissions each holds) and languages, how many of its Drafts they may publish (Publish all in the
+ * top bar) and how many Reviews wait for them (the Overview row), the Dashboards they see
+ * (Analytics), and the Workspace's other Sites they reach (for the context switcher). A Site the
+ * person can't reach is "not found".
  */
 export const Route = createFileRoute("/_admin/sites/$siteId")({
 	beforeLoad: async ({ params }) => {
 		const api = await getApi();
 		try {
 			const [
-				{ site, workspace, permissions, modulePages, modulePermissions, languages },
+				{ site, workspace, permissions, modulePages, modulePermissions, languages, newSubmissions },
 				{ postTypes },
 				{ count: drafts },
 				{ count: reviews },
@@ -27,16 +29,23 @@ export const Route = createFileRoute("/_admin/sites/$siteId")({
 			]);
 			const { sites } = await api.sites.list({ workspaceId: workspace.id });
 			// Each Form has its own sidebar item: for Staff (its Structure) and for the clients who read its
-			// Submissions and change its emails, never Authors.
+			// Submissions and change its emails, never Authors. Each says how many of its Submissions are
+			// new, and the Forms row their sum, for the people who read them.
 			const forms =
 				permissions.includes("structure.edit") || permissions.includes("formEmails.edit")
-					? (await api.forms.list({ siteId: params.siteId })).forms.map(({ id, name }) => ({ id, name }))
+					? (await api.forms.list({ siteId: params.siteId })).forms.map(({ id, name, newSubmissions }) => ({
+							id,
+							name,
+							newSubmissions: newSubmissions ?? undefined,
+						}))
 					: [];
-			// Dashboards: Staff and Owners see them all; others only those shown to everyone.
+			// Analytics lists the Dashboards the person sees by name (Staff and Owners see them all, others
+			// only those shown to everyone); nobody who neither sees one nor builds them gets the row.
+			const { dashboards: listed } = await api.dashboards.list({ siteId: params.siteId });
 			const dashboards =
-				permissions.includes("dashboard.view") ||
-				permissions.includes("dashboard.manage") ||
-				(await api.dashboards.list({ siteId: params.siteId })).dashboards.length > 0;
+				permissions.includes("dashboard.view") || permissions.includes("dashboard.manage") || listed.length > 0
+					? listed.map(({ id, name }) => ({ id, name }))
+					: null;
 			const place: AdminPlace = {
 				level: "site",
 				workspace,
@@ -46,6 +55,7 @@ export const Route = createFileRoute("/_admin/sites/$siteId")({
 				modulePages,
 				postTypes: postTypes.map(({ id, name, builtIn }) => ({ id, name, builtIn })),
 				forms,
+				newSubmissions: newSubmissions ?? undefined,
 				languages,
 				modulePermissions,
 				drafts,

@@ -2333,6 +2333,59 @@
 				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
+		"/postTypes/delete": {
+			"post": {
+				"operationId": "postTypes.delete",
+				"summary": "Deletes a Post Type with its Entries and Templates, after a confirmation.",
+				"tags": ["postTypes"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"postTypeId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"confirmation": {
+										"type": "string",
+										"maxLength": 100
+									}
+								},
+								"required": ["siteId", "postTypeId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"],
+				"x-webcraft-confirmation": true
+			}
+		},
 		"/postTypes/data": {
 			"post": {
 				"operationId": "postTypes.data",
@@ -8379,6 +8432,10 @@
 									"confirmation": {
 										"type": "string",
 										"maxLength": 100
+									},
+									"placements": {
+										"enum": ["refuse", "remove"],
+										"type": "string"
 									}
 								},
 								"required": ["siteId", "componentId"]
@@ -9117,7 +9174,509 @@
 											"fields": {
 												"type": "array",
 												"maxItems": 1000,
-												"items": {}
+												"items": {
+													"type": "object",
+													"properties": {
+														"key": {
+															"type": "string",
+															"maxLength": 64,
+															"description": "Names its value in Submissions: a lower-case letter, then lower-case letters, digits and underscores."
+														},
+														"type": {
+															"enum": [
+																"text",
+																"email",
+																"phone",
+																"url",
+																"textarea",
+																"number",
+																"date",
+																"select",
+																"radio",
+																"checkboxes",
+																"consent",
+																"hidden",
+																"file",
+																"section",
+																"step"
+															],
+															"type": "string",
+															"description": "A field visitors fill in, or a section or a step: those hold the items after them and no value. Each type takes only its own settings."
+														},
+														"label": {
+															"anyOf": [
+																{
+																	"type": "string"
+																},
+																{
+																	"type": "object",
+																	"properties": {
+																		"text": {
+																			"type": "string"
+																		},
+																		"translations": {
+																			"type": "object",
+																			"propertyNames": {
+																				"type": "string"
+																			},
+																			"additionalProperties": {
+																				"type": "string"
+																			}
+																		}
+																	},
+																	"required": ["text"]
+																}
+															]
+														},
+														"hideLabel": {
+															"anyOf": [
+																{
+																	"type": "boolean"
+																},
+																{
+																	"type": "null"
+																}
+															]
+														},
+														"help": {
+															"anyOf": [
+																{
+																	"anyOf": [
+																		{
+																			"type": "string"
+																		},
+																		{
+																			"type": "object",
+																			"properties": {
+																				"text": {
+																					"type": "string"
+																				},
+																				"translations": {
+																					"type": "object",
+																					"propertyNames": {
+																						"type": "string"
+																					},
+																					"additionalProperties": {
+																						"type": "string"
+																					}
+																				}
+																			},
+																			"required": ["text"]
+																		}
+																	]
+																},
+																{
+																	"type": "null"
+																}
+															]
+														},
+														"placeholder": {
+															"anyOf": [
+																{
+																	"anyOf": [
+																		{
+																			"type": "string"
+																		},
+																		{
+																			"type": "object",
+																			"properties": {
+																				"text": {
+																					"type": "string"
+																				},
+																				"translations": {
+																					"type": "object",
+																					"propertyNames": {
+																						"type": "string"
+																					},
+																					"additionalProperties": {
+																						"type": "string"
+																					}
+																				}
+																			},
+																			"required": ["text"]
+																		}
+																	]
+																},
+																{
+																	"type": "null"
+																}
+															]
+														},
+														"message": {
+															"anyOf": [
+																{
+																	"anyOf": [
+																		{
+																			"type": "string"
+																		},
+																		{
+																			"type": "object",
+																			"properties": {
+																				"text": {
+																					"type": "string"
+																				},
+																				"translations": {
+																					"type": "object",
+																					"propertyNames": {
+																						"type": "string"
+																					},
+																					"additionalProperties": {
+																						"type": "string"
+																					}
+																				}
+																			},
+																			"required": ["text"]
+																		}
+																	]
+																},
+																{
+																	"type": "null"
+																}
+															],
+															"description": "The error shown for a value the field refuses, in place of WebCraft's own words."
+														},
+														"required": {
+															"anyOf": [
+																{
+																	"type": "boolean"
+																},
+																{
+																	"type": "null"
+																}
+															]
+														},
+														"width": {
+															"anyOf": [
+																{
+																	"enum": ["whole", "half", "third"],
+																	"type": "string"
+																},
+																{
+																	"type": "null"
+																}
+															],
+															"default": "whole",
+															"description": "How much of a line the field takes on a page: fields narrower than the whole line sit side by side and wrap; under a narrow width every field is whole. A section or a step has no width (null)."
+														},
+														"minLength": {
+															"anyOf": [
+																{
+																	"type": "number"
+																},
+																{
+																	"type": "null"
+																}
+															]
+														},
+														"maxLength": {
+															"anyOf": [
+																{
+																	"type": "number"
+																},
+																{
+																	"type": "null"
+																}
+															]
+														},
+														"pattern": {
+															"anyOf": [
+																{
+																	"type": "string",
+																	"maxLength": 500
+																},
+																{
+																	"type": "null"
+																}
+															]
+														},
+														"autocomplete": {
+															"anyOf": [
+																{
+																	"enum": [
+																		"name",
+																		"given-name",
+																		"family-name",
+																		"organization",
+																		"organization-title",
+																		"street-address",
+																		"address-line1",
+																		"address-line2",
+																		"address-level2",
+																		"address-level1",
+																		"postal-code",
+																		"country-name",
+																		"email",
+																		"tel",
+																		"url",
+																		"off"
+																	],
+																	"type": "string"
+																},
+																{
+																	"type": "null"
+																}
+															]
+														},
+														"min": {
+															"anyOf": [
+																{
+																	"type": "number"
+																},
+																{
+																	"type": "null"
+																}
+															]
+														},
+														"max": {
+															"anyOf": [
+																{
+																	"type": "number"
+																},
+																{
+																	"type": "null"
+																}
+															]
+														},
+														"integer": {
+															"anyOf": [
+																{
+																	"type": "boolean"
+																},
+																{
+																	"type": "null"
+																}
+															]
+														},
+														"minDate": {
+															"anyOf": [
+																{
+																	"type": "string"
+																},
+																{
+																	"type": "null"
+																}
+															],
+															"description": "The earliest day, such as 2026-03-02."
+														},
+														"maxDate": {
+															"anyOf": [
+																{
+																	"type": "string"
+																},
+																{
+																	"type": "null"
+																}
+															],
+															"description": "The latest day, such as 2026-03-02."
+														},
+														"options": {
+															"type": "array",
+															"maxItems": 200,
+															"items": {
+																"type": "object",
+																"properties": {
+																	"value": {
+																		"type": "string",
+																		"maxLength": 200
+																	},
+																	"label": {
+																		"anyOf": [
+																			{
+																				"type": "string"
+																			},
+																			{
+																				"type": "object",
+																				"properties": {
+																					"text": {
+																						"type": "string"
+																					},
+																					"translations": {
+																						"type": "object",
+																						"propertyNames": {
+																							"type": "string"
+																						},
+																						"additionalProperties": {
+																							"type": "string"
+																						}
+																					}
+																				},
+																				"required": ["text"]
+																			}
+																		]
+																	}
+																},
+																"required": ["value", "label"]
+															}
+														},
+														"minChoices": {
+															"anyOf": [
+																{
+																	"type": "number"
+																},
+																{
+																	"type": "null"
+																}
+															]
+														},
+														"maxChoices": {
+															"anyOf": [
+																{
+																	"type": "number"
+																},
+																{
+																	"type": "null"
+																}
+															]
+														},
+														"source": {
+															"anyOf": [
+																{
+																	"anyOf": [
+																		{
+																			"type": "object",
+																			"properties": {
+																				"kind": {
+																					"const": "query"
+																				},
+																				"name": {
+																					"type": "string"
+																				}
+																			},
+																			"required": ["kind", "name"]
+																		},
+																		{
+																			"type": "object",
+																			"properties": {
+																				"kind": {
+																					"const": "page"
+																				}
+																			},
+																			"required": ["kind"]
+																		},
+																		{
+																			"type": "object",
+																			"properties": {
+																				"kind": {
+																					"const": "fixed"
+																				},
+																				"value": {
+																					"type": "string"
+																				}
+																			},
+																			"required": ["kind", "value"]
+																		}
+																	]
+																},
+																{
+																	"type": "null"
+																}
+															],
+															"description": "A hidden field's value: a parameter of the page's address, the page's address, or fixed text."
+														},
+														"accept": {
+															"type": "array",
+															"items": {
+																"enum": [
+																	"jpeg",
+																	"png",
+																	"webp",
+																	"avif",
+																	"heic",
+																	"gif",
+																	"pdf",
+																	"docx",
+																	"xlsx",
+																	"pptx",
+																	"odt",
+																	"ods",
+																	"txt",
+																	"csv",
+																	"mp3",
+																	"m4a",
+																	"wav",
+																	"mp4",
+																	"mov",
+																	"webm"
+																],
+																"type": "string"
+															},
+															"description": "The file formats a file field takes."
+														},
+														"maxFileBytes": {
+															"anyOf": [
+																{
+																	"type": "number"
+																},
+																{
+																	"type": "null"
+																}
+															]
+														},
+														"maxFiles": {
+															"anyOf": [
+																{
+																	"type": "number"
+																},
+																{
+																	"type": "null"
+																}
+															]
+														},
+														"condition": {
+															"anyOf": [
+																{
+																	"type": "object",
+																	"properties": {
+																		"match": {
+																			"enum": ["all", "any"],
+																			"type": "string"
+																		},
+																		"rules": {
+																			"type": "array",
+																			"maxItems": 10,
+																			"items": {
+																				"type": "object",
+																				"properties": {
+																					"field": {
+																						"type": "string"
+																					},
+																					"op": {
+																						"enum": ["is", "isNot", "isEmpty", "isNotEmpty", "greaterThan", "lessThan"],
+																						"type": "string"
+																					},
+																					"value": {
+																						"anyOf": [
+																							{
+																								"anyOf": [
+																									{
+																										"type": "string"
+																									},
+																									{
+																										"type": "number"
+																									}
+																								]
+																							},
+																							{
+																								"type": "null"
+																							}
+																						]
+																					}
+																				},
+																				"required": ["field", "op"]
+																			}
+																		}
+																	},
+																	"required": ["match", "rules"]
+																},
+																{
+																	"type": "null"
+																}
+															],
+															"description": "When the item shows: rules about the values of fields before it."
+														}
+													},
+													"required": ["key", "type", "label"]
+												}
 											},
 											"submitLabel": {},
 											"success": {},
@@ -9149,6 +9708,59 @@
 				},
 				"x-webcraft-access": "write",
 				"x-webcraft-toolsets": ["forms"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
+		"/forms/translateMissing": {
+			"post": {
+				"operationId": "forms.translateMissing",
+				"summary": "Fills a Form's missing translations in one language with AI, into its Draft.",
+				"tags": ["forms"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"formId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"language": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 35
+									}
+								},
+								"required": ["siteId", "formId", "language"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["forms", "translation"],
 				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
@@ -10916,6 +11528,59 @@
 			"post": {
 				"operationId": "loops.data",
 				"summary": "A Loop's Data tab: its first item as bindings read it.",
+				"tags": ["loops"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"loopId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"language": {
+										"type": "string",
+										"minLength": 2,
+										"maxLength": 35
+									}
+								},
+								"required": ["siteId", "loopId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
+		"/loops/result": {
+			"post": {
+				"operationId": "loops.result",
+				"summary": "What a Loop's Draft lists: its items as bindings read them, how many in all, and the pages showing it.",
 				"tags": ["loops"],
 				"requestBody": {
 					"required": true,
@@ -20006,7 +20671,7 @@
 		"/dashboards/list": {
 			"post": {
 				"operationId": "dashboards.list",
-				"summary": "Lists a Site's Dashboards, or a Workspace's, that the caller sees.",
+				"summary": "Lists a Site's Dashboards, or a Workspace's, that the caller sees (a Site's built-in one first).",
 				"tags": ["dashboards"],
 				"requestBody": {
 					"required": true,
@@ -20274,7 +20939,7 @@
 		"/dashboards/delete": {
 			"post": {
 				"operationId": "dashboards.delete",
-				"summary": "Deletes a Dashboard.",
+				"summary": "Deletes a Dashboard (never a Site's built-in Site analytics Dashboard).",
 				"tags": ["dashboards"],
 				"requestBody": {
 					"required": true,
@@ -20678,6 +21343,62 @@
 				"x-webcraft-permissions": ["dashboard.manage"]
 			}
 		},
+		"/dashboards/widgets/duplicate": {
+			"post": {
+				"operationId": "dashboards.widgets.duplicate",
+				"summary": "Copies a Widget, with its settings, into the first free place.",
+				"tags": ["dashboards"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"workspaceId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"dashboardId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"widgetId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["dashboardId", "widgetId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["dashboard.manage"]
+			}
+		},
 		"/dashboards/widgets/update": {
 			"post": {
 				"operationId": "dashboards.widgets.update",
@@ -20997,7 +21718,7 @@
 		"/dashboards/widgets/data": {
 			"post": {
 				"operationId": "dashboards.widgets.data",
-				"summary": "What a Widget shows now: its counts for its range, or why it shows nothing.",
+				"summary": "What a Widget shows now: its counts for its range (and the period before, when asked), or why it shows nothing.",
 				"tags": ["dashboards"],
 				"requestBody": {
 					"required": true,
@@ -21063,6 +21784,9 @@
 												"additionalProperties": false
 											}
 										]
+									},
+									"compare": {
+										"type": "boolean"
 									}
 								},
 								"required": ["dashboardId", "widgetId"]
@@ -22934,6 +23658,10 @@
 										"type": "string",
 										"maxLength": 35
 									},
+									"deliveryLog": {
+										"type": "boolean",
+										"default": false
+									},
 									"siteId": {
 										"type": "string",
 										"format": "uuid"
@@ -23674,6 +24402,50 @@
 				"x-webcraft-access": "read",
 				"x-webcraft-toolsets": ["analytics"],
 				"x-webcraft-permissions": ["site-analytics.analytics.view"]
+			}
+		},
+		"/m/site-analytics/goals/usage": {
+			"post": {
+				"operationId": "m.site-analytics.goals.usage",
+				"summary": "Site analytics: goals.usage.",
+				"tags": ["m.site-analytics"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "read",
+				"x-webcraft-toolsets": ["analytics"],
+				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
 		"/m/site-analytics/goals/create": {

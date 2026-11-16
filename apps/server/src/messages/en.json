@@ -245,9 +245,7 @@
 	},
 	"setup": {
 		"pageTitle": "Setup",
-		"title": "Set up WebCraft",
 		"stepsLabel": "Setup steps",
-		"stepCount": "Step {current} of {total}",
 		"stepDone": "Done",
 		"stepCurrent": "Current step",
 		"lockNote": "This wizard locks for good once setup is finished.",
@@ -256,8 +254,6 @@
 		"steps": {
 			"token": {
 				"title": "Setup token",
-				"hint": "From the web process's log",
-				"doneHint": "Verified from the server log",
 				"heading": "Enter the setup token",
 				"intro": "When WebCraft started, the web process wrote a one-time setup token in its log. Copy it from there to show that you run this server.",
 				"label": "Setup token",
@@ -265,8 +261,7 @@
 				"required": "Enter the setup token."
 			},
 			"account": {
-				"title": "Superadmin account",
-				"hint": "Who runs this Install",
+				"title": "Your account",
 				"heading": "Create the Superadmin account",
 				"intro": "This person administers the whole Install: every Workspace, all Staff and the Install settings.",
 				"name": "Full name",
@@ -280,8 +275,7 @@
 				"nameRequired": "Enter a name."
 			},
 			"twoFactor": {
-				"title": "Two-factor authentication",
-				"hint": "Passkey or authenticator app",
+				"title": "Two-factor",
 				"heading": "Protect your account with two-factor authentication",
 				"intro": "A password alone can be guessed or stolen. With a passkey or an authenticator app, signing in also needs something only you have.",
 				"recommend": "The Superadmin can reach everything on this Install, so we strongly recommend it.",
@@ -290,8 +284,7 @@
 				"skip": "Skip for now"
 			},
 			"email": {
-				"title": "Install email (SMTP)",
-				"hint": "Sends invites and security email",
+				"title": "Email",
 				"heading": "Set up the Install email",
 				"intro": "WebCraft sends invites, password resets and security notices through an SMTP server, such as your email provider's or a sending service's.",
 				"later": "You can skip this for now: until an SMTP is set, these emails are written to the web log. You can set it later in Install settings › Email (SMTP).",
@@ -301,7 +294,6 @@
 			},
 			"modules": {
 				"title": "Modules",
-				"hint": "Built-in features to approve",
 				"heading": "Approve the Modules",
 				"intro": "Modules are features that come with WebCraft, such as Forms or Site analytics. Each runs only once you approve what it asks for. They are ticked: untick any you don't want yet.",
 				"later": "You can approve or withdraw Modules later in Install settings › Modules.",
@@ -314,7 +306,6 @@
 			},
 			"firstClient": {
 				"title": "Your first client",
-				"hint": "A Workspace, and its first Site, to start in",
 				"heading": "Add your first client",
 				"intro": "A Workspace holds one client organisation: its Sites, its people and its Media. Create the first one now, and its first Site, and the admin opens there, ready for you to start building.",
 				"later": "You can skip this for now and create Workspaces later on the Workspaces page.",
@@ -336,7 +327,6 @@
 	"signIn": {
 		"pageTitle": "Sign in",
 		"heading": "Sign in",
-		"headingNamed": "Sign in to {name}",
 		"email": "Email",
 		"password": "Password",
 		"submit": "Sign in",
@@ -345,34 +335,41 @@
 		"withPasskey": "Sign in with a passkey",
 		"passkeyCancelled": "No passkey was used. Try again when you're ready.",
 		"secondStep": {
-			"heading": "Two-step verification",
-			"authenticatorBody": "Enter the code your authenticator app shows for this account.",
+			"heading": "Enter the code",
+			"authenticatorBody": "Enter the 6-digit code from your authenticator app.",
 			"backupCodeBody": "Enter one of the backup codes you saved. Each works once.",
 			"passkeyBody": "Use your passkey to finish signing in.",
 			"code": "Code from the app",
-			"codeHelp": "The 6 digits the app shows now.",
 			"backupCode": "Backup code",
 			"backupCodeHelp": "Such as abcde-23456.",
 			"submit": "Verify",
 			"usePasskey": "Use a passkey",
 			"useBackupCode": "Use a backup code instead",
 			"useAuthenticator": "Use your authenticator app instead",
-			"startOver": "Sign in again"
+			"startOver": "Sign in again",
+			"backupCodeHeading": "Enter a backup code",
+			"passkeyHeading": "Use your passkey"
+		},
+		"invited": "Invited? Use the link in your email.",
+		"tooMany": {
+			"heading": "Too many tries",
+			"newPassword": "Or choose a new password.",
+			"tryAgain": "Back to sign in"
 		}
 	},
 	"forgotPassword": {
-		"pageTitle": "Reset your password",
-		"heading": "Reset your password",
-		"body": "Enter the email address you sign in with. We'll email you a link to choose a new password.",
+		"pageTitle": "Forgot your password",
+		"heading": "Forgot your password",
+		"body": "We will email you a link to choose a new one.",
 		"email": "Email",
 		"emailRequired": "Enter your email address.",
-		"submit": "Email me a link",
+		"submit": "Send the link",
 		"backToSignIn": "Back to sign in",
 		"sent": {
 			"heading": "Check your email",
 			"body": "If {email} has an account here, a link to choose a new password is on its way. It works once, for 30 minutes.",
 			"help": "Nothing after a few minutes? Check your spam folder, or ask whoever runs this Install.",
-			"again": "Use another address"
+			"again": "Use a different address"
 		}
 	},
 	"resetPassword": {
@@ -380,7 +377,6 @@
 		"heading": "Choose a new password",
 		"body": "You'll be signed out everywhere, then you sign in with the new password.",
 		"password": "New password",
-		"passwordHelp": "At least 12 characters.",
 		"submit": "Change password",
 		"done": {
 			"heading": "Your password is changed",
@@ -388,37 +384,49 @@
 			"signIn": "Sign in"
 		},
 		"invalid": {
-			"heading": "This reset link doesn't work",
+			"heading": "This link is no longer good",
 			"body": "It was already used, replaced by a newer link, or is more than 30 minutes old.",
-			"again": "Ask for a new link"
+			"again": "Ask for a new one"
 		}
 	},
 	"shell": {
 		"navLabel": "Admin",
 		"toggleSidebar": "Show or hide the sidebar",
 		"breadcrumbLabel": "Breadcrumb",
-		"levels": {
-			"install": "Install"
-		},
 		"switcher": {
 			"label": "Switch Workspace or Site",
 			"installSubtitle": "Install · {role}",
-			"heading": "Switch to",
 			"install": "Install",
 			"workspaceSubtitle": "Workspace · {count, plural, one {# Site} other {# Sites}}",
 			"siteSubtitle": "{workspace} · {slug}",
 			"workspaces": "Workspaces",
-			"sitesIn": "Sites in {workspace}"
+			"sitesIn": "Sites in {workspace}",
+			"title": "Switch Workspace or Site",
+			"installArea": "Install area",
+			"findWorkspace": "Find a Workspace",
+			"noWorkspaces": "No Workspace matches.",
+			"noSites": "No Sites here yet.",
+			"loadingSites": "Loading the Sites…",
+			"sitesFailed": "The Sites could not be loaded.",
+			"openWorkspace": "Open {workspace}",
+			"newWorkspace": "New Workspace",
+			"newSite": "New Site",
+			"workspaceSettings": "Workspace settings",
+			"current": "{name}, where you are"
 		},
 		"userMenu": {
 			"label": "Open the account menu",
-			"account": "Your account",
+			"account": "Account",
 			"signOut": "Sign out",
 			"apiTokens": "API tokens",
 			"aiClients": "AI clients",
-			"activity": "Activity"
+			"activity": "Activity",
+			"adminLanguage": "Admin language",
+			"theme": "Theme",
+			"themeSystem": "System",
+			"themeLight": "Light",
+			"themeDark": "Dark"
 		},
-		"darkTheme": "Dark theme",
 		"nav": {
 			"installGroup": "Install",
 			"installSettingsGroup": "Install settings",
@@ -431,7 +439,6 @@
 			"staff": "Staff",
 			"workspaceGroup": "Workspace",
 			"sites": "Sites",
-			"siteGroup": "Site",
 			"members": "Members",
 			"media": "Media",
 			"storage": "Storage",
@@ -476,7 +483,56 @@
 			"siteExport": "Export",
 			"siteImports": "Site imports",
 			"checks": "Checks",
-			"popups": "Popups"
+			"popups": "Popups",
+			"insightsGroup": "Insights",
+			"analytics": "Analytics",
+			"measure": "Measure",
+			"logsAndHealth": "Logs and health",
+			"workspaceSettings": "Workspace settings",
+			"settingsCrumb": "Settings",
+			"newCount": "{count} new",
+			"settings": {
+				"general": "General",
+				"translation": "Translation",
+				"searchAndPrivacy": "Search and privacy",
+				"integrations": "Integrations",
+				"data": "Data"
+			}
+		},
+		"loading": "Loading the page",
+		"siteActions": "More for this Site",
+		"search": {
+			"label": "Search",
+			"title": "Search the admin",
+			"description": "Find a screen, a Site or a Workspace and go there.",
+			"placeholder": "Go to a screen, a Site or a Workspace",
+			"results": "Results",
+			"screens": "Screens",
+			"none": "Nothing matches “{query}”.",
+			"close": "Close",
+			"keys": "Arrow keys to move, Enter to open, Escape to close.",
+			"within": "{parent} › {name}"
+		},
+		"saveBar": {
+			"label": "Saving this screen",
+			"clean": "No changes",
+			"dirty": "Unsaved changes",
+			"saving": "Saving…",
+			"saved": "Saved",
+			"failed": "Could not save",
+			"discard": "Discard",
+			"save": "Save",
+			"retry": "Try again"
+		},
+		"leaveGuard": {
+			"title": "Leave without saving?",
+			"body": "This screen has changes that are not saved. If you leave now, they are lost.",
+			"stay": "Keep editing",
+			"leave": "Leave without saving",
+			"close": "Close"
+		},
+		"sheet": {
+			"close": "Close"
 		}
 	},
 	"masterKeyBanner": {
@@ -520,8 +576,6 @@
 		"nameHelp": "Shown at the top of the admin. Leave it empty to show WebCraft.",
 		"defaultLanguage": "Default Admin language",
 		"defaultLanguageHelp": "The language of signed-out pages and of everyone who hasn't chosen their own.",
-		"save": "Save",
-		"saved": "Saved.",
 		"version": {
 			"heading": "WebCraft version",
 			"running": "This Install runs WebCraft {version}.",
@@ -532,7 +586,8 @@
 			"off": "The update check is off (WEBCRAFT_UPDATE_FEED=off).",
 			"problem": "The last check couldn't read the release feed.",
 			"notes": "Release notes"
-		}
+		},
+		"installCard": "Install"
 	},
 	"securitySettings": {
 		"pageTitle": "Security",
@@ -540,15 +595,16 @@
 		"intro": "How the Install protects people's accounts.",
 		"leakedPasswordCheck": "Check new passwords against lists of leaked passwords",
 		"leakedPasswordCheckHelp": "Only the first 5 characters of a password's SHA-1 hash leave the server, so the password itself is never sent. When the lookup can't be reached, the password is accepted. Switch the check off for an Install that is always offline.",
-		"save": "Save",
-		"saved": "Saved.",
 		"requireTwoFactor": "Require two-factor authentication for everyone",
 		"requireTwoFactorHelp": "Everyone without it, Staff included, is asked to set it up right after signing in and can do nothing else until they have. API tokens keep working.",
 		"requireTwoFactorOwnFirst": "Add two-factor authentication to your own account first (Your account).",
 		"auditRetention": "Keep Audit log entries for",
 		"auditRetentionHelp": "Older entries are removed every day, for good. Changing this needs you to confirm who you are.",
 		"auditRetentionDays": "{days, plural, one {# day} other {# days}}",
-		"auditRetentionYears": "{years, plural, one {# year} other {# years}}"
+		"auditRetentionYears": "{years, plural, one {# year} other {# years}}",
+		"signInCard": "Signing in",
+		"signInCardIntro": "How people prove who they are.",
+		"auditCard": "Audit log"
 	},
 	"storageSettings": {
 		"pageTitle": "Storage",
@@ -608,9 +664,7 @@
 			"theme": "Appearance",
 			"themeSystem": "Same as this device",
 			"themeLight": "Light",
-			"themeDark": "Dark",
-			"save": "Save",
-			"saved": "Saved."
+			"themeDark": "Dark"
 		},
 		"password": {
 			"heading": "Password",
@@ -626,10 +680,7 @@
 		"sessions": {
 			"heading": "Sessions",
 			"intro": "The browsers signed in to your account. Sign out any you don't recognise.",
-			"browser": "Browser",
-			"network": "Network",
 			"lastUsed": "Last used",
-			"actions": "Actions",
 			"deviceBoth": "{browser} on {os}",
 			"deviceOs": "A browser on {os}",
 			"deviceUnknown": "Unknown browser",
@@ -639,7 +690,10 @@
 			"signOutLabel": "Sign out {device}, last used {lastUsed}",
 			"signedOut": "Signed out.",
 			"signOutOthers": "Sign out of every other session",
-			"signedOutOthers": "{count, plural, one {# other session was signed out.} other {# other sessions were signed out.}}"
+			"signedOutOthers": "{count, plural, one {# other session was signed out.} other {# other sessions were signed out.}}",
+			"signOutTitle": "Sign out {device}?",
+			"signOutOthersTitle": "Sign out {count, plural, one {the other browser} other {the # other browsers}}?",
+			"signOutBody": "Whoever uses it has to sign in again. API tokens and AI clients keep working."
 		},
 		"twoFactor": {
 			"heading": "Two-factor authentication",
@@ -650,9 +704,7 @@
 			"intro": "Choose which work and alert emails you get.",
 			"security": "Security emails, such as invites, password resets and notices about your sign-in, are always sent.",
 			"work": "Work",
-			"alerts": "Alerts",
-			"save": "Save",
-			"saved": "Saved."
+			"alerts": "Alerts"
 		},
 		"apiTokens": {
 			"pageTitle": "API tokens",
@@ -668,7 +720,6 @@
 			"name": "Name",
 			"nameHelp": "What uses it, such as Deploy script, so you know which token to revoke.",
 			"nameRequired": "Give the token a name.",
-			"reaches": "Reaches",
 			"workspace": "Workspace",
 			"sites": "Sites",
 			"allSites": "Every Site",
@@ -689,12 +740,10 @@
 			"never": "Never",
 			"lastUsed": "Last used",
 			"neverUsed": "Not yet",
-			"status": "Status",
 			"active": "Active",
 			"expired": "Expired",
 			"revoked": "Revoked",
 			"revokedAccess": "Revoked: access ended",
-			"actions": "Actions",
 			"hint": "…{hint}",
 			"createTitle": "Create an API token",
 			"createIntro": "The token acts as you: it can do what you can do now in the Workspace, and stops when your access ends.",
@@ -711,7 +760,8 @@
 			"revokeLabel": "Revoke {name}",
 			"revokeTitle": "Revoke {name}?",
 			"revokeText": "Scripts and AI clients using it are refused from their next request. This can't be undone.",
-			"revokedToast": "{name} was revoked."
+			"revokedToast": "{name} was revoked.",
+			"listTitle": "Your tokens"
 		},
 		"aiClients": {
 			"pageTitle": "AI clients",
@@ -722,13 +772,8 @@
 			"emptyTitle": "No AI clients yet",
 			"emptyBody": "When an AI client asks to work as you, you approve it on a page it sends you to. It then shows here.",
 			"howTo": "AI clients connect to {path} on this address and ask you to approve them.",
-			"client": "AI client",
-			"reaches": "Reaches",
-			"access": "Access",
 			"lastUsed": "Last used",
 			"neverUsed": "Not yet",
-			"status": "Status",
-			"actions": "Actions",
 			"allSites": "Every Site",
 			"noSites": "No Site left",
 			"readWrite": "Read and change",
@@ -749,7 +794,8 @@
 			"revokeText": "It is refused from its next request, and has to ask you again to come back. This can't be undone.",
 			"revokedToast": "{name} was revoked.",
 			"cancel": "Cancel",
-			"close": "Close"
+			"close": "Close",
+			"listTitle": "Approved AI clients"
 		}
 	},
 	"identityCheck": {
@@ -831,16 +877,11 @@
 			"portInvalid": "Enter a port from 1 to 65535.",
 			"emailInvalid": "Enter an email address such as name@example.com."
 		},
-		"save": "Save",
-		"discard": "Discard",
-		"saved": "Saved.",
 		"siteServers": {
 			"heading": "Sites' own mail servers",
 			"intro": "A Site can send its email through a server of its own, which Staff set on Site › Email.",
 			"allowPrivate": "Let Sites use mail servers inside this Install's own network",
-			"allowPrivateHelp": "For a mail relay the agency runs on its own servers. Off, a Site's server must be on the public internet: Staff choose its host and port, so its test email could otherwise reach anything on that network.",
-			"save": "Save this setting",
-			"saved": "The setting is saved."
+			"allowPrivateHelp": "For a mail relay the agency runs on its own servers. Off, a Site's server must be on the public internet: Staff choose its host and port, so its test email could otherwise reach anything on that network."
 		},
 		"branding": {
 			"heading": "Install branding",
@@ -854,7 +895,6 @@
 			"pickColour": "Pick the accent colour",
 			"footer": "Footer text",
 			"footerHelp": "Shown under every email, such as your agency's address.",
-			"save": "Save branding",
 			"logoInvalid": "Enter an address that starts with https://.",
 			"colourInvalid": "Enter a colour such as #c2410c."
 		},
@@ -1112,18 +1152,20 @@
 	"members": {
 		"pageTitle": "Members",
 		"heading": "Members",
-		"intro": "People from {workspace} who can sign in to this Workspace. Each Membership has one role and reaches all Sites or chosen ones.",
-		"invite": "Invite Member",
+		"intro": "People with access to {workspace} and its Sites.",
+		"invite": "Invite a Member",
 		"search": "Search Members",
 		"roleFilter": "Show role",
 		"allRoles": "All roles",
 		"columns": {
 			"member": "Member",
 			"role": "Role",
-			"sites": "Site access",
+			"sites": "Sites",
 			"actions": "Actions",
+			"lastSeen": "Last seen",
 			"twoFactor": "2FA"
 		},
+		"neverSignedIn": "Never",
 		"allSites": "All Sites",
 		"noSites": "No Sites",
 		"someSites": "{names}",
@@ -1164,32 +1206,29 @@
 		},
 		"sheet": {
 			"inviteTitle": "Invite a Member",
-			"inviteDescription": "They get an email in their Admin language with a link valid for 7 days.",
 			"email": "Email",
 			"role": "Role",
-			"roleHelp": {
-				"owner": "Manages Members, edits and publishes Content on the Sites they reach.",
-				"editor": "Edits and publishes Content on the Sites they reach.",
-				"author": "Edits Content and saves Drafts; can't publish."
-			},
-			"access": "Site access",
-			"all": "All Sites",
-			"allHelp": "Including Sites created later.",
-			"chosen": "Chosen Sites",
-			"chosenHelp": "Only the Sites ticked below.",
-			"chooseLegend": "Sites",
 			"notReached": "You can't offer this Site with this role.",
 			"noSites": "There are no Sites you can offer yet.",
 			"chooseSite": "Choose at least one Site.",
-			"limitNote": "You can't grant more access than you hold. An Owner can only offer the Sites they reach.",
-			"send": "Send invite",
+			"send": "Send invitation",
 			"cancel": "Cancel",
 			"close": "Close",
 			"sent": "Invite sent to {email}.",
 			"changeTitle": "Change role and Sites",
 			"changeDescription": "What {name} can do in this Workspace. The change takes effect at once.",
 			"save": "Save",
-			"saved": "Saved."
+			"saved": "Saved.",
+			"emailPlaceholder": "name@example.com",
+			"linkNote": "They get an email with a link that works for 7 days.",
+			"roleName": "{role}:",
+			"roleLine": {
+				"owner": "manages Members and can publish",
+				"editor": "edits and publishes",
+				"author": "edits and saves Drafts, cannot publish"
+			},
+			"reach": "Sites they can reach",
+			"allLater": "All Sites, also those added later"
 		},
 		"removeDialog": {
 			"title": "Remove {name}?",
@@ -1198,7 +1237,8 @@
 			"cancel": "Cancel",
 			"close": "Close",
 			"removed": "{name} was removed from {workspace}."
-		}
+		},
+		"siteCount": "{count, plural, one {# Site} other {# Sites}}"
 	},
 	"sites": {
 		"pageTitle": "Sites",
@@ -1210,7 +1250,6 @@
 			"body": "Staff create the Sites of a Workspace.",
 			"bodyStaff": "Create the first website of this Workspace."
 		},
-		"slugLabel": "Slug",
 		"dialog": {
 			"title": "New Site",
 			"description": "A website of {workspace}. You'll add its domains later.",
@@ -1222,31 +1261,52 @@
 			"cancel": "Cancel",
 			"close": "Close"
 		},
-		"created": "Site {name} created."
+		"created": "Site {name} created.",
+		"card": {
+			"changes": "{count, plural, one {# unpublished change} other {# unpublished changes}}",
+			"address": "Address"
+		}
 	},
 	"site": {
 		"pageTitle": "Overview",
 		"intro": "A Site of {workspace}.",
-		"details": "Details",
-		"name": "Name",
-		"slug": "Slug",
-		"workspace": "Workspace",
-		"created": "Created",
 		"editOnSite": "Edit on site",
 		"editOptions": "More ways to open Edit mode",
 		"editInSafeMode": "Edit in Safe mode",
-		"editInSafeModeHelp": "With none of the Site's own scripts running"
+		"editInSafeModeHelp": "With none of the Site's own scripts running",
+		"overview": {
+			"requested": "{name} requested review on “{title}”",
+			"draftsHeading": "Drafts and changes",
+			"draftsReady": "{count, plural, one {# change ready to publish.} other {# changes ready to publish.}}",
+			"draftsNone": "Everything is published.",
+			"activityHeading": "Recent activity",
+			"activityNone": "Nothing has happened on this Site yet.",
+			"activityLine": "{who}: {action}",
+			"activitySubject": "{who}: {action}, “{subject}”",
+			"quickHeading": "Quick actions",
+			"newIn": "New in {name}",
+			"uploadMedia": "Upload Media",
+			"editHome": "Edit the home page on site",
+			"siteHeading": "Site",
+			"domain": "Domain",
+			"live": "Live",
+			"noDomain": "No domain yet",
+			"languages": "Languages",
+			"staging": "Staging",
+			"noStaging": "None",
+			"activityOn": "{line} · {site}",
+			"noDomainBadge": "No domain"
+		}
 	},
 	"publishAll": {
 		"changedVia": "{person} via {client}",
 		"button": "Publish all",
 		"changesCounted": "{count, plural, one {change} other {changes}}",
-		"title": "Publish all changes",
+		"title": "Publish all",
 		"close": "Close",
 		"loading": "Looking for the Site's Drafts…",
 		"none": "Everything is published: this Site has no Drafts.",
-		"intro": "{count, plural, one {# item differs} other {# items differ}} between the Staging address and what visitors see. Choose what goes live.",
-		"selected": "{selected} of {total} selected",
+		"intro": "{count, plural, one {# Draft} other {# Drafts}} on this Site. Visitors see them once you publish.",
 		"content": "Content",
 		"structure": "Structure",
 		"staffOnly": "Staff only",
@@ -1256,9 +1316,8 @@
 		"viewLabel": "View {name} on the Staging address",
 		"untitled": "Untitled",
 		"changes": "Changed: {list}",
-		"cacheNote": "Publishing clears this Site's page cache.",
 		"cancel": "Cancel",
-		"publish": "Publish {count, plural, one {# item} other {# items}}",
+		"publish": "Publish {count}",
 		"published": "Published {count, plural, one {# item} other {# items}}.",
 		"refused": "Nothing was published: {name} can't be published yet. {reason}",
 		"kinds": {
@@ -1294,7 +1353,22 @@
 			"notifications": "Notifications",
 			"autoReply": "Auto-reply"
 		},
-		"inReview": "{count, plural, one {# Draft is} other {# Drafts are}} waiting for review. Publishing one ends its Review and tells its Author."
+		"inReview": "{count, plural, one {# Draft is} other {# Drafts are}} waiting for review. Publishing one ends its Review and tells its Author.",
+		"selectAll": "Select all",
+		"groups": {
+			"formEmails": "Emails of Forms",
+			"templatesAndComponents": "Templates and Components",
+			"globals": "Globals",
+			"consentBanner": "Consent banner",
+			"forms": "Forms"
+		},
+		"checksOpen": "{count, plural, one {# Check is} other {# Checks are}} open on these",
+		"seeChecks": "See them",
+		"checksNeverStop": "Checks never stop publishing.",
+		"later": "Publish later",
+		"laterHelp": "Choose a day and a time instead of now.",
+		"changesMore": "Changed: {list} and {count} more",
+		"openReview": "In review: open the Review of {name}"
 	},
 	"staging": {
 		"button": "Staging",
@@ -1304,11 +1378,10 @@
 	"media": {
 		"pageTitle": "Media",
 		"heading": "Media",
-		"intro": "{count, plural, one {# file} other {# files}} · images, documents, video and audio",
 		"folders": {
 			"heading": "Folders",
-			"all": "All media",
-			"none": "Not in a folder",
+			"all": "All files",
+			"none": "Unfiled",
 			"new": "New folder",
 			"actionsOf": "Actions for {name}",
 			"rename": "Rename",
@@ -1331,14 +1404,13 @@
 		"search": "Search name or alt text",
 		"kinds": {
 			"label": "Kind of file",
-			"all": "All",
 			"image": "Images",
 			"document": "Documents",
 			"video": "Video",
-			"audio": "Audio"
+			"audio": "Audio",
+			"allTypes": "All types"
 		},
 		"upload": "Upload",
-		"uploading": "Uploading {count, plural, one {# file} other {# files}}…",
 		"uploaded": "{name} uploaded.",
 		"uploadFailed": "{name} wasn't uploaded: {reason}",
 		"dropHint": "Drop files anywhere here to upload",
@@ -1350,18 +1422,8 @@
 		"failed": "Can't be read",
 		"details": {
 			"heading": "Details",
-			"close": "Close details",
-			"size": "Size",
-			"dimensions": "Dimensions",
 			"dimensionsValue": "{width} × {height}",
-			"type": "Type",
-			"uploaded": "Uploaded",
 			"uploadedBy": "{date} by {name}",
-			"address": "Address",
-			"sizes": "Sizes",
-			"sizesValue": "{count, plural, one {# width} other {# widths}} in AVIF and WebP",
-			"translatable": "Translatable",
-			"language": "Texts in {language}",
 			"title": "Title",
 			"alt": "Alt text",
 			"altHelp": "Say what the image shows, for people who can't see it.",
@@ -1370,7 +1432,13 @@
 			"save": "Save",
 			"saved": "Saved. Pages showing this file change at once.",
 			"readOnly": "Only the person who uploaded this file, Editors, Owners and Staff can change it.",
-			"processingHelp": "WebCraft is removing the photo's location and camera data and making its sizes. It shows here when it's ready."
+			"processingHelp": "WebCraft is removing the photo's location and camera data and making its sizes. It shows here when it's ready.",
+			"file": "File",
+			"copy": "Copy the address",
+			"copied": "Address copied.",
+			"languages": "Texts in",
+			"sizesMade": "Sizes made at upload",
+			"download": "Download"
 		},
 		"importUrl": "Import from URL",
 		"import": {
@@ -1475,47 +1543,82 @@
 				"element": "parts that can't be kept",
 				"attribute": "attributes that can't be kept"
 			}
+		},
+		"countAndSize": "{count, plural, one {# file} other {# files}} · {size}",
+		"count": "{count, plural, one {# file} other {# files}}",
+		"uploadMore": "More ways to add files",
+		"uploadingOne": "Uploading {done} of {total}: {name}",
+		"shownOf": "The newest {shown} of {total} files. Search or pick a folder to find the others.",
+		"view": {
+			"label": "Show files as",
+			"list": "List",
+			"grid": "Grid"
+		},
+		"columns": {
+			"name": "Name",
+			"alt": "Alt text ({language})",
+			"type": "Type",
+			"pixels": "Pixels",
+			"size": "Size",
+			"added": "Added",
+			"deleted": "Deleted",
+			"used": "Used"
+		},
+		"noAlt": "No alt text yet",
+		"noAltShort": "No alt text",
+		"tiles": {
+			"files": "{count, plural, one {file} other {files}}",
+			"used": "used",
+			"of": "of {quota}"
+		},
+		"selection": {
+			"label": "Files selected",
+			"clear": "Clear the selection",
+			"count": "{count} selected",
+			"move": "Move to Folder",
+			"moved": "{count, plural, one {# file moved} other {# files moved}} to {folder}.",
+			"deleteTitle": "Delete {count, plural, one {# file} other {# files}}?",
+			"usedWarning": "{count, plural, one {# of them is used} other {# of them are used}} on the Site; those places show nothing until the file is restored:",
+			"deleted": "{count, plural, one {# file moved} other {# files moved}} to the Trash."
 		}
 	},
 	"invite": {
 		"pageTitle": "Accept your invite",
-		"heading": "Join {install} as Staff",
-		"intro": "{inviter} invited {email}. Choose your name and a password to create your account.",
-		"introNoInviter": "You were invited as {email}. Choose your name and a password to create your account.",
-		"name": "Full name",
+		"heading": "{inviter} invited you to {install} as Staff",
+		"name": "Your name",
 		"nameRequired": "Enter a name.",
 		"password": "Password",
-		"passwordHelp": "At least 12 characters.",
-		"submit": "Create account",
+		"submit": "Join {name}",
 		"invalid": {
-			"heading": "This invite link doesn't work",
+			"heading": "This link is no longer good",
 			"body": "It was already used, was withdrawn, or is more than 7 days old. Ask the person who invited you for a new invite.",
 			"signIn": "Go to sign in"
 		},
-		"memberHeading": "Join {workspace} as {role}",
-		"memberIntro": "{inviter} invited {email} to {workspace} on {install}. Choose your name and a password to create your account.",
-		"memberIntroNoInviter": "You were invited to {workspace} on {install} as {email}. Choose your name and a password to create your account.",
+		"memberHeading": "{inviter} invited you to {workspace} as an {role}",
 		"join": {
-			"intro": "{inviter} invited {email} to {workspace} on {install}. You already have an account: sign in to join.",
-			"introNoInviter": "You were invited to {workspace} on {install} as {email}. You already have an account: sign in to join.",
 			"signedInAs": "You're signed in as {email}.",
 			"otherAccount": "You're signed in as {current}. Signing in below switches to {email}.",
 			"password": "Password",
 			"signIn": "Sign in and join",
-			"submit": "Join {workspace}"
-		}
+			"submit": "Join {workspace}",
+			"haveAccount": "You already have an account as {email}. Sign in to join."
+		},
+		"headingNoInviter": "You're invited to {install} as Staff",
+		"memberHeadingNoInviter": "You're invited to {workspace} as an {role}",
+		"roleHelp": {
+			"owner": "Owners manage Members, and edit and publish Content.",
+			"editor": "Editors can edit Content and publish it.",
+			"author": "Authors edit Content and save Drafts; an Editor or Owner publishes them.",
+			"staff": "Staff build and look after the Sites of the Workspaces they're assigned to."
+		},
+		"sites": "You will reach {count, plural, one {this Site} other {these Sites}}: {sites}.",
+		"sitesAll": "You will reach every Site of {workspace}."
 	},
 	"modules": {
 		"pageTitle": "Modules",
 		"heading": "Modules",
 		"intro": "Features that plug into WebCraft through the Module SDK. A Module runs only once you approve what it asks for; Staff then switch it on or off on each Site or Workspace.",
 		"empty": "This version of WebCraft has no Modules.",
-		"columns": {
-			"module": "Module",
-			"version": "Version",
-			"status": "Status",
-			"actions": "Actions"
-		},
 		"level": {
 			"site": "Switched on each Site",
 			"workspace": "Switched on each Workspace"
@@ -1597,7 +1700,6 @@
 			"title": "Module log of {name}",
 			"description": "What the Module wrote, and what went wrong while it ran, newest first.",
 			"empty": "Nothing in the log yet.",
-			"close": "Close",
 			"levels": {
 				"info": "Info",
 				"warn": "Warning",
@@ -1612,15 +1714,16 @@
 			"workspaceIntro": "Switch Modules on or off for this Workspace. Switching one off keeps its data; removing its data deletes it.",
 			"siteEmpty": "No Modules are switched on each Site in this version of WebCraft.",
 			"workspaceEmpty": "No Modules are switched on each Workspace in this version of WebCraft.",
-			"on": "On",
 			"siteSwitch": "{name} on this Site",
 			"workspaceSwitch": "{name} in this Workspace",
 			"waiting": "Waiting for the Superadmin's approval",
 			"cannotSwitchOn": "It can be switched on once the Superadmin approves it.",
-			"switchedOn": "{name} is on.",
-			"switchedOff": "{name} is off. Its data is kept.",
 			"removeData": "Remove data",
-			"removeDataOf": "Remove data of {name}"
+			"removeDataOf": "Remove data of {name}",
+			"listTitle": "Modules",
+			"listIntro": "Switch one on or off, then save.",
+			"onBadge": "On",
+			"offBadge": "Off"
 		},
 		"remove": {
 			"title": "Remove the data of {name}?",
@@ -1642,11 +1745,11 @@
 		},
 		"keep": {
 			"label": "Keep {label} for",
-			"months": "{count, plural, one {# month} other {# months}}",
-			"save": "Save",
-			"saveOf": "Save how long {name} keeps {label}",
-			"saved": "{name} now keeps {label} for {count, plural, one {# month} other {# months}}."
-		}
+			"months": "{count, plural, one {# month} other {# months}}"
+		},
+		"listTitle": "Modules of this version",
+		"withdrawTitle": "Withdraw the approval of {name}?",
+		"withdrawBody": "{name} stops on every Site and Workspace until you approve it again. Its data is kept."
 	},
 	"editBar": {
 		"label": "Edit mode",
@@ -1787,6 +1890,7 @@
 		"errors": {
 			"generic": "Something went wrong. Try again.",
 			"CHANGED_MEANWHILE": "Someone changed this at the same moment. Try again.",
+			"PROP_REPLACED": "What you typed wasn't kept: someone changed this Prop of the Component at the same moment.",
 			"EDIT_MODE_ENDED": "Edit mode has ended. Open it again from the admin.",
 			"EDIT_REQUEST_REFUSED": "This page can't make changes. Reload it and try again.",
 			"EDIT_FIELD_INVALID": "This can't be changed here.",
@@ -1843,7 +1947,6 @@
 			"savedName": "Saved to Draft · {name}",
 			"notSaved": "Not saved: {reason}",
 			"format": "Format",
-			"formatHint": "Puts each block element on its own line",
 			"valid": "{panel} valid",
 			"problemsOne": "{panel}: 1 problem",
 			"problemsOther": "{panel}: {count} problems",
@@ -1960,7 +2063,13 @@
 			"tooNarrow": "Code mode needs a window at least 1024px wide",
 			"tooNarrowText": "Make the window wider to carry on: nothing is closed or lost.",
 			"createProp": "Create the Prop “{name}” ({type})",
-			"propCreated": "Prop {name} ({type}) added to the Props block"
+			"propCreated": "Prop {name} ({type}) added to the Props block",
+			"formatTitle": "Format {keys}",
+			"formattedOne": "Formatted · 1 line changed",
+			"formattedOther": "Formatted · {count} lines changed",
+			"tidy": "Already tidy",
+			"cantFormat": "Can't format: {reason} on line {line}",
+			"formatUnavailable": "Format isn't available right now. Try again in a moment."
 		},
 		"alsoEditing": "Also editing this page",
 		"inReview": "In review",
@@ -2076,11 +2185,9 @@
 		"intro": "The languages this Site is written in. The Default language's addresses have no prefix; every other language's start with its code.",
 		"listTitle": "Languages of this Site",
 		"listIntro": "Translatable fields hold a value in each of them and fall back to the Default language one Field at a time.",
-		"language": "Language",
 		"addresses": "Addresses",
 		"direction": "Text direction",
 		"domain": "Own domain",
-		"actions": "Actions",
 		"default": "Default language",
 		"noPrefix": "No prefix",
 		"directions": {
@@ -2112,7 +2219,6 @@
 		"redirectTitle": "Browser-language redirect",
 		"redirectLabel": "Send a first visit to the home page on to the visitor's language",
 		"redirectHelp": "Only a visitor's first request to the home page, with no language chosen yet, in a language the home page is shown in. Never for search engines or links to other pages; a language chosen with the Language switcher always wins.",
-		"redirectSaved": "Saved.",
 		"makeDefaultTitle": "Make {name} the Default language?",
 		"makeDefaultWarning": "{name} loses its prefix and {current} gets one (/{prefix}/…). Translatable fields will fall back to {name}, so values without their own {name} text show nothing there. Shared values keep their value.",
 		"checkChanges": "Check what changes",
@@ -2139,12 +2245,10 @@
 		"checking": "Checking…",
 		"upToDate": "Every Library is on its newest version.",
 		"updatesFound": "{count, plural, one {# Library has a newer version.} other {# Libraries have newer versions.}}",
-		"none": "No Libraries yet. Add one below.",
-		"library": "Library",
+		"none": "No Libraries yet.",
 		"version": "Version",
 		"size": "Size",
 		"licence": "Licence",
-		"actions": "Actions",
 		"actionsOf": "Actions for {name}",
 		"byAddress": "Fixed copy",
 		"newer": "Newer: {version}",
@@ -2157,7 +2261,6 @@
 		"removeText": "Pages stop loading it at once. Scripts that use it will fail on pages until you change them.",
 		"removed": "{name} was removed.",
 		"cancel": "Cancel",
-		"close": "Close",
 		"addTitle": "Add a Library",
 		"addIntro": "It is downloaded once and checked now; pages then load the Site's own copy.",
 		"source": "Where it comes from",
@@ -2187,7 +2290,9 @@
 			"empty": "The file is empty.",
 			"unreachable": "The download didn't work. Check the address, or try again later.",
 			"limit": "This Site holds as many Libraries as it may."
-		}
+		},
+		"addButton": "Add Library",
+		"newest": "Newest version"
 	},
 	"consentBanner": {
 		"pageTitle": "Consent banner",
@@ -2219,8 +2324,6 @@
 			"box": "Visitors can use the page while it shows.",
 			"dialog": "Visitors answer before they use the page."
 		},
-		"save": "Save",
-		"saved": "The Consent banner's setting is saved.",
 		"current": "{mode}, {layout}. Staff change how visitors are asked.",
 		"version": "Banner version {version}",
 		"wordsTitle": "The banner's words",
@@ -2287,11 +2390,9 @@
 			"marketing": "Marketing",
 			"media": "Media"
 		},
-		"hosts": "Hosts",
 		"blocked": "Blocked",
 		"problems": "This can't be saved:",
 		"line": "Line {line}:",
-		"actions": "Actions",
 		"actionsOf": "Actions for {name}",
 		"edit": "Edit",
 		"remove": "Remove",
@@ -2306,8 +2407,6 @@
 		"hostsTitle": "Allowed hosts",
 		"hostsIntro": "Besides the Site's own domain, scripts, styles, fonts, frames and requests may come only from these hosts, over https.",
 		"noHosts": "No outside hosts are allowed: everything comes from the Site's own domain.",
-		"host": "Host",
-		"why": "Why it is allowed",
 		"neededBy": "Needed by {names}",
 		"byHand": "Added by hand",
 		"byScript": "Added for an outside script",
@@ -2333,8 +2432,9 @@
 			"relaxed": "Also allows scripts written into pages and eval, which some tag managers need. Outside scripts still can't run in Edit mode.",
 			"reportOnly": "Browsers report what the Strict policy would block, in their console, without blocking it. Use it to try Strict out."
 		},
-		"modeSaved": "The policy was saved.",
-		"appliesAtOnce": "Changes apply at once and aren't part of Publish all."
+		"appliesAtOnce": "Changes apply at once and aren't part of Publish all.",
+		"removeHostTitle": "Stop allowing {host}?",
+		"removeHostBody": "The Site's policy no longer lets pages load anything from it."
 	},
 	"domains": {
 		"pageTitle": "Domains & Staging",
@@ -2435,9 +2535,6 @@
 		"cdnNone": "No CDN",
 		"cdnOption": "{name}: visitors named in {header}",
 		"cdnSteps": "Connect each domain with the CDN's proxy off. Once it is verified and has its certificate, turn the proxy on with full, strict TLS to the Site.",
-		"cdnSave": "Save CDN",
-		"cdnSaved": "{name} is in front of this Site.",
-		"cdnRemoved": "No CDN is in front of this Site.",
 		"cdnSecretTitle": "CDN secret",
 		"cdnSecretIntro": "{name}'s addresses carry every one of its customers' requests, so they alone don't say a request came through your own setup there. The CDN secret does: add it as a request header to everything {name} sends on to this Site.",
 		"cdnSecretSet": "This Site has a CDN secret. Requests that carry it count as their visitor's.",
@@ -2445,7 +2542,7 @@
 		"cdnSecretMake": "Make the CDN secret",
 		"cdnSecretRemake": "Make a new CDN secret",
 		"cdnSecretShown": "Add this request header at {name}, for every request it sends on to this Site. It is shown only now; a new secret stops the old one working.",
-		"appliesAtOnce": "Changes here apply at once: they aren't part of Publish all.",
+		"appliesAtOnce": "Changes here apply as soon as they are saved: they aren't part of Publish all.",
 		"stagingPassword": "Staging password",
 		"stagingPasswordHelp": "People without an account who give it see the Staging address for a week, or until it changes. People who sign in never need it.",
 		"stagingPasswordSet": "A password is set (last changed {date}).",
@@ -2455,10 +2552,6 @@
 		"stagingPasswordRules": "8 to 200 characters. Share it with the people reviewing the Site; it can't be shown again once saved.",
 		"stagingPasswordGenerate": "Generate",
 		"stagingPasswordGenerated": "A new password is in the field: show it and copy it before you save.",
-		"stagingPasswordSave": "Save password",
-		"stagingPasswordRemove": "Remove password",
-		"stagingPasswordSaved": "Staging password saved. Anyone it let in before has to give the new one.",
-		"stagingPasswordRemoved": "Staging password removed: only people who sign in see the Staging address now.",
 		"pausedTitle": "Paused domains",
 		"pausedIntro": "These came with the Site when it was imported. They serve nothing until you switch them on; switch one on once its DNS points at this Install and no other Site here has it.",
 		"pausedRole": {
@@ -2471,7 +2564,13 @@
 		"switchedOn": "{name} was added. It waits for DNS until it is verified.",
 		"discard": "Discard",
 		"discardLabel": "Discard {name}",
-		"discarded": "{name} was discarded."
+		"discarded": "{name} was discarded.",
+		"stagingPasswordRequire": "Require a password",
+		"stagingPasswordKeep": "Leave it empty to keep the current password.",
+		"stagingPasswordShort": "The password needs 8 to 200 characters.",
+		"pausedBadge": "Paused",
+		"discardTitle": "Discard {name}?",
+		"discardBody": "The paused domain is forgotten; adding it again later starts its checks from the beginning."
 	},
 	"webhooks": {
 		"pageTitle": "Webhooks",
@@ -2483,11 +2582,8 @@
 		"listIntro": "Where each Webhook is sent, what it receives and how its last delivery went.",
 		"none": "No Webhooks yet. Add one to tell another system when something is published.",
 		"noneMember": "This Site has no Webhooks.",
-		"webhook": "Webhook",
 		"receives": "Receives",
-		"status": "Status",
 		"lastDelivery": "Last delivery",
-		"actions": "Actions",
 		"actionsOf": "Actions for {name}",
 		"secretSet": "Signing secret set, ending in {lastFour}",
 		"secretSetShort": "Signing secret set",
@@ -2743,7 +2839,8 @@
 		},
 		"link": {
 			"address": "Address",
-			"text": "Text"
+			"text": "Text",
+			"newTab": "Open in a new tab"
 		},
 		"media": {
 			"none": "No file chosen.",
@@ -2791,6 +2888,28 @@
 			"moved": "Row {from} moved to place {to} of {count}.",
 			"removed": "Row {row} removed.",
 			"added": "Row {row} added."
+		},
+		"when": {
+			"now": "Just now",
+			"minutes": "{count, plural, one {# minute ago} other {# minutes ago}}",
+			"hours": "{count, plural, one {# hour ago} other {# hours ago}}",
+			"yesterday": "Yesterday",
+			"day": "{day} {month}",
+			"dayYear": "{day} {month} {year}",
+			"months": {
+				"jan": "Jan",
+				"feb": "Feb",
+				"mar": "Mar",
+				"apr": "Apr",
+				"may": "May",
+				"jun": "Jun",
+				"jul": "Jul",
+				"aug": "Aug",
+				"sep": "Sep",
+				"oct": "Oct",
+				"nov": "Nov",
+				"dec": "Dec"
+			}
 		}
 	},
 	"body": {
@@ -2975,16 +3094,32 @@
 			"languagesOf": "Languages of {title}",
 			"empty": "No {name} yet.",
 			"noMatch": "No Entries match.",
-			"toFix": "{count, plural, one {# to fix} other {# to fix}}"
+			"toFix": "{count, plural, one {# to fix} other {# to fix}}",
+			"inReview": "In review {count}",
+			"actions": "Actions",
+			"edit": "Edit",
+			"emptyCreate": "No {name} yet. Write a title in the row above to make the first one.",
+			"shown": "{shown} of {total}",
+			"showMore": "Show more",
+			"hidden": "(hidden)",
+			"hiddenIn": "{language}: hidden",
+			"language": "Language",
+			"languageAll": "Language: All",
+			"languageOne": "Language: {language}",
+			"loading": "Loading the list…"
 		},
 		"create": {
-			"open": "New in {name}",
 			"title": "New in {name}",
 			"intro": "Give it a title; you write the rest in the editor, saved as a Draft as you go.",
 			"titleRequired": "Give it a title.",
 			"submit": "Create",
 			"cancel": "Cancel",
-			"close": "Close"
+			"close": "Close",
+			"newPage": "New page",
+			"newEntry": "New Entry",
+			"rowPage": "Title of a new page…",
+			"rowEntry": "Title of a new Entry…",
+			"rowHelp": "Enter makes a Draft and opens it"
 		},
 		"editor": {
 			"back": "Back to {name}",
@@ -3010,7 +3145,9 @@
 			"toFix": "{count, plural, one {# thing keeps} other {# things keep}} this from being published:",
 			"liveAt": "Visitors find it at",
 			"detailsHeading": "Details",
-			"linkedFrom": "Linked from"
+			"linkedFrom": "Linked from",
+			"basicsHeading": "Title and address",
+			"fieldsHeading": "Fields"
 		},
 		"delete": {
 			"open": "Delete",
@@ -3188,7 +3325,8 @@
 		"empty": "This Site has no Globals yet.",
 		"defineFields": "Define the Globals' Fields",
 		"publishHelp": "Publishing puts these values live on every page at once.",
-		"published": "The Globals are live."
+		"published": "The Globals are live.",
+		"valuesHeading": "Values"
 	},
 	"loops": {
 		"pageTitle": "Loops",
@@ -3551,7 +3689,12 @@
 		"uploadFiles": {
 			"download": "Download {name}",
 			"notKept": "{name} (not kept)"
-		}
+		},
+		"newColumn": "New",
+		"newCount": "{count} new",
+		"noneYet": "No Forms yet",
+		"noneYetNote": "Make one to place it on a page.",
+		"noneForClients": "Your agency has not built a Form for this Site yet"
 	},
 	"workspaceStorage": {
 		"heading": "Media storage",
@@ -3701,7 +3844,8 @@
 			"preview": "Preview",
 			"run": "Run",
 			"report": "Report",
-			"done": "(done)"
+			"done": "(done)",
+			"position": "Step {number} of 5: {step}"
 		},
 		"file": {
 			"details": "{rows, plural, one {# row} other {# rows}} · {columns, plural, one {# column} other {# columns}} · {separator} · UTF-8",
@@ -4170,7 +4314,9 @@
 			"noGlobal": "None",
 			"save": "Save",
 			"saved": "SEO settings saved.",
-			"notSaved": "The SEO settings weren't saved:"
+			"notSaved": "The SEO settings weren't saved:",
+			"titlesCard": "Titles and images",
+			"titlesCardIntro": "How page titles end, and the image of pages without their own."
 		},
 		"crawlers": {
 			"heading": "Crawlers",
@@ -4253,8 +4399,6 @@
 		"s3": "S3-compatible bucket",
 		"s3Help": "Backups go into a backups folder of the bucket, uploaded in parts. Before saving, WebCraft writes, reads and removes a small file there. Use a bucket other than the one holding Media.",
 		"prefixHelp": "Optional. Put in front of the backups folder, so one bucket can hold several Installs.",
-		"save": "Save",
-		"saved": "Saved.",
 		"log": {
 			"heading": "Recent Backups",
 			"emptyTitle": "No Backups yet",
@@ -4280,7 +4424,8 @@
 			"heading": "Restoring",
 			"body": "A Backup is restored on the server, into an empty database, with the Master key the Install had then. Stop web and worker first, then run:",
 			"site": "Restoring brings back the whole Install. To move or copy one Site, use a Site export instead."
-		}
+		},
+		"scheduleCard": "Schedule"
 	},
 	"templates": {
 		"pageTitle": "Templates",
@@ -4292,7 +4437,6 @@
 		},
 		"notMade": "Not made yet",
 		"noAddress": "No archive address: the URL pattern starts with '{slug}'",
-		"open": "Open in builder",
 		"openNamed": ": {name}"
 	},
 	"components": {
@@ -4830,7 +4974,8 @@
 				"components": "Components",
 				"layers": "Layers on this page",
 				"page": "Page",
-				"placements": "Placements on this page"
+				"placements": "Placements on this page",
+				"format": "Format"
 			},
 			"actions": {
 				"save": "Save Draft",
@@ -4859,7 +5004,11 @@
 				"makeComponent": "Make Component",
 				"newComponent": "New Component",
 				"sendToReview": "Send to Review",
-				"edit": "Edit"
+				"edit": "Edit",
+				"formatHtml": "Format HTML",
+				"formatCss": "Format CSS",
+				"formatJs": "Format JS",
+				"formatAll": "Format all three"
 			},
 			"wrap": {
 				"div": "div",
@@ -4895,7 +5044,8 @@
 				"edit": "edit change back",
 				"props": "props settings fields content",
 				"moveUp": "move up earlier before",
-				"moveDown": "move down later after"
+				"moveDown": "move down later after",
+				"format": "format tidy prettier indent clean beautify"
 			},
 			"nothingToUndo": "Nothing to undo.",
 			"nothingToRedo": "Nothing to redo.",
@@ -5068,6 +5218,14 @@
 			"done": "Bound to {binding}."
 		}
 	},
+	"codeFormat": {
+		"format": "Format",
+		"formatted": "Formatted",
+		"changed": "Formatted · {count, plural, one {# line changed} other {# lines changed}}",
+		"tidy": "Already tidy",
+		"problem": "Can't format: {reason} on line {line}",
+		"unavailable": "Format isn't available right now. Try again in a moment."
+	},
 	"siteEmail": {
 		"pageTitle": "Email (SMTP)",
 		"heading": "Email (SMTP)",
@@ -5094,7 +5252,6 @@
 	},
 	"formEmails": {
 		"content": "Content",
-		"intro": "What each Submission sends: Notifications to the Site's people, and an Auto-reply to the visitor. Changes stay in the Draft until you publish them.",
 		"publish": "Publish emails",
 		"saved": "Saved to the Draft.",
 		"published": "The emails were published: Submissions send them from now on.",
@@ -5102,101 +5259,147 @@
 		"leaveEmpty": "Leave it empty for: {example}",
 		"notifications": {
 			"heading": "Notifications",
-			"intro": "Each address gets its own email, in the Site's Default language, with everything the visitor sent. Replies go to the visitor.",
 			"none": "No Notifications: Submissions are only kept.",
 			"add": "Add Notification",
 			"title": "Notification {number}",
 			"remove": "Remove Notification {number}",
 			"recipients": "Send to",
-			"recipientsHelp": "One email address per line, at most {max}.",
+			"recipientsHelp": "Press Enter after each address, at most {max}.",
 			"routing": "Route by a field",
 			"routingNone": "Don't route",
 			"routingHelp": "Send to other addresses depending on the answer to a select or radio field.",
 			"routingNoField": "Add a select or radio field to the Form to route by its answer.",
 			"routeFor": "When {field} is {option}",
-			"routeHelp": "One address per line. Empty: the addresses above.",
+			"routeHelp": "Empty: the addresses above.",
 			"subject": "Subject",
 			"intro2": "Opening text",
-			"introHelp": "Shown above the visitor's answers. Leave it empty for WebCraft's words."
+			"introHelp": "Shown above the visitor's answers. Leave it empty for WebCraft's words.",
+			"upToTen": "Up to ten"
 		},
 		"autoReply": {
 			"heading": "Auto-reply",
-			"intro": "An email back to the visitor, in the language they used, with your words only: never what they typed.",
 			"enabled": "Send an Auto-reply",
-			"field": "Send to the address in",
+			"field": "Answers the address in",
 			"firstEmailField": "The first email field",
 			"fieldHelp": "The email field the visitor fills in.",
 			"noEmailField": "Add an email field to the Form to send an Auto-reply.",
-			"inDefault": "{language} (as written)",
-			"inLanguage": "{language}",
 			"subject": "Subject",
 			"text": "Text",
 			"textHelp": "Separate paragraphs with an empty line.",
-			"translationHelp": "Left empty, visitors in this language get the text as written."
+			"translationHelp": "Left empty, visitors in this language get the text as written.",
+			"languages": "Languages of the Auto-reply"
+		},
+		"state": {
+			"neverPublished": "Draft · not published yet",
+			"published": "Published",
+			"changes": "Draft · {count, plural, one {# change} other {# changes}}"
+		},
+		"recipients": {
+			"add": "Add an address",
+			"remove": "Remove {address}",
+			"password": "Changing who receives these asks for your password again."
 		}
 	},
 	"submissions": {
 		"folders": "Folders",
+		"listLabel": "Submissions",
 		"inbox": "Inbox",
 		"spam": "Spam",
-		"spamNote": "Spam is deleted after 30 days. It never sends Notifications, Auto-replies or Webhooks.",
-		"summary": "{total, plural, one {# Submission} other {# Submissions}} · {unread} unread · {kept}",
-		"keptForever": "kept forever",
-		"keptDays": "kept {days} days",
+		"spamCount": "Spam {count}",
 		"loading": "Loading…",
-		"export": "Export CSV",
+		"export": "Export",
+		"exportTitle": "Export this list as CSV",
+		"exportParts": "What the file holds",
+		"exportPart": {
+			"sender": "Sender",
+			"received": "Received",
+			"answers": "Every answer",
+			"deliveries": "Delivery log"
+		},
+		"exportButton": "Export",
 		"exported": "{count, plural, one {# Submission} other {# Submissions}} exported.",
 		"search": "Search Submissions",
+		"searchPlaceholder": "Search submissions",
 		"show": "Show",
 		"filter": {
 			"all": "All",
-			"unread": "Unread",
-			"read": "Read"
+			"unread": "Unread"
 		},
 		"language": "Language",
 		"allLanguages": "All languages",
 		"tableLabel": "Submissions, newest first",
-		"columns": {
-			"submitter": "Submitter",
-			"language": "Language",
-			"received": "Received"
-		},
 		"unread": "Unread",
-		"noName": "No name",
-		"empty": "No Submissions yet.",
-		"emptySpam": "The Spam folder is empty.",
+		"withFiles": "Files came with it",
+		"yesterday": "Yesterday",
+		"daysAgo": "{days, plural, one {# day ago} other {# days ago}}",
+		"noName": "No name given",
+		"empty": "Nothing has come in yet",
+		"emptyPlaced": "This Form is placed on {places}.",
+		"emptyNotPlaced": "This Form isn't placed on a page yet.",
+		"emptySpam": "No spam caught",
+		"emptySpamNote": "Automated Submissions land here.",
 		"noMatch": "No Submissions match.",
-		"showing": "Showing {from}–{to} of {total}",
-		"previous": "Previous",
-		"next": "Next",
+		"showMore": "Show more",
+		"showingNewest": "Showing the newest {count}. Search to find older ones.",
 		"choose": "Choose a Submission to read it.",
-		"came": "{time} · {language} · from {page}",
-		"inSpam": "In the Spam folder: {reason}.",
-		"spamReasons": {
-			"honeypot": "a field people never see was filled in",
-			"tooFast": "it was sent sooner than a person could fill it in",
-			"token": "it came without the page's token, or with one more than a day old",
-			"rateLimit": "one address sent it too often",
-			"size": "it was too large",
-			"captcha": "the CAPTCHA couldn't be checked",
-			"other": "a spam check caught it"
+		"received": "Received {time} · from the page {page} · {language}",
+		"caught": "Caught {time} · from the page {page}",
+		"caughtBecause": {
+			"honeypot": "A hidden field was filled in",
+			"tooFast": "Filled in faster than a person could",
+			"token": "Sent without the page's token, or with one more than a day old",
+			"rateLimit": "Sent too often from one address",
+			"size": "Too large to keep",
+			"captcha": "The CAPTCHA couldn't be checked",
+			"other": "A spam check caught it"
 		},
+		"spamKept": "Kept for 30 days, then removed. Nobody was notified.",
+		"notGiven": "(not given)",
+		"notKept": "Not kept",
 		"markUnread": "Mark as unread",
 		"markRead": "Mark as read",
 		"notSpam": "Not spam",
-		"notSpamDone": "Moved to the inbox: its Notifications, Auto-reply and Webhooks are on their way.",
-		"notSpamNote": "Not spam moves it to the inbox and sends its Notifications, Auto-reply (within a day of when it came) and Webhooks.",
+		"notSpamDone": "Moved to the Inbox: its Notifications, Auto-reply and Webhooks are on their way.",
+		"notSpamNote": "Moves it to the Inbox and sends its Notifications, Auto-reply and Webhooks",
 		"delete": "Delete",
-		"deleteTitle": "Delete this Submission?",
-		"deleteBody": "It is deleted for good, with any files that came with it.",
+		"deleteTitle": "Delete for good?",
+		"deleteBody": "Its files are deleted with it. This cannot be undone.",
 		"deleted": "The Submission was deleted.",
 		"cancel": "Cancel",
-		"deliveries": "Delivery log",
-		"deliveriesNone": "Nothing was sent for it.",
-		"deliveryNotification": "Notification → {to}",
-		"deliveryAutoReply": "Auto-reply → {to}",
-		"deliveryWebhook": "Webhook · {name}",
-		"deliveryProblem": "Last answer: {problem}",
+		"delivery": {
+			"heading": "What happened next",
+			"none": "Nothing was sent for it.",
+			"problem": "Last answer: {problem}",
+			"sendAgain": "Send again",
+			"sentAgain": "Queued again: it is sent in a moment.",
+			"sent": {
+				"notification": "Notification sent to {to}",
+				"autoReply": "Auto-reply sent to {to}",
+				"webhook": "Webhook {to} delivered"
+			},
+			"logged": {
+				"notification": "Notification to {to} written to the Email log: no email server is set",
+				"autoReply": "Auto-reply to {to} written to the Email log: no email server is set",
+				"webhook": "Webhook {to} delivered"
+			},
+			"queued": {
+				"notification": "Notification to {to} queued",
+				"autoReply": "Auto-reply to {to} queued",
+				"webhook": "Webhook {to} queued"
+			},
+			"retrying": {
+				"notification": "Notification to {to}: queued, will retry shortly",
+				"autoReply": "Auto-reply to {to}: queued, will retry shortly",
+				"webhook": "Webhook {to}: queued, will retry shortly"
+			},
+			"failed": {
+				"notification": "Could not send the Notification to {to}",
+				"autoReply": "Could not send the Auto-reply to {to}",
+				"webhook": "Could not reach the webhook {to}"
+			}
+		},
+		"keptForever": "Submissions are kept forever.",
+		"keptDays": "Submissions are kept {days} days.",
 		"retention": "Keep Submissions",
 		"retentionForever": "Forever",
 		"retentionDays": "{days} days",
@@ -5207,17 +5410,13 @@
 	"translations": {
 		"pageTitle": "Translations",
 		"heading": "Translations",
-		"intro": "Default language: {language}. AI translation fills the other languages; values a person wrote are never overwritten.",
 		"settings": "AI translation settings",
 		"translateNow": "Translate now",
 		"queued": "{count, plural, =0 {Nothing to translate: no language is Automatic or Review.} one {# item queued for AI translation.} other {# items queued for AI translation.}}",
 		"oneLanguage": "This Site has one language. Add languages in Site settings › Languages to translate it.",
-		"percent": "{percent}%",
 		"progressOf": "How much of {language} is translated",
 		"mode": "Translation mode",
 		"modeOf": "Translation mode of {language}",
-		"modeSaved": "{language} is now {mode}.",
-		"countsOf": "Where {language} stands",
 		"toReview": "{count} to review",
 		"outdated": "{count} outdated",
 		"missing": "{count} missing",
@@ -5248,37 +5447,35 @@
 			"capNear": "AI usage this month: {percent}% of the cap. At the cap, AI translation stops and waiting work goes on next month or once the cap is raised."
 		},
 		"queue": {
-			"heading": "Review queue",
-			"intro": "AI-written values waiting for a person, and Outdated translations whose source changed after a person wrote them.",
-			"language": "Language",
-			"allLanguages": "All languages",
 			"approveAll": "Approve all {count}",
-			"empty": "Nothing waits for review.",
-			"item": "Item",
-			"field": "Field",
-			"writtenBy": "Written by",
-			"status": "Status",
 			"untitled": "Untitled",
-			"ai": "AI",
-			"aPerson": "A person",
-			"statusToReview": "To review",
 			"statusOutdated": "Outdated",
-			"source": "Source",
 			"oldSource": "Source when it was translated",
 			"newSource": "Source now",
-			"translation": "Translation",
-			"aiTranslation": "AI translation",
-			"personTranslation": "Written by a person",
 			"approve": "Approve",
 			"confirm": "Confirm",
-			"edit": "Edit",
-			"retranslate": "Re-translate"
+			"edit": "Edit"
 		},
 		"editor": {
 			"heading": "{count, plural, one {# Outdated translation} other {# Outdated translations}}",
 			"intro": "Their source in the Default language changed after a person wrote them. Update a translation, confirm it is still right, or have the AI translate it again.",
 			"translation": "Translation"
-		}
+		},
+		"screen": {
+			"description": "What is translated, outdated, or waits for your review, in each language.",
+			"languages": "Languages",
+			"upToDate": "Up to date",
+			"translated": "{percent}% translated",
+			"nothingWaits": "Nothing waits in {language}.",
+			"waiting": "What waits in {language}",
+			"aiLine": "Translated by AI, waits for you",
+			"outdatedLine": "Outdated: the {language} changed",
+			"byAi": "Translated by AI",
+			"byPerson": "Written by a person",
+			"translateAgain": "Translate again",
+			"protected": "“{term}” is a Protected term, it stays as written."
+		},
+		"percent": "{percent}%"
 	},
 	"aiTranslation": {
 		"pageTitle": "AI translation",
@@ -5304,9 +5501,6 @@
 		"modes": {
 			"heading": "Translation mode per language",
 			"intro": "{language} is the Default language. Each other language has its own mode.",
-			"language": "Language",
-			"mode": "Mode",
-			"status": "Status",
 			"upToDate": "Up to date",
 			"counts": "{toReview} to review · {outdated} outdated · {missing} missing"
 		},
@@ -5346,12 +5540,17 @@
 		"filterSite": "{name} {count}",
 		"empty": "No Protected terms here.",
 		"addedBy": "Added by",
-		"actions": "Actions",
 		"menu": "Actions for {term}",
 		"remove": "Remove",
 		"yes": "Yes",
 		"no": "No",
-		"note": "In this version a Protected term only means \"leave as written\". Forcing a fixed word per language is not supported yet. Editors, Owners and Staff can change this list."
+		"note": "In this version a Protected term only means \"leave as written\". Forcing a fixed word per language is not supported yet. Editors, Owners and Staff can change this list.",
+		"addTitle": "Add a term",
+		"addIntro": "One term at a time, or many at once with Import CSV.",
+		"listTitle": "Terms",
+		"removeTitle": "Remove “{term}”?",
+		"removeWorkspaceBody": "AI translation may translate it again on every Site of this Workspace.",
+		"removeSiteBody": "AI translation may translate it again on {name}."
 	},
 	"aiKeys": {
 		"pageTitle": "AI keys",
@@ -5395,12 +5594,13 @@
 			"never": "never",
 			"none": "No key set yet.",
 			"save": "Save key",
-			"saved": "The AI key is saved.",
 			"remove": "Remove key",
 			"removeTitle": "Remove the Workspace's own AI key?",
 			"removeBody": "AI translation then goes through the shared Install key, if one is assigned, or stops.",
 			"removed": "The AI key is removed.",
-			"cancel": "Cancel"
+			"cancel": "Cancel",
+			"modelNeeded": "Name the model.",
+			"keyNeeded": "Paste the key, or keep the stored one."
 		},
 		"shared": {
 			"heading": "Shared Install key",
@@ -5435,10 +5635,7 @@
 		"listIntro": "Stored encrypted; only the last 4 characters are ever shown.",
 		"none": "No shared keys yet.",
 		"name": "Name",
-		"providerModel": "Provider and model",
-		"key": "Key",
 		"workspaces": "Assigned to",
-		"actions": "Actions",
 		"assignedTo": "{name} ({cap} a month)",
 		"menu": "Actions for {name}",
 		"edit": "Edit",
@@ -5457,14 +5654,15 @@
 		"sharedKey": "Shared key",
 		"noKey": "None",
 		"monthlyCap": "Monthly cap ($)",
-		"saveAssignment": "Save",
-		"assigned": "{name} is saved.",
 		"assignedBadge": "Assigned",
 		"privateHeading": "Self-hosted models",
 		"private": "Let shared keys call an OpenAI-compatible endpoint inside the Install's own network",
 		"privateHelp": "For a model the agency runs on its own servers. A Workspace's own key never may: it would let anyone with that key reach inside the network.",
-		"savePrivate": "Save",
-		"privateSaved": "The setting is saved."
+		"notAssignedBadge": "Not assigned",
+		"removeTitle": "Remove {name}?",
+		"removeBody": "The key is deleted from this Install for good.",
+		"removeInUse": "It is assigned to {workspaces}: their AI calls stop using it at once.",
+		"nameAndKeyNeeded": "Give the key a name and paste the key."
 	},
 	"dashboards": {
 		"pageTitle": "Dashboards",
@@ -5522,7 +5720,7 @@
 		"customTo": "To",
 		"saveRange": "Make these the Dashboard's days",
 		"rangeSavedToast": "The Dashboard shows these days from now on.",
-		"exportCsv": "Export CSV",
+		"exportCsv": "Export as CSV",
 		"exportedToast": "Downloaded {filename}.",
 		"menu": "Dashboard actions",
 		"addWidget": "Add Widget",
@@ -5549,7 +5747,7 @@
 		"workspaceNote": "Every Widget adds up the Sites you can see: someone who visits two Sites counts as a visitor on each.",
 		"widgetMenu": "Actions for {title}",
 		"editWidget": "Edit Widget",
-		"exportWidget": "Export CSV",
+		"exportWidget": "Export as CSV",
 		"removeWidget": "Remove",
 		"removedToast": "{title} removed.",
 		"moveHandle": "Move or resize {title}",
@@ -5637,15 +5835,65 @@
 		"optionsLoading": "Loading…",
 		"savedToast": "Widget saved.",
 		"reports": "Reports",
-		"share": "Share"
+		"share": "Share",
+		"badgeEveryone": "Shown to everyone",
+		"compare": "Compare",
+		"arrange": "Arrange",
+		"addsUp": "Adds up the {count, plural, one {# Site} other {# Sites}} of {workspace}.",
+		"emptyManageTitle": "Add the first Widget",
+		"nothingBefore": "Nothing to compare with before",
+		"versus": "vs previous {days, plural, one {day} other {# days}}",
+		"daysBefore": "The {days, plural, one {day} other {# days}} before",
+		"lineBefore": "{line}, before",
+		"before": "Before",
+		"readoutHelp": "The arrow keys move along the days; the readout lists every line at that day.",
+		"nothingCountedYet": "Nothing counted yet",
+		"countingStarts": "Starts after the Consent banner is accepted.",
+		"nothingInRange": "Nothing in this range",
+		"needsModule": "Needs its Module",
+		"ownDays": "its own days: {days}",
+		"widgetSettings": "Settings of {title}",
+		"removeNamed": "Remove {title}",
+		"sizeReadout": "{w} of {of} wide · {h} rows",
+		"dropHere": "Drop here",
+		"landsHere": "{title} lands here",
+		"duplicatedToast": "{title} duplicated.",
+		"settingsLabel": "Widget settings",
+		"arranging": "Arranging",
+		"undo": "Undo",
+		"redo": "Redo",
+		"undoKeys": "Undo (Ctrl+Z or ⌘Z)",
+		"redoKeys": "Redo (Ctrl+Shift+Z or ⇧⌘Z)",
+		"saveState": {
+			"saving": "Saving…",
+			"saved": "Saved",
+			"failed": "Could not save"
+		},
+		"done": "Done",
+		"backToLibrary": "Back to the Widget library",
+		"any": "Any",
+		"goalFilter": "Goal",
+		"duplicate": "Duplicate",
+		"namePlaceholder": "e.g. Marketing",
+		"blankShort": "Blank",
+		"library": {
+			"label": "Widget library",
+			"search": "Search Widgets",
+			"help": "Drag it into the grid, or press Enter to add it in the first free place.",
+			"none": "No Widget by that name.",
+			"numbers": "Numbers",
+			"overTime": "Over time",
+			"lists": "Lists",
+			"goalsAndFunnels": "Goals and Funnels",
+			"words": "Words"
+		}
 	},
 	"analyticsGoals": {
 		"goalsHeading": "Goals",
-		"goalsIntro": "What counts as a result on this Site. Goals count only visitors who accepted Analytics.",
+		"goalsIntro": "What matters on this Site, and how often it happens.",
 		"funnelsHeading": "Funnels",
-		"funnelsIntro": "How many visitors reach each step, in order, within one day.",
+		"funnelsIntro": "Steps a visitor must complete in order, within one day.",
 		"addGoal": "Add Goal",
-		"addFunnel": "Add Funnel",
 		"noGoals": "No Goals yet.",
 		"noFunnels": "No Funnels yet.",
 		"name": "Name",
@@ -5660,9 +5908,9 @@
 		"save": "Save",
 		"kind": "What counts",
 		"kinds": {
-			"form": "A Form Submission",
-			"page": "A page visit",
-			"link": "A link click",
+			"form": "A Form is sent",
+			"page": "A page is visited",
+			"link": "A link is clicked",
 			"event": "A custom event"
 		},
 		"linkKinds": {
@@ -5672,15 +5920,14 @@
 			"mailto": "Email link"
 		},
 		"describe": {
-			"form": "{form} sent",
-			"page": "A visit to {path}",
-			"pagePrefix": "A visit to {path} or a page under it",
-			"link": "A click on any {link}",
-			"linkTo": "A click on a {link} to {target}",
-			"event": "The custom event {event}"
+			"form": "A Form is sent · {form}",
+			"page": "A page is visited · {path}",
+			"pagePrefix": "A page is visited · {path} and the pages under it",
+			"link": "A link is clicked · any {link}",
+			"linkTo": "A link is clicked · {link} to {target}",
+			"event": "A custom event · {event}"
 		},
 		"unknownForm": "a Form no longer here",
-		"addGoalTitle": "Add a Goal",
 		"editGoalTitle": "Change {name}",
 		"goalDialogIntro": "Widgets, templates and Workspace Dashboards find Goals by their names: after a rename, choose the Goal again in their Widgets.",
 		"form": "Form",
@@ -5706,7 +5953,6 @@
 		"deleteGoalTitle": "Delete {name}?",
 		"deleteGoalIntro": "Widgets naming it count nothing until a Goal has its name again. What it counted stays in Site analytics.",
 		"goalDeletedToast": "{name} deleted.",
-		"addFunnelTitle": "Add a Funnel",
 		"editFunnelTitle": "Change {name}",
 		"funnelDialogIntro": "Two to five steps, each a Goal or a page visit. A visitor reaches a step after reaching the one before, the same day.",
 		"stepN": "Step {n}",
@@ -5714,7 +5960,7 @@
 		"stepGoal": "A Goal",
 		"stepPage": "A page visit",
 		"goal": "Goal",
-		"addStep": "Add a step",
+		"addStep": "Add step",
 		"removeStep": "Remove step {n}",
 		"moveUp": "Move step {n} up",
 		"moveDown": "Move step {n} down",
@@ -5727,7 +5973,6 @@
 		"deleteFunnelTitle": "Delete {name}?",
 		"deleteFunnelIntro": "Widgets naming it count nothing until a Funnel has its name again.",
 		"funnelDeletedToast": "{name} deleted.",
-		"formStepNote": "A Form Submission step counts Submissions linked to the sender's visit: sent with Analytics accepted, during a visit counted on the Site.",
 		"problems": {
 			"GOAL_NAME_TAKEN": "This Site already has a Goal of that name.",
 			"GOAL_IN_FUNNEL": "A Funnel uses this Goal: change the Funnel first.",
@@ -5737,7 +5982,22 @@
 			"FUNNEL_STEP_INVALID": "A step names a Goal this Site doesn't have.",
 			"FUNNELS_TOO_MANY": "A Site has at most 50 Funnels.",
 			"FUNNEL_NOT_FOUND": "That Funnel is no longer here."
-		}
+		},
+		"whereUsed": "Where it is used",
+		"usedWidgets": "{count, plural, one {# Widget} other {# Widgets}}",
+		"usedTemplates": "{count, plural, one {# Dashboard template} other {# Dashboard templates}}",
+		"usedFunnels": "{count, plural, one {# Funnel} other {# Funnels}}",
+		"notUsed": "Not used yet",
+		"reached": "Reached (30d)",
+		"newFunnel": "New Funnel",
+		"stepCount": "{count, plural, one {# step} other {# steps}}",
+		"stepPageBadge": "Page",
+		"stepGoalBadge": "Goal",
+		"stepsLimit": "Up to 5 steps per Funnel.",
+		"addStepIntro": "It becomes the Funnel's last step, saved at once.",
+		"lastThirtyDays": "The last 30 days",
+		"lastThirtyDaysOf": "{name}, the last 30 days",
+		"notCounted": "The steps could not be counted just now."
 	},
 	"toolsets": {
 		"legend": "Toolsets",
@@ -5828,9 +6088,9 @@
 			"warning": "Approve only a sign-in you started yourself, just now, whose code matches the one on your screen. Someone who sends you a code is trying to act as you.",
 			"typeIt": "The link that brought you here carried a code, but that sign-in was started from another network than this browser's, so it wasn't looked up. Type the code your own terminal or device shows. If you didn't start a sign-in, close this page.",
 			"requested": "Asked for",
-			"requestedHere": "{time} UTC, from the network this browser is on",
-			"requestedFrom": "{time} UTC, from another network ({network})",
-			"requestedUnknown": "{time} UTC, from a network WebCraft couldn't tell",
+			"requestedHere": "{time}, from the network this browser is on",
+			"requestedFrom": "{time}, from another network ({network})",
+			"requestedUnknown": "{time}, from a network WebCraft couldn't tell",
 			"nameUnchecked": "The client's name was chosen by whoever started this sign-in: WebCraft can't check it.",
 			"approvedHeading": "{client} is signed in",
 			"approvedBody": "Go back to your terminal: it carries on by itself. You can revoke it at any time under Your account › AI clients.",
@@ -5944,36 +6204,36 @@
 			"kept": "Revisions saved before are kept {days} days, and each item's newest {kept} however old. Checkpoints are still saved."
 		},
 		"copies": {
-			"heading": "Saved copies",
-			"older": "Show older"
+			"older": "Show older",
+			"revisions": "Revisions",
+			"checkpoints": "Checkpoints"
 		},
 		"compare": {
 			"none": "Nothing is saved to compare with the Draft yet.",
-			"heading": "{copy}, next to the Draft",
 			"publishedBy": "Published by {by}",
 			"changedBy": "The Draft as {by} left it at {time}",
 			"languages": "Languages compared",
 			"changes": "{count, plural, =0 {No changes} one {# change} other {# changes}}",
 			"same": "Nothing differs: the Draft holds what this holds.",
-			"differ": "{count, plural, one {# part differs} other {# parts differ}} from the Draft.",
-			"showAll": "Show every part",
 			"showChanged": "Show only what differs",
-			"revisionSide": "This Revision",
-			"checkpointSide": "This Checkpoint",
-			"draftSide": "The Draft now",
 			"shared": "Shared by every language",
-			"partChangedBy": "Changed in the Draft by {by} · {time}"
+			"partChangedBy": "Changed in the Draft by {by} · {time}",
+			"title": "{type, select, revision {The Draft compared with the Revision of {time}} other {The Draft compared with the Checkpoint of {time}}}",
+			"revisionColumn": "Revision",
+			"checkpointColumn": "Checkpoint",
+			"draftColumn": "Draft",
+			"sameFields": "{count, plural, one {# Field is the same} other {# Fields are the same}}",
+			"sameParts": "{count, plural, one {# part is the same} other {# parts are the same}}"
 		},
 		"restore": {
-			"revision": "Restore this Revision",
-			"checkpoint": "Restore this Checkpoint",
 			"close": "Close",
 			"titleRevision": "Restore this Revision into the Draft?",
 			"titleCheckpoint": "Restore this Checkpoint into the Draft?",
 			"body": "What it held at {time} replaces the Draft. The Draft as it is now is kept as a Checkpoint first, so you can go back. Nothing is published: visitors see it once the item is published.",
 			"cancel": "Cancel",
 			"confirm": "Restore into the Draft",
-			"done": "Restored into the Draft. Nothing was published."
+			"done": "Restored into the Draft. Nothing was published.",
+			"never": "Restoring never publishes."
 		},
 		"postType": {
 			"label": "Save a Revision each time an Entry of {name} is published",
@@ -5983,7 +6243,14 @@
 		},
 		"link": "History",
 		"linkNamed": ": {name}",
-		"emailsLink": "Emails' history"
+		"emailsLink": "Emails' history",
+		"liveNow": "Live now",
+		"time": {
+			"today": "Today, {time}",
+			"yesterday": "Yesterday, {time}",
+			"day": "{day} {month}, {time}",
+			"dayYear": "{day} {month} {year}, {time}"
+		}
 	},
 	"historySettings": {
 		"pageTitle": "Revisions",
@@ -5998,15 +6265,14 @@
 		"checkpointDays": "Keep Checkpoints for (days)",
 		"checkpointDaysHelp": "Checkpoints are the Draft saved while it is edited; older ones are removed every night.",
 		"outOfRange": "Use a whole number from {min} to {max}.",
-		"save": "Save",
-		"saved": "Saved."
+		"invalid": "Some values are out of range.",
+		"revisionsCard": "Revisions",
+		"checkpointsCard": "Checkpoints"
 	},
 	"filters": {
 		"pageTitle": "Filters",
 		"heading": "Filters",
 		"intro": "The controls visitors use to narrow, search and sort the items of one query Loop. Staff build each Filter here and place it in a Template or Component beside its Loop.",
-		"listTitle": "The Site's Filters",
-		"listIntro": "Each Filter narrows one query Loop. Open one to change its controls, layout and words, with a live preview.",
 		"none": "No Filters yet.",
 		"name": "Name",
 		"markup": "Template markup",
@@ -6022,13 +6288,10 @@
 		"noLoops": "Every query Loop has a Filter already",
 		"cancel": "Cancel",
 		"create": "Create Filter",
-		"back": "Back to Filters",
 		"structure": "Structure",
-		"unsaved": "Unsaved changes",
 		"narrows": "Narrows the query Loop",
 		"placedOn": "placed on {places}",
 		"notPlaced": "not placed yet",
-		"saveDraft": "Save draft",
 		"savedDraft": "The Filter's Draft is saved.",
 		"publish": "Publish Filter",
 		"published": "The Filter {name} is published.",
@@ -6166,7 +6429,10 @@
 			"filterLabel": "Name for screen readers",
 			"filterLabelHelp": "The form's name, also the drawer's title and button.",
 			"applyLabel": "Apply button",
-			"applyLabelHelp": "Shown in On submit mode and without JavaScript."
+			"applyLabelHelp": "Shown in On submit mode and without JavaScript.",
+			"about": "This Filter",
+			"words": "The Filter's words",
+			"wordsIntro": "Content: translate them in the Translations tab."
 		},
 		"layout": {
 			"preset": "Layout preset",
@@ -6190,8 +6456,10 @@
 			"placedHelp": "The page around the Filter is the Template's: open it in the visual builder to arrange it, with the Filter selected.",
 			"notPlaced": "Not placed yet. Place it in a Template or Component beside its Loop with",
 			"toTemplates": "Go to Templates",
-			"openInBuilder": "Open {place} in the visual builder",
-			"apart": "Controls can also be placed one by one anywhere on the page, such as the search box in the header: each control's settings show its markup."
+			"openInBuilder": "Open {place} in the building area",
+			"apart": "Controls can also be placed one by one anywhere on the page, such as the search box in the header: each control's settings show its markup.",
+			"title": "Layout",
+			"intro": "How the Filter's controls sit beside its Loop, and on phones."
 		},
 		"translations": {
 			"none": "The Site has one language: add another in Site › Languages to translate the Filter's words.",
@@ -6214,7 +6482,8 @@
 				"applyLabel": "Apply button",
 				"sortOption": "sort",
 				"filterLabel": "Name for screen readers"
-			}
+			},
+			"title": "Translations"
 		},
 		"preview": {
 			"heading": "Live preview",
@@ -6231,27 +6500,26 @@
 		}
 	},
 	"reports": {
-		"heading": "Reports of {name}",
-		"intro": "Each Report sends this Dashboard as a PDF on its schedule, comparing its days with the ones before, with plain-language AI text when the Workspace has an AI key.",
-		"backToDashboard": "Back to {name}",
+		"heading": "Reports",
+		"intro": "Scheduled summaries of {name}, sent by email.",
 		"new": "New Report",
 		"empty": "This Dashboard has no Reports yet.",
 		"emptyStaff": "This Dashboard has no Reports yet. Set one up to send it to the client every week or month.",
 		"listLabel": "Reports",
 		"columns": {
-			"name": "Report",
-			"schedule": "Schedule",
+			"name": "Name",
+			"schedule": "How often",
 			"language": "Language",
 			"recipients": "Recipients",
-			"next": "Goes out next",
-			"actions": "Actions"
+			"next": "Next",
+			"actions": "Actions",
+			"active": "Active"
 		},
 		"schedules": {
 			"weekly": "Weekly, on Mondays",
 			"monthly": "Monthly, on the 1st"
 		},
 		"reviewBadge": "Review first",
-		"nobody": "Nobody yet",
 		"off": "Off",
 		"menu": "Actions for {name}",
 		"edit": "Edit",
@@ -6262,23 +6530,14 @@
 		"deleted": "{name} was deleted.",
 		"deleteTitle": "Delete {name}?",
 		"deleteIntro": "It stops going out, and its history and PDFs are deleted.",
-		"historyOf": "History of {name}",
-		"historyIntro": "Each Report made, newest first, with its PDF for 400 days.",
 		"noHistory": "Nothing was sent yet.",
-		"historyColumns": {
-			"made": "Made",
-			"days": "Days",
-			"status": "State",
-			"ai": "AI text",
-			"recipients": "Sent to"
-		},
 		"test": "Test",
 		"statuses": {
 			"preparing": "Being made",
-			"review": "Waiting for review",
+			"review": "Waiting for your review",
 			"rendering": "Making its PDF",
 			"sent": "Sent",
-			"failed": "Failed",
+			"failed": "Could not send",
 			"discarded": "Discarded"
 		},
 		"ai": {
@@ -6288,19 +6547,10 @@
 			"failed": "None: the AI provider didn't answer",
 			"none": "None needed"
 		},
-		"mailStatuses": {
-			"queued": "Queued",
-			"retrying": "Retrying",
-			"sent": "Sent",
-			"failed": "Failed",
-			"logged": "Written to the log",
-			"waiting": "Not sent yet"
-		},
 		"review": "Review",
-		"download": "PDF",
-		"downloadLabel": "Download the PDF made {day}",
+		"downloadLabel": "Download PDF for {period}",
 		"resend": "Send again",
-		"resendLabel": "Send again the Report made {day}",
+		"resendLabel": "Send again the Report for {period}",
 		"resent": "It is being sent again.",
 		"close": "Close",
 		"cancel": "Cancel",
@@ -6325,8 +6575,8 @@
 		"holdForReview": "Wait for someone to review the AI text",
 		"holdForReviewHelp": "Staff are emailed when it is ready; it goes out once one of them approves it.",
 		"active": "Send it on its schedule",
-		"reviewTitle": "Review the AI text",
-		"reviewIntro": "Check what the AI wrote from this Report's totals. Change anything, then approve to send it, or discard it.",
+		"reviewTitle": "Review before it goes",
+		"reviewIntro": "The AI's draft for {period}.",
 		"whatHappened": "What happened",
 		"aboutWidget": "About {title}",
 		"suggestions": "Suggestions",
@@ -6339,20 +6589,65 @@
 		"discarded": "The Report was discarded: it won't go out.",
 		"approve": "Approve and send",
 		"approved": "Approved: the Report is being sent.",
-		"forbiddenWorkspace": "A Workspace Dashboard's Reports add up every Site of the Workspace, so only people who see every Site open them."
+		"forbiddenWorkspace": "A Workspace Dashboard's Reports add up every Site of the Workspace, so only people who see every Site open them.",
+		"howOften": {
+			"weekly": "Weekly",
+			"monthly": "Monthly"
+		},
+		"recipientCount": "{count, plural, =0 {Nobody yet} one {# recipient} other {# recipients}}",
+		"activeLabel": "Send {name} on its schedule",
+		"turnedOn": "{name} goes out on its schedule again.",
+		"turnedOff": "{name} no longer goes out on its schedule.",
+		"sent": "Sent",
+		"sentColumns": {
+			"period": "Period",
+			"made": "Made",
+			"state": "State",
+			"action": "Action"
+		},
+		"aiNote": "AI text: {state}",
+		"months": {
+			"jan": "January",
+			"feb": "February",
+			"mar": "March",
+			"apr": "April",
+			"may": "May",
+			"jun": "June",
+			"jul": "July",
+			"aug": "August",
+			"sep": "September",
+			"oct": "October",
+			"nov": "November",
+			"dec": "December"
+		},
+		"period": {
+			"sameMonth": "{fromDay}–{toDay} {month} {year}",
+			"sameYear": "{fromDay} {fromMonth} – {toDay} {toMonth} {year}",
+			"other": "{fromDay} {fromMonth} {fromYear} – {toDay} {toMonth} {toYear}"
+		},
+		"made": {
+			"today": "Today",
+			"yesterday": "Yesterday",
+			"day": "{day} {month}",
+			"dayYear": "{day} {month} {year}"
+		},
+		"downloadPdf": "Download PDF",
+		"reviewLabel": "Review the Report for {period}",
+		"perWidget": "Per Widget",
+		"changeText": "Change the text"
 	},
 	"shareLinks": {
 		"title": "Share links",
-		"intro": "Anyone holding a Share link explores this Dashboard without an account: they change its days and filters, nothing else. Links are never indexed by search engines.",
+		"intro": "A Share link lets someone without an account look at this Dashboard and change nothing.",
 		"loading": "Loading the links…",
 		"empty": "No Share links yet.",
 		"listLabel": "Share links",
 		"states": {
-			"active": "Works",
+			"active": "Active",
 			"expired": "Expired",
 			"revoked": "Revoked"
 		},
-		"withPassword": "Password",
+		"withPassword": "Password set",
 		"withoutPassword": "No password",
 		"expires": "Expires {day}",
 		"noExpiry": "Never expires",
@@ -6361,24 +6656,34 @@
 		"revoke": "Revoke",
 		"revokeLabel": "Revoke {name}",
 		"revoked": "{name} no longer works.",
-		"new": "New Share link",
 		"newTitle": "New Share link",
 		"name": "Name",
-		"nameHelp": "For you to tell links apart, such as who it was sent to.",
-		"password": "Password (optional)",
-		"passwordHelp": "8 to 200 characters. People give it once on the link's page; it is kept only as a hash.",
-		"expiry": "Expires on (optional)",
+		"password": "Password",
+		"passwordHelp": "Optional.",
+		"expiry": "Expires",
 		"expiryHelp": "The link stops working at the end of that day (UTC).",
-		"language": "Language of its page",
-		"make": "Make link",
-		"cancel": "Cancel",
-		"close": "Close",
+		"language": "Language",
+		"make": "Create",
 		"made": "{name} is ready.",
 		"address": "Its address",
-		"shownOnce": "Copy it now: it isn't shown again.",
+		"shownOnce": "Shown once. Copy it now.",
 		"copy": "Copy",
 		"copied": "The address was copied.",
-		"copyFailed": "The address couldn't be copied: select it and copy it yourself."
+		"copyFailed": "The address couldn't be copied: select it and copy it yourself.",
+		"endsIn": "…ends in {hint}",
+		"revokeSure": "Revoke for good",
+		"revokeAgain": "Revoke {name} for good: it stops working",
+		"namePlaceholder": "e.g. For the agency",
+		"passwordPlaceholder": "None",
+		"expiries": {
+			"in7": "In 7 days",
+			"in30": "In 30 days",
+			"in90": "In 90 days",
+			"in365": "In a year",
+			"never": "Never",
+			"day": "On a day…"
+		},
+		"expiryDay": "The last day it works"
 	},
 	"branding": {
 		"installPageTitle": "Report branding",
@@ -6409,8 +6714,6 @@
 			"client": "Client brand",
 			"madeWith": "Made with WebCraft"
 		},
-		"save": "Save",
-		"saved": "The branding was saved.",
 		"workspaceHeading": "Report branding",
 		"workspaceIntro": "How this Workspace's Reports and Share links look.",
 		"workspaceAgencyIntro": "Use the Install's agency brand, or one of this Workspace's own.",
@@ -6430,17 +6733,28 @@
 		"heading": "Services list",
 		"intro": "The services your agency offers, for the whole Install. Reports' AI suggestions may point to one of them.",
 		"empty": "No services yet.",
-		"name": "Name of service {n}",
-		"description": "What service {n} is",
-		"moveUp": "Move service {n} up",
-		"moveDown": "Move service {n} down",
-		"remove": "Remove service {n}",
 		"moved": "{name} moved to position {position}.",
-		"removed": "{name} was removed. Save to keep the change.",
+		"removed": "{name} was removed.",
 		"unnamed": "A service without a name",
 		"add": "Add service",
-		"save": "Save the list",
-		"saved": "The Services list was saved."
+		"saved": "The Services list was saved.",
+		"position": "Position",
+		"nameColumn": "Name",
+		"descriptionColumn": "What it is",
+		"descriptionHelp": "A line or two, as a client would read it in a Report's suggestion.",
+		"actions": "Actions",
+		"actionsOf": "Actions for {name}",
+		"edit": "Edit",
+		"moveUpItem": "Move up",
+		"moveDownItem": "Move down",
+		"removeItem": "Remove",
+		"removeTitle": "Remove {name}?",
+		"removeText": "Reports' AI suggestions stop pointing to it.",
+		"removeConfirm": "Remove",
+		"editTitle": "Edit {name}",
+		"sheetIntro": "One of the services your agency offers.",
+		"cancel": "Cancel",
+		"saveService": "Save"
 	},
 	"coEditing": {
 		"someone": "Someone",
@@ -7181,7 +7495,24 @@
 		},
 		"authorHelp": "Your changes are saved as a Draft. Submit them for review when they're ready: an Editor or Owner publishes them.",
 		"inReviewHelp": "It's In review. You can go on editing; the reviewer sees what changed since you submitted it.",
-		"navBadge": "{count} to review"
+		"navBadge": "{count} to review",
+		"sheet": {
+			"title": "Review: {name}",
+			"loading": "Loading the Review…",
+			"sent": "{name} sent this {when}",
+			"decided": "Someone already acted on this Review.",
+			"open": "Open the page",
+			"whatChanged": "What changed",
+			"new": "New",
+			"newLine": "Never published: all of it is new",
+			"changedLine": "Changed in the Draft",
+			"noDetail": "The Draft differs from what visitors see.",
+			"commentFor": "Comment for {name}",
+			"commentPlaceholder": "Add a comment (optional)",
+			"commentHelp": "Sending it back needs one: {name} sees it beside the Draft.",
+			"publish": "Publish",
+			"openReview": "Open the Review"
+		}
 	},
 	"contentApi": {
 		"heading": "Content API",
@@ -7189,8 +7520,6 @@
 		"switchTitle": "Switch",
 		"switchIntro": "Off until you switch it on. While it is off, every request answers that it is off, and keys don't work.",
 		"on": "Content API on",
-		"switchedOn": "The Content API is on.",
-		"switchedOff": "The Content API is off.",
 		"mainAddress": "Address",
 		"stagingAddress": "On the Staging address",
 		"howTo": "Frontends send a Content key in the {header} header, never in the address. The reference is openapi.json at the same address.",
@@ -7208,15 +7537,12 @@
 		"originsProblem": "A key lists up to 20 origins.",
 		"keysProblem": "This Site has 50 working keys: revoke one first.",
 		"serversOnly": "Servers only",
-		"requests": "Requests",
 		"today": "{count} today",
 		"lastDays": "{week} in 7 days · {month} in 30 days",
 		"lastUsed": "Last used",
 		"neverUsed": "Not yet",
-		"status": "Status",
 		"active": "Active",
 		"revoked": "Revoked",
-		"actions": "Actions",
 		"hint": "…{hint}",
 		"edit": "Edit",
 		"editLabel": "Edit {name}",
@@ -7244,9 +7570,7 @@
 		"showPostType": "Show {name}",
 		"noFields": "No Fields.",
 		"globals": "Globals",
-		"searchNote": "A Post Type whose Searched fields include a hidden Field is left out of the API's search.",
-		"saveShown": "Save what it shows",
-		"shownSaved": "What the Content API shows was saved."
+		"searchNote": "A Post Type whose Searched fields include a hidden Field is left out of the API's search."
 	},
 	"healthBanner": {
 		"title": "Part of the Install is failing",
@@ -7679,13 +8003,8 @@
 		"listTitle": "Exports",
 		"listIntro": "Each download link works for 24 hours, only for people who may export this Site; the file is deleted then.",
 		"listEmpty": "No exports of this Site yet.",
-		"caption": "This Site's exports, newest first",
 		"columns": {
-			"created": "Asked for",
-			"by": "By",
-			"status": "Status",
-			"file": "File",
-			"secrets": "Secrets"
+			"by": "By"
 		},
 		"status": {
 			"waiting": "Waiting",
@@ -7891,7 +8210,28 @@
 			"search": "Search results template",
 			"designSystem": "Design system"
 		},
-		"popupPhoneEarly": "On phones, wait at least 5 seconds before opening a Popup."
+		"popupPhoneEarly": "On phones, wait at least 5 seconds before opening a Popup.",
+		"screen": {
+			"description": "Things worth fixing. They never stop publishing.",
+			"counts": "Open Checks by kind",
+			"kinds": {
+				"accessibility": "Accessibility",
+				"search": "Search",
+				"words": "Words and links"
+			},
+			"filter": "Show Checks of a kind",
+			"all": "All {count}",
+			"kindCount": "{kind} {count}",
+			"search": "Search checks",
+			"noneFound": "No open Check matches.",
+			"open": "Open",
+			"items": {
+				"page": "Page",
+				"entry": "Entry",
+				"component": "Component",
+				"popup": "Popup"
+			}
+		}
 	},
 	"statement": {
 		"heading": "Accessibility statement",
@@ -7928,7 +8268,10 @@
 			"enforcement": "Enforcement procedure and body’s contact details",
 			"enforcementUrl": "Enforcement procedure link (HTTPS)"
 		},
-		"languages": "The form supplies English and Italian wording. For other Site languages, translate the Page’s fields using the ordinary translation tools before publishing."
+		"languages": "The form supplies English and Italian wording. For other Site languages, translate the Page’s fields using the ordinary translation tools before publishing.",
+		"aboutTitle": "About this statement",
+		"pageTitle": "The statement Page",
+		"formTitle": "Facts for the statement"
 	},
 	"popups": {
 		"title": "Popups",
@@ -7937,14 +8280,13 @@
 		"save": "Save Draft",
 		"publish": "Publish",
 		"content": "Content",
-		"structure": "Structure",
 		"build": "Build layout",
 		"layout": "Layout",
 		"trigger": "Trigger",
 		"seconds": "Seconds",
 		"percent": "Scroll depth (%)",
 		"element": "Element anchor",
-		"paths": "Paths (one per line; * at the end includes children)",
+		"paths": "Paths",
 		"postTypes": "Post Types",
 		"entries": "Entries",
 		"languages": "Languages",
@@ -7953,7 +8295,6 @@
 		"frequency": "Frequency",
 		"saved": "Draft saved",
 		"published": "Published",
-		"warning": "On phones, wait at least 5 seconds before opening a Popup.",
 		"delete": "Delete Popup",
 		"fields": {
 			"title": "Title",
@@ -7995,7 +8336,6 @@
 			"push": "Reserve space for the Bar",
 			"overlay": "Overlay the page"
 		},
-		"confirm": "Confirm deletion",
 		"confirmDelete": "Delete this Popup? Its Component remains available.",
 		"days": "Days",
 		"addTrigger": "Add Trigger",
@@ -8005,12 +8345,50 @@
 		"autoCloseSeconds": "Close after seconds (empty: never)",
 		"afterSubmitCloseSeconds": "Close after a successful submission, in seconds (empty: keep open)",
 		"mainButton": "Main button element (#id, optional)",
-		"excludePaths": "Exclude paths (one per line)",
+		"excludePaths": "Exclude paths",
 		"excludePostTypes": "Exclude Post Types",
 		"excludeEntries": "Exclude Entries",
 		"barPosition": "Bar position",
 		"barBehavior": "Page flow",
-		"reviewPublish": "Review and publish Popup"
+		"reviewPublish": "Review and publish Popup",
+		"intro": "Dialogs and bars that open on the Site's pages, each with its Trigger and Display rules.",
+		"none": "No Popups yet.",
+		"state": "State",
+		"triggerAndMore": "{trigger} · {count, plural, one {# more} other {# more}}",
+		"newIntro": "Its layout is a Component of its own, built in the visual builder.",
+		"nameHelp": "Its key, for the Template command, is made from the name.",
+		"cancel": "Cancel",
+		"create": "Create Popup",
+		"status": {
+			"draft": "Draft",
+			"published": "Published",
+			"changed": "Unpublished changes"
+		},
+		"contentIntro": "What visitors read in each language, and when the Popup is on.",
+		"language": "Language",
+		"saveContent": "Save content",
+		"publishContent": "Publish content",
+		"layoutSection": "Layout",
+		"layoutIntro": "How the Popup shows and closes. Save Draft and Publish below keep these and the rows after them.",
+		"buildHelp": "The Popup's Component, in the visual builder.",
+		"triggers": "Triggers",
+		"triggersIntro": "What opens the Popup. With more than one, the first to happen opens it.",
+		"rules": "Display rules",
+		"rulesIntro": "Where and for whom it opens. An empty list means all; what is excluded always wins.",
+		"ruleHelp": {
+			"paths": "Exact paths, with the language prefix; * at the end includes what is under it.",
+			"excludePaths": "Never on these paths.",
+			"postTypes": "Only on Entries of these Post Types.",
+			"excludePostTypes": "Never on Entries of these Post Types.",
+			"entries": "Only on these Entries.",
+			"excludeEntries": "Never on these Entries.",
+			"languages": "Only in these languages.",
+			"devices": "Only on these devices."
+		},
+		"noChoices": "Nothing to choose yet.",
+		"deleteTitle": "Delete {name}?",
+		"deleteConfirm": "Delete",
+		"deleted": "{name} was deleted."
 	},
 	"editorHistory": {
 		"makeComponent": "Make Component {name}",
@@ -8071,6 +8449,2710 @@
 			"typeahead": "Find a Placement by typing its name",
 			"pick": "Pick a Placement up, or put it down",
 			"putBack": "Put a picked-up Placement back"
+		}
+	},
+	"settingsLayout": {
+		"cancel": "Cancel"
+	},
+	"buildingArea": {
+		"pageTitle": "Building area",
+		"opening": "Opening the building area…",
+		"skipToContent": "Skip to main content",
+		"shellFailed": "The building area couldn't be loaded. Check the connection, then reload the page.",
+		"shellReload": "Reload the page",
+		"rail": "Building area",
+		"backToAdmin": "Back to the admin",
+		"canvas": "Page",
+		"frameTitle": "The page you are editing",
+		"bar": "Bottom bar",
+		"title": "Title",
+		"saved": "Saved",
+		"saveFailed": "Couldn't save: {reason}",
+		"ended": "Edit mode has ended. Open it again from the admin.",
+		"droppedOn": "Dropped on {name}",
+		"dropOutside": "Dropped outside the page",
+		"elements": {
+			"heading": "Heading",
+			"paragraph": "Paragraph",
+			"link": "Link",
+			"button": "Button",
+			"image": "Image",
+			"list": "List",
+			"listItem": "List item",
+			"section": "Section",
+			"header": "Header",
+			"footer": "Footer",
+			"navigation": "Navigation",
+			"main": "Main",
+			"article": "Article",
+			"form": "Form",
+			"field": "Field",
+			"figure": "Figure",
+			"page": "Page"
+		},
+		"signedOut": {
+			"pageTitle": "Open the building area from the admin",
+			"text": "This browser isn't editing this Site, or its editing session has ended. Open the building area again from the admin.",
+			"link": "Go to the admin"
+		},
+		"places": {
+			"content": "Content",
+			"templates": "Templates",
+			"media": "Media",
+			"styles": "Styles",
+			"loops": "Loops",
+			"components": "Components",
+			"more": "More places",
+			"forms": "Forms"
+		},
+		"unavailable": "not available yet",
+		"darkPreview": "Dark preview",
+		"noDarkMode": "the Site has no Dark mode",
+		"panels": "Panels",
+		"hideInterface": "Hide the interface",
+		"showInterface": "Show the interface",
+		"settings": "Site settings (opens in a new tab)",
+		"exit": "Exit",
+		"exiting": "Leaving the building area…",
+		"exitFailed": "Couldn't end Edit mode: {reason}",
+		"signedInAs": "Signed in as {name}",
+		"undo": "Undo",
+		"redo": "Redo",
+		"undoStep": "Undo {step}",
+		"redoStep": "Redo {step}",
+		"language": "Language",
+		"languageCode": "{code}, Language: {name}",
+		"viewOnStaging": "View on Staging (opens in a new tab)",
+		"draftState": {
+			"label": "Draft state",
+			"saved": "Saved",
+			"saving": "Saving…",
+			"changes": {
+				"one": "Draft · {count} change",
+				"other": "Draft · {count} changes"
+			},
+			"review": "In review",
+			"failed": "Could not save"
+		},
+		"publish": "Publish",
+		"size": {
+			"readout": "Frame size",
+			"presets": "Device width",
+			"desktop": "Desktop",
+			"tablet": "Tablet",
+			"phone": "Phone",
+			"width": "Page width in pixels",
+			"height": "× {height} px",
+			"zoom": "Zoom",
+			"zoomedOut": "Zoomed out to {zoom} % to fit the width",
+			"fullWidth": "Back to full width",
+			"breakpoint": "Breakpoint {name}",
+			"gutterStart": "Page width, left edge",
+			"gutterEnd": "Page width, right edge",
+			"gutterBelow": "Page height",
+			"widthNow": "{width} px wide",
+			"heightNow": "{height} px high"
+		},
+		"narrow": {
+			"title": "The building area needs a window at least 1024 px wide",
+			"text": "Make the window wider to carry on: nothing is closed or lost."
+		},
+		"dockPanels": {
+			"layers": "Layers",
+			"inspector": "Inspector",
+			"entry": "Entry",
+			"component": "Component",
+			"html": "HTML",
+			"css": "CSS",
+			"js": "JS"
+		},
+		"inspectorTitles": {
+			"element": "Element",
+			"placement": "Props",
+			"loop": "Loop",
+			"condition": "Condition"
+		},
+		"docks": {
+			"dockNames": {
+				"left": "left dock",
+				"right": "right dock",
+				"bottom": "bottom dock"
+			},
+			"dockTitles": {
+				"left": "Left dock",
+				"right": "Right dock",
+				"bottom": "Bottom dock"
+			},
+			"moveTo": {
+				"left": "Move to left dock",
+				"right": "Move to right dock",
+				"bottom": "Move to bottom dock"
+			},
+			"collapse": "Collapse",
+			"expand": "Expand",
+			"hide": "Hide panel",
+			"reset": "Reset panel layout",
+			"panelMenu": "{panel}: panel menu",
+			"expandPanel": "Expand {panel}",
+			"grip": "Move panel",
+			"resizeDock": "Resize the {dock}",
+			"between": "Between {first} and {second}",
+			"moved": "{panel} moved to the {dock}",
+			"moveCancelled": "Move cancelled",
+			"collapsed": "{panel} collapsed",
+			"expanded": "{panel} expanded",
+			"switchedOff": "{panel} switched off. The Panels menu switches it on again.",
+			"switchedOn": "{panel} switched on",
+			"resetDone": "Panel layout reset",
+			"saveFailed": "Couldn't save your panel layout. It is kept in this tab.",
+			"openDrawer": "Show the {dock}",
+			"closeDrawer": "Hide the {dock}"
+		},
+		"styles": {
+			"loading": "Reading the Design system…",
+			"retry": "Try again",
+			"errors": {
+				"invalid": "This can't be saved as it is:",
+				"classInUse": "This Class is in use, so it stays.",
+				"tokenInUse": "This token is in use, so it stays.",
+				"forbidden": "Only Staff may change the Styles.",
+				"network": "The Site couldn't be reached. Your change is kept and sent again with the next one.",
+				"other": "This couldn't be saved ({code}).",
+				"usedIn": "Used in {count} places."
+			},
+			"draft": {
+				"saved": "Draft · all saved",
+				"saving": "Saving…",
+				"waiting": "Draft · saving soon",
+				"failed": "Could not save"
+			},
+			"tabs": {
+				"label": "Styles",
+				"classes": "Classes",
+				"tokens": "Design tokens",
+				"siteCss": "Site CSS",
+				"breakpoints": "Breakpoints"
+			},
+			"format": {
+				"format": "Format",
+				"formatted": "Formatted",
+				"changed": "Formatted · {count} lines changed",
+				"changedOne": "Formatted · 1 line changed",
+				"tidy": "Already tidy",
+				"problem": "Can't format: {reason} on line {line}",
+				"unavailable": "Format couldn't load. Try again in a moment."
+			},
+			"classes": {
+				"search": "Search for a Class",
+				"new": "New",
+				"newName": "New Class name, then Enter",
+				"nameInvalid": "A Class name starts with a letter, then letters, digits, hyphens or underscores, and never starts with wc-.",
+				"nameTaken": "There is a Class named .{name} already.",
+				"created": ".{name} made.",
+				"kinds": {
+					"label": "Show",
+					"all": "All",
+					"class": "Class",
+					"generated": "Generated",
+					"used": "In use",
+					"unused": "Unused"
+				},
+				"list": "Classes",
+				"generated": "Generated",
+				"count": "{shown} of {count} Classes",
+				"empty": "This Site has no Classes yet.",
+				"none": "No Class matches.",
+				"ruleOf": "Rule of .{name}",
+				"pick": "Choose a Class to edit its rule, or make a new one.",
+				"name": "Class name",
+				"rename": "Rename",
+				"renamed": "Renamed to .{name}. Every element with it follows.",
+				"renameHelp": "Elements keep a Class by its id: every element and page follows a new name.",
+				"usage": "on {elements} · {pages}",
+				"elementsOne": "1 element",
+				"elements": "{count} elements",
+				"pagesOne": "1 page",
+				"pages": "{count} pages",
+				"problems": {
+					"shape": "Keep the rule one block: the selector .{name}, then everything between its braces.",
+					"name": "The rule's selector stays .{name}: use Rename to change it.",
+					"unclosed": "A block opened in the rule isn't closed (line {line})."
+				},
+				"ruleHelp": "Its styles, its own rules with &, and an @media (width >= …) block for each breakpoint."
+			},
+			"quick": {
+				"label": "Quick actions",
+				"add": "click to add, again to remove",
+				"remove": "click to remove, ↓ for its tokens",
+				"more": "choose a breakpoint",
+				"menu": "{action}: tokens",
+				"search": "Search tokens",
+				"favourite": "Make {token} a favourite",
+				"notFavourite": "{token} is a favourite: click to remove the star",
+				"none": "No token matches.",
+				"noRule": "fix the rule first",
+				"noTokens": "the Design system has none yet",
+				"atWidth": "At this width ({width}px)",
+				"added": "{action} added",
+				"removed": "{action} removed",
+				"chosen": "{action}: {token}",
+				"kinds": {
+					"space": "Spacing",
+					"text": "Type scale",
+					"colours": "Colours",
+					"fonts": "Fonts",
+					"radius": "Radius",
+					"shadows": "Shadows",
+					"widths": "Content widths",
+					"breakpoints": "Breakpoints"
+				},
+				"actions": {
+					"media": "Media query",
+					"padding": "Padding",
+					"flex": "Flex",
+					"column": "Column",
+					"grid": "Grid",
+					"width": "Width",
+					"height": "Height",
+					"gap": "Gap",
+					"left": "Align to the start",
+					"center": "Centre",
+					"right": "Align to the end",
+					"fontSize": "Font size",
+					"bold": "Bold",
+					"colour": "Text colour",
+					"background": "Background",
+					"radius": "Radius",
+					"shadow": "Shadow"
+				}
+			},
+			"tokens": {
+				"groups": "Groups of Design tokens",
+				"group": {
+					"colours": "Colours",
+					"space": "Spacing",
+					"text": "Type scale",
+					"fonts": "Fonts",
+					"radius": "Radius",
+					"shadows": "Shadows",
+					"widths": "Content widths"
+				},
+				"showAs": "Show as",
+				"editor": "Editor",
+				"css": "CSS",
+				"cssOf": "{group} as CSS",
+				"name": "Name",
+				"swatch": "Swatch",
+				"light": "Light",
+				"dark": "Dark mode",
+				"contrast": "Contrast",
+				"low": "Low",
+				"unchecked": "—",
+				"nameOf": "Name of {name}",
+				"lightOf": "{name}, light value",
+				"darkOf": "{name}, dark value",
+				"auto": "auto ({value})",
+				"autoPlain": "auto",
+				"remove": "Remove {name}",
+				"removeAgain": "Click again to remove {name}",
+				"removed": "{name} removed",
+				"added": "{name} added",
+				"addColour": "Add colour",
+				"noDarkMode": "The dark values show once the Site has Dark mode (Site settings).",
+				"base": "Base",
+				"ratio": "Ratio",
+				"atSmallest": "{what} on the smallest screens",
+				"atLargest": "{what} on the largest screens",
+				"property": "Property",
+				"size": "Size",
+				"ownSizes": "own sizes",
+				"scaleHelp": "Each step grows from the base by the ratio, between the smallest and the largest screens.",
+				"family": "Family",
+				"familyOf": "Family of {name}",
+				"addFont": "Add font",
+				"value": "Value",
+				"valueOf": "Size of {name}",
+				"unitOf": "Unit of {name}",
+				"addRadius": "Add radius",
+				"addWidth": "Add content width",
+				"addLayer": "Add layer",
+				"addShadow": "Add shadow",
+				"layer": {
+					"offsetX": "X",
+					"offsetY": "Y",
+					"blur": "Blur",
+					"spread": "Spread",
+					"color": "Colour",
+					"inset": "Inset"
+				},
+				"layerPart": "{part} of {name}, layer {layer}",
+				"actions": "Actions"
+			},
+			"siteCss": {
+				"title": "Site CSS",
+				"help": "The Site's own CSS, in the stylesheet's last layer: it never needs !important. Checked as it saves."
+			},
+			"breakpoints": {
+				"name": "Name",
+				"query": "Query",
+				"usedIn": "Used in",
+				"showOnCanvas": "Show on canvas",
+				"onRules": "on {count} rules",
+				"onRulesOne": "on 1 rule",
+				"add": "Add Breakpoint",
+				"added": "{name} added",
+				"shown": "{name} shown on the canvas",
+				"hidden": "{name} no longer shown on the canvas",
+				"canvasWidth": "Canvas width",
+				"canvasNow": "The page on the canvas is {width}px wide.",
+				"noCanvas": "No page on the canvas.",
+				"at": "{name} from {width}px.",
+				"nameOf": "Name of {name}",
+				"widthOf": "Width {name} starts at, in px",
+				"nameInvalid": "Lower-case letters, digits and hyphens, such as md or 2xl.",
+				"showNamed": "Show {name} on the canvas"
+			}
+		},
+		"documents": {
+			"page": "Page",
+			"siteTemplate": "Site template",
+			"searchTemplate": "Search results template",
+			"entryTemplate": "Entry template",
+			"archiveTemplate": "Archive template",
+			"component": "Component",
+			"form": "Form",
+			"titled": "{name} · {kind}",
+			"untitled": "Untitled",
+			"switch": "Switch document: {document}",
+			"pages": "Pages",
+			"templates": "Templates",
+			"components": "Components",
+			"backTo": "Back to {page}",
+			"preview": "Preview: {entry}",
+			"previewLabel": "The Entry this Template previews: {entry}",
+			"previewNone": "No Entry to preview",
+			"renderedBy": "Rendered by: {template}",
+			"renderedByLabel": "Rendered by the {template}: open it",
+			"opened": "Opened {document}",
+			"opening": "Opening…",
+			"standIn": "No page shows it: drawn on its own",
+			"missingTitle": "Nothing to open here",
+			"missingText": "This address names no page, Template or Component of this Site that you can open.",
+			"missingLink": "Open the home page",
+			"formLaterTitle": "Forms open in the Forms place",
+			"formLaterText": "The Forms place comes with a later part of the building area. Until then, build Forms in the admin.",
+			"openIn": "Open in the building area"
+		},
+		"place": {
+			"backToCanvas": "Back to the canvas",
+			"backToPage": "Back to {page}",
+			"opened": "{place} opened",
+			"left": "Back to the canvas",
+			"laterTitle": "Not here yet",
+			"laterText": "This part of the place comes with a later part of the building area. Until then, use the admin.",
+			"openAdmin": "Open the admin (new tab)",
+			"loading": "Loading {place}…",
+			"loadFailed": "{place} couldn't be loaded. Check the connection, then try again.",
+			"tryAgain": "Try again"
+		},
+		"content": {
+			"sections": "Content",
+			"pages": "Pages",
+			"globals": "Globals",
+			"siteDetails": "Site details",
+			"allDetails": "All details",
+			"postTypes": "Post Types",
+			"staffOnly": "Staff",
+			"newPostType": "New Post Type",
+			"entries": {
+				"one": "{count} Entry",
+				"other": "{count} Entries"
+			},
+			"summary": "{count} · {languages}",
+			"search": "Search",
+			"searchIn": "Search {name}",
+			"status": {
+				"label": "Status",
+				"all": "All",
+				"published": "Published",
+				"draft": "Draft",
+				"drafts": "Drafts",
+				"changed": "Unpublished changes",
+				"review": "In review"
+			},
+			"statusChip": "Status: {value}",
+			"language": "Language",
+			"languageChip": "Language: {value}",
+			"allLanguages": "All",
+			"sort": {
+				"label": "Sort",
+				"title": "Title, A to Z",
+				"-title": "Title, Z to A",
+				"address": "Address, A to Z",
+				"-address": "Address, Z to A",
+				"status": "Status: Drafts first",
+				"author": "Author, A to Z",
+				"-updated": "Updated: newest first",
+				"updated": "Updated: oldest first",
+				"sorted": "Sorted by {sort}"
+			},
+			"columns": {
+				"title": "Title",
+				"address": "Address",
+				"status": "Status",
+				"languages": "Languages",
+				"author": "Author",
+				"updated": "Updated",
+				"actions": "Actions"
+			},
+			"untitled": "Untitled",
+			"newPage": "New Page",
+			"newEntry": "New Entry",
+			"newPageTitle": "Title of the new Page",
+			"newEntryTitle": "Title of the new Entry",
+			"writeNewPage": "Write a new Page…",
+			"writeNewEntry": "Write a new Entry…",
+			"create": "Create",
+			"createHelp": "Enter makes a Draft and opens it on the canvas",
+			"creating": "Creating…",
+			"created": "{title} made as a Draft",
+			"createFailed": "Couldn't make it: {reason}",
+			"open": "Open {title} on the canvas",
+			"noAddress": "{title} has no address to open on the canvas",
+			"edit": "Edit",
+			"more": "More for {title}",
+			"openInAdmin": "Open in the admin (new tab)",
+			"copyAddress": "Copy its address",
+			"copied": "Address copied",
+			"languagesOf": "Languages of {title}",
+			"hiddenIn": "{language}: hidden",
+			"shownIn": "{language}: shown",
+			"empty": "No Entries yet.",
+			"emptyCreate": "No Entries yet: give the first one a title below.",
+			"noMatch": "Nothing matches this search and these filters.",
+			"loading": "Loading…",
+			"loadFailed": "Couldn't load the content: {reason}",
+			"shown": "{shown} of {total}",
+			"showMore": "Show more",
+			"justNow": "Just now",
+			"lists": "Lists",
+			"globalsForm": {
+				"intro": "The Site's own values, such as its phone number or address, that every Template can show.",
+				"empty": "The Globals have no Fields yet. Staff add them in the admin.",
+				"notHere": "Edited in the admin",
+				"editInAdmin": "Edit the Globals in the admin (new tab)",
+				"yes": "Yes",
+				"no": "No",
+				"none": "None",
+				"linkUrl": "Address",
+				"linkText": "Text",
+				"required": "Required",
+				"saveFailed": "Couldn't save {field}: {reason}"
+			}
+		},
+		"postTypes": {
+			"title": "Post Types",
+			"count": {
+				"one": "{count} Post Type",
+				"other": "{count} Post Types"
+			},
+			"columns": {
+				"name": "Name",
+				"key": "Key",
+				"urlPattern": "URL pattern",
+				"entryTemplate": "Entry template",
+				"archiveTemplate": "Archive template",
+				"entries": "Entries",
+				"actions": "Actions"
+			},
+			"builtIn": "Built in: every Site has Pages",
+			"made": "Made",
+			"notMade": "Not made yet",
+			"noArchive": "No archive address",
+			"pagesNone": "Pages are arranged with Page layouts",
+			"openFields": "Fields of {name}",
+			"newName": "New Post Type",
+			"newNameLabel": "Name of the new Post Type",
+			"newKeyLabel": "Key of the new Post Type",
+			"newPatternLabel": "URL pattern of the new Post Type",
+			"createHelp": "Enter makes the Post Type and opens its Fields. The key and URL pattern follow the name unless you give them.",
+			"create": "Create",
+			"creating": "Creating…",
+			"created": "{name} made",
+			"notCreated": "Couldn't make the Post Type: {reason}",
+			"delete": "Delete {name}",
+			"deleteTitle": "Delete {name}?",
+			"deleteChecking": "Checking what goes with it…",
+			"deleteText": "{name} has {entries} and {templates}. Deleting this Post Type removes them too, and cannot be undone.",
+			"deleteEmpty": "{name} has no Entries and no Templates. Deleting it cannot be undone.",
+			"entries": {
+				"one": "{count} Entry",
+				"other": "{count} Entries"
+			},
+			"templates": {
+				"one": "{count} Template",
+				"other": "{count} Templates"
+			},
+			"cancel": "Cancel",
+			"confirmDelete": "Delete",
+			"deleting": "Deleting…",
+			"deleted": "{name} deleted, with its Entries and Templates",
+			"deleteFailed": "Couldn't delete it: {reason}",
+			"inUseTitle": "{name} can't be deleted yet",
+			"inUseText": "Other Structure points at it. Change these first:",
+			"usedByPostType": "{name} › {path}: a Relationship Field",
+			"usedByComponent": "{name} › {path}: a Component's Prop",
+			"usedByLoop": "{name}: a Loop",
+			"builtInRefused": "Every Site has Pages: they can't be deleted.",
+			"close": "Close",
+			"tabs": {
+				"label": "{name}",
+				"entries": "Entries",
+				"fields": "Fields",
+				"settings": "Settings"
+			},
+			"notFound": "There is no such Post Type here.",
+			"reasons": {
+				"taken": "another Post Type already has this key or URL pattern",
+				"pathTaken": "a published Page already has an address this URL pattern would take",
+				"invalid": "check the settings marked below",
+				"inUse": "other Structure points at it",
+				"confirmation": "it changed while you were deciding: try again",
+				"network": "the server didn't answer",
+				"forbidden": "you can't change Structure",
+				"generic": "something went wrong ({code})"
+			},
+			"fields": {
+				"list": "Fields of {name}",
+				"empty": "No Fields yet: add the first one below.",
+				"newField": "New Field",
+				"newIn": "New Field in {label}",
+				"move": "Move {label}",
+				"moveHelp": "Drag it, or press the up and down arrows, to change its place.",
+				"moved": "{label} moved to place {place} of {count}",
+				"requiredMark": "required",
+				"translatable": "Translatable",
+				"inside": "inside {label}",
+				"selectHint": "Choose a Field to see its settings.",
+				"kindField": "{kind} Field",
+				"label": "Label",
+				"key": "Key",
+				"keyLocked": "Templates read the Field by this name, so it never changes.",
+				"keyNew": "Templates read the Field by this name. It can't change once the Field is added.",
+				"kind": "Kind",
+				"kindLocked": "A Field keeps its kind.",
+				"in": "In",
+				"top": "{name} itself",
+				"firstInner": "Its first Field",
+				"firstInnerHelp": "A Group or Repeater holds at least one Field: this one is a text Field to start with.",
+				"required": "Required",
+				"translatableSetting": "Translatable",
+				"on": "On",
+				"off": "Off",
+				"help": "Help text",
+				"helpPlaceholder": "Shown under the Field to the people writing",
+				"add": "Add Field",
+				"adding": "Adding…",
+				"added": "{label} added",
+				"cancelNew": "Cancel",
+				"deleteField": "Delete Field",
+				"confirmDeleteField": "Delete {label}? Click again",
+				"deletedField": "{label} deleted",
+				"saveFailed": "Couldn't save {label}: {reason}",
+				"inAdmin": "Its Blocks and Components are set in the admin (new tab)",
+				"minLength": "Fewest characters",
+				"maxLength": "Most characters",
+				"pattern": "Pattern",
+				"patternHelp": "A regular expression the whole value must match. Leave empty for none.",
+				"min": "Smallest",
+				"max": "Largest",
+				"integer": "Whole numbers only",
+				"mode": "Holds",
+				"modes": {
+					"date": "A day",
+					"time": "A time of day",
+					"dateTime": "A day and time"
+				},
+				"earliest": "Earliest",
+				"latest": "Latest",
+				"options": "Choices",
+				"optionValue": "Value",
+				"optionLabel": "Label",
+				"optionNumber": "Choice {number}",
+				"addOption": "Add choice",
+				"removeOption": "Remove {name}",
+				"multipleChoices": "Several choices",
+				"multipleEntries": "Several Entries",
+				"fewestChoices": "Fewest choices",
+				"mostChoices": "Most choices",
+				"fewestEntries": "Fewest Entries",
+				"mostEntries": "Most Entries",
+				"fewestRows": "Fewest rows",
+				"mostRows": "Most rows",
+				"pointsAt": "Related Post Types",
+				"twoWay": "Two-way",
+				"twoWayHelp": "The Entries it points at show the link back.",
+				"kinds": {
+					"text": "Text",
+					"richText": "Rich text",
+					"body": "Body",
+					"number": "Number",
+					"boolean": "True/false",
+					"date": "Date and time",
+					"select": "Select",
+					"media": "Media",
+					"link": "Link",
+					"email": "Email",
+					"relationship": "Relationship",
+					"group": "Group",
+					"repeater": "Repeater"
+				}
+			},
+			"settings": {
+				"heading": "Settings of {name}",
+				"name": "Name",
+				"key": "Key",
+				"keyLocked": "Templates, Loops and files name the Post Type by this key, so it never changes.",
+				"urlPattern": "URL pattern",
+				"urlPatternHelp": "Where its Entries are, such as /blog/{slug}.",
+				"urlPatternPages": "Pages are found by their parent Page and slug, so their URL pattern can't change.",
+				"searchable": "Shown in Site search",
+				"sitemap": "Listed in sitemaps",
+				"revisions": "Saves Revisions",
+				"more": "Searched fields and SEO settings are in the admin (new tab)",
+				"deletePostType": "Delete Post Type",
+				"saveFailed": "Couldn't save {setting}: {reason}"
+			},
+			"problems": {
+				"keyFormat": "A key starts with a lower-case letter, then letters, digits and underscores (at most 64).",
+				"keyReserved": "WebCraft keeps this key for itself. Choose another.",
+				"keyTwice": "Another Field here already has this key.",
+				"labelLength": "A label has 1 to 100 characters.",
+				"helpLength": "Help text has at most 500 characters.",
+				"fieldsEmpty": "A Group or Repeater holds at least one Field.",
+				"fieldsDepth": "Groups and Repeaters nest at most 3 deep.",
+				"bodyTwice": "A Post Type has at most one Body field.",
+				"postTypeNameLength": "A Post Type's name has 1 to 100 characters.",
+				"postTypeKeyFormat": "A Post Type key is lower-case letters, digits and dashes, starting with a letter (at most 64).",
+				"urlPattern": "This URL pattern can't be used: it needs {slug}, and starts with /.",
+				"generic": "This setting can't be saved as it is."
+			}
+		},
+		"media": {
+			"lists": "Media's folders",
+			"search": "Search media",
+			"loading": "Reading the Media library…",
+			"loadFailed": "The Media library couldn't be read ({reason}).",
+			"storage": "Media storage used",
+			"folderActions": "Actions for the folder {name}",
+			"actions": "Actions",
+			"select": "Select {name}",
+			"selectAll": "Select all",
+			"addAlt": "add alt text…",
+			"copyAddress": "Copy the address of {name}",
+			"copied": "The address of {name} is copied.",
+			"copyFailed": "The address couldn't be copied.",
+			"moveOne": "Move {name} to a folder",
+			"moveTo": "Move to Folder",
+			"moveFailed": "{name} wasn't moved: {reason}",
+			"deleteOne": "Delete {name}",
+			"restoreOne": "Restore {name}",
+			"uploaded": "Files uploaded: {count}",
+			"open": "Open: {name}",
+			"closeFile": "Close the details of {name}",
+			"languageAlt": "Alt text in {language}",
+			"languageNoAlt": "Alt text in {language}, none yet",
+			"saveFailed": "The change wasn't saved ({reason}).",
+			"picker": {
+				"titleImage": "Choose a Media image",
+				"title": "Choose a Media file",
+				"select": "Select",
+				"cancel": "Cancel",
+				"close": "Close",
+				"chosen": "Chosen",
+				"files": "Files",
+				"folders": "Folders of the Media library"
+			},
+			"closeToast": "Dismiss",
+			"pickerFailed": "The Media picker couldn't be loaded. Check the connection, then try again."
+		},
+		"loops": {
+			"savedLoops": "Saved Loops",
+			"listLabel": "Saved Loops",
+			"newLoop": "New Loop",
+			"newName": "Name of the new Loop",
+			"newNameHelp": "Lower-case words joined by dashes. Enter creates it as a Draft.",
+			"create": "Create",
+			"created": "The Loop {name} is created",
+			"none": "No Loops yet. Make one with +.",
+			"builtIn": "Site search",
+			"builtInHelp": "Built in: Site search's results. It can't be changed.",
+			"settings": "Loop settings",
+			"name": "Name",
+			"nameLocked": "Template markup names the Loop by its name, so it never changes.",
+			"itemsFrom": "Items from",
+			"fromQuery": "Entries of Post Types",
+			"fromItems": "Its own Loop items",
+			"postTypes": "Post Types",
+			"postTypesNone": "None chosen yet",
+			"postTypesMenu": "Post Types the Loop lists",
+			"status": "Status",
+			"publishHelp": "Pages show the Loop as it was last published. Publish in the bar shows them this Draft.",
+			"definition": "Definition",
+			"showAs": "Show the definition as",
+			"form": "Form",
+			"markup": "Markup",
+			"match": "Match",
+			"matchLabel": "Entries match",
+			"matchAll": "every rule",
+			"matchAny": "any rule",
+			"noRules": "No rules: every Entry of the Post Types.",
+			"addRule": "Add a rule",
+			"removeRule": "Remove rule {number}",
+			"ruleSubject": "What rule {number} reads",
+			"ruleCompare": "How rule {number} compares",
+			"ruleValue": "Value of rule {number}",
+			"ruleAmount": "How many, rule {number}",
+			"ruleUnit": "Unit of rule {number}",
+			"ruleFrom": "From, rule {number}",
+			"ruleTo": "To, rule {number}",
+			"statusSubject": "Status",
+			"statusIs": "is",
+			"dateSubject": "{field} (date)",
+			"relationshipSubject": "{field} (points at)",
+			"subjectGroups": {
+				"fields": "Fields",
+				"dates": "Dates",
+				"relationships": "Relationships",
+				"other": "Other"
+			},
+			"chooseEntries": "Choose Entries",
+			"chosenEntries": "{count} chosen",
+			"noEntries": "No Entries to choose",
+			"order": "Order",
+			"orderNumber": "Order {number}",
+			"thenBy": "Then by",
+			"addOrder": "Add an order",
+			"removeOrder": "Remove order {number}",
+			"orderDefault": "Published date, newest first",
+			"orders": {
+				"dateAsc": "{field}, oldest first",
+				"dateDesc": "{field}, newest first",
+				"textAsc": "{field}, A to Z",
+				"textDesc": "{field}, Z to A",
+				"numberAsc": "{field}, lowest first",
+				"numberDesc": "{field}, highest first",
+				"booleanAsc": "{field}, No first",
+				"booleanDesc": "{field}, Yes first"
+			},
+			"limit": "Limit",
+			"limitHelp": "1 to 100 items",
+			"offset": "Offset",
+			"offsetHelp": "Entries skipped first",
+			"paginate": "Page by page",
+			"paginateHelp": "On Pages and Archive templates, its items go page by page with {example}.",
+			"excludeCurrent": "Leave out the page's own Entry",
+			"excludeCurrentHelp": "For “more posts” on an Entry template.",
+			"on": "On",
+			"off": "Off",
+			"empty": "When there are no items",
+			"emptyText": "Written where the Loop is placed, after {empty}. Markup shows where.",
+			"markupIntro": "Place the Loop in a Template or Component with this markup.",
+			"copyMarkup": "Copy markup",
+			"copiedMarkup": "The markup is copied",
+			"items": "Loop items",
+			"itemsHelp": "Each item shows once where the Loop is placed, in this order. Clients change them too.",
+			"noFields": "The Loop items have no Fields yet.",
+			"fieldsInAdmin": "Change the Loop items' Fields in the admin (new tab)",
+			"valueInAdmin": "Changed in the admin",
+			"addItem": "Add an item",
+			"removeItem": "Remove item {number}",
+			"removeAgain": "Press again to remove item {number}",
+			"moveUp": "Move item {number} up",
+			"moveDown": "Move item {number} down",
+			"itemCell": "{field} of item {number}",
+			"result": "Result",
+			"resultLabel": "What the Draft lists",
+			"usedOn": "Used on {count} pages",
+			"usedOnOne": "Used on 1 page",
+			"usedOnNone": "Not on any page yet",
+			"countOf": "{shown} of {total} items",
+			"countAll": "{total} items",
+			"countOne": "1 item",
+			"justNow": "just now",
+			"minutesAgo": "{count} min ago",
+			"readAgain": "Read the result again",
+			"item": "item {index}",
+			"noItems": "The Draft lists no items.",
+			"copyPath": "Copy path",
+			"copied": "Copied {binding}",
+			"copyFailed": "The browser didn't allow copying",
+			"resultFailed": "Couldn't read the result: {reason}",
+			"fromDrafts": "Read from the Drafts, as the Data tab reads them.",
+			"staffOnly": "Loops are Structure: only Staff change them.",
+			"loadFailed": "Couldn't read the Loops: {reason}",
+			"saveFailed": "Couldn't save: {reason}",
+			"reasons": {
+				"taken": "Another Loop has that name.",
+				"name": "Use lower-case words joined by dashes, such as latest-posts.",
+				"invalid": "Some settings can't be saved as they are.",
+				"incomplete": "Some Loop items need a value first.",
+				"forbidden": "Only Staff change Loops.",
+				"network": "The Site can't be reached. Check the connection.",
+				"generic": "Something went wrong ({code})."
+			},
+			"problem": "This setting can't be saved as it is: {message}"
+		},
+		"templates": {
+			"site": "Site",
+			"pages": "Pages",
+			"pagesNote": "Pages are arranged with Components, not a Template.",
+			"openPages": "Open Pages",
+			"columns": "Templates by where they show",
+			"emptyTitle": "No templates yet.",
+			"emptyText": "Create your first one.",
+			"add": "Make a Template for {column}",
+			"notMade": "Not made yet",
+			"edit": "Edit",
+			"editNamed": "Edit the {name}",
+			"revert": "Revert to published",
+			"revertNamed": "Revert the {name} to its published version",
+			"revertAgain": "Click again to revert",
+			"reverted": "The {name} is back to its published version",
+			"revertFailed": "Couldn't revert the {name}: {reason}",
+			"made": "{name} made",
+			"making": "Making the {name}…",
+			"makeFailed": "Couldn't make the {name}: {reason}",
+			"everyPage": "every page",
+			"shownOn": {
+				"one": "{count} page",
+				"other": "{count} pages"
+			},
+			"staffOnly": "Templates are Structure: only Staff change them.",
+			"loading": "Reading the Templates…",
+			"loadFailed": "Couldn't read the Templates: {reason}",
+			"named": "{kind} · {postType}"
+		},
+		"components": {
+			"search": "Search",
+			"searchLabel": "Search the Components",
+			"new": "New Component",
+			"newName": "Name of the new Component",
+			"newPlaceholder": "Hero split",
+			"newHelp": "Enter makes the Component and opens it. Templates place it by its tag.",
+			"tag": "Tag: {tag}",
+			"create": "Create",
+			"creating": "Creating…",
+			"created": "{name} made",
+			"createFailed": "Couldn't make the Component: {reason}",
+			"cancelNew": "Cancel",
+			"filters": "Show",
+			"all": "All",
+			"allowed": "Allowed for Members",
+			"unused": "Unused",
+			"list": "Components",
+			"onPages": {
+				"one": "on {count} page",
+				"other": "on {count} pages"
+			},
+			"allowedBadge": "Allowed",
+			"draftBadge": "Draft",
+			"changedBadge": "Unpublished changes",
+			"moduleBadge": "Module",
+			"none": "No Components yet. Make the first one with New Component.",
+			"noMatch": "No Component matches.",
+			"details": "{name}: details",
+			"props": "Props",
+			"noProps": "No Props",
+			"allowedSwitch": "Allowed for Members",
+			"allowedHelp": "Members can add it to a Page where the Site lets them arrange Pages.",
+			"on": "On",
+			"off": "Off",
+			"allowedOn": "{name} is allowed for Members",
+			"allowedOff": "{name} is no longer allowed for Members",
+			"allowedFailed": "Couldn't change who may add {name}: {reason}",
+			"usedOn": "Used on",
+			"notUsed": "Not placed anywhere yet",
+			"useSiteTemplate": "Site template",
+			"useSearchTemplate": "Search results template",
+			"useEntryTemplate": "Entry template · {postType}",
+			"useArchiveTemplate": "Archive template · {postType}",
+			"useComponent": "Component · {name}",
+			"usePopup": "Popup · {name}",
+			"useEntry": "An Entry",
+			"draftOnly": "{name} (Draft)",
+			"edit": "Edit",
+			"duplicate": "Duplicate",
+			"duplicating": "Duplicating…",
+			"duplicated": "Duplicated as {name}",
+			"duplicateFailed": "Couldn't duplicate {name}: {reason}",
+			"delete": "Delete",
+			"deleteNamed": "Delete {name}",
+			"fromModule": "From the Module {module}: it changes with its Module.",
+			"choose": "Choose a Component to see its Props, where it is used and what you can do with it.",
+			"deleteTitle": "Delete “{name}”?",
+			"deleteChecking": "Checking where it is used…",
+			"deleteUsed": "Used on {pages}, including {first}. Deleting it removes every instance.",
+			"deletePlaced": "Placed in {count}, on no published page yet. Deleting it removes every instance.",
+			"places": {
+				"one": "{count} place",
+				"other": "{count} places"
+			},
+			"deleteUnused": "{name} isn't placed anywhere. Deleting it can't be undone.",
+			"deleted": "{name} deleted",
+			"deleteFailed": "Couldn't delete it: {reason}",
+			"inUseTitle": "{name} can't be deleted yet",
+			"inUseText": "These show it as a whole, not as a Placement. Change them first:",
+			"cancel": "Cancel",
+			"close": "Close",
+			"confirmDelete": "Delete",
+			"deleting": "Deleting…",
+			"staffOnly": "Components are Structure: only Staff change them.",
+			"loading": "Reading the Components…",
+			"loadFailed": "Couldn't read the Components: {reason}",
+			"reasons": {
+				"taken": "another Component already has this name",
+				"invalid": "a name is a tag such as HeroSplit: a capital first, then letters and digits",
+				"confirmation": "it changed while you were deciding: try again",
+				"network": "the server didn't answer",
+				"forbidden": "you can't change Structure",
+				"generic": "something went wrong ({code})"
+			}
+		},
+		"editing": {
+			"toolbar": "Text formatting: {name}",
+			"bold": "Bold",
+			"italic": "Italic",
+			"link": "Link",
+			"bulletList": "Bulleted list",
+			"numberedList": "Numbered list",
+			"undo": "Undo",
+			"done": "Done",
+			"linkAddress": "Link address",
+			"linkPlaceholder": "Paste an address",
+			"linkApply": "Apply the link",
+			"linkRemove": "Remove the link",
+			"toolbarHint": "Alt+F10 reaches the text toolbar",
+			"problems": {
+				"required": "This can't be empty.",
+				"minLength": "This is too short.",
+				"maxLength": "This is too long.",
+				"pattern": "This isn't in the form it needs.",
+				"other": "This can't be published as it is.",
+				"url": "This isn't an address a page can link to.",
+				"media": "This file isn't in the Media library.",
+				"email": "This isn't an email address.",
+				"min": "This is too small.",
+				"max": "This is too large.",
+				"integer": "This must be a whole number.",
+				"options": "This isn't one of the choices."
+			},
+			"history": {
+				"text": "Edit {name}",
+				"undid": "Undid {label}",
+				"redid": "Redid {label}",
+				"skipped": "Skipped {label}.",
+				"keptUndo": "{label} wasn't undone and stays in the history.",
+				"keptRedo": "{label} wasn't redone and stays in the history.",
+				"HISTORY_OBSOLETE": "This step overlaps a newer change or its target no longer exists.",
+				"HISTORY_UNAVAILABLE": "The Draft can't be changed right now. Try again in a moment.",
+				"HISTORY_PARTIAL": "Part of this step could not be restored. Review the Draft before continuing.",
+				"refused": "The server refused this step.",
+				"on": "{message} on {title}"
+			},
+			"someone": "Someone",
+			"via": "{name} via {client}",
+			"viaTranslation": "{name} via AI translation",
+			"joined": "{name} is editing this page too",
+			"changedHere": "Changed, not published",
+			"refused": "That change wasn't saved: {reason}"
+		},
+		"publishing": {
+			"cell": "Publish",
+			"changes": {
+				"one": "{count} change",
+				"other": "{count} changes"
+			},
+			"nothing": "Nothing to publish",
+			"publishing": "Publishing…",
+			"published": "Published",
+			"tryAgain": "Try again",
+			"sendForReview": "Send for review",
+			"sendShort": "Send",
+			"title": "Publish {title}",
+			"titleNoPage": "Publish these changes",
+			"intro": "Visitors see these changes once you publish.",
+			"close": "Close",
+			"empty": "There are no changes here.",
+			"loading": "Reading the changes…",
+			"readFailed": "Couldn't read the changes: {reason}",
+			"rows": "Changes",
+			"change": "{name}: {what}",
+			"what": {
+				"words": "words changed",
+				"replaced": "replaced",
+				"items": "items changed",
+				"layout": "sections changed",
+				"changed": "changed",
+				"new": "new, never published"
+			},
+			"builtIn": {
+				"title": "Title",
+				"slug": "Address",
+				"parent": "Parent page",
+				"seo": "Search and sharing",
+				"layout": "Sections",
+				"hiddenLanguages": "Languages"
+			},
+			"kinds": {
+				"siteTemplate": "Site template",
+				"entryTemplate": "Entry template · {postType}",
+				"archiveTemplate": "Archive template · {postType}",
+				"searchTemplate": "Search results template",
+				"template": "Template",
+				"component": "Component · {name}",
+				"loop": "Loop · {name}",
+				"siteScript": "Site script",
+				"pageScript": "Page script · {name}",
+				"designSystem": "Design system",
+				"globals": "Globals",
+				"globalsForMembers": "Site details",
+				"entry": "{name}",
+				"other": "{name}"
+			},
+			"byYou": "you · {when}",
+			"byName": "{name} · {when}",
+			"byNobody": "{when}",
+			"justNow": "just now",
+			"staffPublish": "Staff publish this",
+			"revert": "Revert",
+			"revertName": "Revert {name}",
+			"reverted": "Reverted {name}.",
+			"revertFailed": "Couldn't revert {name}: {reason}",
+			"translations": {
+				"review": "{language} is translated again by AI and waits for your review.",
+				"automatic": "{language} is translated by AI and goes live with this."
+			},
+			"later": "Publish later",
+			"laterHint": "Choose a day and a time instead of now",
+			"day": "Day",
+			"time": "Time",
+			"schedule": "Schedule",
+			"scheduled": "Scheduled to publish on {when}.",
+			"laterPast": "Choose a time in the future.",
+			"others": {
+				"one": "{count} other Draft on this Site",
+				"other": "{count} other Drafts on this Site"
+			},
+			"popup": {
+				"row": "Popup · {name}",
+				"changed": "changed, not live yet",
+				"unchanged": "as published",
+				"note": "This Component is the Popup's layout. It goes live with the Popup and its settings (its Triggers, Display rules and layout): review them, then publish the Popup.",
+				"review": "Review and publish Popup",
+				"reviewName": "Review and publish Popup in the admin (opens in a new tab)"
+			},
+			"publishAll": "Publish all",
+			"publishAllName": "Publish all in the admin (opens in a new tab)",
+			"discard": "Discard all changes",
+			"discardConfirm": "Discard every change on this page? This can't be undone.",
+			"discardStructure": "Templates, Components and the Design system keep their Drafts.",
+			"discardYes": "Discard",
+			"discardNo": "Keep them",
+			"discarded": "Changes discarded.",
+			"publish": "Publish",
+			"publishedSaid": "Published. Visitors see the changes now.",
+			"failed": "Couldn't publish: {reason}",
+			"viewLive": "View live page",
+			"dismiss": "Dismiss",
+			"reasons": {
+				"network": "the server couldn't be reached.",
+				"forbidden": "you may not publish some of these.",
+				"changed": "something changed meanwhile. Look at the list again.",
+				"refused": "{name} can't be published yet.",
+				"scheduledAlready": "one of these is scheduled already.",
+				"nothing": "there is nothing to publish.",
+				"generic": "the server answered {code}.",
+				"scheduleInvalid": "choose a time in the future, within ten years."
+			},
+			"review": {
+				"title": "Send for review",
+				"note": "Add a note for your Editor (optional)",
+				"send": "Send for review",
+				"sent": "Sent for review. An Editor or Owner checks it.",
+				"waiting": "In review since {when}.",
+				"withdraw": "Withdraw from review",
+				"withdrawn": "Withdrawn from review.",
+				"failed": "Couldn't send it: {reason}",
+				"sentBack": "Sent back by {name}: {comment}"
+			}
+		},
+		"forms": {
+			"sidebar": "The Site's Forms",
+			"status": {
+				"draft": "Draft",
+				"published": "Published",
+				"changed": "Unpublished changes"
+			},
+			"placed": {
+				"none": "Not placed yet",
+				"one": "Placed in {count} place",
+				"other": "Placed in {count} places"
+			},
+			"staffOnly": "Forms are Structure: only Staff build them.",
+			"loading": "Reading the Forms…",
+			"loadFailed": "Couldn't read the Forms: {reason}",
+			"formFailed": "Couldn't read this Form: {reason}",
+			"empty": {
+				"title": "No Forms yet",
+				"text": "Make the Site's first Form, blank or from a starter."
+			},
+			"tabsLabel": "Parts of {name}",
+			"tabs": {
+				"build": "Build",
+				"afterSending": "After sending",
+				"emails": "Emails",
+				"translations": "Translations",
+				"settings": "Settings"
+			},
+			"newForm": {
+				"title": "New Form",
+				"name": "Name",
+				"namePlaceholder": "Booking request",
+				"nameRequired": "Give the Form a name.",
+				"key": "Key",
+				"keyPending": "Made from the name",
+				"keyWhy": "Made from the name. Template markup places the Form by its key.",
+				"startFrom": "Start from",
+				"cancel": "Cancel",
+				"create": "Create Form",
+				"creating": "Creating…",
+				"creatingNamed": "Creating {name}…",
+				"made": "{name} made"
+			},
+			"starters": {
+				"blank": "Blank",
+				"contact": "Contact",
+				"booking": "Booking request",
+				"newsletter": "Newsletter sign-up",
+				"job": "Job application"
+			},
+			"starterFields": {
+				"name": "Name",
+				"email": "Email",
+				"message": "Message",
+				"phone": "Phone",
+				"date": "Date",
+				"people": "Number of people",
+				"anythingElse": "Anything else we should know?",
+				"newsletterConsent": "I'd like to get the newsletter",
+				"role": "The position you are applying for",
+				"cv": "CV",
+				"coverLetter": "Cover letter"
+			},
+			"reasons": {
+				"keyTaken": "another Form has that key",
+				"invalid": "something in it isn't right",
+				"forbidden": "only Staff may do that",
+				"network": "the Site didn't answer",
+				"generic": "it was refused ({code})"
+			},
+			"kinds": {
+				"text": "Text",
+				"email": "Email",
+				"phone": "Phone",
+				"url": "Web address",
+				"textarea": "Long text",
+				"number": "Number",
+				"date": "Date",
+				"select": "Dropdown",
+				"radio": "One choice",
+				"checkboxes": "Several choices",
+				"consent": "Consent",
+				"file": "File",
+				"hidden": "Hidden",
+				"section": "Section",
+				"step": "Step"
+			},
+			"kindField": "{kind} field",
+			"add": "Add",
+			"addField": "Add a field",
+			"addAfterHeading": "Add a field after {label}",
+			"addAfter": "Add a field after {label}",
+			"layout": "Layout",
+			"full": "The Form holds as many items as it may (100).",
+			"panel": "Field settings",
+			"option": "Option",
+			"stepTitle": "Step {number}",
+			"steps": "Steps",
+			"stepTab": "{number} {title}",
+			"step": "Step",
+			"addStep": "Add a step",
+			"stepAdded": "Step {number} added",
+			"stepMoved": "Step {from} moved to place {to}",
+			"added": "{kind} added",
+			"removed": "{label} removed",
+			"undo": "Undo",
+			"duplicated": "{label} duplicated",
+			"movedTo": "{label} moved",
+			"widthSet": "{label}: {width}",
+			"goesHere": "{label} goes here",
+			"duplicate": "Duplicate",
+			"remove": "Remove",
+			"keyLocked": "Submissions keep this field's answers under its key, so it no longer changes once published.",
+			"width": {
+				"label": "Width",
+				"whole": "Whole",
+				"half": "Half",
+				"third": "Third"
+			},
+			"source": {
+				"page": "the page's address",
+				"query": "?{name} in the page's address",
+				"fixed": "fixed text"
+			},
+			"rule": {
+				"shownWhen": "Shown when {rule}",
+				"andMore": "{rule} and {count} more",
+				"orMore": "{rule} or {count} more",
+				"ops": {
+					"is": "{field} is {value}",
+					"isNot": "{field} is not {value}",
+					"isEmpty": "{field} is empty",
+					"isNotEmpty": "{field} is filled in",
+					"greaterThan": "{field} is more than {value}",
+					"lessThan": "{field} is less than {value}"
+				}
+			},
+			"sheet": {
+				"label": "{name} as visitors will see it",
+				"list": "Fields of {name}",
+				"option": "{label}, {kind}",
+				"required": "required",
+				"empty": "No fields here yet. Drag a kind onto the Form, or choose one on the right."
+			},
+			"keys": {
+				"picked": "{label} picked up. The arrow keys move it, Space drops it, Escape puts it back.",
+				"moved": "{label}: place {position}",
+				"dropped": "{label} dropped",
+				"putBack": "{label} put back",
+				"cleared": "Nothing chosen"
+			},
+			"history": {
+				"added": "Add {kind}",
+				"removed": "Remove {label}",
+				"duplicated": "Duplicate {label}",
+				"moved": "Move {label}",
+				"changed": "Change {label}",
+				"width": "Width of {label}",
+				"stepMoved": "Move a step"
+			},
+			"tryIt": {
+				"label": "Try it",
+				"help": "Fill the Form in here to try rules and steps. Nothing is sent.",
+				"on": "Trying the Form: nothing is sent",
+				"off": "Building the Form",
+				"notSent": "Nothing was sent: this was a try.",
+				"again": "Try again"
+			},
+			"published": "{name} published",
+			"publishFailed": "Couldn't publish {name}: {reason}",
+			"saveFailed": "Couldn't save {name}: {reason}",
+			"problemsFound": "{name} can't be saved yet: {count} problems, shown at their fields.",
+			"afterSending": {
+				"whatTitle": "What people see",
+				"message": "A message here",
+				"page": "Go to a page",
+				"defaultMessage": "Thank you. We have received your message.",
+				"languages": "Languages of the message",
+				"messageIn": "Message in {language}",
+				"pageLabel": "Page",
+				"pageHelp": "People go on to it in their own language, once it is published.",
+				"spamTitle": "Spam checks",
+				"trapField": "Hidden trap field",
+				"alwaysOn": "Always on",
+				"timeTrap": "Time trap",
+				"atMost": "At most",
+				"perHour": "from one address per hour",
+				"captcha": "The CAPTCHA is set for the whole Site.",
+				"keepTitle": "Keep Submissions",
+				"keepText": "How long Submissions are kept is set with the Form's Submissions, in the admin.",
+				"keepLink": "Set it with the Submissions (new tab)",
+				"previewLabel": "The message in {language}, as visitors will see it",
+				"goesTo": "Once they send the Form, people go on to {page}.",
+				"choosePage": "Choose the page people go on to.",
+				"history": {
+					"what": "What people see",
+					"message": "Message once sent",
+					"page": "Page once sent",
+					"timeTrap": "Time trap",
+					"perHour": "Sends per hour"
+				}
+			},
+			"translations": {
+				"none": "The Site has one language: there is nothing to translate.",
+				"language": "Language",
+				"languageMissing": "{language} · {count} missing",
+				"translateMissing": "Translate the missing ones with AI",
+				"translating": "Translating…",
+				"filling": "Translating the missing texts into {language}…",
+				"filled": "{count} texts translated into {language}, in the Draft",
+				"fillFailed": "Couldn't translate the missing texts: {reason}",
+				"reasons": {
+					"noKey": "the Workspace has no AI key",
+					"cap": "the AI key has reached its monthly limit",
+					"provider": "the AI provider didn't answer as it should"
+				},
+				"intro": "Each text of the Form beside its translation in {language}. Left empty, pages in that language show the text as written.",
+				"what": "What",
+				"asWritten": "As written ({language})",
+				"missing": "Missing",
+				"cell": "{what} in {language}",
+				"parts": {
+					"label": "Label",
+					"help": "Help",
+					"placeholder": "Placeholder",
+					"message": "Error message",
+					"option": "Option {number}",
+					"submitLabel": "Button › Words",
+					"successMessage": "After sending › Message"
+				},
+				"history": {
+					"typed": "Translate {what}",
+					"filled": "Translate into {language} with AI"
+				}
+			},
+			"emails": {
+				"apart": "Emails are Content: they publish apart from the fields, here.",
+				"publish": "Publish emails",
+				"publishing": "Publishing…",
+				"published": "The emails of {name} were published: Submissions send them from now on.",
+				"publishFailed": "Couldn't publish the emails of {name}: {reason}",
+				"problemsFound": "The emails can't be saved yet: {count} problems, shown at their places.",
+				"neverPublished": "Draft · not published yet",
+				"publishedState": "Published",
+				"notifications": "Notifications",
+				"upTo": "Up to {count}",
+				"addNotification": "Add Notification (in the admin, new tab)",
+				"noNotifications": "No Notifications: Submissions are only kept.",
+				"notification": "Notification {number}",
+				"sendTo": "Send to",
+				"routed": "Routed by the answer to {field}",
+				"password": "Changing who receives these asks for your password again.",
+				"changeRecipients": "Change who receives these (in the admin, new tab)",
+				"subject": "Subject",
+				"subjectPlaceholder": "New Submission: the Form's name",
+				"intro": "Opening text",
+				"introPlaceholder": "Someone filled in the Form…",
+				"autoReply": "Auto-reply",
+				"autoReplyOn": "Send an Auto-reply",
+				"noEmailField": "Add an email field to the Form to send an Auto-reply.",
+				"answers": "Answers the address in",
+				"firstEmailField": "The first email field",
+				"languages": "Languages of the Auto-reply",
+				"text": "Text",
+				"history": {
+					"subject": "Subject of a Notification",
+					"intro": "Opening text of a Notification",
+					"autoReply": "Auto-reply on or off",
+					"autoReplyField": "The Auto-reply's email field",
+					"autoReplyText": "Words of the Auto-reply"
+				}
+			},
+			"settings": {
+				"nameTitle": "Name and key",
+				"nameIntro": "Saved at once, not through the Draft. Templates place the Form by its id, so a new key changes nothing placed.",
+				"name": "Name",
+				"key": "Key",
+				"keyHelp": "Template markup places it as {placed}.",
+				"rename": "Save name and key",
+				"renaming": "Saving…",
+				"renamed": "{name}: name and key saved",
+				"renameFailed": "Couldn't save the name and key: {reason}",
+				"buttonTitle": "The button",
+				"buttonText": "Button text",
+				"buttonHelp": "Part of the Draft: it publishes with the fields.",
+				"placedTitle": "Where it is placed",
+				"notPlaced": "Not placed yet. Template markup places it with its key.",
+				"placedOn": {
+					"siteTemplate": "The Site template",
+					"entryTemplate": "The Entry template of {name}",
+					"archiveTemplate": "The Archive template of {name}",
+					"component": "The {name} Component"
+				},
+				"adminTitle": "In the admin",
+				"adminText": "The Site's CAPTCHA, the Form's history and deleting it are on its page in the admin.",
+				"adminLink": "Open the Form in the admin (new tab)",
+				"history": {
+					"button": "Button text"
+				}
+			},
+			"onPage": {
+				"chip": "Form · {name}",
+				"unnamed": "Form",
+				"panel": "Form",
+				"form": "Form",
+				"summary": "{fields} · {steps} · {status}",
+				"fields": {
+					"one": "{count} field",
+					"other": "{count} fields"
+				},
+				"steps": {
+					"none": "No steps",
+					"one": "{count} step",
+					"other": "{count} steps"
+				},
+				"edit": "Edit this Form",
+				"submissions": "See Submissions (new tab)",
+				"newCount": "{count} new",
+				"notChosen": "Its fields are the Form's: they are built in the Forms place.",
+				"swapped": "The page now shows {name}",
+				"swapFailed": "Couldn't place {name}: {reason}",
+				"readOnly": "This Form is placed by something that can't be changed here.",
+				"history": "Place {name}",
+				"locked": "your agency built it",
+				"lockedChip": "{name} · your agency built it",
+				"seeSent": "See what people sent",
+				"lockedTitle": "{name}",
+				"lockedText": "Your agency built this Form. What people send with it arrives in the admin.",
+				"lockedRegion": "{name}, a Form your agency built. Press Enter to see what people sent.",
+				"close": "Close"
+			}
+		},
+		"client": {
+			"rail": "Client editing",
+			"site": "{site}: back to the dashboard",
+			"page": "Page",
+			"help": "Help",
+			"exit": "Exit",
+			"modes": "Edit or preview",
+			"edit": "Edit",
+			"preview": "Preview",
+			"editOn": "Editing: click anything outlined to change it",
+			"previewOn": "Preview: the page as visitors will see it",
+			"widths": "Page width",
+			"sections": "Sections",
+			"pageDetails": "Page details",
+			"closePanel": "Close {panel}",
+			"panelLater": "{panel} comes with a later part of the building area. Until then, the admin has it.",
+			"draftState": {
+				"none": "No changes yet",
+				"saving": "Saving…",
+				"saved": "Saved",
+				"changes": {
+					"one": "{count} change not published",
+					"other": "{count} changes not published"
+				},
+				"review": "Sent for review",
+				"failed": "Could not save"
+			},
+			"switcher": {
+				"button": "{page}: switch to another page",
+				"label": "Pages and Entries",
+				"pages": "Pages",
+				"newPage": "New Page",
+				"newEntry": "New Entry in {name}",
+				"newPageTitle": "Title of the new Page",
+				"newEntryTitle": "Title of the new Entry in {name}",
+				"create": "Create",
+				"cancel": "Cancel",
+				"creating": "Creating…",
+				"none": "Nothing here yet."
+			},
+			"body": {
+				"choices": {
+					"paragraph": "Text",
+					"heading2": "Heading",
+					"heading3": "Heading 3",
+					"heading4": "Heading 4",
+					"bulleted": "List",
+					"numbered": "Numbered list",
+					"quote": "Quote",
+					"image": "Photo",
+					"video": "Video",
+					"table": "Table",
+					"callout": "Callout",
+					"code": "Code",
+					"divider": "Divider",
+					"toggle": "Fold-out"
+				},
+				"filter": "Type to filter",
+				"agencyMade": "Sections your agency made",
+				"fillIn": "Asks for {props}",
+				"nothingToFill": "Ready to place",
+				"close": "Close",
+				"loadFailed": "{name} couldn't be made editable. Reload the page to try again."
+			},
+			"marks": {
+				"clickToEdit": "Click to edit",
+				"tapToEdit": "Tap to edit",
+				"enterToEdit": "Press Enter to edit",
+				"header": "Header",
+				"footer": "Footer",
+				"sameEverywhere": "Same on every page",
+				"armed": "{name}. Press Enter to edit it.",
+				"finished": "Finished editing {name}",
+				"dropHere": "Drop to use this photo",
+				"blocks": "Blocks"
+			},
+			"phone": {
+				"more": "More",
+				"close": "Close",
+				"language": "Language",
+				"back": "Back",
+				"languages": "Languages of the page",
+				"hint": "Tap the dashed outline to make changes."
+			},
+			"photo": {
+				"region": "{name}: change the photo",
+				"empty": "Add a photo",
+				"close": "Close {name}",
+				"chooseFromMedia": "Choose from Media",
+				"upload": "Upload",
+				"dropHint": "or drop a photo on the picture",
+				"alt": "Describe the photo · {language}",
+				"altHint": "Read aloud by screen readers and used by search engines",
+				"altSaved": "Description saved",
+				"suggest": "Suggest",
+				"suggestLabel": "Suggest a description with AI",
+				"suggesting": "Writing a suggestion…",
+				"suggested": "Suggestion written: read it, then move on to keep it.",
+				"notYours": "Only whoever uploaded this photo, or an Editor, can change its description and Focal point.",
+				"focalPoint": "Focal point",
+				"focalHint": "Drag the dot on the photo",
+				"focalKeys": "Arrow keys move it, Shift + arrows by 10",
+				"focalAt": "{x}% across, {y}% down",
+				"focalSaved": "Focal point saved at {at}",
+				"file": "{name} · {size}",
+				"remove": "Remove photo",
+				"removeAgain": "Click again to remove",
+				"removed": "Photo removed",
+				"changed": "Photo changed",
+				"loading": "Loading the photo…",
+				"uploading": "Uploading {name}…",
+				"preparing": "Getting {name} ready…",
+				"uploadFailed": "{name} couldn't be uploaded: {reason}",
+				"failed": "Couldn't change the photo: {reason}",
+				"notAnImage": "{name} isn't a photo. Drop a JPEG, PNG, WebP, AVIF, GIF or HEIC file."
+			},
+			"link": {
+				"region": "{name}: change the link",
+				"empty": "Add a link",
+				"close": "Close {name}",
+				"words": "Words on the link",
+				"wordsButton": "Words on the button",
+				"where": "Where it goes",
+				"kind": "Kind of address",
+				"kinds": {
+					"page": "Page",
+					"url": "Web address",
+					"email": "Email",
+					"phone": "Phone",
+					"file": "File"
+				},
+				"search": "Search Pages and Entries",
+				"searchPlaceholder": "Search by title",
+				"results": "Pages and Entries",
+				"noResults": "Nothing matches.",
+				"loadingPages": "Loading Pages and Entries…",
+				"url": "Web address",
+				"urlPlaceholder": "https://",
+				"email": "Email address",
+				"emailPlaceholder": "name@example.com",
+				"phone": "Phone number",
+				"phonePlaceholder": "+353 21 555 0100",
+				"file": "File",
+				"chooseFile": "Choose a file",
+				"changeFile": "Choose another file",
+				"noFile": "No file chosen yet",
+				"newTab": "Open in a new tab",
+				"nowhere": "Goes nowhere yet",
+				"remove": "Remove link",
+				"removeAgain": "Click again to remove",
+				"removed": "Link removed",
+				"saved": "Link saved",
+				"failed": "Couldn't save the link: {reason}",
+				"unsafe": "A link goes to a web address (http or https), a page of this Site, an email or a phone number.",
+				"badEmail": "Write an email address, such as name@example.com.",
+				"badPhone": "Write a phone number, such as +353 21 555 0100."
+			},
+			"hint": {
+				"title": "You're editing a Draft of {page}",
+				"titleNoPage": "You're editing a Draft",
+				"edit": "Dashed outline: click it to change the words or the photo.",
+				"changed": "Amber dot: you changed it. Visitors don't see it yet.",
+				"locked": "No outline: the same on every page. Your agency looks after it.",
+				"note": "Nothing goes live until you press Publish.",
+				"gotIt": "Got it"
+			},
+			"helpCard": {
+				"title": "Help",
+				"marks": "What the marks mean",
+				"keys": "Keys",
+				"keyTab": "move between marked areas",
+				"keyEnter": "starts editing",
+				"keyEscape": "finishes, then closes the panel",
+				"keyUndo": "undo",
+				"keyRedo": "redo",
+				"ask": "Ask your agency",
+				"askText": "{name} looks after this site. Ask them about anything you can't change here.",
+				"close": "Close"
+			},
+			"items": {
+				"position": "{loop} · item {n} of {count}",
+				"untitled": "Item {n}",
+				"armed": "{name}, item {n} of {count} in {loop}. Press Enter to change it, Alt+F10 for its tools.",
+				"tools": "Tools for {name}",
+				"moveEarlier": "Move earlier",
+				"moveLater": "Move later",
+				"duplicate": "Duplicate",
+				"remove": "Remove",
+				"moved": "Moved to place {n} of {count}",
+				"duplicated": "{name} duplicated",
+				"removed": "{name} removed",
+				"removedHint": "{name} removed. Undo is at the top of the window for 8 seconds.",
+				"undo": "Undo",
+				"undoLabel": "Put {name} back",
+				"restored": "{name} put back",
+				"dismiss": "Dismiss",
+				"add": "Add an item",
+				"addTo": "Add an item to {loop}",
+				"added": "Item added to {loop}",
+				"failed": "Couldn't change {loop}: {reason}",
+				"panel": {
+					"previous": "Previous item",
+					"next": "Next item",
+					"close": "Close {name}",
+					"removeThis": "Remove this item",
+					"done": "Done",
+					"loading": "Loading the item…",
+					"loadFailed": "Couldn't open the item: {reason}",
+					"inAdmin": "This is changed in the admin.",
+					"noPhoto": "No photo",
+					"change": "Change",
+					"choose": "Choose a photo",
+					"removePhoto": "Remove photo",
+					"address": "{field} · address",
+					"words": "{field} · words",
+					"noChoice": "No choice",
+					"inLanguage": "{field} · {language}",
+					"saved": "{field} saved"
+				},
+				"query": {
+					"from": "These are your latest {type}",
+					"fromEntries": "These come from your Entries",
+					"open": "Open this Entry",
+					"openInAdmin": "Open this Entry in the admin",
+					"armed": "{title}. {from}. Press Enter to open it, Alt+F10 for the link."
+				}
+			}
+		},
+		"structure": {
+			"tree": "Elements of the page",
+			"siteTemplate": "Site template",
+			"searchTemplate": "Search results template",
+			"entryTemplate": "Entry template · {name}",
+			"archiveTemplate": "Archive template · {name}",
+			"pageLayout": "Page layout · {name}",
+			"pagesOne": "1 page",
+			"pagesOther": "{count} pages",
+			"hiddenRow": "hidden",
+			"loading": "Opening the page's elements…",
+			"none": "Nothing on this page to arrange here.",
+			"keys": "Arrow keys move between elements and open them. Alt with the arrows moves the selected one; Delete removes it; ⌘D or Ctrl+D duplicates it.",
+			"actions": {
+				"hide": "Hide on the page",
+				"show": "Show on the page",
+				"duplicate": "Duplicate",
+				"delete": "Delete"
+			},
+			"readOnly": "{name} comes from a Module: it can't be changed here.",
+			"thisSource": "This Component",
+			"notMade": "This Template isn't made yet: make it in the Templates place to change it.",
+			"connecting": "Still connecting to the Draft. Try again in a moment.",
+			"refused": "Couldn't change it: {reason}",
+			"notSaved": "The change couldn't be saved. It is kept in this tab and sent once the connection is back.",
+			"classRefused": "Couldn't add the Class {name}: {reason}",
+			"steps": {
+				"tag": "Change {name} to {tag}",
+				"label": "Rename {name}",
+				"addClass": "Add .{className} to {name}",
+				"removeClass": "Remove .{className} from {name}",
+				"id": "Change the id of {name}",
+				"attribute": "Change {attribute} on {name}",
+				"removeAttribute": "Remove {attribute} from {name}",
+				"duplicate": "Duplicate {name}",
+				"delete": "Delete {name}",
+				"move": "Move {name}",
+				"hide": "Hide {name}",
+				"show": "Show {name}",
+				"decorative": "Mark {name} as decorative",
+				"meaningful": "Mark {name} as meaningful"
+			},
+			"inspector": {
+				"tag": "Tag",
+				"label": "Layer label",
+				"labelPlaceholder": "Name it in Layers",
+				"classes": "Classes",
+				"classesHint": "CSS edits the chosen one",
+				"chooseClass": "Choose .{name} for CSS",
+				"removeClass": "Remove .{name}",
+				"addClass": "Class",
+				"addClassLabel": "Add a Class",
+				"classPlaceholder": "Class name, then Enter",
+				"content": "Content",
+				"noContent": "Empty",
+				"id": "id",
+				"attributes": "Attributes",
+				"addAttribute": "Add attribute",
+				"attributeName": "Attribute name",
+				"attributeValue": "Value of {name}",
+				"newAttributeValue": "Value",
+				"removeAttribute": "Remove {name}",
+				"inside": "Inside the {name} Component",
+				"placementOf": "A Placement of {name}",
+				"notOpen": "This element's Template or Component isn't open here: select it again once the page has loaded.",
+				"badValue": "This isn't a value: {value}. Write a value's name between double braces.",
+				"decorative": "Decorative: this image carries no meaning"
+			}
+		},
+		"details": {
+			"title": "Title",
+			"address": "Address",
+			"languages": "Languages",
+			"fields": "Fields",
+			"searchAndSharing": "Search and sharing",
+			"seoTitle": "Title in search results",
+			"seoDescription": "Description in search results",
+			"counter": "{count} of {max}",
+			"tooLong": "longer than search engines show",
+			"preview": "How the page shows in search results",
+			"picture": "Picture when shared",
+			"pictureOwn": "This page's own picture",
+			"pictureField": "Uses the {field}",
+			"pictureFieldAny": "Uses the page's picture",
+			"pictureSite": "Uses the Site's picture",
+			"pictureCard": "A picture is made from the title when the page is published",
+			"pictureNone": "No picture: links show without one",
+			"change": "Change",
+			"changePicture": "Change the picture when shared",
+			"useDefault": "Use the default picture",
+			"noindex": "Hide from search engines",
+			"noindexHelp": "For every language of the page.",
+			"canonical": "Canonical address",
+			"canonicalHelp": "Leave it empty for the page's own address.",
+			"homeAddress": "The home page has no address of its own",
+			"slugTaken": "Another page already has this address. Choose another one.",
+			"slugInvalid": "Use lower-case letters, digits and dashes.",
+			"pageDetails": "Page details",
+			"postDetails": "Post details",
+			"back": "Back to {panel}",
+			"find": "Find a Field",
+			"stopFinding": "Stop finding",
+			"noMatch": "Nothing here matches “{query}”.",
+			"collapseSections": "Collapse the sections",
+			"expandSections": "Expand the sections",
+			"allOnPage": "Every Field of this Entry shows on the page: change it there.",
+			"none": "None",
+			"untitled": "Untitled",
+			"addEntry": "Add an Entry",
+			"removeEntry": "Remove {title}",
+			"noFile": "No file",
+			"alt": "Alt: {alt}",
+			"noAlt": "No alt text",
+			"choose": "Choose",
+			"chooseFile": "Choose a file for {field}",
+			"changeFile": "Change the file of {field}",
+			"removeFile": "Remove the file from {field}",
+			"linkUrl": "Address",
+			"linkText": "Words",
+			"linkPart": "{field}: {part}",
+			"rows": "{count} rows",
+			"changeInAdmin": "Change in the admin",
+			"noEntry": "This page shows no Entry of its own: there is nothing to fill in here.",
+			"loading": "Reading the Entry…",
+			"failed": "Couldn't read the Entry: {reason}",
+			"moved": "The page moved to {path}.",
+			"fieldIn": "{label} · {language}",
+			"languageChip": "{language}: {state}",
+			"translation": {
+				"done": "translated",
+				"review": "translation to review",
+				"missing": "not translated yet",
+				"hidden": "hidden in this language"
+			}
+		},
+		"sections": {
+			"title": "Sections",
+			"count": {
+				"one": "{page} · {count} section",
+				"other": "{page} · {count} sections"
+			},
+			"list": "Sections of {page}",
+			"loading": "Reading the page's sections…",
+			"empty": "This page has no sections yet. Add the first one.",
+			"header": "Header",
+			"footer": "Footer",
+			"sameEverywhere": "Same on every page",
+			"lockedHint": "Your agency fixed its place",
+			"hiddenHint": "Hidden from visitors",
+			"chip": "section",
+			"choose": "Choose {name}",
+			"more": "More for {name}",
+			"menu": "{name}",
+			"settings": "Settings",
+			"duplicate": "Duplicate",
+			"moveUp": "Move up",
+			"moveDown": "Move down",
+			"hide": "Hide",
+			"show": "Show",
+			"remove": "Remove",
+			"hideNamed": "Hide {name}",
+			"showNamed": "Show {name}",
+			"grip": "Drag to move {name}",
+			"bar": "{name}: section tools",
+			"add": "Add section",
+			"addTitle": "Add a section",
+			"after": "After {name}",
+			"atStart": "At the top of the page",
+			"atEnd": "At the end of the page",
+			"back": "Back to the sections",
+			"search": "Search sections",
+			"noMatch": "No section matches “{query}”.",
+			"noneAllowed": "Your agency hasn't chosen any sections to add yet.",
+			"groups": {
+				"photoWords": "Words and photos",
+				"words": "Words",
+				"grid": "Lists",
+				"banner": "Calls to action"
+			},
+			"nothingToFill": "Nothing to fill in",
+			"landsHere": "{name} · will be added here",
+			"addedHere": "{name} will be added {where}",
+			"settingsTitle": "{name} · settings",
+			"noProps": "This section has nothing to set. Change its words and photos on the page.",
+			"removed": "Section removed",
+			"removedNamed": "Removed {name}. Undo is in the message at the top.",
+			"undo": "Undo",
+			"dismiss": "Dismiss",
+			"picked": "{name} picked up. Move it with the arrow keys, put it down with Space or Enter, or put it back with Escape.",
+			"putBack": "Put back where it was",
+			"keys": "Arrow keys move between rows. Space picks a section up to move it. Enter opens its settings. Delete removes it.",
+			"steps": {
+				"move": "Move section",
+				"moveUp": "Move up",
+				"moveDown": "Move down",
+				"duplicate": "Duplicate",
+				"delete": "Remove",
+				"hide": "Hide or show",
+				"lock": "Lock or unlock",
+				"add": "Add",
+				"props": "Change"
+			},
+			"refusals": {
+				"unavailable": "Sections can't be changed right now.",
+				"locked": "Your agency fixed this section's place, so it can't move, hide or go. Its words and photos still change.",
+				"besideLocked": "It can't move past a section whose place your agency fixed.",
+				"edge": "It is already at that end of the page.",
+				"notAllowed": "Your agency hasn't allowed another section of this kind."
+			},
+			"errors": {
+				"generic": "Something went wrong. Try again.",
+				"network": "The Site couldn't be reached. Try again.",
+				"CHANGED_MEANWHILE": "Someone changed this at the same moment, or it can't be saved as it is. It shows what is saved now.",
+				"DRAFT_CHANGED": "Someone changed the page's sections at the same moment. It shows them as they are now.",
+				"PROP_REPLACED": "What you typed wasn't kept: someone changed this section's settings at the same moment. It shows what is saved now.",
+				"PAGE_LAYOUT_REFUSED": "Only Staff can change this part of the page's layout.",
+				"ENTRY_INVALID": "This can't be saved as it is.",
+				"EDIT_MODE_ENDED": "Editing ended. Open the page again from the admin.",
+				"other": "This couldn't be saved ({code})."
+			},
+			"fields": {
+				"in": "{label} ({language})",
+				"choosePhoto": "Choose a photo for {label}",
+				"changePhoto": "Change the photo for {label}",
+				"removePhoto": "Remove the photo from {label}",
+				"noPhoto": "No photo yet",
+				"chooseFile": "Choose a file for {label}",
+				"words": "Words",
+				"address": "Address",
+				"none": "None",
+				"row": "Row {number}",
+				"rowActions": "Actions for row {number}",
+				"addRow": "Add to {label}",
+				"removeRow": "Remove row",
+				"rowUp": "Move up",
+				"rowDown": "Move down",
+				"emptyRows": "No rows yet.",
+				"on": "On",
+				"off": "Off"
+			}
+		},
+		"code": {
+			"loading": "Opening the code panes…",
+			"loadFailed": "The code panes couldn't be loaded. Check the connection, then select the element again.",
+			"expand": "Expand",
+			"restore": "Back to its share",
+			"copyAll": "Copy all",
+			"copied": "Copied.",
+			"copyFailed": "Couldn't copy: this browser didn't allow it.",
+			"formatOnLeave": "Format when I leave the box",
+			"wrap": "Wrap long lines",
+			"preferenceFailed": "Couldn't keep that choice on your account. It stays for this visit.",
+			"saving": "Saving…",
+			"notRead": "Couldn't read it: {reason}",
+			"notPreviewed": "Couldn't show it on the page: {reason}",
+			"notSaved": "Couldn't save: {reason}",
+			"conflict": {
+				"title": "Someone saved a newer version",
+				"text": "{name} was changed since you started typing. Reload theirs, or overwrite it with yours?",
+				"reload": "Reload theirs",
+				"overwrite": "Overwrite with mine",
+				"cancel": "Keep typing"
+			},
+			"html": {
+				"label": "HTML of {name}",
+				"loading": "Reading the markup…",
+				"help": "Shown on the page as you type. Saved when you leave the box, or with ⌘S.",
+				"previewing": "Shown on the page, not saved yet. Saved when you leave the box, or with ⌘S.",
+				"problemAt": "Line {line}, column {column}: {message}",
+				"problems": "The markup can't be read: each problem is listed under the box.",
+				"step": "Changed the HTML of {name}",
+				"saved": "Saved the HTML of {name}.",
+				"placementHelp": "A Placement of a Component on this page: change its Props in the Inspector."
+			},
+			"css": {
+				"label": "CSS of .{name}",
+				"loading": "Reading the Classes…",
+				"noClass": "This element has no Class yet. Add one with + to style it.",
+				"help": "Saved as you type: its styles, its own rules with &, and a block per width.",
+				"notRead": "Couldn't read the Design system. Select the element again to try again.",
+				"step": "Changed the CSS of .{name}"
+			},
+			"js": {
+				"loading": "Reading the scripts…",
+				"tabs": "Script",
+				"tabNames": {
+					"page": "Page",
+					"site": "Site",
+					"component": "Component"
+				},
+				"titles": {
+					"page": "Page script",
+					"site": "Site script",
+					"component": "Component script"
+				},
+				"help": "Saved as you type. It runs on the page when you press Run, or when the page loads again.",
+				"noPage": "This page shows no Entry, so it has no script of its own.",
+				"usedOn": "{name} is on {count} pages: changing its script changes all of them.",
+				"run": "Run",
+				"running": "Running…",
+				"ran": "Ran the scripts on a fresh page.",
+				"console": "Console",
+				"clear": "Clear the console",
+				"empty": "Nothing written yet.",
+				"oneError": "1 error",
+				"errors": "{count} errors",
+				"at": "{script} · line {line}",
+				"didNotLoad": "{script} didn't load.",
+				"levels": {
+					"log": "Log:",
+					"info": "Information:",
+					"warn": "Warning:",
+					"error": "Error:"
+				},
+				"steps": {
+					"page": "Changed the page script",
+					"site": "Changed the Site script",
+					"component": "Changed the Component script of {name}"
+				},
+				"componentError": "{name} failed on a Placement: {message}",
+				"showPlacement": "Show the Placement",
+				"saved": "Saved the {script} to the Draft.",
+				"settings": "The Component script's settings",
+				"consent": "Consent category",
+				"consentHelp": "Outside Necessary, visitors' pages hold it back until they accept this category in the Consent banner.",
+				"categories": {
+					"necessary": "Necessary",
+					"analytics": "Analytics",
+					"marketing": "Marketing",
+					"media": "Media"
+				},
+				"libraries": "Libraries it needs",
+				"librariesNone": "None",
+				"noLibraries": "The Site has no Libraries: add them in Site › Libraries."
+			}
+		},
+		"placements": {
+			"placement": "this Placement",
+			"locked": "Locked while you edit the Component in place: press Done to leave it.",
+			"connecting": "Still connecting to the Page's Draft. Try again in a moment.",
+			"notSaved": "The change couldn't be saved. It is kept in this tab and sent once the connection is back.",
+			"refused": "Couldn't change the Page layout: {reason}",
+			"values": "Values",
+			"treeKeys": "A Page's Placements move with Alt and the up and down arrows, or by dragging their rows; the Site template's rows around them stay where they are.",
+			"dragElsewhere": "{name} can't go there: an element moves within its own Template or Component.",
+			"layoutRefusals": {
+				"unavailable": "The Page layout can't be arranged now.",
+				"locked": "{name} is locked.",
+				"besideLocked": "{name} can't move past a locked Placement.",
+				"edge": "{name} can't move further: a Page layout holds its Placements in one list.",
+				"outside": "{name} stays in the Page layout: the Site template's rows are locked."
+			},
+			"steps": {
+				"move": "Move {name}",
+				"hide": "Hide {name}",
+				"show": "Show {name}",
+				"duplicate": "Duplicate {name}",
+				"remove": "Delete {name}",
+				"prop": "Change {prop} of {name}",
+				"addProp": "Add the Prop {prop} to {name}",
+				"removeProp": "Remove the Prop {prop} from {name}",
+				"renameProp": "Rename the Prop {prop} of {name}"
+			},
+			"props": {
+				"onPages": "On {count} pages: editing the Component changes all.",
+				"none": "This Component has no Props.",
+				"edit": "Edit Component",
+				"on": "On",
+				"off": "Off",
+				"noChoice": "None",
+				"notHere": "This kind of Prop is changed in the Page's own editing for now.",
+				"url": "Address of {name}",
+				"urlPlaceholder": "Paste an address",
+				"linkText": "Text of {name}",
+				"linkTextPlaceholder": "Link text",
+				"noFile": "No file",
+				"choose": "Choose",
+				"chooseFor": "Choose a Media file for {name}",
+				"removeFile": "Remove the file from {name}"
+			},
+			"component": {
+				"add": "Add a Prop",
+				"addMenu": "Add Prop",
+				"noProps": "No Props yet",
+				"addHint": "Click + to add one",
+				"label": "Label of props.{name}",
+				"remove": "Remove the Prop {name}",
+				"editing": "{name} · Editing",
+				"started": "Editing {name} in place. The rest of the page is locked until Done.",
+				"ended": "Done editing {name}. Its changes are in its Draft.",
+				"placesLocked": "Other places are locked while you edit a Component in place: press Done first.",
+				"done": "Done",
+				"types": {
+					"text": "Text",
+					"richText": "Rich text",
+					"number": "Number",
+					"boolean": "Switch",
+					"date": "Date",
+					"select": "Select",
+					"media": "Media",
+					"link": "Link",
+					"email": "Email",
+					"relationship": "Relationship",
+					"group": "Group",
+					"repeater": "Repeater"
+				}
+			},
+			"loop": {
+				"which": "Loop",
+				"entries": "Entries",
+				"items": "Items",
+				"eachItem": "Each item is called",
+				"notFound": "There's no Loop called {name} on this Site.",
+				"open": "Open in Loops",
+				"step": "Repeat the Loop {name}",
+				"aliasStep": "Rename the items of {name}",
+				"ownItems": "Its own Loop items.",
+				"setByLoop": "The Loop sets this, not the markup.",
+				"entriesOf": "Entries of {postTypes}",
+				"atMost": "{count} at most",
+				"order": {
+					"newest": "newest first",
+					"oldest": "oldest first",
+					"az": "by {field}, A to Z",
+					"za": "by {field}, Z to A"
+				},
+				"element": "Element · {name}"
+			},
+			"condition": {
+				"test": "Shows when",
+				"elseIf": "Else, when",
+				"otherwise": "Otherwise",
+				"otherwiseHint": "Otherwise shows its own elements when no test holds.",
+				"otherwiseOn": "Add Otherwise",
+				"otherwiseOff": "Remove Otherwise",
+				"step": "Change the test of {name}",
+				"bad": "This test can't be read: {problem}",
+				"name": "If {test}"
+			}
+		},
+		"insert": {
+			"row": "Insert",
+			"items": {
+				"section": {
+					"name": "Section",
+					"hint": "A new top-level section, placed after this one",
+					"page": "A new top-level Component, placed after this one",
+					"tip": "Section: starts a new Component here"
+				},
+				"container": {
+					"name": "Container",
+					"hint": "A width-constrained wrapper"
+				},
+				"div": {
+					"name": "Div",
+					"hint": "A plain wrapper"
+				},
+				"header": {
+					"name": "Header",
+					"hint": "A header landmark"
+				},
+				"footer": {
+					"name": "Footer",
+					"hint": "A footer landmark"
+				},
+				"heading": {
+					"name": "Heading",
+					"hint": "A heading, h1 to h6"
+				},
+				"text": {
+					"name": "Text",
+					"menu": "Paragraph",
+					"hint": "A paragraph of text"
+				},
+				"link": {
+					"name": "Link",
+					"hint": "A link to a Page or address"
+				},
+				"button": {
+					"name": "Button",
+					"hint": "A link styled as a button"
+				},
+				"list": {
+					"name": "List",
+					"hint": "A bulleted or numbered list"
+				},
+				"image": {
+					"name": "Image",
+					"hint": "A picture from Media"
+				},
+				"video": {
+					"name": "Video",
+					"hint": "A video from Media"
+				},
+				"icon": {
+					"name": "Icon",
+					"hint": "A small picture from Media, read as decoration"
+				},
+				"loop": {
+					"name": "Loop",
+					"hint": "Repeats its children over a Loop"
+				},
+				"condition": {
+					"name": "Condition",
+					"hint": "Shows its children only when true"
+				},
+				"form": {
+					"name": "Form",
+					"hint": "A Form placed here"
+				},
+				"outlet": {
+					"name": "Page content",
+					"hint": "Where each page's content shows"
+				},
+				"component": {
+					"name": "Component",
+					"hint": "Add Component: {name}"
+				},
+				"more": {
+					"name": "More to insert"
+				},
+				"element": {
+					"hint": "The {tag} element"
+				},
+				"value": {
+					"hint": "The value {path}"
+				}
+			},
+			"commands": {
+				"popup": {
+					"name": "Popup: {name}",
+					"hint": "Shows the Popup {name} here"
+				},
+				"filter": {
+					"name": "Filter: {name}",
+					"hint": "The whole Filter (its form), for the Loop {loop}"
+				},
+				"filterControl": {
+					"name": "Filter {name}: {control}",
+					"hint": "Only this control of the Filter, on its own"
+				},
+				"pagination": {
+					"name": "Pagination of {loop}",
+					"hint": "Links to the pages of the Loop {loop}"
+				},
+				"search": {
+					"name": "Search box",
+					"hint": "The Site's search box"
+				},
+				"themeToggle": {
+					"name": "Theme toggle",
+					"hint": "Lets visitors choose light or dark"
+				},
+				"languageSwitcher": {
+					"name": "Language switcher",
+					"hint": "The page in its other languages"
+				},
+				"consentSettings": {
+					"name": "Cookie settings",
+					"hint": "Opens the Consent banner's choices again"
+				}
+			},
+			"templateGroup": "Template commands",
+			"defaults": {
+				"heading": "Heading",
+				"text": "Write something here.",
+				"link": "Link",
+				"button": "Button",
+				"listItem": "List item"
+			},
+			"steps": {
+				"insert": "Insert {name}",
+				"add": "Add {name}"
+			},
+			"forceAfter": "Hold ⌘ or Ctrl to insert after the selection.",
+			"inserted": "Inserted {name} {where}.",
+			"whereInside": "inside {name}",
+			"whereAfter": "after {name}",
+			"whereEnd": "at the end of {name}",
+			"wherePage": "in the Page layout",
+			"refusals": {
+				"page": "A Page holds Components: add a Section or a Component first.",
+				"placement": "{name} is a Component: edit it in place to add inside it.",
+				"nothing": "Nothing can be added here: open a page that shows this Template or Component.",
+				"notAllowed": "{name} can't go here.",
+				"connecting": "Still opening the page's elements. Try again in a moment."
+			},
+			"section": {
+				"making": "Making {name}…",
+				"made": "{name} placed on the page. Its container is selected: Heading, Text and Div go inside it.",
+				"failed": "Couldn't make the section: {reason}"
+			},
+			"media": {
+				"image": "Choose an image",
+				"video": "Choose a video"
+			},
+			"emptySlot": "empty",
+			"dropComponent": "Drop a Component here"
+		},
+		"commandMenu": {
+			"title": "Command menu",
+			"open": "Command menu",
+			"close": "Close the Command menu",
+			"tabsLabel": "Command menu tabs",
+			"tabs": {
+				"actions": "Actions",
+				"goTo": "Go to",
+				"insert": "Insert"
+			},
+			"switchHint": "Tab to switch",
+			"placeholder": {
+				"actions": "Search actions…",
+				"goTo": "Search Pages, Entries, Templates, Components and elements…",
+				"goToMember": "Search Pages and Entries…",
+				"insert": "Search for elements, Components, Loops…"
+			},
+			"where": "Where:",
+			"inside": "Inside",
+			"after": "After",
+			"inverse": "{keys} inserts {way} instead",
+			"inverseInside": "inside",
+			"inverseAfter": "after",
+			"recent": "Recent",
+			"none": "Nothing found.",
+			"loading": "Loading…",
+			"countOne": "1 result",
+			"countOther": "{count} results",
+			"option": "{label}, {group}",
+			"optionKeys": "{label}, {group}, {keys}",
+			"disabled": "{label}, {reason}",
+			"keyNames": {
+				"command": "Command",
+				"control": "Control",
+				"shift": "Shift",
+				"option": "Option",
+				"alt": "Alt",
+				"up": "Up",
+				"down": "Down",
+				"left": "Left",
+				"right": "Right",
+				"enter": "Enter",
+				"delete": "Delete",
+				"forwardDelete": "Forward delete",
+				"escape": "Escape",
+				"space": "Space",
+				"slash": "Slash",
+				"letter": "a letter",
+				"asterisk": "Asterisk",
+				"leftBracket": "Left bracket",
+				"rightBracket": "Right bracket"
+			},
+			"groups": {
+				"editor": "Editor",
+				"element": "Element",
+				"placement": "Placement",
+				"places": "Places",
+				"format": "Format",
+				"pages": "Pages",
+				"templates": "Templates",
+				"components": "Components",
+				"layers": "Elements on this page",
+				"sections": "Sections",
+				"text": "Text",
+				"media": "Media",
+				"commands": "Template commands",
+				"other": "More elements",
+				"values": "Values"
+			},
+			"actions": {
+				"undo": "Undo",
+				"redo": "Redo",
+				"undoStep": "Undo {step}",
+				"redoStep": "Redo {step}",
+				"nothingToUndo": "Nothing to undo.",
+				"nothingToRedo": "Nothing to redo.",
+				"publish": "Publish",
+				"sendForReview": "Send for review",
+				"openPlace": "Open {place}",
+				"backToCanvas": "Back to the canvas",
+				"hideInterface": "Hide the interface",
+				"showInterface": "Show the interface",
+				"exit": "Exit the building area",
+				"copy": "Copy",
+				"paste": "Paste",
+				"duplicate": "Duplicate",
+				"delete": "Delete",
+				"parent": "Select parent",
+				"wrap": "Wrap in {what}",
+				"unwrap": "Unwrap",
+				"makeComponent": "Make Component",
+				"newComponent": "New Component",
+				"editComponent": "Edit Component",
+				"hidePlacement": "Hide the Placement",
+				"showPlacement": "Show the Placement",
+				"formatHtml": "Format HTML",
+				"formatCss": "Format CSS",
+				"formatJs": "Format JS",
+				"formatAll": "Format all three",
+				"preview": "Preview",
+				"edit": "Edit",
+				"pageDetails": "Page details",
+				"sections": "Sections",
+				"help": "Help"
+			},
+			"wrap": {
+				"div": "a Div",
+				"section": "a Section",
+				"a": "a Link",
+				"loop": "a Loop",
+				"condition": "a Condition"
+			},
+			"templates": {
+				"siteTemplate": "Site template",
+				"searchTemplate": "Search results template",
+				"entryTemplate": "Entry template · {postType}",
+				"archiveTemplate": "Archive template · {postType}"
+			},
+			"steps": {
+				"loop": "Which Loop?",
+				"form": "Which Form?",
+				"component": "Which Component?",
+				"condition": "Write the test, then Enter: {example}",
+				"conditionLabel": "Test",
+				"noLoops": "This Site has no Loops yet: make one in the Loops place.",
+				"noForms": "This Site has no Forms yet.",
+				"back": "Back to everything"
+			},
+			"loadFailed": "The Command menu couldn't be loaded. Try again.",
+			"narrow": "The Command menu needs a wider window."
+		},
+		"emptyPage": {
+			"title": "This Page is empty",
+			"text": "Start with a Component, or build your own section.",
+			"addComponent": "Add a Component",
+			"newSection": "New section",
+			"orPress": "or press {keys}"
+		},
+		"rowMenu": {
+			"label": "Actions for {name}",
+			"copy": "Copy",
+			"paste": "Paste",
+			"duplicate": "Duplicate",
+			"wrapIn": "Wrap in",
+			"makeComponent": "Make Component",
+			"delete": "Delete",
+			"copied": "Copied {name}.",
+			"pasted": "Pasted {name} after {after}.",
+			"nothingToPaste": "Nothing copied to paste.",
+			"notHere": "{name} can't be pasted here.",
+			"parentNone": "{name} is at the top: it has no parent to select.",
+			"unwrapRefused": "{name} can't be unwrapped: it holds a branch or an empty state that would be lost.",
+			"steps": {
+				"paste": "Paste {name}",
+				"wrap": "Wrap {name} in {what}",
+				"unwrap": "Unwrap {name}"
+			}
+		},
+		"componentDialog": {
+			"makeTitle": "Make Component",
+			"makeText": "{name} moves into a new Component, placed where it was. The page looks the same.",
+			"newTitle": "New Component",
+			"newText": "An empty Component, placed {where}. It opens so you can build it.",
+			"name": "Name",
+			"nameHint": "Capital first, letters and digits only, such as CustomerQuote.",
+			"badName": "Use a capital first, then letters and digits only, with at least one small letter.",
+			"taken": "The Site has a Component called {name} already.",
+			"make": "Make",
+			"create": "Create",
+			"cancel": "Cancel",
+			"made": "Made the Component {name}.",
+			"refused": "Couldn't make the Component: {reason}"
+		},
+		"fixedText": {
+			"badge": "Fixed text",
+			"heading": "Fixed text",
+			"help": "Clients can't edit fixed text. Make it a value they edit instead.",
+			"make": {
+				"prop": "Bind to Prop",
+				"field": "Make it a Field",
+				"global": "Make it a Global"
+			},
+			"intro": {
+				"prop": "Each copy of the Component then shows its own value for it. “{text}” becomes the Prop's default, so nothing changes until someone gives another.",
+				"field": "Each Entry then shows its own value for it. “{text}” becomes the Field's default for new Entries. The Field is added to the Post Type at once.",
+				"global": "Clients then change it in the Globals, for every page. “{text}” becomes the Global's Draft value. The Global is added at once."
+			},
+			"mode": {
+				"new": {
+					"prop": "A new Prop",
+					"field": "A new Field",
+					"global": "A new Global"
+				},
+				"existing": {
+					"prop": "A Prop it has",
+					"field": "A Field the Post Type has",
+					"global": "A Global the Site has"
+				}
+			},
+			"existing": {
+				"prop": "Prop",
+				"field": "Field",
+				"global": "Global"
+			},
+			"none": "Choose…",
+			"label": "Label",
+			"key": "Key",
+			"keyHelp": "Template markup reads it as {binding}.",
+			"labelRequired": "Give it a label.",
+			"keyInvalid": "A key starts with a lower-case letter, then letters, digits and underscores.",
+			"keyTaken": "That key is taken.",
+			"chooseExisting": "Choose one.",
+			"made": "The text now reads {binding}.",
+			"changed": "The selected text changed. Select it again to make it editable.",
+			"cancel": "Cancel",
+			"component": {
+				"texts": "Fixed text",
+				"textsHelp": "Each copy of the Component can show its own text instead. The current text becomes the Prop's default.",
+				"turnIntoProp": "Turn the fixed text into a Prop",
+				"propKey": "Prop name",
+				"keyInvalid": "{key} can't name a Prop: start with a lower-case letter, then letters, digits or _.",
+				"keyTwice": "Two Props can't both be called {key}."
+			},
+			"noneExisting": "There is none of text yet: make a new one.",
+			"refused": "Couldn't make it editable: {reason}"
+		},
+		"bindProp": {
+			"heading": {
+				"link": "Link",
+				"media": "Image"
+			},
+			"help": "Let each Placement of the Component give its own value.",
+			"button": "Bind to Prop",
+			"bound": "Reads {binding}.",
+			"title": {
+				"link": "Bind the link to a Prop",
+				"media": "Bind the image to a Prop"
+			},
+			"intro": {
+				"link": "Each Placement then gives its own address. A new Link Prop starts with this link's address as its default.",
+				"media": "Each Placement then gives its own image. A new Media Prop starts with this image as its default."
+			},
+			"mode": {
+				"new": "A new Prop",
+				"existing": "A Prop it has"
+			},
+			"newLabel": {
+				"link": "Link",
+				"media": "Image"
+			},
+			"existing": "Prop",
+			"none": "Choose…",
+			"noneExisting": "The Component has no Prop of this type yet.",
+			"choose": "Choose a Prop.",
+			"changed": "The element changed. Select it again to bind it.",
+			"done": "Bound to {binding}."
+		},
+		"oneOff": {
+			"add": "One-off style",
+			"addLabel": "Style only this element",
+			"box": "One-off style of {name}",
+			"help": "Only for this element, such as margin-top: var(--space-m). It becomes a generated Class: pages never carry inline styles.",
+			"generated": "Generated",
+			"chooseGenerated": "Choose .{name}, a generated Class, for CSS",
+			"applied": "One-off style applied.",
+			"removed": "One-off style removed.",
+			"notSaved": "Couldn't save the one-off style: {reason}",
+			"renameTitle": ".{name} is a normal Class now",
+			"renameHelp": "It was made from a one-off style. Give it a name, or keep the one it has.",
+			"name": "Name",
+			"rename": "Rename",
+			"keep": "Keep the name",
+			"renamed": "Renamed the Class to .{name}.",
+			"renameStep": "Renamed .{from} to .{name}"
+		},
+		"layers": {
+			"cut": "Cut {name}.",
+			"cutStep": "Cut {name}",
+			"renameLabel": "Layer label of {tag}",
+			"renamed": "Renamed {name}.",
+			"renameStep": "Rename {name}",
+			"picked": "Picked up {name}. The arrow keys move it, Space puts it down, Escape puts it back.",
+			"position": "{name}: {position} of {count} in {parent}.",
+			"putDown": "Put down {name}: {position} of {count} in {parent}.",
+			"putBack": "Put {name} back where it was.",
+			"cantCancel": "This move can no longer be cancelled: someone else changed this meanwhile.",
+			"top": "the page",
+			"elseIf": "Else if",
+			"else": "Else",
+			"empty": "When there are no items",
+			"pastedInto": "Paste {name} into {branch}"
+		},
+		"canvasDrop": {
+			"whereBefore": "before {name}",
+			"grab": "Drag to move {name}",
+			"nothingHere": "Drop it on the page, where it should go.",
+			"intoItself": "{name} can't go inside itself."
+		},
+		"suggest": {
+			"label": "Suggestions",
+			"none": "No suggestions",
+			"one": "1 suggestion",
+			"other": "{count} suggestions",
+			"groups": {
+				"entry": "This Entry",
+				"globals": "Site options",
+				"props": "Props",
+				"loops": "Loops",
+				"components": "Components",
+				"commands": "Template commands",
+				"presets": "Presets",
+				"classes": "Classes"
+			},
+			"presets": {
+				"hasValue": "Show when a value is set",
+				"isEmpty": "Show when a value is empty",
+				"ifElse": "Show one thing or another",
+				"loopEmpty": "Show when a Loop has no items",
+				"loopFirst": "Show on a Loop's first item",
+				"loopLast": "Show on a Loop's last item",
+				"loopOddEven": "Odd and even items",
+				"currentLanguage": "Show in one language",
+				"betweenDates": "Show between two dates",
+				"inRelationship": "Show when a list holds a value"
+			}
+		},
+		"cssPane": {
+			"noLayer": "The pane places its CSS in the right cascade layer: remove @layer.",
+			"utilities": "Token utilities",
+			"removeUtility": "Remove token utility {name}",
+			"utility": "Token utility {name}: it can be removed, not edited",
+			"columns": "Columns",
+			"classes": "Classes of the element"
+		},
+		"shortcuts": {
+			"title": "Keyboard shortcuts",
+			"intro": "What the keys do here. Only what you may do is listed.",
+			"close": "Close",
+			"groups": {
+				"editor": "Everywhere",
+				"tree": "In Layers",
+				"code": "In the code panes"
+			},
+			"keys": {
+				"undo": "Undo",
+				"redo": "Redo",
+				"actions": "Actions",
+				"goTo": "Go to",
+				"insert": "Insert",
+				"shortcuts": "This list",
+				"regions": "Move between the regions",
+				"escape": "Clear the selection, then close a place",
+				"toolbar": "Reach a text's toolbar",
+				"rows": "Move between layers",
+				"moveUp": "Move the layer up",
+				"moveDown": "Move the layer down",
+				"moveIn": "Move it into the layer before",
+				"moveOut": "Move it out of its parent",
+				"pick": "Pick the layer up, put it down",
+				"putBack": "Put it back",
+				"cut": "Cut",
+				"copy": "Copy",
+				"paste": "Paste",
+				"duplicate": "Duplicate",
+				"delete": "Delete",
+				"rename": "Rename",
+				"menu": "Open the layer's menu",
+				"save": "Save the HTML",
+				"format": "Format"
+			}
+		},
+		"scripts": {
+			"notice": "A script failed",
+			"siteFailed": "The Site script failed.",
+			"pageFailed": "This page's script failed.",
+			"libraryFailed": "The Library {name} failed.",
+			"componentFailed": "The Component script of {name} failed.",
+			"notLoaded": "It didn't load.",
+			"errorAt": "{message} (line {line})",
+			"more": "Other scripts failed too: {count}.",
+			"safeHelp": "Safe mode shows the page with none of the Site's own scripts, so editing goes on.",
+			"openSafe": "Open in Safe mode",
+			"dismiss": "Dismiss",
+			"safe": "Safe mode",
+			"safeOn": "Safe mode: this page runs none of the Site's own scripts.",
+			"turnOff": "Turn off",
+			"turnOffLabel": "Turn off Safe mode",
+			"turning": "Switching…",
+			"turnedOn": "Safe mode is on: the page runs none of the Site's own scripts.",
+			"turnedOff": "Safe mode is off: the page runs the Site's own scripts again.",
+			"switchFailed": "Safe mode couldn't be switched: {reason}",
+			"client": {
+				"siteFailed": "Something on this page didn't work: the Site script failed.",
+				"pageFailed": "Something on this page didn't work: this page's own script failed.",
+				"libraryFailed": "Something on this page didn't work: the Library {name} failed.",
+				"componentFailed": "Something on this page didn't work: the script of {name} failed.",
+				"help": "You can keep editing. If the page doesn't behave, open it in Safe mode, which runs none of the site's scripts, and tell your agency.",
+				"safeOn": "Safe mode: none of the site's scripts run on this page."
+			}
+		}
+	},
+	"auth": {
+		"madeWith": "Made with WebCraft",
+		"passwordRules": {
+			"length": "At least 12 characters",
+			"met": "met",
+			"notMet": "not met yet"
 		}
 	}
 }

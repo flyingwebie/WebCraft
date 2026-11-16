@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 
 import type { Json as DocumentJson } from "../co-editing/document.ts";
 import { documentView } from "../co-editing/view.ts";
-import { editableField, imageField } from "../content/editable.ts";
+import { editableField, imageField, linkField } from "../content/editable.ts";
 import { getEntry, lockEntry, saveDraft } from "../content/entries.ts";
 import type { ContentProblem } from "../content/errors.ts";
 import type { FieldDefinition, Json } from "../content/field-types.ts";
@@ -28,11 +28,17 @@ export type RegionChange = {
 	item: string;
 	/** The binding's path within the item, as `data-wc-field` says: `title`, `intro`, `address.city`. */
 	field: string;
-	/** Plain text, rich text's HTML (cleaned on save), or a body's Blocks (`data-wc-type="body"`). */
-	value: string | unknown[] | null;
+	/**
+	 * Plain text, rich text's HTML (cleaned on save), a body's Blocks (`data-wc-type="body"`), or a
+	 * link (`data-wc-type="link"`: its address, words and whether it opens in a new tab; null removes it).
+	 */
+	value: string | unknown[] | LinkChange | null;
 	/** The language of the page the region is on: the value is saved in it (the Default language when absent). */
 	language?: string;
 };
+
+/** A link Field's new value as the link popover sends it: the link Field's own rules check it. */
+export type LinkChange = { url: string; text: string; newTab?: boolean };
 
 /**
  * The exact change a save made to an Entry's or the Globals' Draft, as the item's shared document
@@ -77,6 +83,8 @@ export type SavedImage = {
 	status: "draft" | "published" | "changed";
 	media: string | null;
 	problems: ContentProblem[];
+	/** The change to its Entry's or the Globals' Draft, as a typed value's (`SavedRegion`); a Loop item's and a Block's have none. */
+	history?: RegionHistory;
 };
 
 /** Reads an item as a region names it; refuses anything else. */
@@ -137,8 +145,16 @@ function keptValue(view: DocumentJson, key: string): Record<string, DocumentJson
 async function saveItemRegion(scope: SiteScope, item: EditItem, change: RegionChange): Promise<SavedRegion> {
 	const { language } = change;
 	if (item.kind === "globals") {
-		if (typeof change.value !== "string") throw new EditFieldInvalidError();
 		const globals = await getGlobals(scope, language);
+		if (linkField(globals.fields, change.field)) {
+			const saved = await saveGlobalsDraft(scope, { language, fields: nested(change.field, linkValue(change.value)) });
+			return {
+				status: saved.status,
+				value: valueAt(saved.draft, change.field),
+				problems: problemsAt(saved.problems, `fields.${change.field}`),
+			};
+		}
+		if (typeof change.value !== "string") throw new EditFieldInvalidError();
 		if (!editableField(globals.fields, change.field)) throw new EditFieldInvalidError();
 		const saved = await saveGlobalsDraft(scope, { language, fields: nested(change.field, change.value) });
 		return {
@@ -157,7 +173,7 @@ async function saveItemRegion(scope: SiteScope, item: EditItem, change: RegionCh
 	const body = postType.fields.find((field) => field.type === "body" && field.key === change.field);
 	if (body) {
 		// A body's Blocks, as the block editor sends them: the same checks as the admin's.
-		if (typeof change.value === "string") throw new EditFieldInvalidError();
+		if (change.value !== null && !Array.isArray(change.value)) throw new EditFieldInvalidError();
 		const saved = await saveDraft(scope, item.id, { language, fields: { [body.key]: change.value } });
 		const at = `fields.${body.key}`;
 		return {
@@ -166,9 +182,13 @@ async function saveItemRegion(scope: SiteScope, item: EditItem, change: RegionCh
 			problems: saved.problems.filter((problem) => problem.at === at || problem.at.startsWith(`${at}[`)),
 		};
 	}
-	if (typeof change.value !== "string" && change.value !== null) throw new EditFieldInvalidError();
-	if (!editableField(postType.fields, change.field)) throw new EditFieldInvalidError();
-	const saved = await saveDraft(scope, item.id, { language, fields: nested(change.field, change.value) });
+	let value: string | LinkChange | null;
+	if (linkField(postType.fields, change.field)) value = linkValue(change.value);
+	else if (typeof change.value === "string" || change.value === null) {
+		if (!editableField(postType.fields, change.field)) throw new EditFieldInvalidError();
+		value = change.value;
+	} else throw new EditFieldInvalidError();
+	const saved = await saveDraft(scope, item.id, { language, fields: nested(change.field, value) });
 	return {
 		status: saved.status,
 		value: valueAt(saved.draft.fields, change.field),
@@ -176,8 +196,18 @@ async function saveItemRegion(scope: SiteScope, item: EditItem, change: RegionCh
 	};
 }
 
+/**
+ * A link region's value: a link (its rules are the link Field's, checked as it saves) or null to
+ * remove it. Anything else isn't a link.
+ */
+function linkValue(value: RegionChange["value"]): LinkChange | null {
+	if (value === null) return null;
+	if (typeof value !== "object" || Array.isArray(value)) throw new EditFieldInvalidError();
+	return value;
+}
+
 /** A value given at a path, as a change to Fields takes it: `address.city` is `{ address: { city } }`. */
-function nested(path: string, value: string | null): Record<string, unknown> {
+function nested(path: string, value: string | LinkChange | null): Record<string, unknown> {
 	return path.split(".").reduceRight<unknown>((inner, name) => ({ [name]: inner }), value) as Record<string, unknown>;
 }
 
@@ -225,20 +255,39 @@ export async function saveImage(scope: SiteScope, change: ImageChange): Promise<
 		return saveBlockImage(scope, item.id, fields, { ...change, block: change.block });
 	}
 	const values = nested(change.field, change.media);
-	if (item.kind === "globals") {
-		const saved = await saveGlobalsDraft(scope, { language, fields: values });
+	// As a typed value's save: the item held from the first read to the last, its receipt this change alone.
+	return scope.transaction(async (tx) => {
+		const held = async () =>
+			item.kind === "globals"
+				? documentView("globals", (await lockGlobals(tx)).draft)
+				: documentView("entry", (await lockEntry(tx, item.id)).draft);
+		const before = await held();
+		let saved: Omit<SavedImage, "history">;
+		if (item.kind === "globals") {
+			const done = await saveGlobalsDraft(tx, { language, fields: values });
+			saved = {
+				status: done.status,
+				media: mediaIdOf(valueAt(done.draft, change.field)),
+				problems: problemsAt(done.problems, `fields.${change.field}`),
+			};
+		} else {
+			const done = await saveDraft(tx, item.id, { language, fields: values });
+			saved = {
+				status: done.status,
+				media: mediaIdOf(valueAt(done.draft.fields, change.field)),
+				problems: problemsAt(done.problems, `fields.${change.field}`),
+			};
+		}
+		const key = change.field.split(".")[0] ?? "";
 		return {
-			status: saved.status,
-			media: mediaIdOf(valueAt(saved.draft, change.field)),
-			problems: problemsAt(saved.problems, `fields.${change.field}`),
+			...saved,
+			history: {
+				resource: `draft:${tx.site.id}:${item.kind === "globals" ? "globals" : `entry:${item.id}`}`,
+				before: { values: keptValue(before, key) },
+				after: { values: keptValue(await held(), key) },
+			},
 		};
-	}
-	const saved = await saveDraft(scope, item.id, { language, fields: values });
-	return {
-		status: saved.status,
-		media: mediaIdOf(valueAt(saved.draft.fields, change.field)),
-		problems: problemsAt(saved.problems, `fields.${change.field}`),
-	};
+	});
 }
 
 /** Refuses what an image region can't show: anything but an image of the Site's library, out of the Trash. */

@@ -1,11 +1,12 @@
 // Review in a real browser (GLOSSARY.md › Review): the Author's "Submit for review" and its dialog, an
 // item In review as its Author sees it (Withdraw) and as a reviewer sees it (Send back and its
-// dialog), a sent-back comment, the Site overview's "Waiting for review" list with the sidebar's
-// count, the Entries list's chips, and Edit mode's Publish menu for an Author (Submit for review, then
-// In review), in light and dark, with axe and the keyboard; and submitting and sending back without a
-// mouse.
+// dialog), the Review sheet opened from the editor and from Publish all, a sent-back comment, the
+// Site overview's "Waiting for review" list with the sidebar's count and the Entries list's chips, in
+// light and dark, with axe and the keyboard; and submitting, sending back and publishing a Review
+// without a mouse. Sending a page for review from the building area is `building-area-publish`'s
+// "Send for review" check.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { Cookie, Page } from "playwright";
+import type { Page } from "playwright";
 
 import type { TestAccount } from "../harness/index.ts";
 import { expectAccessibleScreen, expectNoAxeViolations, expectOverlayUsable } from "./checks.ts";
@@ -26,9 +27,10 @@ let winterId: string;
 let summerId: string;
 /** Sent back from the keyboard. */
 let soupId: string;
+/** Published from the Review sheet. */
+let pieId: string;
 
 const slug = "review-bakery";
-const path = "/blog/fresh-bread";
 
 beforeAll(async () => {
 	install = await startBrowserInstall();
@@ -85,6 +87,8 @@ beforeAll(async () => {
 	summerId = await draft("Summer menu");
 	soupId = await draft("Soup of the day");
 	await submit(soupId);
+	pieId = await draft("Apple pie");
+	await submit(pieId, "The pie is back for the autumn.");
 });
 
 afterAll(async () => {
@@ -101,26 +105,6 @@ async function open(theme: Theme, account: TestAccount, pagePath: string): Promi
 }
 
 const editorOf = (entryId: string) => `/sites/${siteId}/entries/${postTypeId}/${entryId}`;
-
-/** The Author's edit cookie from the first time Edit mode opened, handed to later pages (the link works once). */
-let editCookies: Cookie[] | undefined;
-
-/** A page in Edit mode at /blog/fresh-bread, as the Author: the first time through "Edit on site". */
-async function editModePage(theme: Theme): Promise<Page> {
-	const page = await install.newPage(theme);
-	if (editCookies) {
-		await page.context().addCookies(editCookies);
-	} else {
-		await install.signIn(page, author);
-		await page.goto(install.adminUrl(`/sites/${siteId}`));
-		await page.getByRole("button", { name: "Edit on site" }).click();
-		await page.waitForURL((url) => url.hostname === new URL(install.siteUrl(slug, "/")).hostname);
-		editCookies = (await page.context().cookies()).filter((cookie) => cookie.name === "webcraft.edit");
-	}
-	await page.goto(install.siteUrl(slug, path));
-	await page.getByRole("button", { name: "Changes", exact: true }).waitFor();
-	return page;
-}
 
 /** Whether focus is on `element` within a second (a dialog moves focus as it opens). */
 function focusedSoon(element: Element): Promise<boolean> {
@@ -168,6 +152,22 @@ for (const theme of THEMES) {
 			);
 		});
 
+		test("the Review sheet: who sent it and when, their note, what changed, a comment, Send back and Publish", async () => {
+			const page = await open(theme, editor, editorOf(springId));
+			const trigger = page.getByRole("button", { name: "Open the Review" });
+			await trigger.click();
+			const sheet = page.getByRole("dialog", { name: "Review: Spring menu" });
+			await sheet.getByText(/^Ann Author sent this /).waitFor();
+			await sheet.getByRole("heading", { name: "What changed" }).waitFor();
+			await sheet.getByRole("button", { name: "Publish", exact: true }).waitFor();
+			expect(new URL(page.url()).searchParams.get("review")).not.toBeNull();
+			await expectNoAxeViolations(page, `The Review sheet (${theme}, open)`, ["region"]);
+			await page.keyboard.press("Escape");
+			await sheet.waitFor({ state: "hidden" });
+			expect(new URL(page.url()).searchParams.get("review")).toBeNull();
+			await expectOverlayUsable(page, trigger, "dialog", `The Review sheet (${theme})`);
+		});
+
 		test("sent back, the comment shows to its Author until they submit it again", async () => {
 			const page = await open(theme, author, editorOf(autumnId));
 			await page.getByText("The prices are last year's. Check them with the shop.").waitFor();
@@ -179,22 +179,16 @@ for (const theme of THEMES) {
 			await page.getByRole("heading", { name: "Waiting for review" }).waitFor();
 			await page.getByRole("link", { name: /^Overview\s*\d+ to review$/ }).waitFor();
 			await expectAccessibleScreen(page, `Site overview with Reviews waiting (${theme})`);
+			// Each line opens its Review's sheet over the Overview.
+			await page.getByRole("link", { name: /requested review on “Spring menu/ }).click();
+			await page.getByRole("dialog", { name: "Review: Spring menu" }).waitFor();
+			expect(new URL(page.url()).searchParams.get("review")).not.toBeNull();
 		});
 
 		test("the Entries list marks what is In review and what was sent back", async () => {
 			const page = await open(theme, author, `/sites/${siteId}/entries/${postTypeId}`);
 			await page.getByText("Sent back").first().waitFor();
 			await expectAccessibleScreen(page, `Entries list with Reviews (${theme})`);
-		});
-
-		test("Edit mode's Publish menu offers an Author Submit for review, with a note", async () => {
-			const page = await editModePage(theme);
-			await expectOverlayUsable(
-				page,
-				page.getByRole("button", { name: "Changes", exact: true }),
-				"dialog",
-				`Edit mode › Changes with Submit for review (${theme})`,
-			);
 		});
 	});
 }
@@ -247,24 +241,25 @@ describe("without a mouse", () => {
 		expect(entry.review).toMatchObject({ status: "sentBack", comment: "Add the soup's allergens." });
 	});
 
-	test("in Edit mode an Author submits the page with a note, then sees it In review with Withdraw", async () => {
-		const page = await editModePage("light");
-		const trigger = page.getByRole("button", { name: "Changes", exact: true });
-		await trigger.focus();
+	test("a reviewer opens the Review from Publish all and publishes it from its sheet", async () => {
+		const page = await open("light", editor, `/sites/${siteId}`);
+		await page
+			.getByRole("button", { name: /^Publish all/ })
+			.first()
+			.click();
+		await page.getByRole("button", { name: "In review: open the Review of Apple pie" }).click();
+		const sheet = page.getByRole("dialog", { name: "Review: Apple pie" });
+		await sheet.getByText("The pie is back for the autumn.").waitFor();
+		// Send back needs a comment: it says why.
+		await sheet.getByRole("button", { name: "Send back" }).click();
+		await sheet.getByText("Say why you're sending it back.").waitFor();
+		await sheet.getByRole("button", { name: "Publish", exact: true }).focus();
 		await page.keyboard.press("Enter");
-		const note = page.getByLabel("Note for the reviewer (optional)");
-		await note.waitFor();
-		await note.focus();
-		await page.keyboard.type("New subtitle.");
-		await page.keyboard.press("Tab");
-		await page.keyboard.press("Enter");
-		await page.getByRole("button", { name: "Withdraw from review" }).waitFor();
-		await page.getByText(/In review · submitted by you/).waitFor();
-		// The panel is open over the page: axe checks it as it checks open overlays.
-		await expectNoAxeViolations(page, "Edit mode › Changes In review (light, open)", ["region"]);
-		expect({ chip: await page.getByText("In review", { exact: true }).count() }).toEqual({ chip: 1 });
+		await sheet.waitFor({ state: "hidden" });
 
+		const { entry } = await (await install.install.superadmin()).api.entries.get({ siteId, entryId: pieId });
+		expect(entry.published?.title).toBe("Apple pie");
 		const { reviews } = await (await install.install.superadmin()).api.reviews.list({ siteId });
-		expect(reviews.some((review) => review.note === "New subtitle.")).toBe(true);
+		expect(reviews.some((review) => review.item.kind === "entry" && review.item.id === pieId)).toBe(false);
 	});
 });

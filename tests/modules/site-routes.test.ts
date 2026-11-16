@@ -104,7 +104,7 @@ describe("a Module's Site routes", () => {
 			headers: { cookie: "webcraft.edit=secret; __Secure-webcraft.session_token=also-secret; theme=dark" },
 		});
 
-		expect(await answer.json()).toEqual({ cookie: "theme=dark" });
+		expect(await answer.json()).toEqual({ cookie: "theme=dark", token: null });
 		expect(answer.headers.getSetCookie()).toEqual(["sample-seen=1; Path=/"]);
 	});
 
@@ -116,7 +116,7 @@ describe("a Module's Site routes", () => {
 
 		const answer = await editing.browser.request(site.url("/_wc/m/sample/cookies"));
 
-		expect(await answer.json()).toEqual({ cookie: null });
+		expect(await answer.json()).toEqual({ cookie: null, token: null });
 		expect(new Map(editing.browser.cookies)).toEqual(new Map([...held, ["sample-seen", "1"]]));
 		expect((await editing.edit("state", { path: "/" })).status).toBe(200);
 	});
