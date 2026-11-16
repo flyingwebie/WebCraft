@@ -333,7 +333,7 @@ describe("a Site export", () => {
 		const sectionId = layout.placements[0]?.component ?? "";
 		expect(sectionId).not.toBe(componentId);
 		expect((await admin.api.components.get({ siteId: copyId, componentId: sectionId })).component.pageId).toBe(
-			page?.id,
+			page?.id ?? null,
 		);
 		expect((await admin.api.components.list({ siteId: copyId })).components).toEqual([]);
 	});

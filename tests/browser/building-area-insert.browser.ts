@@ -356,7 +356,7 @@ describe("Section on a Page (D2) and the empty Page", () => {
 		const layout = await api.pageLayouts.get({ siteId, entryId: pageId ?? "" });
 		expect(layout.placements).toMatchObject([{ componentName: "Section", pageSection: true }]);
 		const made = (await api.components.get({ siteId, componentId: layout.placements[0]?.component ?? "" })).component;
-		expect(made.pageId).toBe(pageId);
+		expect(made.pageId).toBe(pageId ?? null);
 		// Not in the Components place: the library lists HeroSplit only.
 		expect((await api.components.list({ siteId })).components.map((each) => each.name)).toEqual(["HeroSplit"]);
 		// The HTML pane reads the Section's own markup, the container selected in it.
