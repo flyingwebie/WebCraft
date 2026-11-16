@@ -10,7 +10,7 @@
 // - the picker on a Member's phone: the folders above the files, nothing wider than the screen;
 // - all of it passes the accessibility checks, light and dark.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import type { Page } from "playwright";
+import type { Page, Response } from "playwright";
 
 import { pdf, photo, upload } from "../harness/images.ts";
 import type { TestAccount, TestBrowser } from "../harness/index.ts";
@@ -178,8 +178,11 @@ describe("the Media place's grid", () => {
 		await page.keyboard.press("Home");
 		expect(await focusedFile()).toBe(order[0] ?? null);
 
-		// Down goes to the file under, in the same column.
-		const stacked = tiles.find((tile) => tiles.some((other) => other.x === tile.x && other.y > tile.y));
+		// Down goes to the file under, in the same column. A picture, as Enter opens it at its alt text below:
+		// the files arrive close together, so where the PDF lands in the grid varies.
+		const stacked = tiles.find(
+			(tile) => tile.id !== fileIds["price-list.pdf"] && tiles.some((other) => other.x === tile.x && other.y > tile.y),
+		);
 		const under = tiles
 			.filter((tile) => tile.x === stacked?.x && tile.y > (stacked?.y ?? 0))
 			.sort((a, b) => a.y - b.y)[0];
@@ -347,6 +350,13 @@ describe("the folders' order", () => {
 
 	test("in Custom, Move up and Move down in a folder's menu move it, and say so", async () => {
 		const team = folderIds.Team ?? "";
+		// The two moves end in the order they started from, so the server's order says nothing until both
+		// saves have answered.
+		let answered = 0;
+		const count = (response: Response) => {
+			if (response.request().method() === "POST" && response.url().includes("reorder")) answered++;
+		};
+		page.on("response", count);
 		await page.locator(`[data-wc-folder="${team}"]`).hover();
 		await page.locator(`[data-wc-folder-actions="${team}"]`).click();
 		await page.getByRole("menuitem", { name: "Move up" }).click();
@@ -364,11 +374,9 @@ describe("the folders' order", () => {
 		await page.waitForFunction(
 			() => document.querySelectorAll("[data-wc-media-folders] [data-wc-media-row]")[1]?.textContent === "Blog0",
 		);
-		for (let tries = 0; tries < 50; tries++) {
-			const names = (await admin.api.media.folders.list({ siteId })).folders.map((folder) => folder.name);
-			if (names.join() === "Products,Blog,Team,Events") break;
-			await page.waitForTimeout(100);
-		}
+		for (let tries = 0; tries < 100 && answered < 2; tries++) await page.waitForTimeout(100);
+		page.off("response", count);
+		expect(answered).toBe(2);
 		expect((await admin.api.media.folders.list({ siteId })).folders.map((folder) => folder.name)).toEqual([
 			"Products",
 			"Blog",
