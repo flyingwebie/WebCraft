@@ -31,7 +31,18 @@ import { DeleteFilesDialog, downloadAll, SelectionBar } from "./Selection.tsx";
 import { MediaSidebar, MediaTiles } from "./Sidebar.tsx";
 import { ShellMedia } from "./shell.tsx";
 import { notify } from "./toasts.tsx";
-import { type MediaPart, type MediaView, partOf, placeOf, printView, readView, viewFor } from "./view.ts";
+import {
+	type MediaLayout,
+	type MediaPart,
+	type MediaView,
+	partOf,
+	placeOf,
+	printView,
+	readView,
+	rememberedLayout,
+	rememberLayout,
+	viewFor,
+} from "./view.ts";
 
 /**
  * The Media place (SPEC 8 and 13.6; `places-assets/01` to `03`): a column of 300 with All files,
@@ -56,7 +67,9 @@ function MediaPlaceBody({ config, words, place, view: viewText, documents, leave
 	const siteId = config.site.id;
 	const api: MediaApi = useMemo(() => managementApi(config.token).media, [config.token]);
 	const part = partOf(place);
-	const view = readView(viewText);
+	// The layout when the address names none: the one the person last chose (FX-03).
+	const [remembered, setRemembered] = useState(() => rememberedLayout("place", "list"));
+	const view = readView(viewText, remembered);
 	const trash = part.kind === "trash";
 	const canUpload = config.permissions.includes("media.upload") && !trash;
 	const canManage = config.permissions.includes("media.manage");
@@ -97,8 +110,14 @@ function MediaPlaceBody({ config, words, place, view: viewText, documents, leave
 		scroller.current.scrollTop = scrollOf(place, viewText);
 	}, [data, scrollKey, place, viewText, view.file]);
 
-	const setView = (next: MediaView, how: "push" | "replace" = "push") => documents.setView(printView(next), how);
-	const go = (next: MediaPart) => documents.openPlace(placeOf(next), printView(viewFor(next, view)));
+	const setView = (next: MediaView, how: "push" | "replace" = "push") =>
+		documents.setView(printView(next, remembered), how);
+	const go = (next: MediaPart) => documents.openPlace(placeOf(next), printView(viewFor(next, view), remembered));
+	const chooseLayout = (layout: MediaLayout) => {
+		rememberLayout("place", layout);
+		setRemembered(layout);
+		documents.setView(printView({ ...view, layout }, layout), "replace");
+	};
 	const folderId = part.kind === "folder" ? part.folderId : null;
 
 	const { uploading, upload } = useUpload({
@@ -189,6 +208,7 @@ function MediaPlaceBody({ config, words, place, view: viewText, documents, leave
 	const sidebar = data ? (
 		<MediaSidebar
 			words={words}
+			api={api}
 			siteId={siteId}
 			part={part}
 			folders={data.folders}
@@ -386,7 +406,7 @@ function MediaPlaceBody({ config, words, place, view: viewText, documents, leave
 										aria-pressed={view.layout === layout}
 										aria-label={label}
 										title={label}
-										onClick={() => setView({ ...view, layout })}
+										onClick={() => chooseLayout(layout)}
 										className={`text-chrome-muted aria-pressed:bg-chrome-hover aria-pressed:text-chrome-strong hover:text-chrome-strong inline-grid size-6 place-items-center rounded-[5px] ${CHROME_EASE} ${FOCUS_RING}`}
 										data-wc-media-layout={layout}
 									>
