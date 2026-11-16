@@ -8,8 +8,9 @@
 //   source; each place of the rail opens every time, also while that Section is edited in place
 //   (pressing Content, Templates, Media, Styles, Loops or Components did nothing then);
 // - when the Section's Placement leaves the page again (its Add taken back with Undo), the shell stops
-//   editing it in place, instead of keeping a Component nothing can read ("Inside the Section3
-//   Component" over CODE_SOURCE_NOT_FOUND, Layers without it, every place locked).
+//   editing it in place, instead of keeping a Component nothing can read (CODE_SOURCE_NOT_FOUND,
+//   Layers without it, every place locked).
+// A Section on a Page is a Page section (FX-05, ADR 0038): every one is called "Section" in Layers.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Page } from "playwright";
 
@@ -55,6 +56,16 @@ afterAll(async () => {
 
 const tree = (page: Page) => page.getByRole("tree", { name: "Elements of the page" });
 const row = (page: Page, name: RegExp) => tree(page).getByRole("treeitem", { name }).first();
+/** The Page's Sections' rows (their Placements), in order. */
+const sections = (page: Page) =>
+	tree(page).locator('[role="treeitem"][data-wc-ref^="content/"]:not([data-wc-ref*="#"])[aria-label^="Section"]');
+/** Waits until the Page has `count` Sections in Layers. */
+const sectionsShown = (page: Page, count: number) =>
+	eventually(
+		() => sections(page).count(),
+		(shown) => shown === count,
+		{ what: `${count} Sections in Layers` },
+	);
 const framedAddress = (page: Page) =>
 	page.evaluate(
 		() => document.querySelector<HTMLIFrameElement>("iframe[data-wc-frame]")?.contentWindow?.location.pathname ?? "",
@@ -187,32 +198,33 @@ describe("a Section on a Page, and the places (bugs 2 and 3)", () => {
 	});
 
 	test("the Section inserted shows in Layers with its tree, and the HTML pane reads its source", async () => {
-		// A Section made before (Section1) with a Heading, done; then, with it selected, Section2.
+		// A Section made before with a Heading, done; then, with it selected, a second Section.
 		await page.locator('[data-wc-insert="section"]').click();
 		await page.locator("[data-wc-done]").waitFor();
 		await page.locator('[data-wc-insert="heading"]').click();
 		await (await frameOf(page)).locator("h2").first().waitFor();
 		await page.locator("[data-wc-done]").click();
 		await page.locator("[data-wc-done]").waitFor({ state: "detached" });
-		await row(page, /^Section1/).click();
+		await sections(page).first().click();
 		await page.locator('[data-wc-insert="section"]').click();
 		await page.locator("[data-wc-done]").waitFor();
 
-		await row(page, /^Section2/).waitFor();
+		await sectionsShown(page, 2);
 		await row(page, /Container/).waitFor();
 		// The HTML pane reads the Section's source: the container selected in it, under its breadcrumb.
 		const read = await eventually(
 			() => htmlPane(page),
 			(pane) => pane.status === "ready" && pane.text.includes('data-wc-label="Container"'),
-			{ what: "Section2's markup in the HTML pane" },
+			{ what: "The second Section's markup in the HTML pane" },
 		);
 		expect(read.text).toContain("section");
-		expect(await stale(page)).toEqual({ notRead: false, inside: "Inside the Section2 Component", done: true });
+		// A Page's Section is the Page's own: no "Inside the … Component" over it.
+		expect(await stale(page)).toEqual({ notRead: false, inside: null, done: true });
 		const placed = async () =>
 			(await superadmin.api.pageLayouts.get({ siteId, entryId: contactId })).placements.map(
 				(each) => each.componentName,
 			);
-		expect(await eventually(placed, (names) => names.length === 2)).toEqual(["Section1", "Section2"]);
+		expect(await eventually(placed, (names) => names.length === 2)).toEqual(["Section", "Section"]);
 	});
 
 	test("every place of the rail opens, also while the Section is edited in place, and again after", async () => {
@@ -227,23 +239,23 @@ describe("a Section on a Page, and the places (bugs 2 and 3)", () => {
 		}
 		// Opening a place finished editing in place, as Done does: the Section stays on the page.
 		expect((await stale(page)).done).toBe(false);
-		await row(page, /^Section2/).waitFor();
+		await sectionsShown(page, 2);
 	});
 
 	test("when the Section's Placement leaves the page (Undo), editing it in place ends; Redo brings it back", async () => {
-		// Section3, edited in place, as the owner had it.
-		await row(page, /^Section2/).click();
+		// A third Section, edited in place, as the owner had it.
+		await sections(page).nth(1).click();
 		await page.locator('[data-wc-insert="section"]').click();
 		await page.locator("[data-wc-done]").waitFor();
-		await row(page, /^Section3/).waitFor();
+		await sectionsShown(page, 3);
 
 		// Its Add taken back: nothing is left to edit in place, nothing points at a source the page lacks.
 		await page.locator('[data-wc-bar="undo"]').click();
-		await row(page, /^Section3/).waitFor({ state: "detached" });
+		await sectionsShown(page, 2);
 		const after = await eventually(
 			() => stale(page),
 			(now) => !now.done,
-			{ what: "Editing Section3 in place ending once it left the page" },
+			{ what: "Editing the third Section in place ending once it left the page" },
 		);
 		expect(after).toEqual({ notRead: false, inside: null, done: false });
 		// The places open again.
@@ -254,7 +266,7 @@ describe("a Section on a Page, and the places (bugs 2 and 3)", () => {
 
 		// Redo puts the Placement back, in Layers too.
 		await page.locator('[data-wc-bar="redo"]').click();
-		await row(page, /^Section3/).waitFor();
+		await sectionsShown(page, 3);
 		expect((await stale(page)).notRead).toBe(false);
 	});
 });
