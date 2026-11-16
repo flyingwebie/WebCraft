@@ -360,7 +360,7 @@ describe("Preview on the site", () => {
 		await page.goto(install.siteUrl(slug, `/_webcraft/build/page${post}`));
 		await page.locator("[data-wc-staff]").waitFor();
 		await settled(page);
-		const button = page.locator('[data-wc-bar="preview"]');
+		const button = page.locator('[data-wc-bar="site-preview"]');
 		// The test Site has no domain: the building area is on its Staging address, whose pages show the Drafts.
 		expect(await button.getAttribute("data-wc-preview")).toBe("draft");
 		expect(await button.getAttribute("aria-label")).toBe("Preview the Draft on the site (opens in a new tab)");

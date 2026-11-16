@@ -142,7 +142,7 @@ export function BottomBar({
 						size="bar"
 						href={preview.href}
 						newTab
-						data={{ "data-wc-bar": "preview", "data-wc-preview": preview.draft ? "draft" : "published" }}
+						data={{ "data-wc-bar": "site-preview", "data-wc-preview": preview.draft ? "draft" : "published" }}
 					/>
 				) : null}
 				<DraftStateCell state={draft} words={words} language={language} />
