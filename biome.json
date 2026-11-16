@@ -7,7 +7,7 @@
 	},
 	"files": {
 		"ignoreUnknown": true,
-		"includes": ["**", "!**/*.md", "!**/routeTree.gen.ts", "!packages/db/src/migrations"]
+		"includes": ["**", "!**/*.md", "!**/routeTree.gen.ts", "!packages/db/src/migrations", "!skills-lock.json"]
 	},
 	"formatter": {
 		"enabled": true,
