@@ -209,9 +209,13 @@ describe("a saved Class colour on the page", () => {
 
 	test("shows after a one-off style is saved from the HTML pane", async () => {
 		const page = await shared();
-		await select(page, "p.note");
+		// The box shows the selected element alone (FX-02): the paragraph styled is the one selected.
+		await select(page, 'p:text-is("Plain words")');
 		const html = box(page, "html");
-		const before = await html.inputValue();
+		const before = await eventually(
+			() => html.inputValue(),
+			(text) => text.includes("Plain words"),
+		);
 		// The box prints each element with its id (`<p data-wc-id="…">`): a style is added after the tag.
 		const styled = before.replace(
 			/<p((?: data-wc-id="[^"]*")?)>Plain words/,

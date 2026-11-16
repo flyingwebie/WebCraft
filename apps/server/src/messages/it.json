@@ -10432,7 +10432,9 @@
 				"problems": "Il markup non si può leggere: ogni problema è elencato sotto il riquadro.",
 				"step": "HTML di {name} modificato",
 				"saved": "HTML di {name} salvato.",
-				"placementHelp": "Un Placement di un Component su questa pagina: cambia le sue Props nell'Inspector."
+				"placementHelp": "Un Placement di un Component su questa pagina: cambia le sue Props nell'Inspector.",
+				"breadcrumb": "Dove si trova in {name}",
+				"elementOnly": "Solo l'elemento selezionato"
 			},
 			"css": {
 				"label": "CSS di .{name}",

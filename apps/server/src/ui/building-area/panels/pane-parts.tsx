@@ -151,7 +151,12 @@ export function useFormatSlot(slot: FormatSlot, format: CodeFormat, editable: bo
 }
 
 /** The settings of the code boxes (the panes' menus): wrap long lines; format when the person leaves a box. */
-export type PaneSettings = { wrap: boolean; formatOnLeave: boolean };
+export type PaneSettings = {
+	wrap: boolean;
+	formatOnLeave: boolean;
+	/** The HTML pane shows the selected element alone (FX-02); off, its whole source, the selection's lines marked. */
+	elementOnly: boolean;
+};
 
 const BUTTON = `group text-chrome-muted hover:bg-chrome-hover hover:text-chrome-strong relative inline-grid size-6 shrink-0 place-items-center rounded-[5px] ${CHROME_EASE} ${FOCUS_RING}`;
 

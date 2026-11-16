@@ -347,6 +347,8 @@ const DOCK_ICONS = { left: PanelLeftIcon, right: PanelRightIcon, bottom: PanelBo
  * Between 1024 and 1279 px the side docks open one at a time over the canvas (`fit`). A window
  * narrowed while someone works in a side dock keeps that dock open, as its drawer, focus where it was
  * (BA-34); selecting on the page never opens a drawer that was closed, nor closes one that is open.
+ * The bottom dock stays in the canvas's column, never under a side dock: beside an open drawer it
+ * ends at the drawer's edge (FX-02).
  */
 export function DockArea({
 	docks,
@@ -383,17 +385,34 @@ export function DockArea({
 		docks.window,
 	);
 
-	const dock = (side: DockSide) => {
+	const drawn = (side: DockSide) => {
 		const isOpen = open(side);
-		const inDrawer = drawers && side !== "bottom";
 		if (!isOpen && !inAir) return null;
-		if (inDrawer && drawer !== side && !inAir) return null;
-		const length = isOpen
+		if (drawers && side !== "bottom" && drawer !== side && !inAir) return null;
+		return isOpen
 			? (lengths[side] ?? dockLength(layout, side, docks.window))
 			: side === "bottom"
 				? EMPTY_BOTTOM_DROP
 				: DOCK_LIMITS.side.initial;
-		return <Dock key={side} side={side} length={length} docks={docks} drawer={inDrawer} onHideFocus={onHideFocus} />;
+	};
+	// Over the canvas, a drawer drawn takes its width from the bottom dock's row: the dock ends at its edge.
+	const besideDrawers = drawers ? { start: drawn("left") ?? 0, end: drawn("right") ?? 0 } : { start: 0, end: 0 };
+
+	const dock = (side: DockSide) => {
+		const length = drawn(side);
+		if (length === null) return null;
+		const inDrawer = drawers && side !== "bottom";
+		return (
+			<Dock
+				key={side}
+				side={side}
+				length={length}
+				docks={docks}
+				drawer={inDrawer}
+				inset={side === "bottom" ? besideDrawers : undefined}
+				onHideFocus={onHideFocus}
+			/>
+		);
 	};
 
 	return (
@@ -494,6 +513,7 @@ function Dock({
 	length,
 	docks,
 	drawer,
+	inset,
 	onHideFocus,
 }: {
 	side: DockSide;
@@ -501,6 +521,8 @@ function Dock({
 	docks: Docks;
 	/** Drawn over the canvas (between 1024 and 1279 px). */
 	drawer: boolean;
+	/** The bottom dock beside the drawers drawn over the canvas: their widths at its start and its end. */
+	inset?: { start: number; end: number };
 	onHideFocus(): void;
 }) {
 	const { layout, words, inAir, change } = docks;
@@ -630,7 +652,13 @@ function Dock({
 	const weightOf = (id: string) => weights[expandedPlacements.findIndex((each) => each.id === id)] ?? 1;
 
 	const sizeStyle: CSSProperties = across ? { width: length } : { height: length };
-	const placeStyle: CSSProperties = drawer ? sizeStyle : { ...sizeStyle, gridArea: side };
+	const placeStyle: CSSProperties = drawer
+		? sizeStyle
+		: {
+				...sizeStyle,
+				gridArea: side,
+				...(inset ? { marginInlineStart: inset.start, marginInlineEnd: inset.end } : {}),
+			};
 
 	return (
 		<section
@@ -644,7 +672,7 @@ function Dock({
 				}
 			}}
 			style={placeStyle}
-			className={`bg-chrome flex min-h-0 min-w-0 p-2 ${across ? "flex-col" : "flex-row overflow-hidden"} ${
+			className={`bg-chrome flex min-h-0 min-w-0 ${across ? "flex-col p-2" : `flex-row overflow-hidden ${empty ? "p-2" : ""}`} ${
 				drawer
 					? `absolute inset-y-0 z-30 shadow-[0_12px_32px_rgba(0,0,0,0.55)] ${side === "left" ? "start-0" : "end-0"}`
 					: "relative"
@@ -665,81 +693,186 @@ function Dock({
 					{words.docks.dockTitles[side]}
 				</div>
 			) : (
-				panels.map((shownPanel, index) => {
-					const { placement } = shownPanel;
-					const next = panels[index + 1];
-					const name = panelName(words, placement.id);
-					const style: CSSProperties = placement.collapsed
-						? { flex: "none" }
-						: across
-							? { flex: `${weightOf(placement.id)} 1 0px`, minHeight: PANEL_MIN.side }
-							: { flex: `${weightOf(placement.id)} 1 0px`, minWidth: PANEL_MIN.bottom };
-					return (
-						<Fragment key={placement.id}>
-							<PanelFrame
-								id={placement.id}
-								kind={across ? "side" : "bottom"}
-								title={titleOf(shownPanel, docks)}
-								sub={
-									docks.subs[placement.id as PanelKey] ??
-									(placement.id === "inspector" ? docks.context.selection?.name : undefined)
-								}
-								actions={docks.panelActions[placement.id as PanelKey]}
-								heading={docks.headings[placement.id as PanelKey]}
-								collapsed={Boolean(placement.collapsed)}
-								labels={{
-									menu: fill(words.docks.panelMenu, { panel: name }),
-									expand: fill(words.docks.expandPanel, { panel: name }),
-									grip: words.docks.grip,
-								}}
-								menuEntries={menuFor(shownPanel)}
-								style={style}
-								lifted={inAir?.id === placement.id}
-								onGrip={(event) => docks.lift(placement.id as PanelKey, event)}
-								onExpand={() => {
-									change(setCollapsed(layout, placement.id, false), fill(words.docks.expanded, { panel: name }));
-									docks.focusLater(placement.id);
-								}}
-							>
-								{docks.bodies[placement.id as PanelKey]}
-							</PanelFrame>
-							{next ? (
-								<Separator
-									orientation={across ? "horizontal" : "vertical"}
-									label={fill(words.docks.between, { first: name, second: panelName(words, next.placement.id) })}
-									value={{
-										// The panel before it: its share of the dock's open length, in per cent (none when collapsed).
-										now: placement.collapsed ? 0 : weightOf(placement.id) * 100,
-										min: 0,
-										max: 100,
-									}}
-									onMove={(delta, from) => {
-										if (from === "key" || !base.current) base.current = { layout, length, lengths: measure() };
-										const grow = !across && rtl() ? -delta : delta;
-										change(resizePanels(base.current.layout, side, base.current.lengths, placement.id, grow));
-										if (from === "key") base.current = null;
-									}}
-									onStart={() => {
-										base.current = { layout, length, lengths: measure() };
-									}}
-									onEnd={() => {
-										base.current = null;
-									}}
-									onDoubleClick={() =>
-										change(
-											setCollapsed(layout, placement.id, !placement.collapsed),
-											fill(placement.collapsed ? words.docks.expanded : words.docks.collapsed, { panel: name }),
-										)
+				<PanelRow across={across} panels={panels.length}>
+					{panels.map((shownPanel, index) => {
+						const { placement } = shownPanel;
+						const next = panels[index + 1];
+						const name = panelName(words, placement.id);
+						const style: CSSProperties = placement.collapsed
+							? { flex: "none" }
+							: across
+								? { flex: `${weightOf(placement.id)} 1 0px`, minHeight: PANEL_MIN.side }
+								: {
+										flex: `${weightOf(placement.id)} 1 0px`,
+										// Never narrower than its header's controls (`PanelRow` measures them).
+										minWidth: `max(${PANEL_MIN.bottom}px, var(--wc-header-least, 0px))`,
+									};
+						return (
+							<Fragment key={placement.id}>
+								<PanelFrame
+									id={placement.id}
+									kind={across ? "side" : "bottom"}
+									title={titleOf(shownPanel, docks)}
+									sub={
+										docks.subs[placement.id as PanelKey] ??
+										(placement.id === "inspector" ? docks.context.selection?.name : undefined)
 									}
-									data={{ "data-wc-between": `${placement.id}:${next.placement.id}` }}
-								/>
-							) : null}
-						</Fragment>
-					);
-				})
+									actions={docks.panelActions[placement.id as PanelKey]}
+									heading={docks.headings[placement.id as PanelKey]}
+									collapsed={Boolean(placement.collapsed)}
+									labels={{
+										menu: fill(words.docks.panelMenu, { panel: name }),
+										expand: fill(words.docks.expandPanel, { panel: name }),
+										grip: words.docks.grip,
+									}}
+									menuEntries={menuFor(shownPanel)}
+									style={style}
+									lifted={inAir?.id === placement.id}
+									onGrip={(event) => docks.lift(placement.id as PanelKey, event)}
+									onExpand={() => {
+										change(setCollapsed(layout, placement.id, false), fill(words.docks.expanded, { panel: name }));
+										docks.focusLater(placement.id);
+									}}
+								>
+									{docks.bodies[placement.id as PanelKey]}
+								</PanelFrame>
+								{next ? (
+									<Separator
+										orientation={across ? "horizontal" : "vertical"}
+										label={fill(words.docks.between, { first: name, second: panelName(words, next.placement.id) })}
+										value={{
+											// The panel before it: its share of the dock's open length, in per cent (none when collapsed).
+											now: placement.collapsed ? 0 : weightOf(placement.id) * 100,
+											min: 0,
+											max: 100,
+										}}
+										onMove={(delta, from) => {
+											if (from === "key" || !base.current) base.current = { layout, length, lengths: measure() };
+											const grow = !across && rtl() ? -delta : delta;
+											change(resizePanels(base.current.layout, side, base.current.lengths, placement.id, grow));
+											if (from === "key") base.current = null;
+										}}
+										onStart={() => {
+											base.current = { layout, length, lengths: measure() };
+										}}
+										onEnd={() => {
+											base.current = null;
+										}}
+										onDoubleClick={() =>
+											change(
+												setCollapsed(layout, placement.id, !placement.collapsed),
+												fill(placement.collapsed ? words.docks.expanded : words.docks.collapsed, { panel: name }),
+											)
+										}
+										data={{ "data-wc-between": `${placement.id}:${next.placement.id}` }}
+									/>
+								) : null}
+							</Fragment>
+						);
+					})}
+				</PanelRow>
 			)}
 			{empty ? null : edge}
 		</section>
+	);
+}
+
+/**
+ * How wide a panel's header must be for its controls: what doesn't grow (the grip, the title, the
+ * buttons, the JS pane's tabs) at its width, with the gaps between; what grows (the selection's name,
+ * the CSS pane's Classes) can shrink to nothing.
+ */
+function headerLeast(panel: HTMLElement): number {
+	const header = panel.querySelector<HTMLElement>(":scope > [data-wc-panel-header]");
+	if (!header) return 0;
+	// A menu open from it (drawn fixed) or a tip takes no room in it.
+	const shown = [...header.children].filter(
+		(child) =>
+			child.getBoundingClientRect().width > 0 && !["fixed", "absolute"].includes(getComputedStyle(child).position),
+	);
+	const gap = Number.parseFloat(getComputedStyle(header).columnGap) || 0;
+	return shown.reduce(
+		(sum, child) =>
+			sum + (Number.parseFloat(getComputedStyle(child).flexGrow) > 0 ? 0 : child.getBoundingClientRect().width),
+		gap * Math.max(0, shown.length - 1),
+	);
+}
+
+/**
+ * A dock's panels. A side dock's stack them in the dock itself; the bottom dock's sit in a row that
+ * shares the dock's width and, when they no longer fit at their least width, scrolls sideways, a
+ * fade at each edge with more beyond it (FX-02).
+ */
+function PanelRow({ across, panels, children }: { across: boolean; panels: number; children: ReactNode }) {
+	const row = useRef<HTMLDivElement>(null);
+	const [more, setMore] = useState({ scrolls: false, before: false, after: false });
+	// biome-ignore lint/correctness/useExhaustiveDependencies: a panel more or less is watched again.
+	useLayoutEffect(() => {
+		const element = row.current;
+		if (across || !element) return;
+		const measure = () => {
+			// Each open panel is at least as wide as its header's controls, and the row scrolls only when
+			// they don't fit at that width: a control drawn past its pane is never what makes it scroll.
+			const style = getComputedStyle(element);
+			const needed = [...element.children].reduce((sum, child) => {
+				const box = child as HTMLElement;
+				if (!box.hasAttribute("data-wc-panel") || box.hasAttribute("data-collapsed"))
+					return sum + box.getBoundingClientRect().width;
+				const least = Math.max(PANEL_MIN.bottom, headerLeast(box));
+				box.style.setProperty("--wc-header-least", `${Math.ceil(least)}px`);
+				return sum + least;
+			}, Number.parseFloat(style.paddingInlineStart) + Number.parseFloat(style.paddingInlineEnd));
+			const scrolls = needed > element.clientWidth + 1;
+			if (!scrolls && element.scrollLeft !== 0) element.scrollLeft = 0;
+			const scrolled = Math.abs(element.scrollLeft);
+			const hidden = element.scrollWidth - element.clientWidth;
+			const next = { scrolls, before: scrolls && scrolled > 1, after: scrolls && hidden - scrolled > 1 };
+			setMore((was) =>
+				was.scrolls === next.scrolls && was.before === next.before && was.after === next.after ? was : next,
+			);
+		};
+		measure();
+		const observer = new ResizeObserver(measure);
+		observer.observe(element);
+		for (const child of element.children) observer.observe(child);
+		element.addEventListener("scroll", measure, { passive: true });
+		return () => {
+			observer.disconnect();
+			element.removeEventListener("scroll", measure);
+		};
+	}, [across, panels]);
+	if (across) return <>{children}</>;
+	const fade = "from-chrome pointer-events-none absolute inset-y-0 z-10 w-6 to-transparent";
+	return (
+		<div className="relative flex min-w-0 grow">
+			<div
+				ref={row}
+				className={`flex min-w-0 grow flex-row overflow-y-hidden p-2 ${
+					more.scrolls
+						? "[scrollbar-width:thin] [scrollbar-color:#52525b_transparent] overflow-x-auto"
+						: "overflow-x-hidden"
+				}`}
+				data-wc-dock-row={more.scrolls ? "scrolls" : ""}
+				data-more-before={more.before ? "" : undefined}
+				data-more-after={more.after ? "" : undefined}
+			>
+				{children}
+			</div>
+			{more.before ? (
+				<span
+					aria-hidden="true"
+					className={`${fade} start-0 bg-linear-to-r rtl:bg-linear-to-l`}
+					data-wc-dock-more="before"
+				/>
+			) : null}
+			{more.after ? (
+				<span
+					aria-hidden="true"
+					className={`${fade} end-0 bg-linear-to-l rtl:bg-linear-to-r`}
+					data-wc-dock-more="after"
+				/>
+			) : null}
+		</div>
 	);
 }
 
