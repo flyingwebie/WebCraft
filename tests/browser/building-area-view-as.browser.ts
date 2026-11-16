@@ -430,10 +430,10 @@ describe("Image and Figure", () => {
 		await page.locator('[data-wc-bar="undo"]').click();
 		await frame.locator("article figure").waitFor({ state: "detached" });
 
-		// The row's Image, after the title (a heading holds no picture).
+		// The row's Image, after the title: ⌘ forces after (a heading could hold a picture).
 		await (await frameOf(page)).locator("article h1").click();
 		await selectionIs(page, "article h1");
-		await page.locator('[data-wc-insert="image"]').click();
+		await page.locator('[data-wc-insert="image"]').click({ modifiers: ["ControlOrMeta"] });
 		await pickImage(page);
 		await (await frameOf(page)).locator("article h1 + picture img").waitFor();
 		await selectionIs(page, "article h1 + picture img");
