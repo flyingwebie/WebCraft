@@ -359,14 +359,14 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 		expect(pageErrors(page).slice(errors)).toEqual([]);
 	});
 
-	test("the selection moving on while the HTML pane reads another source: its lines are found in that source's markup", async () => {
+	test("the selection moving on while the HTML pane reads another source: its part is found in that source's markup", async () => {
 		const page = await shared();
 		const errors = pageErrors(page).length;
 		await focusRow(page, "h1");
 		await openRows(page);
 		const box = page.locator('textarea[data-wc-code-box="html"]');
 		await page.waitForFunction(() =>
-			document.querySelector<HTMLTextAreaElement>('textarea[data-wc-code-box="html"]')?.value.includes("<article"),
+			document.querySelector<HTMLTextAreaElement>('textarea[data-wc-code-box="html"]')?.value.startsWith("<h1"),
 		);
 		// The Site template's markup is held on its way while the selection moves on within it.
 		const held = Promise.withResolvers<void>();
@@ -383,15 +383,12 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 		await settled(page);
 		held.resolve();
 		await page.waitForFunction(() =>
-			document.querySelector<HTMLTextAreaElement>('textarea[data-wc-code-box="html"]')?.value.includes("<header"),
+			document.querySelector<HTMLTextAreaElement>('textarea[data-wc-code-box="html"]')?.value.startsWith("{{@loop"),
 		);
 		await page.unroute("**/_webcraft/edit/api/code/editorMarkup");
-		// The empty branch's lines are marked in the Site template's markup.
-		await eventually(
-			() => page.locator("[data-wc-html-pane] [data-wc-marked-line]").count(),
-			(count) => count > 0,
-		);
+		// The empty branch shows its Loop's own markup, cut from the Site template's (FX-02).
 		expect(await box.inputValue()).toContain("{{@empty}}");
+		expect(await box.inputValue()).not.toContain("<header");
 		expect(statuses.length).toBeGreaterThan(0);
 		expect(statuses.filter((status) => status !== 200)).toEqual([]);
 		expect(pageErrors(page).slice(errors)).toEqual([]);

@@ -1,11 +1,13 @@
 import { type Json, sameValue } from "@webcraft/core/draft-document";
-import type { ElementTree } from "@webcraft/renderer/builder";
-import { TriangleAlertIcon } from "lucide-react";
-import { type KeyboardEvent, useEffect, useId, useRef, useState } from "react";
+import type { ElementTree, TreeNode } from "@webcraft/renderer/builder";
+import { ChevronRightIcon, TriangleAlertIcon } from "lucide-react";
+import { type KeyboardEvent, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
+import { format } from "../../code-format/format.ts";
 import { matches } from "../../editor/shortcuts.ts";
+import { nodeAt } from "../../editor/tree.ts";
 import { fill, type Words } from "../api.ts";
-import { FOCUS_RING } from "../controls.tsx";
+import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
 import { keyOf, type StructureSelection, type StructureSource } from "../editing/selection.ts";
 import { managementApi } from "../management.ts";
 import { NoteLine } from "../places/styles/CodeBox.tsx";
@@ -53,6 +55,12 @@ import {
  * - **Another document** (BA-34): markup typed and not saved (it couldn't be read, say), or a conflict
  *   waiting for its choice, is kept by its source's Template or Component when the frame shows another
  *   page, and shown again (previewed, the conflict asked again) once a page shows that source again.
+ * - **The selected element only** (FX-02): with an element (a Placement, a Loop, a Condition) of the
+ *   source selected, the box holds that element's own markup, formatted, cut from the source's markup
+ *   by the parser's locations (`code/editorRead`), with a breadcrumb of its ancestors above it. Every
+ *   preview and save puts what was typed back in its place in the source's markup and goes on as for
+ *   the whole source (the same checks and refusals, one Undo step); problems are said at their line in
+ *   the box. With the source itself selected the box holds the whole source, as before.
  */
 
 /** A source's name as the panes say it: the Component's, or the Template's kind (and Post Type). */
@@ -87,6 +95,12 @@ function propsBlock(markup: string): string {
 	return match?.[0].trim() ?? "";
 }
 
+/** One step of the breadcrumb: an ancestor of the selection in its source (or the selection), and its name. */
+export type Crumb = { ref: string; name: string };
+
+/** Where the element shown is in its source's markup (offsets, the end not included). */
+type Range = { start: number; end: number };
+
 /** The HTML pane's state. */
 export type HtmlState = {
 	/** What the pane shows: nothing selected yet, the source's markup, a Page's Placement, or why not. */
@@ -98,9 +112,15 @@ export type HtmlState = {
 	name: string;
 	editable: boolean;
 	readOnlyReason: string | null;
-	/** The text in the box, and the markup it started from (the Draft's, printed). */
+	/** The text in the box, and the markup it started from (the Draft's, printed; the element's part of it). */
 	text: string;
 	base: string;
+	/** The source's markup as printed: `base` is its part at `range` while one element is shown. */
+	whole: string;
+	/** Where the element shown is in `whole`; null while the box holds the whole source. */
+	range: Range | null;
+	/** The selection's ancestors in its source, from its root down to the selection (none for the whole source). */
+	crumbs: Crumb[];
 	/** The source's tree the markup was printed from: a save over a changed one asks first. */
 	baseTree: ElementTree | null;
 	/** Typed and not saved yet. */
@@ -125,6 +145,10 @@ export type HtmlPane = {
 	choose(choice: "reload" | "overwrite" | "cancel"): void;
 	/** What typing `{{`, `{{@` or `<` offers in the source shown now (BA-33), read once per source. */
 	suggestions(): Promise<MarkupSuggestions | null>;
+	/** Selects an element of the breadcrumb: on the canvas, in Layers and in the pane. */
+	select(ref: string): void;
+	/** "Only the selected element" switched: the selection shown again, the other way (what was typed saved first). */
+	reshow(): void;
 	announce(text: string): void;
 	destroy(): void;
 };
@@ -138,6 +162,9 @@ const IDLE: HtmlState = {
 	readOnlyReason: null,
 	text: "",
 	base: "",
+	whole: "",
+	range: null,
+	crumbs: [],
 	baseTree: null,
 	dirty: false,
 	previewing: false,
@@ -154,17 +181,101 @@ const PREVIEW_AFTER_MS = 350;
 /** A save's place among the person's steps, kept from the moment the save starts. */
 type HistoryPlace = ReturnType<CodePanesDeps["history"]["reserve"]>;
 
+type Location = { key: string; start: number; end: number };
+
 type ReadAnswer = {
 	tree: ElementTree;
 	styles: Record<string, string>;
-	locations: { key: string; start: number; end: number }[];
+	locations: Location[];
 };
 
-export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests): HtmlPane {
+/** The source's markup with what the box holds in its place: the whole of it, or the element's part. */
+function markupOf(state: Pick<HtmlState, "text" | "whole" | "range">): string {
+	const { range } = state;
+	return range ? `${state.whole.slice(0, range.start)}${state.text}${state.whole.slice(range.end)}` : state.text;
+}
+
+/** The source's markup the box started from. */
+function baseMarkupOf(state: Pick<HtmlState, "base" | "whole" | "range">): string {
+	return state.range ? state.whole : state.base;
+}
+
+/**
+ * The problems of the source's markup (with the box's text in its place) where they are in the box:
+ * a line of the source becomes the box's, the element's first line keeping its column from the box.
+ */
+export function problemsInBox(
+	problems: MarkupProblem[],
+	state: Pick<HtmlState, "text" | "whole" | "range">,
+): MarkupProblem[] {
+	const { range } = state;
+	if (!range) return problems;
+	const firstLine = lineAt(state.whole, range.start);
+	const lineStart = state.whole.lastIndexOf("\n", range.start - 1) + 1;
+	const indent = range.start - lineStart;
+	const lines = state.text.split("\n").length;
+	return problems.map((problem) => {
+		const line = problem.line - firstLine + 1;
+		if (line < 1) return { ...problem, line: 1, column: 1 };
+		if (line > lines) return { ...problem, line: lines, column: 1 };
+		return { ...problem, line, column: line === 1 ? Math.max(1, problem.column - indent) : problem.column };
+	});
+}
+
+/** A node's name in the breadcrumb: its tag with its Layer label (`div.Container`), a Component's name, a command. */
+function crumbName(node: TreeNode, source: StructureSource): string {
+	switch (node.type) {
+		case "element":
+			return node.label ? `${node.tag}.${node.label}` : node.tag;
+		case "component":
+			return source.catalogue.components.find((component) => component.id === node.component)?.name ?? node.component;
+		case "loop":
+			return `Loop ${node.source}`;
+		case "condition":
+			return "{{@if}}";
+		default:
+			return `{{@${node.type}}}`;
+	}
+}
+
+/** The selection's ancestors in its source, from the source's root down to the selection itself. */
+export function crumbsOf(source: StructureSource, selection: StructureSelection): Crumb[] {
+	const path = selection.path;
+	if (!path || !keyOf(selection.ref)) return [];
+	const crumbs: Crumb[] = [];
+	// A path goes index, list, index…: each node on the way ends at an odd length.
+	for (let depth = 1; depth <= path.length; depth += 2) {
+		const at = path.slice(0, depth);
+		const node = nodeAt(source.tree, at);
+		if (!node) return [];
+		const key = "id" in node ? node.id : `@${at.join(".")}`;
+		crumbs.push({ ref: `${source.ref}#${key}`, name: crumbName(node, source) });
+	}
+	return crumbs;
+}
+
+/** The element's markup, formatted on its own: as cut from the source when it can't be formatted. */
+async function tidied(markup: string): Promise<string> {
+	try {
+		const result = await format(markup, "html");
+		return result.ok ? result.text.replace(/\n+$/, "") : markup;
+	} catch {
+		return markup;
+	}
+}
+
+export function createHtmlPane(
+	deps: () => CodePanesDeps,
+	request: CodeRequests,
+	/** "Only the selected element" (FX-02): on, the box holds the selected element's part of its source. */
+	elementOnly: () => boolean = () => true,
+): HtmlPane {
 	const store = paneStore<HtmlState>(IDLE);
 	const words = () => deps().words;
 	let previewTimer: number | undefined;
 	let run = 0;
+	/** The `run` of the source's markup on its way (`show`), or 0. */
+	let showing = 0;
 	let previewRun = 0;
 	let saving: Promise<void> | null = null;
 	let saveSerial = 0;
@@ -192,7 +303,8 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 		run++;
 		shownTree = source.tree;
 		shownTarget = target;
-		store.set({ ...was, ref: selection.ref, source: source.ref });
+		// An element typed in stays the one shown (its ancestors too) until what was typed is saved.
+		store.set({ ...was, ref: was.range ? was.ref : selection.ref, source: source.ref });
 		window.clearTimeout(previewTimer);
 		previewTimer = window.setTimeout(() => void preview(), PREVIEW_AFTER_MS);
 		return true;
@@ -200,15 +312,30 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 
 	const nameOf = (source: StructureSource): string => sourceName(words(), source);
 
-	/** Where the selection is in the text: its lines, from the parser's locations. */
-	const locate = async (text: string, source: string, selection: StructureSelection | null) => {
+	/** The parser's locations in a source's markup, kept for the last markup read (selecting within it reads none). */
+	let located: { source: string; markup: string; locations: Promise<Location[] | null> } | null = null;
+	const locationsIn = (markup: string, source: string): Promise<Location[] | null> => {
 		const path = deps().path();
-		if (!path || !selection) return;
+		if (!path) return Promise.resolve(null);
+		if (located?.source === source && located.markup === markup) return located.locations;
+		const locations = request<ReadAnswer>("code/editorRead", { path, ref: source, markup }).then((answer) =>
+			answer.ok ? answer.data.locations : null,
+		);
+		located = { source, markup, locations };
+		void locations.then((got) => {
+			if (!got && located?.locations === locations) located = null;
+		});
+		return locations;
+	};
+
+	/** Where the selection is in the whole source's text: its lines, from the parser's locations. */
+	const locate = async (text: string, source: string, selection: StructureSelection | null) => {
+		if (!selection || store.get().range) return;
 		const key = keyOf(selection.ref);
-		const answer = await request<ReadAnswer>("code/editorRead", { path, ref: source, markup: text });
+		const locations = await locationsIn(text, source);
 		const now = store.get();
-		if (!answer.ok || now.text !== text || now.source !== source) return;
-		const found = key ? answer.data.locations.find((each) => each.key === key) : null;
+		if (!locations || now.text !== text || now.source !== source || now.range) return;
+		const found = key ? locations.find((each) => each.key === key) : null;
 		store.set({
 			marked: found
 				? { from: lineAt(text, found.start), to: lineAt(text, Math.max(found.start, found.end - 1)) }
@@ -216,11 +343,69 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 		});
 	};
 
+	/**
+	 * The selected element's own markup in the source's (formatted) and where it is there; null for the
+	 * source itself, or an element the markup doesn't show where it is: the box holds the whole source.
+	 */
+	const elementView = async (
+		markup: string,
+		source: string,
+		selection: StructureSelection,
+	): Promise<{ text: string; range: Range } | null> => {
+		// A branch of a Condition or a Loop shows its Condition or Loop.
+		const key = keyOf(selection.ref).replace(/\/\d+$/, "");
+		if (!key || !elementOnly()) return null;
+		const locations = await locationsIn(markup, source);
+		const found = locations?.find((each) => each.key === key);
+		if (!found || found.end <= found.start) return null;
+		return { text: await tidied(markup.slice(found.start, found.end)), range: { start: found.start, end: found.end } };
+	};
+
+	/** What the box shows of a source's markup for the selection: the element's part, or all of it. */
+	const viewOf = async (markup: string, source: StructureSource, selection: StructureSelection) => {
+		const view = await elementView(markup, source.ref, selection);
+		return {
+			text: view?.text ?? markup,
+			base: view?.text ?? markup,
+			whole: markup,
+			range: view?.range ?? null,
+			crumbs: crumbsOf(source, selection),
+		};
+	};
+
+	/** The selection moved within the source shown (nothing typed): its part of the same markup. */
+	const refocus = async (selection: StructureSelection, source: StructureSource) => {
+		// A source's markup on its way (`show`) is cut for the selection as it is once it comes.
+		if (showing) return;
+		const asked = ++run;
+		const { whole } = store.get();
+		const view = await viewOf(whole, source, selection);
+		const now = store.get();
+		if (asked !== run || now.dirty || now.whole !== whole || now.source !== source.ref) return;
+		store.set({ ...view, marked: null, problems: [], failure: null });
+		if (!view.range) void locate(whole, source.ref, selection);
+	};
+
 	/** Shows the source's markup as its Draft holds it now (what was typed is dropped). */
 	const show = async (selection: StructureSelection, source: StructureSource) => {
 		const path = deps().path();
 		if (!path) return;
 		const asked = ++run;
+		showing = asked;
+		try {
+			await print(selection, source, path, asked);
+		} finally {
+			if (showing === asked) showing = 0;
+		}
+		// Moved again within the source while its part was cut: the part of the selection now.
+		const state = store.get();
+		const latest = deps().structure.snapshot().selection;
+		if (asked === run && state.status === "ready" && !state.dirty && latest?.source === selection.source) {
+			if (latest.ref !== state.ref) void refocus(latest, source);
+		}
+	};
+	/** `show`'s work: the markup printed, then the selection's part of it. */
+	const print = async (selection: StructureSelection, source: StructureSource, path: string, asked: number) => {
 		shownTree = source.tree;
 		shownTarget = targetOf(source);
 		const typedBefore = store.get().text;
@@ -251,10 +436,18 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 			return;
 		}
 		const markup = answer.data.markup;
+		// The selection may have moved within the source while its markup came.
+		const latest = deps().structure.snapshot().selection;
+		const selected = latest?.source === selection.source ? latest : selection;
+		const view = await viewOf(markup, source, selected);
+		if (asked !== run) return;
+		const typed = store.get();
+		if (typed.dirty && typed.text !== typedBefore && typed.source === source.ref) return;
 		store.set({
 			status: "ready",
-			text: markup,
-			base: markup,
+			ref: selected.ref,
+			...view,
+			marked: null,
 			baseTree: source.tree,
 			dirty: false,
 			problems: [],
@@ -264,8 +457,7 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 			store.set({ previewing: false });
 			void deps().frame.current?.rerender();
 		}
-		// The selection may have moved within the source while its markup came.
-		void locate(markup, source.ref, deps().structure.snapshot().selection ?? selection);
+		if (!view.range) void locate(markup, source.ref, selected);
 	};
 
 	/** A Placement of a Page's Page layout: its Component tag, read only. */
@@ -330,19 +522,30 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 			return;
 		}
 		const sameSource = state.source === source.ref && state.status !== "placement";
+		// What was typed is saved before the box shows another source, or another element (or the whole
+		// source) of this one; once only: markup that can't be read stays in the box, its problems listed.
+		const saveThenFollow = () =>
+			void save().then(() => {
+				if (!store.get().dirty) follow();
+			});
 		if (!sameSource) {
 			if (state.dirty) {
-				void save().then(() => follow());
+				saveThenFollow();
 				return;
 			}
 			if (!restore(selection, source)) void show(selection, source);
 			return;
 		}
 		if (selection.ref !== state.ref) {
-			store.set({ ref: selection.ref });
+			// The box holds one element, or is about to: what was typed is saved before it shows another.
+			if (state.dirty && (state.range || (elementOnly() && keyOf(selection.ref)))) {
+				if (!state.saving) saveThenFollow();
+				return;
+			}
+			store.set({ ref: selection.ref, crumbs: crumbsOf(source, selection) });
 			// While the source's markup is on its way the text is still the previous source's: its own
-			// lines are found once it comes (`show`).
-			if (!state.dirty && state.status === "ready") void locate(state.text, source.ref, selection);
+			// part is found once it comes (`show`).
+			if (!state.dirty && state.status === "ready") void refocus(selection, source);
 		}
 		// The source changed (the Inspector, Layers, Undo, someone else): shown again unless typed over.
 		if (source.tree !== shownTree && !sameValue(source.tree as unknown as Json, shownTree as unknown as Json)) {
@@ -366,11 +569,11 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 		}
 		const answer = await request<{ html: string; stylesheet: { css: string } }>("code/preview", {
 			path,
-			markup: { ref: state.source, text: state.text },
+			markup: { ref: state.source, text: markupOf(state) },
 		});
 		if (asked !== previewRun || store.get().text !== state.text) return;
 		if (!answer.ok) {
-			const problems = problemsOf(answer);
+			const problems = problemsInBox(problemsOf(answer), state);
 			store.set({
 				problems,
 				failure: problems.length ? null : fill(words().code.notPreviewed, { reason: answer.code }),
@@ -394,11 +597,12 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 		const answer = await request<{
 			markup: string;
 			history: { resource: string; before: Json; after: Json }[];
-		}>("code/save", { path, ref: state.source, markup: state.text, version: opened.data.version });
+		}>("code/save", { path, ref: state.source, markup: markupOf(state), version: opened.data.version });
 		if (!answer.ok) {
+			const problems = problemsInBox(problemsOf(answer), state);
 			store.set({
-				problems: problemsOf(answer),
-				failure: problemsOf(answer).length ? null : fill(words().code.notSaved, { reason: answer.code }),
+				problems,
+				failure: problems.length ? null : fill(words().code.notSaved, { reason: answer.code }),
 			});
 			return false;
 		}
@@ -435,15 +639,14 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 			store.set({ saving: true });
 			window.clearTimeout(previewTimer);
 			const path = deps().path();
-			const read = path
-				? await request<ReadAnswer>("code/editorRead", { path, ref: sourceRef, markup: state.text })
-				: null;
+			const markup = markupOf(state);
+			const read = path ? await request<ReadAnswer>("code/editorRead", { path, ref: sourceRef, markup }) : null;
 			if (!read) return;
 			// The frame shows another page now: the source is no longer this one's, so nothing is saved
 			// (what was typed is kept for when a page shows it again).
 			if (deps().path() !== path) return;
 			if (!read.ok) {
-				const problems = problemsOf(read);
+				const problems = problemsInBox(problemsOf(read), state);
 				store.set({
 					problems,
 					failure: problems.length ? null : fill(words().code.notSaved, { reason: read.code }),
@@ -457,7 +660,7 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 			const label = fill(words().code.html.step, { name: state.name });
 			const whole =
 				Object.keys(read.data.styles).length > 0 ||
-				(source.kind === "component" && propsBlock(state.text) !== propsBlock(state.base));
+				(source.kind === "component" && propsBlock(markup) !== propsBlock(baseMarkupOf(state)));
 			let ok: boolean;
 			if (whole) ok = await saveWhole(state, overwrite, place);
 			else {
@@ -474,6 +677,8 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 			const typedSince = store.get().text !== state.text;
 			store.set({
 				base: state.text,
+				whole: markup,
+				range: state.range ? { start: state.range.start, end: state.range.start + state.text.length } : null,
 				baseTree: after?.tree ?? null,
 				dirty: typedSince,
 				previewing: false,
@@ -537,6 +742,23 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 			}
 			return read;
 		},
+		select(ref) {
+			deps().structure.select(ref);
+		},
+		reshow() {
+			const state = store.get();
+			const snapshot = deps().structure.snapshot();
+			const selection = snapshot.selection;
+			const source = selection ? snapshot.sources.get(selection.source) : undefined;
+			if (!selection || !source || state.source !== source.ref || state.status !== "ready") return;
+			if (state.dirty) {
+				void save().then(() => {
+					if (!store.get().dirty) void refocus(selection, source);
+				});
+				return;
+			}
+			void refocus(selection, source);
+		},
 		announce: (text) => deps().announce(text),
 		destroy() {
 			window.clearTimeout(previewTimer);
@@ -577,6 +799,13 @@ export function HtmlBody({ pane, words, settings }: { pane: HtmlPane; words: Wor
 
 	return (
 		<div className="relative flex min-h-0 grow flex-col gap-1" data-wc-html-pane={state.status}>
+			{state.status === "ready" && state.crumbs.length > 0 ? (
+				<Breadcrumb
+					crumbs={state.crumbs}
+					label={fill(shown.breadcrumb, { name: state.name })}
+					onSelect={(ref) => pane.select(ref)}
+				/>
+			) : null}
 			{state.status === "loading" || state.status === "idle" ? (
 				<p className="text-chrome-muted m-0 p-3 text-[12px]" role="status">
 					{shown.loading}
@@ -651,6 +880,83 @@ export function HtmlBody({ pane, words, settings }: { pane: HtmlPane; words: Wor
 				/>
 			) : null}
 		</div>
+	);
+}
+
+/**
+ * The breadcrumb over the box (FX-02): the selection's ancestors in its source, from its root down to
+ * it, each a button that selects it (on the canvas, in Layers and in the pane), the last one the
+ * selection (`aria-current`). Too long for the pane, it is cut from its start: it shows its end, a
+ * fade says there is more, and it scrolls to the step that takes focus.
+ */
+function Breadcrumb({
+	crumbs,
+	label,
+	onSelect,
+}: {
+	crumbs: readonly Crumb[];
+	label: string;
+	onSelect(ref: string): void;
+}) {
+	const list = useRef<HTMLOListElement>(null);
+	const [cut, setCut] = useState(false);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: new steps show the end again.
+	useLayoutEffect(() => {
+		const element = list.current;
+		if (!element) return;
+		const rtl = getComputedStyle(element).direction === "rtl";
+		const measure = () => setCut(Math.abs(element.scrollLeft) > 1);
+		const toEnd = () => {
+			element.scrollLeft = rtl ? -element.scrollWidth : element.scrollWidth;
+			measure();
+		};
+		toEnd();
+		const observer = new ResizeObserver(toEnd);
+		observer.observe(element);
+		element.addEventListener("scroll", measure);
+		return () => {
+			observer.disconnect();
+			element.removeEventListener("scroll", measure);
+		};
+	}, [crumbs]);
+	return (
+		<nav aria-label={label} className="relative flex min-w-0 shrink-0" data-wc-html-crumbs="">
+			{cut ? (
+				<span
+					aria-hidden="true"
+					className="from-chrome-well text-chrome-faint pointer-events-none absolute inset-y-0 start-0 z-10 flex w-8 items-center bg-linear-to-r to-transparent ps-1.5 text-[11px] rtl:bg-linear-to-l"
+					data-wc-crumbs-cut=""
+				>
+					…
+				</span>
+			) : null}
+			<ol
+				ref={list}
+				className="m-0 flex min-w-0 grow [scrollbar-width:none] list-none items-center gap-0.5 overflow-x-auto px-1.5 pt-1.5 pb-0.5 [&::-webkit-scrollbar]:hidden"
+			>
+				{crumbs.map((crumb, index) => {
+					const last = index === crumbs.length - 1;
+					return (
+						<li key={crumb.ref} className="flex shrink-0 items-center gap-0.5">
+							{index > 0 ? (
+								<ChevronRightIcon aria-hidden="true" className="text-chrome-faint size-3 flex-none rtl:rotate-180" />
+							) : null}
+							<button
+								type="button"
+								aria-current={last ? "location" : undefined}
+								onClick={() => onSelect(crumb.ref)}
+								className={`h-5 rounded-[4px] px-1 font-mono text-[11px] whitespace-nowrap ${
+									last ? "text-chrome-strong" : "text-chrome-muted hover:bg-chrome-hover hover:text-chrome-strong"
+								} ${CHROME_EASE} ${FOCUS_RING}`}
+								data-wc-crumb={crumb.ref}
+							>
+								{crumb.name}
+							</button>
+						</li>
+					);
+				})}
+			</ol>
+		</nav>
 	);
 }
 
