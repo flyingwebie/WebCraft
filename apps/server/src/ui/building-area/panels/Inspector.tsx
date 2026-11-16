@@ -44,6 +44,7 @@ export function Inspector({
 	layout,
 	onOpenComponent,
 	onOpenLoop,
+	onMakeReusable,
 }: {
 	structure: Structure;
 	words: Words;
@@ -55,6 +56,8 @@ export function Inspector({
 	onOpenComponent(componentId: string, source: string): void;
 	/** "Open in Loops": the Loops place on a Loop (its id). */
 	onOpenLoop(loopId: string): void;
+	/** Make reusable Component, for a Page's Section or something in it (ADR 0038); absent for Members. */
+	onMakeReusable?: () => void;
 }) {
 	const snapshot = useSyncExternalStore(structure.subscribe, structure.snapshot);
 	const said = words.structure.inspector;
@@ -74,6 +77,48 @@ export function Inspector({
 		selection.kind === "placement" && !selection.key
 			? snapshot.layout?.find((each) => `content/${each.id}` === selection.ref)
 			: undefined;
+	// A Page's Section (its Placement, or an element in it): no Component of its own, until made reusable.
+	const sectionId = /^content\/([^/#]+)/.exec(selection.ref)?.[1];
+	const section = sectionId
+		? snapshot.layout?.find((each) => each.id === sectionId && each.pageSection) !== undefined
+		: false;
+	const reusable =
+		section && onMakeReusable ? (
+			<button
+				type="button"
+				onClick={onMakeReusable}
+				className={`border-chrome-line text-chrome-text hover:bg-chrome-hover flex h-8 shrink-0 items-center justify-center gap-1.5 rounded-md border text-[12px] font-medium ${CHROME_EASE} ${FOCUS_RING}`}
+				data-wc-make-reusable=""
+			>
+				<ComponentIcon aria-hidden="true" className="size-3.5 text-[#a78bfa]" />
+				{words.componentDialog.reusableTitle}
+			</button>
+		) : null;
+	if (placement && reusable) {
+		return (
+			<div className="flex min-h-0 grow flex-col gap-2" data-wc-section-inspector="">
+				<PropsPanel
+					key={selection.ref}
+					structure={structure}
+					words={words}
+					token={token}
+					siteId={siteId}
+					layout={layout}
+					placement={{
+						placement,
+						all: snapshot.layout ?? [],
+						canArrange: snapshot.layoutInfo?.canArrange ?? false,
+					}}
+					source={null}
+					path={null}
+					node={null}
+					component={snapshot.sources.get(selection.ref) ?? null}
+					values={[]}
+				/>
+				{reusable}
+			</div>
+		);
+	}
 	if (placement) {
 		return (
 			<PropsPanel
@@ -147,7 +192,8 @@ export function Inspector({
 	if (node.type !== "element") {
 		return <Note>{nodeTitle(node, source)}</Note>;
 	}
-	const inside = selection.source.includes("/") && source.kind === "component" ? source : null;
+	// "Inside the … Component" names a Component edited in place; a Page's Section is the Page's own.
+	const inside = selection.source.includes("/") && source.kind === "component" && !source.pageSection ? source : null;
 	const element = (
 		<ElementInspector
 			key={selection.ref}
@@ -162,7 +208,15 @@ export function Inspector({
 			onOpenComponent={onOpenComponent}
 		/>
 	);
-	if (!around) return element;
+	if (!around)
+		return reusable ? (
+			<div className="flex min-h-0 grow flex-col gap-2">
+				{element}
+				{reusable}
+			</div>
+		) : (
+			element
+		);
 	// An element a Loop repeats (`builder/07`): its Loop's settings, then its own.
 	return (
 		<div className="flex min-h-0 grow flex-col gap-2 overflow-auto" data-wc-in-loop="">

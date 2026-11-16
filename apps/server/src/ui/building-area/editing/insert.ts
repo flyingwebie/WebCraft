@@ -39,9 +39,9 @@ function sourceOf(ref: string): string {
  *   (Ctrl elsewhere) forces "after".
  * - **Section** is always top level: after the top-level element the selection is in, arriving with its
  *   inner container selected.
- * - **On a Page** (D2) a Page holds placed Components only: Section makes a new Component ("Section1",
- *   "Section2", …), places it after the selected Placement (or at the end), and edits it in place with
- *   its container selected; a Component is placed the same way. With nothing selected on a Page the
+ * - **On a Page** (D2) a Page holds placed Components only: Section makes a new Page section (a
+ *   Component the Page owns, listed nowhere, ADR 0038), places it after the selected Placement (or at
+ *   the end), and edits it in place with its container selected; a Component is placed the same way. With nothing selected on a Page the
  *   insert targets the Page, never the Site template around it (audit finding 7).
  * - Every insert into a Template's or Component's tree is one Undo step through its shared Draft
  *   (`structure.change`); a Placement on a Page is one step through the Page's (`PageLayoutEditor.place`).
@@ -429,14 +429,6 @@ export function kindName(kind: InsertKind, words: Words): string {
 	return words.insert.items[kind].name;
 }
 
-/** A Component name for a new section: "Section1", or the next one the Site hasn't taken. */
-export function nextSectionName(taken: Iterable<string>): string {
-	const names = new Set(taken);
-	let count = 1;
-	while (names.has(`Section${count}`)) count++;
-	return `Section${count}`;
-}
-
 /** What the inserter needs of the shell. */
 export type InserterHost = {
 	token: string;
@@ -557,12 +549,13 @@ export function inserter(host: InserterHost): Inserter {
 
 	const newSection = async (at: number): Promise<string | null> => {
 		const api = managementApi(host.token);
-		let name = "Section1";
+		// A Page's Section (ADR 0038): a Component the Page owns, listed nowhere, called "Section".
+		const name = words.placements.section;
+		const pageId = structure.snapshot().layoutInfo?.entryId;
+		if (!pageId) return refuse(said.refusals.connecting);
 		try {
-			const listed = await api.components.list({ siteId: host.siteId });
-			name = nextSectionName(listed.components.map((each) => each.name));
 			host.announce(fill(said.section.making, { name }));
-			const { component } = await api.components.create({ siteId: host.siteId, name });
+			const { component } = await api.components.create({ siteId: host.siteId, pageId });
 			const empty: ElementTree = { version: 1, nodes: [] };
 			const section = element(empty, "section", [container(empty, sourceCatalogue(structure.snapshot()), words)]);
 			const inner = section.children[0] as ElementNode;

@@ -710,6 +710,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 										token={config.token}
 										siteId={config.site.id}
 										layout={layoutEditor}
+										onMakeReusable={makeReusable}
 										onOpenComponent={(componentId, source) => {
 											// Placed on this page: edited in place; else opened as the document.
 											const snapshot = pageStructure.snapshot();

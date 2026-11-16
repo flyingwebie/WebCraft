@@ -10607,8 +10607,8 @@
 				"section": {
 					"name": "Sezione",
 					"hint": "Una nuova sezione di primo livello, dopo questa",
-					"page": "Un nuovo Component di primo livello, dopo questo",
-					"tip": "Sezione: crea qui un nuovo Component"
+					"page": "Una nuova sezione di questa pagina, dopo questa",
+					"tip": "Sezione: crea qui una nuova sezione della pagina"
 				},
 				"container": {
 					"name": "Contenitore",
@@ -10749,8 +10749,8 @@
 				"connecting": "Sto ancora aprendo gli elementi della pagina. Riprova tra un momento."
 			},
 			"section": {
-				"making": "Creo {name}…",
-				"made": "{name} è sulla pagina. Il suo contenitore è selezionato: Titolo, Testo e Div vanno dentro.",
+				"making": "Creo una sezione…",
+				"made": "Sezione inserita nella pagina. Il suo contenitore è selezionato: Titolo, Testo e Div vanno dentro.",
 				"failed": "Non è stato possibile creare la sezione: {reason}"
 			},
 			"media": {

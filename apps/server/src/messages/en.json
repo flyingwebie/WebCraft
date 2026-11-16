@@ -10607,8 +10607,8 @@
 				"section": {
 					"name": "Section",
 					"hint": "A new top-level section, placed after this one",
-					"page": "A new top-level Component, placed after this one",
-					"tip": "Section: starts a new Component here"
+					"page": "A new section of this Page, placed after this one",
+					"tip": "Section: starts a new section of this Page"
 				},
 				"container": {
 					"name": "Container",
@@ -10749,8 +10749,8 @@
 				"connecting": "Still opening the page's elements. Try again in a moment."
 			},
 			"section": {
-				"making": "Making {name}…",
-				"made": "{name} placed on the page. Its container is selected: Heading, Text and Div go inside it.",
+				"making": "Making a section…",
+				"made": "Section placed on the page. Its container is selected: Heading, Text and Div go inside it.",
 				"failed": "Couldn't make the section: {reason}"
 			},
 			"media": {
