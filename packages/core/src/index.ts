@@ -83,6 +83,7 @@ export {
 	type OpenedSource,
 	type SavedMarkup,
 	type Suggestions,
+	standInCodeSource,
 } from "./code-mode/index.ts";
 export {
 	adminOriginFor,

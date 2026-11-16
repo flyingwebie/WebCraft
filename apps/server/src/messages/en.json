@@ -10537,7 +10537,7 @@
 				"editing": "{name} · Editing",
 				"started": "Editing {name} in place. The rest of the page is locked until Done.",
 				"ended": "Done editing {name}. Its changes are in its Draft.",
-				"placesLocked": "Other places are locked while you edit a Component in place: press Done first.",
+				"gone": "{name} is no longer on the page: editing it in place has ended.",
 				"done": "Done",
 				"types": {
 					"text": "Text",

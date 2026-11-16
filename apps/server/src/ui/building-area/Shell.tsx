@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { useEditorFit } from "../editor/editor-fit.ts";
 import { editorHistory } from "../editor/editor-history.ts";
 import { childLists, newElement, withNewIds } from "../editor/tree.ts";
-import { BUILDING_STAND_IN_PREFIX } from "./agent/contract.ts";
 import { type EditAnswer, editRequests, fill, type PageState, type ShellConfig } from "./api.ts";
 import { BottomBar } from "./bottom-bar/BottomBar.tsx";
 import { DocumentNav } from "./bottom-bar/DocumentNav.tsx";
@@ -144,6 +143,30 @@ function outletHolder(tree: ElementTree | undefined): string | null {
 		return null;
 	};
 	return tree ? visit(tree.nodes, null) : null;
+}
+
+/** Whether a tree holds the Placement `id` anywhere. */
+function holdsPlacement(nodes: readonly TreeNode[], id: string): boolean {
+	return nodes.some(
+		(node) =>
+			(node.type === "component" && node.id === id) || childLists(node).some((list) => holdsPlacement(list, id)),
+	);
+}
+
+/**
+ * Whether the Placement a Component is edited in place through has left the page's Structure (its Add
+ * taken back with Undo, a peer's change, Delete): a Page's by its Page layout as last read, one in a
+ * Template or Component by that source's tree. False while what would say so isn't read.
+ */
+function placementGone(snapshot: StructureSnapshot, source: string): boolean {
+	const at = source.lastIndexOf("/");
+	if (at < 0) return false;
+	const parent = source.slice(0, at);
+	const id = source.slice(at + 1);
+	if (parent === "content" && snapshot.sources.get("site")?.pageLayout)
+		return snapshot.layout !== null && !snapshot.layout.some((each) => each.id === id);
+	const tree = snapshot.sources.get(parent)?.tree;
+	return tree !== undefined && !holdsPlacement(tree.nodes, id);
 }
 
 /** What Done selects for a Component's source on the page: a Page's Placement, or the Placement node in its Template. */
@@ -291,6 +314,24 @@ export function Shell({ config }: { config: ShellConfig }) {
 		},
 		[inPlace, pageStructure, announce, words],
 	);
+	// The Placement edited in place left the page (Undo of the Section just made, a peer's change): editing
+	// it in place ends, or the shell kept a Component no Layers row, pane or place could reach any more.
+	const followPlacement = useCallback(
+		(page: Document | null | undefined) => {
+			const target = inPlace.current();
+			if (!target || !page || rootsOf(page, target.source).length > 0) return;
+			if (!placementGone(pageStructure.snapshot(), target.source)) return;
+			inPlace.done();
+			pageStructure.editInPlace(null);
+			pageStructure.select(null);
+			announce(fill(words.placements.component.gone, { name: target.name }));
+		},
+		[inPlace, pageStructure, announce, words],
+	);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: checked again whenever the layout or a source is read.
+	useEffect(() => {
+		followPlacement(frame.current?.page());
+	}, [structureNow.layout, structureNow.sources, followPlacement]);
 	const doneInPlace = useCallback(() => {
 		const was = inPlace.done();
 		pageStructure.editInPlace(null);
@@ -391,8 +432,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 			shownAddress.current = address;
 			// A page loaded: a Component edited in place on the one before is done (its Draft keeps every change).
 			if (inPlace.done()) pageStructure.editInPlace(null);
-			if (staff)
-				pageStructure.page(address.startsWith(`${BUILDING_STAND_IN_PREFIX}/`) ? null : (address.split("?")[0] ?? "/"));
+			// A stand-in is read as the page it stands for: its document is the page's content (Code mode's stand-in).
+			if (staff) pageStructure.page(address.split("?")[0] ?? "/");
 			setSaving("idle");
 			setShown(null);
 			setPageState(null);
@@ -409,11 +450,9 @@ export function Shell({ config }: { config: ShellConfig }) {
 	const placeOpener = useRef<Element | null>(null);
 	const openPlace = useCallback(
 		(key: PlaceKey) => {
-			// Other places are locked while a Component is edited in place (`builder/06`): Done first.
-			if (inPlace.current() && key !== placeKey) {
-				announce(words.placements.component.placesLocked, true);
-				return;
-			}
+			// A place opens every time: a Component edited in place is done first, as Done does (its Draft
+			// keeps every change). Refusing left the rail doing nothing, the reason said to screen readers only.
+			if (inPlace.current() && key !== placeKey) doneInPlace();
 			if (key === placeKey) {
 				opened.documents.openPlace(null);
 				return;
@@ -423,7 +462,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 			if (!placeKey) placeOpener.current = document.activeElement;
 			opened.documents.openPlace(at.place, at.view);
 		},
-		[placeKey, opened.documents, inPlace, announce, words],
+		[placeKey, opened.documents, inPlace, doneInPlace],
 	);
 	const leavePlace = useCallback(() => opened.documents.openPlace(null), [opened.documents]);
 	// What the open place has of its own for the bottom bar (its Draft state and Publish: the Forms
@@ -586,7 +625,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 			announce,
 			path: () => {
 				const address = shownAddress.current;
-				return address && !address.startsWith(`${BUILDING_STAND_IN_PREFIX}/`) ? (address.split("?")[0] ?? "/") : null;
+				return address ? (address.split("?")[0] ?? "/") : null;
 			},
 		},
 		staff && panelSelection !== null,
@@ -1003,6 +1042,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 									if (staff) pageStructure.found(document);
 									// The Component edited in place stays locked and dimmed on the page as drawn now.
 									inPlace.page(document, frame.current?.overlay() ?? null);
+									followPlacement(document);
 									readFormNames(document, () => managementApi(config.token).forms.list({ siteId: config.site.id }));
 								}}
 								editing={editing}

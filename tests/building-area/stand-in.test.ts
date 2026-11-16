@@ -262,6 +262,55 @@ describe("the stand-in", () => {
 		expect(await refused.text()).not.toContain("Best rye");
 	});
 
+	test("tags what it draws as Staff's pages are, so the building area opens it (FX-01)", async () => {
+		// The Site template's elements as `site`, any other document's as the page's content.
+		expect(await (await standIn(`/component/${componentId}`)).text()).toMatch(
+			/<blockquote[^>]* data-wc-code="content#/,
+		);
+		expect(await (await standIn("/search-template")).text()).toMatch(/<h1[^>]* data-wc-code="content#/);
+		expect(await (await standIn("/site-template")).text()).toMatch(/<header[^>]* data-wc-code="site#/);
+		expect(await (await standIn("/site-template")).text()).toMatch(/<p[^>]* data-wc-code="site\/[^"#]+#/);
+	});
+
+	test("Code mode reads a stand-in's address as the page it stands for: its document is the content (FX-01)", async () => {
+		type Opened = {
+			ref: string;
+			editable: boolean;
+			contentAvailable: boolean;
+			target: { kind: string };
+			opened: { tree: { nodes: { type: string; tag?: string }[] } };
+		};
+		const editor = async (path: string, ref: string) => {
+			const response = await building.edit("code/editor", { path, ref });
+			expect([path, ref, response.status]).toEqual([path, ref, 200]);
+			return (await response.json()) as Opened;
+		};
+		const component = `/_webcraft/build/stand-in/component/${componentId}`;
+		expect((await editor(component, "site")).contentAvailable).toBe(true);
+		const content = await editor(component, "content");
+		expect(content).toMatchObject({ ref: "content", editable: true, target: { kind: "component" } });
+		expect(content.opened.tree.nodes.map((node) => node.tag)).toEqual(["blockquote"]);
+		const search = await editor("/_webcraft/build/stand-in/search-template", "content");
+		expect(search.target.kind).toBe("searchTemplate");
+		expect((await editor("/_webcraft/build/stand-in/site-template", "site")).contentAvailable).toBe(false);
+		// The HTML pane reads and saves it there too.
+		const open = await building.edit("code/open", { path: component, ref: "content" });
+		expect(open.status).toBe(200);
+		const { markup, version } = (await open.json()) as { markup: string; version: string };
+		expect(markup).toContain("Best rye in Cork.");
+		const saved = await building.edit("code/save", {
+			path: component,
+			ref: "content",
+			markup: markup.replace("Best rye in Cork.", "Best rye in Munster."),
+			version,
+		});
+		expect(saved.status).toBe(200);
+		expect((await staff.api.components.getMarkup({ siteId, componentId })).markup?.draft).toContain("Munster");
+		// It is no page to render with markup in place: nothing previews there.
+		const preview = await building.edit("code/preview", { path: component, markup: { ref: "content", text: markup } });
+		expect(preview.status).toBe(400);
+	});
+
 	test("the placed Component is found on a page that shows it, not on the stand-in", async () => {
 		const found = await staff.api.builder.destinations({
 			siteId,

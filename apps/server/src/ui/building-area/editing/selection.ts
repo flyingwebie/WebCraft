@@ -1,4 +1,5 @@
 import type { BuilderCatalogue, BuilderOpened, BuilderTarget, FieldDefinition } from "@webcraft/core";
+import { standInDocumentOf } from "@webcraft/core/building-addresses";
 import { createDraftClient, type DraftClient, type Json, sameValue } from "@webcraft/core/draft-document";
 import type { ElementTree, TreeNode } from "@webcraft/renderer/builder";
 
@@ -109,10 +110,18 @@ export type StructureSnapshot = {
 	 * rest of the page is locked, and the page's selection stays inside it. Null when none is.
 	 */
 	inPlace: string | null;
+	/**
+	 * Where the page's tree starts: the Site template (`site`) on a page, and on the stand-in of anything
+	 * but the Site template, that document itself (`content`): the stand-in draws it alone.
+	 */
+	root: "site" | "content";
 };
 
 export type Structure = {
-	/** The page the frame shows now (its path), or none (a stand-in, nothing): another page's sources are forgotten. */
+	/**
+	 * The page the frame shows now (its path, or the stand-in's address, read as the page it stands for),
+	 * or none: another page's sources are forgotten.
+	 */
 	page(path: string | null): void;
 	/** The page's elements are there (loaded, or drawn again): the sources they name are opened. */
 	found(document: Document): void;
@@ -239,7 +248,8 @@ export function structure(options: {
 	let layoutInfo: LayoutInfo | null = null;
 	let selected: string | null = null;
 	let inPlace: string | null = null;
-	let snapshot: StructureSnapshot = { sources, layout, layoutInfo, selection: null, inPlace };
+	let root: StructureSnapshot["root"] = "site";
+	let snapshot: StructureSnapshot = { sources, layout, layoutInfo, selection: null, inPlace, root };
 	/** References being opened now, so each is asked for once. */
 	const opening = new Set<string>();
 
@@ -299,7 +309,7 @@ export function structure(options: {
 	const selectOnCanvas = (ref: string | null) => options.onSelect(onCanvas(ref));
 
 	const tell = () => {
-		snapshot = { sources, layout, layoutInfo, selection: selectionNow(), inPlace };
+		snapshot = { sources, layout, layoutInfo, selection: selectionNow(), inPlace, root };
 		for (const listener of listeners) listener();
 	};
 
@@ -489,6 +499,8 @@ export function structure(options: {
 		page(next) {
 			if (next === path) return;
 			path = next;
+			const standIn = next ? standInDocumentOf(next) : null;
+			root = standIn && standIn.kind !== "siteTemplate" ? "content" : "site";
 			generation++;
 			sources = new Map();
 			layout = null;
@@ -501,7 +513,8 @@ export function structure(options: {
 		},
 		found(document) {
 			if (!path) return;
-			const refs = new Set<string>(["site"]);
+			// The Site template always; on a stand-in, its document too, even while it draws nothing yet.
+			const refs = new Set<string>(["site", root]);
 			for (const element of document.querySelectorAll("[data-wc-code]")) {
 				const ref = sourceOf(element.getAttribute("data-wc-code") ?? "");
 				// Each Placement on the way to a Component's element is a source of its own.

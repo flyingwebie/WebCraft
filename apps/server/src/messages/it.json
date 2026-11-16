@@ -10537,7 +10537,7 @@
 				"editing": "{name} · In modifica",
 				"started": "Stai modificando {name} sul posto. Il resto della pagina è bloccato fino a Fine.",
 				"ended": "Modifica di {name} terminata. Le modifiche sono nella sua Draft.",
-				"placesLocked": "Gli altri luoghi sono bloccati mentre modifichi un Component sul posto: premi prima Fine.",
+				"gone": "{name} non è più nella pagina: la modifica sul posto è terminata.",
 				"done": "Fine",
 				"types": {
 					"text": "Testo",

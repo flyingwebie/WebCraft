@@ -19,6 +19,7 @@ import type { ScriptKind } from "../content/scripts.ts";
 import { classCatalogue } from "../design-system/classes.ts";
 import { draftDesignSystem } from "../design-system/design-systems.ts";
 import { draftStyles } from "../design-system/stylesheet.ts";
+import { standInDocumentOf } from "../edit-mode/building.ts";
 import { EditPathInvalidError } from "../edit-mode/errors.ts";
 import type { EditSession } from "../edit-mode/index.ts";
 import { isEditPath } from "../edit-mode/paths.ts";
@@ -37,13 +38,21 @@ import {
 	saveComponentScriptFromPanel,
 	saveScript,
 } from "./scripts.ts";
-import { type OpenedSource, openSource, readCodeRef, resolveSource, type SourceDeps } from "./sources.ts";
+import {
+	type OpenedSource,
+	openSource,
+	readCodeRef,
+	resolveSource,
+	type SourceDeps,
+	standInContent,
+} from "./sources.ts";
 
 export type { CodeClass, CodeCss, CssTarget, TokenKind } from "./css.ts";
 export { CodeSourceNotFoundError } from "./errors.ts";
 export type { MarkupChange, SavedMarkup } from "./markup.ts";
 export type { CodeComponentScript, CodeScript, CodeScripts } from "./scripts.ts";
 export type { CodeSourceKind, OpenedSource, Suggestions } from "./sources.ts";
+export { standInCodeSource } from "./sources.ts";
 
 /** What a preview answers: the whole page, as Code mode shows it with the unsaved changes, and its stylesheet. */
 export type CodePreviewPage = {
@@ -172,14 +181,14 @@ export function createCodeMode(options: {
 	pages: Pick<SitePages, "render" | "notFound" | "pageContent" | "builderPage">;
 }): CodeMode {
 	const { data, pages } = options;
-	const deps: SourceDeps = {
-		sources: options.sources,
-		pageContent: (host, path) => pages.pageContent(host, path, "draft"),
-	};
+	// A stand-in's address reads as the page it stands for, its document the content (`standInContent`).
+	const pageContent = async (host: SiteHost, path: string) =>
+		standInContent(host, path) ?? pages.pageContent(host, path, "draft");
+	const deps: SourceDeps = { sources: options.sources, pageContent };
 	const builder = createBuilder({ config: options.config, sources: options.sources, pages });
 	const editorSource = async (scope: SiteScope, host: SiteHost, input: { path: string; ref: string | null }) => {
 		const opened = await (input.ref === null
-			? pages.pageContent(host, input.path, "draft").then((content) =>
+			? pageContent(host, input.path).then((content) =>
 					openSource(scope, deps, host, input.path, {
 						root: content.contentTemplate && !content.notFound ? "content" : "site",
 						placements: [],
@@ -201,8 +210,7 @@ export function createCodeMode(options: {
 		async editor(scope, host, input) {
 			const { target, ref, source, catalogue, usage } = await editorSource(scope, host, input);
 			const opened = await builder.open(scope, source.editable ? target : { kind: "siteTemplate" });
-			const content =
-				ref === "site" || target.kind === "entryTemplate" ? await pages.pageContent(host, input.path, "draft") : null;
+			const content = ref === "site" || target.kind === "entryTemplate" ? await pageContent(host, input.path) : null;
 			const page =
 				content?.entryId && !content.contentTemplate && !content.notFound
 					? await getEntry(scope, content.entryId, content.language)
@@ -214,7 +222,9 @@ export function createCodeMode(options: {
 				editable: source.editable,
 				previewEntryId: target.kind === "entryTemplate" ? (content?.entryId ?? null) : null,
 				name: source.name,
-				contentAvailable: !!content?.contentTemplate && !content.notFound,
+				// A Component's stand-in shows the Component as the page's content.
+				contentAvailable:
+					(!!content?.contentTemplate && !content.notFound) || standInDocumentOf(input.path)?.kind === "component",
 				pageLayout: page ? { id: page.id, title: page.draft.title } : null,
 				opened: source.editable
 					? { ...opened, tree: opened.template || opened.component ? opened.tree : source.tree }
@@ -271,12 +281,13 @@ export function createCodeMode(options: {
 		async open(scope, host, input) {
 			if (input.ref !== null) return openSource(scope, deps, host, input.path, readCodeRef(input.ref));
 			// The page's content first, when a Template renders it; else the Site template around it.
-			const content = await pages.pageContent(host, input.path, "draft");
+			const content = await pageContent(host, input.path);
 			const root = content.contentTemplate && !content.notFound ? "content" : "site";
 			return openSource(scope, deps, host, input.path, { root, placements: [], element: null });
 		},
 		async preview(host, editing, input) {
-			if (!isEditPath(input.path)) throw new EditPathInvalidError();
+			// A stand-in is no page to render: the frame shows what is saved (the panes skip previews there).
+			if (!isEditPath(input.path) || standInDocumentOf(input.path)) throw new EditPathInvalidError();
 			const { preview, notices } = await previewMarkup(editing.scope, deps, host, input.path, input.markup, input.css);
 			const shown: PageEditing = { ...editing, code: true, preview };
 			let answer = await pages.render(host, input.path, shown);

@@ -285,6 +285,8 @@ export function landingFor(
 		path = selected.path;
 	} else if (snapshot.inPlace) sourceRef = snapshot.inPlace;
 	else if (options.document === "siteTemplate") sourceRef = "site";
+	// On its stand-in, the document is the page's content (a Component no page shows, too).
+	else if (snapshot.root === "content") sourceRef = "content";
 	else if (
 		options.document === "entryTemplate" ||
 		options.document === "archiveTemplate" ||
@@ -579,7 +581,8 @@ export function inserter(host: InserterHost): Inserter {
 			);
 			if ("refused" in placed) return refuse(placed.refused);
 			const ref = `content/${placed.id}`;
-			structure.select(ref);
+			// Selected once the page shows it, never before: until the Page's Draft has saved the Placement,
+			// the panes reading the selection get CODE_SOURCE_NOT_FOUND from the server, and keep it.
 			if (!(await shownSource(ref))) return null;
 			host.editInPlace({ source: ref, componentId: component.id, name, placement: ref });
 			// Its container, as the Component's Draft holds it (the server keeps or gives the ids).
@@ -605,7 +608,9 @@ export function inserter(host: InserterHost): Inserter {
 				fill(said.steps.add, { name: component.name }),
 			);
 			if ("refused" in placed) return refuse(placed.refused);
-			structure.select(`content/${placed.id}`);
+			// Selected once the page shows it (or its wait is over), as a new section is: not before.
+			const ref = `content/${placed.id}`;
+			void shownSource(ref).then(() => structure.select(ref));
 			host.announce(fill(said.inserted, { name: component.name, where: said.wherePage }));
 			return null;
 		} catch (error) {
