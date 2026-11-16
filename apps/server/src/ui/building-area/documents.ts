@@ -215,6 +215,16 @@ export type Documents = {
 	subscribe(listener: (address: ShellAddress, change: AddressChange) => void): () => void;
 };
 
+/**
+ * Puts another address in place of the current one without telling anyone (FX-04): Staff's shell and
+ * client editing hand the tab to each other ("View as a client" and back), and the shell drawn next
+ * reads its document from the address as it starts.
+ */
+export function swapAddress(address: string, win: Window = window): void {
+	const state: EntryState = { webcraftBuilding: true, from: null, previous: false };
+	win.history.replaceState(state, "", address);
+}
+
 /** The shell's history over the window's own (`history`, `popstate`). */
 export function shellDocuments(win: Window = window): Documents {
 	const listeners = new Set<(address: ShellAddress, change: AddressChange) => void>();

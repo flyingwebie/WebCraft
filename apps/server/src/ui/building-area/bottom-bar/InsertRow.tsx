@@ -1,5 +1,6 @@
 import {
 	BetweenHorizontalStartIcon,
+	BookImageIcon,
 	ComponentIcon,
 	GitBranchIcon,
 	HeadingIcon,
@@ -38,6 +39,7 @@ export const KIND_ICONS: Record<InsertKind | "more", Icon> = {
 	button: RectangleHorizontalIcon,
 	list: ListIcon,
 	image: ImageIcon,
+	figure: BookImageIcon,
 	video: PlayIcon,
 	icon: ShapesIcon,
 	loop: RepeatIcon,

@@ -11,6 +11,7 @@ import type { SavingStatus } from "../canvas/regions.ts";
 import type { MenuHost } from "../command-menu/host.ts";
 import { CommandMenuHost, useCommandMenu } from "../command-menu/loader.tsx";
 import { LAYOUT_VERSION } from "../docks/layout.ts";
+import { swapAddress } from "../documents.ts";
 import { reverseElsewhere } from "../editing/drafts.ts";
 import { pageEditing } from "../editing/editing.ts";
 import { shellHistory } from "../editing/history.ts";
@@ -24,6 +25,8 @@ import { PLACE_EVENT, placeEntry, placeKeyOf, reopenPlace } from "../places/regi
 import { Publish } from "../publish/Publish.tsx";
 import { PUBLISH_OPEN_EVENT } from "../publish/sources.ts";
 import { AddSectionLine } from "./AddSection.tsx";
+import { AsClientBanner } from "./AsClientBanner.tsx";
+import { type AsClient, asClientRequests } from "./as-client.ts";
 import { BodyInPlace } from "./BodyInPlace.tsx";
 import { bodyInPlace } from "./body-in-place.ts";
 import { ClientBar, type ClientPanel, clientDraftStateOf } from "./ClientBar.tsx";
@@ -103,11 +106,19 @@ function clientPlace(key: string | null): ClientPlace | null {
  * rest is in "More", the page is edge to edge, panels and popovers are sheets from the bottom and the
  * text toolbar sits on the keyboard; from 641 to 1023 px (a tablet) the desktop shell with a bar that
  * keeps only the words it needs. No window is too narrow for a Member.
+ *
+ * Staff seeing the page as a client (FX-04, `asClient`) get it as a Member of the role chosen would:
+ * its Permissions in `config`, the answers read as the role gets them (`asClientRequests`), the
+ * Command menu by the role's Permissions, and "Viewing as a client" across the top with the way back.
  */
-export function ClientShell({ config }: { config: ShellConfig }) {
+export function ClientShell({ config, asClient }: { config: ShellConfig; asClient?: AsClient }) {
 	const { words } = config;
 	const said = words.client;
-	const request = useMemo(() => editRequests(config.token), [config.token]);
+	const viewAs = asClient?.role ?? null;
+	const request = useMemo(
+		() => (viewAs ? asClientRequests(editRequests(config.token), viewAs) : editRequests(config.token)),
+		[config.token, viewAs],
+	);
 	const api = useMemo(() => managementApi(config.token), [config.token]);
 	const cycle = useRef<RegionCycle | null>(null);
 	const frame = useRef<FrameHandle | null>(null);
@@ -446,6 +457,28 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 		};
 	}, [undoHistory]);
 
+	// Back to Staff's view (FX-04): what was typed is saved, Staff's address put back, then their shell drawn.
+	const [leavingView, setLeavingView] = useState(false);
+	const backToStaff = async () => {
+		if (!asClient || leavingView) return;
+		setLeavingView(true);
+		await frame.current?.flush();
+		swapAddress(asClient.back);
+		asClient.done();
+	};
+	// "Viewing as a client" is said as the view starts, and the band has focus, so the way back is next.
+	const banner = useRef<HTMLDivElement>(null);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: said once, as the view starts.
+	useEffect(() => {
+		if (!viewAs) return;
+		banner.current?.querySelector<HTMLElement>("[data-wc-as-client-back]")?.focus();
+		const timer = window.setTimeout(
+			() => announce(fill(words.viewAs.entered, { role: words.viewAs.roles[viewAs.key] })),
+			300,
+		);
+		return () => window.clearTimeout(timer);
+	}, []);
+
 	const exit = async () => {
 		setExiting(true);
 		announce(words.exiting);
@@ -509,6 +542,8 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 		leavePlace,
 		open: opened.open,
 		exit: () => void exit(),
+		// Staff seeing the page as a client: the role's Permissions, not what the server says Staff hold.
+		...(viewAs ? { permissions: viewAs.permissions } : {}),
 		member: {
 			preview: { on: mode === "preview", set: (on) => onMode(on ? "preview" : "edit") },
 			pageDetails: () => setPanel("pageDetails"),
@@ -554,9 +589,9 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 	// A side panel on a phone is a sheet: a tap on the dimmed page puts it away.
 	const sheetShown = phone && !place && (panelShown !== null || itemsNow.selected?.panel === true);
 
-	return (
+	const shell = (
 		<div
-			className={`bg-chrome text-chrome-text grid h-dvh w-full overflow-hidden font-sans text-[13px] ${
+			className={`bg-chrome text-chrome-text grid ${asClient ? "h-full" : "h-dvh"} w-full overflow-hidden font-sans text-[13px] ${
 				phone
 					? "grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_60px]"
 					: "grid-cols-[76px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)_56px]"
@@ -766,8 +801,12 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 									onSaving={onSaving}
 									editing={editing}
 									sheet={{ width: phone ? null : PRESETS[width] }}
-									// The names of the Forms on the page, for their lock chips (BA-27).
-									onReady={(document) => readFormNames(document, () => api.forms.list({ siteId: config.site.id }))}
+									onReady={(document) => {
+										// Staff's render, shown as a client sees it: none of Staff's own marks (FX-04).
+										if (viewAs) document.documentElement.setAttribute("data-wc-as-client", "");
+										// The names of the Forms on the page, for their lock chips (BA-27).
+										readFormNames(document, () => api.forms.list({ siteId: config.site.id }));
+									}}
 								/>
 							</div>
 						) : null}
@@ -801,6 +840,13 @@ export function ClientShell({ config }: { config: ShellConfig }) {
 			<RemovedToast sections={sections} words={words} />
 			<CommandMenuHost host={menuHost} request={menu.request} onRequest={menu.setRequest} />
 			<MediaShellHost config={config} />
+		</div>
+	);
+	if (!asClient) return shell;
+	return (
+		<div ref={banner} className="flex h-dvh w-full flex-col">
+			<AsClientBanner words={words} asClient={asClient} busy={leavingView} onBack={() => void backToStaff()} />
+			<div className="min-h-0 grow">{shell}</div>
 		</div>
 	);
 }

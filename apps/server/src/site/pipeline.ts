@@ -1,4 +1,5 @@
 import {
+	BUILDING_VISITOR_PARAMETER,
 	buildingAreaPageAddress,
 	canonicalPath,
 	type EditSession,
@@ -245,7 +246,8 @@ async function pageAnswer(
 	// (`?page=1` goes on to the page itself, keeping its search and Filters' choices: see `render`.)
 	const number = pageNumberIn(url.searchParams);
 	if (number === undefined) return notFoundPage(services, request, host, url.pathname);
-	if (edit.session) {
+	// "Preview on the site" (FX-04): the page as a visitor of this address sees it, in a tab of its own.
+	if (edit.session && !url.searchParams.has(BUILDING_VISITOR_PARAMETER)) {
 		// A page opened at the top level goes into the building area's shell, which frames it (ADR 0037).
 		// The page agent does the same in browsers that don't say what a request is for.
 		if (request.headers.get("sec-fetch-dest") === "document") {
