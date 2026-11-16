@@ -19,7 +19,7 @@ import type { Frame, Page } from "playwright";
 
 import { buildShop, SHOP_MARKUP, type Shop } from "../filters/shop.ts";
 import type { TestAccount, TestBrowser } from "../harness/index.ts";
-import { frameOf, settled } from "./building-area.ts";
+import { eventually, frameOf, settled } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, startBrowserInstall } from "./harness.ts";
 
@@ -149,17 +149,6 @@ async function framedAt(page: Page, path: string): Promise<Frame> {
 /** Opens a shell address in the page (as a bookmark does), on the address the shell was entered on (the live domain). */
 async function go(page: Page, address: string): Promise<void> {
 	await page.goto(`${new URL(page.url()).origin}/_webcraft/build${address}`);
-}
-
-/** What `read` gives once `done` accepts it, waiting up to 15 seconds. */
-async function eventually<Value>(read: () => Promise<Value>, done: (value: Value) => boolean): Promise<Value> {
-	const deadline = Date.now() + 15_000;
-	let value = await read();
-	while (!done(value) && Date.now() < deadline) {
-		await Bun.sleep(100);
-		value = await read();
-	}
-	return value;
 }
 
 /** Clicks an element of the page in the frame, as a person does. */
