@@ -193,12 +193,13 @@ describe("a Section on a Page, and the places (bugs 2 and 3)", () => {
 
 		await row(page, /^Section2/).waitFor();
 		await row(page, /Container/).waitFor();
+		// The HTML pane reads the Section's source: the container selected in it, under its breadcrumb.
 		const read = await eventually(
 			() => htmlPane(page),
-			(pane) => pane.status === "ready" && pane.text.includes("<section"),
+			(pane) => pane.status === "ready" && pane.text.includes('data-wc-label="Container"'),
 			{ what: "Section2's markup in the HTML pane" },
 		);
-		expect(read.text).toContain('data-wc-label="Container"');
+		expect(read.text).toContain("section");
 		expect(await stale(page)).toEqual({ notRead: false, inside: "Inside the Section2 Component", done: true });
 		const placed = async () =>
 			(await superadmin.api.pageLayouts.get({ siteId, entryId: contactId })).placements.map(
