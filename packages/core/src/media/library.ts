@@ -1,4 +1,4 @@
-import { media, mediaFiles, mediaFolders, people } from "@webcraft/db/schema";
+import { media, mediaFiles, mediaFolders, people, sites } from "@webcraft/db/schema";
 import { and, asc, count, desc, eq, gt, inArray, isNotNull, isNull, or, type SQL, sql } from "drizzle-orm";
 import type { AiKeys } from "../ai/keys.ts";
 import type { AiProviders } from "../ai/providers.ts";
@@ -135,6 +135,16 @@ export type FocalPoint = { x: number; y: number };
 
 export type MediaFolder = { id: string; name: string; count: number; createdAt: Date };
 
+/**
+ * How a Site lists its Media folders: `name` (A–Z, by name as the Site's Default language sorts it;
+ * the default) or `custom` (in the order people arranged them).
+ */
+export const MEDIA_FOLDER_ORDERS = ["name", "custom"] as const;
+export type MediaFolderOrder = (typeof MEDIA_FOLDER_ORDERS)[number];
+
+/** A Site's Media folders, in the order it lists them, with how many files each holds; `total` counts every file. */
+export type MediaFolders = { folders: MediaFolder[]; total: number; order: MediaFolderOrder };
+
 /** What a Site's Media library takes and holds, for the library's screen. */
 export type MediaOverview = {
 	/** The largest file an upload, a replacement or an import may be (Install settings › Storage). */
@@ -247,11 +257,20 @@ export type MediaLibrary = {
 		set(scope: WorkspaceScope, quotaBytes: number | null): Promise<MediaStorage>;
 	};
 	folders: {
-		list(scope: SiteScope): Promise<{ folders: MediaFolder[]; total: number }>;
+		/** The folders in the Site's order (`order`): A–Z by name, or the order people arranged. */
+		list(scope: SiteScope): Promise<MediaFolders>;
+		/** Makes a folder; in the Site's own order it comes last. */
 		create(scope: SiteScope, name: string): Promise<MediaFolder>;
 		rename(scope: SiteScope, folderId: string, name: string): Promise<MediaFolder>;
 		/** Deletes a folder; its files stay in the library, in no folder. */
 		delete(scope: SiteScope, folderId: string): Promise<void>;
+		/** Sets how the Site lists its folders: A–Z (`name`) or in its own order (`custom`). */
+		setOrder(scope: SiteScope, order: MediaFolderOrder): Promise<MediaFolders>;
+		/**
+		 * Arranges the Site's own order: `folderIds` first, in that order, then any folder it leaves out
+		 * (one made meanwhile), in the order they had. An id that isn't one of the Site's folders is refused.
+		 */
+		reorder(scope: SiteScope, folderIds: readonly string[]): Promise<MediaFolders>;
 	};
 };
 
@@ -688,31 +707,17 @@ export function createMediaLibrary(options: {
 		},
 
 		folders: {
-			async list(scope) {
-				const folders = await scope.select(mediaFolders, undefined, {
-					orderBy: [sql`lower(${mediaFolders.name})`, asc(mediaFolders.id)],
-				});
-				const counts = await scope.db
-					.select({ folderId: media.folderId, count: count() })
-					.from(media)
-					.where(scope.where(media, isNull(media.trashedAt)))
-					.groupBy(media.folderId);
-				const byFolder = new Map(counts.map((row) => [row.folderId, row.count]));
-				return {
-					folders: folders.map((folder) => ({
-						id: folder.id,
-						name: folder.name,
-						count: byFolder.get(folder.id) ?? 0,
-						createdAt: folder.createdAt,
-					})),
-					total: counts.reduce((sum, row) => sum + row.count, 0),
-				};
-			},
+			list: (scope) => listFolders(scope),
 
 			async create(scope, name) {
 				const folder = await saveFolderName(() =>
 					scope.transaction(async (tx) => {
-						const row = await tx.insert(mediaFolders, { name: name.trim(), createdAt: tx.now() });
+						const [last] = await tx.db
+							.select({ at: sql<number | null>`max(${mediaFolders.sortOrder})` })
+							.from(mediaFolders)
+							.where(tx.where(mediaFolders));
+						const sortOrder = last?.at === null || last?.at === undefined ? 0 : Number(last.at) + 1;
+						const row = await tx.insert(mediaFolders, { name: name.trim(), sortOrder, createdAt: tx.now() });
 						await tx.audit("mediaFolder.create", { folderId: row.id, name: row.name });
 						return row;
 					}),
@@ -746,9 +751,92 @@ export function createMediaLibrary(options: {
 					await tx.audit("mediaFolder.delete", { folderId: folder.id, name: folder.name });
 				});
 			},
+
+			async setOrder(scope, order) {
+				await scope.transaction(async (tx) => {
+					const [was] = await tx.db
+						.select({ order: sites.mediaFolderOrder })
+						.from(sites)
+						.where(and(eq(sites.id, tx.site.id), eq(sites.workspaceId, tx.site.workspaceId)));
+					if (was?.order === order) return;
+					await tx.db
+						.update(sites)
+						.set({ mediaFolderOrder: order })
+						.where(and(eq(sites.id, tx.site.id), eq(sites.workspaceId, tx.site.workspaceId)));
+					await tx.audit("mediaFolder.order", { order });
+				});
+				return listFolders(scope);
+			},
+
+			async reorder(scope, folderIds) {
+				await scope.transaction(async (tx) => {
+					const folders = await tx.select(mediaFolders, undefined, {
+						orderBy: [asc(mediaFolders.sortOrder), sql`lower(${mediaFolders.name})`, asc(mediaFolders.id)],
+					});
+					const known = new Set(folders.map((folder) => folder.id));
+					const asked = [...new Set(folderIds)];
+					if (asked.some((id) => !known.has(id))) throw new MediaFolderNotFoundError();
+					const placed = new Set(asked);
+					const order = [...asked, ...folders.filter((folder) => !placed.has(folder.id)).map((folder) => folder.id)];
+					const changed = order.filter((id, at) => folders.find((folder) => folder.id === id)?.sortOrder !== at);
+					if (changed.length === 0) return;
+					await tx.db
+						.update(mediaFolders)
+						.set({
+							sortOrder: sql`(CASE ${mediaFolders.id} ${sql.join(
+								order.map((id, at) => sql`WHEN ${id}::uuid THEN ${at}::integer`),
+								sql` `,
+							)} END)`,
+						})
+						.where(tx.where(mediaFolders, inArray(mediaFolders.id, order)));
+					await tx.audit("mediaFolder.reorder", { folderIds: order });
+				});
+				return listFolders(scope);
+			},
 		},
 	};
 	return library;
+}
+
+/** The Site's Media folders in the order it lists them, with how many files (not in the Trash) each holds. */
+async function listFolders(scope: SiteScope): Promise<MediaFolders> {
+	const [site] = await scope.db
+		.select({ order: sites.mediaFolderOrder, language: sites.defaultLanguage })
+		.from(sites)
+		.where(eq(sites.id, scope.site.id));
+	const order: MediaFolderOrder = site?.order === "custom" ? "custom" : "name";
+	const rows = await scope.select(mediaFolders, undefined, {
+		orderBy: [asc(mediaFolders.sortOrder), sql`lower(${mediaFolders.name})`, asc(mediaFolders.id)],
+	});
+	if (order === "name") {
+		const collator = folderCollator(site?.language ?? "en");
+		rows.sort((a, b) => collator.compare(a.name, b.name) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+	}
+	const counts = await scope.db
+		.select({ folderId: media.folderId, count: count() })
+		.from(media)
+		.where(scope.where(media, isNull(media.trashedAt)))
+		.groupBy(media.folderId);
+	const byFolder = new Map(counts.map((row) => [row.folderId, row.count]));
+	return {
+		folders: rows.map((folder) => ({
+			id: folder.id,
+			name: folder.name,
+			count: byFolder.get(folder.id) ?? 0,
+			createdAt: folder.createdAt,
+		})),
+		total: counts.reduce((sum, row) => sum + row.count, 0),
+		order,
+	};
+}
+
+/** Sorts folder names as people of `language` read them: accents and case aside, numbers by their value. */
+function folderCollator(language: string): Intl.Collator {
+	try {
+		return new Intl.Collator(language, { sensitivity: "base", numeric: true });
+	} catch {
+		return new Intl.Collator("en", { sensitivity: "base", numeric: true });
+	}
 }
 
 /** Whether a stored file is named by any of the Site's Media files (identical bytes share one). */

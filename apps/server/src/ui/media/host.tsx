@@ -23,7 +23,9 @@ export type MediaApi = Pick<
 	| "restore"
 	| "deleteForever"
 	| "emptyTrash"
-> & { folders: Pick<ApiClient["media"]["folders"], "list" | "create" | "rename" | "delete"> };
+> & {
+	folders: Pick<ApiClient["media"]["folders"], "list" | "create" | "rename" | "delete" | "setOrder" | "reorder">;
+};
 
 /** A place a file is used, as `media.usage` answers it. */
 export type MediaUse = Awaited<ReturnType<ApiClient["media"]["usage"]>>["usedIn"][number];

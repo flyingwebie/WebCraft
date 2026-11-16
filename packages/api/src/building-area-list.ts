@@ -51,6 +51,10 @@ export const BUILDING_AREA_PROCEDURES = [
 	"media.folders.create",
 	"media.folders.rename",
 	"media.folders.delete",
+	// The folders' order (FX-03): A–Z or the Site's own, arranged from the place's column and the picker
+	// (`media.manage`, as the other folder changes).
+	"media.folders.setOrder",
+	"media.folders.reorder",
 	// The Design system.
 	"designSystem.get",
 	"designSystem.saveDraft",

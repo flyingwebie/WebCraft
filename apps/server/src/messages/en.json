@@ -1399,7 +1399,18 @@
 			"created": "Folder {name} created.",
 			"renamed": "Folder renamed.",
 			"deleted": "Folder {name} deleted.",
-			"nameRequired": "Give the folder a name."
+			"nameRequired": "Give the folder a name.",
+			"add": "Add folder",
+			"addName": "Name of the new folder",
+			"addHint": "Enter to save, Escape to cancel.",
+			"order": "Folder order",
+			"orderName": "A–Z",
+			"orderCustom": "Custom",
+			"moveUp": "Move up",
+			"moveDown": "Move down",
+			"moved": "{name} moved to place {position} of {count}.",
+			"dragHint": "Drag a folder to move it, or use Move up and Move down in its menu.",
+			"orderFailed": "The folders' order wasn't saved ({reason})."
 		},
 		"search": "Search name or alt text",
 		"kinds": {
@@ -7228,7 +7239,9 @@
 			"mediaFolder": {
 				"create": "Media folder created",
 				"delete": "Media folder deleted",
-				"rename": "Media folder renamed"
+				"order": "Media folders' order changed",
+				"rename": "Media folder renamed",
+				"reorder": "Media folders rearranged"
 			},
 			"mediaMaxFileSize": {
 				"change": "Largest Media file changed"

@@ -15185,7 +15185,7 @@
 		"/media/folders/list": {
 			"post": {
 				"operationId": "media.folders.list",
-				"summary": "Lists the Media library's folders.",
+				"summary": "Lists the Media library's folders, in the Site's order (A–Z or its own).",
 				"tags": ["media"],
 				"requestBody": {
 					"required": true,
@@ -15350,6 +15350,106 @@
 									}
 								},
 								"required": ["siteId", "folderId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["media.manage"]
+			}
+		},
+		"/media/folders/setOrder": {
+			"post": {
+				"operationId": "media.folders.setOrder",
+				"summary": "Sets how the Site lists its Media folders: A–Z or in its own order.",
+				"tags": ["media"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"order": {
+										"enum": ["name", "custom"],
+										"type": "string"
+									}
+								},
+								"required": ["siteId", "order"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["media.manage"]
+			}
+		},
+		"/media/folders/reorder": {
+			"post": {
+				"operationId": "media.folders.reorder",
+				"summary": "Arranges the Site's own order of its Media folders.",
+				"tags": ["media"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"folderIds": {
+										"type": "array",
+										"maxItems": 1000,
+										"items": {
+											"type": "string",
+											"format": "uuid"
+										}
+									}
+								},
+								"required": ["siteId", "folderIds"]
 							}
 						}
 					}
