@@ -219,6 +219,8 @@ export const TOOL_PLACES = {
 	"media.folders.create": place(["media"], "media.manage"),
 	"media.folders.rename": place(["media"], "media.manage"),
 	"media.folders.delete": place(["media"], "media.manage"),
+	"media.folders.setOrder": place(["media"], "media.manage"),
+	"media.folders.reorder": place(["media"], "media.manage"),
 	"imports.connect": place(["structure"], "structure.edit"),
 	"imports.refresh": place(["structure"], "structure.edit"),
 	"imports.remove": place(["content"], "import.run"),

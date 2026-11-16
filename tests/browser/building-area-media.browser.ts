@@ -160,15 +160,16 @@ describe("the Media place, for Staff", () => {
 		expect(await fileRow(page, loafId).textContent()).toContain("add alt text…");
 		expect((await fileRow(page, heroId).boundingBox())?.height).toBe(50);
 
-		// A folder, a search and the grid are in the address; Back returns to each.
+		// A folder and a search are in the address; Back returns to each. The grid is the person's choice
+		// (kept for the next time, FX-03), so it replaces the address rather than adding to it.
 		await row(page, breadsId).click();
 		await page.waitForURL((url) => url.searchParams.get("wc-place") === `media/${breadsId}`);
 		await page.waitForFunction(() => document.querySelectorAll("[data-wc-media-open]").length === 1);
 		expect(await names(page)).toEqual(["sourdough-loaf.png"]);
 		await page.locator('[data-wc-media-layout="grid"]').click();
-		await page.waitForURL((url) => url.searchParams.get("wc-view") === "view=grid");
 		await page.locator("[data-wc-media-grid]").waitFor();
-		await page.goBack();
+		expect(params(page).get("wc-view")).toBeNull();
+		await page.locator('[data-wc-media-layout="list"]').click();
 		await page.locator("[data-wc-media-list]").waitFor();
 		await page.goBack();
 		await page.waitForURL((url) => url.searchParams.get("wc-place") === "media");
@@ -205,13 +206,13 @@ describe("the Media place, for Staff", () => {
 		await install.install.drainJobs();
 	});
 
-	test("folders: New Folder, a file moved into it, renamed and deleted", async () => {
+	test("folders: Add folder, a file moved into it, renamed and deleted", async () => {
 		await go(page, "/page/menu?wc-place=media");
 		await page.locator("[data-wc-media-list]").waitFor();
 
 		await page.locator("[data-wc-new-folder-button]").click();
-		await page.getByRole("dialog").getByLabel("Name").fill("Pastries");
-		await page.getByRole("button", { name: "Create folder" }).click();
+		await page.getByLabel("Name of the new folder").fill("Pastries");
+		await page.keyboard.press("Enter");
 		await page.locator("[data-wc-media-row]", { hasText: "Pastries" }).waitFor();
 		const pastries = (await admin.api.media.folders.list({ siteId })).folders.find((each) => each.name === "Pastries");
 		expect(pastries).toBeDefined();
@@ -379,7 +380,7 @@ describe("the Media place, for Staff", () => {
 		await picker.getByRole("button", { name: "Cancel" }).click();
 		expect(await cancelled).toBeNull();
 
-		// From the keyboard: arrows choose, Enter selects.
+		// From the keyboard: arrows choose, Enter selects (in the grid, the picker's default for an image).
 		const keyed = ask();
 		await picker.locator("[data-wc-pick-list]").waitFor();
 		await picker.locator("[data-wc-pick-list]").focus();

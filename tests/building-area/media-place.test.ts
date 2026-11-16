@@ -107,6 +107,18 @@ describe("a Member changes the Media library from the Site's address, as in the 
 		expect((await staff.api.media.get({ siteId, mediaId: media.id })).media.folderId).toBeNull();
 	});
 
+	test("folders: A–Z or the Site's own order, arranged from the place (FX-03)", async () => {
+		const { folder: first } = await editorArea.api.media.folders.create({ siteId, name: "Zeta" });
+		const { folder: second } = await editorArea.api.media.folders.create({ siteId, name: "Alpha" });
+		await editorArea.api.media.folders.setOrder({ siteId, order: "custom" });
+		await editorArea.api.media.folders.reorder({ siteId, folderIds: [first.id, second.id] });
+		const listed = await staff.api.media.folders.list({ siteId });
+		expect(listed.order).toBe("custom");
+		expect(listed.folders.map((each) => each.name).slice(0, 2)).toEqual(["Zeta", "Alpha"]);
+		await editorArea.api.media.folders.setOrder({ siteId, order: "name" });
+		expect((await staff.api.media.folders.list({ siteId })).order).toBe("name");
+	});
+
 	test("Replace file keeps the file's id", async () => {
 		const media = await uploaded(editorArea, "loaf.jpg");
 
@@ -181,6 +193,8 @@ describe("an Author, as in the admin", () => {
 		for (const call of [
 			() => authorArea.api.media.update({ siteId, mediaId: theirs.id, alt: "Not mine" }),
 			() => authorArea.api.media.folders.create({ siteId, name: "Mine" }),
+			() => authorArea.api.media.folders.setOrder({ siteId, order: "custom" }),
+			() => authorArea.api.media.folders.reorder({ siteId, folderIds: [] }),
 			() => authorArea.api.media.emptyTrash({ siteId }),
 		]) {
 			const refused = await call().then(

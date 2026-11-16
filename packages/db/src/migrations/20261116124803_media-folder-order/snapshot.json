@@ -1,0 +1,81 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "da991b8d-9ca2-4cf3-94cb-68c36749fe44",
+  "prevIds": [
+    "dd385df7-0c2c-4d84-a379-e26d7badeecc"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "media_folders",
+        "sort_order"
+      ],
+      "writes": [
+        "s|col|public.media_folders.sort_order",
+        "n|col|public.media_folders.sort_order",
+        "e|col|public.media_folders.sort_order"
+      ],
+      "reads": [
+        "n|tbl|public.media_folders",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "sites",
+        "media_folder_order"
+      ],
+      "writes": [
+        "s|col|public.sites.media_folder_order",
+        "n|col|public.sites.media_folder_order",
+        "e|col|public.sites.media_folder_order"
+      ],
+      "reads": [
+        "n|tbl|public.sites",
+        "n|sch|public"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "media_folders",
+        "name": "sort_order",
+        "type": "integer",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "0",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "sites",
+        "name": "media_folder_order",
+        "type": "text",
+        "typeSchema": null,
+        "notNull": true,
+        "dimensions": 0,
+        "default": "'name'",
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    }
+  ]
+}
