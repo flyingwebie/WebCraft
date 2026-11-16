@@ -5,8 +5,16 @@ import { useEditorFit } from "../editor/editor-fit.ts";
 import { editorHistory } from "../editor/editor-history.ts";
 import { childLists, newElement, withNewIds } from "../editor/tree.ts";
 import { BUILDING_STAND_IN_PREFIX } from "./agent/contract.ts";
-import { type EditAnswer, editRequests, fill, type PageState, type ShellConfig } from "./api.ts";
-import { BottomBar } from "./bottom-bar/BottomBar.tsx";
+import {
+	type ClientRole,
+	type EditAnswer,
+	editRequests,
+	fill,
+	type PageState,
+	type ShellConfig,
+	type ViewAsClient,
+} from "./api.ts";
+import { BottomBar, sitePreview } from "./bottom-bar/BottomBar.tsx";
 import { DocumentNav } from "./bottom-bar/DocumentNav.tsx";
 import { draftStateOf } from "./bottom-bar/DraftState.tsx";
 import { InsertRow, KIND_ICONS } from "./bottom-bar/InsertRow.tsx";
@@ -23,6 +31,7 @@ import { DockArea, useDocks } from "./docks/Docks.tsx";
 import { PanelButton } from "./docks/PanelFrame.tsx";
 import { PanelsMenu } from "./docks/PanelsMenu.tsx";
 import type { PanelContext } from "./docks/panels.ts";
+import { printAddress, swapAddress } from "./documents.ts";
 import { componentInPlace, type InPlaceTarget, rootsOf } from "./editing/component-in-place.ts";
 import { reverseElsewhere } from "./editing/drafts.ts";
 import { pageEditing } from "./editing/editing.ts";
@@ -154,7 +163,17 @@ function placementOfSource(snapshot: StructureSnapshot, source: string): string 
 	return at < 0 ? source : `${source.slice(0, at)}#${source.slice(at + 1)}`;
 }
 
-export function Shell({ config }: { config: ShellConfig }) {
+export function Shell({
+	config,
+	onViewAsClient,
+	returned = false,
+}: {
+	config: ShellConfig;
+	/** "View as a client" (FX-04): hands the tab to client editing, as a Member of the role chosen. */
+	onViewAsClient?(handed: ViewAsClient): void;
+	/** Drawn again after "View as a client": said, and focus back on the rail's button. */
+	returned?: boolean;
+}) {
 	const { words } = config;
 	const request = useMemo(() => editRequests(config.token), [config.token]);
 	const cycle = useRef<RegionCycle | null>(null);
@@ -720,6 +739,27 @@ export function Shell({ config }: { config: ShellConfig }) {
 		subs: { ...codeParts?.subs, ...(loopOfElement ? { inspector: loopOfElement.node.source } : {}) },
 	});
 
+	// "View as a client" (FX-04): what was typed is saved, then client editing takes the tab on the page
+	// the frame shows (the home page for a stand-in); Staff's address and panels are kept for the way back.
+	const [switching, setSwitching] = useState(false);
+	const viewAsClient = async (role: ClientRole) => {
+		if (!onViewAsClient || switching) return;
+		setSwitching(true);
+		await leaving();
+		const now = shownAddress.current;
+		const page = now && !now.startsWith(`${BUILDING_STAND_IN_PREFIX}/`) ? now : "/";
+		const back = `${location.pathname}${location.search}`;
+		swapAddress(printAddress({ document: { kind: "page", page }, place: null, select: null }));
+		onViewAsClient({ role, back, layout: docks.layout });
+	};
+	// biome-ignore lint/correctness/useExhaustiveDependencies: once, as the shell is drawn again.
+	useEffect(() => {
+		if (!returned) return;
+		document.querySelector<HTMLElement>('[data-wc-rail="view-as-client"]')?.focus();
+		const timer = window.setTimeout(() => announce(words.viewAs.left), 300);
+		return () => window.clearTimeout(timer);
+	}, []);
+
 	const exit = async () => {
 		setExiting(true);
 		announce(words.exiting);
@@ -856,6 +896,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 				onExit={() => void exit()}
 				exiting={exiting}
 				panelsMenu={<PanelsMenu docks={docks} />}
+				onViewAsClient={onViewAsClient ? (role) => void viewAsClient(role) : undefined}
+				switching={switching}
 			/>
 			{/* Before the canvas in the Tab order, so the page (and whatever it holds) comes last; F6 still goes rail, page, bar. */}
 			<BottomBar
@@ -889,7 +931,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 						/>
 					) : null
 				}
-				staging={config.staging && shown && !inPlaceTarget ? `${config.staging}${shown.address}` : null}
+				preview={shown && !inPlaceTarget ? sitePreview(config, shown.address) : null}
 				onUndo={() => void undoHistory.undo()}
 				onRedo={() => void undoHistory.redo()}
 				draft={draftStateOf(saving, place && placeBar ? { changes: placeBar.changes, inReview: false } : shown)}
