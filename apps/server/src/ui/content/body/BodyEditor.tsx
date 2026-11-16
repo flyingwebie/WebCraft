@@ -43,7 +43,16 @@ import {
 	Trash2Icon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { type ClipboardEvent, type KeyboardEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import {
+	type ClipboardEvent,
+	type KeyboardEvent,
+	type ReactNode,
+	useEffect,
+	useLayoutEffect,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import {
 	caretOffset,
 	caretOnEdgeLine,
@@ -237,7 +246,10 @@ export function BodyEditor({
 		return () => document.removeEventListener("selectionchange", track);
 	}, []);
 
-	useEffect(() => {
+	// In the commit that drew the change, not after it: a slow browser can still owe the effects of an
+	// earlier render (a Draft's status, a peer's change) when a key arrives, and runs them first. Run
+	// there, this would find the element the change is about to replace, put the caret in it and lose it.
+	useLayoutEffect(() => {
 		const request = pending.current;
 		if (!request) return;
 		const element = editables.current.get(request.key);

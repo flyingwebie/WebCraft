@@ -608,9 +608,9 @@ describe("the tree row's menu", () => {
 		await row.click({ button: "right" });
 		const rowMenu = page.locator("[data-wc-row-menu]");
 		await rowMenu.waitFor();
-		const items = (await rowMenu.getByRole("menuitem").allTextContents()).map((text) =>
-			text.replace(/[⌘⌫].*$/, "").trim(),
-		);
+		// The items as a screen reader names them: the keys beside each are hidden from it, and differ by
+		// platform (⌘C on a Mac, Ctrl+C elsewhere).
+		const items = [...(await rowMenu.ariaSnapshot()).matchAll(/- menuitem "([^"]+)"/g)].map((match) => match[1]);
 		expect(items).toEqual(["Copy", "Duplicate", "Wrap in", "Make Component", "Delete"]);
 		await focused(rowMenu.getByRole("menuitem").first());
 		await page.keyboard.press("Enter");

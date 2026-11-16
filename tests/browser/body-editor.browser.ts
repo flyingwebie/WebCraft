@@ -101,12 +101,15 @@ async function open(page: Page, account: TestAccount, path: string): Promise<voi
 	await page.waitForLoadState("networkidle");
 }
 
-/** The Draft's Blocks, as the API answers them, once `ready` says the autosave has landed. */
-async function draftBlocks(ready: (blocks: Record<string, unknown>[]) => boolean): Promise<Record<string, unknown>[]> {
+/** The Draft's Blocks (of the shared Entry unless `of`), as the API answers them, once `ready` says the autosave has landed. */
+async function draftBlocks(
+	ready: (blocks: Record<string, unknown>[]) => boolean,
+	of: string = entryId,
+): Promise<Record<string, unknown>[]> {
 	let blocks: Record<string, unknown>[] = [];
 	// Up to 20 s: the editor saves typing a moment after it stops, and a CI runner is slower than a laptop.
 	for (let look = 0; look < 200; look++) {
-		const { entry } = await admin.api.entries.get({ siteId, entryId });
+		const { entry } = await admin.api.entries.get({ siteId, entryId: of });
 		blocks = entry.draft.fields.body as Record<string, unknown>[];
 		if (ready(blocks)) return blocks;
 		await new Promise((resolve) => setTimeout(resolve, 100));
@@ -142,10 +145,16 @@ for (const theme of THEMES) {
 
 describe("writing with the keyboard", () => {
 	test("/ opens the Block menu in an empty paragraph; Markdown shortcuts turn paragraphs into Blocks", async () => {
+		// Its own Entry, so that a retry starts from an empty paragraph again.
+		const { entry } = await admin.api.entries.create({
+			siteId,
+			postTypeId: articlesId,
+			title: "Pastries",
+			fields: { body: [{ type: "paragraph", text: "" }] },
+		});
 		const page = await install.newPage("light");
-		await open(page, owner, `/sites/${siteId}/entries/${articlesId}/${entryId}`);
-		const last = page.getByRole("textbox", { name: "Paragraph, block 13" });
-		await last.click();
+		await open(page, owner, `/sites/${siteId}/entries/${articlesId}/${entry.id}`);
+		await page.getByRole("textbox", { name: "Paragraph, block 1" }).click();
 
 		await page.keyboard.type("/");
 		const filter = page.getByRole("combobox", { name: "Blocks" });
@@ -155,7 +164,7 @@ describe("writing with the keyboard", () => {
 		await page.keyboard.type("heading");
 		await page.keyboard.press("ArrowDown");
 		await page.keyboard.press("Enter");
-		const heading = page.getByRole("textbox", { name: "Heading 3, block 13" });
+		const heading = page.getByRole("textbox", { name: "Heading 3, block 1" });
 		await heading.waitFor();
 		await page.keyboard.type("Pastries");
 		await page.keyboard.press("Enter");
@@ -165,13 +174,13 @@ describe("writing with the keyboard", () => {
 		await page.keyboard.press("Enter");
 		await page.keyboard.press("Enter");
 		await page.keyboard.type("## ");
-		// The shortcut swaps the paragraph for a heading and moves the caret into it; keys sent before a
-		// slow machine has done so are typed faster than any person types, and were lost on CI runners.
+		// The shortcut swaps the paragraph for a heading and moves the caret into it once it is drawn.
 		const inHeading = () =>
 			page.evaluate(() => document.activeElement?.getAttribute("aria-label")?.startsWith("Heading 2") ?? false);
 		for (let look = 0; look < 100 && !(await inHeading()); look++) await page.waitForTimeout(100);
 		if (!(await inHeading())) {
-			// Says where the caret went instead, with every Block's name: this has only failed on CI runners.
+			// Says where the caret went instead, with every Block's name. On a slow machine the editor once
+			// put the caret in the paragraph the heading was replacing, and lost it (FX-06).
 			const seen = await page.evaluate(() => ({
 				active: [document.activeElement?.tagName, document.activeElement?.getAttribute("aria-label")],
 				textboxes: [...document.querySelectorAll('[role="textbox"]')].map((box) => box.getAttribute("aria-label")),
@@ -180,8 +189,8 @@ describe("writing with the keyboard", () => {
 		}
 		await page.keyboard.type("Tarts");
 
-		const blocks = await draftBlocks((saved) => JSON.stringify(saved.at(-1)).includes("Tarts"));
-		expect(blocks.slice(12).map(({ id: _, ...block }) => block)).toEqual([
+		const blocks = await draftBlocks((saved) => JSON.stringify(saved.at(-1)).includes("Tarts"), entry.id);
+		expect(blocks.map(({ id: _, ...block }) => block)).toEqual([
 			{ type: "heading", level: 3, text: [{ text: "Pastries" }] },
 			{
 				type: "list",
