@@ -161,6 +161,13 @@ describe("a Template or Component no page shows (bug 1)", () => {
 		await page.locator('[data-wc-insert="heading"]').click();
 		const markup = async () => (await superadmin.api.components.getMarkup({ siteId, componentId })).markup?.draft ?? "";
 		expect(await eventually(markup, (text) => text.includes("<h2"))).toMatch(/<section[^>]*>\s*<div[^>]*>\s*<h2/);
+		// Each change draws the stand-in again by loading it again: the container stays selected throughout.
+		const selected = () =>
+			tree(page)
+				.getByRole("treeitem", { selected: true })
+				.getAttribute("aria-label", { timeout: 1000 })
+				.catch(() => null);
+		expect(await eventually(selected, (label) => /Container/.test(label ?? ""))).toMatch(/Container/);
 		expect(await selectAndRead(page, /^section/)).toContain("<section");
 	});
 });
