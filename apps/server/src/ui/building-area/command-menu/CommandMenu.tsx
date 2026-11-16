@@ -38,12 +38,12 @@ const ALL_CANVASES = ["building"] as const;
 const INSERT_GROUPS: readonly { group: "sections" | "text" | "media" | "commands"; kinds: readonly InsertKind[] }[] = [
 	{ group: "sections", kinds: ["section", "container", "div", "header", "footer"] },
 	{ group: "text", kinds: ["heading", "text", "link", "button", "list"] },
-	{ group: "media", kinds: ["image", "video", "icon"] },
+	{ group: "media", kinds: ["image", "figure", "video", "icon"] },
 	{ group: "commands", kinds: ["loop", "condition", "form", "outlet"] },
 ];
 
 /** Tags Insert's search reaches beyond the row's kinds: every element the tree may hold, by its tag. */
-const NAMED_TAGS = new Set(["section", "div", "header", "footer", "h2", "p", "a", "ul", "img", "video"]);
+const NAMED_TAGS = new Set(["section", "div", "header", "footer", "h2", "p", "a", "ul", "img", "figure", "video"]);
 
 /**
  * The building area's Command menu (BA-10; SPEC 2 and 6, `builder/09`): one dialog over the dimmed

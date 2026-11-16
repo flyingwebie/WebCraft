@@ -10637,6 +10637,10 @@
 					"name": "Image",
 					"hint": "A picture from Media"
 				},
+				"figure": {
+					"name": "Figure",
+					"hint": "A picture from Media with a caption under it"
+				},
 				"video": {
 					"name": "Video",
 					"hint": "A video from Media"
@@ -10715,7 +10719,8 @@
 				"text": "Write something here.",
 				"link": "Link",
 				"button": "Button",
-				"listItem": "List item"
+				"listItem": "List item",
+				"caption": "Caption"
 			},
 			"steps": {
 				"insert": "Insert {name}",

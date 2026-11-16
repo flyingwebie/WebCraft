@@ -60,6 +60,7 @@ export type InsertKind =
 	| "button"
 	| "list"
 	| "image"
+	| "figure"
 	| "video"
 	| "icon"
 	| "loop"
@@ -98,6 +99,7 @@ export const KIND_TAGS: Record<InsertKind, string> = {
 	button: "<a>",
 	list: "<ul>",
 	image: "<img>",
+	figure: "<figure>",
 	video: "<video>",
 	icon: "<img>",
 	loop: "{{@loop}}",
@@ -373,10 +375,17 @@ function container(tree: ElementTree, catalogue: BuilderCatalogue | null, words:
 	return named ? { ...made, classes: [named.id] } : { ...made, label: words.insert.items.container.name };
 }
 
+/** The kinds that ask for a Media file before they are made: a picture (an image, a Figure's, an icon) or a video. */
+export function mediaOf(kind: InsertKind): "image" | "video" | null {
+	if (kind === "image" || kind === "figure" || kind === "icon") return "image";
+	return kind === "video" ? "video" : null;
+}
+
 /**
  * The nodes an element kind makes, with fresh ids (`select`: the key to select after an "after" or a
- * Section: the Section's container). Media kinds need the file chosen; Template commands and
- * Components are made by the Command menu, which asks its question first.
+ * Section: the Section's container; `always`: selected even after an "inside", as a Figure's `img`
+ * is). Media kinds need the file chosen; Template commands and Components are made by the Command
+ * menu, which asks its question first.
  */
 export function nodesFor(
 	kind: InsertKind,
@@ -384,7 +393,7 @@ export function nodesFor(
 	catalogue: BuilderCatalogue | null,
 	words: Words,
 	media?: PickedMedia,
-): { nodes: TreeNode[]; select: string | null } | null {
+): { nodes: TreeNode[]; select: string | null; always?: boolean } | null {
 	const defaults = words.insert.defaults;
 	const one = (node: ElementNode) => ({ nodes: [node], select: node.id });
 	switch (kind) {
@@ -412,6 +421,16 @@ export function nodesFor(
 			return one(element(tree, "ul", [element(tree, "li", [text(defaults.listItem)])]));
 		case "image":
 			return media ? one(element(tree, "img", [], { src: `media:${media.id}` })) : null;
+		case "figure": {
+			// A Figure holds its picture and a caption under it; the picture is what is chosen next.
+			if (!media) return null;
+			const figure = element(tree, "figure", [
+				element(tree, "img", [], { src: `media:${media.id}` }),
+				element(tree, "figcaption", [text(defaults.caption)]),
+			]);
+			const picture = figure.children[0];
+			return { nodes: [figure], select: picture && "id" in picture ? picture.id : null, always: true };
+		}
 		case "icon":
 			// An icon is decoration: rendered with empty alt text.
 			return media ? one({ ...element(tree, "img", [], { src: `media:${media.id}` }), decorative: true }) : null;
@@ -515,15 +534,22 @@ export function inserter(host: InserterHost): Inserter {
 		return fill(said.whereEnd, { name: source?.name ?? words.structure.siteTemplate });
 	};
 
-	const insertNodes = (nodes: TreeNode[], name: string, at: Landing, select?: string | null): string | null => {
+	const insertNodes = (
+		nodes: TreeNode[],
+		name: string,
+		at: Landing,
+		select?: string | null,
+		always = false,
+	): string | null => {
 		if (at.kind === "refused") return refuse(at.reason);
 		if (at.kind !== "tree") return refuse(said.refusals.page);
 		const source = structure.snapshot().sources.get(at.source);
 		if (!source) return refuse(said.refusals.connecting);
 		const made = insertAt(source.tree, at.place, nodes);
 		const newKey = keyAt(made.tree, made.path);
-		const kept = at.keep ? (structure.snapshot().selection?.key ?? null) : null;
-		const chosen = at.keep ? kept : (select ?? newKey);
+		const keep = at.keep && !always;
+		const kept = keep ? (structure.snapshot().selection?.key ?? null) : null;
+		const chosen = keep ? kept : (select ?? newKey);
 		const refused = structure.change(at.source, made.tree, fill(said.steps.insert, { name }), chosen);
 		if (refused) return refuse(refused);
 		host.announce(fill(said.inserted, { name, where: whereOf(at) }));
@@ -671,10 +697,8 @@ export function inserter(host: InserterHost): Inserter {
 			if (kind !== "section") return refuse(said.refusals.page);
 			return newSection(fraction < 0.5 ? placed.index : placed.index + 1);
 		}
-		const media =
-			kind === "image" || kind === "icon" || kind === "video"
-				? await host.pick(kind === "video" ? "video" : "image")
-				: undefined;
+		const wanted = mediaOf(kind);
+		const media = wanted ? await host.pick(wanted) : undefined;
 		if (media === null) return null;
 		// The tree as it is after the picker (someone may have changed it meanwhile).
 		const snapshot = structure.snapshot();
@@ -724,7 +748,7 @@ export function inserter(host: InserterHost): Inserter {
 		}
 		const made = nodesFor(kind, source.tree, source.catalogue, words, media);
 		if (!made) return refuse(fill(said.refusals.notAllowed, { name: kindName(kind, words) }));
-		return insertNodes(made.nodes, kindName(kind, words), landing, made.select);
+		return insertNodes(made.nodes, kindName(kind, words), landing, made.select, made.always);
 	};
 
 	return {
@@ -742,10 +766,8 @@ export function inserter(host: InserterHost): Inserter {
 				if (kind === "section") return newSection(at.at);
 				return refuse(said.refusals.page);
 			}
-			const media =
-				kind === "image" || kind === "icon" || kind === "video"
-					? await host.pick(kind === "video" ? "video" : "image")
-					: undefined;
+			const wanted = mediaOf(kind);
+			const media = wanted ? await host.pick(wanted) : undefined;
 			if (media === null) return null;
 			// The tree as it is after the picker (someone may have changed it meanwhile).
 			const again = media ? landing(kind, options.forceAfter ?? false) : at;
@@ -753,7 +775,7 @@ export function inserter(host: InserterHost): Inserter {
 			if (!source) return refuse(again.kind === "refused" ? again.reason : said.refusals.connecting);
 			const made = nodesFor(kind, source.tree, source.catalogue, words, media);
 			if (!made) return refuse(fill(said.refusals.notAllowed, { name: kindName(kind, words) }));
-			return insertNodes(made.nodes, kindName(kind, words), again, made.select);
+			return insertNodes(made.nodes, kindName(kind, words), again, made.select, made.always);
 		},
 		insertNodes: (nodes, name, at) => insertNodes(nodes, name, at),
 		placeComponent,

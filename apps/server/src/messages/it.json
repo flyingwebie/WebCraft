@@ -10637,6 +10637,10 @@
 					"name": "Immagine",
 					"hint": "Un'immagine da Media"
 				},
+				"figure": {
+					"name": "Figura",
+					"hint": "Un'immagine da Media con una didascalia sotto"
+				},
 				"video": {
 					"name": "Video",
 					"hint": "Un video da Media"
@@ -10715,7 +10719,8 @@
 				"text": "Scrivi qui qualcosa.",
 				"link": "Link",
 				"button": "Pulsante",
-				"listItem": "Voce dell'elenco"
+				"listItem": "Voce dell'elenco",
+				"caption": "Didascalia"
 			},
 			"steps": {
 				"insert": "Inserisci {name}",
