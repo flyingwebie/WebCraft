@@ -235,6 +235,12 @@ export const components = pgTable(
 		siteId: uuid("site_id").notNull(),
 		/** Its PascalCase tag name in Template markup, such as `PostCard`. Unique on the Site. */
 		name: text("name").notNull(),
+		/**
+		 * The Page that owns it when it is a Page section (ADR 0038): a Component made by a Section on
+		 * that Page, placed only there, listed nowhere, published and deleted with the Page. Null for a
+		 * library Component, the one Staff place anywhere ("Make reusable Component" clears it).
+		 */
+		pageId: uuid("page_id"),
 		/** The Draft: `{ props, tree }`. */
 		draft: jsonb("draft").notNull(),
 		/** The published version, `{ props, tree }`; null until the first publish. */
@@ -254,6 +260,12 @@ export const components = pgTable(
 			columns: [table.workspaceId, table.siteId],
 			foreignColumns: [sites.workspaceId, sites.id],
 		}).onDelete("cascade"),
+		foreignKey({
+			name: "components_page_fkey",
+			columns: [table.siteId, table.pageId],
+			foreignColumns: [entries.siteId, entries.id],
+		}).onDelete("cascade"),
+		index("components_page_id_idx").on(table.pageId),
 		unique("components_site_id_id_unique").on(table.siteId, table.id),
 		unique("components_site_id_name_unique").on(table.siteId, table.name),
 	],

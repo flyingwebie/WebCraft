@@ -10622,7 +10622,8 @@
 				"step": "Cambia la prova di {name}",
 				"bad": "Questa prova non si legge: {problem}",
 				"name": "Se {test}"
-			}
+			},
+			"section": "Sezione"
 		},
 		"insert": {
 			"row": "Inserisci",
@@ -10630,8 +10631,8 @@
 				"section": {
 					"name": "Sezione",
 					"hint": "Una nuova sezione di primo livello, dopo questa",
-					"page": "Un nuovo Component di primo livello, dopo questo",
-					"tip": "Sezione: crea qui un nuovo Component"
+					"page": "Una nuova sezione di questa pagina, dopo questa",
+					"tip": "Sezione: crea qui una nuova sezione della pagina"
 				},
 				"container": {
 					"name": "Contenitore",
@@ -10777,8 +10778,8 @@
 				"connecting": "Sto ancora aprendo gli elementi della pagina. Riprova tra un momento."
 			},
 			"section": {
-				"making": "Creo {name}…",
-				"made": "{name} è sulla pagina. Il suo contenitore è selezionato: Titolo, Testo e Div vanno dentro.",
+				"making": "Creo una sezione…",
+				"made": "Sezione inserita nella pagina. Il suo contenitore è selezionato: Titolo, Testo e Div vanno dentro.",
 				"failed": "Non è stato possibile creare la sezione: {reason}"
 			},
 			"media": {
@@ -10891,7 +10892,8 @@
 				"edit": "Modifica",
 				"pageDetails": "Dettagli della pagina",
 				"sections": "Sezioni",
-				"help": "Aiuto"
+				"help": "Aiuto",
+				"makeReusable": "Rendi riutilizzabile come Component"
 			},
 			"wrap": {
 				"div": "un Div",
@@ -10944,7 +10946,8 @@
 				"paste": "Incolla {name}",
 				"wrap": "Avvolgi {name} in {what}",
 				"unwrap": "Togli l'involucro a {name}"
-			}
+			},
+			"makeReusable": "Rendi riutilizzabile come Component"
 		},
 		"componentDialog": {
 			"makeTitle": "Crea un Component",
@@ -10959,7 +10962,13 @@
 			"create": "Crea",
 			"cancel": "Annulla",
 			"made": "Component {name} creato.",
-			"refused": "Non è stato possibile creare il Component: {reason}"
+			"refused": "Non è stato possibile creare il Component: {reason}",
+			"reusableTitle": "Rendi riutilizzabile come Component",
+			"reusableText": "Questa sezione diventa un Component a sé: elencato tra i Component e inseribile ovunque. Resta dov'è su questa pagina.",
+			"reusable": "Rendi riutilizzabile",
+			"madeReusable": "La sezione ora è il Component riutilizzabile {name}.",
+			"reusableRefused": "Non è stato possibile renderla riutilizzabile: {reason}",
+			"reusableStep": "Rendi riutilizzabile la sezione {name}"
 		},
 		"fixedText": {
 			"badge": "Testo fisso",

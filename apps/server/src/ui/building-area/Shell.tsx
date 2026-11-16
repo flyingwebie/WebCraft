@@ -294,6 +294,7 @@ export function Shell({
 	const layoutEditor = useMemo(
 		() =>
 			pageLayoutEditor({
+				token: config.token,
 				siteId: config.site.id,
 				drafts: editing.drafts(),
 				words,
@@ -304,7 +305,7 @@ export function Shell({
 				},
 				failed: () => setSaving("failed"),
 			}),
-		[config.site.id, words, pageStructure, editing],
+		[config.token, config.site.id, words, pageStructure, editing],
 	);
 	useEffect(() => () => layoutEditor.destroy(), [layoutEditor]);
 	useEffect(
@@ -416,6 +417,16 @@ export function Shell({
 			text: fill(words.componentDialog.makeText, { name }),
 			node: selected.node,
 			submit: (chosen, texts) => ops.makeComponent(chosen, texts),
+		});
+	};
+	/** Make reusable Component (ADR 0038): the Page's Section selected gets a name and joins the library. */
+	const makeReusable = () => {
+		if (!ops.sectionSelected()) return;
+		setNaming({
+			kind: "reusable",
+			suggested: "NewComponent",
+			text: words.componentDialog.reusableText,
+			submit: (chosen) => ops.makeReusable(chosen),
 		});
 	};
 	/** What the canvas selected last: its name as its chip says it, and its reference when it has one. */
@@ -631,6 +642,9 @@ export function Shell({
 		[panelSelection, kind, inPlaceTarget],
 	);
 	const editTarget = staff ? inPlaceTargetOf(structureNow) : null;
+	const inPlaceSection = inPlaceTarget
+		? Boolean(structureNow.layout?.find((each) => `content/${each.id}` === inPlaceTarget.placement)?.pageSection)
+		: false;
 	// The Entry panel (BA-13): the page's Entry filled in without leaving it; a page never published
 	// follows its new slug. (A Member gets Page details in client editing's side panel instead.)
 	const entryView = useEntryPanelView();
@@ -695,7 +709,11 @@ export function Shell({
 			...(inPlaceTarget
 				? {
 						component: (
-							<span className="truncate text-[12px] font-semibold text-[#a78bfa]" data-wc-in-place-title="">
+							// A Page's Section is part of the Page: its title is the chrome's, not a Component's colour.
+							<span
+								className={`truncate text-[12px] font-semibold ${inPlaceSection ? "text-chrome-strong" : "text-[#a78bfa]"}`}
+								data-wc-in-place-title=""
+							>
 								{inPlaceTarget.name}
 							</span>
 						),
@@ -728,6 +746,7 @@ export function Shell({
 								menu={{
 									ops,
 									makeComponent,
+									makeReusable,
 									ask: (question) => menu.setRequest({ tab: "insert", step: question }),
 								}}
 							/>
@@ -750,6 +769,7 @@ export function Shell({
 										token={config.token}
 										siteId={config.site.id}
 										layout={layoutEditor}
+										onMakeReusable={makeReusable}
 										onOpenComponent={(componentId, source) => {
 											// Placed on this page: edited in place; else opened as the document.
 											const snapshot = pageStructure.snapshot();
@@ -883,6 +903,7 @@ export function Shell({
 							}
 						: null,
 					makeComponent,
+					makeReusable: ops.sectionSelected() ? makeReusable : null,
 					newComponent,
 					parts: {
 						icons: KIND_ICONS,

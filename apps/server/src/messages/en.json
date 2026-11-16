@@ -10622,7 +10622,8 @@
 				"step": "Change the test of {name}",
 				"bad": "This test can't be read: {problem}",
 				"name": "If {test}"
-			}
+			},
+			"section": "Section"
 		},
 		"insert": {
 			"row": "Insert",
@@ -10630,8 +10631,8 @@
 				"section": {
 					"name": "Section",
 					"hint": "A new top-level section, placed after this one",
-					"page": "A new top-level Component, placed after this one",
-					"tip": "Section: starts a new Component here"
+					"page": "A new section of this Page, placed after this one",
+					"tip": "Section: starts a new section of this Page"
 				},
 				"container": {
 					"name": "Container",
@@ -10777,8 +10778,8 @@
 				"connecting": "Still opening the page's elements. Try again in a moment."
 			},
 			"section": {
-				"making": "Making {name}…",
-				"made": "{name} placed on the page. Its container is selected: Heading, Text and Div go inside it.",
+				"making": "Making a section…",
+				"made": "Section placed on the page. Its container is selected: Heading, Text and Div go inside it.",
 				"failed": "Couldn't make the section: {reason}"
 			},
 			"media": {
@@ -10891,7 +10892,8 @@
 				"edit": "Edit",
 				"pageDetails": "Page details",
 				"sections": "Sections",
-				"help": "Help"
+				"help": "Help",
+				"makeReusable": "Make reusable Component"
 			},
 			"wrap": {
 				"div": "a Div",
@@ -10944,7 +10946,8 @@
 				"paste": "Paste {name}",
 				"wrap": "Wrap {name} in {what}",
 				"unwrap": "Unwrap {name}"
-			}
+			},
+			"makeReusable": "Make reusable Component"
 		},
 		"componentDialog": {
 			"makeTitle": "Make Component",
@@ -10959,7 +10962,13 @@
 			"create": "Create",
 			"cancel": "Cancel",
 			"made": "Made the Component {name}.",
-			"refused": "Couldn't make the Component: {reason}"
+			"refused": "Couldn't make the Component: {reason}",
+			"reusableTitle": "Make reusable Component",
+			"reusableText": "This Section becomes a Component of its own: listed in Components, and placed anywhere. It stays where it is on this Page.",
+			"reusable": "Make reusable",
+			"madeReusable": "The Section is the reusable Component {name} now.",
+			"reusableRefused": "Couldn't make it reusable: {reason}",
+			"reusableStep": "Make the Section {name} reusable"
 		},
 		"fixedText": {
 			"badge": "Fixed text",

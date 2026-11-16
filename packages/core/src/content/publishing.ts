@@ -49,6 +49,7 @@ import { languagePath, type SiteLanguages, siteLanguages } from "./languages.ts"
 import { publishLoop } from "./loops.ts";
 import { clearPageCache } from "./page-cache.ts";
 import { layoutLinks } from "./page-layouts.ts";
+import { deleteUnplacedSections, pagesWithSections, sectionsToPublish } from "./page-sections.ts";
 import {
 	checkPublishedParent,
 	isPagePostType,
@@ -195,7 +196,9 @@ export async function publishItems(
 		)
 			await lockComponents(tx);
 		let stylesBefore: SiteStyles | undefined;
-		if (items.some(changesStyles)) {
+		// A Page's Sections go live with it (ADR 0038), and their Classes with them.
+		const pages = items.flatMap((item) => (item.kind === "entry" ? [item.id] : []));
+		if (items.some(changesStyles) || (await pagesWithSections(tx, pages))) {
 			// Publishes that change the stylesheet take turns, so each reads the stylesheet the one
 			// before it left and keeps it for pages loaded in between.
 			await lockDesignSystem(tx);
@@ -301,6 +304,12 @@ async function publishEntry(scope: SiteScope, entryId: string, version: unknown)
 	const site = await siteLanguages(scope);
 	const { defaultLanguage } = site;
 	const draft = storedVersion(version ?? row.draft);
+	// Its Sections go live with it, as one item (ADR 0038): their Drafts, each checked as a Component's publish.
+	for (const componentId of await sectionsToPublish(scope, row.id, draft)) {
+		await publishComponent(scope, componentId, scope.componentSources, undefined);
+		await saveRevision(scope, { kind: "component", id: componentId });
+		await announcePublished(scope, { kind: "component", id: componentId });
+	}
 	const catalogue = await siteComponents(scope, "published", scope.componentSources);
 	for (const placement of draft.layout?.placements ?? [])
 		if (!catalogue.version(placement.component))
@@ -336,6 +345,8 @@ async function publishEntry(scope: SiteScope, entryId: string, version: unknown)
 	);
 	// Published again: its old paths answer as pages again, not 410 Gone.
 	await scope.delete(gonePaths, eq(gonePaths.entryId, row.id));
+	// Sections it no longer places, in its Draft or now, go (ADR 0038).
+	await deleteUnplacedSections(scope, row.id, storedVersion(row.draft), draft);
 	await saveLinks(scope, row.id, "published", [
 		...linksIn(draft.values, postType.fields),
 		...layoutLinks(draft.layout),
@@ -523,7 +534,7 @@ async function publishComponent(
 ): Promise<Published> {
 	const row = await lockComponent(scope, componentId, sources);
 	const draft = storedComponentVersion(version ?? row.draft);
-	const catalogue = await siteComponents(scope, "published", sources, { self: row.id });
+	const catalogue = await siteComponents(scope, "published", sources, { self: row.id, placing: true });
 	const { ids } = classCatalogue(await draftDesignSystem(scope));
 	const tree = parseElementTree(draft.tree, {
 		...componentTreeRules(draft.props, await readContext(scope, "published"), catalogue),

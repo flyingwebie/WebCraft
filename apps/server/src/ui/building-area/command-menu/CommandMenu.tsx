@@ -341,6 +341,8 @@ export function CommandMenu({
 			const placement = { group: said.groups.placement, icon: ComponentIcon, permission: "structure.edit" as const };
 			if (staff.editComponent)
 				add({ ...placement, id: "editComponent", label: action.editComponent, run: staff.editComponent });
+			if (staff.makeReusable)
+				add({ ...placement, id: "makeReusable", label: action.makeReusable, run: staff.makeReusable });
 			if (ops.onPage()) {
 				add({
 					...placement,

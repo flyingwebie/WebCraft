@@ -78,7 +78,7 @@ export async function configureLayout(scope: SiteScope, change: { enabled?: bool
 		};
 		const catalogue = await siteComponents(tx, "draft", tx.componentSources);
 		for (const id of next.allowedComponents)
-			if (!catalogue.version(id))
+			if (!catalogue.version(id) || catalogue.pageOf(id) !== undefined)
 				throw new EntryInvalidError([{ at: "allowedComponents", message: "Choose a Component on this Site." }]);
 		if (await tx.first(pageLayoutSettings)) await tx.update(pageLayoutSettings, next);
 		else await tx.insert(pageLayoutSettings, next);
@@ -134,16 +134,22 @@ export async function getPageLayout(scope: SiteScope, entryId: string, language?
 					(catalogue.version(c.id) || drafts?.version(c.id)),
 			)
 			.map((c) => ({ id: c.id, name: c.name, props: (catalogue.version(c.id) ?? drafts?.version(c.id))?.props ?? [] })),
-		placements: layout.placements.map((p) => ({
-			id: p.id,
-			component: p.component,
-			componentName: catalogue.nameOf(p.component) ?? drafts?.nameOf(p.component) ?? "Component",
-			label: placementLabel(p, catalogue.nameOf(p.component) ?? "Component", languages),
-			props: p.props,
-			values: readFields(p.values, p.props, languages),
-			locked: p.locked ?? false,
-			hidden: p.hidden ?? false,
-		})),
+		placements: layout.placements.map((p) => {
+			// A Page section has no name of its own (ADR 0038): it reads as a Section.
+			const section = (catalogue.pageOf(p.component) ?? drafts?.pageOf(p.component)) !== undefined;
+			const name = section ? "Section" : (catalogue.nameOf(p.component) ?? drafts?.nameOf(p.component) ?? "Component");
+			return {
+				id: p.id,
+				component: p.component,
+				componentName: name,
+				pageSection: section,
+				label: placementLabel(p, section ? name : (catalogue.nameOf(p.component) ?? "Component"), languages),
+				props: p.props,
+				values: readFields(p.values, p.props, languages),
+				locked: p.locked ?? false,
+				hidden: p.hidden ?? false,
+			};
+		}),
 		language: languages.language,
 		defaultLanguage: languages.defaultLanguage,
 	};
@@ -161,9 +167,13 @@ function object(value: unknown): Record<string, unknown> {
 function refuse(message: string): never {
 	throw new EntryInvalidError([{ at: "layout", message }]);
 }
-/** Called by every Entry writer. The incoming values are the public shared-document values, without provenance. */
+/**
+ * Called by every Entry writer of the Page `pageId`. The incoming values are the public
+ * shared-document values, without provenance.
+ */
 export async function writePageLayout(
 	scope: SiteScope,
+	pageId: string,
 	before: PageLayout,
 	input: unknown,
 	basedOn?: string,
@@ -178,7 +188,9 @@ export async function writePageLayout(
 	if (!permissions.structure && !settings.enabled)
 		throw new PageLayoutRefusedError("notAllowed", "Arranging Page layouts is not allowed on this Site.");
 	const catalogue = await siteComponents(scope, "published", scope.componentSources);
-	const drafts = permissions.structure ? await siteComponents(scope, "draft", scope.componentSources) : null;
+	// Everyone reads the Drafts of what is placed already (a new Section isn't published until its Page is);
+	// only Staff add a Component that isn't published.
+	const drafts = await siteComponents(scope, "draft", scope.componentSources);
 	const site = await siteLanguages(scope);
 	const activeModules = new Set(
 		(await scope.componentSources.moduleComponentsAt(scope)).map((component) => component.id),
@@ -204,8 +216,14 @@ export async function writePageLayout(
 		for (const key of ["hidden", "locked"])
 			if (p[key] !== undefined && typeof p[key] !== "boolean") refuse("Placement flags must be true or false.");
 		const old = before.placements.find((v) => v.id === p.id);
-		const version = catalogue.version(p.component) ?? drafts?.version(p.component);
+		const version =
+			catalogue.version(p.component) ?? (old || permissions.structure ? drafts.version(p.component) : undefined);
 		if (!version || (old && old.component !== p.component)) refuse("The Placement's Component cannot be replaced.");
+		// A Page section is placed once, on its own Page (ADR 0038): duplicating one makes another.
+		const owner = drafts.pageOf(p.component);
+		if (owner !== undefined && owner !== pageId) refuse("That Section belongs to another Page.");
+		if (owner !== undefined && placements.some((placed) => placed.component === p.component))
+			refuse("A Section is placed once on its Page: duplicate it to have another.");
 		if (!old && !permissions.structure && !settings.allowedComponents.includes(p.component))
 			throw new PageLayoutRefusedError("allowedComponents", "Members may add only Allowed components.");
 		if (!permissions.structure && !!p.locked !== !!old?.locked)

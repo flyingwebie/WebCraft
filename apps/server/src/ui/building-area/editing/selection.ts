@@ -40,6 +40,11 @@ export type StructureSource = {
 	id: string | null;
 	/** The Component's name, or the Template's Post Type (null for the Site and Search results templates). */
 	name: string | null;
+	/**
+	 * A Page's Section (a Page section, ADR 0038): a Component the Page owns, edited in place as part
+	 * of the Page, called "Section" (its name is made for it, never shown).
+	 */
+	pageSection: boolean;
 	target: BuilderTarget;
 	/** Whether the person may change it: not a Module's Component, not a Template not made yet. */
 	editable: boolean;
@@ -59,10 +64,13 @@ export type StructureSource = {
 /** A Placement of the page's Page layout (a Page's content), as the tree lists it and the Props panel edits it. */
 export type LayoutPlacement = {
 	id: string;
+	/** Its Component's name; "Section" for a Page's Section. */
 	name: string;
 	hidden: boolean;
 	/** Its Component's id. */
 	component: string;
+	/** Its Component is one of the Page's Sections (a Page section, ADR 0038), not a library Component. */
+	pageSection: boolean;
 	locked: boolean;
 	/** Its Props' declarations, as the Placement keeps them, and their values in the page's language. */
 	props: FieldDefinition[];
@@ -158,6 +166,11 @@ export type Structure = {
 	changeProps(source: string, props: FieldDefinition[], label: string): string | null;
 	/** Reads the page's Page layout again (it changed: a move, a Prop, someone else's change). */
 	reloadLayout(): Promise<void>;
+	/**
+	 * A Component the page shows became reusable or a Page's Section again (Make reusable Component,
+	 * and its Undo): its sources' name and kind follow, and the Page layout is read again.
+	 */
+	componentRenamed(componentId: string, name: string, pageSection: boolean): Promise<void>;
 	/**
 	 * Edits the Component a source is in place (its reference, `content/<placement id>`), or stops
 	 * (null). While one is, a selection on the page outside it is refused (`locked` says why).
@@ -421,7 +434,10 @@ export function structure(options: {
 			ref: answer.data.ref,
 			kind,
 			id,
-			name: opened.component?.name ?? answer.data.name ?? opened.postType?.name ?? null,
+			name: opened.component?.pageId
+				? words.placements.section
+				: (opened.component?.name ?? answer.data.name ?? opened.postType?.name ?? null),
+			pageSection: Boolean(opened.component?.pageId),
 			target,
 			editable: editable && id !== null,
 			tree: fromDraft && fromDraft.nodes.length > 0 ? fromDraft : opened.tree,
@@ -459,7 +475,8 @@ export function structure(options: {
 			if (asked !== generation) return;
 			layout = read.placements.map((placement) => ({
 				id: placement.id,
-				name: placement.componentName,
+				name: placement.pageSection ? words.placements.section : placement.componentName,
+				pageSection: placement.pageSection,
 				hidden: placement.hidden,
 				component: placement.component,
 				locked: placement.locked,
@@ -678,6 +695,21 @@ export function structure(options: {
 			return null;
 		},
 		async reloadLayout() {
+			const entryId = layoutInfo?.entryId ?? sources.get("site")?.pageLayout?.id;
+			if (entryId) await readLayout(entryId, generation);
+		},
+		async componentRenamed(componentId, name, pageSection) {
+			let changed = false;
+			const next = new Map(sources);
+			for (const [ref, source] of sources) {
+				if (source.kind !== "component" || source.id !== componentId) continue;
+				next.set(ref, { ...source, name: pageSection ? words.placements.section : name, pageSection });
+				changed = true;
+			}
+			if (changed) {
+				sources = next;
+				tell();
+			}
 			const entryId = layoutInfo?.entryId ?? sources.get("site")?.pageLayout?.id;
 			if (entryId) await readLayout(entryId, generation);
 		},

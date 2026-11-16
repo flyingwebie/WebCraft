@@ -174,7 +174,7 @@ export async function resolveSource(
 		steps.push({
 			kind: "component",
 			id: placement.component,
-			name: catalogue.nameOf(placement.component) ?? null,
+			name: shownName(catalogue, placement.component) ?? null,
 			editable: own,
 			tree: version.tree,
 			draft: own ? version : null,
@@ -341,7 +341,7 @@ export async function openSource(
 	const classes = classCatalogue(await draftDesignSystem(scope));
 	const found = ref.element ? findNode(source.tree.nodes, ref.element) : undefined;
 	const label = (node: TreeNode): string => {
-		if (node.type === "component") return `<${catalogue.nameOf(node.component) ?? "Component"}>`;
+		if (node.type === "component") return `<${shownName(catalogue, node.component) ?? "Component"}>`;
 		if (node.type !== "element") return node.type;
 		const [first] = node.classes;
 		const name = first === undefined ? undefined : classes.nameOf(first);
@@ -349,7 +349,7 @@ export async function openSource(
 	};
 	const idOf = (node: TreeNode) => (node.type === "element" || node.type === "component" ? node.id : "");
 	const tagOf = (node: TreeNode) =>
-		node.type === "component" ? (catalogue.nameOf(node.component) ?? "") : node.type === "element" ? node.tag : "";
+		node.type === "component" ? (shownName(catalogue, node.component) ?? "") : node.type === "element" ? node.tag : "";
 	return {
 		source: { kind: source.kind, id: source.id, name: source.name, editable: source.editable },
 		ref: writeCodeRef(ref),
@@ -471,4 +471,9 @@ function parts(
 	names: readonly string[],
 ): Suggestions["values"] {
 	return names.map((name) => ({ path: `${path}.${name}`, label: `${label} › ${name}`, type: "part", group }));
+}
+
+/** A Component's name as the panes show it: a Page's Section has none of its own (ADR 0038), so it is "Section". */
+function shownName(catalogue: SiteComponents, componentId: string): string | undefined {
+	return catalogue.pageOf(componentId) !== undefined ? "Section" : catalogue.nameOf(componentId);
 }

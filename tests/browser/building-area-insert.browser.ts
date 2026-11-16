@@ -4,9 +4,12 @@
 //   selected), else after it (the new element is selected); ⌘ forces after; Section goes after the
 //   top-level element the selection is in, with its container selected; the landing line shows on the
 //   canvas and in the tree; a new empty element is a 35 px dashed box; one Undo takes an insert back;
-// - on a Page, Section makes "Section1", places it and edits it in place (four clicks to a Heading in
-//   it); the empty Page offers Add a Component and New section; with nothing selected on a Page the
-//   insert targets the Page, never the Site template (audit finding 7);
+// - on a Page, Section makes a Page section (FX-05, ADR 0038): a Component the Page owns, not listed in
+//   the Components place, shown in Layers as "Section" without a Component badge, its markup in the
+//   HTML pane; it is placed and edited in place (four clicks to a Heading in it); Make reusable
+//   Component names it and lists it, one Undo step; the empty Page offers Add a Component and New
+//   section; with nothing selected on a Page the insert targets the Page, never the Site template
+//   (audit finding 7);
 // - the Command menu's three tabs and their keys (from the shell and from the page), Tab and the arrows
 //   between tabs, Recent, focus going back, and Italian;
 // - the tree row's menu: Copy, Paste, Wrap in, Make Component, from a right-click and Shift+F10;
@@ -29,6 +32,7 @@ let siteId: string;
 let postTypeId: string;
 let heroId: string;
 let homeId: string;
+let pagesId: string;
 const slug = "bakery";
 const post = "/blog/our-sourdough-starter-explained";
 
@@ -66,7 +70,7 @@ beforeAll(async () => {
 	heroId = hero.id;
 	const heroProps = (await api.components.get({ siteId, componentId: hero.id })).component.draft.props;
 
-	const pagesId = (await api.postTypes.list({ siteId })).postTypes.find((type) => type.builtIn === "page")?.id ?? "";
+	pagesId = (await api.postTypes.list({ siteId })).postTypes.find((type) => type.builtIn === "page")?.id ?? "";
 	for (const [title, pageSlug] of [
 		["Home", "home"],
 		["Spring offers", "spring-offers"],
@@ -323,7 +327,7 @@ describe("the insert row on a Template's elements", () => {
 });
 
 describe("Section on a Page (D2) and the empty Page", () => {
-	test("an empty Page offers both ways; New section makes Section1, places it and edits it in place", async () => {
+	test("an empty Page offers both ways; New section makes a Page section, places it and edits it in place", async () => {
 		const page = await shared();
 		await openPage(page, "/spring-offers", /footer/);
 		const empty = page.locator("[data-wc-empty-page]");
@@ -337,7 +341,7 @@ describe("Section on a Page (D2) and the empty Page", () => {
 		// Click one: New section. The Component is made, placed and edited in place, its container selected.
 		await empty.getByRole("button", { name: "New section" }).click();
 		await page.locator("[data-wc-done]").waitFor();
-		await says(page.locator("[data-wc-in-place-title]"), "Section1");
+		await says(page.locator("[data-wc-in-place-title]"), "Section");
 		await eventually(
 			async () => selectedIn(page) ?? "",
 			(ref) => /^content\/[^#]+#/.test(ref),
@@ -346,8 +350,22 @@ describe("Section on a Page (D2) and the empty Page", () => {
 		// Click two: Heading lands inside the container.
 		await insertButton(page, "heading").click();
 		const { api } = await install.install.superadmin();
-		const made = (await api.components.list({ siteId })).components.find((each) => each.name === "Section1");
-		expect(made).toBeDefined();
+		const pageId = (await api.entries.list({ siteId, postTypeId: pagesId })).entries.find(
+			(entry) => entry.draft.title === "Spring offers",
+		)?.id;
+		const layout = await api.pageLayouts.get({ siteId, entryId: pageId ?? "" });
+		expect(layout.placements).toMatchObject([{ componentName: "Section", pageSection: true }]);
+		const made = (await api.components.get({ siteId, componentId: layout.placements[0]?.component ?? "" })).component;
+		expect(made.pageId).toBe(pageId ?? null);
+		// Not in the Components place: the library lists HeroSplit only.
+		expect((await api.components.list({ siteId })).components.map((each) => each.name)).toEqual(["HeroSplit"]);
+		// The HTML pane reads the Section's own markup, the container selected in it.
+		expect(
+			await eventually(
+				async () => flat(await page.locator('textarea[data-wc-code-box="html"]').inputValue()),
+				(text) => text.includes('class="container"'),
+			),
+		).toContain('class="container"');
 		const markup = async () =>
 			flat((await api.components.getMarkup({ siteId, componentId: made?.id ?? "" })).markup?.draft ?? "");
 		expect(await eventually(markup, (text) => text.includes("<h2>Heading</h2>"))).toContain(
@@ -355,6 +373,55 @@ describe("Section on a Page (D2) and the empty Page", () => {
 		);
 		await page.locator("[data-wc-done]").click();
 		await page.locator("[data-wc-empty-page]").first().waitFor({ state: "detached" });
+		// In Layers it is a Section, drawn without the Component badge.
+		const row = tree(page)
+			.getByRole("treeitem", { name: /^Section/ })
+			.first();
+		await row.waitFor();
+		expect(await row.locator("svg.lucide-component").count()).toBe(0);
+		expect(await row.locator("svg.lucide-rectangle-horizontal").count()).toBe(1);
+	});
+
+	test("Make reusable Component names the Section and lists it, one Undo step", async () => {
+		const page = await shared();
+		await openPage(page, "/spring-offers", /^Section/);
+		const { api } = await install.install.superadmin();
+		const listed = async () => (await api.components.list({ siteId })).components.map((each) => each.name);
+
+		// The Section's row menu, from the keyboard: Duplicate, Make reusable Component, Delete.
+		const row = tree(page)
+			.getByRole("treeitem", { name: /^Section/ })
+			.first();
+		await row.click();
+		await row.press("Shift+F10");
+		const items = page.getByRole("menu").getByRole("menuitem");
+		await items.first().waitFor();
+		expect(await items.allTextContents()).toEqual([
+			expect.stringContaining("Duplicate"),
+			"Make reusable Component",
+			expect.stringContaining("Delete"),
+		]);
+		await page.getByRole("menuitem", { name: "Make reusable Component" }).click();
+		const dialog = page.locator('dialog[data-wc-component-dialog="reusable"]');
+		await dialog.getByRole("heading", { name: "Make reusable Component" }).waitFor();
+		await expectNoAxeViolations(page, "the Make reusable Component dialog");
+		await dialog.getByRole("textbox").fill("SpringOffer");
+		await dialog.getByRole("button", { name: "Make reusable" }).click();
+		await dialog.waitFor({ state: "detached" });
+		expect(await eventually(listed, (names) => names.includes("SpringOffer"))).toContain("SpringOffer");
+		const named = tree(page)
+			.getByRole("treeitem", { name: /^SpringOffer/ })
+			.first();
+		await named.waitFor();
+		expect(await named.locator("svg.lucide-component").count()).toBe(1);
+
+		// One Undo: a Section of the Page again, listed nowhere.
+		await page.locator('[data-wc-bar="undo"]').click();
+		expect(await eventually(listed, (names) => !names.includes("SpringOffer"))).toEqual(["HeroSplit"]);
+		await tree(page)
+			.getByRole("treeitem", { name: /^Section/ })
+			.first()
+			.waitFor();
 	});
 
 	test("Section after a selected Placement, Add a Component from the empty Page, and nothing into the Site template", async () => {
@@ -384,7 +451,7 @@ describe("Section on a Page (D2) and the empty Page", () => {
 			(await api.pageLayouts.get({ siteId, entryId: homeId })).placements.map((each) => each.componentName);
 		const placed = await eventually(order, (names) => names.length === 2);
 		expect(placed[0]).toBe("HeroSplit");
-		expect(placed[1]).toMatch(/^Section\d+$/);
+		expect(placed[1]).toBe("Section");
 		await page.locator("[data-wc-done]").click();
 
 		// The empty Page's Add a Component: Insert lists the Components only; one is placed.
