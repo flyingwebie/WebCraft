@@ -131,6 +131,23 @@ describe("with the project's release feed", () => {
 	});
 });
 
+test("a project with no release yet (GitHub answers 404) is no problem and logs no warning", async () => {
+	const install = await createTestInstall();
+	try {
+		install.dns.answer("api.github.com", ["140.82.112.6"]);
+		install.http.respond("GET", DEFAULT_UPDATE_FEED, { status: 404, body: JSON.stringify({ message: "Not Found" }) });
+
+		const check = await install.checkUpdate();
+
+		expect(check).toMatchObject({ enabled: true, problem: null, latest: null, updateAvailable: false });
+		expect(check.checkedAt).not.toBeNull();
+		expect(install.logs.filter((entry) => entry.level === "warn" && /update check/.test(entry.msg))).toEqual([]);
+		expect((await (await install.superadmin()).api.shell.context()).banners.update).toBeNull();
+	} finally {
+		await install.close();
+	}
+});
+
 test("another feed, such as a static file of an agency's own, can be named", async () => {
 	const feed = "https://updates.agency.example/webcraft.json";
 	const install = await createTestInstall({ updateFeed: feed });

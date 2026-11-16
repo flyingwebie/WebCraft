@@ -1428,9 +1428,9 @@ A Site export (GLOSSARY.md, ADR 0033) is one Site in one archive, to copy or mov
 `packages/core/src/updates.ts`, behind `services.updates`; table `update_checks` (one row).
 
 - The worker's `updates.check` (05:29 UTC, at most once a day: `check({ onlyIfDue: true })`) and `webcraft admin check-update` (at once) read the release feed (`config.updateFeed`, `WEBCRAFT_UPDATE_FEED`) through the guarded fetcher, to the feed's host only, 10 seconds, 2 MB. The request carries `User-Agent: WebCraft` and `Accept: application/json`, nothing else: no Install id, no version, no query of its own.
-- The feed can be GitHub's release JSON (`/releases/latest`, or the list `/releases`, skipping drafts and pre-releases) or a static file `{ "version", "url", "notes", "publishedAt" }`. The newest version (semver, `v` dropped), its `https` release URL, its notes as plain text (4,000 characters at most) and when it was published are kept; a failed read keeps the release found before and records why (`problem`: the guarded fetcher's, `status` or `format`).
+- The feed can be GitHub's release JSON (`/releases/latest`, or the list `/releases`, skipping drafts and pre-releases) or a static file `{ "version", "url", "notes", "publishedAt" }`. The newest version (semver, `v` dropped), its `https` release URL, its notes as plain text (4,000 characters at most) and when it was published are kept; a failed read keeps the release found before and records why (`problem`: the guarded fetcher's, `status` or `format`). A 404 is no failure: the project has no release yet (GitHub's `/releases/latest` answers 404 until the first one), so nothing is kept, no `problem` is recorded and nothing is logged.
 - `services.updates.latest()` compares it with `WEBCRAFT_VERSION` (`updateAvailable`; a version that isn't semver never is behind). The admin shows `shell.context`'s `banners.update` on the Install's pages for the Superadmin, and `install.updates.get` on Install settings › General.
-- **WebCraft's version** is the `version` of the repository's root `package.json` (`WEBCRAFT_VERSION`, `packages/core/src/version.ts`): a release sets it, then is tagged `v<version>`.
+- **WebCraft's version** is the `version` of the repository's root `package.json` (`WEBCRAFT_VERSION`, `packages/core/src/version.ts`): a release sets it, then is tagged `v<version>` (see "Releases").
 
 ## Logs
 
