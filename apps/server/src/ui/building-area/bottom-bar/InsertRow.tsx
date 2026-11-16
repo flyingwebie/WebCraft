@@ -1,5 +1,6 @@
 import {
 	BetweenHorizontalStartIcon,
+	BookImageIcon,
 	ComponentIcon,
 	GitBranchIcon,
 	HeadingIcon,
@@ -38,6 +39,7 @@ export const KIND_ICONS: Record<InsertKind | "more", Icon> = {
 	button: RectangleHorizontalIcon,
 	list: ListIcon,
 	image: ImageIcon,
+	figure: BookImageIcon,
 	video: PlayIcon,
 	icon: ShapesIcon,
 	loop: RepeatIcon,
@@ -78,7 +80,7 @@ export function InsertRow({
 	inserter: Inserter;
 	/** Opens the Command menu (on Insert, at a question, or listing the Components). */
 	onMenu(request: MenuRequest): void;
-	/** On a Page: Section starts a new Component (D2), as its tooltip says. */
+	/** On a Page: Section starts a new Page section (D2, ADR 0038), as its tooltip says. */
 	onPage: boolean;
 	/** The open Template may hold the page content outlet: its tinted group shows. */
 	template: boolean;

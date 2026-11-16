@@ -24,7 +24,11 @@ import { sites, workspaces } from "./tenancy.ts";
 // The files themselves are in the Install's storage (local disk or an S3-compatible bucket), one
 // folder per Workspace and Site; these tables say where each one is (ADRs 0026, 0027).
 
-/** A Site's Media library folders. Names are unique on the Site, whatever their case. */
+/**
+ * A Site's Media library folders. Names are unique on the Site, whatever their case. `sort_order` is
+ * where a folder comes when the Site lists its folders in its own order (`sites.media_folder_order`
+ * `custom`); in A–Z it isn't read.
+ */
 export const mediaFolders = pgTable(
 	"media_folders",
 	{
@@ -32,6 +36,8 @@ export const mediaFolders = pgTable(
 		workspaceId: uuid("workspace_id").notNull(),
 		siteId: uuid("site_id").notNull(),
 		name: text("name").notNull(),
+		/** Where the folder comes in the Site's own order, from 0; folders made later come last. */
+		sortOrder: integer("sort_order").notNull().default(0),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 	},
 	(table) => [

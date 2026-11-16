@@ -10,12 +10,13 @@ import {
 	MoonIcon,
 	PaletteIcon,
 	RepeatIcon,
+	ScanEyeIcon,
 	SettingsIcon,
 	SunIcon,
 } from "lucide-react";
 import { type ReactNode, useId, useRef, useState } from "react";
 
-import { fill, type ShellConfig } from "../api.ts";
+import { type ClientRole, fill, type ShellConfig } from "../api.ts";
 import { ChoiceMenu } from "../ChoiceMenu.tsx";
 import { FOCUS_RING, type Icon, IconButton, IconLink, Tip } from "../controls.tsx";
 import { morePlaces, type PlaceKey, placeEntry } from "../places/registry.ts";
@@ -40,8 +41,9 @@ export function initialsOf(name: string): string {
 
 /**
  * The rail (SPEC 2 and 4): 48 wide, full height above the bottom bar. The logo tile goes back to the
- * admin; then the six places and "more" (each unavailable until it exists); below, Dark preview, the
- * Panels menu, Hide interface, the Site's settings (a new tab), Exit, and the person's avatar.
+ * admin; then the six places and "more" (each unavailable until it exists); below, Dark preview, View
+ * as a client (FX-04), the Panels menu, Hide interface, the Site's settings (a new tab), Exit, and the
+ * person's avatar.
  */
 export function Rail({
 	config,
@@ -54,6 +56,8 @@ export function Rail({
 	onExit,
 	exiting,
 	panelsMenu,
+	onViewAsClient,
+	switching = false,
 }: {
 	config: ShellConfig;
 	/** The place open over the canvas (its button is drawn as the open place; pressing it again leaves). */
@@ -70,6 +74,10 @@ export function Rail({
 	exiting: boolean;
 	/** The Panels menu's button and its menu (the docks', BA-05). */
 	panelsMenu: ReactNode;
+	/** "View as a client" (FX-04): the page as a Member of the role chosen sees it. */
+	onViewAsClient?(role: ClientRole): void;
+	/** Whether the tab is going over to client editing. */
+	switching?: boolean;
 }) {
 	const { words } = config;
 	return (
@@ -123,6 +131,9 @@ export function Rail({
 					onClick={() => onDarkPreview(!darkPreview)}
 					data={{ "data-wc-rail": "dark-preview" }}
 				/>
+				{onViewAsClient && config.clientRoles.length > 0 ? (
+					<ViewAsClient config={config} onChoose={onViewAsClient} switching={switching} />
+				) : null}
 				{/* The Panels menu and Hide interface are the canvas's: a place has neither (`places-content/01`). */}
 				{place ? null : (
 					<>
@@ -163,6 +174,69 @@ export function Rail({
 				</span>
 			</div>
 		</nav>
+	);
+}
+
+/**
+ * "View as a client" (FX-04): the page as a Member sees it in client editing. The roles that change
+ * different things are offered in a menu (an Owner or Editor publishes, an Author sends for review);
+ * with one, the button switches at once.
+ */
+function ViewAsClient({
+	config,
+	onChoose,
+	switching,
+}: {
+	config: ShellConfig;
+	onChoose(role: ClientRole): void;
+	switching: boolean;
+}) {
+	const { words } = config;
+	const said = words.viewAs;
+	const [open, setOpen] = useState(false);
+	const button = useRef<HTMLButtonElement>(null);
+	const id = useId();
+	const roles = config.clientRoles;
+	const only = roles.length === 1 ? roles[0] : undefined;
+	return (
+		<span className="relative flex">
+			<IconButton
+				ref={button}
+				icon={ScanEyeIcon}
+				label={said.button}
+				side="end"
+				disabled={switching}
+				popup={only ? undefined : { open, id }}
+				onClick={() => (only ? onChoose(only) : setOpen((was) => !was))}
+				data={{ "data-wc-rail": "view-as-client" }}
+			/>
+			{open ? (
+				<ChoiceMenu
+					id={id}
+					label={said.menu}
+					groups={[
+						{
+							label: null,
+							choices: roles.map((role) => ({
+								key: role.key,
+								label: said.roles[role.key],
+								detail: said.details[role.key],
+							})),
+						},
+					]}
+					button={button}
+					side="end"
+					onChoose={(choice) => {
+						const role = roles.find((each) => each.key === choice.key);
+						if (role) onChoose(role);
+					}}
+					onClose={(focusButton) => {
+						setOpen(false);
+						if (focusButton) button.current?.focus();
+					}}
+				/>
+			) : null}
+		</span>
 	);
 }
 

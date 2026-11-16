@@ -284,6 +284,11 @@ export function Frame({
 		let chosenRef: string | null = null;
 		/** What its chip calls it, when not its element's name. */
 		let chosenName: string | null = null;
+		/**
+		 * A stand-in is drawn again by loading it again (its styles are blocks its policy allows by their
+		 * hashes): what was selected, selected again once it has loaded, never dropped meanwhile.
+		 */
+		let keptRef: string | null = null;
 		const overlay: Overlay = {
 			...drawn,
 			select(chosen) {
@@ -293,8 +298,9 @@ export function Frame({
 				tellSelected(chosen);
 			},
 			attach(document) {
-				chosenRef = null;
 				drawn.attach(document);
+				if (keptRef !== null) return;
+				chosenRef = null;
 				tellSelected(null);
 			},
 		};
@@ -329,6 +335,7 @@ export function Frame({
 				if (!page || !view) return;
 				await saving.flush();
 				if (view.location.pathname.startsWith(`${BUILDING_STAND_IN_PREFIX}/`)) {
+					keptRef = chosenRef;
 					view.location.replace(`${view.location.pathname}${view.location.search}`);
 					return;
 				}
@@ -456,6 +463,12 @@ export function Frame({
 				saving.track(document);
 				latest.current.editing?.ready(document);
 				latest.current.onReady?.(document);
+				// The stand-in drawn again: what was selected is selected again where it is drawn now.
+				if (keptRef !== null) {
+					const ref = keptRef;
+					keptRef = null;
+					overlay.select(placedFormAt(document, ref) ?? elementOfRef(document, ref));
+				}
 			},
 			event(kind, event) {
 				// Content typed in place sees the page's events first: Undo and Redo, the toolbar's Alt+F10.

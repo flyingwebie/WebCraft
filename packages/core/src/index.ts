@@ -83,6 +83,7 @@ export {
 	type OpenedSource,
 	type SavedMarkup,
 	type Suggestions,
+	standInCodeSource,
 } from "./code-mode/index.ts";
 export {
 	adminOriginFor,
@@ -127,6 +128,7 @@ export {
 	BUILDING_AREA_STAND_IN_PATH,
 	BUILDING_ELEMENT_PARAMETER,
 	BUILDING_FILTER_PARAMETER,
+	BUILDING_VISITOR_PARAMETER,
 	type BuildingDocument,
 	buildingAreaPageAddress,
 	CODE_MODE_SCRIPT_PATH,

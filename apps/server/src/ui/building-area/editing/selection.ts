@@ -1,4 +1,5 @@
 import type { BuilderCatalogue, BuilderOpened, BuilderTarget, FieldDefinition } from "@webcraft/core";
+import { standInDocumentOf } from "@webcraft/core/building-addresses";
 import { createDraftClient, type DraftClient, type Json, sameValue } from "@webcraft/core/draft-document";
 import type { ElementTree, TreeNode } from "@webcraft/renderer/builder";
 
@@ -39,6 +40,11 @@ export type StructureSource = {
 	id: string | null;
 	/** The Component's name, or the Template's Post Type (null for the Site and Search results templates). */
 	name: string | null;
+	/**
+	 * A Page's Section (a Page section, ADR 0038): a Component the Page owns, edited in place as part
+	 * of the Page, called "Section" (its name is made for it, never shown).
+	 */
+	pageSection: boolean;
 	target: BuilderTarget;
 	/** Whether the person may change it: not a Module's Component, not a Template not made yet. */
 	editable: boolean;
@@ -58,10 +64,13 @@ export type StructureSource = {
 /** A Placement of the page's Page layout (a Page's content), as the tree lists it and the Props panel edits it. */
 export type LayoutPlacement = {
 	id: string;
+	/** Its Component's name; "Section" for a Page's Section. */
 	name: string;
 	hidden: boolean;
 	/** Its Component's id. */
 	component: string;
+	/** Its Component is one of the Page's Sections (a Page section, ADR 0038), not a library Component. */
+	pageSection: boolean;
 	locked: boolean;
 	/** Its Props' declarations, as the Placement keeps them, and their values in the page's language. */
 	props: FieldDefinition[];
@@ -109,10 +118,18 @@ export type StructureSnapshot = {
 	 * rest of the page is locked, and the page's selection stays inside it. Null when none is.
 	 */
 	inPlace: string | null;
+	/**
+	 * Where the page's tree starts: the Site template (`site`) on a page, and on the stand-in of anything
+	 * but the Site template, that document itself (`content`): the stand-in draws it alone.
+	 */
+	root: "site" | "content";
 };
 
 export type Structure = {
-	/** The page the frame shows now (its path), or none (a stand-in, nothing): another page's sources are forgotten. */
+	/**
+	 * The page the frame shows now (its path, or the stand-in's address, read as the page it stands for),
+	 * or none: another page's sources are forgotten.
+	 */
 	page(path: string | null): void;
 	/** The page's elements are there (loaded, or drawn again): the sources they name are opened. */
 	found(document: Document): void;
@@ -149,6 +166,11 @@ export type Structure = {
 	changeProps(source: string, props: FieldDefinition[], label: string): string | null;
 	/** Reads the page's Page layout again (it changed: a move, a Prop, someone else's change). */
 	reloadLayout(): Promise<void>;
+	/**
+	 * A Component the page shows became reusable or a Page's Section again (Make reusable Component,
+	 * and its Undo): its sources' name and kind follow, and the Page layout is read again.
+	 */
+	componentRenamed(componentId: string, name: string, pageSection: boolean): Promise<void>;
 	/**
 	 * Edits the Component a source is in place (its reference, `content/<placement id>`), or stops
 	 * (null). While one is, a selection on the page outside it is refused (`locked` says why).
@@ -239,7 +261,8 @@ export function structure(options: {
 	let layoutInfo: LayoutInfo | null = null;
 	let selected: string | null = null;
 	let inPlace: string | null = null;
-	let snapshot: StructureSnapshot = { sources, layout, layoutInfo, selection: null, inPlace };
+	let root: StructureSnapshot["root"] = "site";
+	let snapshot: StructureSnapshot = { sources, layout, layoutInfo, selection: null, inPlace, root };
 	/** References being opened now, so each is asked for once. */
 	const opening = new Set<string>();
 
@@ -299,7 +322,7 @@ export function structure(options: {
 	const selectOnCanvas = (ref: string | null) => options.onSelect(onCanvas(ref));
 
 	const tell = () => {
-		snapshot = { sources, layout, layoutInfo, selection: selectionNow(), inPlace };
+		snapshot = { sources, layout, layoutInfo, selection: selectionNow(), inPlace, root };
 		for (const listener of listeners) listener();
 	};
 
@@ -411,7 +434,10 @@ export function structure(options: {
 			ref: answer.data.ref,
 			kind,
 			id,
-			name: opened.component?.name ?? answer.data.name ?? opened.postType?.name ?? null,
+			name: opened.component?.pageId
+				? words.placements.section
+				: (opened.component?.name ?? answer.data.name ?? opened.postType?.name ?? null),
+			pageSection: Boolean(opened.component?.pageId),
 			target,
 			editable: editable && id !== null,
 			tree: fromDraft && fromDraft.nodes.length > 0 ? fromDraft : opened.tree,
@@ -449,7 +475,8 @@ export function structure(options: {
 			if (asked !== generation) return;
 			layout = read.placements.map((placement) => ({
 				id: placement.id,
-				name: placement.componentName,
+				name: placement.pageSection ? words.placements.section : placement.componentName,
+				pageSection: placement.pageSection,
 				hidden: placement.hidden,
 				component: placement.component,
 				locked: placement.locked,
@@ -489,6 +516,8 @@ export function structure(options: {
 		page(next) {
 			if (next === path) return;
 			path = next;
+			const standIn = next ? standInDocumentOf(next) : null;
+			root = standIn && standIn.kind !== "siteTemplate" ? "content" : "site";
 			generation++;
 			sources = new Map();
 			layout = null;
@@ -501,7 +530,8 @@ export function structure(options: {
 		},
 		found(document) {
 			if (!path) return;
-			const refs = new Set<string>(["site"]);
+			// The Site template always; on a stand-in, its document too, even while it draws nothing yet.
+			const refs = new Set<string>(["site", root]);
 			for (const element of document.querySelectorAll("[data-wc-code]")) {
 				const ref = sourceOf(element.getAttribute("data-wc-code") ?? "");
 				// Each Placement on the way to a Component's element is a source of its own.
@@ -665,6 +695,21 @@ export function structure(options: {
 			return null;
 		},
 		async reloadLayout() {
+			const entryId = layoutInfo?.entryId ?? sources.get("site")?.pageLayout?.id;
+			if (entryId) await readLayout(entryId, generation);
+		},
+		async componentRenamed(componentId, name, pageSection) {
+			let changed = false;
+			const next = new Map(sources);
+			for (const [ref, source] of sources) {
+				if (source.kind !== "component" || source.id !== componentId) continue;
+				next.set(ref, { ...source, name: pageSection ? words.placements.section : name, pageSection });
+				changed = true;
+			}
+			if (changed) {
+				sources = next;
+				tell();
+			}
 			const entryId = layoutInfo?.entryId ?? sources.get("site")?.pageLayout?.id;
 			if (entryId) await readLayout(entryId, generation);
 		},

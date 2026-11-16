@@ -1,0 +1,138 @@
+{
+  "type": "diff",
+  "version": "9",
+  "dialect": "postgres",
+  "id": "b4330d66-9a54-4848-a8c5-71406140e8e2",
+  "prevIds": [
+    "18d93630-31e6-4a1a-b6f8-2b71289f0022"
+  ],
+  "footprints": [
+    {
+      "statementType": "add_column",
+      "statementTarget": [
+        "column",
+        "public",
+        "components",
+        "page_id"
+      ],
+      "writes": [
+        "s|col|public.components.page_id",
+        "n|col|public.components.page_id",
+        "e|col|public.components.page_id"
+      ],
+      "reads": [
+        "n|tbl|public.components",
+        "n|sch|public"
+      ]
+    },
+    {
+      "statementType": "create_index",
+      "statementTarget": [
+        "index",
+        "public",
+        "components",
+        "components_page_id_idx"
+      ],
+      "writes": [
+        "s|idx|public.components_page_id_idx",
+        "n|idx|public.components_page_id_idx",
+        "e|idx|public.components_page_id_idx",
+        "n|rel|public.components_page_id_idx"
+      ],
+      "reads": [
+        "n|tbl|public.components",
+        "n|sch|public",
+        "n|col|public.components.page_id"
+      ]
+    },
+    {
+      "statementType": "create_fk",
+      "statementTarget": [
+        "table",
+        "public",
+        "components"
+      ],
+      "writes": [
+        "s|fk|public.components.components_page_fkey",
+        "n|fk|public.components.components_page_fkey",
+        "e|fk|public.components.components_page_fkey",
+        "n|con|public.components.components_page_fkey"
+      ],
+      "reads": [
+        "n|tbl|public.components",
+        "n|sch|public",
+        "n|tbl|public.entries",
+        "n|sch|public",
+        "n|col|public.components.site_id",
+        "n|col|public.components.page_id",
+        "n|col|public.entries.site_id",
+        "n|col|public.entries.id",
+        "e|uniqueness|public.entries.id.site_id"
+      ]
+    }
+  ],
+  "deltas": [
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "components",
+        "name": "page_id",
+        "type": "uuid",
+        "typeSchema": null,
+        "notNull": false,
+        "dimensions": 0,
+        "default": null,
+        "generated": null,
+        "identity": null,
+        "entityType": "columns"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "components",
+        "name": "components_page_id_idx",
+        "nameExplicit": true,
+        "columns": [
+          {
+            "value": "page_id",
+            "isExpression": false,
+            "asc": true,
+            "nullsFirst": false,
+            "opclass": null
+          }
+        ],
+        "isUnique": false,
+        "where": null,
+        "with": "",
+        "method": "btree",
+        "concurrently": false,
+        "entityType": "indexes"
+      }
+    },
+    {
+      "op": "create",
+      "row": {
+        "schema": "public",
+        "table": "components",
+        "name": "components_page_fkey",
+        "nameExplicit": true,
+        "columns": [
+          "site_id",
+          "page_id"
+        ],
+        "schemaTo": "public",
+        "tableTo": "entries",
+        "columnsTo": [
+          "site_id",
+          "id"
+        ],
+        "onUpdate": "NO ACTION",
+        "onDelete": "CASCADE",
+        "entityType": "fks"
+      }
+    }
+  ]
+}

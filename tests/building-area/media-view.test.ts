@@ -45,6 +45,16 @@ describe("the Media place's address", () => {
 		expect(readAddress(url.pathname, url.search).view).toBe(printed);
 	});
 
+	test("the layout: the address names it when it isn't the one the person last chose (FX-03)", () => {
+		// The person last chose the grid: an address naming no layout shows the grid.
+		expect(readView(null, "grid").layout).toBe("grid");
+		expect(printView({ ...defaultView(), layout: "grid" }, "grid")).toBeNull();
+		// A list asked for by the address wins over the grid remembered, and reads back.
+		const printed = printView({ ...defaultView(), layout: "list" }, "grid");
+		expect(printed).toBe("view=list");
+		expect(readView(printed, "grid").layout).toBe("list");
+	});
+
 	test("a view leaves out what it doesn't know, and a language goes only with a file", () => {
 		expect(readView("kind=spreadsheet&view=table&file=not-an-id&language=../x&q=")).toEqual(defaultView());
 		expect(printView({ ...defaultView(), language: "it" })).toBeNull();

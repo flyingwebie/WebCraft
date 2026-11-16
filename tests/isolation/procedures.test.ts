@@ -535,6 +535,27 @@ describe("Components", () => {
 	isolation.refuses("components.rename", async (api, target) =>
 		api.components.rename({ siteId: target.siteId, componentId: await componentIn(target), name: newName() }),
 	);
+	// A Page's Section (ADR 0038): made on a Page of the target Site, then named.
+	const sectionIn = async (target: IsolationTarget) => {
+		const { api } = await install.superadmin();
+		const { postTypes } = await api.postTypes.list({ siteId: target.siteId });
+		const pages = postTypes.find((postType) => postType.builtIn === "page");
+		const { entry } = await api.entries.create({ siteId: target.siteId, postTypeId: pages?.id ?? "", title: "Page" });
+		return (await api.components.create({ siteId: target.siteId, pageId: entry.id })).component.id;
+	};
+	isolation.refuses("components.makeReusable", async (api, target) =>
+		api.components.makeReusable({ siteId: target.siteId, componentId: await sectionIn(target), name: newName() }),
+	);
+	isolation.refuses("components.makePageSection", async (api, target) => {
+		const sectionId = await sectionIn(target);
+		const { api: admin } = await install.superadmin();
+		const { component } = await admin.components.get({ siteId: target.siteId, componentId: sectionId });
+		return api.components.makePageSection({
+			siteId: target.siteId,
+			componentId: sectionId,
+			pageId: component.pageId ?? "",
+		});
+	});
 	isolation.refuses("components.delete", async (api, target) =>
 		api.components.delete({ siteId: target.siteId, componentId: await componentIn(target) }),
 	);
@@ -1842,6 +1863,17 @@ describe("Media", () => {
 		async (api, target) =>
 			api.media.folders.delete({ siteId: target.siteId, folderId: (await mediaIn(target)).folderId }),
 		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"media.folders.setOrder",
+		(api, { siteId }) => api.media.folders.setOrder({ siteId, order: "custom" }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"media.folders.reorder",
+		async (api, target) =>
+			api.media.folders.reorder({ siteId: target.siteId, folderIds: [(await mediaIn(target)).folderId] }),
+		{ as: ["staff", "owner"] },
 	);
 });
 

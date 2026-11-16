@@ -55,7 +55,7 @@ What clients always change: the text and media of entries and Pages, Loop items,
 _Avoid_: Data, copy
 
 **Page layout**:
-The Components placed in a Page's content area, with their Prop values. Clients may change it only where the agency allows it for that Site, and only with the Components the agency allows (Allowed components). The Page template's header and footer are never part of it.
+The Components placed in a Page's content area, with their Prop values: library Components and the Page's own Page sections. Clients may change it only where the agency allows it for that Site, and only with the Components the agency allows (Allowed components). The Page template's header and footer are never part of it.
 _Avoid_: Design, structure, builder access
 
 **Structure**:
@@ -141,8 +141,12 @@ The Template that lists the Entries of a Post Type.
 _Avoid_: List template, index view
 
 **Component**:
-A reusable arrangement of elements, built by Staff in the admin, that can be placed in Templates and Page layouts.
+A reusable arrangement of elements, built by Staff in the admin, that can be placed in Templates and Page layouts. The ones listed in the Components place, which any Template or Page may place, are library Components; a Page section is a Component one Page owns.
 _Avoid_: Block, widget, partial, symbol
+
+**Page section**:
+A section Staff build on one Page: a Component that Page owns, placed only there, with no name of its own and listed nowhere. It is published and deleted with its Page. **Make reusable Component** names it and turns it into a library Component.
+_Avoid_: Page-only component, local component, inline section, SectionN
 
 **Prop**:
 A value a Component asks for, filled in separately wherever the Component is placed. Props use the same types as Fields.

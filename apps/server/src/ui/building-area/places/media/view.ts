@@ -60,16 +60,20 @@ export function defaultView(): MediaView {
 	return { q: "", kind: null, layout: "list", file: null, language: null };
 }
 
-/** Reads a view from the address's `wc-view` (null: the default); anything it doesn't know is left out. */
-export function readView(view: string | null): MediaView {
-	const shown = defaultView();
+/**
+ * Reads a view from the address's `wc-view` (null: the default); anything it doesn't know is left out.
+ * `layout` is the layout when the address names none: the one the person last chose (FX-03).
+ */
+export function readView(view: string | null, layout: MediaLayout = "list"): MediaView {
+	const shown = { ...defaultView(), layout };
 	if (!view) return shown;
 	const params = new URLSearchParams(view);
 	const q = params.get("q");
 	if (q) shown.q = q.slice(0, SEARCH_MAX);
 	const kind = params.get("kind");
 	if (kind && (MEDIA_KINDS as readonly string[]).includes(kind)) shown.kind = kind as MediaKind;
-	if (params.get("view") === "grid") shown.layout = "grid";
+	const named = params.get("view");
+	if (named === "grid" || named === "list") shown.layout = named;
 	const file = params.get("file");
 	if (file && ID.test(file)) shown.file = file;
 	const language = params.get("language");
@@ -77,12 +81,15 @@ export function readView(view: string | null): MediaView {
 	return shown;
 }
 
-/** A view as the address keeps it: only what differs from the default, or null when nothing does. */
-export function printView(view: MediaView): string | null {
+/**
+ * A view as the address keeps it: only what differs from the default, or null when nothing does. The
+ * layout is named when it isn't `layout`, the one the address means when it names none.
+ */
+export function printView(view: MediaView, layout: MediaLayout = "list"): string | null {
 	const params = new URLSearchParams();
 	if (view.q.trim()) params.set("q", view.q.slice(0, SEARCH_MAX));
 	if (view.kind) params.set("kind", view.kind);
-	if (view.layout === "grid") params.set("view", "grid");
+	if (view.layout !== layout) params.set("view", view.layout);
 	if (view.file) {
 		params.set("file", view.file);
 		if (view.language) params.set("language", view.language);
@@ -115,5 +122,29 @@ export function listQuery(
 			return { folderId: part.folderId, search, kind };
 		case "all":
 			return { search, kind };
+	}
+}
+
+const LAYOUT_KEYS = { place: "webcraft.building.mediaLayout", picker: "webcraft.building.mediaPickerLayout" } as const;
+
+/**
+ * The layout the person last chose for the place or the picker (kept in this browser, as the code
+ * panes' wrapping is), or `fallback` when they never chose one or it can't be read.
+ */
+export function rememberedLayout(where: keyof typeof LAYOUT_KEYS, fallback: MediaLayout): MediaLayout {
+	try {
+		const stored = globalThis.localStorage?.getItem(LAYOUT_KEYS[where]);
+		return stored === "grid" || stored === "list" ? stored : fallback;
+	} catch {
+		return fallback;
+	}
+}
+
+/** Keeps the layout the person chose, for the next time the place or the picker opens. */
+export function rememberLayout(where: keyof typeof LAYOUT_KEYS, layout: MediaLayout): void {
+	try {
+		globalThis.localStorage?.setItem(LAYOUT_KEYS[where], layout);
+	} catch {
+		// Storage refused (a private window): the choice lasts while the page does.
 	}
 }

@@ -32,6 +32,11 @@ export type MenuHost = {
 	/** Opens a document on the canvas (Go to). */
 	open(document: BuildingDocument): void;
 	exit(): void;
+	/**
+	 * The Permissions the menu draws by, when not those the server says the person holds: Staff seeing
+	 * the page as a client (FX-04) get the menu of the role they view it as.
+	 */
+	permissions?: readonly string[];
 	/** Staff: Hide the interface (the rail's switch). */
 	hidden?: { on: boolean; set(on: boolean): void };
 	/** A Member: Edit or Preview, Page details, Sections (where they may arrange), Help. */
@@ -52,6 +57,8 @@ export type MenuHost = {
 		toggleHidden: { hidden: boolean; run(): void } | null;
 		/** Asks for a name, then moves the selection into a new Component (Make Component). */
 		makeComponent(): void;
+		/** Asks for a name, then makes the Page's Section selected reusable (ADR 0038); null when none is. */
+		makeReusable: (() => void) | null;
 		/** Asks for a name, then places a new, empty Component where Insert would (New Component). */
 		newComponent(): void;
 		/** The element tree's helpers, from Staff's first file, so the menu's own file needn't carry them. */

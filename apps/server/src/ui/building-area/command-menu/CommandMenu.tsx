@@ -38,12 +38,12 @@ const ALL_CANVASES = ["building"] as const;
 const INSERT_GROUPS: readonly { group: "sections" | "text" | "media" | "commands"; kinds: readonly InsertKind[] }[] = [
 	{ group: "sections", kinds: ["section", "container", "div", "header", "footer"] },
 	{ group: "text", kinds: ["heading", "text", "link", "button", "list"] },
-	{ group: "media", kinds: ["image", "video", "icon"] },
+	{ group: "media", kinds: ["image", "figure", "video", "icon"] },
 	{ group: "commands", kinds: ["loop", "condition", "form", "outlet"] },
 ];
 
 /** Tags Insert's search reaches beyond the row's kinds: every element the tree may hold, by its tag. */
-const NAMED_TAGS = new Set(["section", "div", "header", "footer", "h2", "p", "a", "ul", "img", "video"]);
+const NAMED_TAGS = new Set(["section", "div", "header", "footer", "h2", "p", "a", "ul", "img", "figure", "video"]);
 
 /**
  * The building area's Command menu (BA-10; SPEC 2 and 6, `builder/09`): one dialog over the dimmed
@@ -139,9 +139,11 @@ export function CommandMenu({
 	}, [open, host.config.token, host.config.site.id]);
 
 	const can = (permission: Permission) =>
-		data
-			? (data.permissions as readonly string[]).includes(permission)
-			: host.config.permissions.includes(permission as never) || permission === "site.view";
+		host.permissions
+			? host.permissions.includes(permission) || permission === "site.view"
+			: data
+				? (data.permissions as readonly string[]).includes(permission)
+				: host.config.permissions.includes(permission as never) || permission === "site.view";
 
 	// ── Insert: where things land ──
 	const inserter = staff?.inserter;
@@ -339,6 +341,8 @@ export function CommandMenu({
 			const placement = { group: said.groups.placement, icon: ComponentIcon, permission: "structure.edit" as const };
 			if (staff.editComponent)
 				add({ ...placement, id: "editComponent", label: action.editComponent, run: staff.editComponent });
+			if (staff.makeReusable)
+				add({ ...placement, id: "makeReusable", label: action.makeReusable, run: staff.makeReusable });
 			if (ops.onPage()) {
 				add({
 					...placement,

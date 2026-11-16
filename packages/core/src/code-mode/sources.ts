@@ -35,6 +35,7 @@ import { RELATED_BUILT_INS } from "../content/render-values.ts";
 import { getArchiveTemplate, getEntryTemplate, getSearchTemplate, getSiteTemplate } from "../content/templates.ts";
 import { classCatalogue } from "../design-system/classes.ts";
 import { draftDesignSystem } from "../design-system/design-systems.ts";
+import { type StandInDocument, standInDocumentOf } from "../edit-mode/building.ts";
 import { EditPathInvalidError } from "../edit-mode/errors.ts";
 import { isEditPath } from "../edit-mode/paths.ts";
 import { isUuid } from "../ids.ts";
@@ -55,6 +56,43 @@ export function readCodeRef(text: string): CodeRef {
 		root: match[1] as CodeRef["root"],
 		placements: (match[2] ?? "").split("/").filter(Boolean),
 		element: match[3] ?? null,
+	};
+}
+
+/**
+ * The root a stand-in's elements are tagged with (ADR 0037 › Addresses): the Site template's as `site`,
+ * any other Template's or Component's as `content`, the content of the page it stands in for. Code mode
+ * reads a stand-in's address (`/_webcraft/build/stand-in/<document>`) as that page's path: its content
+ * is the document itself (`standInContent`, `rootOf`), so the building area's Structure opens it as it
+ * opens a page.
+ */
+export function standInCodeSource(document: StandInDocument): "site" | "content" {
+	return document.kind === "siteTemplate" ? "site" : "content";
+}
+
+/**
+ * What the page a stand-in stands for shows, as `pageContent` describes a page: an Entry, Archive or
+ * Search results template as its content Template; the Site template or a Component as no Template
+ * (a Component is the content itself, see `rootOf`). Null for a path that is no stand-in.
+ */
+export function standInContent(host: SiteHost, path: string): PageContent | null {
+	const document = standInDocumentOf(path);
+	if (!document) return null;
+	const contentTemplate =
+		document.kind === "entryTemplate" || document.kind === "archiveTemplate"
+			? { kind: document.kind, postTypeId: document.postTypeId }
+			: document.kind === "searchTemplate"
+				? ({ kind: "searchTemplate" } as const)
+				: undefined;
+	return {
+		entryId: null,
+		language: host.defaultLanguage,
+		languages: [],
+		readsGlobals: false,
+		loops: [],
+		notFound: false,
+		templatePostTypeId: document.kind === "entryTemplate" ? document.postTypeId : null,
+		...(contentTemplate ? { contentTemplate } : {}),
 	};
 }
 
@@ -136,7 +174,7 @@ export async function resolveSource(
 		steps.push({
 			kind: "component",
 			id: placement.component,
-			name: catalogue.nameOf(placement.component) ?? null,
+			name: shownName(catalogue, placement.component) ?? null,
 			editable: own,
 			tree: version.tree,
 			draft: own ? version : null,
@@ -163,6 +201,23 @@ async function rootOf(
 			editable: true,
 			tree: template?.draft ?? BUILT_IN_SITE_TEMPLATE,
 			draft: template?.draft ?? null,
+			postTypeId: null,
+		};
+	}
+	// A Component's stand-in: its content is the Component itself.
+	const standIn = standInDocumentOf(path);
+	if (standIn?.kind === "component") {
+		const catalogue = await siteComponents(scope, "draft", deps.sources);
+		const version = catalogue.version(standIn.componentId);
+		if (!version) throw new CodeSourceNotFoundError();
+		const own = isUuid(standIn.componentId);
+		return {
+			kind: "component",
+			id: standIn.componentId,
+			name: catalogue.nameOf(standIn.componentId) ?? null,
+			editable: own,
+			tree: version.tree,
+			draft: own ? version : null,
 			postTypeId: null,
 		};
 	}
@@ -286,7 +341,7 @@ export async function openSource(
 	const classes = classCatalogue(await draftDesignSystem(scope));
 	const found = ref.element ? findNode(source.tree.nodes, ref.element) : undefined;
 	const label = (node: TreeNode): string => {
-		if (node.type === "component") return `<${catalogue.nameOf(node.component) ?? "Component"}>`;
+		if (node.type === "component") return `<${shownName(catalogue, node.component) ?? "Component"}>`;
 		if (node.type !== "element") return node.type;
 		const [first] = node.classes;
 		const name = first === undefined ? undefined : classes.nameOf(first);
@@ -294,7 +349,7 @@ export async function openSource(
 	};
 	const idOf = (node: TreeNode) => (node.type === "element" || node.type === "component" ? node.id : "");
 	const tagOf = (node: TreeNode) =>
-		node.type === "component" ? (catalogue.nameOf(node.component) ?? "") : node.type === "element" ? node.tag : "";
+		node.type === "component" ? (shownName(catalogue, node.component) ?? "") : node.type === "element" ? node.tag : "";
 	return {
 		source: { kind: source.kind, id: source.id, name: source.name, editable: source.editable },
 		ref: writeCodeRef(ref),
@@ -416,4 +471,9 @@ function parts(
 	names: readonly string[],
 ): Suggestions["values"] {
 	return names.map((name) => ({ path: `${path}.${name}`, label: `${label} › ${name}`, type: "part", group }));
+}
+
+/** A Component's name as the panes show it: a Page's Section has none of its own (ADR 0038), so it is "Section". */
+function shownName(catalogue: SiteComponents, componentId: string): string | undefined {
+	return catalogue.pageOf(componentId) !== undefined ? "Section" : catalogue.nameOf(componentId);
 }

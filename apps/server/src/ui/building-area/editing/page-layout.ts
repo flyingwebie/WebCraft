@@ -5,6 +5,7 @@ import type { Json as FieldJson } from "../../content/model.ts";
 import { editorHistory } from "../../editor/editor-history.ts";
 import { draftLayout } from "../../page-layouts/props-input.ts";
 import { fill, type Words } from "../api.ts";
+import { managementApi } from "../management.ts";
 import { draftResource, type PageDrafts } from "./drafts.ts";
 import type { LayoutInfo, LayoutPlacement } from "./selection.ts";
 
@@ -32,6 +33,12 @@ export type PageLayoutEditor = {
 	hide(placements: readonly LayoutPlacement[], id: string): string | null;
 	/** Places a copy of a Placement after it: answers the copy's id, or why not. */
 	duplicate(placements: readonly LayoutPlacement[], id: string): { id: string } | { refused: string };
+	/**
+	 * Duplicates a Page's Section (ADR 0038): another Section of the Page with a copy of its Draft
+	 * (Props, tree and Component script), placed after it with its values: one Undo step, the
+	 * Placement's. Answers the copy's Placement id, or why not.
+	 */
+	duplicateSection(placements: readonly LayoutPlacement[], id: string): Promise<{ id: string } | { refused: string }>;
 	/** Deletes a Placement from the page. */
 	remove(placements: readonly LayoutPlacement[], id: string): string | null;
 	/** Changes one of a Placement's Props' values (in the page's language). */
@@ -67,6 +74,8 @@ type DraftPlacement = {
 };
 
 export function pageLayoutEditor(options: {
+	/** The building area's token, for the Management API (a Section's copy is a new Component). */
+	token: string;
 	siteId: string;
 	/** The page's shared Drafts: the Page's Entry's is changed through them. */
 	drafts: PageDrafts;
@@ -222,6 +231,54 @@ export function pageLayoutEditor(options: {
 				return list;
 			});
 			return problem ? { refused: problem } : { id: copy };
+		},
+		async duplicateSection(placements, id) {
+			const name = nameOf(placements, id);
+			const placement = placements.find((each) => each.id === id);
+			const refused = refusal(placements, id, "duplicate");
+			if (refused || !placement || !info) return { refused: reason(refused ?? "unavailable", name) };
+			const entryId = info.entryId;
+			try {
+				const api = managementApi(options.token);
+				const siteId = options.siteId;
+				const { component } = await api.components.get({ siteId, componentId: placement.component });
+				const { component: made } = await api.components.create({
+					siteId,
+					pageId: entryId,
+					props: component.draft.props,
+				});
+				const { component: copy } = await api.components.saveDraft({
+					siteId,
+					componentId: made.id,
+					tree: component.draft.tree,
+				});
+				const { script } = await api.components.getScript({ siteId, componentId: component.id });
+				if (script)
+					await api.components.saveScriptDraft({
+						siteId,
+						componentId: copy.id,
+						code: script.draft.code,
+						consentCategory: script.draft.consentCategory,
+						libraryIds: script.draft.libraryIds,
+					});
+				const placed = crypto.randomUUID();
+				const problem = write(fill(said.steps.duplicate, { name }), `content/${placed}`, (list) => {
+					const at = list.findIndex((each) => each.id === id);
+					const original = list[at];
+					if (!original) return null;
+					const { locked: _, ...rest } = structuredClone(original);
+					list.splice(at + 1, 0, {
+						...rest,
+						id: placed,
+						component: copy.id,
+						props: copy.draft.props as unknown as Json,
+					});
+					return list;
+				});
+				return problem ? { refused: problem } : { id: placed };
+			} catch (error) {
+				return { refused: fill(said.refused, { reason: error instanceof Error ? error.message : String(error) }) };
+			}
 		},
 		remove(placements, id) {
 			const name = nameOf(placements, id);

@@ -1,5 +1,5 @@
 import type { TreeNode } from "@webcraft/renderer/builder";
-
+import { editorHistory } from "../../editor/editor-history.ts";
 import {
 	canUnwrap,
 	childLists,
@@ -58,6 +58,14 @@ export type LayerOps = {
 	 * the Prop's default). Answers why not, or null.
 	 */
 	makeComponent(name: string, texts?: MadeTexts): Promise<string | null>;
+	/** Whether a Page's Section is selected: its Placement, or something in it (ADR 0038). */
+	sectionSelected(): boolean;
+	/**
+	 * Make reusable Component: the selected Page's Section becomes a library Component named `name`
+	 * (`components.makeReusable`), its Placement left as it is: one Undo step, which makes it the
+	 * Page's Section again. Answers why not, or null.
+	 */
+	makeReusable(name: string): Promise<string | null>;
 };
 
 export function layerOps(options: {
@@ -93,6 +101,35 @@ export function layerOps(options: {
 	const nameNow = () => {
 		const selection = structure.snapshot().selection;
 		return selection ? anchorName(structure.snapshot(), selection.ref) : "";
+	};
+	/** The Page's Section selected (its Placement, or an element in it): the Placement, as the Page layout lists it. */
+	const selectedSection = () => {
+		const snapshot = structure.snapshot();
+		const ref = snapshot.selection?.ref;
+		const id = ref ? /^content\/([^/#]+)/.exec(ref)?.[1] : undefined;
+		const placement = id ? snapshot.layout?.find((each) => each.id === id) : undefined;
+		return placement?.pageSection && snapshot.layoutInfo ? { placement, pageId: snapshot.layoutInfo.entryId } : null;
+	};
+	/** Make reusable Component's own Undo: the Component's owner and name, put back through the server. */
+	const ownerPorts = new Set<string>();
+	const ownerPort = (resource: string, componentId: string) => {
+		if (ownerPorts.has(resource)) return;
+		ownerPorts.add(resource);
+		editorHistory().register(resource, {
+			async reverse(from, to) {
+				const target = to as { pageId: string | null; name: string | null };
+				const api = managementApi(options.token);
+				try {
+					const { component } = target.pageId
+						? await api.components.makePageSection({ siteId: options.siteId, componentId, pageId: target.pageId })
+						: await api.components.makeReusable({ siteId: options.siteId, componentId, name: target.name ?? "" });
+					await structure.componentRenamed(componentId, component.name, component.pageId !== null);
+					return { ok: true, before: from, after: to };
+				} catch (error) {
+					return { ok: false, code: (error as { code?: string }).code ?? "HISTORY_UNAVAILABLE" };
+				}
+			},
+		});
 	};
 	const sourceOfSelection = () => {
 		const selected = inTree();
@@ -157,8 +194,17 @@ export function layerOps(options: {
 		},
 		duplicate() {
 			const id = placementId();
+			const placements = structure.snapshot().layout ?? [];
+			if (id && placements.find((each) => each.id === id)?.pageSection) {
+				// A Page's Section is placed once: its copy is another Section of the Page (ADR 0038).
+				void layout.duplicateSection(placements, id).then((made) => {
+					if ("refused" in made) refuse(made.refused);
+					else structure.select(`content/${made.id}`);
+				});
+				return null;
+			}
 			if (id) {
-				const made = layout.duplicate(structure.snapshot().layout ?? [], id);
+				const made = layout.duplicate(placements, id);
 				if ("refused" in made) return refuse(made.refused);
 				structure.select(`content/${made.id}`);
 				return null;
@@ -236,6 +282,41 @@ export function layerOps(options: {
 			if (!key || !source || !nodeAt(source.tree, owner)) return refuse(fill(said.parentNone, { name: nameNow() }));
 			structure.select(`${selected.source}#${key}`);
 			return null;
+		},
+		sectionSelected: () => selectedSection() !== null,
+		async makeReusable(name) {
+			const said = words.componentDialog;
+			const section = selectedSection();
+			if (!section) return refuse(fill(said.reusableRefused, { reason: words.insert.refusals.nothing }));
+			const componentId = section.placement.component;
+			try {
+				const { component } = await managementApi(options.token).components.makeReusable({
+					siteId: options.siteId,
+					componentId,
+					name,
+				});
+				await structure.componentRenamed(componentId, component.name, false);
+				const resource = `component-owner:${componentId}`;
+				ownerPort(resource, componentId);
+				const label = fill(said.reusableStep, { name: component.name });
+				editorHistory().record({
+					resource,
+					before: { pageId: section.pageId, name: null },
+					after: { pageId: null, name: component.name },
+					label,
+					location: {
+						siteId: options.siteId,
+						panel: "tree",
+						ref: `content/${section.placement.id}`,
+						selection: null,
+						title: label,
+					},
+				});
+				announce(fill(said.madeReusable, { name: component.name }));
+				return null;
+			} catch (error) {
+				return fill(said.reusableRefused, { reason: error instanceof Error ? error.message : String(error) });
+			}
 		},
 		async makeComponent(name, texts = []) {
 			const said = words.componentDialog;

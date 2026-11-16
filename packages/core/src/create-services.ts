@@ -55,6 +55,8 @@ import {
 	listScheduled,
 	listTemplates,
 	makeComponent,
+	makeComponentPageSection,
+	makeComponentReusable,
 	pasteBody,
 	publish,
 	publishAll,
@@ -552,6 +554,9 @@ export async function createInstallServices(
 			saveMarkup: (scope, componentId, input, base) =>
 				saveComponentMarkup(scope, componentId, input, componentSources, base),
 			rename: (scope, componentId, name) => renameComponent(scope, componentId, name, componentSources),
+			makeReusable: (scope, componentId, name) => makeComponentReusable(scope, componentId, name, componentSources),
+			makePageSection: (scope, componentId, pageId) =>
+				makeComponentPageSection(scope, componentId, pageId, componentSources),
 			delete: (scope, componentId, confirmation, placements) =>
 				deleteComponent(scope, componentId, confirmation, componentSources, placements),
 		},

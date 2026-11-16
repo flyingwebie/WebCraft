@@ -39,9 +39,9 @@ function sourceOf(ref: string): string {
  *   (Ctrl elsewhere) forces "after".
  * - **Section** is always top level: after the top-level element the selection is in, arriving with its
  *   inner container selected.
- * - **On a Page** (D2) a Page holds placed Components only: Section makes a new Component ("Section1",
- *   "Section2", …), places it after the selected Placement (or at the end), and edits it in place with
- *   its container selected; a Component is placed the same way. With nothing selected on a Page the
+ * - **On a Page** (D2) a Page holds placed Components only: Section makes a new Page section (a
+ *   Component the Page owns, listed nowhere, ADR 0038), places it after the selected Placement (or at
+ *   the end), and edits it in place with its container selected; a Component is placed the same way. With nothing selected on a Page the
  *   insert targets the Page, never the Site template around it (audit finding 7).
  * - Every insert into a Template's or Component's tree is one Undo step through its shared Draft
  *   (`structure.change`); a Placement on a Page is one step through the Page's (`PageLayoutEditor.place`).
@@ -60,6 +60,7 @@ export type InsertKind =
 	| "button"
 	| "list"
 	| "image"
+	| "figure"
 	| "video"
 	| "icon"
 	| "loop"
@@ -98,6 +99,7 @@ export const KIND_TAGS: Record<InsertKind, string> = {
 	button: "<a>",
 	list: "<ul>",
 	image: "<img>",
+	figure: "<figure>",
 	video: "<video>",
 	icon: "<img>",
 	loop: "{{@loop}}",
@@ -285,6 +287,8 @@ export function landingFor(
 		path = selected.path;
 	} else if (snapshot.inPlace) sourceRef = snapshot.inPlace;
 	else if (options.document === "siteTemplate") sourceRef = "site";
+	// On its stand-in, the document is the page's content (a Component no page shows, too).
+	else if (snapshot.root === "content") sourceRef = "content";
 	else if (
 		options.document === "entryTemplate" ||
 		options.document === "archiveTemplate" ||
@@ -373,10 +377,17 @@ function container(tree: ElementTree, catalogue: BuilderCatalogue | null, words:
 	return named ? { ...made, classes: [named.id] } : { ...made, label: words.insert.items.container.name };
 }
 
+/** The kinds that ask for a Media file before they are made: a picture (an image, a Figure's, an icon) or a video. */
+export function mediaOf(kind: InsertKind): "image" | "video" | null {
+	if (kind === "image" || kind === "figure" || kind === "icon") return "image";
+	return kind === "video" ? "video" : null;
+}
+
 /**
  * The nodes an element kind makes, with fresh ids (`select`: the key to select after an "after" or a
- * Section: the Section's container). Media kinds need the file chosen; Template commands and
- * Components are made by the Command menu, which asks its question first.
+ * Section: the Section's container; `always`: selected even after an "inside", as a Figure's `img`
+ * is). Media kinds need the file chosen; Template commands and Components are made by the Command
+ * menu, which asks its question first.
  */
 export function nodesFor(
 	kind: InsertKind,
@@ -384,7 +395,7 @@ export function nodesFor(
 	catalogue: BuilderCatalogue | null,
 	words: Words,
 	media?: PickedMedia,
-): { nodes: TreeNode[]; select: string | null } | null {
+): { nodes: TreeNode[]; select: string | null; always?: boolean } | null {
 	const defaults = words.insert.defaults;
 	const one = (node: ElementNode) => ({ nodes: [node], select: node.id });
 	switch (kind) {
@@ -412,6 +423,16 @@ export function nodesFor(
 			return one(element(tree, "ul", [element(tree, "li", [text(defaults.listItem)])]));
 		case "image":
 			return media ? one(element(tree, "img", [], { src: `media:${media.id}` })) : null;
+		case "figure": {
+			// A Figure holds its picture and a caption under it; the picture is what is chosen next.
+			if (!media) return null;
+			const figure = element(tree, "figure", [
+				element(tree, "img", [], { src: `media:${media.id}` }),
+				element(tree, "figcaption", [text(defaults.caption)]),
+			]);
+			const picture = figure.children[0];
+			return { nodes: [figure], select: picture && "id" in picture ? picture.id : null, always: true };
+		}
 		case "icon":
 			// An icon is decoration: rendered with empty alt text.
 			return media ? one({ ...element(tree, "img", [], { src: `media:${media.id}` }), decorative: true }) : null;
@@ -427,14 +448,6 @@ export function nodesFor(
 /** The name a kind is called by in Undo and announcements. */
 export function kindName(kind: InsertKind, words: Words): string {
 	return words.insert.items[kind].name;
-}
-
-/** A Component name for a new section: "Section1", or the next one the Site hasn't taken. */
-export function nextSectionName(taken: Iterable<string>): string {
-	const names = new Set(taken);
-	let count = 1;
-	while (names.has(`Section${count}`)) count++;
-	return `Section${count}`;
 }
 
 /** What the inserter needs of the shell. */
@@ -515,15 +528,22 @@ export function inserter(host: InserterHost): Inserter {
 		return fill(said.whereEnd, { name: source?.name ?? words.structure.siteTemplate });
 	};
 
-	const insertNodes = (nodes: TreeNode[], name: string, at: Landing, select?: string | null): string | null => {
+	const insertNodes = (
+		nodes: TreeNode[],
+		name: string,
+		at: Landing,
+		select?: string | null,
+		always = false,
+	): string | null => {
 		if (at.kind === "refused") return refuse(at.reason);
 		if (at.kind !== "tree") return refuse(said.refusals.page);
 		const source = structure.snapshot().sources.get(at.source);
 		if (!source) return refuse(said.refusals.connecting);
 		const made = insertAt(source.tree, at.place, nodes);
 		const newKey = keyAt(made.tree, made.path);
-		const kept = at.keep ? (structure.snapshot().selection?.key ?? null) : null;
-		const chosen = at.keep ? kept : (select ?? newKey);
+		const keep = at.keep && !always;
+		const kept = keep ? (structure.snapshot().selection?.key ?? null) : null;
+		const chosen = keep ? kept : (select ?? newKey);
 		const refused = structure.change(at.source, made.tree, fill(said.steps.insert, { name }), chosen);
 		if (refused) return refuse(refused);
 		host.announce(fill(said.inserted, { name, where: whereOf(at) }));
@@ -557,12 +577,13 @@ export function inserter(host: InserterHost): Inserter {
 
 	const newSection = async (at: number): Promise<string | null> => {
 		const api = managementApi(host.token);
-		let name = "Section1";
+		// A Page's Section (ADR 0038): a Component the Page owns, listed nowhere, called "Section".
+		const name = words.placements.section;
+		const pageId = structure.snapshot().layoutInfo?.entryId;
+		if (!pageId) return refuse(said.refusals.connecting);
 		try {
-			const listed = await api.components.list({ siteId: host.siteId });
-			name = nextSectionName(listed.components.map((each) => each.name));
 			host.announce(fill(said.section.making, { name }));
-			const { component } = await api.components.create({ siteId: host.siteId, name });
+			const { component } = await api.components.create({ siteId: host.siteId, pageId });
 			const empty: ElementTree = { version: 1, nodes: [] };
 			const section = element(empty, "section", [container(empty, sourceCatalogue(structure.snapshot()), words)]);
 			const inner = section.children[0] as ElementNode;
@@ -579,7 +600,8 @@ export function inserter(host: InserterHost): Inserter {
 			);
 			if ("refused" in placed) return refuse(placed.refused);
 			const ref = `content/${placed.id}`;
-			structure.select(ref);
+			// Selected once the page shows it, never before: until the Page's Draft has saved the Placement,
+			// the panes reading the selection get CODE_SOURCE_NOT_FOUND from the server, and keep it.
 			if (!(await shownSource(ref))) return null;
 			host.editInPlace({ source: ref, componentId: component.id, name, placement: ref });
 			// Its container, as the Component's Draft holds it (the server keeps or gives the ids).
@@ -605,7 +627,9 @@ export function inserter(host: InserterHost): Inserter {
 				fill(said.steps.add, { name: component.name }),
 			);
 			if ("refused" in placed) return refuse(placed.refused);
-			structure.select(`content/${placed.id}`);
+			// Selected once the page shows it (or its wait is over), as a new section is: not before.
+			const ref = `content/${placed.id}`;
+			void shownSource(ref).then(() => structure.select(ref));
 			host.announce(fill(said.inserted, { name: component.name, where: said.wherePage }));
 			return null;
 		} catch (error) {
@@ -671,10 +695,8 @@ export function inserter(host: InserterHost): Inserter {
 			if (kind !== "section") return refuse(said.refusals.page);
 			return newSection(fraction < 0.5 ? placed.index : placed.index + 1);
 		}
-		const media =
-			kind === "image" || kind === "icon" || kind === "video"
-				? await host.pick(kind === "video" ? "video" : "image")
-				: undefined;
+		const wanted = mediaOf(kind);
+		const media = wanted ? await host.pick(wanted) : undefined;
 		if (media === null) return null;
 		// The tree as it is after the picker (someone may have changed it meanwhile).
 		const snapshot = structure.snapshot();
@@ -724,7 +746,7 @@ export function inserter(host: InserterHost): Inserter {
 		}
 		const made = nodesFor(kind, source.tree, source.catalogue, words, media);
 		if (!made) return refuse(fill(said.refusals.notAllowed, { name: kindName(kind, words) }));
-		return insertNodes(made.nodes, kindName(kind, words), landing, made.select);
+		return insertNodes(made.nodes, kindName(kind, words), landing, made.select, made.always);
 	};
 
 	return {
@@ -742,10 +764,8 @@ export function inserter(host: InserterHost): Inserter {
 				if (kind === "section") return newSection(at.at);
 				return refuse(said.refusals.page);
 			}
-			const media =
-				kind === "image" || kind === "icon" || kind === "video"
-					? await host.pick(kind === "video" ? "video" : "image")
-					: undefined;
+			const wanted = mediaOf(kind);
+			const media = wanted ? await host.pick(wanted) : undefined;
 			if (media === null) return null;
 			// The tree as it is after the picker (someone may have changed it meanwhile).
 			const again = media ? landing(kind, options.forceAfter ?? false) : at;
@@ -753,7 +773,7 @@ export function inserter(host: InserterHost): Inserter {
 			if (!source) return refuse(again.kind === "refused" ? again.reason : said.refusals.connecting);
 			const made = nodesFor(kind, source.tree, source.catalogue, words, media);
 			if (!made) return refuse(fill(said.refusals.notAllowed, { name: kindName(kind, words) }));
-			return insertNodes(made.nodes, kindName(kind, words), again, made.select);
+			return insertNodes(made.nodes, kindName(kind, words), again, made.select, made.always);
 		},
 		insertNodes: (nodes, name, at) => insertNodes(nodes, name, at),
 		placeComponent,

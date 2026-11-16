@@ -41,21 +41,43 @@ type Header = {
 
 /** Where "Wrap long lines" is kept: in this browser (a convenience; the person's preferences hold no key for it). */
 const WRAP_KEY = "webcraft.building.wrapCode";
+/** Where the HTML pane's "Only the selected element" is kept, the same way (FX-02). */
+const ELEMENT_ONLY_KEY = "webcraft.building.htmlElementOnly";
 
-function storedWrap(): boolean {
+/** A switch kept in this browser: on unless it was turned off. */
+function storedSwitch(key: string): boolean {
 	try {
-		return localStorage.getItem(WRAP_KEY) !== "off";
+		return localStorage.getItem(key) !== "off";
 	} catch {
 		return true;
 	}
 }
 
+function keepSwitch(key: string, on: boolean): void {
+	try {
+		localStorage.setItem(key, on ? "on" : "off");
+	} catch {
+		// Kept for this visit.
+	}
+}
+
 export function createCodePanes(deps: () => CodePanesDeps): Panes {
 	const request = codeRequests(deps().config.token);
-	const html = createHtmlPane(deps, request);
+	const settings = paneStore<PaneSettings>({
+		wrap: storedSwitch(WRAP_KEY),
+		formatOnLeave: deps().config.formatOnLeave,
+		elementOnly: storedSwitch(ELEMENT_ONLY_KEY),
+	});
+	const html = createHtmlPane(deps, request, () => settings.get().elementOnly);
 	const css = createCssPane(deps);
 	const js = createJsPane(deps, request);
-	const settings = paneStore<PaneSettings>({ wrap: storedWrap(), formatOnLeave: deps().config.formatOnLeave });
+	// "Only the selected element" switched: the HTML pane shows the selection again, the other way.
+	let elementOnly = settings.get().elementOnly;
+	const reshown = settings.subscribe(() => {
+		if (settings.get().elementOnly === elementOnly) return;
+		elementOnly = settings.get().elementOnly;
+		html.reshow();
+	});
 
 	// The header state: a new value only when the settings or the JS pane's script change.
 	let header: Header | null = null;
@@ -78,7 +100,7 @@ export function createCodePanes(deps: () => CodePanesDeps): Panes {
 		const before = header;
 		if (headerNow() !== before) for (const listener of listeners) listener();
 	};
-	const stops = [settings.subscribe(tell), js.store.subscribe(tell)];
+	const stops = [settings.subscribe(tell), js.store.subscribe(tell), reshown];
 
 	return {
 		html,
@@ -126,7 +148,8 @@ export function paneParts(instance: CodePanesInstance, ui: PaneUi): CodePanePart
 	const expand = (id: PanelKey) => (
 		<ExpandButton wide={ui.wide === id} onToggle={() => ui.setWide(ui.wide === id ? null : id)} words={words} />
 	);
-	const menu = (id: PanelKey, text: () => string): MenuEntry[] => [
+	const menu = (id: PanelKey, text: () => string, own: readonly MenuEntry[] = []): MenuEntry[] => [
+		...own,
 		{
 			kind: "item",
 			key: "wide",
@@ -162,11 +185,7 @@ export function paneParts(instance: CodePanesInstance, ui: PaneUi): CodePanePart
 			onToggle: () => {
 				const wrap = !panes.settings.get().wrap;
 				panes.settings.set({ wrap });
-				try {
-					localStorage.setItem(WRAP_KEY, wrap ? "on" : "off");
-				} catch {
-					// Kept for this visit.
-				}
+				keepSwitch(WRAP_KEY, wrap);
 			},
 		},
 	];
@@ -203,7 +222,20 @@ export function paneParts(instance: CodePanesInstance, ui: PaneUi): CodePanePart
 			js: scriptTitle(words, panes.js.store.get().tab),
 		},
 		menus: {
-			html: menu("html", header.htmlText),
+			html: menu("html", header.htmlText, [
+				{
+					kind: "switch",
+					key: "element-only",
+					label: words.code.html.elementOnly,
+					checked: settings.elementOnly,
+					onToggle: () => {
+						const elementOnly = !panes.settings.get().elementOnly;
+						panes.settings.set({ elementOnly });
+						keepSwitch(ELEMENT_ONLY_KEY, elementOnly);
+					},
+				},
+				{ kind: "separator", key: "element-only-line" },
+			]),
 			css: menu("css", header.cssText),
 			js: menu("js", header.jsText),
 		},

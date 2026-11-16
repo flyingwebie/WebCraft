@@ -6619,7 +6619,7 @@
 		"/components/create": {
 			"post": {
 				"operationId": "components.create",
-				"summary": "Creates a Component with its name and Props, optionally placing it in a Template or Component.",
+				"summary": "Creates a Component with its name and Props, optionally placing it in a Template or Component, or a Section of a Page.",
 				"tags": ["components"],
 				"requestBody": {
 					"required": true,
@@ -6635,6 +6635,10 @@
 									"name": {
 										"type": "string",
 										"maxLength": 200
+									},
+									"pageId": {
+										"type": "string",
+										"format": "uuid"
 									},
 									"props": {
 										"type": "array",
@@ -7076,7 +7080,7 @@
 										"required": ["source", "path", "list"]
 									}
 								},
-								"required": ["siteId", "name"]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -8315,6 +8319,126 @@
 									}
 								},
 								"required": ["siteId", "componentId", "code"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
+		"/components/makeReusable": {
+			"post": {
+				"operationId": "components.makeReusable",
+				"summary": "Makes a Page's Section a reusable Component with a name.",
+				"tags": ["components"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"componentId": {
+										"anyOf": [
+											{
+												"type": "string",
+												"format": "uuid"
+											},
+											{
+												"type": "string",
+												"pattern": "^[a-z][a-z0-9-]{0,31}:[A-Z][A-Za-z0-9]{0,63}$"
+											}
+										]
+									},
+									"name": {
+										"type": "string",
+										"maxLength": 200
+									}
+								},
+								"required": ["siteId", "componentId", "name"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
+		"/components/makePageSection": {
+			"post": {
+				"operationId": "components.makePageSection",
+				"summary": "Makes a Component a Section of its one Page again (undoes Make reusable).",
+				"tags": ["components"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"componentId": {
+										"anyOf": [
+											{
+												"type": "string",
+												"format": "uuid"
+											},
+											{
+												"type": "string",
+												"pattern": "^[a-z][a-z0-9-]{0,31}:[A-Z][A-Za-z0-9]{0,63}$"
+											}
+										]
+									},
+									"pageId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId", "componentId", "pageId"]
 							}
 						}
 					}
@@ -15185,7 +15309,7 @@
 		"/media/folders/list": {
 			"post": {
 				"operationId": "media.folders.list",
-				"summary": "Lists the Media library's folders.",
+				"summary": "Lists the Media library's folders, in the Site's order (A–Z or its own).",
 				"tags": ["media"],
 				"requestBody": {
 					"required": true,
@@ -15350,6 +15474,106 @@
 									}
 								},
 								"required": ["siteId", "folderId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["media.manage"]
+			}
+		},
+		"/media/folders/setOrder": {
+			"post": {
+				"operationId": "media.folders.setOrder",
+				"summary": "Sets how the Site lists its Media folders: A–Z or in its own order.",
+				"tags": ["media"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"order": {
+										"enum": ["name", "custom"],
+										"type": "string"
+									}
+								},
+								"required": ["siteId", "order"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["media"],
+				"x-webcraft-permissions": ["media.manage"]
+			}
+		},
+		"/media/folders/reorder": {
+			"post": {
+				"operationId": "media.folders.reorder",
+				"summary": "Arranges the Site's own order of its Media folders.",
+				"tags": ["media"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"folderIds": {
+										"type": "array",
+										"maxItems": 1000,
+										"items": {
+											"type": "string",
+											"format": "uuid"
+										}
+									}
+								},
+								"required": ["siteId", "folderIds"]
 							}
 						}
 					}

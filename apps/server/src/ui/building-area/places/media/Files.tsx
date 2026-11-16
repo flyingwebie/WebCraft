@@ -1,11 +1,15 @@
 import { CheckIcon, FolderInputIcon, LinkIcon, RotateCcwIcon, Trash2Icon, TriangleAlertIcon } from "lucide-react";
 
+import type { KeyboardEvent } from "react";
+
 import { useT } from "../../../i18n.tsx";
 import { imagePreview, KIND_ICONS } from "../../../media/preview.ts";
 import { fill, type Words } from "../../api.ts";
 import { CHROME_EASE, FOCUS_RING } from "../../controls.tsx";
 import type { ListedMediaItem, MediaFoldersData } from "./data.ts";
+import { shapeOf } from "./masonry.ts";
 import { Check, FolderMenu, fileSize, RowButton, shortDate, Thumb } from "./parts.tsx";
+import { arrowTarget, useMasonry } from "./use-masonry.ts";
 
 /** What a row or a tile can do with its file. */
 export type FileActions = {
@@ -218,11 +222,20 @@ export function FileList({
 	);
 }
 
+/** What a file that isn't a picture is, as its tile says it: its kind of file, from its name (`PDF`, `MP4`). */
+export function kindOf(item: ListedMediaItem): string {
+	const extension = /\.([A-Za-z0-9]{1,8})$/.exec(item.fileName)?.[1];
+	return (extension ?? item.contentType.split("/")[1] ?? item.kind).toUpperCase();
+}
+
 /**
  * The files as a masonry grid (`places-assets/03`): each picture in its own shape, in columns about
- * 196 wide; its box to select it at its top corner (shown under the pointer, on focus, and while
- * anything is selected); "No alt text" on an image without one. While something is selected, the
- * pictures not selected are dimmed. The picture opens its details in place.
+ * 196 wide, laid out from the files' sizes before the pictures load (`masonry.ts`), so nothing moves
+ * as they arrive; its box to select it at its top corner (shown under the pointer, on focus, and while
+ * anything is selected); "No alt text" on an image without one; its name and size under the pointer
+ * and on focus; a file that isn't an image shows its kind. While something is selected, the pictures
+ * not selected are dimmed. The picture opens its details in place; the arrow keys move between the
+ * pictures (Home and End: the first and the last), and Enter opens one (FX-03).
  */
 export function FileGrid({
 	words,
@@ -244,37 +257,69 @@ export function FileGrid({
 	const t = useT();
 	const shown = words.media;
 	const selecting = selected.size > 0;
+	const { ref, layout } = useMasonry(
+		items.map((item) => shapeOf(item.width, item.height)),
+		{ minColumn: 196, gap: 8 },
+	);
+
+	const onKey = (event: KeyboardEvent<HTMLUListElement>) => {
+		const focused = (event.target as HTMLElement).closest<HTMLElement>("[data-wc-media-open]");
+		if (!focused) return;
+		const from = items.findIndex((item) => item.id === focused.dataset.wcMediaOpen);
+		const to = arrowTarget(event, layout, from, getComputedStyle(focused).direction === "rtl");
+		if (to === undefined) return;
+		event.preventDefault();
+		const item = to === null ? null : items[to];
+		if (!item) return;
+		event.currentTarget.querySelector<HTMLElement>(`[data-wc-media-open="${item.id}"]`)?.focus();
+	};
+
 	return (
-		<ul aria-label={t("media.listLabel")} className="m-0 list-none columns-[196px] gap-2 p-0" data-wc-media-grid="">
-			{items.map((item) => {
+		<ul
+			ref={ref}
+			aria-label={t("media.listLabel")}
+			className="relative m-0 list-none p-0"
+			style={{ height: layout.height }}
+			onKeyDown={onKey}
+			data-wc-media-grid=""
+			data-wc-grid-columns={layout.columns}
+		>
+			{items.map((item, index) => {
+				const box = layout.boxes[index];
 				const on = selected.has(item.id);
 				const image = imagePreview(siteId, item, 480, true);
 				const Glyph = KIND_ICONS[item.kind];
-				const ratio = item.width && item.height ? `${item.width} / ${item.height}` : "4 / 3";
+				const missingAlt = item.kind === "image" && item.status === "ready" && !item.alt;
 				return (
 					<li
 						key={item.id}
-						className={`group/tile relative mb-2 break-inside-avoid overflow-hidden rounded-md ${
+						className={`group/tile absolute overflow-hidden rounded-md ${
 							selecting && !on ? "opacity-60" : ""
 						} ${CHROME_EASE}`}
+						style={
+							box
+								? { insetInlineStart: box.x, top: box.y, width: box.width, height: box.height }
+								: { visibility: "hidden" }
+						}
 						data-wc-media-file={item.id}
 					>
 						<button
 							type="button"
 							onClick={() => actions.open(item)}
-							className={`bg-chrome-raised relative flex w-full items-center justify-center overflow-hidden rounded-md ${FOCUS_RING}`}
-							style={{ aspectRatio: ratio }}
+							className={`bg-chrome-raised relative flex size-full items-center justify-center overflow-hidden rounded-md ${FOCUS_RING}`}
 							data-wc-media-open={item.id}
 						>
 							{image ? (
-								<img src={image} alt="" loading="lazy" className="size-full object-cover" />
+								<img src={image} alt="" loading="lazy" decoding="async" className="size-full object-cover" />
 							) : (
-								<span className="text-chrome-muted grid justify-items-center gap-2 p-3 text-center text-[11px]">
+								<span className="text-chrome-muted grid justify-items-center gap-1.5 p-3 text-center text-[11px]">
 									<Glyph aria-hidden="true" className="size-7" />
-									<span className="line-clamp-2 break-all">{item.fileName}</span>
+									<span className="text-chrome-text text-[11px] font-semibold tracking-[0.04em]">{kindOf(item)}</span>
 								</span>
 							)}
-							{image ? <span className="sr-only">{item.fileName}</span> : null}
+							<span className="sr-only">
+								{item.fileName}, {fileSize(item.sizeBytes)}
+							</span>
 						</button>
 						{on ? (
 							<span
@@ -282,12 +327,22 @@ export function FileGrid({
 								className="ring-selection pointer-events-none absolute inset-0 rounded-md ring-[3px] ring-inset"
 							/>
 						) : null}
-						{item.kind === "image" && item.status === "ready" && !item.alt ? (
-							<span className="text-chrome-warn pointer-events-none absolute start-2 bottom-2 flex h-[22px] items-center gap-1 rounded-full bg-[#18181bcc] px-2 text-[10px] font-medium">
-								<TriangleAlertIcon aria-hidden="true" className="size-3" />
-								{t("media.noAltShort")}
+						<span className="pointer-events-none absolute inset-x-0 bottom-0 flex flex-col items-start gap-1 p-2">
+							{missingAlt ? (
+								<span className="text-chrome-warn flex h-[22px] items-center gap-1 rounded-full bg-[#18181bcc] px-2 text-[10px] font-medium">
+									<TriangleAlertIcon aria-hidden="true" className="size-3" />
+									{t("media.noAltShort")}
+								</span>
+							) : null}
+							<span
+								aria-hidden="true"
+								className={`flex w-full min-w-0 items-baseline gap-2 rounded-[5px] bg-[#18181bd9] px-1.5 py-1 text-[11px] text-white opacity-0 group-focus-within/tile:opacity-100 group-hover/tile:opacity-100 ${CHROME_EASE}`}
+								data-wc-media-caption=""
+							>
+								<span className="min-w-0 grow truncate font-medium">{item.fileName}</span>
+								<span className="shrink-0 text-white/80 tabular-nums">{fileSize(item.sizeBytes)}</span>
 							</span>
-						) : null}
+						</span>
 						{trash ? null : (
 							<label
 								className={`absolute end-2 top-2 inline-grid size-[22px] cursor-pointer place-items-center rounded-full border-2 border-white ${

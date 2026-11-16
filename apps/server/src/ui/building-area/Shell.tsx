@@ -5,8 +5,16 @@ import { useEditorFit } from "../editor/editor-fit.ts";
 import { editorHistory } from "../editor/editor-history.ts";
 import { childLists, newElement, withNewIds } from "../editor/tree.ts";
 import { BUILDING_STAND_IN_PREFIX } from "./agent/contract.ts";
-import { type EditAnswer, editRequests, fill, type PageState, type ShellConfig } from "./api.ts";
-import { BottomBar } from "./bottom-bar/BottomBar.tsx";
+import {
+	type ClientRole,
+	type EditAnswer,
+	editRequests,
+	fill,
+	type PageState,
+	type ShellConfig,
+	type ViewAsClient,
+} from "./api.ts";
+import { BottomBar, sitePreview } from "./bottom-bar/BottomBar.tsx";
 import { DocumentNav } from "./bottom-bar/DocumentNav.tsx";
 import { draftStateOf } from "./bottom-bar/DraftState.tsx";
 import { InsertRow, KIND_ICONS } from "./bottom-bar/InsertRow.tsx";
@@ -23,6 +31,7 @@ import { DockArea, useDocks } from "./docks/Docks.tsx";
 import { PanelButton } from "./docks/PanelFrame.tsx";
 import { PanelsMenu } from "./docks/PanelsMenu.tsx";
 import type { PanelContext } from "./docks/panels.ts";
+import { printAddress, swapAddress } from "./documents.ts";
 import { componentInPlace, type InPlaceTarget, rootsOf } from "./editing/component-in-place.ts";
 import { reverseElsewhere } from "./editing/drafts.ts";
 import { pageEditing } from "./editing/editing.ts";
@@ -146,6 +155,30 @@ function outletHolder(tree: ElementTree | undefined): string | null {
 	return tree ? visit(tree.nodes, null) : null;
 }
 
+/** Whether a tree holds the Placement `id` anywhere. */
+function holdsPlacement(nodes: readonly TreeNode[], id: string): boolean {
+	return nodes.some(
+		(node) =>
+			(node.type === "component" && node.id === id) || childLists(node).some((list) => holdsPlacement(list, id)),
+	);
+}
+
+/**
+ * Whether the Placement a Component is edited in place through has left the page's Structure (its Add
+ * taken back with Undo, a peer's change, Delete): a Page's by its Page layout as last read, one in a
+ * Template or Component by that source's tree. False while what would say so isn't read.
+ */
+function placementGone(snapshot: StructureSnapshot, source: string): boolean {
+	const at = source.lastIndexOf("/");
+	if (at < 0) return false;
+	const parent = source.slice(0, at);
+	const id = source.slice(at + 1);
+	if (parent === "content" && snapshot.sources.get("site")?.pageLayout)
+		return snapshot.layout !== null && !snapshot.layout.some((each) => each.id === id);
+	const tree = snapshot.sources.get(parent)?.tree;
+	return tree !== undefined && !holdsPlacement(tree.nodes, id);
+}
+
 /** What Done selects for a Component's source on the page: a Page's Placement, or the Placement node in its Template. */
 function placementOfSource(snapshot: StructureSnapshot, source: string): string {
 	const page = snapshot.sources.get("site")?.pageLayout;
@@ -154,7 +187,17 @@ function placementOfSource(snapshot: StructureSnapshot, source: string): string 
 	return at < 0 ? source : `${source.slice(0, at)}#${source.slice(at + 1)}`;
 }
 
-export function Shell({ config }: { config: ShellConfig }) {
+export function Shell({
+	config,
+	onViewAsClient,
+	returned = false,
+}: {
+	config: ShellConfig;
+	/** "View as a client" (FX-04): hands the tab to client editing, as a Member of the role chosen. */
+	onViewAsClient?(handed: ViewAsClient): void;
+	/** Drawn again after "View as a client": said, and focus back on the rail's button. */
+	returned?: boolean;
+}) {
 	const { words } = config;
 	const request = useMemo(() => editRequests(config.token), [config.token]);
 	const cycle = useRef<RegionCycle | null>(null);
@@ -251,6 +294,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 	const layoutEditor = useMemo(
 		() =>
 			pageLayoutEditor({
+				token: config.token,
 				siteId: config.site.id,
 				drafts: editing.drafts(),
 				words,
@@ -261,7 +305,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 				},
 				failed: () => setSaving("failed"),
 			}),
-		[config.site.id, words, pageStructure, editing],
+		[config.token, config.site.id, words, pageStructure, editing],
 	);
 	useEffect(() => () => layoutEditor.destroy(), [layoutEditor]);
 	useEffect(
@@ -291,6 +335,24 @@ export function Shell({ config }: { config: ShellConfig }) {
 		},
 		[inPlace, pageStructure, announce, words],
 	);
+	// The Placement edited in place left the page (Undo of the Section just made, a peer's change): editing
+	// it in place ends, or the shell kept a Component no Layers row, pane or place could reach any more.
+	const followPlacement = useCallback(
+		(page: Document | null | undefined) => {
+			const target = inPlace.current();
+			if (!target || !page || rootsOf(page, target.source).length > 0) return;
+			if (!placementGone(pageStructure.snapshot(), target.source)) return;
+			inPlace.done();
+			pageStructure.editInPlace(null);
+			pageStructure.select(null);
+			announce(fill(words.placements.component.gone, { name: target.name }));
+		},
+		[inPlace, pageStructure, announce, words],
+	);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: checked again whenever the layout or a source is read.
+	useEffect(() => {
+		followPlacement(frame.current?.page());
+	}, [structureNow.layout, structureNow.sources, followPlacement]);
 	const doneInPlace = useCallback(() => {
 		const was = inPlace.done();
 		pageStructure.editInPlace(null);
@@ -357,6 +419,16 @@ export function Shell({ config }: { config: ShellConfig }) {
 			submit: (chosen, texts) => ops.makeComponent(chosen, texts),
 		});
 	};
+	/** Make reusable Component (ADR 0038): the Page's Section selected gets a name and joins the library. */
+	const makeReusable = () => {
+		if (!ops.sectionSelected()) return;
+		setNaming({
+			kind: "reusable",
+			suggested: "NewComponent",
+			text: words.componentDialog.reusableText,
+			submit: (chosen) => ops.makeReusable(chosen),
+		});
+	};
 	/** What the canvas selected last: its name as its chip says it, and its reference when it has one. */
 	const [canvasSelection, setCanvasSelection] = useState<{ ref: string | null; name: string } | null>(null);
 
@@ -391,8 +463,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 			shownAddress.current = address;
 			// A page loaded: a Component edited in place on the one before is done (its Draft keeps every change).
 			if (inPlace.done()) pageStructure.editInPlace(null);
-			if (staff)
-				pageStructure.page(address.startsWith(`${BUILDING_STAND_IN_PREFIX}/`) ? null : (address.split("?")[0] ?? "/"));
+			// A stand-in is read as the page it stands for: its document is the page's content (Code mode's stand-in).
+			if (staff) pageStructure.page(address.split("?")[0] ?? "/");
 			setSaving("idle");
 			setShown(null);
 			setPageState(null);
@@ -409,11 +481,9 @@ export function Shell({ config }: { config: ShellConfig }) {
 	const placeOpener = useRef<Element | null>(null);
 	const openPlace = useCallback(
 		(key: PlaceKey) => {
-			// Other places are locked while a Component is edited in place (`builder/06`): Done first.
-			if (inPlace.current() && key !== placeKey) {
-				announce(words.placements.component.placesLocked, true);
-				return;
-			}
+			// A place opens every time: a Component edited in place is done first, as Done does (its Draft
+			// keeps every change). Refusing left the rail doing nothing, the reason said to screen readers only.
+			if (inPlace.current() && key !== placeKey) doneInPlace();
 			if (key === placeKey) {
 				opened.documents.openPlace(null);
 				return;
@@ -423,7 +493,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 			if (!placeKey) placeOpener.current = document.activeElement;
 			opened.documents.openPlace(at.place, at.view);
 		},
-		[placeKey, opened.documents, inPlace, announce, words],
+		[placeKey, opened.documents, inPlace, doneInPlace],
 	);
 	const leavePlace = useCallback(() => opened.documents.openPlace(null), [opened.documents]);
 	// What the open place has of its own for the bottom bar (its Draft state and Publish: the Forms
@@ -572,6 +642,9 @@ export function Shell({ config }: { config: ShellConfig }) {
 		[panelSelection, kind, inPlaceTarget],
 	);
 	const editTarget = staff ? inPlaceTargetOf(structureNow) : null;
+	const inPlaceSection = inPlaceTarget
+		? Boolean(structureNow.layout?.find((each) => `content/${each.id}` === inPlaceTarget.placement)?.pageSection)
+		: false;
 	// The Entry panel (BA-13): the page's Entry filled in without leaving it; a page never published
 	// follows its new slug. (A Member gets Page details in client editing's side panel instead.)
 	const entryView = useEntryPanelView();
@@ -586,7 +659,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 			announce,
 			path: () => {
 				const address = shownAddress.current;
-				return address && !address.startsWith(`${BUILDING_STAND_IN_PREFIX}/`) ? (address.split("?")[0] ?? "/") : null;
+				return address ? (address.split("?")[0] ?? "/") : null;
 			},
 		},
 		staff && panelSelection !== null,
@@ -636,7 +709,11 @@ export function Shell({ config }: { config: ShellConfig }) {
 			...(inPlaceTarget
 				? {
 						component: (
-							<span className="truncate text-[12px] font-semibold text-[#a78bfa]" data-wc-in-place-title="">
+							// A Page's Section is part of the Page: its title is the chrome's, not a Component's colour.
+							<span
+								className={`truncate text-[12px] font-semibold ${inPlaceSection ? "text-chrome-strong" : "text-[#a78bfa]"}`}
+								data-wc-in-place-title=""
+							>
 								{inPlaceTarget.name}
 							</span>
 						),
@@ -669,6 +746,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 								menu={{
 									ops,
 									makeComponent,
+									makeReusable,
 									ask: (question) => menu.setRequest({ tab: "insert", step: question }),
 								}}
 							/>
@@ -691,6 +769,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 										token={config.token}
 										siteId={config.site.id}
 										layout={layoutEditor}
+										onMakeReusable={makeReusable}
 										onOpenComponent={(componentId, source) => {
 											// Placed on this page: edited in place; else opened as the document.
 											const snapshot = pageStructure.snapshot();
@@ -719,6 +798,27 @@ export function Shell({ config }: { config: ShellConfig }) {
 		titles: loopOfElement ? { inspector: words.inspectorTitles.loop } : {},
 		subs: { ...codeParts?.subs, ...(loopOfElement ? { inspector: loopOfElement.node.source } : {}) },
 	});
+
+	// "View as a client" (FX-04): what was typed is saved, then client editing takes the tab on the page
+	// the frame shows (the home page for a stand-in); Staff's address and panels are kept for the way back.
+	const [switching, setSwitching] = useState(false);
+	const viewAsClient = async (role: ClientRole) => {
+		if (!onViewAsClient || switching) return;
+		setSwitching(true);
+		await leaving();
+		const now = shownAddress.current;
+		const page = now && !now.startsWith(`${BUILDING_STAND_IN_PREFIX}/`) ? now : "/";
+		const back = `${location.pathname}${location.search}`;
+		swapAddress(printAddress({ document: { kind: "page", page }, place: null, select: null }));
+		onViewAsClient({ role, back, layout: docks.layout });
+	};
+	// biome-ignore lint/correctness/useExhaustiveDependencies: once, as the shell is drawn again.
+	useEffect(() => {
+		if (!returned) return;
+		document.querySelector<HTMLElement>('[data-wc-rail="view-as-client"]')?.focus();
+		const timer = window.setTimeout(() => announce(words.viewAs.left), 300);
+		return () => window.clearTimeout(timer);
+	}, []);
 
 	const exit = async () => {
 		setExiting(true);
@@ -803,6 +903,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 							}
 						: null,
 					makeComponent,
+					makeReusable: ops.sectionSelected() ? makeReusable : null,
 					newComponent,
 					parts: {
 						icons: KIND_ICONS,
@@ -856,6 +957,8 @@ export function Shell({ config }: { config: ShellConfig }) {
 				onExit={() => void exit()}
 				exiting={exiting}
 				panelsMenu={<PanelsMenu docks={docks} />}
+				onViewAsClient={onViewAsClient ? (role) => void viewAsClient(role) : undefined}
+				switching={switching}
 			/>
 			{/* Before the canvas in the Tab order, so the page (and whatever it holds) comes last; F6 still goes rail, page, bar. */}
 			<BottomBar
@@ -889,7 +992,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 						/>
 					) : null
 				}
-				staging={config.staging && shown && !inPlaceTarget ? `${config.staging}${shown.address}` : null}
+				preview={shown && !inPlaceTarget ? sitePreview(config, shown.address) : null}
 				onUndo={() => void undoHistory.undo()}
 				onRedo={() => void undoHistory.redo()}
 				draft={draftStateOf(saving, place && placeBar ? { changes: placeBar.changes, inReview: false } : shown)}
@@ -1003,6 +1106,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 									if (staff) pageStructure.found(document);
 									// The Component edited in place stays locked and dimmed on the page as drawn now.
 									inPlace.page(document, frame.current?.overlay() ?? null);
+									followPlacement(document);
 									readFormNames(document, () => managementApi(config.token).forms.list({ siteId: config.site.id }));
 								}}
 								editing={editing}

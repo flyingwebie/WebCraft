@@ -836,11 +836,13 @@ export function memberSections(options: {
 				});
 			for (const placement of data.placements) {
 				const own = data.layout.placements.find((each) => each.id === placement.id);
+				// A Page's Section has no Component name (ADR 0038): it is a Section, in the person's language.
+				const section = placement.pageSection ? words.placements.section : null;
 				rows.push({
 					id: placement.id,
 					kind: "section",
-					label: placement.label,
-					name: placement.componentName,
+					label: section ? `${section}${placement.label.slice(placement.componentName.length)}` : placement.label,
+					name: section ?? placement.componentName,
 					locked: placement.locked,
 					hidden: own?.hidden ?? placement.hidden,
 					sketch: kindOf(placement.props),

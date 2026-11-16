@@ -48,6 +48,7 @@ import {
 	unlinkLayout,
 	writePageLayout,
 } from "./page-layouts.ts";
+import { deletePageSections } from "./page-sections.ts";
 import {
 	checkDraftParent,
 	childPagesOf,
@@ -294,6 +295,8 @@ export async function listEntries(
  */
 export async function deleteEntry(scope: SiteScope, entryId: string, confirmation?: string): Promise<EntryDeletion> {
 	return scope.transaction(async (tx) => {
+		// A Page's Sections go with it (ADR 0038): the Components' lock comes before any Entry's.
+		await lockComponents(tx);
 		const row = await lockEntry(tx, entryId);
 		const allPostTypes = await listPostTypes(tx);
 		const { defaultLanguage } = await siteLanguages(tx);
@@ -336,6 +339,7 @@ export async function deleteEntry(scope: SiteScope, entryId: string, confirmatio
  */
 export async function removeEntries(scope: SiteScope, ids: readonly string[]): Promise<LinkingBlock[]> {
 	return scope.transaction(async (tx) => {
+		await lockComponents(tx);
 		const allPostTypes = await listPostTypes(tx);
 		const { defaultLanguage } = await siteLanguages(tx);
 		const removing = new Set(ids);
@@ -411,6 +415,7 @@ async function unlinkAndDelete(
 			]);
 		}
 	}
+	await deletePageSections(tx, entryId);
 	await tx.delete(entries, eq(entries.id, entryId));
 }
 
@@ -574,7 +579,13 @@ async function changeDraft(
 				throw new EntryInvalidError([{ at: "layout", message: "Only Pages have a Page layout." }]);
 			version = {
 				...version,
-				layout: await writePageLayout(scope, before.layout ?? EMPTY_LAYOUT, change.layout, change.layoutBasedOn),
+				layout: await writePageLayout(
+					scope,
+					row.id,
+					before.layout ?? EMPTY_LAYOUT,
+					change.layout,
+					change.layoutBasedOn,
+				),
 			};
 		}
 		const problems: ContentProblem[] = [];
@@ -661,7 +672,7 @@ async function changeDraft(
 		if (!isPagePostType(postType))
 			throw new EntryInvalidError([{ at: "layout", message: "Only Pages have a Page layout." }]);
 		version = { ...version, layout: await restorePageLayout(scope, version.layout ?? EMPTY_LAYOUT) };
-		await writePageLayout(scope, before.layout ?? EMPTY_LAYOUT, layoutView(version.layout ?? EMPTY_LAYOUT));
+		await writePageLayout(scope, row.id, before.layout ?? EMPTY_LAYOUT, layoutView(version.layout ?? EMPTY_LAYOUT));
 	}
 
 	const [saved] = await scope.update(

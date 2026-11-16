@@ -495,12 +495,21 @@ describe("Format and Components' Props in the HTML pane", () => {
 	test("Format keeps Components whole in markup", async () => {
 		const page = await shared();
 		await select(page, "h1");
+		// The heading's breadcrumb: its article, which holds the Placement.
+		await pane(page, "html").locator("[data-wc-html-crumbs]").getByRole("button", { name: "article" }).click();
 		const html = box(page, "html");
-		const original = await html.inputValue();
+		const original = await eventually(
+			() => html.inputValue(),
+			(text) => text.startsWith("<article"),
+		);
 		// The box prints each element with its id, last (`<Hero heading="Welcome" data-wc-id="…" />`).
 		const placed = /<Hero heading="Welcome"( data-wc-id="[^"]*")? \/>/;
 		expect(original).toMatch(placed);
-		const messy = original.replace(/<article\b[^>]*>/, "$&\n").replace(placed, '<Hero    heading="Welcome"$1/>');
+		// The article's markup shows formatted: made messy again, on one line, the Placement spaced out.
+		const messy = original
+			.replace(/\n\s*/g, "")
+			.replace(/<article\b[^>]*>/, "$&\n")
+			.replace(placed, '<Hero    heading="Welcome"$1/>');
 		expect(messy).toContain("<Hero    heading=");
 		expect(messy).not.toContain("\n  <h1");
 		await html.fill(messy);
@@ -568,8 +577,17 @@ describe("Format and Components' Props in the HTML pane", () => {
 	test("a Component's Props declared in its markup preview on the page and save from the keyboard", async () => {
 		const page = await shared();
 		await select(page, "section.hero h2");
+		// Its Component's whole markup, Props and all: "Only the selected element" off in the pane's menu.
+		await page.locator('[data-wc-panel-menu="html"]').click();
+		await page.getByRole("menuitemcheckbox", { name: "Only the selected element" }).click();
+		await page.keyboard.press("Escape");
 		const html = box(page, "html");
-		const shown = await html.inputValue();
+		const shown = await eventually(
+			() => html.inputValue(),
+			(text) => text.includes("<section"),
+		);
+		// The heading's lines are marked in it.
+		await pane(page, "html").locator("[data-wc-marked-line]").first().waitFor();
 		const declared = 'strapline: text exposed default="Preview words"\n';
 		await html.fill(
 			(shown.includes("{{/props}}")
@@ -589,5 +607,13 @@ describe("Format and Components' Props in the HTML pane", () => {
 			exposed: true,
 			default: "Preview words",
 		});
+		// Back to the element alone.
+		await page.locator('[data-wc-panel-menu="html"]').click();
+		await page.getByRole("menuitemcheckbox", { name: "Only the selected element" }).click();
+		await page.keyboard.press("Escape");
+		await eventually(
+			() => html.inputValue(),
+			(text) => text.startsWith("<h2"),
+		);
 	});
 });

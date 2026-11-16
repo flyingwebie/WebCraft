@@ -1399,7 +1399,18 @@
 			"created": "Folder {name} created.",
 			"renamed": "Folder renamed.",
 			"deleted": "Folder {name} deleted.",
-			"nameRequired": "Give the folder a name."
+			"nameRequired": "Give the folder a name.",
+			"add": "Add folder",
+			"addName": "Name of the new folder",
+			"addHint": "Enter to save, Escape to cancel.",
+			"order": "Folder order",
+			"orderName": "A–Z",
+			"orderCustom": "Custom",
+			"moveUp": "Move up",
+			"moveDown": "Move down",
+			"moved": "{name} moved to place {position} of {count}.",
+			"dragHint": "Drag a folder to move it, or use Move up and Move down in its menu.",
+			"orderFailed": "The folders' order wasn't saved ({reason})."
 		},
 		"search": "Search name or alt text",
 		"kinds": {
@@ -7228,7 +7239,9 @@
 			"mediaFolder": {
 				"create": "Media folder created",
 				"delete": "Media folder deleted",
-				"rename": "Media folder renamed"
+				"order": "Media folders' order changed",
+				"rename": "Media folder renamed",
+				"reorder": "Media folders rearranged"
 			},
 			"mediaMaxFileSize": {
 				"change": "Largest Media file changed"
@@ -8522,7 +8535,29 @@
 		"redoStep": "Redo {step}",
 		"language": "Language",
 		"languageCode": "{code}, Language: {name}",
-		"viewOnStaging": "View on Staging (opens in a new tab)",
+		"previewOnSite": {
+			"draft": "Preview the Draft on the site (opens in a new tab)",
+			"published": "View the published page (opens in a new tab). Drafts show there once published"
+		},
+		"viewAs": {
+			"button": "View as a client",
+			"menu": "View the page as a client",
+			"roles": {
+				"editor": "Owner or Editor",
+				"author": "Author"
+			},
+			"details": {
+				"editor": "Publishes, and manages the Media library",
+				"author": "Sends changes for review"
+			},
+			"banner": "Viewing as a client",
+			"role": "As {role}",
+			"note": "What you change here is saved to the Draft, as anywhere in the building area.",
+			"back": "Back to the Staff view",
+			"entered": "Viewing the page as a client: {role}.",
+			"left": "Back to the Staff view.",
+			"failed": "Couldn't switch the view. Reload the page to try again."
+		},
 		"draftState": {
 			"label": "Draft state",
 			"saved": "Saved",
@@ -10419,7 +10454,9 @@
 				"problems": "The markup can't be read: each problem is listed under the box.",
 				"step": "Changed the HTML of {name}",
 				"saved": "Saved the HTML of {name}.",
-				"placementHelp": "A Placement of a Component on this page: change its Props in the Inspector."
+				"placementHelp": "A Placement of a Component on this page: change its Props in the Inspector.",
+				"breadcrumb": "Where it is in {name}",
+				"elementOnly": "Only the selected element"
 			},
 			"css": {
 				"label": "CSS of .{name}",
@@ -10537,7 +10574,7 @@
 				"editing": "{name} · Editing",
 				"started": "Editing {name} in place. The rest of the page is locked until Done.",
 				"ended": "Done editing {name}. Its changes are in its Draft.",
-				"placesLocked": "Other places are locked while you edit a Component in place: press Done first.",
+				"gone": "{name} is no longer on the page: editing it in place has ended.",
 				"done": "Done",
 				"types": {
 					"text": "Text",
@@ -10585,7 +10622,8 @@
 				"step": "Change the test of {name}",
 				"bad": "This test can't be read: {problem}",
 				"name": "If {test}"
-			}
+			},
+			"section": "Section"
 		},
 		"insert": {
 			"row": "Insert",
@@ -10593,8 +10631,8 @@
 				"section": {
 					"name": "Section",
 					"hint": "A new top-level section, placed after this one",
-					"page": "A new top-level Component, placed after this one",
-					"tip": "Section: starts a new Component here"
+					"page": "A new section of this Page, placed after this one",
+					"tip": "Section: starts a new section of this Page"
 				},
 				"container": {
 					"name": "Container",
@@ -10636,6 +10674,10 @@
 				"image": {
 					"name": "Image",
 					"hint": "A picture from Media"
+				},
+				"figure": {
+					"name": "Figure",
+					"hint": "A picture from Media with a caption under it"
 				},
 				"video": {
 					"name": "Video",
@@ -10715,7 +10757,8 @@
 				"text": "Write something here.",
 				"link": "Link",
 				"button": "Button",
-				"listItem": "List item"
+				"listItem": "List item",
+				"caption": "Caption"
 			},
 			"steps": {
 				"insert": "Insert {name}",
@@ -10735,8 +10778,8 @@
 				"connecting": "Still opening the page's elements. Try again in a moment."
 			},
 			"section": {
-				"making": "Making {name}…",
-				"made": "{name} placed on the page. Its container is selected: Heading, Text and Div go inside it.",
+				"making": "Making a section…",
+				"made": "Section placed on the page. Its container is selected: Heading, Text and Div go inside it.",
 				"failed": "Couldn't make the section: {reason}"
 			},
 			"media": {
@@ -10849,7 +10892,8 @@
 				"edit": "Edit",
 				"pageDetails": "Page details",
 				"sections": "Sections",
-				"help": "Help"
+				"help": "Help",
+				"makeReusable": "Make reusable Component"
 			},
 			"wrap": {
 				"div": "a Div",
@@ -10902,7 +10946,8 @@
 				"paste": "Paste {name}",
 				"wrap": "Wrap {name} in {what}",
 				"unwrap": "Unwrap {name}"
-			}
+			},
+			"makeReusable": "Make reusable Component"
 		},
 		"componentDialog": {
 			"makeTitle": "Make Component",
@@ -10917,7 +10962,13 @@
 			"create": "Create",
 			"cancel": "Cancel",
 			"made": "Made the Component {name}.",
-			"refused": "Couldn't make the Component: {reason}"
+			"refused": "Couldn't make the Component: {reason}",
+			"reusableTitle": "Make reusable Component",
+			"reusableText": "This Section becomes a Component of its own: listed in Components, and placed anywhere. It stays where it is on this Page.",
+			"reusable": "Make reusable",
+			"madeReusable": "The Section is the reusable Component {name} now.",
+			"reusableRefused": "Couldn't make it reusable: {reason}",
+			"reusableStep": "Make the Section {name} reusable"
 		},
 		"fixedText": {
 			"badge": "Fixed text",

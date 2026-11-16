@@ -26,6 +26,7 @@ import {
 import { REVIEW_LIMITS } from "./field-rules.ts";
 import { checkGlobalsReady } from "./globals.ts";
 import { draftVersion, sameJson } from "./json.ts";
+import { pageSectionsChanged } from "./page-sections.ts";
 import { checkEntryReady, type PublishItem } from "./publishing.ts";
 import {
 	isReviewable,
@@ -106,7 +107,11 @@ export async function submitForReview(
 			const submitted: { row: Row; name: string | null; postTypeId: string | null }[] = [];
 			for (const item of chosen) {
 				const state = await itemState(tx, item);
-				if (!hasChanges(item, state.draft, state.published)) throw new ReviewInvalidError("nothingToReview", item);
+				if (
+					!hasChanges(item, state.draft, state.published) &&
+					!(item.kind === "entry" && (await pageSectionsChanged(tx, item.id)))
+				)
+					throw new ReviewInvalidError("nothingToReview", item);
 				const waiting = await waitingOf(tx, item);
 				if (waiting) throw new ItemInReviewError(item, waiting.id);
 				await checkReady(tx, item);

@@ -117,7 +117,7 @@ async function selectedComponent(
 	const script = editable ? await getComponentScript(scope, componentId) : null;
 	return {
 		componentId,
-		name: catalogue.nameOf(componentId) ?? "",
+		name: catalogue.pageOf(componentId) !== undefined ? "Section" : (catalogue.nameOf(componentId) ?? ""),
 		editable,
 		pages: (await getComponent(scope, componentId, deps.sources)).usage.pages,
 		...codeComponentScript(script),

@@ -11,6 +11,7 @@ import {
 	GitBranchIcon,
 	LayersIcon,
 	LayoutTemplateIcon,
+	RectangleHorizontalIcon,
 	RepeatIcon,
 	SquareDashedIcon,
 	Trash2Icon,
@@ -242,8 +243,10 @@ function rowsOf(
 ): Row[] {
 	const rows: Row[] = [];
 	const site = snapshot.sources.get("site");
-	if (!site) return rows;
 	const content = snapshot.sources.get("content");
+	// A stand-in draws its document alone (no Site template around it): its tree is the whole tree.
+	const alone = snapshot.root === "content" ? content : undefined;
+	if (!site || (snapshot.root === "content" && !alone)) return rows;
 	const selected = snapshot.selection?.ref ?? null;
 	const onTheWay = (ref: string) => selected !== null && selected !== ref && within(sourceOf(selected), sourceOf(ref));
 
@@ -350,6 +353,12 @@ function rowsOf(
 			});
 		});
 	};
+	if (alone) {
+		const label = contentLabel(words, site, alone) ?? alone.name ?? "";
+		rows.push({ kind: "divider", key: "content:divider", label, icon: "content", depth: 0 });
+		visit(alone, alone.tree.nodes, [], 0, null);
+		return rows;
+	}
 	rows.push({ kind: "divider", key: "site:divider", label: words.structure.siteTemplate, icon: "site", depth: 0 });
 	visit(site, site.tree.nodes, [], 0, null);
 	return rows;
@@ -481,12 +490,16 @@ export function Layers({
 			return;
 		}
 		if (action === "duplicate") {
-			const made = layout.duplicate(placements, id);
-			if ("refused" in made) announceRefusal(made.refused);
-			else {
-				structure.select(`content/${made.id}`);
-				setFocusKey(`layout:${made.id}`);
-			}
+			const shown = (made: { id: string } | { refused: string }) => {
+				if ("refused" in made) announceRefusal(made.refused);
+				else {
+					structure.select(`content/${made.id}`);
+					setFocusKey(`layout:${made.id}`);
+				}
+			};
+			// A Page's Section is placed once: its copy is another Section of the Page (ADR 0038).
+			if (row.placement.pageSection) void layout.duplicateSection(placements, id).then(shown);
+			else shown(layout.duplicate(placements, id));
 			return;
 		}
 		const at = focusable.findIndex((each) => each.key === row.key);
@@ -557,13 +570,16 @@ export function Layers({
 			focusRow(`${row.source.ref}:${pathKey(moved.path)}`);
 	};
 
-	const openRowMenu = (row: Extract<Row, { kind: "node" }>, at: { x: number; y: number } | null) => {
+	const openRowMenu = (
+		row: Extract<Row, { kind: "node" } | { kind: "placement" }>,
+		at: { x: number; y: number } | null,
+	) => {
 		choose(row);
 		const element = list.current?.querySelector<HTMLElement>(`[data-wc-row="${CSS.escape(row.key)}"]`);
 		const box = element?.getBoundingClientRect();
 		setRowMenu({
 			key: row.key,
-			name: nameOfRow(row),
+			name: row.kind === "node" ? nameOfRow(row) : row.placement.name,
 			at: at ?? { x: (box?.left ?? 0) + 16, y: (box?.bottom ?? 0) + 2 },
 		});
 	};
@@ -748,6 +764,17 @@ export function Layers({
 		if (node?.source.editable && event.key === " " && !event.altKey && !event.ctrlKey && !event.metaKey) {
 			event.preventDefault();
 			pickUp(node);
+			return;
+		}
+		// A Page's Placement has a menu too (Duplicate, Delete, Make reusable Component for a Section).
+		if (
+			placement &&
+			menu &&
+			snapshot.layoutInfo?.canArrange &&
+			((event.key === "F10" && event.shiftKey) || event.key === "ContextMenu")
+		) {
+			event.preventDefault();
+			openRowMenu(placement, null);
 			return;
 		}
 		// The row's menu (BA-10): Shift+F10 or the menu key opens it under the row; ⌘C and ⌘V copy and paste.
@@ -952,7 +979,7 @@ export function Layers({
 		};
 	};
 
-	if (!snapshot.sources.get("site")) {
+	if (!snapshot.sources.get("site") || !snapshot.sources.get(snapshot.root)) {
 		return <p className="text-chrome-muted px-2 py-1 text-[12px]">{said.loading}</p>;
 	}
 
@@ -1048,7 +1075,10 @@ export function Layers({
 							onMenu={
 								menu && row.kind === "node" && row.source.editable && !lockedRow(row)
 									? (at) => openRowMenu(row, at)
-									: undefined
+									: // A Page's Placement (Duplicate, Delete, and Make reusable Component for a Section).
+										menu && row.kind === "placement" && snapshot.layoutInfo?.canArrange && !lockedRow(row)
+										? (at) => openRowMenu(row, at)
+										: undefined
 							}
 						/>
 					),
@@ -1135,7 +1165,9 @@ function TreeRow({
 }) {
 	const said = words.structure;
 	const node = row.kind === "node" ? row.node : null;
-	const component = node?.type === "component" || row.kind === "placement";
+	// A Page's Section is part of the Page (ADR 0038): drawn as a section, with no Component badge.
+	const section = row.kind === "placement" && row.placement.pageSection;
+	const component = node?.type === "component" || (row.kind === "placement" && !section);
 	const named =
 		row.kind === "node"
 			? rowName(row.node, row.source, row.nested)
@@ -1148,13 +1180,15 @@ function TreeRow({
 	const Chevron = expanded ? ChevronDownIcon : ChevronRightIcon;
 	const Glyph = component
 		? ComponentIcon
-		: node?.type === "loop"
-			? RepeatIcon
-			: node?.type === "condition" || row.kind === "branch"
-				? GitBranchIcon
-				: node?.type === "element"
-					? CodeXmlIcon
-					: SquareDashedIcon;
+		: section
+			? RectangleHorizontalIcon
+			: node?.type === "loop"
+				? RepeatIcon
+				: node?.type === "condition" || row.kind === "branch"
+					? GitBranchIcon
+					: node?.type === "element"
+						? CodeXmlIcon
+						: SquareDashedIcon;
 	// Text clients can't edit (BA-33): flagged, so Staff find what to make a Prop, a Field or a Global.
 	const fixed = node !== null && holdsFixedText(node);
 	const label = [

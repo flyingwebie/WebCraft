@@ -1,9 +1,14 @@
 // The code panes in the building area (ADR 0037 › 1.7, BA-11; SPEC 5 and 5.1), in Chromium:
-// - selecting an `h1` of a Component opens HTML, CSS and JS in the bottom dock: its source's Template
-//   markup with its own lines marked, its chosen Class as one rule (the Inspector's chosen chip and the
-//   pane's are one choice), the page script; Escape clears the selection and the panes leave;
-// - typing markup previews in the frame without saving; leaving the box saves it, one Undo step; markup
-//   that can't be read lists each problem with its line and column, and saves nothing;
+// - selecting an `h1` of a Component opens HTML, CSS and JS in the bottom dock: the `h1`'s own markup
+//   under a breadcrumb of its ancestors in its source (FX-02), its chosen Class as one rule (the
+//   Inspector's chosen chip and the pane's are one choice), the page script; Escape clears the
+//   selection and the panes leave;
+// - a step of the breadcrumb, pressed from the keyboard, selects that element (canvas, Layers, pane);
+// - typing markup previews in the frame without saving; leaving the box saves only that element, one
+//   Undo step; markup that can't be read lists each problem with its line and column in the box, and
+//   saves nothing;
+// - the bottom dock spans the canvas's column only: it ends at the right dock's edge at 1440 px, and at
+//   an open drawer's edge at 1200 px, its last pane in view or its row scrolling with a fade;
 // - a Module's Component is read only, with the reason;
 // - saving over a version someone saved meanwhile asks: Reload theirs, or Overwrite with mine;
 // - the CSS pane's media query at a 768 px frame writes `@media (width < 768px)` into the Class;
@@ -179,19 +184,23 @@ async function leaveBox(page: Page): Promise<void> {
 }
 
 describe("the code panes", () => {
-	test("selecting a heading opens its markup with its lines marked, its Class's rule and the page script", async () => {
+	test("selecting a heading opens its own markup under its breadcrumb, its Class's rule and the page script", async () => {
 		const { page } = await shared();
 		await selectHeading(page);
-		// HTML: the Component's markup, the heading's own lines marked; the header names the selection.
+		// HTML: the heading's own markup only (not its Component's Props or section), formatted; the
+		// header names the selection.
 		expect(await pane(page, "html").locator("h2").textContent()).toBe("HTML");
 		expect(await pane(page, "html").locator("[data-wc-panel-header]").textContent()).toContain("h1 · Heading");
 		const markup = await box(page, "html").inputValue();
-		expect(markup).toMatch(/<h1 class="hero__title is-large"[^>]*>\{\{ props\.headline \}\}<\/h1>/);
-		const marked = await eventually(
-			() => pane(page, "html").locator("[data-wc-marked-line]").allTextContents(),
-			(lines) => lines.length > 0,
-		);
-		expect(marked.join("\n")).toContain('<h1 class="hero__title is-large"');
+		expect(markup).toMatch(/^<h1 class="hero__title is-large"[^>]*>\{\{ props\.headline \}\}<\/h1>$/);
+		expect(markup).not.toContain("<section");
+		expect(markup).not.toContain("{{@props}}");
+		expect(await pane(page, "html").locator("[data-wc-marked-line]").count()).toBe(0);
+		// The breadcrumb: the heading's ancestors in its Component, the heading last and current.
+		const crumbs = pane(page, "html").getByRole("navigation", { name: "Where it is in HeroSplit" });
+		expect(await crumbs.getByRole("button").allTextContents()).toEqual(["section", "h1"]);
+		expect(await crumbs.getByRole("button", { name: "h1" }).getAttribute("aria-current")).toBe("location");
+		expect(await crumbs.getByRole("button", { name: "section" }).getAttribute("aria-current")).toBeNull();
 		// CSS: the element's Classes as chips, the chosen one (the first) as one rule.
 		expect(await pane(page, "css").locator("[data-wc-css-class]").allTextContents()).toEqual([
 			".hero__title",
@@ -255,6 +264,38 @@ describe("the code panes", () => {
 		for (const id of ["html", "css", "js"] as const) await pane(page, id).waitFor({ state: "detached" });
 	});
 
+	test("a step of the breadcrumb, from the keyboard, selects that element on the canvas, in Layers and in the pane", async () => {
+		const { page } = await shared();
+		await selectHeading(page);
+		const crumbs = pane(page, "html").getByRole("navigation", { name: "Where it is in HeroSplit" });
+		await crumbs.getByRole("button", { name: "section" }).focus();
+		await page.keyboard.press("Enter");
+		// The pane shows the section's markup, the heading inside it, and the breadcrumb ends at it.
+		await page.waitForFunction(() =>
+			document.querySelector<HTMLTextAreaElement>('textarea[data-wc-code-box="html"]')?.value.startsWith("<section"),
+		);
+		const markup = await box(page, "html").inputValue();
+		expect(markup).toContain('<h1 class="hero__title is-large"');
+		expect(markup.trimEnd().endsWith("</section>")).toBe(true);
+		expect(markup).not.toContain("{{@props}}");
+		await eventually(
+			() => crumbs.getByRole("button").allTextContents(),
+			(names) => names.join(" ") === "section",
+		);
+		expect(await crumbs.getByRole("button", { name: "section" }).getAttribute("aria-current")).toBe("location");
+		// The canvas and Layers follow.
+		expect(await pane(page, "html").locator("[data-wc-panel-header]").textContent()).toContain("section");
+		await page
+			.getByRole("tree", { name: "Elements of the page" })
+			.getByRole("treeitem", { name: /^section/, selected: true })
+			.waitFor();
+		const chip = page.locator('[data-wc-outline="selected"]');
+		await chip.waitFor();
+		const outline = await chip.boundingBox();
+		const section = await (await frameOf(page)).locator("section.hero").boundingBox();
+		expect(Math.abs((outline?.height ?? 0) - (section?.height ?? 0))).toBeLessThanOrEqual(4);
+	});
+
 	test("a Module's Component shows its markup read only, with the reason, and no Format", async () => {
 		const { page } = await shared();
 		await clickIn(page, await frameOf(page), 'header [data-extra-block="map"] a');
@@ -283,10 +324,16 @@ describe("the code panes", () => {
 		expect(await pane(page, "html").locator("[data-format-note]").textContent()).toContain("not saved yet");
 
 		await leaveBox(page);
-		expect(await eventually(heroMarkup, (markup) => markup.includes("today"))).toContain("today");
+		// Only the heading was written back: the rest of the Component is as it was.
+		const saved = await eventually(heroMarkup, (markup) => markup.includes("today"));
+		expect(saved).toMatch(
+			/<section class="hero"[^>]*><h1 class="hero__title is-large"[^>]*>\{\{ props\.headline \}\} today<\/h1><\/section>$/,
+		);
 		await (await frameOf(page)).waitForFunction(
 			() => document.querySelector("h1.hero__title")?.textContent?.includes("today") === true,
 		);
+		// The box still holds the heading alone.
+		expect(await box(page, "html").inputValue()).not.toContain("<section");
 
 		// One Undo step takes it all back.
 		const undo = page.locator('[data-wc-bar="undo"]');
@@ -309,6 +356,10 @@ describe("the code panes", () => {
 		const problems = pane(page, "html").locator("[data-wc-html-problems] li");
 		await problems.first().waitFor();
 		expect(await problems.first().textContent()).toMatch(/^Line \d+, column \d+: .+/);
+		// Said at the box's own lines (the heading is one line), not the Component's.
+		const lines = (await box(page, "html").inputValue()).split("\n").length;
+		for (const said of await problems.allTextContents())
+			expect(Number(/^Line (\d+)/.exec(said)?.[1])).toBeLessThanOrEqual(lines);
 		expect(await pane(page, "html").locator("[data-wc-problem-line]").count()).toBeGreaterThan(0);
 		const saved = await heroMarkup();
 		await leaveBox(page);
@@ -468,6 +519,90 @@ describe("the code panes", () => {
 		// The page in the frame is drawn again with it: at 768 the rule doesn't apply, under it it does.
 		await page.locator('[data-wc-gutter="end"]').dblclick();
 		await page.waitForTimeout(400);
+	});
+
+	test("the bottom dock spans the canvas's column: it ends at the right dock at 1440 px and at an open drawer at 1200 and 1024 px", async () => {
+		const { page } = await shared();
+		await selectHeading(page);
+		const edges = async () =>
+			page.evaluate(() => {
+				const box = (selector: string) => document.querySelector(selector)?.getBoundingClientRect() ?? null;
+				const bottom = box('[data-wc-dock="bottom"]');
+				const right = box('[data-wc-dock="right"]');
+				const row = document.querySelector<HTMLElement>("[data-wc-dock-row]");
+				const js = box('[data-wc-panel="js"]');
+				return {
+					bottomRight: bottom?.right ?? 0,
+					rightLeft: right?.left ?? 0,
+					jsRight: js?.right ?? 0,
+					rowRight: row?.getBoundingClientRect().right ?? 0,
+					scrolls: row?.dataset.wcDockRow === "scrolls",
+					fadeAfter: document.querySelector('[data-wc-dock-more="after"]') !== null,
+				};
+			});
+		/** The dock ends where the right dock begins, never under it; its last pane is in view, or the row scrolls and says so. */
+		const placed = (now: Awaited<ReturnType<typeof edges>>) =>
+			Math.abs(now.bottomRight - now.rightLeft) <= 1 && (now.scrolls ? now.fadeAfter : now.jsRight <= now.rowRight + 1);
+		const check = async () => {
+			const now = await eventually(edges, placed, { timeout: 5000, what: "The bottom dock in the canvas's column" });
+			expect(placed(now)).toBe(true);
+		};
+		await check();
+
+		// 1200 px: the side docks are drawers over the canvas; the right one open, the dock ends at its edge.
+		await page.setViewportSize({ width: 1200, height: 900 });
+		const toggle = page.locator('[data-wc-drawer-toggle="right"]');
+		await toggle.waitFor();
+		await toggle.click();
+		await page.locator('[data-wc-dock="right"]').waitFor();
+		await settled(page);
+		await check();
+		// 1024 px, the drawer widened by 150 from the keyboard: the panes no longer fit, and their row
+		// scrolls, a fade at its end; still never under the drawer.
+		await page.setViewportSize({ width: 1024, height: 900 });
+		await check();
+		await page.locator('[data-wc-dock-edge="right"]').focus();
+		for (let press = 0; press < 3; press++) await page.keyboard.press("Shift+ArrowLeft");
+		await eventually(
+			() => page.locator("[data-wc-dock-row]").getAttribute("data-wc-dock-row"),
+			(row) => row === "scrolls",
+		);
+		await check();
+		expect(await page.locator('[data-wc-dock-more="after"]').count()).toBe(1);
+		// Its last pane reached by scrolling the row: the fade goes from its end, and shows at its start.
+		await page.evaluate(() => {
+			const row = document.querySelector<HTMLElement>("[data-wc-dock-row]");
+			if (row) row.scrollLeft = row.scrollWidth;
+		});
+		await eventually(
+			() => page.locator('[data-wc-dock-more="after"]').count(),
+			(count) => count === 0,
+		);
+		const after = await edges();
+		expect(after.jsRight).toBeLessThanOrEqual(after.rowRight + 1);
+		expect(await page.locator('[data-wc-dock-more="before"]').count()).toBe(1);
+		// Back to its width, the drawer closed: the dock takes the whole column again; its resize handle still works.
+		await page.locator('[data-wc-dock-edge="right"]').focus();
+		for (let press = 0; press < 3; press++) await page.keyboard.press("Shift+ArrowRight");
+		await page.keyboard.press("Escape");
+		await page.locator('[data-wc-dock="right"]').waitFor({ state: "detached" });
+		const canvas = await page.locator("#wc-canvas").boundingBox();
+		const column = await eventually(
+			() => page.locator('[data-wc-dock="bottom"]').boundingBox(),
+			(box) => Math.abs((box?.x ?? 0) + (box?.width ?? 0) - ((canvas?.x ?? 0) + (canvas?.width ?? 0))) <= 1,
+		);
+		expect(Math.abs((column?.x ?? 0) - (canvas?.x ?? 0))).toBeLessThanOrEqual(1);
+		const handle = page.locator('[data-wc-dock-edge="bottom"]');
+		const before = column?.height ?? 0;
+		await handle.focus();
+		await page.keyboard.press("ArrowUp");
+		await eventually(
+			async () => (await page.locator('[data-wc-dock="bottom"]').boundingBox())?.height ?? 0,
+			(height) => height > before,
+		);
+		await page.keyboard.press("ArrowDown");
+		await page.setViewportSize({ width: 1440, height: 900 });
+		await settled(page);
 	});
 
 	test("Run runs the scripts on a page drawn afresh; the console shows what they wrote and an error against its line", async () => {

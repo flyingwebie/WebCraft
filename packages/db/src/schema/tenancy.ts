@@ -92,6 +92,11 @@ export const sites = pgTable(
 		stagingPasswordHash: text("staging_password_hash"),
 		/** When the staging password was last set or removed, as Site settings shows it. */
 		stagingPasswordChangedAt: timestamp("staging_password_changed_at", { withTimezone: true }),
+		/**
+		 * How the Media library lists the Site's folders: `name` (A–Z, by name in the Default language,
+		 * the default) or `custom` (in the order people arranged them, `media_folders.sort_order`).
+		 */
+		mediaFolderOrder: text("media_folder_order").notNull().default("name"),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 	},
 	(table) => [unique("sites_workspace_id_id_unique").on(table.workspaceId, table.id)],
