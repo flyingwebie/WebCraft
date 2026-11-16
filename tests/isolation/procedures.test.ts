@@ -1843,6 +1843,17 @@ describe("Media", () => {
 			api.media.folders.delete({ siteId: target.siteId, folderId: (await mediaIn(target)).folderId }),
 		{ as: ["staff", "editor"] },
 	);
+	isolation.refuses(
+		"media.folders.setOrder",
+		(api, { siteId }) => api.media.folders.setOrder({ siteId, order: "custom" }),
+		{ as: ["staff", "editor"] },
+	);
+	isolation.refuses(
+		"media.folders.reorder",
+		async (api, target) =>
+			api.media.folders.reorder({ siteId: target.siteId, folderIds: [(await mediaIn(target)).folderId] }),
+		{ as: ["staff", "owner"] },
+	);
 });
 
 describe("Site analytics", () => {
