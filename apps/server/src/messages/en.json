@@ -10420,7 +10420,8 @@
 				"step": "Changed the HTML of {name}",
 				"saved": "Saved the HTML of {name}.",
 				"placementHelp": "A Placement of a Component on this page: change its Props in the Inspector.",
-				"breadcrumb": "Where it is in {name}"
+				"breadcrumb": "Where it is in {name}",
+				"elementOnly": "Only the selected element"
 			},
 			"css": {
 				"label": "CSS of .{name}",

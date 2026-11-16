@@ -366,7 +366,7 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 		await openRows(page);
 		const box = page.locator('textarea[data-wc-code-box="html"]');
 		await page.waitForFunction(() =>
-			document.querySelector<HTMLTextAreaElement>('textarea[data-wc-code-box="html"]')?.value.includes("<article"),
+			document.querySelector<HTMLTextAreaElement>('textarea[data-wc-code-box="html"]')?.value.startsWith("<h1"),
 		);
 		// The Site template's markup is held on its way while the selection moves on within it.
 		const held = Promise.withResolvers<void>();

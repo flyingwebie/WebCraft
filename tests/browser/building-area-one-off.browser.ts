@@ -324,18 +324,18 @@ describe("one-off styles and generated Classes", () => {
 
 	test("inline styles typed in the HTML pane and saved one after the other are separate Undo steps", async () => {
 		const page = await shared();
-		await selectParagraph(page, "First words");
+		// The box shows the selected element alone (FX-02): the heading first, then the paragraph.
+		await clickIn(page, "article h1");
+		await css(page).waitFor();
 		const html = box(page, "html");
 		await html.waitFor();
-		// What the checks above saved (a peer's text, a one-off style) is in the box first, else saving
-		// rightly asks Reload theirs or Overwrite with mine.
+		// The heading as the Draft holds it now (the checks above saved to the same Template), else
+		// saving rightly asks Reload theirs or Overwrite with mine.
 		const withoutIds = (text: string) => text.replace(/ data-wc-id="[^"]*"/g, "");
-		const draft = await entryMarkup();
 		const before = await eventually(
 			() => html.inputValue(),
-			(text) => withoutIds(text) === draft,
+			(text) => withoutIds(text) === "<h1>{{ title }}</h1>",
 		);
-		expect(withoutIds(before)).toBe(draft);
 		// The box prints each element with its id (`<h1 data-wc-id="…">`): a style is added after the tag.
 		const styled = before.replace(/<h1\b/, '<h1 style="color: purple"');
 		expect(styled).not.toBe(before);
@@ -344,13 +344,10 @@ describe("one-off styles and generated Classes", () => {
 		const firstSave = await eventually(entryMarkup, (text) => /<h1 class="style-/.test(text));
 		expect(firstSave).toMatch(/<h1 class="style-/);
 		await selectParagraph(page, "First words");
-		expect(
-			await eventually(
-				() => html.inputValue(),
-				(text) => /<h1 class="style-/.test(text),
-			),
-		).toMatch(/<h1 class="style-/);
-		const again = await html.inputValue();
+		const again = await eventually(
+			() => html.inputValue(),
+			(text) => /^<p class="intro"[^>]*>First words<\/p>$/.test(text),
+		);
 		// The second save is held on its way, and Undo is pressed while it is (BA-33's one run: Undo
 		// took back the first save while the second was still being answered).
 		const held = Promise.withResolvers<void>();

@@ -326,8 +326,9 @@ describe("the code panes", () => {
 		await leaveBox(page);
 		// Only the heading was written back: the rest of the Component is as it was.
 		const saved = await eventually(heroMarkup, (markup) => markup.includes("today"));
-		expect(saved).toContain('<section class="hero"><h1 class="hero__title is-large"');
-		expect(saved).toContain("{{ props.headline }} today</h1></section>");
+		expect(saved).toMatch(
+			/<section class="hero"[^>]*><h1 class="hero__title is-large"[^>]*>\{\{ props\.headline \}\} today<\/h1><\/section>$/,
+		);
 		await (await frameOf(page)).waitForFunction(
 			() => document.querySelector("h1.hero__title")?.textContent?.includes("today") === true,
 		);
@@ -520,7 +521,7 @@ describe("the code panes", () => {
 		await page.waitForTimeout(400);
 	});
 
-	test("the bottom dock spans the canvas's column: it ends at the right dock at 1440 px and at an open drawer at 1200 px", async () => {
+	test("the bottom dock spans the canvas's column: it ends at the right dock at 1440 px and at an open drawer at 1200 and 1024 px", async () => {
 		const { page } = await shared();
 		await selectHeading(page);
 		const edges = async () =>
@@ -535,18 +536,18 @@ describe("the code panes", () => {
 					rightLeft: right?.left ?? 0,
 					jsRight: js?.right ?? 0,
 					rowRight: row?.getBoundingClientRect().right ?? 0,
-					scrolls: Boolean(row && row.scrollWidth > row.clientWidth + 1),
+					scrolls: row?.dataset.wcDockRow === "scrolls",
 					fadeAfter: document.querySelector('[data-wc-dock-more="after"]') !== null,
 				};
 			});
-		const check = (now: Awaited<ReturnType<typeof edges>>) => {
-			// The dock ends where the right dock begins, never under it.
-			expect(Math.abs(now.bottomRight - now.rightLeft)).toBeLessThanOrEqual(1);
-			// Its last pane is in view, or the row scrolls and says so.
-			if (now.scrolls) expect(now.fadeAfter).toBe(true);
-			else expect(now.jsRight).toBeLessThanOrEqual(now.rowRight + 1);
+		/** The dock ends where the right dock begins, never under it; its last pane is in view, or the row scrolls and says so. */
+		const placed = (now: Awaited<ReturnType<typeof edges>>) =>
+			Math.abs(now.bottomRight - now.rightLeft) <= 1 && (now.scrolls ? now.fadeAfter : now.jsRight <= now.rowRight + 1);
+		const check = async () => {
+			const now = await eventually(edges, placed, { timeout: 5000, what: "The bottom dock in the canvas's column" });
+			expect(placed(now)).toBe(true);
 		};
-		check(await edges());
+		await check();
 
 		// 1200 px: the side docks are drawers over the canvas; the right one open, the dock ends at its edge.
 		await page.setViewportSize({ width: 1200, height: 900 });
@@ -555,8 +556,20 @@ describe("the code panes", () => {
 		await toggle.click();
 		await page.locator('[data-wc-dock="right"]').waitFor();
 		await settled(page);
-		check(await edges());
-		// Its last pane reached by scrolling the row: the fade goes from its end.
+		await check();
+		// 1024 px, the drawer widened by 150 from the keyboard: the panes no longer fit, and their row
+		// scrolls, a fade at its end; still never under the drawer.
+		await page.setViewportSize({ width: 1024, height: 900 });
+		await check();
+		await page.locator('[data-wc-dock-edge="right"]').focus();
+		for (let press = 0; press < 3; press++) await page.keyboard.press("Shift+ArrowLeft");
+		await eventually(
+			() => page.locator("[data-wc-dock-row]").getAttribute("data-wc-dock-row"),
+			(row) => row === "scrolls",
+		);
+		await check();
+		expect(await page.locator('[data-wc-dock-more="after"]').count()).toBe(1);
+		// Its last pane reached by scrolling the row: the fade goes from its end, and shows at its start.
 		await page.evaluate(() => {
 			const row = document.querySelector<HTMLElement>("[data-wc-dock-row]");
 			if (row) row.scrollLeft = row.scrollWidth;
@@ -567,15 +580,18 @@ describe("the code panes", () => {
 		);
 		const after = await edges();
 		expect(after.jsRight).toBeLessThanOrEqual(after.rowRight + 1);
-		await page.screenshot({ path: "test-results/fx02-dock-drawer.png" }).catch(() => {});
-		// The drawer closed, the dock takes the whole column again; its resize handle still works.
+		expect(await page.locator('[data-wc-dock-more="before"]').count()).toBe(1);
+		// Back to its width, the drawer closed: the dock takes the whole column again; its resize handle still works.
+		await page.locator('[data-wc-dock-edge="right"]').focus();
+		for (let press = 0; press < 3; press++) await page.keyboard.press("Shift+ArrowRight");
 		await page.keyboard.press("Escape");
 		await page.locator('[data-wc-dock="right"]').waitFor({ state: "detached" });
-		const column = await page.locator('[data-wc-dock="bottom"]').boundingBox();
 		const canvas = await page.locator("#wc-canvas").boundingBox();
-		expect(
-			Math.abs((column?.x ?? 0) + (column?.width ?? 0) - ((canvas?.x ?? 0) + (canvas?.width ?? 0))),
-		).toBeLessThanOrEqual(1);
+		const column = await eventually(
+			() => page.locator('[data-wc-dock="bottom"]').boundingBox(),
+			(box) => Math.abs((box?.x ?? 0) + (box?.width ?? 0) - ((canvas?.x ?? 0) + (canvas?.width ?? 0))) <= 1,
+		);
+		expect(Math.abs((column?.x ?? 0) - (canvas?.x ?? 0))).toBeLessThanOrEqual(1);
 		const handle = page.locator('[data-wc-dock-edge="bottom"]');
 		const before = column?.height ?? 0;
 		await handle.focus();

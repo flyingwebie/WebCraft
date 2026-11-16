@@ -702,7 +702,11 @@ function Dock({
 							? { flex: "none" }
 							: across
 								? { flex: `${weightOf(placement.id)} 1 0px`, minHeight: PANEL_MIN.side }
-								: { flex: `${weightOf(placement.id)} 1 0px`, minWidth: PANEL_MIN.bottom };
+								: {
+										flex: `${weightOf(placement.id)} 1 0px`,
+										// Never narrower than its header's controls (`PanelRow` measures them).
+										minWidth: `max(${PANEL_MIN.bottom}px, var(--wc-header-least, 0px))`,
+									};
 						return (
 							<Fragment key={placement.id}>
 								<PanelFrame
@@ -774,22 +778,58 @@ function Dock({
 }
 
 /**
+ * How wide a panel's header must be for its controls: what doesn't grow (the grip, the title, the
+ * buttons, the JS pane's tabs) at its width, with the gaps between; what grows (the selection's name,
+ * the CSS pane's Classes) can shrink to nothing.
+ */
+function headerLeast(panel: HTMLElement): number {
+	const header = panel.querySelector<HTMLElement>(":scope > [data-wc-panel-header]");
+	if (!header) return 0;
+	// A menu open from it (drawn fixed) or a tip takes no room in it.
+	const shown = [...header.children].filter(
+		(child) =>
+			child.getBoundingClientRect().width > 0 && !["fixed", "absolute"].includes(getComputedStyle(child).position),
+	);
+	const gap = Number.parseFloat(getComputedStyle(header).columnGap) || 0;
+	return shown.reduce(
+		(sum, child) =>
+			sum + (Number.parseFloat(getComputedStyle(child).flexGrow) > 0 ? 0 : child.getBoundingClientRect().width),
+		gap * Math.max(0, shown.length - 1),
+	);
+}
+
+/**
  * A dock's panels. A side dock's stack them in the dock itself; the bottom dock's sit in a row that
  * shares the dock's width and, when they no longer fit at their least width, scrolls sideways, a
  * fade at each edge with more beyond it (FX-02).
  */
 function PanelRow({ across, panels, children }: { across: boolean; panels: number; children: ReactNode }) {
 	const row = useRef<HTMLDivElement>(null);
-	const [more, setMore] = useState({ before: false, after: false });
+	const [more, setMore] = useState({ scrolls: false, before: false, after: false });
 	// biome-ignore lint/correctness/useExhaustiveDependencies: a panel more or less is watched again.
 	useLayoutEffect(() => {
 		const element = row.current;
 		if (across || !element) return;
 		const measure = () => {
+			// Each open panel is at least as wide as its header's controls, and the row scrolls only when
+			// they don't fit at that width: a control drawn past its pane is never what makes it scroll.
+			const style = getComputedStyle(element);
+			const needed = [...element.children].reduce((sum, child) => {
+				const box = child as HTMLElement;
+				if (!box.hasAttribute("data-wc-panel") || box.hasAttribute("data-collapsed"))
+					return sum + box.getBoundingClientRect().width;
+				const least = Math.max(PANEL_MIN.bottom, headerLeast(box));
+				box.style.setProperty("--wc-header-least", `${Math.ceil(least)}px`);
+				return sum + least;
+			}, Number.parseFloat(style.paddingInlineStart) + Number.parseFloat(style.paddingInlineEnd));
+			const scrolls = needed > element.clientWidth + 1;
+			if (!scrolls && element.scrollLeft !== 0) element.scrollLeft = 0;
 			const scrolled = Math.abs(element.scrollLeft);
 			const hidden = element.scrollWidth - element.clientWidth;
-			const next = { before: scrolled > 1, after: hidden - scrolled > 1 };
-			setMore((was) => (was.before === next.before && was.after === next.after ? was : next));
+			const next = { scrolls, before: scrolls && scrolled > 1, after: scrolls && hidden - scrolled > 1 };
+			setMore((was) =>
+				was.scrolls === next.scrolls && was.before === next.before && was.after === next.after ? was : next,
+			);
 		};
 		measure();
 		const observer = new ResizeObserver(measure);
@@ -807,8 +847,12 @@ function PanelRow({ across, panels, children }: { across: boolean; panels: numbe
 		<div className="relative flex min-w-0 grow">
 			<div
 				ref={row}
-				className="flex min-w-0 grow [scrollbar-width:thin] [scrollbar-color:#52525b_transparent] flex-row overflow-x-auto overflow-y-hidden p-2"
-				data-wc-dock-row=""
+				className={`flex min-w-0 grow flex-row overflow-y-hidden p-2 ${
+					more.scrolls
+						? "[scrollbar-width:thin] [scrollbar-color:#52525b_transparent] overflow-x-auto"
+						: "overflow-x-hidden"
+				}`}
+				data-wc-dock-row={more.scrolls ? "scrolls" : ""}
 				data-more-before={more.before ? "" : undefined}
 				data-more-after={more.after ? "" : undefined}
 			>

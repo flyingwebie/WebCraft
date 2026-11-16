@@ -147,6 +147,8 @@ export type HtmlPane = {
 	suggestions(): Promise<MarkupSuggestions | null>;
 	/** Selects an element of the breadcrumb: on the canvas, in Layers and in the pane. */
 	select(ref: string): void;
+	/** "Only the selected element" switched: the selection shown again, the other way (what was typed saved first). */
+	reshow(): void;
 	announce(text: string): void;
 	destroy(): void;
 };
@@ -262,7 +264,12 @@ async function tidied(markup: string): Promise<string> {
 	}
 }
 
-export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests): HtmlPane {
+export function createHtmlPane(
+	deps: () => CodePanesDeps,
+	request: CodeRequests,
+	/** "Only the selected element" (FX-02): on, the box holds the selected element's part of its source. */
+	elementOnly: () => boolean = () => true,
+): HtmlPane {
 	const store = paneStore<HtmlState>(IDLE);
 	const words = () => deps().words;
 	let previewTimer: number | undefined;
@@ -347,7 +354,7 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 	): Promise<{ text: string; range: Range } | null> => {
 		// A branch of a Condition or a Loop shows its Condition or Loop.
 		const key = keyOf(selection.ref).replace(/\/\d+$/, "");
-		if (!key) return null;
+		if (!key || !elementOnly()) return null;
 		const locations = await locationsIn(markup, source);
 		const found = locations?.find((each) => each.key === key);
 		if (!found || found.end <= found.start) return null;
@@ -362,7 +369,7 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 			base: view?.text ?? markup,
 			whole: markup,
 			range: view?.range ?? null,
-			crumbs: view ? crumbsOf(source, selection) : [],
+			crumbs: crumbsOf(source, selection),
 		};
 	};
 
@@ -530,11 +537,12 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 			return;
 		}
 		if (selection.ref !== state.ref) {
-			if (state.dirty && (state.range || keyOf(selection.ref))) {
+			// The box holds one element, or is about to: what was typed is saved before it shows another.
+			if (state.dirty && (state.range || (elementOnly() && keyOf(selection.ref)))) {
 				if (!state.saving) saveThenFollow();
 				return;
 			}
-			store.set({ ref: selection.ref });
+			store.set({ ref: selection.ref, crumbs: crumbsOf(source, selection) });
 			// While the source's markup is on its way the text is still the previous source's: its own
 			// part is found once it comes (`show`).
 			if (!state.dirty && state.status === "ready") void refocus(selection, source);
@@ -736,6 +744,20 @@ export function createHtmlPane(deps: () => CodePanesDeps, request: CodeRequests)
 		},
 		select(ref) {
 			deps().structure.select(ref);
+		},
+		reshow() {
+			const state = store.get();
+			const snapshot = deps().structure.snapshot();
+			const selection = snapshot.selection;
+			const source = selection ? snapshot.sources.get(selection.source) : undefined;
+			if (!selection || !source || state.source !== source.ref || state.status !== "ready") return;
+			if (state.dirty) {
+				void save().then(() => {
+					if (!store.get().dirty) void refocus(selection, source);
+				});
+				return;
+			}
+			void refocus(selection, source);
 		},
 		announce: (text) => deps().announce(text),
 		destroy() {
