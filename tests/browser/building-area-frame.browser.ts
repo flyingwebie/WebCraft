@@ -371,6 +371,9 @@ for (const engine of ENGINES) {
 			await page.waitForURL((url) => url.pathname === "/_webcraft/build/page/");
 			const home = await frameOf(page);
 			expect(new URL(home.url()).pathname).toBe("/");
+			// The shell's first reads answered before leaving: WebKit words a read cut off by the next
+			// page as an error of the page.
+			await page.waitForLoadState("networkidle");
 
 			await page.goto(install.siteUrl(slug, path));
 			await page.waitForURL((url) => url.pathname === `/_webcraft/build/page${path}`);
