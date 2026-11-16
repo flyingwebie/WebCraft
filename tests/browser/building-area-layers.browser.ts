@@ -8,6 +8,8 @@
 //   its row, never changing the selection;
 // - the same Component placed twice changes in both places at once;
 // - a branch selected: the JS pane reads the scripts of the source it is in, with no error (UI-21);
+// - the selection moving on within a source whose markup the HTML pane is still reading: its lines are
+//   looked for in that source's markup, never in the previous one's (BA-28);
 // - Layers with its branches passes the accessibility checks, light and dark.
 // The building area's own test of `builder` 171 and 196, `code-layers` 378 and 572, `code-selection`
 // 39 and 394, and `editor-concurrency` 443 and 497.
@@ -354,6 +356,44 @@ describe("Layers: arranging from the keyboard, branches, hover", () => {
 			await page.locator('textarea[data-wc-code-box="js"]').waitFor();
 			expect(await js.textContent()).not.toContain("Couldn't read it");
 		}
+		expect(pageErrors(page).slice(errors)).toEqual([]);
+	});
+
+	test("the selection moving on while the HTML pane reads another source: its lines are found in that source's markup", async () => {
+		const page = await shared();
+		const errors = pageErrors(page).length;
+		await focusRow(page, "h1");
+		await openRows(page);
+		const box = page.locator('textarea[data-wc-code-box="html"]');
+		await page.waitForFunction(() =>
+			document.querySelector<HTMLTextAreaElement>('textarea[data-wc-code-box="html"]')?.value.includes("<article"),
+		);
+		// The Site template's markup is held on its way while the selection moves on within it.
+		const held = Promise.withResolvers<void>();
+		await page.route("**/_webcraft/edit/api/code/editorMarkup", async (route) => {
+			await held.promise;
+			await route.continue();
+		});
+		const statuses: number[] = [];
+		page.on("response", (response) => {
+			if (response.url().includes("/code/editorRead")) statuses.push(response.status());
+		});
+		await focusRow(page, "Else");
+		await focusRow(page, "When there are no items");
+		await settled(page);
+		held.resolve();
+		await page.waitForFunction(() =>
+			document.querySelector<HTMLTextAreaElement>('textarea[data-wc-code-box="html"]')?.value.includes("<header"),
+		);
+		await page.unroute("**/_webcraft/edit/api/code/editorMarkup");
+		// The empty branch's lines are marked in the Site template's markup.
+		await eventually(
+			() => page.locator("[data-wc-html-pane] [data-wc-marked-line]").count(),
+			(count) => count > 0,
+		);
+		expect(await box.inputValue()).toContain("{{@empty}}");
+		expect(statuses.length).toBeGreaterThan(0);
+		expect(statuses.filter((status) => status !== 200)).toEqual([]);
 		expect(pageErrors(page).slice(errors)).toEqual([]);
 	});
 
