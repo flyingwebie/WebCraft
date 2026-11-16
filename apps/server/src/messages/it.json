@@ -8522,7 +8522,10 @@
 		"redoStep": "Ripeti {step}",
 		"language": "Lingua",
 		"languageCode": "{code}, Lingua: {name}",
-		"viewOnStaging": "Vedi sull'indirizzo di staging (si apre in una nuova scheda)",
+		"previewOnSite": {
+			"draft": "Anteprima della Bozza sul sito (si apre in una nuova scheda)",
+			"published": "Vedi la pagina pubblicata (si apre in una nuova scheda). Le Bozze vi compaiono una volta pubblicate"
+		},
 		"draftState": {
 			"label": "Stato della Bozza",
 			"saved": "Salvato",

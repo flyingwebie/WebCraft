@@ -32,10 +32,13 @@ export type ShellConfig = {
 	/** Whether the Design system has Dark mode: the rail's Dark preview shows the page with its dark values. */
 	darkMode: boolean;
 	/**
-	 * The Site's Staging address, for "View on Staging" (a new tab): null while the Site has none, or
-	 * when the building area is on it already (a new tab there would open the building area again).
+	 * Where "Preview on the site" (FX-04) opens the page shown, in a new tab. `draft`: whether that page
+	 * shows the Drafts as visitors will see them once published (the Staging address), or else the
+	 * published page. `staging`: the admin's hand-off to the Staging address (`…/staging/<site id>`,
+	 * which signs the browser in there) when the shell is on a domain; null when the page opens on the
+	 * shell's own address as its visitors see it (`BUILDING_VISITOR_PARAMETER`).
 	 */
-	staging: string | null;
+	preview: { draft: boolean; staging: string | null };
 	/** The Site's settings in the admin (the rail's Settings, in a new tab). */
 	settings: string;
 	/** The Site in the admin (`…/sites/<id>`): the places link to its screens for what they don't do. */

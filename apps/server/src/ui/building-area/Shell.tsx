@@ -6,7 +6,7 @@ import { editorHistory } from "../editor/editor-history.ts";
 import { childLists, newElement, withNewIds } from "../editor/tree.ts";
 import { BUILDING_STAND_IN_PREFIX } from "./agent/contract.ts";
 import { type EditAnswer, editRequests, fill, type PageState, type ShellConfig } from "./api.ts";
-import { BottomBar } from "./bottom-bar/BottomBar.tsx";
+import { BottomBar, sitePreview } from "./bottom-bar/BottomBar.tsx";
 import { DocumentNav } from "./bottom-bar/DocumentNav.tsx";
 import { draftStateOf } from "./bottom-bar/DraftState.tsx";
 import { InsertRow, KIND_ICONS } from "./bottom-bar/InsertRow.tsx";
@@ -889,7 +889,7 @@ export function Shell({ config }: { config: ShellConfig }) {
 						/>
 					) : null
 				}
-				staging={config.staging && shown && !inPlaceTarget ? `${config.staging}${shown.address}` : null}
+				preview={shown && !inPlaceTarget ? sitePreview(config, shown.address) : null}
 				onUndo={() => void undoHistory.undo()}
 				onRedo={() => void undoHistory.redo()}
 				draft={draftStateOf(saving, place && placeBar ? { changes: placeBar.changes, inReview: false } : shown)}

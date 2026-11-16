@@ -8522,7 +8522,10 @@
 		"redoStep": "Redo {step}",
 		"language": "Language",
 		"languageCode": "{code}, Language: {name}",
-		"viewOnStaging": "View on Staging (opens in a new tab)",
+		"previewOnSite": {
+			"draft": "Preview the Draft on the site (opens in a new tab)",
+			"published": "View the published page (opens in a new tab). Drafts show there once published"
+		},
 		"draftState": {
 			"label": "Draft state",
 			"saved": "Saved",

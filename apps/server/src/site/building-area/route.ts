@@ -101,7 +101,15 @@ export async function buildingAreaEndpoint(
 			.sort((a, b) => a.width - b.width)
 			.map(({ name, width }) => ({ name, width })),
 		darkMode: designSystem.darkMode,
-		staging: staging && host.address !== "staging" ? staging : null,
+		// On the Staging address its own pages show the Drafts; on the Primary domain, the Staging address
+		// does, reached through the admin's hand-off. A language's domain (its paths have no language
+		// prefix, the Staging address's do) and a Site without a Staging address show the published page.
+		preview:
+			host.address === "staging"
+				? { draft: true, staging: null }
+				: staging && host.address === "primary"
+					? { draft: true, staging: new URL(`/staging/${host.site.id}`, services.config.adminOrigin).toString() }
+					: { draft: false, staging: null },
 		settings: new URL(`/sites/${host.site.id}/domains`, services.config.adminOrigin).toString(),
 		admin: new URL(`/sites/${host.site.id}`, services.config.adminOrigin).toString(),
 		languages: {

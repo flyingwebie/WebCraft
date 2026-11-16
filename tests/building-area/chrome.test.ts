@@ -1,7 +1,7 @@
 // What the building area's chrome starts from (ADR 0037, BA-04): beside the session's header token
 // and the page to frame, the shell's document carries the Site and the person (the avatar, the Site's
 // settings in the admin), the Design system's breakpoints and Dark mode (the size readout, Dark
-// preview) as its Draft has them, and the Site's Staging address for "View on Staging".
+// preview) as its Draft has them, and where "Preview on the site" opens the page (FX-04).
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { openBuildingArea, shellConfigIn } from "../harness/building-area.ts";
@@ -26,7 +26,7 @@ afterAll(async () => {
 });
 
 describe("the shell's chrome", () => {
-	test("starts from the Site, the person, the Design system's Draft and the Staging address", async () => {
+	test("starts from the Site, the person, the Design system's Draft and where the page is previewed", async () => {
 		const { draft } = (await staff.api.designSystem.get({ siteId })).designSystem;
 		// Changed in the Draft only: the building area shows what is being built.
 		await staff.api.designSystem.saveDraft({
@@ -58,7 +58,7 @@ describe("the shell's chrome", () => {
 			{ name: "xl", width: 1280 },
 			{ name: "2xl", width: 1536 },
 		]);
-		expect(String(config?.staging)).toMatch(/^https?:\/\/bakery\.[^/]+$/);
-		expect(config?.staging).not.toBe(building.origin);
+		// On its Primary domain: the Drafts are previewed on the Staging address, through the admin's hand-off.
+		expect(config?.preview).toEqual({ draft: true, staging: install.adminUrl(`/staging/${siteId}`) });
 	});
 });

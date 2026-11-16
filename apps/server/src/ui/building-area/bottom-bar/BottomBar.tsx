@@ -1,13 +1,34 @@
+import { BUILDING_VISITOR_PARAMETER } from "@webcraft/core/building-addresses";
 import { ExternalLinkIcon, Redo2Icon, Undo2Icon } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
-
 import { editorHistory } from "../../editor/editor-history.ts";
 import { ariaKeys, shortcutText } from "../../editor/shortcuts.ts";
-import { fill, type Words } from "../api.ts";
+import { BUILDING_STAND_IN_PREFIX } from "../agent/contract.ts";
+import { fill, type ShellConfig, type Words } from "../api.ts";
 import { IconButton, IconLink } from "../controls.tsx";
 import { type DraftState, DraftStateCell } from "./DraftState.tsx";
 import { LanguageMenu, type PageLanguage } from "./LanguageMenu.tsx";
 import { SafeModeControl } from "./SafeMode.tsx";
+
+/** Where "Preview on the site" opens the page, and whether it shows the Drafts there (FX-04). */
+export type SitePreview = { href: string; draft: boolean };
+
+/**
+ * "Preview on the site" for the page the frame shows (`address`: its path and query): through the
+ * admin's hand-off to the Staging address (which takes a path only) when the shell is on a domain,
+ * else on the shell's own address as its visitors see it (`?wc-visitor`). Null for a stand-in.
+ */
+export function sitePreview(config: ShellConfig, address: string | null): SitePreview | null {
+	if (!address || address.startsWith(`${BUILDING_STAND_IN_PREFIX}/`)) return null;
+	const at = new URL(address, window.location.origin);
+	if (config.preview.staging) {
+		const handOff = new URL(config.preview.staging);
+		handOff.searchParams.set("path", at.pathname);
+		return { href: handOff.toString(), draft: config.preview.draft };
+	}
+	at.searchParams.set(BUILDING_VISITOR_PARAMETER, "");
+	return { href: `${at.pathname}${at.search}`, draft: config.preview.draft };
+}
 
 /** What the shell's Undo history offers now: the step each way, by its label. */
 type HistoryState = { undo: string | null; redo: string | null; busy: boolean };
@@ -28,8 +49,8 @@ function keysOf(id: string) {
 /**
  * The bottom bar (SPEC 2 and 4): 48 high, full width. Left (400): Undo, Redo and the open document's
  * own controls (Back to its page, the Entry it previews, the Template rendering it). Centre: the insert
- * row's place (it comes with BA-10). Right (400): the page's language, View on Staging, the Draft
- * state and Publish (112 × 32, never changing width).
+ * row's place (it comes with BA-10). Right (400): the page's language, Preview on the site (FX-04), the
+ * Draft state and Publish (112 × 32, never changing width).
  */
 export function BottomBar({
 	words,
@@ -37,7 +58,7 @@ export function BottomBar({
 	language,
 	languages,
 	onLanguage,
-	staging,
+	preview,
 	draft,
 	insertRow = true,
 	insert,
@@ -53,8 +74,11 @@ export function BottomBar({
 	/** The page's languages, when the Site has more than one. */
 	languages: readonly PageLanguage[];
 	onLanguage(language: PageLanguage): void;
-	/** The page on the Site's Staging address, or null when there is none to open. */
-	staging: string | null;
+	/**
+	 * "Preview on the site" (FX-04): the page shown, in a new tab, as visitors will see it once its Drafts
+	 * are published (`draft`) or as they see it now; null when the frame shows no page of the Site.
+	 */
+	preview: SitePreview | null;
 	draft: DraftState;
 	/** Whether the insert row has its place in the middle: none while a place is open (SPEC 8); the middle stays. */
 	insertRow?: boolean;
@@ -110,15 +134,15 @@ export function BottomBar({
 				{/* While the page runs none of the Site's own scripts: Safe mode, and Turn off (BA-32). */}
 				<SafeModeControl words={words} />
 				{languages.length > 1 ? <LanguageMenu languages={languages} words={words} onChoose={onLanguage} /> : null}
-				{staging ? (
+				{preview ? (
 					<IconLink
 						icon={ExternalLinkIcon}
-						label={words.viewOnStaging}
+						label={preview.draft ? words.previewOnSite.draft : words.previewOnSite.published}
 						side="top"
 						size="bar"
-						href={staging}
+						href={preview.href}
 						newTab
-						data={{ "data-wc-bar": "staging" }}
+						data={{ "data-wc-bar": "preview", "data-wc-preview": preview.draft ? "draft" : "published" }}
 					/>
 				) : null}
 				<DraftStateCell state={draft} words={words} language={language} />
