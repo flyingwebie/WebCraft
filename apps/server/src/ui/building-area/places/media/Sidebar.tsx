@@ -84,9 +84,29 @@ export function MediaSidebar({
 	const hintId = useId();
 	const row = (target: MediaPart) => ({ current: isPart(part, target), onOpen: () => onGo(target) });
 
+	// The order's saves go one after another, in the order the person made the changes, and the
+	// library is read again once the last is saved; until then what the person did stays shown.
+	const saves = useRef<Promise<void>>(Promise.resolve());
+	const pending = useRef(0);
+	const save = (work: () => Promise<unknown>, undo: () => void) => {
+		pending.current++;
+		saves.current = saves.current.then(async () => {
+			try {
+				await work();
+			} catch (failure) {
+				undo();
+				notify("error", t("media.folders.orderFailed", { reason: t(errorMessage(failure)) }));
+			} finally {
+				pending.current--;
+				if (pending.current === 0) await onChanged();
+			}
+		});
+	};
+
 	// A new reading of the library replaces what was shown for the person's own change.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: reset when the folders are read again.
 	useEffect(() => {
+		if (pending.current > 0) return;
 		setArranged(null);
 		setOrder(null);
 	}, [folders]);
@@ -103,19 +123,16 @@ export function MediaSidebar({
 		opener.current = document.activeElement as HTMLElement | null;
 	};
 
-	const chooseOrder = async (next: Order) => {
+	const chooseOrder = (next: Order) => {
 		if (next === shownOrder) return;
 		setOrder(next);
-		try {
-			await api.folders.setOrder({ siteId, order: next });
-			await onChanged();
-		} catch (failure) {
-			setOrder(null);
-			notify("error", t("media.folders.orderFailed", { reason: t(errorMessage(failure)) }));
-		}
+		save(
+			() => api.folders.setOrder({ siteId, order: next }),
+			() => setOrder(null),
+		);
 	};
 
-	const moveFolder = async (id: string, to: number) => {
+	const moveFolder = (id: string, to: number) => {
 		const ids = list.map((folder) => folder.id);
 		const from = ids.indexOf(id);
 		const at = Math.max(0, Math.min(ids.length - 1, to));
@@ -127,13 +144,10 @@ export function MediaSidebar({
 			t("media.folders.moved", { name: byId.get(id)?.name ?? "", position: at + 1, count: ids.length }) +
 				(said.endsWith("\u00a0") ? "" : "\u00a0"),
 		);
-		try {
-			await api.folders.reorder({ siteId, folderIds: ids });
-			await onChanged();
-		} catch (failure) {
-			setArranged(null);
-			notify("error", t("media.folders.orderFailed", { reason: t(errorMessage(failure)) }));
-		}
+		save(
+			() => api.folders.reorder({ siteId, folderIds: ids }),
+			() => setArranged(null),
+		);
 	};
 
 	const dropOn = (event: DragEvent<HTMLLIElement>, target: MediaFolder) => {
@@ -145,18 +159,18 @@ export function MediaSidebar({
 		const moved = dragging;
 		setDragging(null);
 		setDropAt(null);
-		void moveFolder(moved, index);
+		moveFolder(moved, index);
 	};
 
 	const folderActions = (folder: MediaFolder, index: number): Action[] => {
 		const actions: Action[] = [];
 		if (reorderable && index > 0)
-			actions.push({ key: "up", label: t("media.folders.moveUp"), run: () => void moveFolder(folder.id, index - 1) });
+			actions.push({ key: "up", label: t("media.folders.moveUp"), run: () => moveFolder(folder.id, index - 1) });
 		if (reorderable && index < list.length - 1)
 			actions.push({
 				key: "down",
 				label: t("media.folders.moveDown"),
-				run: () => void moveFolder(folder.id, index + 1),
+				run: () => moveFolder(folder.id, index + 1),
 			});
 		if (canManage && !picker) {
 			actions.push(
@@ -204,7 +218,7 @@ export function MediaSidebar({
 				add={
 					canManage ? (
 						<span className="flex items-center gap-1.5">
-							<OrderToggle order={shownOrder} onChoose={(next) => void chooseOrder(next)} />
+							<OrderToggle order={shownOrder} onChoose={chooseOrder} />
 							<PlaceIconButton
 								icon={PlusIcon}
 								label={t("media.folders.add")}
