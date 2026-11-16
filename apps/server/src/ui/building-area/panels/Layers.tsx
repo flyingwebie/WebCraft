@@ -243,8 +243,10 @@ function rowsOf(
 ): Row[] {
 	const rows: Row[] = [];
 	const site = snapshot.sources.get("site");
-	if (!site) return rows;
 	const content = snapshot.sources.get("content");
+	// A stand-in draws its document alone (no Site template around it): its tree is the whole tree.
+	const alone = snapshot.root === "content" ? content : undefined;
+	if (!site || (snapshot.root === "content" && !alone)) return rows;
 	const selected = snapshot.selection?.ref ?? null;
 	const onTheWay = (ref: string) => selected !== null && selected !== ref && within(sourceOf(selected), sourceOf(ref));
 
@@ -351,6 +353,12 @@ function rowsOf(
 			});
 		});
 	};
+	if (alone) {
+		const label = contentLabel(words, site, alone) ?? alone.name ?? "";
+		rows.push({ kind: "divider", key: "content:divider", label, icon: "content", depth: 0 });
+		visit(alone, alone.tree.nodes, [], 0, null);
+		return rows;
+	}
 	rows.push({ kind: "divider", key: "site:divider", label: words.structure.siteTemplate, icon: "site", depth: 0 });
 	visit(site, site.tree.nodes, [], 0, null);
 	return rows;
@@ -971,7 +979,7 @@ export function Layers({
 		};
 	};
 
-	if (!snapshot.sources.get("site")) {
+	if (!snapshot.sources.get("site") || !snapshot.sources.get(snapshot.root)) {
 		return <p className="text-chrome-muted px-2 py-1 text-[12px]">{said.loading}</p>;
 	}
 
