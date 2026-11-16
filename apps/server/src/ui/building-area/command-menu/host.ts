@@ -52,6 +52,8 @@ export type MenuHost = {
 		toggleHidden: { hidden: boolean; run(): void } | null;
 		/** Asks for a name, then moves the selection into a new Component (Make Component). */
 		makeComponent(): void;
+		/** Asks for a name, then makes the Page's Section selected reusable (ADR 0038); null when none is. */
+		makeReusable: (() => void) | null;
 		/** Asks for a name, then places a new, empty Component where Insert would (New Component). */
 		newComponent(): void;
 		/** The element tree's helpers, from Staff's first file, so the menu's own file needn't carry them. */

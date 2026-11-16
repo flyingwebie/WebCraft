@@ -99,6 +99,7 @@ export const BUILDING_AREA_PROCEDURES = [
 	"components.saveScriptDraft",
 	"components.rename",
 	"components.makeReusable",
+	"components.makePageSection",
 	// Deleting takes its two calls (the first only says what would go); the Components place asks for
 	// a placed Component's Placements to go with it (`placements: "remove"`), Draft and published, as
 	// its dialog says. A Popup or the accessibility statement showing it still refuses it.

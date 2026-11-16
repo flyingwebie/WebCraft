@@ -20,6 +20,8 @@ export type RowMenuHost = {
 	ops: LayerOps;
 	/** Asks for a name, then moves the selection into a new Component. */
 	makeComponent(): void;
+	/** Asks for a name, then makes the Page's Section selected a reusable Component (ADR 0038). */
+	makeReusable(): void;
 	/** Wrap in a Loop or a Condition: the Command menu asks its question. */
 	ask(question: Extract<InsertQuestion, "loop" | "condition">): void;
 };
@@ -56,48 +58,57 @@ export function RowMenu({
 	const [wrapOpen, setWrapOpen] = useState(false);
 	const { ops } = host;
 	const plain = (kind: PlainWrap) => ({ id: kind, label: wraps[kind], run: () => void ops.wrap(kind, wraps[kind]) });
-	const items: Item[] = [
-		{ id: "copy", label: said.copy, icon: CopyIcon, keys: shortcutText("tree.copy"), run: () => void ops.copy() },
-		...(ops.copied()
-			? [
-					{
-						id: "paste",
-						label: said.paste,
-						icon: ClipboardPasteIcon,
-						keys: shortcutText("tree.paste"),
-						run: () => void ops.paste(),
-					},
-				]
-			: []),
-		{
-			id: "duplicate",
-			label: said.duplicate,
-			icon: CopyPlusIcon,
-			keys: shortcutText("element.duplicate"),
-			run: () => void ops.duplicate(),
-		},
-		{
-			id: "wrap",
-			label: said.wrapIn,
-			icon: CornerDownRightIcon,
-			submenu: [
-				plain("div"),
-				plain("section"),
-				plain("a"),
-				{ id: "loop", label: wraps.loop, run: () => host.ask("loop") },
-				{ id: "condition", label: wraps.condition, run: () => host.ask("condition") },
-			],
-		},
-		{ id: "makeComponent", label: said.makeComponent, icon: ComponentIcon, run: host.makeComponent },
-		{
-			id: "delete",
-			label: said.delete,
-			icon: Trash2Icon,
-			keys: shortcutText("element.delete"),
-			danger: true,
-			run: () => void ops.remove(),
-		},
-	];
+	const reusable: Item[] = ops.sectionSelected()
+		? [{ id: "makeReusable", label: said.makeReusable, icon: ComponentIcon, run: host.makeReusable }]
+		: [];
+	const remove: Item = {
+		id: "delete",
+		label: said.delete,
+		icon: Trash2Icon,
+		keys: shortcutText("element.delete"),
+		danger: true,
+		run: () => void ops.remove(),
+	};
+	const duplicate: Item = {
+		id: "duplicate",
+		label: said.duplicate,
+		icon: CopyPlusIcon,
+		keys: shortcutText("element.duplicate"),
+		run: () => void ops.duplicate(),
+	};
+	// A Page's Placement (Page layout row): what a Placement can do, Make reusable for a Section.
+	const items: Item[] = ops.onPage()
+		? [duplicate, ...reusable, remove]
+		: [
+				{ id: "copy", label: said.copy, icon: CopyIcon, keys: shortcutText("tree.copy"), run: () => void ops.copy() },
+				...(ops.copied()
+					? [
+							{
+								id: "paste",
+								label: said.paste,
+								icon: ClipboardPasteIcon,
+								keys: shortcutText("tree.paste"),
+								run: () => void ops.paste(),
+							},
+						]
+					: []),
+				duplicate,
+				{
+					id: "wrap",
+					label: said.wrapIn,
+					icon: CornerDownRightIcon,
+					submenu: [
+						plain("div"),
+						plain("section"),
+						plain("a"),
+						{ id: "loop", label: wraps.loop, run: () => host.ask("loop") },
+						{ id: "condition", label: wraps.condition, run: () => host.ask("condition") },
+					],
+				},
+				{ id: "makeComponent", label: said.makeComponent, icon: ComponentIcon, run: host.makeComponent },
+				...reusable,
+				remove,
+			];
 
 	useEffect(() => {
 		menu.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus();
@@ -228,7 +239,7 @@ export function RowMenu({
 						>
 							<Glyph
 								aria-hidden="true"
-								className={`size-3.5 shrink-0 ${item.id === "makeComponent" ? "text-[#a78bfa]" : ""}`}
+								className={`size-3.5 shrink-0 ${item.id === "makeComponent" || item.id === "makeReusable" ? "text-[#a78bfa]" : ""}`}
 							/>
 							<span className="grow">{item.label}</span>
 							{item.keys ? (

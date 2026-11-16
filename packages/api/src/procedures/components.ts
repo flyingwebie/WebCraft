@@ -216,6 +216,20 @@ export const components = {
 			};
 		}),
 
+	/**
+	 * Undo of `makeReusable`: the Component becomes a Section of the Page `pageId` again, its name
+	 * made for it. Refused with `COMPONENT_IN_USE` (and `data.usedIn`) while anything but that Page's
+	 * layout places it, or it is placed there twice, an Allowed component or a Body field's.
+	 */
+	makePageSection: signedIn
+		.input(z.object({ siteId: id, componentId, pageId: id }))
+		.handler(async ({ context, input }) => {
+			const site = await context.services.data.site(context.access, input.siteId, "structure.edit");
+			return {
+				component: await context.services.components.makePageSection(site, input.componentId, input.pageId),
+			};
+		}),
+
 	/** Renames a Component: every Template and Component placing it writes the new name at once. */
 	rename: signedIn
 		.input(z.object({ siteId: id, componentId, name: componentName }))

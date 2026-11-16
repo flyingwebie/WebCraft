@@ -184,6 +184,27 @@ describe("Make reusable Component", () => {
 		});
 	});
 
+	test("is undone while only its Page places it", async () => {
+		const { siteId, pageId } = await siteWithPage("sections-undo-reusable");
+		const { componentId } = await addSection(siteId, pageId, "<section><p>Back</p></section>");
+		const { component: section } = await staff.api.components.get({ siteId, componentId });
+		await staff.api.components.makeReusable({ siteId, componentId, name: "Back" });
+
+		const { component } = await staff.api.components.makePageSection({ siteId, componentId, pageId });
+		expect(component).toMatchObject({ id: componentId, pageId, name: section.name });
+		expect((await staff.api.components.list({ siteId })).components.map((each) => each.id)).not.toContain(componentId);
+
+		// Placed elsewhere since, it stays reusable.
+		await staff.api.components.makeReusable({ siteId, componentId, name: "Back" });
+		await staff.api.templates.saveSiteTemplateMarkup({
+			siteId,
+			markup: "<header><Back /></header><main>{{@outlet}}</main>",
+		});
+		await expect(staff.api.components.makePageSection({ siteId, componentId, pageId })).rejects.toMatchObject({
+			code: "COMPONENT_IN_USE",
+		});
+	});
+
 	test("asks for a free, well-formed name", async () => {
 		const { siteId, pageId } = await siteWithPage("sections-names");
 		const { componentId } = await addSection(siteId, pageId, "<section></section>");

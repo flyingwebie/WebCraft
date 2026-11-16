@@ -8405,6 +8405,66 @@
 				"x-webcraft-permissions": ["structure.edit"]
 			}
 		},
+		"/components/makePageSection": {
+			"post": {
+				"operationId": "components.makePageSection",
+				"summary": "Makes a Component a Section of its one Page again (undoes Make reusable).",
+				"tags": ["components"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"componentId": {
+										"anyOf": [
+											{
+												"type": "string",
+												"format": "uuid"
+											},
+											{
+												"type": "string",
+												"pattern": "^[a-z][a-z0-9-]{0,31}:[A-Z][A-Za-z0-9]{0,63}$"
+											}
+										]
+									},
+									"pageId": {
+										"type": "string",
+										"format": "uuid"
+									}
+								},
+								"required": ["siteId", "componentId", "pageId"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
 		"/components/rename": {
 			"post": {
 				"operationId": "components.rename",

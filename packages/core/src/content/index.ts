@@ -34,6 +34,7 @@ export {
 	isComponentName,
 	listComponents,
 	type ModuleComponent,
+	makeComponentPageSection,
 	makeComponentReusable,
 	type NewComponent,
 	type NewPageSection,

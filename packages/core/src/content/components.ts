@@ -614,6 +614,45 @@ export async function makeComponentReusable(
 }
 
 /**
+ * Undo of "Make reusable Component" (open the Site with `structure.edit`, ADR 0038): the Component
+ * becomes a Section of the Page `pageId` again, with its made name. Only while that Page's layout is
+ * the one thing placing it, once (`ComponentInUseError` lists what else does), and it is no Allowed
+ * component nor a Body field's.
+ */
+export async function makeComponentPageSection(
+	scope: SiteScope,
+	componentId: string,
+	pageId: string,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+): Promise<Component> {
+	return scope.transaction(async (tx) => {
+		await lockComponents(tx);
+		const row = await lockComponent(tx, componentId, sources);
+		if (row.pageId === pageId) return toComponent(row);
+		await ownerPage(tx, pageId);
+		const others = (await usages(tx))(row.id).usedIn.filter((use) => use.kind !== "entry" || use.id !== pageId);
+		const settings = await tx.first(pageLayoutSettings);
+		const page = await tx.first(entries, eq(entries.id, pageId));
+		const placedTwice = ["draft", "published"].some(
+			(which) =>
+				(storedVersion(page?.[which as "draft" | "published"] ?? { values: {} }).layout?.placements ?? []).filter(
+					(placement) => placement.component === row.id,
+				).length > 1,
+		);
+		const inBody = (await listPostTypes(tx)).some((postType) =>
+			postType.fields.some((field) => field.type === "body" && field.components.includes(row.id)),
+		);
+		if (others.length > 0 || placedTwice || inBody || settings?.allowedComponents.includes(row.id))
+			throw new ComponentInUseError(others);
+		const name = pageSectionName(row.id);
+		const [updated] = await tx.update(components, { name, pageId, updatedAt: tx.now() }, eq(components.id, row.id));
+		if (!updated) throw new ComponentNotFoundError();
+		await tx.audit("component.makePageSection", { componentId: row.id, pageId, from: row.name });
+		return toComponent(updated);
+	});
+}
+
+/**
  * Deletes a Component (open the Site with `structure.edit`), in two steps: without a confirmation
  * it deletes nothing and answers a confirmation id; with that id it deletes it. By default refused
  * while any Template, Component or Page places it, in its Draft or published version

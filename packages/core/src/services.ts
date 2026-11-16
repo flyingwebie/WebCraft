@@ -448,6 +448,8 @@ export type InstallServices = InstallPorts & {
 		 * anywhere from then on; its Placement on the Page stays.
 		 */
 		makeReusable(scope: SiteScope, componentId: string, name: string): Promise<Component>;
+		/** Undo of `makeReusable`: a Section of the Page again, while only that Page places it. */
+		makePageSection(scope: SiteScope, componentId: string, pageId: string): Promise<Component>;
 		/**
 		 * Deletes it in two steps (a confirmation id, then the delete); refused while anything places it,
 		 * unless `placements` is `remove`: its Placements then go with it.

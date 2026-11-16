@@ -107,6 +107,7 @@ export const TOOL_PLACES = {
 	"components.saveScriptDraft": place(["structure"], "structure.edit"),
 	"components.rename": place(["structure"], "structure.edit"),
 	"components.makeReusable": place(["structure"], "structure.edit"),
+	"components.makePageSection": place(["structure"], "structure.edit"),
 	"components.delete": place(["structure"], "structure.edit"),
 	"popups.list": place(["content", "structure"], "site.view"),
 	"popups.get": place(["content", "structure"], "site.view"),

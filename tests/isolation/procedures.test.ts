@@ -546,6 +546,16 @@ describe("Components", () => {
 	isolation.refuses("components.makeReusable", async (api, target) =>
 		api.components.makeReusable({ siteId: target.siteId, componentId: await sectionIn(target), name: newName() }),
 	);
+	isolation.refuses("components.makePageSection", async (api, target) => {
+		const sectionId = await sectionIn(target);
+		const { api: admin } = await install.superadmin();
+		const { component } = await admin.components.get({ siteId: target.siteId, componentId: sectionId });
+		return api.components.makePageSection({
+			siteId: target.siteId,
+			componentId: sectionId,
+			pageId: component.pageId ?? "",
+		});
+	});
 	isolation.refuses("components.delete", async (api, target) =>
 		api.components.delete({ siteId: target.siteId, componentId: await componentIn(target) }),
 	);

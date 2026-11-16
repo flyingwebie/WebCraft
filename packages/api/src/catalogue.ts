@@ -250,6 +250,7 @@ export const PROCEDURES = {
 	"components.saveScriptDraft": write("Saves the Draft of a Component's Component script."),
 	"components.rename": write("Renames a Component everywhere it is placed."),
 	"components.makeReusable": write("Makes a Page's Section a reusable Component with a name."),
+	"components.makePageSection": write("Makes a Component a Section of its one Page again (undoes Make reusable)."),
 	"components.delete": write("Deletes a Component, after a confirmation."),
 	"popups.list": read("List the Site’s Popups."),
 	"popups.get": read("Read a Popup’s Structure and Content in one language."),

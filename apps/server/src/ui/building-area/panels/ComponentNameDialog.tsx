@@ -10,9 +10,12 @@ import { componentNameProblem, type MadeTexts } from "../editing/layer-ops.ts";
 
 const BUTTON = `inline-flex h-8 shrink-0 items-center justify-center rounded-[7px] px-3 text-[12px] font-semibold ${CHROME_EASE} ${FOCUS_RING}`;
 
-/** What the dialog asks a name for: Make Component (the selection moves into it) or New Component (empty). */
+/**
+ * What the dialog asks a name for: Make Component (the selection moves into it), New Component
+ * (empty), or Make reusable Component (a Page's Section becomes a library Component, ADR 0038).
+ */
 export type ComponentNameRequest = {
-	kind: "make" | "new";
+	kind: "make" | "new" | "reusable";
 	/** The suggestion the name field starts with. */
 	suggested: string;
 	/** What it says under the title. */
@@ -122,7 +125,7 @@ export function ComponentNameDialog({
 		>
 			<form onSubmit={(event) => void submit(event)} className="flex flex-col gap-3" noValidate>
 				<h2 id={`${id}-title`} className="text-chrome-strong m-0 text-[14px] font-semibold">
-					{request.kind === "make" ? said.makeTitle : said.newTitle}
+					{request.kind === "make" ? said.makeTitle : request.kind === "reusable" ? said.reusableTitle : said.newTitle}
 				</h2>
 				<p id={`${id}-text`} className="text-chrome-muted m-0 text-[13px]">
 					{request.text}
@@ -215,7 +218,7 @@ export function ComponentNameDialog({
 						className={`${BUTTON} bg-[#7c3aed] text-white hover:bg-[#6d28d9] disabled:opacity-60`}
 						data-wc-component-submit=""
 					>
-						{request.kind === "make" ? said.make : said.create}
+						{request.kind === "make" ? said.make : request.kind === "reusable" ? said.reusable : said.create}
 					</button>
 				</div>
 			</form>
