@@ -37,7 +37,7 @@ import {
 	printTemplateMarkup,
 	refuseSiteTemplateCommands,
 } from "@webcraft/renderer";
-import { and, asc, count, eq, isNotNull, sql } from "drizzle-orm";
+import { and, asc, count, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { clientNameOf } from "../audit.ts";
 
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
@@ -61,16 +61,18 @@ import {
 	ComponentInvalidError,
 	ComponentNameTakenError,
 	ComponentNotFoundError,
+	ComponentNotPageSectionError,
 	type ComponentUse,
 	type ContentProblem,
 	DraftChangedError,
+	PageNotFoundError,
 } from "./errors.ts";
 import { type FieldDefinition, type FieldInput, parseFields, storedFields } from "./fields.ts";
 import { draftVersion, type SaveBase, sameJson } from "./json.ts";
 import { loopCatalogue } from "./loops.ts";
 import { clearPageCache } from "./page-cache.ts";
 import { isPagePostType } from "./pages.ts";
-import { listPostTypes, type PostType } from "./post-types.ts";
+import { getPostType, listPostTypes, type PostType } from "./post-types.ts";
 import { declarationProblems, parseDeclaredTree, printPropDeclarations, readPropDeclarations } from "./prop-markup.ts";
 import {
 	migratePropPlacements,
@@ -97,8 +99,13 @@ export type Component = {
 	/** A UUID for the Site's own; `<module id>:<Name>` for a Module's. */
 	id: string;
 	siteId: string;
-	/** Its PascalCase tag in Template markup, such as `PostCard`. */
+	/** Its PascalCase tag in Template markup, such as `PostCard`. A Page section's is made for it, never shown. */
 	name: string;
+	/**
+	 * The Page that owns it when it is a Page section (ADR 0038): made by a Section on that Page, placed
+	 * only there, listed nowhere, published and deleted with the Page. Null for a library Component.
+	 */
+	pageId: string | null;
 	/** The Module that declares it; null for the Site's own. */
 	module: { id: string; blockType?: boolean; label?: Readonly<Record<string, string>> } | null;
 	status: ComponentStatus;
@@ -162,7 +169,14 @@ export const NO_MODULE_COMPONENTS: ComponentSources = {
 	retainedModuleComponentsAt: async () => [],
 };
 
-export type NewComponent = { name: string; props?: FieldInput[] };
+/**
+ * A new Component: its name and Props, or a Page section of a Page (`pageId`), whose name is made
+ * for it (`pageSectionName`) since nobody chooses or sees it.
+ */
+export type NewComponent = { name: string; props?: FieldInput[]; pageId?: undefined } | NewPageSection;
+
+/** A new Page section: a Component owned by one Page (ADR 0038). */
+export type NewPageSection = { pageId: string; props?: FieldInput[]; name?: undefined };
 
 /** A change to a Component's Draft: its Props (the full list, in order) and its tree. */
 export type ComponentDraftChange = { props?: FieldInput[]; tree?: unknown };
@@ -198,6 +212,14 @@ export type PlacedComponentDeletion = "refuse" | "remove";
 /** A Component's name: a PascalCase tag (a capital first, then letters and digits, at least one lower-case). */
 const COMPONENT_NAME = /^[A-Z][A-Za-z0-9]{0,63}$/;
 
+/**
+ * The name a Page section is given: Template markup and the Site's unique names need one, but nobody
+ * chooses it or sees it (Layers calls it "Section"), so it is made from its id.
+ */
+export function pageSectionName(id: string): string {
+	return `PageSection${id.replaceAll("-", "")}`;
+}
+
 /** Whether `name` can name a Component: Template markup reads PascalCase tags as Components. */
 export function isComponentName(name: string): boolean {
 	return COMPONENT_NAME.test(name) && /[a-z]/.test(name);
@@ -222,7 +244,42 @@ export async function createComponent(
 	input: NewComponent,
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
 ): Promise<Component> {
+	if (input.pageId !== undefined) return scope.transaction((tx) => insertPageSection(tx, input));
 	return namingComponent(scope, input.name, () => scope.transaction((tx) => insertComponent(tx, input, sources)));
+}
+
+/**
+ * Makes a Page section (ADR 0038): an empty Component owned by a Page of the Site
+ * (`PageNotFoundError` otherwise), with a name made from its id. Placing it on its Page is the Page
+ * layout's own change (`writePageLayout`), so Undo of the Section is the Page's.
+ */
+async function insertPageSection(scope: SiteScope, input: NewPageSection): Promise<Component> {
+	const problems: ContentProblem[] = [];
+	const props = await parseProps(scope, input.props ?? [], [], problems);
+	if (problems.length > 0) throw new ComponentInvalidError(problems);
+	await lockComponents(scope);
+	await ownerPage(scope, input.pageId);
+	const id = crypto.randomUUID();
+	const name = pageSectionName(id);
+	const now = scope.now();
+	const row = await scope.insert(components, {
+		id,
+		name,
+		pageId: input.pageId,
+		draft: { props, tree: EMPTY_TREE } satisfies ComponentVersion,
+		createdAt: now,
+		updatedAt: now,
+		updatedBy: personIdOf(scope.access.actor),
+		updatedVia: clientNameOf(scope.access.via),
+	});
+	await scope.audit("component.create", { componentId: row.id, name, pageId: input.pageId });
+	return toComponent(row);
+}
+
+/** A Page of the scope's Site, which may own Page sections; `PageNotFoundError` for anything else. */
+async function ownerPage(scope: SiteScope, entryId: string): Promise<void> {
+	const row = isUuid(entryId) ? await scope.first(entries, eq(entries.id, entryId)) : undefined;
+	if (!row || !isPagePostType(await getPostType(scope, row.postTypeId))) throw new PageNotFoundError();
 }
 
 /**
@@ -239,6 +296,7 @@ export async function insertComponent(
 	input: NewComponent,
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
 ): Promise<Component> {
+	if (input.pageId !== undefined) return insertPageSection(scope, input);
 	const problems: ContentProblem[] = [];
 	const name = checkName(input.name, problems);
 	const props = await parseProps(scope, input.props ?? [], [], problems);
@@ -260,12 +318,15 @@ export async function insertComponent(
 	return toComponent(row);
 }
 
-/** The Components of the scope's Site (its own, then those of the Modules running there), by name. */
+/**
+ * The library Components of the scope's Site (its own, then those of the Modules running there), by
+ * name. Page sections belong to their Pages and are never listed (ADR 0038).
+ */
 export async function listComponents(
 	scope: SiteScope,
 	sources: ComponentSources = NO_MODULE_COMPONENTS,
 ): Promise<(Component & { usage: ComponentUsage })[]> {
-	const rows = await scope.select(components, undefined, { orderBy: [asc(components.name)] });
+	const rows = await scope.select(components, isNull(components.pageId), { orderBy: [asc(components.name)] });
 	const scripts = await componentScriptStates(scope);
 	const own = rows.map((row) => withScriptStatus(toComponent(row), scripts.get(row.id)));
 	const fromModules = (await sources.moduleComponentsAt(scope)).map((component) =>
@@ -302,7 +363,7 @@ export async function saveComponentDraft(
 		const row = await lockComponent(tx, componentId, sources);
 		const props = await nextProps(tx, row, change.props);
 		const context = await readContext(tx);
-		const catalogue = await siteComponents(tx, "draft", sources, { self: row.id });
+		const catalogue = await siteComponents(tx, "draft", sources, { self: row.id, placing: true });
 		const { ids } = classCatalogue(await draftDesignSystem(tx));
 		const tree = parseElementTree(
 			change.tree ??
@@ -341,7 +402,7 @@ export async function saveComponentMarkup(
 			const declarations = readPropDeclarations(input.markup);
 			const props = await markupProps(tx, row, declarations, input.props);
 			const context = await readContext(tx);
-			const catalogue = await siteComponents(tx, "draft", sources, { self: row.id });
+			const catalogue = await siteComponents(tx, "draft", sources, { self: row.id, placing: true });
 			const classes = classCatalogue(await draftDesignSystem(tx));
 			const { tree, notices } = parseDeclaredTree(declarations, {
 				...componentTreeRules(props, context, catalogue),
@@ -503,12 +564,50 @@ export async function renameComponent(
 		scope.transaction(async (tx) => {
 			await lockComponents(tx);
 			const row = await lockComponent(tx, componentId, sources);
+			if (row.pageId !== null)
+				throw new ComponentInvalidError([
+					{ at: "name", message: "A Page section has no name of its own: make it a reusable Component to name it." },
+				]);
 			if (row.name === name) return toComponent(row);
 			await checkNameFree(tx, name, sources);
 			await checkNameUnused(tx, name);
 			const [updated] = await tx.update(components, { name, updatedAt: tx.now() }, eq(components.id, row.id));
 			if (!updated) throw new ComponentNotFoundError();
 			await tx.audit("component.rename", { componentId: row.id, from: row.name, to: name });
+			return toComponent(updated);
+		}),
+	);
+}
+
+/**
+ * Makes a Page section a reusable Component (open the Site with `structure.edit`, ADR 0038): the same
+ * Component, with the name Staff chose and no owner Page, so it is listed in the Components place and
+ * may be placed anywhere. Its Placement on the Page stays as it is. A library Component answers
+ * `ComponentNotPageSectionError`.
+ */
+export async function makeComponentReusable(
+	scope: SiteScope,
+	componentId: string,
+	input: string,
+	sources: ComponentSources = NO_MODULE_COMPONENTS,
+): Promise<Component> {
+	const problems: ContentProblem[] = [];
+	const name = checkName(input, problems);
+	if (problems.length > 0) throw new ComponentInvalidError(problems);
+	return namingComponent(scope, name, () =>
+		scope.transaction(async (tx) => {
+			await lockComponents(tx);
+			const row = await lockComponent(tx, componentId, sources);
+			if (row.pageId === null) throw new ComponentNotPageSectionError();
+			await checkNameFree(tx, name, sources);
+			await checkNameUnused(tx, name);
+			const [updated] = await tx.update(
+				components,
+				{ name, pageId: null, updatedAt: tx.now() },
+				eq(components.id, row.id),
+			);
+			if (!updated) throw new ComponentNotFoundError();
+			await tx.audit("component.makeReusable", { componentId: row.id, pageId: row.pageId, name });
 			return toComponent(updated);
 		}),
 	);
@@ -884,6 +983,8 @@ function printMarkup(tree: ElementTree, classes: ClassCatalogue, names: SiteComp
 
 /** The Site's Components in one version, for reading, checking, printing and rendering trees that place them. */
 export type SiteComponents = ComponentCatalogue & {
+	/** The Page owning a Component, when it is a Page section (ADR 0038); undefined for any other. */
+	pageOf(id: string): string | undefined;
 	/** The PascalCase name of a Component of the Site (or of a Module running there). */
 	nameOf(componentId: string): string | undefined;
 	/** The version a Placement shows: the Component's Props and tree in this version. */
@@ -901,6 +1002,8 @@ type CatalogueEntry = {
 	id: string;
 	name: string;
 	version: ComponentVersion | null;
+	/** The Page owning it, for a Page section (ADR 0038). */
+	pageId?: string;
 	/** Why it can't be placed on this Site at all: its Module doesn't run here. */
 	away?: string;
 };
@@ -919,6 +1022,11 @@ export async function siteComponents(
 		self?: string;
 		/** A version to see in place of one Component's: the one about to be published. */
 		replace?: { id: string; version: ComponentVersion };
+		/**
+		 * A tree is being saved or published (a Template's or a Component's): Page sections can't be placed
+		 * in one, only on their own Page (ADR 0038), so they read as Components that can't be placed here.
+		 */
+		placing?: boolean;
 	} = {},
 ): Promise<SiteComponents> {
 	const rows = await scope.select(components);
@@ -927,7 +1035,19 @@ export async function siteComponents(
 		if (which === "draft") return storedComponentVersion(row.draft);
 		return row.published === null ? null : storedComponentVersion(row.published);
 	};
-	const entries: CatalogueEntry[] = rows.map((row) => ({ id: row.id, name: row.name, version: versionOf(row) }));
+	const entries: CatalogueEntry[] = rows.map((row) => ({
+		id: row.id,
+		name: row.name,
+		version: versionOf(row),
+		...(row.pageId === null
+			? {}
+			: {
+					pageId: row.pageId,
+					...(options.placing
+						? { away: "That Section belongs to one Page: make it a reusable Component to place it anywhere else." }
+						: {}),
+				}),
+	}));
 	const running = new Set((await sources.moduleComponentsAt(scope)).map((component) => component.id));
 	const retained = new Map(
 		(await sources.retainedModuleComponentsAt(scope)).map((component) => [component.id, component]),
@@ -1025,6 +1145,7 @@ export async function siteComponents(
 		named: (name) => infoOf(byName.get(name)),
 		byId: (id) => infoOf(byId.get(id)),
 		nameOf: (id) => byId.get(id)?.name,
+		pageOf: (id) => byId.get(id)?.pageId,
 		version: (id) => byId.get(id)?.version ?? undefined,
 		reaches,
 		forms: await siteForms(scope, which),
@@ -1138,6 +1259,8 @@ async function pageGraph(scope: SiteScope): Promise<{
 }> {
 	const templateRows = await scope.select(templates);
 	const componentRows = await scope.select(components);
+	const entryRows = await scope.select(entries);
+	const postTypeOfEntry = new Map(entryRows.map((row) => [row.id, row.postTypeId]));
 	const holders: Holder[] = [
 		...templateRows.map((row) => ({
 			use: {
@@ -1151,13 +1274,22 @@ async function pageGraph(scope: SiteScope): Promise<{
 			published: row.published as ElementTree | null,
 		})),
 		...componentRows.map((row) => ({
-			use: { kind: "component" as const, id: row.id, name: row.name, versions: [] },
+			// A Page's Section is part of its Page (ADR 0038): what it places is placed on that Page.
+			use:
+				row.pageId === null
+					? { kind: "component" as const, id: row.id, name: row.name, versions: [] }
+					: {
+							kind: "entry" as const,
+							id: row.pageId,
+							postTypeId: postTypeOfEntry.get(row.pageId) ?? "",
+							versions: [],
+						},
 			draft: storedComponentVersion(row.draft).tree,
 			published: row.published === null ? null : storedComponentVersion(row.published).tree,
 		})),
 	];
 	const pageLanguages = await siteLanguages(scope);
-	for (const row of await scope.select(entries)) {
+	for (const row of entryRows) {
 		const draft = storedVersion(row.draft);
 		const published = row.published ? storedVersion(row.published) : null;
 		if (!draft.layout && !published?.layout) continue;
@@ -1272,7 +1404,12 @@ async function usages(scope: SiteScope): Promise<(componentId: string) => Compon
 				...(inDraft.has(id) ? (["draft"] as const) : []),
 				...(inPublished.has(id) ? (["published"] as const) : []),
 			];
-			directUses.set(id, [...(directUses.get(id) ?? []), { ...holder.use, versions }]);
+			const uses = directUses.get(id) ?? [];
+			// A Page placing it in its layout and in one of its Sections is one use.
+			const same = uses.find((use) => use.kind === holder.use.kind && use.id === holder.use.id);
+			if (same) same.versions = [...new Set([...same.versions, ...versions])].sort() as typeof same.versions;
+			else uses.push({ ...holder.use, versions });
+			directUses.set(id, uses);
 		}
 	}
 	for (const row of await scope.select(popups)) {
@@ -1301,6 +1438,7 @@ export function toComponent(row: ComponentRow): Component {
 		id: row.id,
 		siteId: row.siteId,
 		name: row.name,
+		pageId: row.pageId,
 		module: null,
 		status: row.published === null ? "draft" : sameJson(row.draft, row.published) ? "published" : "changed",
 		draft: storedComponentVersion(row.draft),
@@ -1318,6 +1456,7 @@ function moduleComponent(siteId: string, component: ModuleComponent): Component 
 		id: component.id,
 		siteId,
 		name: component.name,
+		pageId: null,
 		module: { id: component.moduleId, ...(component.blockType ? { blockType: true, label: component.label } : {}) },
 		status: "published",
 		draft: version,

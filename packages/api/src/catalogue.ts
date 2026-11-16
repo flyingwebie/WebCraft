@@ -237,7 +237,7 @@ export const PROCEDURES = {
 	"components.list": read("Lists the Site's Components and those of its Modules, with where each is used."),
 	"components.get": read("One Component: its Draft and published Props and tree, and where it is used."),
 	"components.create": write(
-		"Creates a Component with its name and Props, optionally placing it in a Template or Component.",
+		"Creates a Component with its name and Props, optionally placing it in a Template or Component, or a Section of a Page.",
 	),
 	"components.make": write(
 		"Moves an element of a Template or Component into a new Component and places it there instead.",
@@ -249,6 +249,7 @@ export const PROCEDURES = {
 	"components.getScript": read("A Component's Component script, Draft and published."),
 	"components.saveScriptDraft": write("Saves the Draft of a Component's Component script."),
 	"components.rename": write("Renames a Component everywhere it is placed."),
+	"components.makeReusable": write("Makes a Page's Section a reusable Component with a name."),
 	"components.delete": write("Deletes a Component, after a confirmation."),
 	"popups.list": read("List the Site’s Popups."),
 	"popups.get": read("Read a Popup’s Structure and Content in one language."),

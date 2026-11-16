@@ -389,7 +389,7 @@ async function saveTemplate(
 			await lockComponents(tx);
 			await upgradePropValueContracts(tx);
 			const { ids } = classCatalogue(await draftDesignSystem(tx));
-			const catalogue = await siteComponents(tx, "draft", sources);
+			const catalogue = await siteComponents(tx, "draft", sources, { placing: true });
 			const draft = parseTemplate(tree, target, ids, catalogue, await loopCatalogue(tx, "draft"));
 			return writeTemplateDraft(tx, target, draft, catalogue);
 		}),
@@ -439,7 +439,7 @@ async function saveTemplateMarkup(
 			}
 			await upgradePropValueContracts(tx);
 			const catalogue = classCatalogue(await draftDesignSystem(tx));
-			const components = await siteComponents(tx, "draft", sources);
+			const components = await siteComponents(tx, "draft", sources, { placing: true });
 			const { tree, notices } = parseTemplateMarkup(markup, {
 				...rulesFor(target, components, await loopCatalogue(tx, "draft")),
 				classNamed: catalogue.named,
@@ -551,7 +551,11 @@ export async function readTemplateMarkup(
 	const designSystem = await draftDesignSystem(scope);
 	const catalogue = classCatalogue(designSystem);
 	const { tree, notices } = parseTemplateMarkup(markup, {
-		...rulesFor(rules, await siteComponents(scope, "draft", sources), await loopCatalogue(scope, "draft")),
+		...rulesFor(
+			rules,
+			await siteComponents(scope, "draft", sources, { placing: true }),
+			await loopCatalogue(scope, "draft"),
+		),
 		classNamed: catalogue.named,
 		classForStyle: catalogue.forStyle,
 	});
@@ -699,7 +703,7 @@ export async function checkTemplateForPublish(
 		row.draft,
 		target,
 		ids,
-		await siteComponents(scope, "published", sources),
+		await siteComponents(scope, "published", sources, { placing: true }),
 		await loopCatalogue(scope, "published"),
 	);
 }

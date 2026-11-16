@@ -357,6 +357,17 @@ export class ComponentInUseError extends Error {
 	}
 }
 
+/**
+ * "Make reusable Component" was asked of a Component that is already reusable: only a Page section
+ * (a Component owned by one Page, ADR 0038) becomes one.
+ */
+export class ComponentNotPageSectionError extends Error {
+	override name = "ComponentNotPageSectionError";
+	constructor() {
+		super("This Component is reusable already: only a Page section becomes a reusable Component.");
+	}
+}
+
 /** A Module's Component is changed by its Module, never on a Site. */
 export class ComponentFromModuleError extends Error {
 	override name = "ComponentFromModuleError";

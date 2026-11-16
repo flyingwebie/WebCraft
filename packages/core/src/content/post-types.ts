@@ -1,5 +1,5 @@
 import { components, entries, loops, postTypes, templates } from "@webcraft/db/schema";
-import { and, asc, count, eq, isNotNull } from "drizzle-orm";
+import { and, asc, count, eq, isNotNull, isNull } from "drizzle-orm";
 import { askConfirmation, type Confirmation, useConfirmation } from "../confirmations.ts";
 import { isUniqueViolation } from "../db-errors.ts";
 import { isUuid } from "../ids.ts";
@@ -406,8 +406,10 @@ async function defineContext(
 	// A Page's parent is one of its built-in Fields.
 	const reservedKeys = isPagePostType(postType) ? new Set([...RESERVED_FIELD_KEYS, "parent"]) : RESERVED_FIELD_KEYS;
 	const owner = isPagePostType(postType) ? ("page" as const) : ("postType" as const);
-	// The Site's own Components, which its Body field may allow.
-	const componentIds = new Set((await scope.select(components)).map((component) => component.id));
+	// The Site's own library Components, which its Body field may allow (never a Page's section, ADR 0038).
+	const componentIds = new Set(
+		(await scope.select(components, isNull(components.pageId))).map((component) => component.id),
+	);
 	for (const component of await scope.componentSources.moduleComponentsAt(scope)) componentIds.add(component.id);
 	for (const field of postType.fields ?? [])
 		if (field.type === "body") for (const id of field.components) if (id.includes(":")) componentIds.add(id);

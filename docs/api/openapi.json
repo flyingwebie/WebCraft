@@ -6619,7 +6619,7 @@
 		"/components/create": {
 			"post": {
 				"operationId": "components.create",
-				"summary": "Creates a Component with its name and Props, optionally placing it in a Template or Component.",
+				"summary": "Creates a Component with its name and Props, optionally placing it in a Template or Component, or a Section of a Page.",
 				"tags": ["components"],
 				"requestBody": {
 					"required": true,
@@ -6635,6 +6635,10 @@
 									"name": {
 										"type": "string",
 										"maxLength": 200
+									},
+									"pageId": {
+										"type": "string",
+										"format": "uuid"
 									},
 									"props": {
 										"type": "array",
@@ -7076,7 +7080,7 @@
 										"required": ["source", "path", "list"]
 									}
 								},
-								"required": ["siteId", "name"]
+								"required": ["siteId"]
 							}
 						}
 					}
@@ -8315,6 +8319,66 @@
 									}
 								},
 								"required": ["siteId", "componentId", "code"]
+							}
+						}
+					}
+				},
+				"responses": {
+					"200": {
+						"description": "OK",
+						"content": {
+							"application/json": {
+								"schema": {
+									"anyOf": [
+										{},
+										{
+											"not": {}
+										}
+									]
+								}
+							}
+						}
+					}
+				},
+				"x-webcraft-access": "write",
+				"x-webcraft-toolsets": ["structure"],
+				"x-webcraft-permissions": ["structure.edit"]
+			}
+		},
+		"/components/makeReusable": {
+			"post": {
+				"operationId": "components.makeReusable",
+				"summary": "Makes a Page's Section a reusable Component with a name.",
+				"tags": ["components"],
+				"requestBody": {
+					"required": true,
+					"content": {
+						"application/json": {
+							"schema": {
+								"type": "object",
+								"properties": {
+									"siteId": {
+										"type": "string",
+										"format": "uuid"
+									},
+									"componentId": {
+										"anyOf": [
+											{
+												"type": "string",
+												"format": "uuid"
+											},
+											{
+												"type": "string",
+												"pattern": "^[a-z][a-z0-9-]{0,31}:[A-Z][A-Za-z0-9]{0,63}$"
+											}
+										]
+									},
+									"name": {
+										"type": "string",
+										"maxLength": 200
+									}
+								},
+								"required": ["siteId", "componentId", "name"]
 							}
 						}
 					}

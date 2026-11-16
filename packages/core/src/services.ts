@@ -408,7 +408,11 @@ export type InstallServices = InstallPorts & {
 		get(scope: SiteScope, componentId: string): Promise<{ component: Component; usage: ComponentUsage }>;
 		create(scope: SiteScope, input: NewComponent): Promise<Component>;
 		/** Makes an empty Component and places it in a Template's or Component's Draft, in one transaction. */
-		createPlaced(scope: SiteScope, input: NewComponent, place: NewComponentPlace): Promise<MadeComponent>;
+		createPlaced(
+			scope: SiteScope,
+			input: { name: string; props?: FieldInput[] },
+			place: NewComponentPlace,
+		): Promise<MadeComponent>;
 		/**
 		 * Make Component: moves a node of a Template's or Component's Draft into a new Component, with
 		 * Props for what it read there, and places it instead, in one transaction.
@@ -439,6 +443,11 @@ export type InstallServices = InstallPorts & {
 		): Promise<SavedComponentMarkup>;
 		/** Renames it: Template markup writes the new name everywhere at once. */
 		rename(scope: SiteScope, componentId: string, name: string): Promise<Component>;
+		/**
+		 * Makes a Page section a reusable Component named `name` (ADR 0038): it is listed and may be placed
+		 * anywhere from then on; its Placement on the Page stays.
+		 */
+		makeReusable(scope: SiteScope, componentId: string, name: string): Promise<Component>;
 		/**
 		 * Deletes it in two steps (a confirmation id, then the delete); refused while anything places it,
 		 * unless `placements` is `remove`: its Placements then go with it.

@@ -35,6 +35,7 @@ import {
 	ComponentInvalidError,
 	ComponentNameTakenError,
 	ComponentNotFoundError,
+	ComponentNotPageSectionError,
 	ConfirmationInvalidError,
 	ConsentBannerInvalidError,
 	ConsentRecordNotFoundError,
@@ -378,6 +379,9 @@ export function toApiError(error: unknown): unknown {
 			data: { name: error.loopName },
 			cause: error,
 		});
+	}
+	if (error instanceof ComponentNotPageSectionError) {
+		return new ORPCError("COMPONENT_NOT_PAGE_SECTION", { status: 409, message: error.message, cause: error });
 	}
 	if (error instanceof ComponentFromModuleError) {
 		return new ORPCError("COMPONENT_FROM_MODULE", { status: 409, message: error.message, cause: error });

@@ -27,6 +27,7 @@ import type { FieldDefinition } from "./field-types.ts";
 import { storedFields } from "./fields.ts";
 import { draftVersion, sameJson } from "./json.ts";
 import { siteLanguages } from "./languages.ts";
+import { pageSectionDrafts } from "./page-sections.ts";
 import { isPagePostType, parentIn } from "./pages.ts";
 import { listPostTypes } from "./post-types.ts";
 import {
@@ -167,10 +168,17 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 	};
 	const status = (published: unknown) => (published === null ? "new" : "changed");
 
-	// Content: Entries whose Draft differs from what is published, newest change first.
-	const changedEntries = await scope.select(entries, sql`${entries.draft} is distinct from ${entries.published}`, {
-		orderBy: [sql`${entries.updatedAt} desc`, entries.id],
-	});
+	// Content: Entries whose Draft differs from what is published, newest change first, and the Pages
+	// whose Sections changed (ADR 0038): they go live with their Page, as its own item.
+	const sections = await pageSectionDrafts(scope);
+	const changedEntries = await scope.select(
+		entries,
+		or(
+			sql`${entries.draft} is distinct from ${entries.published}`,
+			...(sections.size > 0 ? [inArray(entries.id, [...sections.keys()])] : []),
+		),
+		{ orderBy: [sql`${entries.updatedAt} desc`, entries.id] },
+	);
 	const paths = new Map<string, string>();
 	for (const postType of postTypes) {
 		const ids = changedEntries.filter((row) => row.postTypeId === postType.id).map((row) => row.id);
@@ -179,6 +187,8 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 	for (const row of changedEntries) {
 		const postType = postTypes.find((candidate) => candidate.id === row.postTypeId);
 		const draft = storedVersion(row.draft);
+		const changedSections = sections.get(row.id);
+		const newer = changedSections && changedSections.changedAt > row.updatedAt ? changedSections : null;
 		add(
 			{
 				item: { kind: "entry", id: row.id },
@@ -192,11 +202,13 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 					row.published === null
 						? []
 						: valueChanges(draft, storedVersion(row.published), postType?.fields ?? [], ENTRY_BUILT_INS),
-				changedAt: row.updatedAt,
+				changedAt: newer?.changedAt ?? row.updatedAt,
 				path: paths.get(row.id) ?? null,
-				version: draftVersion(row.draft),
+				version: changedSections
+					? draftVersion({ entry: row.draft, sections: changedSections.version })
+					: draftVersion(row.draft),
 			},
-			row,
+			newer ?? row,
 		);
 	}
 	const globalsRow = await scope.first(globals);
@@ -306,6 +318,7 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 		}
 	}
 	const popupRows = await scope.select(popups);
+	// A Popup's Component goes live with its Popup, and a Page's Sections with their Page.
 	const ownedComponents = new Set(popupRows.map((row) => row.componentId));
 	// A Component is a Draft to publish when its own Draft or its Component script's changed.
 	const componentScripts = await componentScriptStates(scope);
@@ -318,7 +331,7 @@ export async function siteDrafts(scope: SiteScope): Promise<SiteDraft[]> {
 		{ orderBy: [components.name] },
 	);
 	for (const row of changedComponents) {
-		if (ownedComponents.has(row.id)) continue;
+		if (ownedComponents.has(row.id) || row.pageId !== null) continue;
 		const script = componentScripts.get(row.id);
 		const draft = structure({ kind: "component", id: row.id }, row, row.name);
 		add(script ? { ...draft, version: draftVersion({ component: row.draft, script: script.version }) } : draft, row);
