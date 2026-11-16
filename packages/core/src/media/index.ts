@@ -45,10 +45,13 @@ export { MEDIA_KINDS, type MediaKind } from "./kinds.ts";
 export {
 	type FocalPoint,
 	MEDIA_FOLDER_NAME_MAX_LENGTH,
+	MEDIA_FOLDER_ORDERS,
 	type MediaChange,
 	type MediaDeletion,
 	type MediaFailure,
 	type MediaFolder,
+	type MediaFolderOrder,
+	type MediaFolders,
 	type MediaItem,
 	type MediaLibrary,
 	type MediaOverview,

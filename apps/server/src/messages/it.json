@@ -7228,7 +7228,9 @@
 			"mediaFolder": {
 				"create": "Cartella multimediale creata",
 				"delete": "Cartella multimediale eliminata",
-				"rename": "Cartella multimediale rinominata"
+				"order": "Ordine delle cartelle multimediali cambiato",
+				"rename": "Cartella multimediale rinominata",
+				"reorder": "Cartelle multimediali riordinate"
 			},
 			"mediaMaxFileSize": {
 				"change": "Dimensione massima dei file multimediali modificata"

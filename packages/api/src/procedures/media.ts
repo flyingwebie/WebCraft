@@ -1,4 +1,10 @@
-import { MEDIA_FOLDER_NAME_MAX_LENGTH, MEDIA_KINDS, MEDIA_TEXT_MAX_LENGTH, MediaTooLargeError } from "@webcraft/core";
+import {
+	MEDIA_FOLDER_NAME_MAX_LENGTH,
+	MEDIA_FOLDER_ORDERS,
+	MEDIA_KINDS,
+	MEDIA_TEXT_MAX_LENGTH,
+	MediaTooLargeError,
+} from "@webcraft/core";
 import { z } from "zod";
 
 import { signedIn } from "../context.ts";
@@ -189,7 +195,11 @@ export const media = {
 
 	/** The library's folders. */
 	folders: {
-		/** Every folder, by name, with how many files each holds; `total` counts every file. */
+		/**
+		 * Every folder with how many files each holds, in the Site's order (`order`): `name` (A–Z, as the
+		 * Site's Default language sorts names) or `custom` (the order people arranged); `total` counts
+		 * every file.
+		 */
 		list: signedIn.input(z.object({ siteId: id })).handler(async ({ context, input }) => {
 			const site = await context.services.data.site(context.access, input.siteId, "site.view");
 			return context.services.media.folders.list(site);
@@ -213,5 +223,25 @@ export const media = {
 			await context.services.media.folders.delete(site, input.folderId);
 			return {};
 		}),
+
+		/** How the Site lists its folders: `name` (A–Z) or `custom` (its own order). Answers the folders as now listed. */
+		setOrder: signedIn
+			.input(z.object({ siteId: id, order: z.enum(MEDIA_FOLDER_ORDERS) }))
+			.handler(async ({ context, input }) => {
+				const site = await context.services.data.site(context.access, input.siteId, "media.manage");
+				return context.services.media.folders.setOrder(site, input.order);
+			}),
+
+		/**
+		 * Arranges the Site's own order (shown while the Site lists its folders in its own order):
+		 * `folderIds` first, in that order, then any folder they leave out, as it was. An id that isn't
+		 * one of the Site's folders is `MEDIA_FOLDER_NOT_FOUND`. Answers the folders as now listed.
+		 */
+		reorder: signedIn
+			.input(z.object({ siteId: id, folderIds: z.array(id).max(1000) }))
+			.handler(async ({ context, input }) => {
+				const site = await context.services.data.site(context.access, input.siteId, "media.manage");
+				return context.services.media.folders.reorder(site, input.folderIds);
+			}),
 	},
 };

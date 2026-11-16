@@ -7228,7 +7228,9 @@
 			"mediaFolder": {
 				"create": "Media folder created",
 				"delete": "Media folder deleted",
-				"rename": "Media folder renamed"
+				"order": "Media folders' order changed",
+				"rename": "Media folder renamed",
+				"reorder": "Media folders rearranged"
 			},
 			"mediaMaxFileSize": {
 				"change": "Largest Media file changed"
