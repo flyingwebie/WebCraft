@@ -325,8 +325,8 @@ const SHELL_DOCUMENT_STYLES = `body.wc-shell{margin:0;background:#121214;color:#
  * while they are written (BA-18): an empty line's hint, a focused photo, video or Component, and the
  * Blocks with a problem or a Check. Everything else with chrome is drawn by the shell, over the frame.
  */
-const AGENT_STYLES = `/* Empty elements are never invisible (SPEC 6, BA-10): a dashed box at least 35 px tall, for Staff (only their render tags elements). */
-[data-wc-code]:empty:not(img, br, hr, wbr, col, source, track, video, audio, picture, iframe, input) {
+const AGENT_STYLES = `/* Empty elements are never invisible (SPEC 6, BA-10): a dashed box at least 35 px tall, for Staff (only their render tags elements), unless they see the page as a client (FX-04). */
+html:not([data-wc-as-client]) [data-wc-code]:empty:not(img, br, hr, wbr, col, source, track, video, audio, picture, iframe, input) {
 	min-block-size: 35px; outline: 1px dashed #a1a1aa; outline-offset: -1px;
 }
 .wc-outside-scripts {

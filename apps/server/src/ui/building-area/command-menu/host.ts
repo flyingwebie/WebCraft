@@ -32,6 +32,11 @@ export type MenuHost = {
 	/** Opens a document on the canvas (Go to). */
 	open(document: BuildingDocument): void;
 	exit(): void;
+	/**
+	 * The Permissions the menu draws by, when not those the server says the person holds: Staff seeing
+	 * the page as a client (FX-04) get the menu of the role they view it as.
+	 */
+	permissions?: readonly string[];
 	/** Staff: Hide the interface (the rail's switch). */
 	hidden?: { on: boolean; set(on: boolean): void };
 	/** A Member: Edit or Preview, Page details, Sections (where they may arrange), Help. */

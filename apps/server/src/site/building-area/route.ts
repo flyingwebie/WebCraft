@@ -7,7 +7,10 @@ import {
 	BUILDING_FILTER_PARAMETER,
 	can,
 	type InstallServices,
+	PERMISSIONS,
+	type Permission,
 	parseBuildingDocument,
+	ROLES,
 	type SiteHost,
 	stagingUrl,
 } from "@webcraft/core";
@@ -15,7 +18,12 @@ import {
 import en from "../../messages/en.json" with { type: "json" };
 import it from "../../messages/it.json" with { type: "json" };
 import { plainText } from "../../responses.ts";
-import { type AdminMessages, SHELL_PERMISSIONS, type ShellConfig } from "../../ui/building-area/api.ts";
+import {
+	type AdminMessages,
+	type ClientRole,
+	SHELL_PERMISSIONS,
+	type ShellConfig,
+} from "../../ui/building-area/api.ts";
 import { buildingAreaCookieOf } from "../cookies.ts";
 import { editSessionOf, safeModeOf } from "../edit-mode.ts";
 import { buildingAreaAssets } from "./assets.ts";
@@ -24,6 +32,22 @@ import { standInEndpoint } from "./stand-in.ts";
 
 /** The building area's words, by Admin language (`buildingArea` in the admin's message files). */
 const WORDS: Record<AdminLanguageCode, typeof en.buildingArea> = { en: en.buildingArea, it: it.buildingArea };
+
+/** The Permissions checked on a Site: what a role may do where the building area is. */
+const PERMISSIONS_ON_SITES = new Set(
+	(Object.entries(PERMISSIONS) as [Permission, readonly string[]][])
+		.filter(([, levels]) => levels.includes("site"))
+		.map(([permission]) => permission),
+);
+
+/**
+ * The views "View as a client" offers Staff (FX-04), from the role table: an Owner's and an Editor's
+ * are one (they hold the same Permissions the building area draws by), an Author's the other.
+ */
+const CLIENT_ROLES: ClientRole[] = (["editor", "author"] as const).map((key) => ({
+	key,
+	permissions: ROLES[key].permissions.filter((permission) => PERMISSIONS_ON_SITES.has(permission)),
+}));
 
 /** The admin's own words for the admin parts the shell reuses (the Media library's, BA-22), by Admin language. */
 const ADMIN_MESSAGES: Record<AdminLanguageCode, AdminMessages> = { en: adminMessagesOf(en), it: adminMessagesOf(it) };
@@ -101,7 +125,15 @@ export async function buildingAreaEndpoint(
 			.sort((a, b) => a.width - b.width)
 			.map(({ name, width }) => ({ name, width })),
 		darkMode: designSystem.darkMode,
-		staging: staging && host.address !== "staging" ? staging : null,
+		// On the Staging address its own pages show the Drafts; on the Primary domain, the Staging address
+		// does, reached through the admin's hand-off. A language's domain (its paths have no language
+		// prefix, the Staging address's do) and a Site without a Staging address show the published page.
+		preview:
+			host.address === "staging"
+				? { draft: true, staging: null }
+				: staging && host.address === "primary"
+					? { draft: true, staging: new URL(`/staging/${host.site.id}`, services.config.adminOrigin).toString() }
+					: { draft: false, staging: null },
 		settings: new URL(`/sites/${host.site.id}/domains`, services.config.adminOrigin).toString(),
 		admin: new URL(`/sites/${host.site.id}`, services.config.adminOrigin).toString(),
 		languages: {
@@ -115,6 +147,7 @@ export async function buildingAreaEndpoint(
 		formatOnLeave: preferences.formatOnLeave,
 		agency: { name: branding.senderName, note: branding.footer },
 		bodyEditor: files.body.path,
+		clientRoles: can(edit.session.scope.access.actor, "structure.edit", resource) ? CLIENT_ROLES : [],
 	};
 	const html = [
 		"<!doctype html>",

@@ -70,7 +70,8 @@ export function ContentPlace(props: PlaceProps) {
 	}, [data, scrollKey, place, view]);
 
 	const pagesType = data?.postTypes.find((postType) => postType.builtIn === "page") ?? null;
-	const staff = data?.staff ?? false;
+	// Staff seeing the page as a client (FX-04) hold no `structure.edit` in the shell's config: the Members' place.
+	const staff = (data?.staff ?? false) && config.permissions.includes("structure.edit");
 
 	const goTo = useCallback((next: string) => documents.openPlace(next), [documents]);
 	// The sidebar's "+" asks the Post Types list for its create row (a count, so each press asks again).

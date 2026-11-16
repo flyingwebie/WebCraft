@@ -8535,7 +8535,29 @@
 		"redoStep": "Redo {step}",
 		"language": "Language",
 		"languageCode": "{code}, Language: {name}",
-		"viewOnStaging": "View on Staging (opens in a new tab)",
+		"previewOnSite": {
+			"draft": "Preview the Draft on the site (opens in a new tab)",
+			"published": "View the published page (opens in a new tab). Drafts show there once published"
+		},
+		"viewAs": {
+			"button": "View as a client",
+			"menu": "View the page as a client",
+			"roles": {
+				"editor": "Owner or Editor",
+				"author": "Author"
+			},
+			"details": {
+				"editor": "Publishes, and manages the Media library",
+				"author": "Sends changes for review"
+			},
+			"banner": "Viewing as a client",
+			"role": "As {role}",
+			"note": "What you change here is saved to the Draft, as anywhere in the building area.",
+			"back": "Back to the Staff view",
+			"entered": "Viewing the page as a client: {role}.",
+			"left": "Back to the Staff view.",
+			"failed": "Couldn't switch the view. Reload the page to try again."
+		},
 		"draftState": {
 			"label": "Draft state",
 			"saved": "Saved",
@@ -10652,6 +10674,10 @@
 					"name": "Image",
 					"hint": "A picture from Media"
 				},
+				"figure": {
+					"name": "Figure",
+					"hint": "A picture from Media with a caption under it"
+				},
 				"video": {
 					"name": "Video",
 					"hint": "A video from Media"
@@ -10730,7 +10756,8 @@
 				"text": "Write something here.",
 				"link": "Link",
 				"button": "Button",
-				"listItem": "List item"
+				"listItem": "List item",
+				"caption": "Caption"
 			},
 			"steps": {
 				"insert": "Insert {name}",

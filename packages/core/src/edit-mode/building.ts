@@ -53,6 +53,15 @@ export const BUILDING_FILTER_PARAMETER = "wc-filter";
  */
 export const BUILDING_ELEMENT_PARAMETER = "wc-element";
 
+/**
+ * The parameter that opens a page of the Site as a visitor of that address sees it, for a browser in
+ * the building area (FX-04's "Preview on the site", in a new tab): `/about?wc-visitor`. Without it,
+ * such a browser's page goes into the shell. On the Staging address that is the page with every Draft
+ * published; on a domain, the published page. It changes nothing a browser outside the building area
+ * gets, and Edit mode's page (its tags, the agent) is never served with it.
+ */
+export const BUILDING_VISITOR_PARAMETER = "wc-visitor";
+
 /** An element's id as `wc-element` takes it: a Template element's id. */
 const ELEMENT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
