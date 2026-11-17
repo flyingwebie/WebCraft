@@ -1,0 +1,39 @@
+name: Set up Bun and node_modules
+description: >-
+  Bun at the version in package.json, and node_modules restored whole from the cache main saved for
+  this lockfile. Only main saves it, so every pull request and merge-queue run reads the same entry
+  and nothing is installed twice. On a miss (a pull request that changes bun.lock) it installs.
+
+runs:
+  using: composite
+  steps:
+    - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      with:
+        bun-version-file: package.json
+    - id: key
+      shell: bash
+      run: echo "key=node-modules-${RUNNER_OS}-${RUNNER_ARCH}-$(bun --version)-${{ hashFiles('bun.lock') }}" >> "$GITHUB_OUTPUT"
+    - id: cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        key: ${{ steps.key.outputs.key }}
+        # Every workspace's node_modules: Bun links each package's dependencies there.
+        path: |
+          node_modules
+          apps/*/node_modules
+          packages/*/node_modules
+          modules/*/node_modules
+          tests/node_modules
+    - if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: bun install --frozen-lockfile
+    - if: steps.cache.outputs.cache-hit != 'true' && github.ref == 'refs/heads/main'
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        key: ${{ steps.key.outputs.key }}
+        path: |
+          node_modules
+          apps/*/node_modules
+          packages/*/node_modules
+          modules/*/node_modules
+          tests/node_modules
