@@ -7,6 +7,7 @@
 // 1. Bun's bundler traces every test file's imports through the workspace packages (third-party
 //    packages excluded: bun.lock changing sends back "all"). A changed file selects the tests that
 //    import it, directly or not.
+//    Tests whose code (or a harness module they use) names a changed file run too: they read it.
 // 2. A changed file no test imports sends back "all" when its path or name appears anywhere in the
 //    tests' code (a file a test reads, such as docs/development.md, or a script it runs) or when it
 //    isn't prose: a migration, a JSON document, a Dockerfile, a workflow, the lockfile, a process a
@@ -72,16 +73,23 @@ const reached = new Set([...graphs.values()].flatMap((inputs) => [...inputs]));
 const startsProcess = /\b(?:Bun\.spawn(?:Sync)?|spawn(?:Sync)?|execFile(?:Sync)?|exec(?:Sync)?|fork)\(|new Worker\(/;
 const testCode = [...reached].filter((file) => file.startsWith("tests/"));
 const spawners = new Set(testCode.filter((file) => startsProcess.test(readFileSync(join(root, file), "utf8"))));
-const testSource = testCode.map((file) => readFileSync(join(root, file), "utf8")).join("\n");
+const sources = new Map(testCode.map((file) => [file, readFileSync(join(root, file), "utf8")]));
+// The test code that names `file`: a file a test reads, or a script it starts, by path or by name.
+const namers = (file: string) =>
+	[...sources].filter(([, text]) => text.includes(file) || text.includes(basename(file))).map(([name]) => name);
 const prose = (file: string) => file.endsWith(".md") || file.startsWith(".agents/") || file.startsWith(".claude/");
 
 const selected = new Set<string>();
 for (const file of changed) {
+	const named = namers(file);
 	if (reached.has(file)) {
-		for (const [test, inputs] of graphs) if (inputs.has(file)) selected.add(test);
+		// The tests that import it, and the tests whose code (or harness) reads it without importing it.
+		for (const [test, inputs] of graphs) {
+			if (inputs.has(file) || named.some((namer) => inputs.has(namer))) selected.add(test);
+		}
 		continue;
 	}
-	if (testSource.includes(file) || testSource.includes(basename(file))) all(`${file} is named in the tests' code`);
+	if (named.length > 0) all(`${file} is named in the tests' code`);
 	if (!prose(file)) all(`${file} is imported by no test`);
 }
 const codeChanged = changed.some((file) => !prose(file) && !file.startsWith("tests/"));
