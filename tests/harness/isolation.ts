@@ -43,9 +43,19 @@ export type WorkspaceIsolation = {
 	readonly covered: ReadonlySet<string>;
 };
 
-export function workspaceIsolation(install: () => TestInstall): WorkspaceIsolation {
+/**
+ * One part of a suite split across files so they can run at once: the procedures whose place in
+ * the order falls in this part get tests; every procedure still counts as covered.
+ */
+export type IsolationPart = { index: number; of: number };
+
+export function workspaceIsolation(
+	install: () => TestInstall,
+	part: IsolationPart = { index: 0, of: 1 },
+): WorkspaceIsolation {
 	let fixture: Promise<Fixture> | undefined;
 	const covered = new Set<string>();
+	let declared = 0;
 	const ready = () => {
 		fixture ??= createFixture(install());
 		return fixture;
@@ -55,6 +65,7 @@ export function workspaceIsolation(install: () => TestInstall): WorkspaceIsolati
 		covered,
 		refuses(procedure, call, options = {}) {
 			covered.add(procedure);
+			if (declared++ % part.of !== part.index) return;
 			for (const actor of options.as ?? ["staff"]) {
 				test(`${procedure} refuses another Workspace's data (${actor})`, async () => {
 					const { ours, theirs, apis } = await ready();
