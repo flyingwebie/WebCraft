@@ -90,12 +90,28 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: lts/*
+      # On a pull request, only the tests its changes can reach (scripts/select-tests.ts), or all of them
+      # when it can't tell. The merge queue and main always run every test.
+      - name: Choose the tests
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: bun scripts/select-tests.ts "$BASE" > "$RUNNER_TEMP/selected"
       - name: Wait for Postgres
         run: until docker exec postgres pg_isready --username postgres --host localhost --quiet; do sleep 0.2; done
       # No --retry: a test that passes only on a second try has a bug, and a retry would hide it.
-      - run: >-
-          bun test --timeout 30000 --parallel="$(nproc)" --no-isolate
-          --timings=tests/timings.json --update-timings --shard=${{ matrix.shard }}/10
+      - name: bun test
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          files=""
+          if [ -f "$RUNNER_TEMP/selected" ] && [ "$(cat "$RUNNER_TEMP/selected")" != all ]; then
+            files="$(cat "$RUNNER_TEMP/selected")"
+            if [ -z "$files" ]; then echo "No test reaches this change."; exit 0; fi
+          fi
+          # shellcheck disable=SC2086 # one argument per selected file
+          bun test --timeout 30000 --parallel="$(nproc)" --no-isolate \
+            --timings=tests/timings.json --update-timings --shard="$SHARD/10" $files
       # This part's measured durations, to refresh tests/timings.json from (docs/development.md, "Testing").
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
