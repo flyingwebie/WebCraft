@@ -10,7 +10,7 @@
 		"./schema": "./src/schema/index.ts"
 	},
 	"scripts": {
-		"typecheck": "tsc --noEmit"
+		"typecheck": "bun check"
 	},
 	"dependencies": {
 		"drizzle-orm": "catalog:",

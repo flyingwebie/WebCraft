@@ -20,7 +20,7 @@
 		"./builder": "./src/builder.ts"
 	},
 	"scripts": {
-		"typecheck": "tsc --noEmit"
+		"typecheck": "bun check"
 	},
 	"devDependencies": {
 		"@types/css-tree": "^3.2.0",

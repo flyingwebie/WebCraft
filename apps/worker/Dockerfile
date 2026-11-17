@@ -10,7 +10,7 @@
 # web image's `bun` user, so both can share the storage volume). It answers no HTTP, so it has no
 # health check: Docker restarts it when it stops. See docs/deploy/.
 
-ARG BUN_VERSION=1.4.2
+ARG BUN_VERSION=1.4.4
 ARG NODE_VERSION=26
 
 # Bun installs the dependencies from the lockfile (the image library's native files for this platform).

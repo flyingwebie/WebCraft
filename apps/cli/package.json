@@ -9,7 +9,7 @@
 		"webcraft": "./src/main.ts"
 	},
 	"scripts": {
-		"typecheck": "tsc --noEmit"
+		"typecheck": "bun check"
 	},
 	"dependencies": {
 		"@webcraft/auth": "workspace:*",

@@ -6,7 +6,7 @@
 	"description": "Seam-1 tests and the shared test harness: a fresh Install per test file, driven with standard Requests.",
 	"type": "module",
 	"scripts": {
-		"typecheck": "tsc --noEmit"
+		"typecheck": "bun check"
 	},
 	"dependencies": {
 		"@orpc/client": "catalog:",
