@@ -26,6 +26,8 @@ export type LocalSmtpServer = {
 	port: number;
 	/** Every email it took, oldest first. */
 	readonly received: readonly ReceivedEmail[];
+	/** What clients did that the server reported as an error, such as hanging up mid-handshake. */
+	readonly clientErrors: readonly Error[];
 	/** The first email it took, waiting for one when none has arrived yet. */
 	firstEmail(timeoutMs?: number): Promise<ReceivedEmail>;
 	close(): Promise<void>;
@@ -69,7 +71,17 @@ export async function startSmtpServer(
 	});
 	await new Promise<void>((resolve, reject) => {
 		server.once("error", reject);
-		server.listen(0, "127.0.0.1", () => resolve());
+		server.listen(0, "127.0.0.1", () => {
+			server.off("error", reject);
+			resolve();
+		});
+	});
+	// A client that refuses the server's certificate hangs up mid-handshake, and the server reports
+	// that as an "error" event. That is what the TLS tests make clients do, so it's kept, not thrown:
+	// an "error" with no listener would be thrown into whichever test happens to be running.
+	const clientErrors: Error[] = [];
+	server.on("error", (error: Error) => {
+		clientErrors.push(error);
 	});
 	const address = server.server.address();
 	if (typeof address !== "object" || !address) throw new Error("The local SMTP server didn't start.");
@@ -78,6 +90,7 @@ export async function startSmtpServer(
 		host: "127.0.0.1",
 		port: address.port,
 		received,
+		clientErrors,
 		firstEmail(timeoutMs = 20_000) {
 			const already = received[0];
 			if (already) return Promise.resolve(already);
