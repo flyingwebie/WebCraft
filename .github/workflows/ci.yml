@@ -30,13 +30,15 @@ jobs:
       - run: bun run check:licences
 
   test:
-    # The suite in four parts, each on its own runner: all of it in one process runs the runner out of memory.
-    name: Tests (${{ matrix.shard }}/4)
+    # The suite in parts balanced by how long each file took (tests/timings.json), each part on its own
+    # runner and Postgres. On a runner, one Bun worker per core takes files in turn, slowest first, and
+    # keeps one process across them (--no-isolate): each file cleans up after itself (AGENTS.md).
+    name: Tests (${{ matrix.shard }}/10)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     services:
       postgres:
         image: postgres:18
@@ -65,7 +67,16 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install --yes libheif-examples libheif-plugin-x265
       - run: bun install --frozen-lockfile
       # No --retry: a test that passes only on a second try has a bug, and a retry would hide it.
-      - run: bun test --timeout 30000 --shard=${{ matrix.shard }}/4
+      - run: >-
+          bun test --timeout 30000 --parallel="$(nproc)" --no-isolate
+          --timings=tests/timings.json --update-timings --shard=${{ matrix.shard }}/10
+      # This part's measured durations, to refresh tests/timings.json from (docs/development.md, "Testing").
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: timings-${{ matrix.shard }}
+          path: tests/timings.json
+          if-no-files-found: ignore
 
   deploy:
     name: Deploy files (Compose smoke test)
