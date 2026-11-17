@@ -2,10 +2,10 @@ import { createRootRoute, HeadContent, Link, Outlet, Scripts } from "@tanstack/r
 import { buttonVariants } from "@webcraft/ui/components/button.tsx";
 import { Toaster } from "@webcraft/ui/components/sonner.tsx";
 
-import appCss from "../index.css?url";
 import { getApi } from "../ui/api.ts";
 import { AdminIntl, useT } from "../ui/i18n.tsx";
 import { IdentityCheckProvider } from "../ui/identity-check.tsx";
+import appCss from "../index.css?url";
 
 export const Route = createRootRoute({
 	// Every page needs to know who is signed in, the Admin language and theme, and the setup stage.

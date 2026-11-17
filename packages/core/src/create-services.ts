@@ -12,6 +12,7 @@ import { createCdns } from "./cdns/index.ts";
 import { createChecks } from "./checks/index.ts";
 import { createCodeMode } from "./code-mode/index.ts";
 import { createConsent } from "./consent/index.ts";
+import { createContentApi } from "./content-api/index.ts";
 import {
 	addLanguage,
 	cancelScheduled,
@@ -98,7 +99,6 @@ import {
 	updateScheduled,
 	withdrawReview,
 } from "./content/index.ts";
-import { createContentApi } from "./content-api/index.ts";
 import { createDashboards } from "./dashboards/index.ts";
 import {
 	createClass,

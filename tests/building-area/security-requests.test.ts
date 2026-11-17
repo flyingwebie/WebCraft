@@ -6,8 +6,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { DRAFTS_PROTOCOL, EDIT_TOKEN_PROTOCOL_PREFIX } from "@webcraft/core";
 
-import { type BuildingAreaBrowser, openBuildingArea, shellConfigIn } from "../harness/building-area.ts";
 import { buildingAreaApi, refusalOf } from "../harness/building-area-api.ts";
+import { type BuildingAreaBrowser, openBuildingArea, shellConfigIn } from "../harness/building-area.ts";
 import { upgradeDraftInEditMode } from "../harness/co-editing.ts";
 import { EDIT_TOKEN_HEADER } from "../harness/edit-mode.ts";
 import { photo, upload } from "../harness/images.ts";

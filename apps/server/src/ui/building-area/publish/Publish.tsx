@@ -324,7 +324,7 @@ function PublishedToast({ live, words, onDone }: { live: string | null; words: S
 		return () => clearTimeout(timer);
 	}, [held]);
 	return (
-		// biome-ignore lint/a11y/noStaticElementInteractions: hovering only pauses the toast's timer.
+		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- hovering only pauses the toast's timer.
 		<div
 			className="pointer-events-none fixed inset-x-0 top-3 z-[60] flex justify-center"
 			onPointerEnter={() => setHeld(true)}

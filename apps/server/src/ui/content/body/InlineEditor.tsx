@@ -46,7 +46,7 @@ export function InlineEditor({
 	const [initial] = useState(() => runsToHtml(value));
 	const [empty, setEmpty] = useState(() => value.every((run) => run.text === ""));
 	return (
-		// biome-ignore lint/a11y/useSemanticElements: formatted text needs an editable element; no native control holds it.
+		// oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- formatted text needs an editable element; no native control holds it.
 		<div
 			ref={(node) => {
 				element.current = node;
@@ -66,7 +66,7 @@ export function InlineEditor({
 			suppressContentEditableWarning
 			spellCheck
 			className={`focus-visible:ring-ring/50 data-[placeholder]:before:text-muted-foreground [&_code]:bg-muted relative min-h-[max(1.5em,1.5rem)] rounded-sm whitespace-pre-wrap outline-none focus-visible:ring-3 data-[placeholder]:before:pointer-events-none data-[placeholder]:before:absolute data-[placeholder]:before:content-[attr(data-placeholder)] [&_a]:underline [&_code]:rounded-sm [&_code]:px-1 [&_code]:font-mono [&_code]:text-[0.9em] ${className ?? ""}`}
-			// biome-ignore lint/security/noDangerouslySetInnerHtml: the renderer's own HTML of the runs: escaped text and a few marks.
+			// oxlint-disable-next-line react/no-danger -- the renderer's own HTML of the runs: escaped text and a few marks.
 			dangerouslySetInnerHTML={{ __html: initial }}
 			onInput={(event) => {
 				const runs = runsFromElement(event.currentTarget);

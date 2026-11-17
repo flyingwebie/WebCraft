@@ -38,14 +38,14 @@ export function Result({
 	const [now, setNow] = useState(() => Date.now());
 
 	// Another Loop: its first item open.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: only when the Loop changes.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- only when the Loop changes.
 	useEffect(() => setOpen(new Set([0])), [loopId]);
 	// "just now" turns into minutes as time goes by.
 	useEffect(() => {
 		const tick = setInterval(() => setNow(Date.now()), 30_000);
 		return () => clearInterval(tick);
 	}, []);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: a new read is "just now".
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- a new read is "just now".
 	useEffect(() => setNow(Date.now()), [result?.readAt]);
 
 	const value = result?.value ?? null;
@@ -106,7 +106,7 @@ export function Result({
 						const listId = `${id}-item-${index}`;
 						return (
 							// Items are listed in order; their place is who they are.
-							// biome-ignore lint/suspicious/noArrayIndexKey: the result is read again whole.
+							// oxlint-disable-next-line react/no-array-index-key -- the result is read again whole.
 							<li key={index} className="flex flex-col gap-0.5">
 								<button
 									type="button"

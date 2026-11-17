@@ -30,12 +30,7 @@ import {
 import { type ConsentText, type ConsentTextChange, consentText, saveConsentTextDraft } from "./text.ts";
 
 export { consentRecordsPurge } from "./records.ts";
-export {
-	CONSENT_TEXT_FIELDS,
-	ConsentBannerInvalidError,
-	type ConsentText,
-	type ConsentTextChange,
-} from "./text.ts";
+export { CONSENT_TEXT_FIELDS, ConsentBannerInvalidError, type ConsentText, type ConsentTextChange } from "./text.ts";
 export {
 	CONSENT_LAYOUTS,
 	CONSENT_MODES,

@@ -675,7 +675,7 @@ function LeftoverList({ siteId, run }: { siteId: string; run: RunReport }) {
 					</TableHeader>
 					<TableBody>
 						{run.leftovers.map((leftover, index) => (
-							// biome-ignore lint/suspicious/noArrayIndexKey: an Entry can have the same leftover twice.
+							// oxlint-disable-next-line react/no-array-index-key -- an Entry can have the same leftover twice.
 							<TableRow key={`${leftover.row}-${index}`}>
 								<TableCell className="ps-4 whitespace-normal">
 									{leftover.title || t("content.relationship.untitled")}

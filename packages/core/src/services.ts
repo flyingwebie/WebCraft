@@ -15,6 +15,7 @@ import type { CodeMode } from "./code-mode/index.ts";
 import type { InstallConfig } from "./config.ts";
 import type { Confirmation } from "./confirmations.ts";
 import type { ConsentService } from "./consent/index.ts";
+import type { ContentApi } from "./content-api/index.ts";
 import type {
 	BodyComponent,
 	Component,
@@ -71,7 +72,6 @@ import type {
 	TemplateListing,
 	TemplateMarkup,
 } from "./content/index.ts";
-import type { ContentApi } from "./content-api/index.ts";
 import type { Countries } from "./countries.ts";
 import type { Dashboards } from "./dashboards/index.ts";
 import type {

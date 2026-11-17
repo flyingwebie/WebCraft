@@ -285,7 +285,7 @@ export function ConditionPanel({
 		<div className="flex flex-col gap-2" data-wc-condition-panel="">
 			{node.branches.map((branch, index) => (
 				<FieldCard
-					// biome-ignore lint/suspicious/noArrayIndexKey: a branch is where it is.
+					// oxlint-disable-next-line react/no-array-index-key -- a branch is where it is.
 					key={index}
 					label={index === 0 ? said.test : said.elseIf}
 					htmlFor={`${id}-${index}`}

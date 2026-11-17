@@ -77,14 +77,14 @@ function isPlainText(bytes: Uint8Array): boolean {
 	} catch {
 		return false;
 	}
-	// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this refuses.
+	// oxlint-disable-next-line no-control-regex -- control characters are what this refuses.
 	if (/[\u0000-\u0008\u000b\u000e-\u001f\u007f]/.test(text)) return false;
 	return !/<\s*(?:[a-z][\w.-]*:)?(?:svg|html|script)\b|<\s*[!?]/i.test(text);
 }
 
 /** A file's name as kept: no folders, no control characters, at most 200 characters (keeping its extension). */
 export function cleanFileName(name: string): string {
-	// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this removes.
+	// oxlint-disable-next-line no-control-regex -- control characters are what this removes.
 	const base = (name.split(/[\\/]/).pop() ?? "").replace(/[\u0000-\u001f\u007f"]/g, "").trim();
 	if (base.length <= 200) return base || "file";
 	const extension = extensionOf(base);

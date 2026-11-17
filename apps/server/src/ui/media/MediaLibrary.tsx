@@ -10,8 +10,8 @@ import {
 	DropdownMenuTrigger,
 } from "@webcraft/ui/components/dropdown-menu.tsx";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
-import { Input } from "@webcraft/ui/components/input.tsx";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@webcraft/ui/components/input-group.tsx";
+import { Input } from "@webcraft/ui/components/input.tsx";
 import { Label } from "@webcraft/ui/components/label.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@webcraft/ui/components/table.tsx";
@@ -1072,7 +1072,9 @@ function Details({
 		setSuggesting(true);
 		setSuggestStatus(t("media.altSuggest.working"));
 		try {
-			const { alt: suggested } = await (await getApi()).media.suggestAltText({
+			const { alt: suggested } = await (
+				await getApi()
+			).media.suggestAltText({
 				siteId,
 				mediaId: item.id,
 				language: item.language,

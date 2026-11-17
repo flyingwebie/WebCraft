@@ -4,8 +4,8 @@
 // shell's.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
-import { openBuildingArea, shellConfigIn } from "../harness/building-area.ts";
 import { buildingAreaApi } from "../harness/building-area-api.ts";
+import { openBuildingArea, shellConfigIn } from "../harness/building-area.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { rejection } from "../harness/settled.ts";
 

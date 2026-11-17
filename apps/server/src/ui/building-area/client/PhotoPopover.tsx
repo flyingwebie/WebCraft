@@ -138,7 +138,7 @@ export function PhotoPopover({
 			onClose={(back) => popovers.close(back)}
 		>
 			{/* A file dropped on the popover takes the photo's place too; Upload is the keyboard's way. */}
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: a drop target, with Upload beside it. */}
+			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- a drop target, with Upload beside it.*/}
 			<div className="flex w-full flex-col gap-[14px]" onDragOver={dragOver} onDrop={dropped}>
 				<div className="flex w-full gap-2">
 					<PopoverButton
@@ -337,7 +337,7 @@ function FocalPoint({
 				</div>
 			</div>
 			{/* On the photo itself: drawn over the page, where the photo is. The dot is its keyboard way. */}
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: dragging the dot; the slider inside takes the keys. */}
+			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- dragging the dot; the slider inside takes the keys.*/}
 			<div
 				ref={area}
 				className="fixed z-20 cursor-crosshair overflow-hidden rounded-[2px]"

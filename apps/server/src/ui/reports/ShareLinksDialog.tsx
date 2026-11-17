@@ -71,7 +71,7 @@ export function ShareLinksDialog({
 			toast.error(t(errorMessage(error)));
 		}
 	};
-	// biome-ignore lint/correctness/useExhaustiveDependencies: loads once when the sheet opens.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- loads once when the sheet opens.
 	useEffect(() => {
 		void load();
 	}, []);

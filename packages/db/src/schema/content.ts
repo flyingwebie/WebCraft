@@ -41,7 +41,9 @@ export const postTypes = pgTable(
 		/** Where its Entries are, such as `/blog/{slug}`. Unique on the Site. */
 		urlPattern: text("url_pattern").notNull(),
 		/** The Fields, in order: a JSON list of Field definitions. */
-		fields: jsonb("fields").notNull().default(sql`'[]'::jsonb`),
+		fields: jsonb("fields")
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		/**
 		 * Which built-in Post Type this is: `page` for the Page Post Type (its URL pattern is `/{path}`:
 		 * each Page's path is its parent Page's path and its own slug); null for one Staff made.
@@ -56,13 +58,17 @@ export const postTypes = pgTable(
 		 * Its Searched fields: a JSON list of `{ field, weight }`, `field` being `title` or a Field's path
 		 * (`summary`, `address.city`, `steps.text`) and `weight` A (counts most) to D.
 		 */
-		searchedFields: jsonb("searched_fields").notNull().default(sql`'[{"field":"title","weight":"A"}]'::jsonb`),
+		searchedFields: jsonb("searched_fields")
+			.notNull()
+			.default(sql`'[{"field":"title","weight":"A"}]'::jsonb`),
 		/**
 		 * Its SEO settings (the SEO decision): the title pattern, the Fields its Entries' description and
 		 * social image fall back to, and its Schema type with each property mapped to a Field. `{}` until
 		 * Staff set them: WebCraft's defaults, worked out from its Fields, apply until then.
 		 */
-		seo: jsonb("seo").notNull().default(sql`'{}'::jsonb`),
+		seo: jsonb("seo")
+			.notNull()
+			.default(sql`'{}'::jsonb`),
 		/**
 		 * Whether publishing its Entries saves Revisions (on unless Staff switch it off; the Install's
 		 * own switch comes first). Revisions saved before stay until the usual retention removes them.
@@ -430,7 +436,9 @@ export const globals = pgTable(
 		workspaceId: uuid("workspace_id").notNull(),
 		siteId: uuid("site_id").notNull(),
 		/** The Fields, in order: a JSON list of Field definitions. */
-		fields: jsonb("fields").notNull().default(sql`'[]'::jsonb`),
+		fields: jsonb("fields")
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		/** The Draft values. */
 		draft: jsonb("draft").notNull(),
 		/** The published values visitors see; null until the first publish. */

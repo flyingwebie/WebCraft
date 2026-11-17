@@ -6,8 +6,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { DocumentPublish } from "@webcraft/core";
 
-import { type BuildingAreaBrowser, openBuildingArea } from "../harness/building-area.ts";
 import { buildingAreaApi, refusalOf } from "../harness/building-area-api.ts";
+import { type BuildingAreaBrowser, openBuildingArea } from "../harness/building-area.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { goLive } from "../harness/staging.ts";
 

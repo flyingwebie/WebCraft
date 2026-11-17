@@ -11,8 +11,8 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@webcraft/ui/components/dialog.tsx";
-import { Input } from "@webcraft/ui/components/input.tsx";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@webcraft/ui/components/input-group.tsx";
+import { Input } from "@webcraft/ui/components/input.tsx";
 import { Label } from "@webcraft/ui/components/label.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { ArrowLeftIcon, CircleAlertIcon, Trash2Icon } from "lucide-react";

@@ -233,16 +233,13 @@ export function moduleContext(
 					const problem = labelProblem(words ?? {}, languages);
 					if (problem) refuse("email", `The email's ${where}: ${problem}`);
 				}
-				const to = (Array.isArray(message.to) ? message.to : [message.to]).map(
-					(recipient): Recipient =>
-						"personId" in recipient
-							? { personId: recipient.personId }
-							: {
-									email: recipient.email,
-									...(recipient.language && isAdminLanguage(recipient.language)
-										? { language: recipient.language }
-										: {}),
-								},
+				const to = (Array.isArray(message.to) ? message.to : [message.to]).map((recipient): Recipient =>
+					"personId" in recipient
+						? { personId: recipient.personId }
+						: {
+								email: recipient.email,
+								...(recipient.language && isAdminLanguage(recipient.language) ? { language: recipient.language } : {}),
+							},
 				);
 				let results: Awaited<ReturnType<Email["send"]>>;
 				try {

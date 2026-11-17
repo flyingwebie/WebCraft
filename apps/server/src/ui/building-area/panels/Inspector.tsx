@@ -581,7 +581,7 @@ function ElementInspector({
 						<>
 							<input
 								id={ids.classInput}
-								// biome-ignore lint/a11y/noAutofocus: it opens from the button just pressed, where typing goes next.
+								// oxlint-disable-next-line jsx-a11y/no-autofocus -- it opens from the button just pressed, where typing goes next.
 								autoFocus
 								aria-label={said.inspector.addClassLabel}
 								list={`${ids.classInput}-list`}
@@ -734,7 +734,7 @@ function ElementInspector({
 			{newAttribute ? (
 				<div className="bg-chrome-raised grid grid-cols-2 gap-1.5 rounded-md px-2 py-1.5" data-wc-new-attribute="">
 					<input
-						// biome-ignore lint/a11y/noAutofocus: it opens from "Add attribute", where typing goes next.
+						// oxlint-disable-next-line jsx-a11y/no-autofocus -- it opens from "Add attribute", where typing goes next.
 						autoFocus
 						aria-label={said.inspector.attributeName}
 						placeholder={said.inspector.attributeName}

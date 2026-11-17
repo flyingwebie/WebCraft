@@ -150,7 +150,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	for (const shared of [staffPage, memberPage]) {
-		await (await shared)
+		await (
+			await shared
+		)
 			?.context()
 			.close()
 			.catch(() => {});

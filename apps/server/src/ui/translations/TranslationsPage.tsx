@@ -464,7 +464,9 @@ function ItemTranslationView({
 		});
 	const confirm = (line: QueueLine) =>
 		run(async () => {
-			await (await getApi()).translations.confirm({
+			await (
+				await getApi()
+			).translations.confirm({
 				siteId,
 				item: ref,
 				language: language.code,

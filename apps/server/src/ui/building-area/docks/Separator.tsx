@@ -79,7 +79,7 @@ export function Separator({
 	};
 
 	return (
-		// biome-ignore lint/a11y/useSemanticElements: a separator that moves is focusable, which <hr> is not.
+		// oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a separator that moves is focusable, which <hr> is not.
 		<div
 			role="separator"
 			tabIndex={0}

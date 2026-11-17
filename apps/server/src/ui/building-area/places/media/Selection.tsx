@@ -163,7 +163,7 @@ export function DeleteFilesDialog({
 	const open = items.length > 0;
 	const key = items.map((item) => item.id).join(",");
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: asked again for another set of files (`key`).
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- asked again for another set of files (`key`).
 	useEffect(() => {
 		if (!open) return;
 		let cancelled = false;

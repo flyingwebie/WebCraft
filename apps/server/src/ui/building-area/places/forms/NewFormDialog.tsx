@@ -175,7 +175,7 @@ function StarterPicture({ lines }: { lines: number }) {
 			}`}
 		>
 			{Array.from({ length: lines }, (_, at) => (
-				// biome-ignore lint/suspicious/noArrayIndexKey: the lines of a picture never change.
+				// oxlint-disable-next-line react/no-array-index-key -- the lines of a picture never change.
 				<span key={at} className="bg-chrome-hover block h-[3px] rounded-full" />
 			))}
 			{lines > 0 ? <span className="bg-selection block h-[5px] w-5 rounded-full" /> : null}

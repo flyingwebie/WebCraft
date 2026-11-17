@@ -10,5 +10,5 @@ import { z } from "zod";
 export const localPath = z
 	.string()
 	.max(2048)
-	// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what is refused.
+	// oxlint-disable-next-line no-control-regex -- control characters are what is refused.
 	.refine((path) => /^\/(?![/\\])[^\s\\\u0000-\u001f\u007f]*$/.test(path));

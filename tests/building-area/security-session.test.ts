@@ -6,8 +6,8 @@
 // Drafts' sockets refuse it, nothing more is written, and the Site's pages are visitors' pages again.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { withValue } from "../co-editing/support.ts";
-import { type BuildingAreaBrowser, openBuildingArea, shellConfigIn } from "../harness/building-area.ts";
 import { buildingAreaApi, refusalOf } from "../harness/building-area-api.ts";
+import { type BuildingAreaBrowser, openBuildingArea, shellConfigIn } from "../harness/building-area.ts";
 import { openDraftInEditMode, type TestEditor, upgradeDraftInEditMode } from "../harness/co-editing.ts";
 import { createTestInstall, TEST_PASSWORD, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { goLive } from "../harness/staging.ts";

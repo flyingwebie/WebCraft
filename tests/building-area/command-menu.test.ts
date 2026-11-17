@@ -5,8 +5,8 @@
 // what the menu leaves out: making a Component from the Site's address.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
-import { openBuildingArea } from "../harness/building-area.ts";
 import { buildingAreaApi, refusalOf } from "../harness/building-area-api.ts";
+import { openBuildingArea } from "../harness/building-area.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 
 let install: TestInstall;

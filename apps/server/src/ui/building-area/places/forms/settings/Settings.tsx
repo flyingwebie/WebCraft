@@ -145,7 +145,7 @@ export function Settings({
 					) : (
 						<ul className="m-0 flex list-disc flex-col gap-1 ps-4 text-[12px]" data-wc-form-placed="">
 							{usedIn.map((placement, index) => (
-								// biome-ignore lint/suspicious/noArrayIndexKey: what places it, in its order.
+								// oxlint-disable-next-line react/no-array-index-key -- what places it, in its order.
 								<li key={index}>{placedText(placement)}</li>
 							))}
 						</ul>

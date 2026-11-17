@@ -478,7 +478,7 @@ function MakeMenu({
 					className="border-chrome-hover bg-chrome-menu absolute start-0 top-[calc(100%+4px)] z-50 flex w-44 flex-col gap-0.5 rounded-lg border p-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.55)]"
 					data-wc-template-make-menu=""
 				>
-					{/* biome-ignore lint/a11y/useSemanticElements: a menu groups its items with role="group", never a fieldset. */}
+					{/* oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a menu groups its items with role="group", never a fieldset.*/}
 					<div role="group" aria-label={shown.notMade} className="flex flex-col gap-0.5">
 						<div aria-hidden="true" className="text-chrome-muted px-1.5 pt-1 pb-0.5 text-[11px] font-semibold">
 							{shown.notMade}

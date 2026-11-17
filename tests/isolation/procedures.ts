@@ -1684,7 +1684,9 @@ export function isolationTests(part: IsolationPart): void {
 			}),
 		);
 		isolation.refuses("imports.refresh", async (api, target) => {
-			const connected = await (await install.superadmin()).api.imports.connect({
+			const connected = await (
+				await install.superadmin()
+			).api.imports.connect({
 				siteId: target.siteId,
 				source: "wordpress-import.live",
 				name: "Refresh",

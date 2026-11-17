@@ -29,8 +29,8 @@ import { endPreview, showPreview } from "./preview.ts";
 import { answerRedraws } from "./redraw.ts";
 import { regionSaving, type SavingStatus } from "./regions.ts";
 import { ScriptNotice } from "./ScriptNotice.tsx";
-import { SizeReadout, useReadoutShown } from "./SizeReadout.tsx";
 import { pageScripts } from "./scripts.ts";
+import { SizeReadout, useReadoutShown } from "./SizeReadout.tsx";
 
 /** What a drop over the page tells the rest of the shell: `webcraft:drop` on the shell's document. */
 export type DropDetail = {

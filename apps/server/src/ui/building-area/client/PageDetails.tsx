@@ -83,7 +83,7 @@ export function PageDetails({
 	const moved = useRef(false);
 	// Another page starts on the main screen.
 	const item = details.page?.page.item ?? null;
-	// biome-ignore lint/correctness/useExhaustiveDependencies: another page is what resets it.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- another page is what resets it.
 	useEffect(() => setScreen("main"), [item]);
 	// Focus follows the screen: into Search and sharing on its Back button, out of it on its row.
 	useEffect(() => {

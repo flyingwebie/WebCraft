@@ -13,7 +13,9 @@ let workspaceId: string;
 
 beforeAll(async () => {
 	install = await createTestInstall();
-	await (await install.superadmin()).api.install.smtp.update({
+	await (
+		await install.superadmin()
+	).api.install.smtp.update({
 		host: "smtp.agency.example",
 		port: 587,
 		security: "starttls",

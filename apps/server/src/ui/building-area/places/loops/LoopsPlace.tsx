@@ -62,7 +62,7 @@ export function LoopsPlace({ config, words, place, view: viewText, documents, le
 
 	useEffect(() => rememberPlace(place, viewText), [place, viewText]);
 	// Another Loop: its own problems only.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: cleared when the Loop shown changes.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- cleared when the Loop shown changes.
 	useEffect(() => {
 		setProblems([]);
 		setFailure(null);
@@ -539,7 +539,7 @@ function MarkupView({
 			</div>
 			<pre
 				className="bg-chrome-well text-chrome-text m-0 overflow-x-auto rounded-md p-3 font-mono text-[12px] leading-5"
-				// biome-ignore lint/a11y/noNoninteractiveTabindex: the markup scrolls sideways; the keyboard reaches it.
+				// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the markup scrolls sideways; the keyboard reaches it.
 				tabIndex={0}
 			>
 				{markup}

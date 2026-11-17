@@ -3,7 +3,7 @@ import type * as React from "react";
 
 function Label({ className, ...props }: React.ComponentProps<"label">) {
 	return (
-		// biome-ignore lint/a11y/noLabelWithoutControl: callers give `htmlFor` or put the control inside.
+		// oxlint-disable-next-line jsx-a11y/label-has-associated-control -- callers give `htmlFor` or put the control inside.
 		<label
 			data-slot="label"
 			className={cn(

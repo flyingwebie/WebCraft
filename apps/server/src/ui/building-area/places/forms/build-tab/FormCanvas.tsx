@@ -325,7 +325,7 @@ export function FieldView({
 				{errorLine}
 				<div inert={inert} className="wc-form-options">
 					{field.options.map((option, at) => (
-						// biome-ignore lint/suspicious/noArrayIndexKey: options are edited in place; their values can repeat while typing.
+						// oxlint-disable-next-line react/no-array-index-key -- options are edited in place; their values can repeat while typing.
 						<div key={`${option.value}-${at}`} className="wc-form-option">
 							<input
 								type={type}
@@ -413,7 +413,7 @@ export function FieldView({
 			>
 				<option value="">{placeholder ?? words.choose}</option>
 				{field.options.map((option, at) => (
-					// biome-ignore lint/suspicious/noArrayIndexKey: options are edited in place; their values can repeat while typing.
+					// oxlint-disable-next-line react/no-array-index-key -- options are edited in place; their values can repeat while typing.
 					<option key={`${option.value}-${at}`} value={option.value}>
 						{option.label.text}
 					</option>

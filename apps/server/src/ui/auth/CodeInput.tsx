@@ -24,7 +24,7 @@ export function CodeInput({
 		<div className={cn("relative flex w-fit gap-2", className)}>
 			{Array.from({ length: DIGITS }, (_, index) => (
 				<span
-					// biome-ignore lint/suspicious/noArrayIndexKey: the boxes are positions, never reordered.
+					// oxlint-disable-next-line react/no-array-index-key -- the boxes are positions, never reordered.
 					key={index}
 					aria-hidden="true"
 					className={cn(

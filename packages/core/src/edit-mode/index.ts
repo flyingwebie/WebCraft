@@ -45,6 +45,7 @@ import {
 	suggestImageAlt,
 	uploadImage,
 } from "./media.ts";
+import { type PageDetails, type PageDetailsChange, pageDetails, savePageDetails } from "./page-details.ts";
 import {
 	discardChanges,
 	type PageDeps,
@@ -55,7 +56,6 @@ import {
 	undoChange,
 	withdrawPage,
 } from "./page.ts";
-import { type PageDetails, type PageDetailsChange, pageDetails, savePageDetails } from "./page-details.ts";
 import { EDIT_MODE_PATH, isEditPath } from "./paths.ts";
 import { type DocumentPublish, documentPublish, type PublishSource } from "./publish.ts";
 import {

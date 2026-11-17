@@ -34,12 +34,7 @@ export {
 	variantWidths,
 } from "./images.ts";
 export { MEDIA_IMPORT_LIMITS, MEDIA_IMPORT_TIMEOUT_MS, MediaImportRefusedError } from "./import.ts";
-export {
-	type InstallStorage,
-	STORAGE_S3_SECRET,
-	type StorageChange,
-	type StorageSettings,
-} from "./install-storage.ts";
+export { type InstallStorage, STORAGE_S3_SECRET, type StorageChange, type StorageSettings } from "./install-storage.ts";
 export { mediaProcess, mediaVariants } from "./jobs.ts";
 export { MEDIA_KINDS, type MediaKind } from "./kinds.ts";
 export {

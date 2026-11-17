@@ -8,8 +8,8 @@ import { ORPCError } from "@orpc/client";
 import { BUILDING_AREA_PROCEDURES, type BuildingAreaProcedure } from "@webcraft/api";
 import { can, EDITOR_LAYOUT_VERSION, type EditSessionActor, type PersonActor } from "@webcraft/core";
 
-import { type BuildingAreaBrowser, openBuildingArea } from "../harness/building-area.ts";
 import { type BuildingAreaApi, buildingAreaApi, refusalOf } from "../harness/building-area-api.ts";
+import { type BuildingAreaBrowser, openBuildingArea } from "../harness/building-area.ts";
 import { openEditMode, withoutBuildingAreaCookie } from "../harness/edit-mode.ts";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";

@@ -19,7 +19,7 @@ export type SiteSmtpView = Awaited<ReturnType<ApiClient["siteSmtp"]["get"]>>;
 
 type FieldName = "fromName" | "host" | "port" | "fromAddress" | "replyTo" | "testTo" | "form";
 
-// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what a sender name can't hold.
+// oxlint-disable-next-line no-control-regex -- control characters are what a sender name can't hold.
 const CONTROL = /[\u0000-\u001f\u007f]/;
 
 /**

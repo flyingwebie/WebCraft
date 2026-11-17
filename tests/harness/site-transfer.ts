@@ -171,7 +171,7 @@ export function tarOf(files: readonly TarFile[]): Uint8Array {
 }
 
 /** An archive's manifest, as JSON. */
-// biome-ignore lint/suspicious/noExplicitAny: a manifest is read as plain JSON in tests.
+// oxlint-disable-next-line typescript/no-explicit-any -- a manifest is read as plain JSON in tests.
 export function manifestIn(bytes: Uint8Array): any {
 	const [first] = tarFiles(bytes);
 	if (first?.path !== "manifest.json") throw new Error("The archive doesn't start with its manifest.");
@@ -199,7 +199,7 @@ export function rowsIn(bytes: Uint8Array, table: string): Record<string, unknown
 export function rewritten(
 	bytes: Uint8Array,
 	change: {
-		// biome-ignore lint/suspicious/noExplicitAny: a manifest is plain JSON in tests.
+		// oxlint-disable-next-line typescript/no-explicit-any -- a manifest is plain JSON in tests.
 		manifest?: (manifest: any) => void;
 		rows?: (table: string, rows: Record<string, unknown>[]) => Record<string, unknown>[] | null;
 		/** Tables to add after the archive's own, such as a Module's this Install doesn't have. */

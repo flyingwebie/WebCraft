@@ -53,7 +53,7 @@
 		[data-wc-help-card="help"]
 	) {
 	position: fixed;
-	/* biome-ignore lint/complexity/noImportantStyles: a popover places itself with its own `left` and `top`. */
+	/* !important: a popover places itself with its own `left` and `top`. */
 	inset: auto 0 0 0 !important;
 	width: auto;
 	max-width: none;

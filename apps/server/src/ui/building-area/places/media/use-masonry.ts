@@ -23,7 +23,7 @@ export function useMasonry(
 	}, [element]);
 	const key = shapes.join(",");
 	const { minColumn, gap, below } = options;
-	// biome-ignore lint/correctness/useExhaustiveDependencies: `key` stands for the shapes.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- `key` stands for the shapes.
 	const layout = useMemo(() => masonry(shapes, width, { minColumn, gap, below }), [key, width, minColumn, gap, below]);
 	return { ref: setElement, layout };
 }

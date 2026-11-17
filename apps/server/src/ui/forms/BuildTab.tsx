@@ -89,7 +89,7 @@ export function BuildTab({
 							const depth = depthOf(fields, index);
 							return (
 								<li
-									// biome-ignore lint/suspicious/noArrayIndexKey: fields are edited in place, and their keys can repeat while typing.
+									// oxlint-disable-next-line react/no-array-index-key -- fields are edited in place, and their keys can repeat while typing.
 									key={index}
 									className={`flex min-w-0 items-center gap-2 rounded-md border p-2 ${depth === 2 ? "ms-8" : depth === 1 ? "ms-4" : ""} ${field.type === "step" || field.type === "section" ? "bg-muted/50" : ""} ${index === current ? "border-primary ring-primary/30 ring-2" : ""} ${broken ? "border-destructive" : ""}`}
 								>

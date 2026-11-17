@@ -33,8 +33,8 @@ import {
 import { useRef, useState } from "react";
 
 import { useT } from "../i18n.tsx";
-import { FieldSettingsPanel, type SettingProblems } from "./FieldSettingsPanel.tsx";
 import { canHoldFields, changeList, type FieldDraft, newDraft, removeDraft, walk } from "./field-drafts.ts";
+import { FieldSettingsPanel, type SettingProblems } from "./FieldSettingsPanel.tsx";
 import { Announcer, DragHandle, moveItem, useDragOrder } from "./reorder.tsx";
 
 /** The icon of each Field type, in the Field list and the settings panel. */

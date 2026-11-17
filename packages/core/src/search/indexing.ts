@@ -231,7 +231,7 @@ function leafTexts(field: FieldDefinition, value: unknown): string[] {
  * two of them, so none may be in the text itself.
  */
 function plain(text: string): string {
-	// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this removes.
+	// oxlint-disable-next-line no-control-regex -- control characters are what this removes.
 	return text.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, " ").trim();
 }
 

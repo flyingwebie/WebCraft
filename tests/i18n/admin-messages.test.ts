@@ -120,7 +120,7 @@ describe("admin message files", () => {
 
 			for (const [key, text] of flatten(raw)) {
 				const values = Object.fromEntries(placeholders(text).map((name) => [name, "x"]));
-				// biome-ignore lint/suspicious/noExplicitAny: keys come from the file being checked.
+				// oxlint-disable-next-line typescript/no-explicit-any -- keys come from the file being checked.
 				expect((t as any)(key, values)).not.toBe(key);
 			}
 			expect(errors).toEqual([]);

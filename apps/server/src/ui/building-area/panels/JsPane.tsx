@@ -9,10 +9,10 @@ import type { SaveWatch } from "../canvas/regions.ts";
 import { CHROME_EASE, FOCUS_RING, Tip } from "../controls.tsx";
 import { codeRefOf, sourceOf } from "../editing/selection.ts";
 import { NoteLine } from "../places/styles/CodeBox.tsx";
-import { CodeWell } from "./CodeWell.tsx";
-import { ConflictDialog } from "./ConflictDialog.tsx";
 import type { CodePanesDeps } from "./code-panes.tsx";
 import { type CodeRequests, offsetAt } from "./code-requests.ts";
+import { CodeWell } from "./CodeWell.tsx";
+import { ConflictDialog } from "./ConflictDialog.tsx";
 import { type ConsoleLine, consoleLog } from "./console-log.ts";
 import {
 	FormatButton,

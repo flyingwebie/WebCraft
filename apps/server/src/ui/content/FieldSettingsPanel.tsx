@@ -19,9 +19,9 @@ import type { ReactNode } from "react";
 
 import { type MessageKey, useT } from "../i18n.tsx";
 import { AllowedComponents } from "./body/AllowedComponents.tsx";
+import { changeField, type FieldDraft, freeKey, keyFromLabel, newField, replaceDraft } from "./field-drafts.ts";
 import { FIELD_TYPE_ICONS, type FieldOwner, offeredTypes } from "./FieldBuilder.tsx";
 import { FieldValue, type ValueContext } from "./FieldValues.tsx";
-import { changeField, type FieldDraft, freeKey, keyFromLabel, newField, replaceDraft } from "./field-drafts.ts";
 import { emptyValue, type FieldDefinition, type Json } from "./model.ts";
 import { moveItem } from "./reorder.tsx";
 
@@ -652,7 +652,7 @@ function OptionsSetting({
 					{options.map((option, index) => {
 						const name = option.label || t("postTypes.settings.optionNumber", { number: index + 1 });
 						return (
-							// biome-ignore lint/suspicious/noArrayIndexKey: choices are edited in place; their values can repeat while typing.
+							// oxlint-disable-next-line react/no-array-index-key -- choices are edited in place; their values can repeat while typing.
 							<li key={index} className="grid gap-2 rounded-md border p-3">
 								<div className="grid gap-2 sm:grid-cols-2">
 									<div className="grid gap-1">

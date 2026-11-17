@@ -224,23 +224,21 @@ export function createApiTokens({
 			rows.filter((row) => !row.allSites).map((row) => row.id),
 		);
 		const now = clock.now();
-		return rows.map(
-			(row): ApiTokenView => ({
-				id: row.id,
-				name: row.name,
-				workspace: { id: row.workspaceId, name: row.workspaceName },
-				sites: row.allSites ? "all" : (listed.get(row.id) ?? []),
-				readOnly: row.readOnly,
-				toolsets: row.toolsets as ToolsetKey[],
-				hint: row.hint,
-				createdAt: row.createdAt,
-				expiresAt: row.expiresAt,
-				lastUsedAt: row.lastUsedAt,
-				status: statusOf(row, now),
-				revokedAt: row.revokedAt,
-				revokedReason: row.revokedReason === "person" || row.revokedReason === "access" ? row.revokedReason : null,
-			}),
-		);
+		return rows.map((row): ApiTokenView => ({
+			id: row.id,
+			name: row.name,
+			workspace: { id: row.workspaceId, name: row.workspaceName },
+			sites: row.allSites ? "all" : (listed.get(row.id) ?? []),
+			readOnly: row.readOnly,
+			toolsets: row.toolsets as ToolsetKey[],
+			hint: row.hint,
+			createdAt: row.createdAt,
+			expiresAt: row.expiresAt,
+			lastUsedAt: row.lastUsedAt,
+			status: statusOf(row, now),
+			revokedAt: row.revokedAt,
+			revokedReason: row.revokedReason === "person" || row.revokedReason === "access" ? row.revokedReason : null,
+		}));
 	};
 
 	const selectTokens = (executor: Executor) =>

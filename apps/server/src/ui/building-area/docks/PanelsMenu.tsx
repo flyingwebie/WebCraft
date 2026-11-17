@@ -23,15 +23,13 @@ export function PanelsMenu({ docks }: { docks: Docks }) {
 	}, []);
 
 	const entries: MenuEntry[] = [
-		...PANELS.map(
-			(panel): MenuEntry => ({
-				kind: "switch",
-				key: panel.id,
-				label: panelName(words, panel.id),
-				checked: !placeOf(layout, panel.id)?.panel.hidden,
-				onToggle: () => docks.toggle(panel.id),
-			}),
-		),
+		...PANELS.map((panel): MenuEntry => ({
+			kind: "switch",
+			key: panel.id,
+			label: panelName(words, panel.id),
+			checked: !placeOf(layout, panel.id)?.panel.hidden,
+			onToggle: () => docks.toggle(panel.id),
+		})),
 		{ kind: "separator", key: "line" },
 		{
 			kind: "item",

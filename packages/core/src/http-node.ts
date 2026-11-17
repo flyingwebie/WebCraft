@@ -4,8 +4,8 @@ import { isIP } from "node:net";
 import { pipeline, type Readable, type Transform } from "node:stream";
 import { constants, createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
 
-import type { OutgoingHttp } from "./http.ts";
 import { pinnedTarget } from "./http-pinned.ts";
+import type { OutgoingHttp } from "./http.ts";
 
 /**
  * Outgoing HTTP for the worker, on Node. A call pinned to an address goes over `node:http`/`node:https`

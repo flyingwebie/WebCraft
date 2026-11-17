@@ -70,7 +70,7 @@ function PartsTable({ parts }: { parts: readonly Part[] }) {
 	return (
 		<section
 			aria-labelledby="install-health-caption"
-			// biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable region must be reachable by keyboard.
+			// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region must be reachable by keyboard.
 			tabIndex={0}
 			className="focus-visible:ring-ring/50 overflow-x-auto rounded-lg border outline-none focus-visible:ring-[3px]"
 		>
@@ -316,7 +316,7 @@ function QueueSection({ queue }: { queue: Queue }) {
 			{queue.jobs.length > 0 ? (
 				<section
 					aria-label={t("installHealth.jobs.tableLabel", { queue: queue.queue })}
-					// biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable region must be reachable by keyboard.
+					// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region must be reachable by keyboard.
 					tabIndex={0}
 					className="focus-visible:ring-ring/50 overflow-x-auto rounded-lg border outline-none focus-visible:ring-[3px]"
 				>

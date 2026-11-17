@@ -54,7 +54,7 @@ export function SectionSettings({
 		media: (mediaId) => sections.media(mediaId),
 	};
 	return (
-		// biome-ignore lint/a11y/noStaticElementInteractions: leaving a box finishes what was typed; the boxes are the controls.
+		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- leaving a box finishes what was typed; the boxes are the controls.
 		<div
 			ref={form}
 			className="flex flex-col gap-4"
@@ -344,7 +344,7 @@ function RichBox({
 		if (element.innerHTML !== value) element.innerHTML = value;
 	}, [value]);
 	return (
-		// biome-ignore lint/a11y/useSemanticElements: rich text needs an editable element, not a textarea.
+		// oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- rich text needs an editable element, not a textarea.
 		<div
 			ref={box}
 			id={id}

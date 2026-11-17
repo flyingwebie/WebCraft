@@ -107,7 +107,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-	await (await sharedPage)
+	await (
+		await sharedPage
+	)
 		?.context()
 		.close()
 		.catch(() => {});

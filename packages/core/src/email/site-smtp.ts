@@ -161,7 +161,7 @@ export function checkSiteSmtp(change: SiteSmtpChange): {
 
 /** A sender name: one line, no control characters, at most 100 characters. */
 export function isSenderName(name: string): boolean {
-	// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this refuses.
+	// oxlint-disable-next-line no-control-regex -- control characters are what this refuses.
 	return name.length > 0 && name.length <= SITE_FROM_NAME_MAX_LENGTH && !/[\u0000-\u001f\u007f]/.test(name);
 }
 

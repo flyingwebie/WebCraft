@@ -133,7 +133,7 @@ export function Emails({
 						const id = `${ids}-n${index}`;
 						return (
 							<Card
-								// biome-ignore lint/suspicious/noArrayIndexKey: Notifications are known by their place.
+								// oxlint-disable-next-line react/no-array-index-key -- Notifications are known by their place.
 								key={index}
 								title={fill(shown.notification, { number: String(index + 1) })}
 								id={`${id}-title`}

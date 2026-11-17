@@ -81,7 +81,7 @@ export function ItemsGrid({
 	latest.current = { onSaved, onSaving, loop };
 
 	// Another Loop opened: its items.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: only when the Loop changes, not after each save.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- only when the Loop changes, not after each save.
 	useEffect(() => setItems(loop.draft.items as Item[]), [loop.id]);
 
 	const send = async () => {
@@ -110,7 +110,7 @@ export function ItemsGrid({
 		void send();
 	};
 	// What waits is saved when the grid goes.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: `flush` reads only refs.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- `flush` reads only refs.
 	useEffect(() => () => flush(), []);
 
 	const change = (next: Item[], typed = false) => {

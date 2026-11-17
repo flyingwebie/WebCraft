@@ -33,7 +33,9 @@ export const auditLog = pgTable(
 		/** What they did, such as `site.create`. */
 		action: text("action").notNull(),
 		/** What the action changed, such as a name or an email address; never a secret's value. */
-		details: jsonb("details").notNull().default(sql`'{}'::jsonb`),
+		details: jsonb("details")
+			.notNull()
+			.default(sql`'{}'::jsonb`),
 	},
 	(table) => [
 		// Retention removes entries by age.

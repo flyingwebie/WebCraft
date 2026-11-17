@@ -679,32 +679,30 @@ export function CommandMenu({
 			asking.question === "loop"
 				? (catalogue?.loops ?? []).map((loop) => ({ key: loop.name, label: loop.name }))
 				: (catalogue?.forms ?? []).map((form) => ({ key: form.id, label: form.name }));
-		return choices.map(
-			(choice): Row => ({
-				id: `answer:${asking.question}:${choice.key}`,
-				tab: "insert",
-				group,
-				label: choice.label,
-				icon: parts?.icons[asking.question] ?? CodeXmlIcon,
-				tag: asking.question === "loop" ? `{{@loop ${choice.label}}}` : "{{@form}}",
-				keywords: [],
-				permission: "structure.edit",
-				canvases: ALL_CANVASES as never,
-				run: ({ inverse }) => {
-					const node =
-						asking.question === "loop"
-							? ({ type: "loop", source: choice.key, alias: "item", children: [], empty: null } as TreeNode)
-							: ({ type: "form", form: choice.key } as TreeNode);
-					if (asking.mode === "wrap") {
-						const refused = staff.ops.wrap(node, said.wrap.loop);
-						if (refused) setProblem(refused);
-						else close();
-						return;
-					}
-					insertNodes([node], choice.label, asking.question, inverse);
-				},
-			}),
-		);
+		return choices.map((choice): Row => ({
+			id: `answer:${asking.question}:${choice.key}`,
+			tab: "insert",
+			group,
+			label: choice.label,
+			icon: parts?.icons[asking.question] ?? CodeXmlIcon,
+			tag: asking.question === "loop" ? `{{@loop ${choice.label}}}` : "{{@form}}",
+			keywords: [],
+			permission: "structure.edit",
+			canvases: ALL_CANVASES as never,
+			run: ({ inverse }) => {
+				const node =
+					asking.question === "loop"
+						? ({ type: "loop", source: choice.key, alias: "item", children: [], empty: null } as TreeNode)
+						: ({ type: "form", form: choice.key } as TreeNode);
+				if (asking.mode === "wrap") {
+					const refused = staff.ops.wrap(node, said.wrap.loop);
+					if (refused) setProblem(refused);
+					else close();
+					return;
+				}
+				insertNodes([node], choice.label, asking.question, inverse);
+			},
+		}));
 	})();
 
 	// The row's Component button and the empty Page's Add a Component list the Components only, until typing.
@@ -802,7 +800,7 @@ export function CommandMenu({
 	};
 
 	// Keeps the highlighted row in view.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: the highlighted row moves with these.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- the highlighted row moves with these.
 	useEffect(() => {
 		list.current?.querySelector(`[aria-selected="true"]`)?.scrollIntoView({ block: "nearest" });
 	}, [active, rows.length]);
@@ -948,7 +946,7 @@ export function CommandMenu({
 				{tab === "insert" && staff ? (
 					<div className="border-chrome-line flex h-[30px] shrink-0 items-center gap-2.5 border-b px-3.5 text-[11px]">
 						<span className="text-chrome-muted font-semibold">{said.where}</span>
-						{/* biome-ignore lint/a11y/useSemanticElements: two switches drawn as one segmented control. */}
+						{/* oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- two switches drawn as one segmented control.*/}
 						<div role="group" aria-label={said.where} className="bg-chrome flex rounded-md p-0.5">
 							{(["inside", "after"] as const).map((way) => (
 								<button
@@ -985,7 +983,7 @@ export function CommandMenu({
 						<p className="text-chrome-muted m-0 p-2 text-[12px]">{said.loading}</p>
 					) : null}
 					{groups.map((group) => (
-						// biome-ignore lint/a11y/useSemanticElements: a list box groups its options with role="group".
+						// oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a list box groups its options with role="group".
 						<div
 							key={`${group.name}-${group.rows[0]?.index}`}
 							role="group"

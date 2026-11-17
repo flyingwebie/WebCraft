@@ -43,7 +43,11 @@ export const impersonations = pgTable(
 	},
 	(table) => [
 		// One impersonation at a time in a session.
-		uniqueIndex("impersonations_one_per_session_idx").on(table.sessionId).where(sql`${table.endedAt} is null`),
-		index("impersonations_due_idx").on(table.endsAt).where(sql`${table.endedAt} is null`),
+		uniqueIndex("impersonations_one_per_session_idx")
+			.on(table.sessionId)
+			.where(sql`${table.endedAt} is null`),
+		index("impersonations_due_idx")
+			.on(table.endsAt)
+			.where(sql`${table.endedAt} is null`),
 	],
 );

@@ -99,7 +99,9 @@ beforeAll(async () => {
 let sharedPage: Promise<Page> | undefined;
 
 afterAll(async () => {
-	await (await sharedPage)
+	await (
+		await sharedPage
+	)
 		?.context()
 		.close()
 		.catch(() => {});

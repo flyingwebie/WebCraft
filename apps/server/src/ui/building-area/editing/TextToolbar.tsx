@@ -240,7 +240,7 @@ function Toolbar({
 	let stop = 0;
 	const place = dock ? { left: 0, right: 0, bottom: `${dock.bottom}px` } : { left: `${left}px`, top: `${top}px` };
 	return (
-		// biome-ignore lint/a11y/noStaticElementInteractions: the wrapper only keeps a pressed tool from taking the caret out of the text, and notices focus leaving; its toolbar and link field are the controls.
+		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- the wrapper only keeps a pressed tool from taking the caret out of the text, and notices focus leaving; its toolbar and link field are the controls.
 		<div
 			ref={wrapper}
 			className={

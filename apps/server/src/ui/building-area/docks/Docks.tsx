@@ -806,7 +806,7 @@ function headerLeast(panel: HTMLElement): number {
 function PanelRow({ across, panels, children }: { across: boolean; panels: number; children: ReactNode }) {
 	const row = useRef<HTMLDivElement>(null);
 	const [more, setMore] = useState({ scrolls: false, before: false, after: false });
-	// biome-ignore lint/correctness/useExhaustiveDependencies: a panel more or less is watched again.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- a panel more or less is watched again.
 	useLayoutEffect(() => {
 		const element = row.current;
 		if (across || !element) return;
@@ -814,14 +814,17 @@ function PanelRow({ across, panels, children }: { across: boolean; panels: numbe
 			// Each open panel is at least as wide as its header's controls, and the row scrolls only when
 			// they don't fit at that width: a control drawn past its pane is never what makes it scroll.
 			const style = getComputedStyle(element);
-			const needed = [...element.children].reduce((sum, child) => {
-				const box = child as HTMLElement;
-				if (!box.hasAttribute("data-wc-panel") || box.hasAttribute("data-collapsed"))
-					return sum + box.getBoundingClientRect().width;
-				const least = Math.max(PANEL_MIN.bottom, headerLeast(box));
-				box.style.setProperty("--wc-header-least", `${Math.ceil(least)}px`);
-				return sum + least;
-			}, Number.parseFloat(style.paddingInlineStart) + Number.parseFloat(style.paddingInlineEnd));
+			const needed = [...element.children].reduce(
+				(sum, child) => {
+					const box = child as HTMLElement;
+					if (!box.hasAttribute("data-wc-panel") || box.hasAttribute("data-collapsed"))
+						return sum + box.getBoundingClientRect().width;
+					const least = Math.max(PANEL_MIN.bottom, headerLeast(box));
+					box.style.setProperty("--wc-header-least", `${Math.ceil(least)}px`);
+					return sum + least;
+				},
+				Number.parseFloat(style.paddingInlineStart) + Number.parseFloat(style.paddingInlineEnd),
+			);
 			const scrolls = needed > element.clientWidth + 1;
 			if (!scrolls && element.scrollLeft !== 0) element.scrollLeft = 0;
 			const scrolled = Math.abs(element.scrollLeft);

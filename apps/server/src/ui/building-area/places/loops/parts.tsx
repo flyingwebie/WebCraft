@@ -85,7 +85,7 @@ export function Segmented<Key extends string>({
 	onChange(key: Key): void;
 }) {
 	return (
-		// biome-ignore lint/a11y/useSemanticElements: two pressed buttons in a named group, not a fieldset of a form.
+		// oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- two pressed buttons in a named group, not a fieldset of a form.
 		<div
 			role="group"
 			aria-label={label}

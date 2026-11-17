@@ -202,7 +202,7 @@ function OpenFunnel({
 	}, [funnel.steps]);
 
 	// How far visitors got in the last 30 days, counted again after each change.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: `counted` changes after each saved change.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- `counted` changes after each saved change.
 	useEffect(() => {
 		let live = true;
 		setCounts("loading");
@@ -274,7 +274,7 @@ function OpenFunnel({
 			<ol aria-label={t("analyticsGoals.steps")} className="grid gap-1">
 				{steps.map((step, index) => (
 					<li
-						// biome-ignore lint/suspicious/noArrayIndexKey: a step is its place in the Funnel's order.
+						// oxlint-disable-next-line react/no-array-index-key -- a step is its place in the Funnel's order.
 						key={index}
 						ref={(row) => {
 							if (row) rows.current.set(index, row);

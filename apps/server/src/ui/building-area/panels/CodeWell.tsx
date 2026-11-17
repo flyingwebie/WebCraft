@@ -148,7 +148,7 @@ export function CodeWell({
 						const isMarked = marked ? line >= marked.from && line <= marked.to : false;
 						return (
 							<div
-								// biome-ignore lint/suspicious/noArrayIndexKey: a line is its number.
+								// oxlint-disable-next-line react/no-array-index-key -- a line is its number.
 								key={index}
 								data-line={line}
 								data-wc-marked-line={isMarked ? "" : undefined}
@@ -179,7 +179,7 @@ export function CodeWell({
 										{pieces.length
 											? pieces.map(([kind, piece], at) =>
 													kind ? (
-														// biome-ignore lint/suspicious/noArrayIndexKey: pieces keep their order.
+														// oxlint-disable-next-line react/no-array-index-key -- pieces keep their order.
 														<span key={at} className={TOKEN_CLASS[kind]}>
 															{piece}
 														</span>

@@ -26,7 +26,9 @@ async function testPage(theme: Theme) {
 }
 afterEach(async () => {
 	await Promise.all(openedPages.splice(0).map((page) => page.close()));
-	await (await install.install.superadmin()).api.templates.saveEntryTemplateMarkup({
+	await (
+		await install.install.superadmin()
+	).api.templates.saveEntryTemplateMarkup({
 		siteId,
 		postTypeId,
 		markup: ENTRY_TEMPLATE,

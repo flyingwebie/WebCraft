@@ -61,7 +61,7 @@ export function DeclarationsEditor({
 					const suggestions = tokenValuesFor(row.property, tokens);
 					return (
 						// Rows have no identity of their own besides where they are.
-						// biome-ignore lint/suspicious/noArrayIndexKey: declarations are edited in place.
+						// oxlint-disable-next-line react/no-array-index-key -- declarations are edited in place.
 						<li key={index} className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto] gap-2">
 							<Input
 								aria-label={t("designSystem.declarations.property", { what: label, number: index + 1 })}

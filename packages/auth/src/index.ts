@@ -20,11 +20,7 @@ export {
 	type SessionDetails,
 	type SignInResult,
 } from "./auth.ts";
-export {
-	LEAKED_PASSWORD_RANGE_URL,
-	type LeakedPasswordCheckOptions,
-	leakedPasswordCheck,
-} from "./leaked-passwords.ts";
+export { LEAKED_PASSWORD_RANGE_URL, type LeakedPasswordCheckOptions, leakedPasswordCheck } from "./leaked-passwords.ts";
 export {
 	ACCOUNT_PAUSE_AFTER_FAILED_ATTEMPTS,
 	type AccountLock,

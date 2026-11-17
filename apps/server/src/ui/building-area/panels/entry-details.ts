@@ -236,7 +236,7 @@ export function useEntryDetails({
 	};
 
 	// Which Fields show on the page as regions: read from the frame's page now and each time it loads.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: read again with each state of the page (it may have changed).
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- read again with each state of the page (it may have changed).
 	useEffect(() => {
 		if (!item) {
 			setOnPage(new Set());
@@ -252,7 +252,7 @@ export function useEntryDetails({
 
 	// The Entry read again whenever the page's state changes; the newest reading wins.
 	const reading = useRef(0);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: the Post Type is kept across readings of one Entry on purpose.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- the Post Type is kept across readings of one Entry on purpose.
 	useEffect(() => {
 		// Between two pages the Entry shown stays (and saves go to it) until the next is read.
 		if (!page) return;
@@ -375,7 +375,7 @@ export function useEntryDetails({
 		walk(postType.fields, entry.draft.fields);
 		return [...ids].sort().join(",");
 	}, [postType, entry]);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: files already read are not read again.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- files already read are not read again.
 	useEffect(() => {
 		if (!fileIds) return;
 		let current = true;
@@ -504,11 +504,11 @@ export function useEntryDetails({
 	}, [run]);
 
 	// Another Entry: its translations are read again.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: only another Entry clears them.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- only another Entry clears them.
 	useEffect(() => setTranslations({}), [entryId]);
 
 	// Another page: its problems are its own.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: only another item clears them.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- only another item clears them.
 	useEffect(() => setProblems(new Map()), [item, language]);
 
 	return {

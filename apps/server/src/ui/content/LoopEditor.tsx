@@ -397,7 +397,7 @@ function QueryBuilder({
 						{query.filters.map((filter, index) => (
 							<li
 								// Filters have no ids of their own; their place is who they are.
-								// biome-ignore lint/suspicious/noArrayIndexKey: the list is edited in place, by position.
+								// oxlint-disable-next-line react/no-array-index-key -- the list is edited in place, by position.
 								key={index}
 								className="grid gap-3 rounded-lg border p-4"
 							>
@@ -436,7 +436,7 @@ function QueryBuilder({
 				) : null}
 				<ol className="grid gap-3">
 					{query.sort.map((sort, index) => (
-						// biome-ignore lint/suspicious/noArrayIndexKey: the list is edited in place, by position.
+						// oxlint-disable-next-line react/no-array-index-key -- the list is edited in place, by position.
 						<li key={index} className="flex flex-wrap items-end gap-3">
 							<Setting
 								id={settingId(`query.sort[${index}].by`)}

@@ -437,7 +437,7 @@ function Choices({
 				{field.options.map((option, index) => {
 					const name = option.label || option.value || fill(shown.optionNumber, { number: String(index + 1) });
 					return (
-						// biome-ignore lint/suspicious/noArrayIndexKey: choices are edited in place, by their place.
+						// oxlint-disable-next-line react/no-array-index-key -- choices are edited in place, by their place.
 						<span key={index} className="flex items-center gap-1.5">
 							<span className="border-chrome-hover flex min-w-0 grow flex-col rounded border px-1.5 py-0.5">
 								<TextSetting

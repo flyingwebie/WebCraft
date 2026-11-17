@@ -53,7 +53,9 @@ const pages: Promise<Page>[] = [];
 
 afterAll(async () => {
 	for (const page of pages) {
-		await (await page)
+		await (
+			await page
+		)
 			.context()
 			.close()
 			.catch(() => {});

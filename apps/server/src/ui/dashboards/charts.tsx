@@ -689,7 +689,7 @@ export function FunnelSteps({ data, title }: { data: Funnel; title: string }) {
 		<ol aria-label={title} className="grid gap-3 text-[0.8125rem]">
 			{data.steps.map((step, index) => (
 				<li
-					// biome-ignore lint/suspicious/noArrayIndexKey: a Funnel's steps are in a fixed order.
+					// oxlint-disable-next-line react/no-array-index-key -- a Funnel's steps are in a fixed order.
 					key={index}
 					className="grid h-6 grid-cols-[1.25rem_minmax(0,9.125rem)_minmax(0,1fr)_3rem_3rem] items-center gap-x-3"
 				>

@@ -173,7 +173,7 @@ export function RichTextEditor({
 					<ToolbarButton key={command.id} command={command} onRun={run} />
 				))}
 			</div>
-			{/* biome-ignore lint/a11y/useSemanticElements: formatted text needs an editable element; no native control holds it. */}
+			{/* oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- formatted text needs an editable element; no native control holds it.*/}
 			<div
 				ref={editor}
 				id={id}
@@ -187,7 +187,7 @@ export function RichTextEditor({
 				contentEditable
 				suppressContentEditableWarning
 				className="focus-visible:ring-ring/50 min-h-28 rounded-b-md px-3 py-2 text-sm outline-none focus-visible:ring-3 [&_a]:underline [&_blockquote]:border-s-2 [&_blockquote]:ps-3 [&_ol]:list-decimal [&_ol]:ps-6 [&_p]:my-1.5 [&_ul]:list-disc [&_ul]:ps-6"
-				// biome-ignore lint/security/noDangerouslySetInnerHtml: `initial` is cleaned here, as it is made (an allowlist of elements).
+				// oxlint-disable-next-line react/no-danger -- `initial` is cleaned here, as it is made (an allowlist of elements).
 				dangerouslySetInnerHTML={{ __html: initial }}
 				onFocus={() => exec("defaultParagraphSeparator", "p")}
 				onInput={changed}

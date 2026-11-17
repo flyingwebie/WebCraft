@@ -140,7 +140,7 @@ export function useOpenFile(
 		}
 	}, [api, siteId, fileId, all]);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: `version` asks for the file again after a change.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- `version` asks for the file again after a change.
 	useEffect(() => {
 		void read();
 	}, [read, version]);
