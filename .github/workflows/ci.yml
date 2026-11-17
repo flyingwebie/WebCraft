@@ -23,8 +23,8 @@ jobs:
           bun-version-file: package.json
       - run: bun install --frozen-lockfile
       - run: bun run lint
-      # `bun run typecheck`, one package at a time: every package's tsc at once runs the runner out of memory.
-      - run: bun x turbo run typecheck --concurrency=1 && bun x tsc -p tsconfig.json
+      # `bun check` on every project: the same errors as tsc, in seconds (scripts/typecheck.ts).
+      - run: bun run typecheck
       - run: bun run build
       # Blocks dependencies whose licence isn't compatible with AGPL-3.0-or-later (ADR 0012).
       - run: bun run check:licences

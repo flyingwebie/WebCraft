@@ -36,7 +36,7 @@ bun create better-t-stack@latest webcraft --frontend tanstack-start --backend se
 
 ## Setup
 
-You need Bun 1.4, Node 22.18 or later (CI and the images use the current LTS), and either Docker or a Postgres 18 server you can create databases on.
+You need Bun 1.4.4 or later (for `bun check`), Node 22.18 or later (CI and the images use the current LTS), and either Docker or a Postgres 18 server you can create databases on.
 
 ```sh
 bun install
@@ -68,7 +68,7 @@ Run every command from the repo root: Bun loads `.env` from the directory it run
 | `bun run test` | Every seam-1 test, each allowed 30 s. `bun run test tests/web/health.test.ts` runs one file; `bun run test -t "readyz"` filters by name. Use `bun run test` rather than a bare `bun test`: Bun ignores a timeout in `bunfig.toml`, so a bare `bun test` gives every test only 5 s and fails on a busy machine. |
 | `bun run test:browser` | The browser accessibility checks (seam 2), against the production build: run `bun run build` first, and once `bunx playwright install chromium firefox webkit` in `tests/` (Firefox and WebKit for `building-area-frame.browser.ts` only). |
 | `bun run lint` | Biome lint and format check (`bun run format` fixes what it can). |
-| `bun run typecheck` | `tsc` in every workspace (through Turborepo) and in `scripts/`. |
+| `bun run typecheck` | `bun check` (the same errors as `tsc`, on every core) in every workspace and in `scripts/`, in about 3 seconds (`scripts/typecheck.ts`); `bun run typecheck packages/db` checks only that one. In one package, `bun check`. |
 | `bun run build` | Builds the admin and the server bundle (`apps/server/dist`). |
 | `bun run build:cli` | Compiles the single-file `webcraft` for the five platforms into `dist/cli` (`-- --target host` for this computer only, `-- --npm` with the npm packages); see "The CLI". |
 | `bun run db:migrate` | The migrate step: `webcraft admin migrate` (it takes a Backup into `./backups` first when anything is pending; add `-- --no-backup` to skip it). |
@@ -2108,7 +2108,7 @@ Without a list the check is skipped locally with a warning and fails in CI. With
 
 `.github/workflows/ci.yml` runs on pull requests and on pushes to `main`:
 
-- **Lint, typecheck, build and licences**; the typecheck runs one package at a time (`turbo run typecheck --concurrency=1`), since every package's `tsc` at once runs a standard runner out of memory.
+- **Lint, typecheck, build and licences**; the typecheck is `bun run typecheck`.
 - **Tests (1/10 to 10/10)** against a Postgres 18 service each, with the current Node LTS installed for the worker test: `bun test --parallel="$(nproc)" --no-isolate --timings=tests/timings.json --shard=<n>/10`. The parts are balanced by each file's measured duration in `tests/timings.json`; on a runner, one Bun worker per core takes files slowest first and keeps one process across them, so every file cleans up after itself (`AGENTS.md`). Each part uploads its measured durations as a `timings-<n>` artifact: to rebalance, download a run's artifacts and pass them all to `bun test --timings=<each file> --update-timings` locally, or run the whole suite with `--timings=tests/timings.json --update-timings`, and commit the file. A file that takes much longer than the others caps how fast a part can finish: split it (`tests/isolation/procedures-<n>.test.ts` share one suite in four parts).
 - **Deploy files (Compose smoke test)**: `bun run test:deploy`.
 

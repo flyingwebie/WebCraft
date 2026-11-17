@@ -7,7 +7,7 @@
 # Runs as the unprivileged `bun` user (uid 1000, as the worker image's `node` user, so both can share
 # the storage and Backups volumes). Listens on PORT (3000). See docs/deploy/.
 
-ARG BUN_VERSION=1.4.2
+ARG BUN_VERSION=1.4.4
 
 # The admin and the server bundle, built with every dependency.
 FROM oven/bun:${BUN_VERSION}-slim AS build

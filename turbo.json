@@ -3,11 +3,12 @@
 	"ui": "stream",
 	"tasks": {
 		"build": {
-			"dependsOn": ["^build"],
-			"outputs": ["dist/**"]
-		},
-		"typecheck": {
-			"outputs": []
+			"dependsOn": [
+				"^build"
+			],
+			"outputs": [
+				"dist/**"
+			]
 		}
 	}
 }

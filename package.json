@@ -44,7 +44,7 @@
 		"content-api:document": "WEBCRAFT_UPDATE_OPENAPI=1 bun test --timeout 30000 tests/content-api/openapi.test.ts && biome format --write docs/api/content-api.openapi.json",
 		"lint": "biome ci .",
 		"format": "biome check --write .",
-		"typecheck": "turbo run typecheck && tsc -p tsconfig.json",
+		"typecheck": "bun scripts/typecheck.ts",
 		"db:migrate": "bun apps/cli/src/main.ts admin migrate",
 		"db:generate": "drizzle-kit generate --config packages/db/drizzle.config.ts",
 		"db:studio": "drizzle-kit studio --config packages/db/drizzle.config.ts",
@@ -66,5 +66,5 @@
 		"turbo": "^2.11.7",
 		"typescript": "catalog:"
 	},
-	"packageManager": "bun@1.4.2"
+	"packageManager": "bun@1.4.4"
 }

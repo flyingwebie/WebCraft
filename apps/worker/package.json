@@ -16,7 +16,7 @@
 	"scripts": {
 		"dev": "node --watch src/main.ts",
 		"start": "node src/main.ts",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "bun check"
 	},
 	"dependencies": {
 		"@webcraft/core": "workspace:*",

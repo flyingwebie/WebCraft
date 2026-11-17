@@ -28,7 +28,7 @@
 		"./draft-document/edit-mode": "./src/co-editing/edit-mode.ts"
 	},
 	"scripts": {
-		"typecheck": "tsc --noEmit"
+		"typecheck": "bun check"
 	},
 	"dependencies": {
 		"@webcraft/auth": "workspace:*",
