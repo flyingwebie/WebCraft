@@ -1,8 +1,8 @@
 {
 	"info": {
-		"title": "WebCraft Management API",
+		"title": "WebCraft Management API (changed on purpose to prove CI goes red)",
 		"version": "1",
-		"description": "Every public procedure of the Management API. Call each with POST and an API token (`Authorization: Bearer <token>`), made under Your account › API tokens in the admin, or the access token of a device sign-in (`webcraft login`)."
+		"description": "Every public procedure of the Management API. Call each with POST and an API token (`Authorization: Bearer <token>`), made under Your account \u203a API tokens in the admin, or the access token of a device sign-in (`webcraft login`)."
 	},
 	"servers": [
 		{
@@ -27,7 +27,7 @@
 		"/pageLayouts/settings": {
 			"post": {
 				"operationId": "pageLayouts.settings",
-				"summary": "The Site’s Member Page layout settings.",
+				"summary": "The Site\u2019s Member Page layout settings.",
 				"tags": ["pageLayouts"],
 				"requestBody": {
 					"required": true,
@@ -134,7 +134,7 @@
 		"/pageLayouts/get": {
 			"post": {
 				"operationId": "pageLayouts.get",
-				"summary": "A Page’s shared layout, typed Props and permitted actions.",
+				"summary": "A Page\u2019s shared layout, typed Props and permitted actions.",
 				"tags": ["pageLayouts"],
 				"requestBody": {
 					"required": true,
@@ -246,7 +246,7 @@
 		"/accessibilityStatement/get": {
 			"post": {
 				"operationId": "accessibilityStatement.get",
-				"summary": "The Accessibility statement’s Page and last Staff form.",
+				"summary": "The Accessibility statement\u2019s Page and last Staff form.",
 				"tags": ["accessibilityStatement"],
 				"requestBody": {
 					"required": true,
@@ -427,7 +427,7 @@
 		"/accessibilityStatement/setEnabled": {
 			"post": {
 				"operationId": "accessibilityStatement.setEnabled",
-				"summary": "Show or hide the published Accessibility statement’s footer link.",
+				"summary": "Show or hide the published Accessibility statement\u2019s footer link.",
 				"tags": ["accessibilityStatement"],
 				"requestBody": {
 					"required": true,
@@ -474,7 +474,7 @@
 		"/checks/list": {
 			"post": {
 				"operationId": "checks.list",
-				"summary": "The Site’s open Checks; warnings never prevent publishing.",
+				"summary": "The Site\u2019s open Checks; warnings never prevent publishing.",
 				"tags": ["checks"],
 				"requestBody": {
 					"required": true,
@@ -10161,7 +10161,7 @@
 		"/popups/list": {
 			"post": {
 				"operationId": "popups.list",
-				"summary": "List the Site’s Popups.",
+				"summary": "List the Site\u2019s Popups.",
 				"tags": ["popups"],
 				"requestBody": {
 					"required": true,
@@ -10205,7 +10205,7 @@
 		"/popups/get": {
 			"post": {
 				"operationId": "popups.get",
-				"summary": "Read a Popup’s Structure and Content in one language.",
+				"summary": "Read a Popup\u2019s Structure and Content in one language.",
 				"tags": ["popups"],
 				"requestBody": {
 					"required": true,
@@ -10309,7 +10309,7 @@
 		"/popups/saveDraft": {
 			"post": {
 				"operationId": "popups.saveDraft",
-				"summary": "Save a Popup’s Structure Draft.",
+				"summary": "Save a Popup\u2019s Structure Draft.",
 				"tags": ["popups"],
 				"requestBody": {
 					"required": true,
@@ -10374,7 +10374,7 @@
 		"/popups/saveContent": {
 			"post": {
 				"operationId": "popups.saveContent",
-				"summary": "Save a Popup’s Content Draft in one language.",
+				"summary": "Save a Popup\u2019s Content Draft in one language.",
 				"tags": ["popups"],
 				"requestBody": {
 					"required": true,
@@ -10432,7 +10432,7 @@
 		"/popups/publish": {
 			"post": {
 				"operationId": "popups.publish",
-				"summary": "Publish a Popup’s element tree and settings.",
+				"summary": "Publish a Popup\u2019s element tree and settings.",
 				"tags": ["popups"],
 				"requestBody": {
 					"required": true,
@@ -10486,7 +10486,7 @@
 		"/popups/publishContent": {
 			"post": {
 				"operationId": "popups.publishContent",
-				"summary": "Publish a Popup’s Content.",
+				"summary": "Publish a Popup\u2019s Content.",
 				"tags": ["popups"],
 				"requestBody": {
 					"required": true,
@@ -15309,7 +15309,7 @@
 		"/media/folders/list": {
 			"post": {
 				"operationId": "media.folders.list",
-				"summary": "Lists the Media library's folders, in the Site's order (A–Z or its own).",
+				"summary": "Lists the Media library's folders, in the Site's order (A\u2013Z or its own).",
 				"tags": ["media"],
 				"requestBody": {
 					"required": true,
@@ -15503,7 +15503,7 @@
 		"/media/folders/setOrder": {
 			"post": {
 				"operationId": "media.folders.setOrder",
-				"summary": "Sets how the Site lists its Media folders: A–Z or in its own order.",
+				"summary": "Sets how the Site lists its Media folders: A\u2013Z or in its own order.",
 				"tags": ["media"],
 				"requestBody": {
 					"required": true,
