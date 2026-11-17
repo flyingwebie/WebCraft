@@ -13,10 +13,11 @@ export function startCalls(command: string[], env: Record<string, string | undef
 	const waiting = new Map<number, (outcome: Outcome) => void>();
 	let nextId = 0;
 	let stderr = "";
-	(async () => {
+	// Reads the child's output for as long as it runs; `close` waits for the child itself.
+	void (async () => {
 		for await (const chunk of child.stderr.pipeThrough(new TextDecoderStream())) stderr += chunk;
 	})();
-	(async () => {
+	void (async () => {
 		let buffered = "";
 		for await (const chunk of child.stdout.pipeThrough(new TextDecoderStream())) {
 			buffered += chunk;
@@ -34,12 +35,12 @@ export function startCalls(command: string[], env: Record<string, string | undef
 		call(call) {
 			const id = nextId++;
 			const outcome = new Promise<Outcome>((resolve) => waiting.set(id, resolve));
-			child.stdin.write(`${JSON.stringify({ id, call })}\n`);
-			child.stdin.flush();
+			void child.stdin.write(`${JSON.stringify({ id, call })}\n`);
+			void child.stdin.flush();
 			return outcome;
 		},
 		async close() {
-			child.stdin.end();
+			await child.stdin.end();
 			await child.exited;
 		},
 	};

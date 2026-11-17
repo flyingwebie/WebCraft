@@ -71,7 +71,7 @@ beforeAll(async () => {
 	for (const title of ["Crumble", "Brioche", "Apple tart"]) {
 		const { entry } = await staff.api.entries.create({ siteId, postTypeId: recipesId, title });
 		await staff.api.entries.publish({ siteId, entryId: entry.id });
-		install.clock.advance(DAY);
+		await install.clock.advance(DAY);
 	}
 	const { loop } = await staff.api.loops.create({
 		siteId,

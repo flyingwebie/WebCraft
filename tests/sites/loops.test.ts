@@ -89,7 +89,7 @@ beforeAll(async () => {
 		},
 		["fr"],
 	);
-	install.clock.advance(DAY);
+	await install.clock.advance(DAY);
 	ids.brioche = await published(recipesId, "Brioche", {
 		body: [{ type: "paragraph", text: "Rich and buttery." }],
 		minutes: 20,
@@ -102,7 +102,7 @@ beforeAll(async () => {
 	});
 	await staff.api.entries.saveDraft({ siteId, entryId: ids.brioche, language: "fr", title: "Brioche dorée" });
 	await staff.api.entries.publish({ siteId, entryId: ids.brioche });
-	install.clock.advance(DAY);
+	await install.clock.advance(DAY);
 	ids.tart = await published(recipesId, "Apple tart", {
 		minutes: 45,
 		vegan: false,
@@ -399,7 +399,7 @@ describe("Conditions", () => {
 
 		expect(await (await get()).text()).toContain("Soon");
 		expect((await get()).headers.get("x-cache")).toBe("HIT");
-		install.clock.advance(2 * DAY);
+		await install.clock.advance(2 * DAY);
 		const later = await get();
 		expect(later.headers.get("x-cache")).toBe("MISS");
 		expect(await later.text()).toContain("Open");

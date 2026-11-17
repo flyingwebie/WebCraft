@@ -125,7 +125,7 @@ for (const theme of THEMES)
 test("a push Bar follows content size and releases its space before the next Bar mounts", async () => {
 	const fixture = await scene("top", "push");
 	const { api, siteId } = fixture;
-	install.install.clock.advance(1);
+	await install.install.clock.advance(1);
 	const { popup } = await api.popups.create({ siteId, name: "Next offer", key: "next" });
 	await api.popups.saveDraft({
 		siteId,

@@ -102,9 +102,9 @@ test("scheduled Content dates bound cached output and drafts stay private", asyn
 	expect(await visible()).toBe(true);
 	await owner.api.popups.publishContent({ siteId, popupId: id });
 	expect(await visible()).toBe(false);
-	install.clock.advance(60_000);
+	await install.clock.advance(60_000);
 	expect(await visible()).toBe(true);
-	install.clock.advance(60_000);
+	await install.clock.advance(60_000);
 	expect(await visible()).toBe(false);
 	await owner.api.popups.saveContent({ siteId, popupId: id, values: { start: null, end: null } });
 	await owner.api.popups.publishContent({ siteId, popupId: id });
@@ -162,7 +162,7 @@ test("history, Publish all and Scheduled publish expose Content independently", 
 	const at = new Date(install.clock.now().getTime() + 60_000).toISOString();
 	await owner.api.publishing.schedule({ siteId, item: { kind: "popupContent", id }, at });
 	await owner.api.popups.saveContent({ siteId, popupId: id, values: { title: "Later draft" } });
-	install.clock.advance(60_000);
+	await install.clock.advance(60_000);
 	await install.drainJobs();
 	const saved = await owner.api.popups.get({ siteId, popupId: id });
 	expect(saved.content.published?.values.title).toBe("Frozen");

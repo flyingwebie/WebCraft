@@ -34,7 +34,7 @@ beforeAll(() => {
 
 afterAll(async () => {
 	await Promise.all(children.map((child) => child.close()));
-	for (const server of [proxy, plain, secure]) server.stop(true);
+	await Promise.all([proxy, plain, secure].map((server) => server.stop(true)));
 });
 
 /** The environment of a server whose operator set an outgoing proxy. */

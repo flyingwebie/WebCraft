@@ -141,7 +141,7 @@ describe("the Draft and the published version", () => {
 			title: "Baguette",
 			fields: { sku: "B-1" },
 		});
-		install.clock.advance(60_000);
+		await install.clock.advance(60_000);
 		const saved = await author.api.entries.saveDraft({ siteId, entryId: entry.id, fields: { summary: "Crisp." } });
 
 		expect(saved.entry).toMatchObject({
@@ -151,7 +151,7 @@ describe("the Draft and the published version", () => {
 			published: null,
 		});
 
-		install.clock.advance(60_000);
+		await install.clock.advance(60_000);
 		const firstPublish = install.clock.now();
 		const { entry: published } = await editor.api.entries.publish({ siteId, entryId: entry.id });
 
@@ -162,7 +162,7 @@ describe("the Draft and the published version", () => {
 			published: { title: "Baguette", slug: "baguette", fields: { summary: "Crisp.", sku: "B-1" } },
 		});
 
-		install.clock.advance(60_000);
+		await install.clock.advance(60_000);
 		const changed = await author.api.entries.saveDraft({ siteId, entryId: entry.id, title: "French baguette" });
 		expect(changed.entry).toMatchObject({
 			status: "changed",
@@ -170,7 +170,7 @@ describe("the Draft and the published version", () => {
 			published: { title: "Baguette" },
 		});
 
-		install.clock.advance(60_000);
+		await install.clock.advance(60_000);
 		const { entry: republished } = await editor.api.entries.publish({ siteId, entryId: entry.id });
 		expect(republished).toMatchObject({
 			status: "published",
@@ -205,7 +205,7 @@ describe("the Draft and the published version", () => {
 	});
 
 	test("lists a Post Type's Entries, newest first", async () => {
-		install.clock.advance(60_000);
+		await install.clock.advance(60_000);
 		const { entry: newest } = await author.api.entries.create({ siteId, postTypeId, title: "Ciabatta" });
 
 		const { entries } = await editor.api.entries.list({ siteId, postTypeId });
