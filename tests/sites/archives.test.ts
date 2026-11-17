@@ -31,7 +31,7 @@ beforeAll(async () => {
 	for (const title of ["Crumble", "Brioche", "Apple tart"]) {
 		const { entry } = await staff.api.entries.create({ siteId, postTypeId: recipesId, title });
 		await staff.api.entries.publish({ siteId, entryId: entry.id });
-		install.clock.advance(DAY);
+		await install.clock.advance(DAY);
 	}
 	const { template: site } = await staff.api.templates.saveSiteTemplateMarkup({
 		siteId,

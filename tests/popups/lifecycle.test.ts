@@ -156,7 +156,7 @@ test("a Popup publishes its own tree and settings atomically; a Scheduled publis
 	await staff.api.publishing.schedule({ siteId, item: { kind: "popup", id: popup.id }, at });
 	await staff.api.components.saveMarkup({ siteId, componentId: popup.componentId, markup: "<p>Later structure</p>" });
 	await staff.api.popups.saveDraft({ siteId, popupId: popup.id, popup: { layout: "modal" } });
-	install.clock.advance(60_000);
+	await install.clock.advance(60_000);
 	expect((await install.drainJobs()).failed).toEqual([]);
 	const markup = await staff.api.components.getMarkup({ siteId, componentId: popup.componentId });
 	expect(markup.markup.published).toContain("Frozen structure");
@@ -195,7 +195,7 @@ test("publishing a Popup tells its Component editors and supersedes its older sc
 			"the Component's publish notification",
 		);
 		expect((await staff.api.publishing.scheduled({ siteId })).scheduled).toEqual([]);
-		install.clock.advance(60_000);
+		await install.clock.advance(60_000);
 		await install.drainJobs();
 		expect(
 			(await staff.api.components.getMarkup({ siteId, componentId: popup.componentId })).markup.published,

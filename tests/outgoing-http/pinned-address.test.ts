@@ -87,7 +87,7 @@ beforeAll(() => {
 
 afterAll(async () => {
 	await node.close();
-	for (const server of [plain, plain6, secure, secure6]) server.stop();
+	await Promise.all([plain, plain6, secure, secure6].map((server) => server.stop()));
 });
 
 const bunHttp = createBunHttp({ ca: authority.cert });

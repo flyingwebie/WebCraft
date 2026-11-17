@@ -33,7 +33,7 @@ async function scene(
 	await install.goLive(siteId);
 	let commands = "";
 	for (const [index, config] of configs.entries()) {
-		install.install.clock.advance(1);
+		await install.install.clock.advance(1);
 		const { popup } = await api.popups.create({ siteId, name: `Promotion ${index + 1}`, key: `offer-${index + 1}` });
 		await api.components.saveMarkup({
 			siteId,

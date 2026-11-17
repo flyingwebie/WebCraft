@@ -316,7 +316,7 @@ describe("deleting an Entry", () => {
 		});
 
 		const again = await editor.api.entries.delete({ siteId, entryId: tag.id });
-		install.clock.advance(5 * 60_000 + 1);
+		await install.clock.advance(5 * 60_000 + 1);
 		expect(
 			await rejection(editor.api.entries.delete({ siteId, entryId: tag.id, confirmation: again.confirmation?.id })),
 		).toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "expired" } });

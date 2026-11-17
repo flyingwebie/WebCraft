@@ -55,7 +55,7 @@ test("a schedule freezes the whole Popup and refuses its backing Component on it
 	await api.publishing.schedule({ siteId, item: { kind: "popup", id: popup.id }, at });
 	await api.popups.saveDraft({ siteId, popupId: popup.id, popup: { layout: "slide-in" } });
 	await api.components.saveMarkup({ siteId, componentId: popup.componentId, markup: "<p>Later unscheduled tree</p>" });
-	install.clock.advance(60_000);
+	await install.clock.advance(60_000);
 	expect((await install.drainJobs()).failed).toEqual([]);
 	const html = await fixture.html();
 	expect(html).toContain("Changed Popup tree");

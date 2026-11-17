@@ -11,5 +11,6 @@ const http = createBunHttp({ ca: process.argv[2] });
 
 for await (const line of createInterface({ input: process.stdin })) {
 	const { id, call } = JSON.parse(line) as { id: number; call: Call };
-	runCall(http, call).then((outcome) => process.stdout.write(`${JSON.stringify({ id, outcome })}\n`));
+	// Answers each call when it settles, in whatever order: the parent matches answers by id.
+	void runCall(http, call).then((outcome) => process.stdout.write(`${JSON.stringify({ id, outcome })}\n`));
 }
