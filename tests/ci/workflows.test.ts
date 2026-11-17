@@ -12,13 +12,24 @@ const workflows = readdirSync(WORKFLOWS)
 	.filter((name) => name.endsWith(".yml"))
 	.map((name) => ({ name, lines: readFileSync(join(WORKFLOWS, name), "utf8").split("\n") }));
 
+/** The repo's own composite actions (`.github/actions/<name>/action.yml`), which run other actions too. */
+const ACTIONS = join(import.meta.dir, "..", "..", ".github", "actions");
+const actions = readdirSync(ACTIONS).map((name) => ({
+	name: `actions/${name}`,
+	lines: readFileSync(join(ACTIONS, name, "action.yml"), "utf8").split("\n"),
+}));
+
 test("every action a workflow uses is named by its commit, with its version beside it", () => {
-	const used = workflows.flatMap(({ name, lines }) =>
+	const used = [...workflows, ...actions].flatMap(({ name, lines }) =>
 		lines.filter((line) => /^\s*(?:-\s+)?uses:/.test(line)).map((line) => ({ workflow: name, uses: line.trim() })),
 	);
 
 	expect(used.length).toBeGreaterThan(10);
-	const movable = used.filter(({ uses }) => !/uses: [\w.-]+\/[\w./-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/.test(uses));
+	// An action in this repo (`./.github/actions/...`) is part of the commit being run: it can't move.
+	const movable = used.filter(
+		({ uses }) =>
+			!/uses: (?:[\w.-]+\/[\w./-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+|\.\/\.github\/actions\/[\w-]+)$/.test(uses),
+	);
 	expect(movable).toEqual([]);
 });
 

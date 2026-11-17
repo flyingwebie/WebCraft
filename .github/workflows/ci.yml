@@ -1,7 +1,11 @@
 name: CI
 
+# Every check is its own job, all at once. Each starts from .github/actions/setup: a blobless clone
+# (every commit, file contents only for this one) and node_modules restored from the cache main saves.
+
 on:
   pull_request:
+  merge_group:
   push:
     branches: [main]
 
@@ -9,23 +13,54 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # A new commit on a pull request cancels the run it replaces. Runs on main and in the merge queue
+  # always finish: main's save the caches every pull request starts from.
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  checks:
-    name: Lint, typecheck, build and licences
+  lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version-file: package.json
-      - run: bun install --frozen-lockfile
+          filter: blob:none
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
       - run: bun run lint
-      # `bun check` on every project: the same errors as tsc, in seconds (scripts/typecheck.ts).
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          filter: blob:none
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
       - run: bun run typecheck
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          filter: blob:none
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
       - run: bun run build
+
+  licences:
+    name: Licences
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          filter: blob:none
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
       # Blocks dependencies whose licence isn't compatible with AGPL-3.0-or-later (ADR 0012).
       - run: bun run check:licences
 
@@ -39,33 +74,24 @@ jobs:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    services:
-      postgres:
-        image: postgres:18
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 2s
-          --health-timeout 5s
-          --health-retries 30
     env:
       # Tests create and drop databases named webcraft_test_<run>_<n> on this server.
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/webcraft
     steps:
+      # Postgres starts first and comes up while the rest is set up.
+      - name: Start Postgres 18
+        run: docker run --detach --name postgres --env POSTGRES_PASSWORD=postgres --publish 5432:5432 postgres:18
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          bun-version-file: package.json
+          filter: blob:none
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
       # The worker runs on the current Node LTS; one test starts it with `node`.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: lts/*
-      # libheif's encoder, so the Media tests can make a HEIC photo the way phones take them.
-      - run: sudo apt-get update && sudo apt-get install --yes libheif-examples libheif-plugin-x265
-      - run: bun install --frozen-lockfile
+      - name: Wait for Postgres
+        run: until docker exec postgres pg_isready --username postgres --host localhost --quiet; do sleep 0.2; done
       # No --retry: a test that passes only on a second try has a bug, and a retry would hide it.
       - run: >-
           bun test --timeout 30000 --parallel="$(nproc)" --no-isolate
@@ -83,6 +109,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          filter: blob:none
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version-file: package.json
@@ -96,12 +125,18 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          filter: blob:none
           fetch-depth: 0
       # Fails closed: without the REFERENCE_DENYLIST secret (as on pull requests from forks) the
       # check fails. It prints where a match is, never the list (ADR 0013).
       - name: Check tracked files, commit messages and the branch name
         env:
           WEBCRAFT_DENYLIST: ${{ secrets.REFERENCE_DENYLIST }}
-          RANGE: ${{ github.event_name == 'pull_request' && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha) || format('{0}..{1}', github.event.before, github.sha) }}
+          RANGE: >-
+            ${{ github.event_name == 'pull_request'
+              && format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha)
+              || github.event_name == 'merge_group'
+              && format('{0}..{1}', github.event.merge_group.base_sha, github.event.merge_group.head_sha)
+              || format('{0}..{1}', github.event.before, github.sha) }}
           BRANCH: ${{ github.head_ref || github.ref_name }}
         run: sh scripts/check-denylist.sh --range "$RANGE" --branch "$BRANCH"

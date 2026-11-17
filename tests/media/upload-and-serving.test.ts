@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { canMakeHeic, heicPhoto, imageInfo, pdf, photo, pixel, upload } from "../harness/images.ts";
+import { heicPhoto, imageInfo, pdf, photo, pixel, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
@@ -143,9 +143,9 @@ describe("images", () => {
 		}
 	});
 
-	test.skipIf(!canMakeHeic)("a HEIC photo from a phone becomes a JPEG", async () => {
-		const heic = await heicPhoto({ width: 64, height: 48 });
-		const ready = await uploadAndProcess(upload(heic ?? new Uint8Array(), "IMG_0001.HEIC", "image/heic"));
+	test("a HEIC photo from a phone becomes a JPEG", async () => {
+		const heic = heicPhoto();
+		const ready = await uploadAndProcess(upload(heic, "IMG_0001.HEIC", "image/heic"));
 
 		expect(ready).toMatchObject({ status: "ready", contentType: "image/jpeg", width: 64, height: 48 });
 		expect(ready.fileName).toBe("IMG_0001.HEIC");
@@ -154,18 +154,18 @@ describe("images", () => {
 		expect(await imageInfo(bytes)).toMatchObject({ format: "jpeg", width: 64, height: 48 });
 	});
 
-	test.skipIf(!canMakeHeic)("a HEIC photo larger than the worker reads is refused before it is decoded", async () => {
+	test("a HEIC photo larger than the worker reads is refused before it is decoded", async () => {
 		// The real limit is some 268 million pixels; a small one stands in for it, without a huge file.
 		const small = await createTestInstall({ maxImagePixels: 1_000 });
 		try {
 			const smallWorkspace = (await small.createWorkspace("Small Ltd")).id;
 			const smallSite = (await small.createSite(smallWorkspace, { name: "Small", slug: "small" })).id;
 			const smallEditor = (await small.createMember({ workspaceId: smallWorkspace, role: "editor" })).browser;
-			const heic = await heicPhoto({ width: 64, height: 48 });
+			const heic = heicPhoto();
 
 			const { media } = await smallEditor.api.media.upload({
 				siteId: smallSite,
-				file: upload(heic ?? new Uint8Array(), "IMG_0002.HEIC", "image/heic"),
+				file: upload(heic, "IMG_0002.HEIC", "image/heic"),
 			});
 			await small.drainJobs();
 

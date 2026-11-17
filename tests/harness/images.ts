@@ -1,8 +1,6 @@
-// Small images made inside the tests (never files copied from anywhere), and ways to look at what
-// the Install serves back.
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+// Small images made inside the tests (never files copied from anywhere; the one HEIC photo was made
+// once by this harness, with a HEIC encoder), and ways to look at what the Install serves back.
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import sharp from "sharp";
 
@@ -90,35 +88,12 @@ export async function pixel(bytes: Uint8Array, x: number, y: number): Promise<[n
 }
 
 /**
- * A HEIC photo (the format phones take pictures in), made from a PNG with a HEIC encoder on this
- * machine: `sips` on macOS, `heif-enc` where libheif's tools are installed (CI installs them).
- * Undefined when there is none.
+ * A 64 × 48 HEIC photo (the format phones take pictures in), kept as a file: making one needs a HEIC
+ * encoder, which CI would have to install on every run, and without it the HEIC tests would be skipped.
  */
-export async function heicPhoto(options: { width: number; height: number }): Promise<Uint8Array | undefined> {
-	const png = await photo({ ...options, format: "png" });
-	const folder = mkdtempSync(join(tmpdir(), "webcraft-heic-"));
-	try {
-		const input = join(folder, "in.png");
-		const output = join(folder, "out.heic");
-		writeFileSync(input, png);
-		const encoders = [
-			["sips", "-s", "format", "heic", input, "--out", output],
-			["heif-enc", "-q", "90", "-o", output, input],
-		];
-		for (const [command = "", ...args] of encoders) {
-			const result = spawnSync(command, args, { stdio: "ignore" });
-			if (result.status === 0) return new Uint8Array(readFileSync(output));
-		}
-		return undefined;
-	} finally {
-		rmSync(folder, { recursive: true, force: true });
-	}
+export function heicPhoto(): Uint8Array {
+	return new Uint8Array(readFileSync(join(import.meta.dir, "../media/fixtures/phone-64x48.heic")));
 }
-
-/** Whether this machine can make HEIC photos for the tests. */
-export const canMakeHeic = ["sips", "heif-enc"].some(
-	(command) => spawnSync("sh", ["-c", `command -v ${command}`], { stdio: "ignore" }).status === 0,
-);
 
 /** A file as a browser uploads it. */
 export function upload(bytes: Uint8Array | string, name: string, type = ""): File {
