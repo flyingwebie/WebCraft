@@ -1,0 +1,34 @@
+name: Run within a budget
+description: >-
+  Runs a check's command and fails the job when it takes longer than its budget, so CI can't get
+  slower without someone noticing. A command that fails fails the job as usual.
+
+inputs:
+  run:
+    description: The command, run with bash.
+    required: true
+  seconds:
+    description: The budget. Where it is above the target, the target is said too.
+    required: true
+  target:
+    description: The budget this check is meant to meet (docs/development.md, "CI budgets").
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        RUN: ${{ inputs.run }}
+        SECONDS_BUDGET: ${{ inputs.seconds }}
+        TARGET: ${{ inputs.target }}
+      run: |
+        started=$(date +%s)
+        bash -eo pipefail -c "$RUN"
+        took=$(($(date +%s) - started))
+        echo "Took ${took}s of its ${SECONDS_BUDGET}s budget${TARGET:+ (target ${TARGET}s)}."
+        if [ "$took" -gt "$SECONDS_BUDGET" ]; then
+          echo "::error::This check took ${took}s, over its ${SECONDS_BUDGET}-second budget. Find what got slower: docs/development.md, \"CI budgets\"."
+          exit 1
+        fi
