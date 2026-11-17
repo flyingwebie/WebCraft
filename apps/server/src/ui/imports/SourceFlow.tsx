@@ -1224,7 +1224,7 @@ function PreviewEntryDetail({ entry }: { entry: PreviewEntryView }) {
 					{entry.problems.length > 0 ? (
 						<ul className="text-destructive grid gap-1 border-t pt-3 text-sm">
 							{entry.problems.map((problem, index) => (
-								// biome-ignore lint/suspicious/noArrayIndexKey: an Entry can have the same problem at two keys.
+								// oxlint-disable-next-line react/no-array-index-key -- an Entry can have the same problem at two keys.
 								<li key={index}>
 									<code>{problem.column ?? "—"}</code>: {problem.rule}
 								</li>

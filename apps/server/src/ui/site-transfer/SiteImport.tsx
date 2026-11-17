@@ -339,10 +339,10 @@ function ReportTable({ caption, columns, rows }: { caption: string; columns: str
 			</TableHeader>
 			<TableBody>
 				{rows.map((row, index) => (
-					// biome-ignore lint/suspicious/noArrayIndexKey: the report's rows never move.
+					// oxlint-disable-next-line react/no-array-index-key -- the report's rows never move.
 					<TableRow key={index}>
 						{row.map((cell, column) => (
-							// biome-ignore lint/suspicious/noArrayIndexKey: a row's cells never move.
+							// oxlint-disable-next-line react/no-array-index-key -- a row's cells never move.
 							<TableCell key={column}>{cell}</TableCell>
 						))}
 					</TableRow>

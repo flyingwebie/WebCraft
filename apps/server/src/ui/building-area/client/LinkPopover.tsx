@@ -427,7 +427,7 @@ export function LinkPopover({
 								const chosen = target.path === draft.page;
 								const RowIcon = target.badge ? RssIcon : FileTextIcon;
 								return (
-									// biome-ignore lint/a11y/useKeyWithClickEvents: the combobox's keys choose an option.
+									// oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- the combobox's keys choose an option.
 									<div
 										key={target.id}
 										id={`${listId}-${index}`}

@@ -97,7 +97,7 @@ export function ChoiceMenu({
 			className={`border-chrome-hover bg-chrome-menu absolute z-50 flex max-h-[min(420px,70vh)] w-72 flex-col gap-0.5 overflow-y-auto rounded-lg border p-1.5 shadow-[0_12px_32px_rgba(0,0,0,0.55)] ${place}`}
 		>
 			{groups.map((group) => (
-				// biome-ignore lint/a11y/useSemanticElements: a menu groups its items with role="group", never a fieldset.
+				// oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a menu groups its items with role="group", never a fieldset.
 				<div
 					key={group.label ?? ""}
 					role="group"

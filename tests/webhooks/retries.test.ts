@@ -59,7 +59,7 @@ async function followRetries(siteId: string, webhookId: string): Promise<number[
 	const start = install.clock.now().getTime();
 	await install.drainJobs();
 	const minutes = [0];
-	for (let delivery = await theDelivery(siteId, webhookId); delivery.status === "retrying"; ) {
+	for (let delivery = await theDelivery(siteId, webhookId); delivery.status === "retrying";) {
 		const due = delivery.nextAttemptAt?.getTime() ?? 0;
 		// Not a moment before it is due.
 		await install.clock.set(new Date(due - 1000));

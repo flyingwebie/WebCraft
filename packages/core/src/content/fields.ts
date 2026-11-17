@@ -21,12 +21,7 @@ import {
 	specOf,
 } from "./field-types.ts";
 
-export {
-	FIELD_HELP_MAX_LENGTH,
-	FIELD_LABEL_MAX_LENGTH,
-	MAX_FIELD_DEPTH,
-	MAX_FIELDS,
-} from "./field-rules.ts";
+export { FIELD_HELP_MAX_LENGTH, FIELD_LABEL_MAX_LENGTH, MAX_FIELD_DEPTH, MAX_FIELDS } from "./field-rules.ts";
 export {
 	DATE_MODES,
 	type DateMode,

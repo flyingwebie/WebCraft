@@ -98,7 +98,7 @@ export function Popover({
 	}, []);
 
 	// Focus goes into it as it opens, and again when it opens on another element.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: `seq` is the opening.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- `seq` is the opening.
 	useEffect(() => {
 		const element = card.current;
 		if (!element || hidden) return;

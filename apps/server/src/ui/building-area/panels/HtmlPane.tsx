@@ -12,10 +12,10 @@ import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
 import { keyOf, type StructureSelection, type StructureSource } from "../editing/selection.ts";
 import { managementApi } from "../management.ts";
 import { NoteLine } from "../places/styles/CodeBox.tsx";
-import { CodeWell, type LineRange } from "./CodeWell.tsx";
-import { ConflictDialog } from "./ConflictDialog.tsx";
 import type { CodePanesDeps } from "./code-panes.tsx";
 import { type CodeRequests, lineAt, type MarkupProblem, offsetAt, problemsOf } from "./code-requests.ts";
+import { CodeWell, type LineRange } from "./CodeWell.tsx";
+import { ConflictDialog } from "./ConflictDialog.tsx";
 import {
 	FormatButton,
 	type FormatSlot,
@@ -902,7 +902,7 @@ function Breadcrumb({
 }) {
 	const list = useRef<HTMLOListElement>(null);
 	const [cut, setCut] = useState(false);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: new steps show the end again.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- new steps show the end again.
 	useLayoutEffect(() => {
 		const element = list.current;
 		if (!element) return;

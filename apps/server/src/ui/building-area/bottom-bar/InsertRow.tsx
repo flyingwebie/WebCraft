@@ -194,7 +194,7 @@ export function InsertRow({
 			data-wc-insert-buttons=""
 		>
 			{template ? (
-				// biome-ignore lint/a11y/useSemanticElements: a group of the row's buttons, not a form's fieldset.
+				// oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a group of the row's buttons, not a form's fieldset.
 				<div
 					role="group"
 					aria-label={words.insert.templateGroup}

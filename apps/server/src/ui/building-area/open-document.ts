@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BUILDING_STAND_IN_PREFIX } from "./agent/contract.ts";
 import { type EditAnswer, fill, type ShellConfig } from "./api.ts";
 import type { PreviewEntry } from "./bottom-bar/DocumentNav.tsx";
-import { type DocumentTitle, documentTitle, type Switchable, titleText } from "./DocumentSwitcher.tsx";
 import {
 	type BuildingDocument,
 	type CameFrom,
@@ -13,6 +12,7 @@ import {
 	sameDocument,
 	shellDocuments,
 } from "./documents.ts";
+import { type DocumentTitle, documentTitle, type Switchable, titleText } from "./DocumentSwitcher.tsx";
 import { type GoToData, managementApi, type PostTypeRow } from "./management.ts";
 import { type Shown, whereShown } from "./opening.ts";
 
@@ -150,7 +150,7 @@ export function useOpenDocument(
 
 	// Where the frame shows the document, found again whenever the address names another one.
 	const documentKey = address.document ? JSON.stringify(address.document) : "";
-	// biome-ignore lint/correctness/useExhaustiveDependencies: the document's printed form is what changes it.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- the document's printed form is what changes it.
 	useEffect(() => {
 		const document = address.document;
 		if (!document) {

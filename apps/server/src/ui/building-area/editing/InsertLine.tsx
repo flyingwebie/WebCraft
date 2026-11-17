@@ -82,7 +82,7 @@ export function InsertLine({ inserter, frame }: { inserter: Inserter; frame: Ref
 			{[lines.canvas, lines.tree].map((line, index) =>
 				line ? (
 					<span
-						// biome-ignore lint/suspicious/noArrayIndexKey: two fixed lines, the canvas's then the tree's.
+						// oxlint-disable-next-line react/no-array-index-key -- two fixed lines, the canvas's then the tree's.
 						key={index}
 						aria-hidden="true"
 						className="pointer-events-none fixed z-30 h-0.5 rounded-full bg-[#4ade80]"

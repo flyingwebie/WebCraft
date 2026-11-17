@@ -323,7 +323,7 @@ export function ProblemList({
 							});
 							return (
 								// Problems are listed once each, in row order.
-								// biome-ignore lint/suspicious/noArrayIndexKey: a row can have several problems in one column.
+								// oxlint-disable-next-line react/no-array-index-key -- a row can have several problems in one column.
 								<TableRow key={`${problem.row}-${index}`}>
 									<TableCell className="ps-4">{problem.row}</TableCell>
 									<TableCell>{problem.column ? <code className="text-xs">{problem.column}</code> : "—"}</TableCell>

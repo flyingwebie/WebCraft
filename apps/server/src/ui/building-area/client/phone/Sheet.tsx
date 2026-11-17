@@ -55,7 +55,7 @@ export function Sheet({
 	);
 
 	return (
-		// biome-ignore lint/a11y/useKeyWithClickEvents: a tap on the dimmed page; from the keyboard, Escape (the dialog's cancel) closes it.
+		// oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- a tap on the dimmed page; from the keyboard, Escape (the dialog's cancel) closes it.
 		<dialog
 			ref={dialog}
 			aria-label={label}

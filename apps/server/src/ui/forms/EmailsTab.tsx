@@ -177,7 +177,7 @@ export function EmailsTab({
 				{emails.notifications.map((notification, index) => (
 					<NotificationCard
 						// Notifications have no ids; their place in the list is who they are while editing.
-						// biome-ignore lint/suspicious/noArrayIndexKey: see above.
+						// oxlint-disable-next-line react/no-array-index-key -- see above.
 						key={index}
 						index={index}
 						notification={notification}
@@ -351,7 +351,7 @@ function Recipients({
 			<label htmlFor={id} className={visibleLabel ? "text-muted-foreground text-sm" : "sr-only"}>
 				{label}
 			</label>
-			{/* biome-ignore lint/a11y/noStaticElementInteractions lint/a11y/useKeyWithClickEvents: a click on the box's empty part puts the caret in its text box, which the keyboard reaches on its own. */}
+			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- a click on the box's empty part puts the caret in its text box, which the keyboard reaches on its own.*/}
 			<div
 				className="border-input dark:bg-input/30 focus-within:border-ring aria-invalid:border-destructive flex min-h-9 flex-wrap items-center gap-1.5 rounded-md border px-1.5 py-1"
 				aria-invalid={problems.length > 0 ? true : undefined}

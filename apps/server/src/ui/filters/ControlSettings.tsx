@@ -555,7 +555,7 @@ function SortOptions({
 					const at = `${id}-sort-${index}`;
 					const problem = problemAt(`options[${index}]`);
 					return (
-						// biome-ignore lint/suspicious/noArrayIndexKey: sorts are edited in place, their values can repeat while typing.
+						// oxlint-disable-next-line react/no-array-index-key -- sorts are edited in place, their values can repeat while typing.
 						<li key={index} className="grid gap-3 rounded-md border p-3">
 							<p className="text-sm font-medium">{t("filters.settings.sortNumber", { number: index + 1 })}</p>
 							<div className="grid gap-3 sm:grid-cols-2">

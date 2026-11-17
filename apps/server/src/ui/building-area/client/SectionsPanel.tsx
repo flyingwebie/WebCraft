@@ -18,9 +18,9 @@ import { fill, type Words } from "../api.ts";
 import { CHROME_EASE, FOCUS_RING } from "../controls.tsx";
 import { SectionPicker, Sketch, useSections, whereText } from "./AddSection.tsx";
 import { plural } from "./ClientBar.tsx";
+import type { MemberSections, SectionRow, SectionsSnapshot } from "./sections.ts";
 import { MenuItem, MenuList, SectionSettings } from "./SectionSettings.tsx";
 import { SidePanel } from "./SidePanel.tsx";
-import type { MemberSections, SectionRow, SectionsSnapshot } from "./sections.ts";
 
 /**
  * The Sections side panel (SPEC 13.4, `client/06`): the page's sections in order, each a row with a
@@ -362,7 +362,7 @@ function SectionList({
 								? said.hiddenHint
 								: null;
 					return (
-						// biome-ignore lint/a11y/useKeyWithClickEvents: the tree's keys are on the tree (arrows, Enter, Space).
+						// oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- the tree's keys are on the tree (arrows, Enter, Space).
 						<div
 							key={row.id}
 							role="treeitem"

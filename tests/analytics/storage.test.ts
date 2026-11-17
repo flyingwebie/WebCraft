@@ -101,7 +101,9 @@ describe("rollups", () => {
 		await visitor.view("/");
 		await visitor.view("/about");
 
-		const days = await (await stats()).series({
+		const days = await (
+			await stats()
+		).series({
 			siteId: site.siteId,
 			from: yesterday.from,
 			to: new Date(yesterday.to.getTime() + DAY),
@@ -188,7 +190,9 @@ describe("raw events", () => {
 				?.partitions;
 		expect(await keeping()).toEqual([{ table: "events", label: "Raw events", keepMonths: 13, defaultMonths: 13 }]);
 
-		await (await install.superadmin()).api.modules.setKeepMonths({
+		await (
+			await install.superadmin()
+		).api.modules.setKeepMonths({
 			moduleId: "site-analytics",
 			table: "events",
 			months: 2,

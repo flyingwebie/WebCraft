@@ -79,7 +79,9 @@ export const moduleLog = pgTable(
 		workspaceId: uuid("workspace_id"),
 		siteId: uuid("site_id"),
 		/** What it was about: the event or job, the attempt, the error; never a secret's value. */
-		details: jsonb("details").notNull().default(sql`'{}'::jsonb`),
+		details: jsonb("details")
+			.notNull()
+			.default(sql`'{}'::jsonb`),
 	},
 	(table) => [
 		index("module_log_module_id_occurred_at_idx").on(table.moduleId, table.occurredAt),

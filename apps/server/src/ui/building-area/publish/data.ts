@@ -52,12 +52,12 @@ export function usePublishData(
 	}, [request, key]);
 
 	// Another page or other sources: what was read for the last ones is not shown meanwhile.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: cleared when what is asked about changes.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- cleared when what is asked about changes.
 	useEffect(() => {
 		setData(null);
 	}, [key]);
 
-	// biome-ignore lint/correctness/useExhaustiveDependencies: `changed` is what asks for a new read.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- `changed` is what asks for a new read.
 	useEffect(() => {
 		const timer = setTimeout(() => void read(), READ_DELAY_MS);
 		return () => clearTimeout(timer);

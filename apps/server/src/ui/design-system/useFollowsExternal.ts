@@ -13,7 +13,7 @@ export function useFollowsExternal<T>(external: T, onExternalChange: (value: T) 
 	const last = useRef(external);
 	// `onExternalChange` is the caller's setter, not a value to react to: only `external` changing
 	// (not a re-render with a freshly made setter) should resync.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: see above.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- see above.
 	useEffect(() => {
 		if (external === last.current) return;
 		last.current = external;

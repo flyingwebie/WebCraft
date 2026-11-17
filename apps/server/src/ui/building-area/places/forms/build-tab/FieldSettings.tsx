@@ -158,7 +158,7 @@ function WidthSetting({
 				}}
 			>
 				{order.map((each) => (
-					// biome-ignore lint/a11y/useSemanticElements: three buttons of one choice, as a segmented control draws them; the group is a radiogroup.
+					// oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- three buttons of one choice, as a segmented control draws them; the group is a radiogroup.
 					<button
 						key={each}
 						type="button"

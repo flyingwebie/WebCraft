@@ -104,7 +104,7 @@ export function MediaSidebar({
 	};
 
 	// A new reading of the library replaces what was shown for the person's own change.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: reset when the folders are read again.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- reset when the folders are read again.
 	useEffect(() => {
 		if (pending.current > 0) return;
 		setArranged(null);

@@ -70,10 +70,9 @@ import { MediaPicker } from "../../media/MediaPicker.tsx";
 import type { MediaItem } from "../../media/preview.ts";
 import type { Json, Problem } from "../model.ts";
 import { problemsWithin } from "../model.ts";
-import { LinkDialog } from "../RichTextEditor.tsx";
 import { Announcer, DragHandle, moveItem, useDragOrder } from "../reorder.tsx";
+import { LinkDialog } from "../RichTextEditor.tsx";
 import { BlockMenu } from "./BlockMenu.tsx";
-import { ComponentProps } from "./ComponentProps.tsx";
 import {
 	BLOCK_CHOICES,
 	type BlockChoice,
@@ -87,6 +86,7 @@ import {
 	turnInto,
 	WHOLE_SHORTCUTS,
 } from "./choices.ts";
+import { ComponentProps } from "./ComponentProps.tsx";
 import { InlineEditor } from "./InlineEditor.tsx";
 
 /** A button of the toolbar. */
@@ -1259,7 +1259,7 @@ function BlockContent({
 					aria-label={label}
 				>
 					{lines.map((line, index) => (
-						// biome-ignore lint/suspicious/noArrayIndexKey: lines are edited in place; the list's own key starts them again on bigger changes.
+						// oxlint-disable-next-line react/no-array-index-key -- lines are edited in place; the list's own key starts them again on bigger changes.
 						<li key={index} style={{ marginInlineStart: `${line.depth * 1.5}rem` }}>
 							<InlineEditor
 								{...common}
@@ -1387,11 +1387,11 @@ function BlockContent({
 						<table className="w-full border-collapse text-sm">
 							<tbody>
 								{block.rows.map((row, rowIndex) => (
-									// biome-ignore lint/suspicious/noArrayIndexKey: rows are edited in place.
+									// oxlint-disable-next-line react/no-array-index-key -- rows are edited in place.
 									<tr key={rowIndex}>
 										{row.map((cell, column) => (
 											<td
-												// biome-ignore lint/suspicious/noArrayIndexKey: cells are edited in place.
+												// oxlint-disable-next-line react/no-array-index-key -- cells are edited in place.
 												key={column}
 												className={`border p-1 ${block.headerRow && rowIndex === 0 ? "bg-muted font-medium" : ""}`}
 											>

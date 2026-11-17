@@ -66,7 +66,10 @@ export const contentKeys = pgTable(
 		name: text("name").notNull(),
 		secretHash: text("secret_hash").notNull().unique(),
 		hint: text("hint").notNull(),
-		origins: text("origins").array().notNull().default(sql`'{}'::text[]`),
+		origins: text("origins")
+			.array()
+			.notNull()
+			.default(sql`'{}'::text[]`),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		/** Who made it; null once that person is deleted. */
 		createdBy: uuid("created_by").references(() => people.id, { onDelete: "set null" }),

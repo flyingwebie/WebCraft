@@ -82,7 +82,7 @@ export function ErrorLogScreen({ first }: { first: ErrorLogPage }) {
 			) : (
 				<section
 					aria-labelledby="error-log-caption"
-					// biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable region must be reachable by keyboard.
+					// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region must be reachable by keyboard.
 					tabIndex={0}
 					className="focus-visible:ring-ring/50 overflow-x-auto rounded-lg border outline-none focus-visible:ring-[3px]"
 				>
@@ -262,7 +262,7 @@ function GroupDetail({ detail }: { detail: Detail }) {
 				{detail.stack ? (
 					<section
 						aria-labelledby={stackId}
-						// biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable region must be reachable by keyboard.
+						// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region must be reachable by keyboard.
 						tabIndex={0}
 						className="bg-background focus-visible:ring-ring/50 max-h-72 overflow-auto rounded-md border outline-none focus-visible:ring-[3px]"
 					>

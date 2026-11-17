@@ -335,7 +335,9 @@ test("a Form's retention deletes more Submissions than one batch holds, each bat
 
 	expect(failed).toEqual([]);
 	expect((await site.kept("inbox")).total).toBe(0);
-	const { entries } = await (await install.superadmin()).api.audit.list({
+	const { entries } = await (
+		await install.superadmin()
+	).api.audit.list({
 		workspaceId,
 		siteId: site.siteId,
 		action: "forms.submissions.purge",

@@ -74,7 +74,9 @@ export function SiteSeoSettings({
 		},
 		save: async ({ name, separator, socialCards, defaultImage, organization, profiles }) => {
 			try {
-				await (await getApi()).seoSettings.update({
+				await (
+					await getApi()
+				).seoSettings.update({
 					siteId,
 					siteName: name.trim() || null,
 					separator,

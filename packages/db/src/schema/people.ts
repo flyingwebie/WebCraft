@@ -28,7 +28,10 @@ export const people = pgTable(
 		 * panels are, "Format when I leave the box", whether they saw the first-visit card. The same on
 		 * every Site and in every browser; `{}` until they change something.
 		 */
-		editorPreferences: jsonb("editor_preferences").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+		editorPreferences: jsonb("editor_preferences")
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default(sql`'{}'::jsonb`),
 		/**
 		 * Wrong codes in a row at the second step of signing in, since the last right one (or the last
 		 * lock); 10 lock the second step. Wrong passwords are counted in `sign_in_throttles`.

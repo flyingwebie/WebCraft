@@ -123,7 +123,9 @@ function shared() {
 }
 
 afterAll(async () => {
-	await (await sharedPage)?.page
+	await (
+		await sharedPage
+	)?.page
 		.context()
 		.close()
 		.catch(() => {});
@@ -329,9 +331,9 @@ describe("the code panes", () => {
 		expect(saved).toMatch(
 			/<section class="hero"[^>]*><h1 class="hero__title is-large"[^>]*>\{\{ props\.headline \}\} today<\/h1><\/section>$/,
 		);
-		await (await frameOf(page)).waitForFunction(
-			() => document.querySelector("h1.hero__title")?.textContent?.includes("today") === true,
-		);
+		await (
+			await frameOf(page)
+		).waitForFunction(() => document.querySelector("h1.hero__title")?.textContent?.includes("today") === true);
 		// The box still holds the heading alone.
 		expect(await box(page, "html").inputValue()).not.toContain("<section");
 
@@ -340,9 +342,9 @@ describe("the code panes", () => {
 		expect(await undo.getAttribute("aria-label")).toContain("Changed the HTML of HeroSplit");
 		await undo.click();
 		expect(await eventually(heroMarkup, (markup) => !markup.includes("today"))).not.toContain("today");
-		await (await frameOf(page)).waitForFunction(
-			() => document.querySelector("h1.hero__title")?.textContent?.includes("today") === false,
-		);
+		await (
+			await frameOf(page)
+		).waitForFunction(() => document.querySelector("h1.hero__title")?.textContent?.includes("today") === false);
 		await page.waitForFunction(
 			() => !document.querySelector<HTMLTextAreaElement>('textarea[data-wc-code-box="html"]')?.value.includes("today"),
 		);
@@ -380,16 +382,18 @@ describe("the code panes", () => {
 		const mine = (await box(page, "html").inputValue()).replace("{{ props.headline }}", "Mine: {{ props.headline }}");
 		await typeInto(page, "html", mine);
 		// What was typed shows on the page first (its preview), then their change arrives.
-		await (await frameOf(page)).waitForFunction(
-			() => document.querySelector("h1.hero__title")?.textContent?.includes("Mine:") === true,
-		);
+		await (
+			await frameOf(page)
+		).waitForFunction(() => document.querySelector("h1.hero__title")?.textContent?.includes("Mine:") === true);
 		await api.components.saveMarkup({
 			siteId,
 			componentId,
 			markup: HERO.replace("{{ props.headline }}", "Theirs: {{ props.headline }}"),
 		});
 		// Their change reaches the page (the shell's open Draft); what was typed stays in the box.
-		await (await frameOf(page)).waitForFunction(
+		await (
+			await frameOf(page)
+		).waitForFunction(
 			() => document.querySelector("h1.hero__title")?.textContent?.includes("Theirs") === true,
 			undefined,
 			{ timeout: 30_000 },
@@ -404,15 +408,17 @@ describe("the code panes", () => {
 
 		// Again, and Reload theirs drops what was typed.
 		await typeInto(page, "html", (await box(page, "html").inputValue()).replace("Mine:", "Mine again:"));
-		await (await frameOf(page)).waitForFunction(
-			() => document.querySelector("h1.hero__title")?.textContent?.includes("Mine again:") === true,
-		);
+		await (
+			await frameOf(page)
+		).waitForFunction(() => document.querySelector("h1.hero__title")?.textContent?.includes("Mine again:") === true);
 		await api.components.saveMarkup({
 			siteId,
 			componentId,
 			markup: HERO.replace("{{ props.headline }}", "Theirs again"),
 		});
-		await (await frameOf(page)).waitForFunction(
+		await (
+			await frameOf(page)
+		).waitForFunction(
 			() => document.querySelector("h1.hero__title")?.textContent?.includes("Theirs again") === true,
 			undefined,
 			{ timeout: 30_000 },
@@ -425,7 +431,9 @@ describe("the code panes", () => {
 		);
 		expect(await heroMarkup()).toContain("Theirs again");
 		await api.components.saveMarkup({ siteId, componentId, markup: HERO });
-		await (await frameOf(page)).waitForFunction(
+		await (
+			await frameOf(page)
+		).waitForFunction(
 			() => document.querySelector("h1.hero__title")?.textContent?.includes("Theirs") === false,
 			undefined,
 			{ timeout: 30_000 },

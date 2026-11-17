@@ -94,7 +94,7 @@ function EmailLogTable({ first }: { first: Page }) {
 			{/* Scrolls sideways on narrow screens: focusable, so keyboards can scroll it too. */}
 			<section
 				aria-labelledby="email-log-caption"
-				// biome-ignore lint/a11y/noNoninteractiveTabindex: a scrollable region must be reachable by keyboard.
+				// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- a scrollable region must be reachable by keyboard.
 				tabIndex={0}
 				className="focus-visible:ring-ring/50 overflow-x-auto rounded-lg border outline-none focus-visible:ring-[3px]"
 			>

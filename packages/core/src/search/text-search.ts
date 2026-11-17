@@ -79,7 +79,7 @@ export function searchQueryIn(query: URLSearchParams): string {
 export function cleanSearchText(text: string): string {
 	const clean = text
 		.normalize("NFC")
-		// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this removes.
+		// oxlint-disable-next-line no-control-regex -- control characters are what this removes.
 		.replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, " ")
 		.replace(/\s+/g, " ")
 		.trim();

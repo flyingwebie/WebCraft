@@ -35,7 +35,7 @@ function LayoutPicture({ layout }: { layout: readonly { x: number; y: number; w:
 		<span aria-hidden="true" className="bg-muted relative block h-10 w-19 overflow-hidden rounded-[4px]">
 			{layout.map((each, index) => (
 				<span
-					// biome-ignore lint/suspicious/noArrayIndexKey: blocks of a picture, in a fixed order.
+					// oxlint-disable-next-line react/no-array-index-key -- blocks of a picture, in a fixed order.
 					key={index}
 					className="absolute rounded-[2px]"
 					style={{

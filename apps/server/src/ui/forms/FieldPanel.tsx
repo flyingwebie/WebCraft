@@ -402,7 +402,7 @@ function Condition({
 				const problem = problems.find((each) => each.at.includes(`rules[${index}]`))?.message;
 				return (
 					<fieldset
-						// biome-ignore lint/suspicious/noArrayIndexKey: rules are edited in place.
+						// oxlint-disable-next-line react/no-array-index-key -- rules are edited in place.
 						key={index}
 						className="grid gap-2 rounded-md border p-3"
 					>
@@ -548,7 +548,7 @@ function Options({
 		<fieldset className="grid gap-3">
 			<legend className="mb-2 text-sm font-medium">{t("forms.field.options")}</legend>
 			{options.map((option, index) => (
-				// biome-ignore lint/suspicious/noArrayIndexKey: options are edited in place; their values can repeat while typing.
+				// oxlint-disable-next-line react/no-array-index-key -- options are edited in place; their values can repeat while typing.
 				<div key={index} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
 					<Field>
 						<FieldLabel htmlFor={`${idPrefix}-option-${index}-label`}>

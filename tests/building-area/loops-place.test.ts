@@ -3,8 +3,8 @@
 // the published pages showing it); a Member is refused, Loops being Structure.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
-import { openBuildingArea } from "../harness/building-area.ts";
 import { type BuildingAreaApi, buildingAreaApi } from "../harness/building-area-api.ts";
+import { openBuildingArea } from "../harness/building-area.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { rejection } from "../harness/settled.ts";
 

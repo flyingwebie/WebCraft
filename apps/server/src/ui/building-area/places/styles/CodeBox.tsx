@@ -67,7 +67,7 @@ export function CodeBox({
 			>
 				{lines.map((_, index) => (
 					<span
-						// biome-ignore lint/suspicious/noArrayIndexKey: a line is its number.
+						// oxlint-disable-next-line react/no-array-index-key -- a line is its number.
 						key={index}
 						className={`block h-5 pe-1.5 ${
 							problemLine === index + 1
@@ -91,7 +91,7 @@ export function CodeBox({
 					<code>
 						{lines.map((pieces, index) => (
 							<span
-								// biome-ignore lint/suspicious/noArrayIndexKey: a line is its number.
+								// oxlint-disable-next-line react/no-array-index-key -- a line is its number.
 								key={index}
 								className={`block min-h-5 w-max min-w-full px-3 ${
 									problemLine === index + 1
@@ -104,7 +104,7 @@ export function CodeBox({
 								{pieces.length
 									? pieces.map(([kind, piece], at) =>
 											kind ? (
-												// biome-ignore lint/suspicious/noArrayIndexKey: pieces keep their order.
+												// oxlint-disable-next-line react/no-array-index-key -- pieces keep their order.
 												<span key={at} className={TOKEN_CLASS[kind]}>
 													{piece}
 												</span>

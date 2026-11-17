@@ -48,7 +48,9 @@ export const reports = pgTable(
 		/** The language of the Report's words and of the AI text in it (an admin language: `en`, `it`). */
 		language: text("language").notNull(),
 		/** Who it is emailed to: addresses, lower case. */
-		recipients: jsonb("recipients").notNull().default(sql`'[]'::jsonb`),
+		recipients: jsonb("recipients")
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		/** Whether each one waits for someone to review its AI text before it goes out. */
 		review: boolean("review").notNull().default(false),
 		/** Whether it goes out on its schedule. */
@@ -104,7 +106,9 @@ export const reportSends = pgTable(
 		previousTo: timestamp("previous_to", { withTimezone: true }).notNull(),
 		language: text("language").notNull(),
 		/** Who it goes to (addresses), as they were when it was made. */
-		recipients: jsonb("recipients").notNull().default(sql`'[]'::jsonb`),
+		recipients: jsonb("recipients")
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		/** What it shows: the Widgets' answers for the period and the one before, and the AI text. */
 		content: jsonb("content"),
 		/** Whether the AI text is in it: `written`, `noKey`, `cap`, `failed` (the provider), `none` (nothing to write about). */
@@ -195,7 +199,9 @@ export const reportServices = pgTable(
 	{
 		id: integer("id").primaryKey().default(1),
 		/** `{ id, name, description }[]`, in the order Staff gave them. */
-		services: jsonb("services").notNull().default(sql`'[]'::jsonb`),
+		services: jsonb("services")
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 		updatedBy: uuid("updated_by").references(() => people.id, { onDelete: "set null" }),
 	},

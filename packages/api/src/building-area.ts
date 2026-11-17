@@ -29,9 +29,9 @@ export type BuildingAreaRouter = Picked<ApiRouter, BuildingAreaProcedure>;
 export type BuildingAreaApiClient = RouterClient<BuildingAreaRouter>;
 
 type Picked<Router, Path extends string> = {
-	[Key in keyof Router & string as Path extends Key | `${Key}.${string}`
-		? Key
-		: never]: Router[Key] extends AnyProcedure
+	[
+		Key in keyof Router & string as Path extends Key | `${Key}.${string}` ? Key : never
+	]: Router[Key] extends AnyProcedure
 		? Router[Key]
 		: Picked<Router[Key], Path extends `${Key}.${infer Rest}` ? Rest : never>;
 };

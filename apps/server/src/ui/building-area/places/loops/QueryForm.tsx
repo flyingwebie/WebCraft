@@ -89,7 +89,7 @@ export function QueryForm({
 		if (next) latest.current(next);
 	};
 	// What waits is saved when the form goes (another Loop opened, the place left).
-	// biome-ignore lint/correctness/useExhaustiveDependencies: `flush` reads only refs.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- `flush` reads only refs.
 	useEffect(() => () => flush(), []);
 
 	/**
@@ -162,7 +162,7 @@ export function QueryForm({
 				{query.filters.map((filter, index) => (
 					<RuleRow
 						// Rules have no ids of their own; their place in the list is who they are.
-						// biome-ignore lint/suspicious/noArrayIndexKey: the list is edited in place, by position.
+						// oxlint-disable-next-line react/no-array-index-key -- the list is edited in place, by position.
 						key={index}
 						words={words}
 						q={q}
@@ -444,8 +444,8 @@ function RuleRow({
 					{filter.type === "field" && !chosenField ? (
 						<option value={subject}>{filter.field}</option>
 					) : filter.type === "date" &&
-						!DATE_BUILT_INS.includes(filter.field as (typeof DATE_BUILT_INS)[number]) &&
-						!reads.dates.some((each) => each.path === filter.field) ? (
+					  !DATE_BUILT_INS.includes(filter.field as (typeof DATE_BUILT_INS)[number]) &&
+					  !reads.dates.some((each) => each.path === filter.field) ? (
 						<option value={subject}>{fill(shown.dateSubject, { field: dateLabel(filter.field) })}</option>
 					) : filter.type === "relationship" && !reads.relationships.some((each) => each.path === filter.field) ? (
 						<option value={subject}>{fill(shown.relationshipSubject, { field: filter.field })}</option>

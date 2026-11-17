@@ -35,7 +35,9 @@ export function enginePages(install: BrowserInstall) {
 					browser = TYPES[engine].launch();
 					launched.set(engine, browser);
 				}
-				const context = await (await browser).newContext({
+				const context = await (
+					await browser
+				).newContext({
 					colorScheme: theme,
 					reducedMotion: "reduce",
 					viewport: { width: 1280, height: 900 },
@@ -266,7 +268,9 @@ export async function stays<Value>(
  * `selector` names, and answers its reference: a pane shown after it then shows that element's.
  */
 export async function selectionIs(page: Page, selector: string): Promise<string> {
-	const ref = await (await frameOf(page))
+	const ref = await (
+		await frameOf(page)
+	)
 		.locator(selector)
 		.first()
 		.evaluate((element) => element.closest("[data-wc-code]")?.getAttribute("data-wc-code") ?? null);

@@ -1,10 +1,5 @@
 export type { StatementForm, StatementSettings } from "./accessibility/statement.ts";
-export {
-	type Account,
-	describeUserAgent,
-	SessionNotFoundError,
-	type SessionView,
-} from "./account.ts";
+export { type Account, describeUserAgent, SessionNotFoundError, type SessionView } from "./account.ts";
 export {
 	ADMIN_LANGUAGE_CODES,
 	ADMIN_LANGUAGES,
@@ -467,11 +462,7 @@ export {
 	stagingPage,
 	stagingWords,
 } from "./staging/index.ts";
-export {
-	AccountDeactivationRefusedError,
-	type AccountsService,
-	type DeactivationRefusal,
-} from "./tenancy/accounts.ts";
+export { AccountDeactivationRefusedError, type AccountsService, type DeactivationRefusal } from "./tenancy/accounts.ts";
 export type {
 	Access,
 	BackgroundScope,

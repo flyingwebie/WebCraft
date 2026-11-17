@@ -60,7 +60,7 @@ export async function siteMailRoute(scope: Pick<SiteScope, "first" | "site">): P
 export function mailAddress(value: unknown): string | null {
 	if (typeof value !== "string" || value.length > 254) return null;
 	const address = normaliseEmail(value);
-	// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this refuses.
+	// oxlint-disable-next-line no-control-regex -- control characters are what this refuses.
 	if (/[\s,;<>"\u0000-\u001f\u007f]/.test(address)) return null;
 	try {
 		assertValidEmail(address);
@@ -70,7 +70,7 @@ export function mailAddress(value: unknown): string | null {
 	}
 }
 
-// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this removes.
+// oxlint-disable-next-line no-control-regex -- control characters are what this removes.
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f]+/g;
 
 /** Text on one line, fit for a subject: no line breaks or control characters, at most `max` characters. */

@@ -25,17 +25,17 @@ import { PLACE_EVENT, placeEntry, placeKeyOf, reopenPlace } from "../places/regi
 import { Publish } from "../publish/Publish.tsx";
 import { PUBLISH_OPEN_EVENT } from "../publish/sources.ts";
 import { AddSectionLine } from "./AddSection.tsx";
-import { AsClientBanner } from "./AsClientBanner.tsx";
 import { type AsClient, asClientRequests } from "./as-client.ts";
-import { BodyInPlace } from "./BodyInPlace.tsx";
+import { AsClientBanner } from "./AsClientBanner.tsx";
 import { bodyInPlace } from "./body-in-place.ts";
+import { BodyInPlace } from "./BodyInPlace.tsx";
 import { ClientBar, type ClientPanel, clientDraftStateOf } from "./ClientBar.tsx";
 import { CLIENT_PLACES, type ClientPlace, ClientRail } from "./ClientRail.tsx";
 import { FormLockPopover, useFormLocks } from "./FormLock.tsx";
 import { HelpCard } from "./HelpCard.tsx";
 import { ItemPanel } from "./ItemPanel.tsx";
-import { LoopItems } from "./LoopItems.tsx";
 import { loopItems } from "./loop-items.ts";
+import { LoopItems } from "./LoopItems.tsx";
 import { type ClientMode, clientEditing } from "./marks.ts";
 import { MemberDetails } from "./PageDetails.tsx";
 import { PageSwitcher } from "./PageSwitcher.tsx";
@@ -47,9 +47,9 @@ import { PhoneHint } from "./phone/PhoneHint.tsx";
 import { regionPopovers } from "./popovers.ts";
 import { RegionPopover } from "./RegionPopover.tsx";
 import { RemovedToast, SectionMarks } from "./SectionBar.tsx";
+import { memberSections } from "./sections.ts";
 import { SectionsSidePanel } from "./SectionsPanel.tsx";
 import { SidePanel } from "./SidePanel.tsx";
-import { memberSections } from "./sections.ts";
 
 /** What the `state` edit request says beyond what Staff's shell reads: whether it may publish, and a Page layout. */
 type ClientPageState = PageState & { page: PageState["page"] & { layout: boolean } };
@@ -374,7 +374,7 @@ export function ClientShell({ config, asClient }: { config: ShellConfig; asClien
 	useEffect(() => () => window.clearTimeout(savedTimer.current), []);
 
 	// What Publish covers is read again whenever the page's state or a save changes (BA-12).
-	// biome-ignore lint/correctness/useExhaustiveDependencies: a new token each time either changes.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- a new token each time either changes.
 	const publishChanged = useMemo(() => ({}), [shown, saving]);
 
 	// Whether the Site lets its Members arrange Pages: the Sections button (SPEC 13.4).
@@ -468,7 +468,7 @@ export function ClientShell({ config, asClient }: { config: ShellConfig; asClien
 	};
 	// "Viewing as a client" is said as the view starts, and the band has focus, so the way back is next.
 	const banner = useRef<HTMLDivElement>(null);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: said once, as the view starts.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- said once, as the view starts.
 	useEffect(() => {
 		if (!viewAs) return;
 		banner.current?.querySelector<HTMLElement>("[data-wc-as-client-back]")?.focus();

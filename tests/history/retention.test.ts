@@ -98,7 +98,9 @@ describe("pruning", () => {
 			});
 			expect(JSON.stringify(newest.content)).toContain("Loaf 4");
 		} finally {
-			await (await install.superadmin()).api.install.history.update({
+			await (
+				await install.superadmin()
+			).api.install.history.update({
 				revisionDays: 90,
 				revisionsKept: 50,
 				checkpointDays: 30,

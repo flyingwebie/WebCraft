@@ -9,8 +9,8 @@ import { rememberPlace, rememberScroll, scrollOf } from "../memory.ts";
 import { Place } from "../Place.tsx";
 import type { PlaceProps } from "../registry.ts";
 import { ComponentDetails } from "./ComponentDetails.tsx";
-import { DeleteComponentDialog, type DeletingComponent } from "./DeleteComponentDialog.tsx";
 import { type ComponentRow, counted, reasonText, useComponentsData } from "./data.ts";
+import { DeleteComponentDialog, type DeletingComponent } from "./DeleteComponentDialog.tsx";
 import {
 	type ComponentsFilter,
 	type ComponentsView,

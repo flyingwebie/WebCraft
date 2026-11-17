@@ -26,18 +26,18 @@ import { chosenRefOf, readFormNames } from "./canvas/placed-form.ts";
 import type { SavingStatus } from "./canvas/regions.ts";
 import type { MenuHost } from "./command-menu/host.ts";
 import { CommandMenuHost, useCommandMenu } from "./command-menu/loader.tsx";
-import { DocumentSwitcher, titleText } from "./DocumentSwitcher.tsx";
 import { DockArea, useDocks } from "./docks/Docks.tsx";
 import { PanelButton } from "./docks/PanelFrame.tsx";
-import { PanelsMenu } from "./docks/PanelsMenu.tsx";
 import type { PanelContext } from "./docks/panels.ts";
+import { PanelsMenu } from "./docks/PanelsMenu.tsx";
 import { printAddress, swapAddress } from "./documents.ts";
+import { DocumentSwitcher, titleText } from "./DocumentSwitcher.tsx";
 import { componentInPlace, type InPlaceTarget, rootsOf } from "./editing/component-in-place.ts";
 import { reverseElsewhere } from "./editing/drafts.ts";
 import { pageEditing } from "./editing/editing.ts";
 import { shellHistory } from "./editing/history.ts";
-import { InsertLine } from "./editing/InsertLine.tsx";
 import { anchorName, type DocumentKind, KIND_TAGS, inserter as makeInserter } from "./editing/insert.ts";
+import { InsertLine } from "./editing/InsertLine.tsx";
 import { layerOps } from "./editing/layer-ops.ts";
 import { pageLayoutEditor } from "./editing/page-layout.ts";
 import { refOf, type StructureSnapshot, structure } from "./editing/selection.ts";
@@ -46,9 +46,9 @@ import { type RegionCycle, regionCycle } from "./keyboard.ts";
 import { managementApi } from "./management.ts";
 import { NarrowNotice } from "./NarrowNotice.tsx";
 import { useOpenDocument } from "./open-document.ts";
+import { codePaneParts, useCodePanes } from "./panels/code-panes.tsx";
 import { ComponentNameDialog, type ComponentNameRequest } from "./panels/ComponentNameDialog.tsx";
 import { AddPropButton, ComponentPanel } from "./panels/ComponentPanel.tsx";
-import { codePaneParts, useCodePanes } from "./panels/code-panes.tsx";
 import { EmptyPage } from "./panels/EmptyPage.tsx";
 import { EntryPanel, EntryPanelActions, useEntryPanelView } from "./panels/EntryFields.tsx";
 import { FormPanel, FormPanelHeading } from "./panels/FormPanel.tsx";
@@ -349,7 +349,7 @@ export function Shell({
 		},
 		[inPlace, pageStructure, announce, words],
 	);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: checked again whenever the layout or a source is read.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- checked again whenever the layout or a source is read.
 	useEffect(() => {
 		followPlacement(frame.current?.page());
 	}, [structureNow.layout, structureNow.sources, followPlacement]);
@@ -556,7 +556,7 @@ export function Shell({
 	);
 
 	// What Publish covers is read again whenever the page's state or a save changes (BA-12).
-	// biome-ignore lint/correctness/useExhaustiveDependencies: a new token each time either changes.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- a new token each time either changes.
 	const publishChanged = useMemo(() => ({}), [shown, saving]);
 
 	useEffect(() => {
@@ -812,7 +812,7 @@ export function Shell({
 		swapAddress(printAddress({ document: { kind: "page", page }, place: null, select: null }));
 		onViewAsClient({ role, back, layout: docks.layout });
 	};
-	// biome-ignore lint/correctness/useExhaustiveDependencies: once, as the shell is drawn again.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- once, as the shell is drawn again.
 	useEffect(() => {
 		if (!returned) return;
 		document.querySelector<HTMLElement>('[data-wc-rail="view-as-client"]')?.focus();

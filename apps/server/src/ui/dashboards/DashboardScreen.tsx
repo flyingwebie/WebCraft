@@ -839,7 +839,7 @@ export function DashboardScreen({
 							className="pointer-events-none absolute inset-0 hidden grid-cols-12 gap-4 @2xl/page:grid"
 						>
 							{Array.from({ length: GRID_COLUMNS }, (_, index) => (
-								// biome-ignore lint/suspicious/noArrayIndexKey: the grid's columns, in a fixed order.
+								// oxlint-disable-next-line react/no-array-index-key -- the grid's columns, in a fixed order.
 								<span key={index} className="bg-muted/60 rounded-md" />
 							))}
 						</div>

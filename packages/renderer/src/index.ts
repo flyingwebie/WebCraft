@@ -7,12 +7,7 @@
 export * from "./body/index.ts";
 export { VIDEO_SCRIPT } from "./body/video-script.ts";
 export { type QualityCheck, type QualityCheckKind, renderedCheckReport, renderedChecks } from "./checks.ts";
-export {
-	type CommandNode,
-	RESERVED_COMMANDS,
-	TEMPLATE_COMMANDS,
-	type TemplateCommand,
-} from "./commands.ts";
+export { type CommandNode, RESERVED_COMMANDS, TEMPLATE_COMMANDS, type TemplateCommand } from "./commands.ts";
 export {
 	COMPONENT_ROOT_ATTRIBUTE,
 	COMPONENT_SCRIPT_RUNTIME,

@@ -76,7 +76,9 @@ export const media = pgTable(
 		height: integer("height"),
 		status: text("status").notNull(),
 		/** Title, alt text and caption, per language: `{ values: { alt: { en: { value, by } } } }`. */
-		texts: jsonb("texts").notNull().default(sql`'{"values":{}}'::jsonb`),
+		texts: jsonb("texts")
+			.notNull()
+			.default(sql`'{"values":{}}'::jsonb`),
 		/** Who uploaded it; null once that person is deleted. */
 		uploadedBy: uuid("uploaded_by").references(() => people.id, { onDelete: "set null" }),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),

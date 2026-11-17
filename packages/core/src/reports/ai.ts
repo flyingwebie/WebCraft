@@ -133,7 +133,7 @@ export function plain(value: unknown, max: number): string {
 	if (typeof value !== "string") return "";
 	const cleaned = value
 		.replace(/\r\n?/g, "\n")
-		// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this removes.
+		// oxlint-disable-next-line no-control-regex -- control characters are what this removes.
 		.replace(/[\u0000-\u0009\u000b-\u001f\u007f​-‏‪-‮⁦-⁩]/g, " ")
 		.replace(/[ \t]+/g, " ")
 		.replace(/\n{3,}/g, "\n\n")

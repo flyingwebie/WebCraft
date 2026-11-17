@@ -442,7 +442,7 @@ const ENTRY_TARGET =
 	/^entry:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?::([a-z]{2,3}(?:-[a-z0-9]{2,8})*))?$/i;
 
 /** A Site path a Redirect rule may send visitors to: `/…`, never `//…` (another host), no backslash or control character. */
-// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this refuses.
+// oxlint-disable-next-line no-control-regex -- control characters are what this refuses.
 const SITE_TARGET = /^\/(?![/\\])[^\\\u0000-\u0020\u007f]*$/;
 
 export type ModuleHostOptions = RuntimeDeps & {

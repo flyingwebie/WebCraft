@@ -112,7 +112,9 @@ function shared() {
 }
 
 afterAll(async () => {
-	await (await sharedPage)?.page
+	await (
+		await sharedPage
+	)?.page
 		.context()
 		.close()
 		.catch(() => {});

@@ -156,7 +156,9 @@ function shared() {
 
 afterAll(async () => {
 	// The browser may be gone already with the Install.
-	await (await sharedPage)?.page
+	await (
+		await sharedPage
+	)?.page
 		.context()
 		.close()
 		.catch(() => {});

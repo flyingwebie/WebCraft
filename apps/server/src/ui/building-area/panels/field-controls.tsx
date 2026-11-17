@@ -547,7 +547,7 @@ function RichBox({
 		if (element.innerHTML !== html) element.innerHTML = html;
 	}, [html]);
 	return (
-		// biome-ignore lint/a11y/useSemanticElements: a box that takes formatting is a contenteditable textbox.
+		// oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a box that takes formatting is a contenteditable textbox.
 		<div
 			ref={box}
 			{...common}

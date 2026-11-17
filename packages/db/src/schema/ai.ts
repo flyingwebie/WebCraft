@@ -90,7 +90,10 @@ export const aiBudgets = pgTable(
 		month: text("month").notNull(),
 		spent: bigint("spent", { mode: "number" }).notNull().default(0),
 		reserved: bigint("reserved", { mode: "number" }).notNull().default(0),
-		notified: integer("notified").array().notNull().default(sql`'{}'::integer[]`),
+		notified: integer("notified")
+			.array()
+			.notNull()
+			.default(sql`'{}'::integer[]`),
 	},
 	(table) => [primaryKey({ name: "ai_budgets_pkey", columns: [table.workspaceId, table.key, table.month] })],
 );

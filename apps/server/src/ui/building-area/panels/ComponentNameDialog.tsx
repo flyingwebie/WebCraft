@@ -159,7 +159,7 @@ export function ComponentNameDialog({
 							{texts.map((text, index) => {
 								const key = chosen.get(index);
 								return (
-									// biome-ignore lint/suspicious/noArrayIndexKey: a piece of text is where it is in what moves.
+									// oxlint-disable-next-line react/no-array-index-key -- a piece of text is where it is in what moves.
 									<li key={index} className="border-chrome-hover flex flex-col gap-1.5 rounded-md border p-2">
 										<label className="flex items-start gap-2 text-[12px]">
 											<input

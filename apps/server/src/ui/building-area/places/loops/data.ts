@@ -92,7 +92,7 @@ export function useLoopResult(api: BuildingAreaApiClient, siteId: string, loopId
 			if (ask === asked.current) setFailed(error);
 		}
 	}, [api, siteId, loopId]);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: read again after each save (`version`).
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- read again after each save (`version`).
 	useEffect(() => {
 		void read();
 	}, [read, version]);

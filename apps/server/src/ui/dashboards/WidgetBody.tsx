@@ -223,7 +223,7 @@ function FunnelTable({ data, title }: { data: Extract<WidgetData, { shape: "funn
 				{data.steps.map((step, index) => {
 					const before = index === 0 ? null : (data.steps[index - 1]?.count ?? 0);
 					return (
-						// biome-ignore lint/suspicious/noArrayIndexKey: a Funnel's steps are in a fixed order.
+						// oxlint-disable-next-line react/no-array-index-key -- a Funnel's steps are in a fixed order.
 						<TableRow key={index}>
 							<TableCell className="break-all whitespace-normal">{step.label}</TableCell>
 							<TableCell className="text-end tabular-nums">{number.format(step.count)}</TableCell>

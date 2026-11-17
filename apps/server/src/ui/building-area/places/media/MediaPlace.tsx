@@ -23,13 +23,13 @@ import { FilterMenu } from "../content/ui.tsx";
 import { rememberPlace, rememberScroll, scrollOf } from "../memory.ts";
 import { Place } from "../Place.tsx";
 import type { PlaceProps } from "../registry.ts";
-import { Details } from "./Details.tsx";
 import { type ListedMediaItem, useMediaData, useOpenFile } from "./data.ts";
+import { Details } from "./Details.tsx";
 import { type FileActions, FileGrid, FileList } from "./Files.tsx";
 import { copyAddress, UploadButton, UploadProgress, useUpload } from "./parts.tsx";
 import { DeleteFilesDialog, downloadAll, SelectionBar } from "./Selection.tsx";
-import { MediaSidebar, MediaTiles } from "./Sidebar.tsx";
 import { ShellMedia } from "./shell.tsx";
+import { MediaSidebar, MediaTiles } from "./Sidebar.tsx";
 import { notify } from "./toasts.tsx";
 import {
 	type MediaLayout,
@@ -99,7 +99,7 @@ function MediaPlaceBody({ config, words, place, view: viewText, documents, leave
 
 	// The selection belongs to the list shown: another folder, search or kind starts none.
 	const listKey = `${place}?${view.q}&${view.kind ?? ""}`;
-	// biome-ignore lint/correctness/useExhaustiveDependencies: cleared when the list shown changes (`listKey`).
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- cleared when the list shown changes (`listKey`).
 	useEffect(() => setSelected(new Set()), [listKey]);
 
 	// The list's scroll: where it was left, once there is something to scroll; remembered as it moves.

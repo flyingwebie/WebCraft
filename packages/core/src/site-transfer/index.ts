@@ -1125,7 +1125,7 @@ function timingSafeEqual(a: Uint8Array, b: Uint8Array): boolean {
 /** A file name as people see it: no folders before it, no control characters, at most 255 characters. */
 function cleanFileName(name: string): string {
 	const base = name.split(/[\\/]/).pop() ?? "";
-	// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what is removed.
+	// oxlint-disable-next-line no-control-regex -- control characters are what is removed.
 	const clean = base.replace(/[\u0000-\u001f\u007f]/g, "").trim();
 	return clean.slice(0, 255) || "site-export.tar";
 }

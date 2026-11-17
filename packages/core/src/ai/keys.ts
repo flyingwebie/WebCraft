@@ -965,7 +965,7 @@ function publicHost(hostname: string): boolean {
 
 function checkModel(model: string): string {
 	const text = model.trim();
-	// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this refuses.
+	// oxlint-disable-next-line no-control-regex -- control characters are what this refuses.
 	if (text === "" || text.length > AI_KEY_LIMITS.model || /[\u0000-\u001f\u007f\s]/.test(text)) {
 		throw new AiKeyInvalidError("model", "format");
 	}

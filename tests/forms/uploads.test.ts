@@ -383,7 +383,9 @@ describe("Notifications", () => {
 	beforeAll(async () => {
 		// The retention test moved the clock on a month: the Owner signs in again.
 		owner = await install.signIn(ownerAccount);
-		await (await install.superadmin()).api.install.smtp.update({
+		await (
+			await install.superadmin()
+		).api.install.smtp.update({
 			host: "smtp.agency.example",
 			port: 587,
 			security: "starttls",
@@ -541,7 +543,9 @@ describe("storage failures", () => {
 		};
 		const bucket = createFakeS3(install.http, settings);
 		await (await install.superadmin()).api.session.confirmIdentity({ password: TEST_PASSWORD });
-		await (await install.superadmin()).api.install.storage.update({
+		await (
+			await install.superadmin()
+		).api.install.storage.update({
 			kind: "s3",
 			...settings,
 			prefix: "",

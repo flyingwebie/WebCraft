@@ -467,16 +467,14 @@ function siteNavigation(place: Extract<AdminPlace, { level: "site" }>): { groups
 						exact: true,
 						badge: place.reviews > 0 ? { tone: "warn", label: "review.navBadge", count: place.reviews } : undefined,
 					},
-					...postTypes.map(
-						(postType): RowInput => ({
-							id: `post-type-${postType.id}`,
-							label: { text: postType.name },
-							icon: postType.builtIn === "page" ? FileTextIcon : NewspaperIcon,
-							to: "/sites/$siteId/entries/$postTypeId",
-							params: { postTypeId: postType.id },
-							count: postType.entries,
-						}),
-					),
+					...postTypes.map((postType): RowInput => ({
+						id: `post-type-${postType.id}`,
+						label: { text: postType.name },
+						icon: postType.builtIn === "page" ? FileTextIcon : NewspaperIcon,
+						to: "/sites/$siteId/entries/$postTypeId",
+						params: { postTypeId: postType.id },
+						count: postType.entries,
+					})),
 					{ id: "site-media", label: "shell.nav.media", icon: ImagesIcon, to: "/sites/$siteId/media" },
 					{
 						// The Site's Forms for the people who read their Submissions and change their emails: one
@@ -496,16 +494,14 @@ function siteNavigation(place: Extract<AdminPlace, { level: "site" }>): { groups
 						sections: [
 							{
 								id: "forms",
-								rows: place.forms.map(
-									(form): RowInput => ({
-										id: `form-${form.id}`,
-										label: { text: form.name },
-										icon: InboxIcon,
-										to: "/sites/$siteId/forms/$formId",
-										params: { formId: form.id },
-										count: form.newSubmissions,
-									}),
-								),
+								rows: place.forms.map((form): RowInput => ({
+									id: `form-${form.id}`,
+									label: { text: form.name },
+									icon: InboxIcon,
+									to: "/sites/$siteId/forms/$formId",
+									params: { formId: form.id },
+									count: form.newSubmissions,
+								})),
 							},
 						],
 					},
@@ -541,15 +537,13 @@ function siteNavigation(place: Extract<AdminPlace, { level: "site" }>): { groups
 						dashboards: place.dashboards,
 						list: "/sites/$siteId/dashboards",
 						one: "/sites/$siteId/dashboards/$dashboardId",
-						measure: measure.map(
-							(page): RowInput => ({
-								id: `measure-${page.path}`,
-								label: { text: page.label },
-								icon: page.path === "funnels" ? FilterIcon : TargetIcon,
-								to: "/sites/$siteId/m/$moduleId/$",
-								params: { moduleId: page.moduleId, _splat: page.path },
-							}),
-						),
+						measure: measure.map((page): RowInput => ({
+							id: `measure-${page.path}`,
+							label: { text: page.label },
+							icon: page.path === "funnels" ? FilterIcon : TargetIcon,
+							to: "/sites/$siteId/m/$moduleId/$",
+							params: { moduleId: page.moduleId, _splat: page.path },
+						})),
 					}),
 					{ id: "site-checks", label: "shell.nav.checks", icon: SearchCheckIcon, to: "/sites/$siteId/checks" },
 				],
@@ -804,15 +798,13 @@ function analyticsRow(input: {
 				id: `${input.id}-dashboards`,
 				label: "shell.nav.dashboards",
 				rows: [
-					...dashboards.map(
-						(dashboard): RowInput => ({
-							id: `dashboard-${dashboard.id}`,
-							label: { text: dashboard.name },
-							icon: ChartColumnIcon,
-							to: input.one,
-							params: { dashboardId: dashboard.id },
-						}),
-					),
+					...dashboards.map((dashboard): RowInput => ({
+						id: `dashboard-${dashboard.id}`,
+						label: { text: dashboard.name },
+						icon: ChartColumnIcon,
+						to: input.one,
+						params: { dashboardId: dashboard.id },
+					})),
 					{
 						id: `${input.id}-new`,
 						label: "dashboards.new",

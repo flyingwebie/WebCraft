@@ -6,8 +6,8 @@ import { chmodSync } from "node:fs";
 import { join } from "node:path";
 import { samplePing } from "@webcraft/core";
 
-import { openBuildingArea } from "../harness/building-area.ts";
 import { buildingAreaApi } from "../harness/building-area-api.ts";
+import { openBuildingArea } from "../harness/building-area.ts";
 import { pdf, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";

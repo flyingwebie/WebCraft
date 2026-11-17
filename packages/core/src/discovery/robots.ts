@@ -72,7 +72,7 @@ export function readRobotsLines(input: string): { lines: string } | { problem: R
 		const at = { line: index + 1 };
 		const wrong = (rule: RobotsLinesProblem["rule"], message: string) => ({ problem: { rule, message, params: at } });
 		if (line === "" || line.startsWith("#")) {
-			// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what is refused.
+			// oxlint-disable-next-line no-control-regex -- control characters are what is refused.
 			if (/[\u0000-\u0008\u000B-\u001F\u007F]/.test(line))
 				return wrong("robotsLine", "A line has no control characters.");
 			continue;
@@ -80,7 +80,7 @@ export function readRobotsLines(input: string): { lines: string } | { problem: R
 		const match = /^([A-Za-z-]+)\s*:\s*(.*?)\s*(?:#.*)?$/.exec(line);
 		const field = match?.[1]?.toLowerCase();
 		const value = match?.[2] ?? "";
-		// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what is refused.
+		// oxlint-disable-next-line no-control-regex -- control characters are what is refused.
 		const clean = !/[\u0000-\u0008\u000B-\u001F\u007F]/.test(line);
 		if (field === "user-agent") {
 			agent = true;

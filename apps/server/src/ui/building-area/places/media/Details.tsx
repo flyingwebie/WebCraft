@@ -99,7 +99,7 @@ export function Details({
 	}, [openId]);
 
 	return (
-		// biome-ignore lint/a11y/noStaticElementInteractions: Escape closes the details from anywhere inside them.
+		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- Escape closes the details from anywhere inside them.
 		<div className="flex min-h-0 grow" onKeyDown={onKey} data-wc-media-details="">
 			<ul
 				ref={listRef}

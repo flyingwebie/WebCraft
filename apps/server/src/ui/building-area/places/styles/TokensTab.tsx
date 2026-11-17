@@ -777,7 +777,7 @@ function ShadowsEditor({ words, editing, announce }: { words: Words; editing: Ed
 					</div>
 					{shadow.layers.map((layer, index) => (
 						<div
-							// biome-ignore lint/suspicious/noArrayIndexKey: a layer is its place in the list.
+							// oxlint-disable-next-line react/no-array-index-key -- a layer is its place in the list.
 							key={index}
 							className="text-chrome-muted flex flex-wrap items-center gap-x-3 gap-y-1 ps-1.5 text-[11px]"
 						>

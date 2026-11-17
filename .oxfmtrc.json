@@ -1,0 +1,9 @@
+{
+	"$schema": "./node_modules/oxfmt/configuration_schema.json",
+	"useTabs": true,
+	"printWidth": 120,
+	"sortImports": { "partitionByNewline": true, "newlinesBetween": false },
+	"sortTailwindcss": {},
+	"sortPackageJson": false,
+	"ignorePatterns": ["**/*.md", "**/routeTree.gen.ts", "packages/db/src/migrations/**", "skills-lock.json"]
+}

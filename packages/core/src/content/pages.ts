@@ -186,7 +186,7 @@ export async function publishedPageTree(
 export function pathIn(tree: PageTree, pageId: string): string[] | undefined {
 	const parts: string[] = [];
 	const seen = new Set<string>();
-	for (let current: string | null = pageId; current !== null; ) {
+	for (let current: string | null = pageId; current !== null;) {
 		const page = tree.get(current);
 		if (!page || seen.has(current)) return undefined;
 		seen.add(current);
@@ -217,7 +217,7 @@ export function pagesUnder(tree: PageTree, pageId: string): string[] {
  */
 export function checkPublishedParent(tree: PageTree, pageId: string, parentId: string): void {
 	const seen = new Set<string>();
-	for (let current: string | null = parentId; current !== null; ) {
+	for (let current: string | null = parentId; current !== null;) {
 		if (current === pageId) {
 			throw new EntryInvalidError([{ at: "parentId", message: "A Page can't go under one of its own child Pages." }]);
 		}

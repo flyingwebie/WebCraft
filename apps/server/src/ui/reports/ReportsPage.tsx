@@ -983,7 +983,7 @@ function ReviewSheet({ place, send, canManage }: { place: ReportPlace; send: Rep
 						) : null}
 						{suggestions.map((suggestion, index) =>
 							changing ? (
-								// biome-ignore lint/suspicious/noArrayIndexKey: suggestions are kept in their order.
+								// oxlint-disable-next-line react/no-array-index-key -- suggestions are kept in their order.
 								<div key={index} className="bg-muted grid gap-2 rounded-[10px] p-3">
 									<Field>
 										<FieldLabel htmlFor={`${id}-suggestion-${index}`} className="text-[13px]">
@@ -1036,7 +1036,7 @@ function ReviewSheet({ place, send, canManage }: { place: ReportPlace; send: Rep
 									</Button>
 								</div>
 							) : (
-								// biome-ignore lint/suspicious/noArrayIndexKey: suggestions are kept in their order.
+								// oxlint-disable-next-line react/no-array-index-key -- suggestions are kept in their order.
 								<div key={index} className="bg-muted grid justify-items-start gap-2 rounded-[10px] p-3">
 									<p className="text-[13px]">{suggestion.text}</p>
 									{serviceName(suggestion.service) ? (

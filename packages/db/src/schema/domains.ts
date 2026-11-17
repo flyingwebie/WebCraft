@@ -60,7 +60,9 @@ export const siteDomains = pgTable(
 			foreignColumns: [siteLanguages.siteId, siteLanguages.code],
 		}).onDelete("cascade"),
 		uniqueIndex("site_domains_name_unique").on(table.name),
-		uniqueIndex("site_domains_one_primary").on(table.siteId).where(sql`${table.role} = 'primary'`),
+		uniqueIndex("site_domains_one_primary")
+			.on(table.siteId)
+			.where(sql`${table.role} = 'primary'`),
 		uniqueIndex("site_domains_one_per_language").on(table.siteId, table.language),
 		index("site_domains_next_check_at_idx").on(table.nextCheckAt),
 	],

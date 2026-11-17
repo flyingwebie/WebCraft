@@ -243,7 +243,7 @@ function QueryChip({
 	useEffect(() => () => items.holdChip(false), [items]);
 	const look = `text-chrome-accent inline-flex items-center gap-1.5 rounded-md text-[12px] font-semibold hover:underline ${FOCUS_RING}`;
 	return (
-		// biome-ignore lint/a11y/noStaticElementInteractions: the pointer on the chip only keeps it shown.
+		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- the pointer on the chip only keeps it shown.
 		<div
 			onPointerEnter={() => items.holdChip(true)}
 			onPointerLeave={() => items.holdChip(false)}
@@ -316,7 +316,7 @@ function RemovedToast({
 		return () => clearTimeout(timer);
 	}, [held, items]);
 	return (
-		// biome-ignore lint/a11y/noStaticElementInteractions: hovering only holds the toast.
+		// oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- hovering only holds the toast.
 		<div
 			className="pointer-events-none fixed inset-x-0 top-3 z-[60] flex justify-center"
 			onPointerEnter={() => setHeld(true)}

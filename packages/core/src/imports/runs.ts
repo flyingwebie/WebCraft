@@ -26,8 +26,8 @@ import { actingPerson } from "../permissions/can.ts";
 import type { BackgroundScope, SiteScope } from "../tenancy/data-layer.ts";
 import { PermissionDeniedError, SiteNotFoundError } from "../tenancy/errors.ts";
 import { CONNECTION_LIFETIME, connectionOf } from "./connection.ts";
-import { type CsvDetails, type CsvSeparator, csvColumns, csvRecords } from "./csv.ts";
 import { type CsvSettings, csvItem, csvMapping, csvSettingsSchema, matchKey, skippedColumns } from "./csv-source.ts";
+import { type CsvDetails, type CsvSeparator, csvColumns, csvRecords } from "./csv.ts";
 import {
 	ImportFileNotReadyError,
 	ImportInvalidError,

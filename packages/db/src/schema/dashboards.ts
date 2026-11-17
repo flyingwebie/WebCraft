@@ -22,7 +22,9 @@ export const dashboards = pgTable(
 		/** Whether everyone who works on the Site sees it (Editors and Authors too), not only Staff and Owners. */
 		sharedWithEveryone: boolean("shared_with_everyone").notNull().default(false),
 		/** Its Widgets, in the order they were added (`StoredWidget[]`). */
-		widgets: jsonb("widgets").notNull().default(sql`'[]'::jsonb`),
+		widgets: jsonb("widgets")
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		/**
 		 * Whether it is the Site's built-in "Site analytics" Dashboard, which every Site has from the start:
 		 * arranged and renamed like any other, never deleted, listed first. One per Site.
@@ -33,7 +35,9 @@ export const dashboards = pgTable(
 		updatedBy: uuid("updated_by").references(() => people.id, { onDelete: "set null" }),
 	},
 	(table) => [
-		uniqueIndex("dashboards_built_in_site_idx").on(table.siteId).where(sql`${table.builtIn}`),
+		uniqueIndex("dashboards_built_in_site_idx")
+			.on(table.siteId)
+			.where(sql`${table.builtIn}`),
 		foreignKey({
 			name: "dashboards_site_fkey",
 			columns: [table.workspaceId, table.siteId],
@@ -55,7 +59,9 @@ export const workspaceDashboards = pgTable(
 		range: jsonb("range").notNull(),
 		/** Whether everyone who works in the Workspace sees it, not only Staff and Owners. */
 		sharedWithEveryone: boolean("shared_with_everyone").notNull().default(false),
-		widgets: jsonb("widgets").notNull().default(sql`'[]'::jsonb`),
+		widgets: jsonb("widgets")
+			.notNull()
+			.default(sql`'[]'::jsonb`),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 		updatedBy: uuid("updated_by").references(() => people.id, { onDelete: "set null" }),

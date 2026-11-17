@@ -170,7 +170,9 @@ async function openPage(page: Page, path: string, row: RegExp): Promise<Frame> {
 }
 
 afterAll(async () => {
-	await (await sharedPage)?.page
+	await (
+		await sharedPage
+	)?.page
 		.context()
 		.close()
 		.catch(() => {});

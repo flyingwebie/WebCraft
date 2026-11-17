@@ -6,8 +6,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { emptyField } from "@webcraft/renderer/forms";
 
-import { openBuildingArea } from "../harness/building-area.ts";
 import { type BuildingAreaApi, buildingAreaApi, refusalOf } from "../harness/building-area-api.ts";
+import { openBuildingArea } from "../harness/building-area.ts";
 import { taggedTranslation } from "../harness/fake-ai.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { rejection } from "../harness/settled.ts";

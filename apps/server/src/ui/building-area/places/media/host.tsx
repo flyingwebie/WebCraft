@@ -2,8 +2,8 @@ import { type ComponentType, useEffect, useRef, useState } from "react";
 
 import type { MediaItem } from "../../../media/preview.ts";
 import type { ShellConfig } from "../../api.ts";
-import type { PickerDialog } from "./Picker.tsx";
 import { PICK_MEDIA_EVENT, type PickMediaDetail } from "./pick.ts";
+import type { PickerDialog } from "./Picker.tsx";
 import { notify, Toasts } from "./toasts.tsx";
 
 /**

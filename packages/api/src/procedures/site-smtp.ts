@@ -10,7 +10,7 @@ const fromName = z
 	.string()
 	.trim()
 	.max(SITE_FROM_NAME_MAX_LENGTH)
-	// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this refuses.
+	// oxlint-disable-next-line no-control-regex -- control characters are what this refuses.
 	.regex(/^[^\u0000-\u001f\u007f]*$/, "one line")
 	.nullable();
 

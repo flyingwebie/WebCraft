@@ -369,7 +369,7 @@ function settleBlocks(roots: Node[]): void {
 		}
 		return edgeHolds(place);
 	};
-	for (let changed = true; changed; ) {
+	for (let changed = true; changed;) {
 		changed = false;
 		for (const [node, place] of places) {
 			if ((node.kind !== "leaf" && node.kind !== "command") || !node.block) continue;

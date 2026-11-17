@@ -24,7 +24,7 @@ export const ENTRY_TARGET =
 	/^entry:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?::[a-z]{2,3}(?:-[a-z0-9]{2,8})*)?$/i;
 
 /** The characters no path or address may hold: controls (a line break would end a header). */
-// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this refuses.
+// oxlint-disable-next-line no-control-regex -- control characters are what this refuses.
 const CONTROL = /[\u0000-\u001f\u007f]/;
 
 /** A Site path's segments, each decoded and encoded again; null for what isn't a path. */

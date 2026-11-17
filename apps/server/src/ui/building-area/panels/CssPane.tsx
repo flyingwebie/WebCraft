@@ -15,11 +15,11 @@ import { NoteLine } from "../places/styles/CodeBox.tsx";
 import { QuickActions, useFavourites } from "../places/styles/QuickActions.tsx";
 import { piecesOf, type RuleBreakpoint, ruleOf } from "../places/styles/rule.ts";
 import type { QuickTokens, StepSizes } from "../places/styles/view.ts";
-import { CodeWell } from "./CodeWell.tsx";
-import { ConflictDialog } from "./ConflictDialog.tsx";
 import { chooseClass, chosenClassOf, subscribeChosenClass } from "./chosen-class.ts";
 import type { CodePanesDeps } from "./code-panes.tsx";
 import { codeRequests } from "./code-requests.ts";
+import { CodeWell } from "./CodeWell.tsx";
+import { ConflictDialog } from "./ConflictDialog.tsx";
 import { readOnlyReason } from "./HtmlPane.tsx";
 import {
 	FormatButton,
@@ -802,7 +802,7 @@ export function CssActions({ pane, words }: { pane: CssPane; words: Words }) {
 		if (adding) field.current?.focus();
 	}, [adding]);
 	// An unfinished + form belongs to the element it was opened on: another selection closes it.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: closed whenever the element changes.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- closed whenever the element changes.
 	useEffect(() => {
 		setAdding(false);
 		setTyped("");
@@ -836,7 +836,7 @@ export function CssActions({ pane, words }: { pane: CssPane; words: Words }) {
 	};
 	return (
 		<>
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: the chips' own keys (arrows, Home, End), as a toolbar. */}
+			{/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- the chips' own keys (arrows, Home, End), as a toolbar.*/}
 			<div
 				className="flex min-w-0 grow-[6] basis-0 items-center gap-1.5 overflow-x-auto py-px"
 				data-wc-css-classes=""

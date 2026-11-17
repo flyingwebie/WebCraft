@@ -19,8 +19,8 @@ import { StatusBadge } from "../../ui/content/DraftParts.tsx";
 import { errorMessage } from "../../ui/errors.ts";
 import { HistoryLink } from "../../ui/history/HistoryLink.tsx";
 import { pageTitle, useT } from "../../ui/i18n.tsx";
-import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 import { PageLayoutSettings } from "../../ui/page-layouts/Settings.tsx";
+import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
 
 /**
  * Site › Components (Structure, Staff only): the Site's Components (and those of the Modules running

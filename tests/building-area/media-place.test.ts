@@ -4,8 +4,8 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { MEDIA_IMPORT_LIMITS } from "@webcraft/core";
 
-import { openBuildingArea, shellConfigIn } from "../harness/building-area.ts";
 import { type BuildingAreaApi, buildingAreaApi } from "../harness/building-area-api.ts";
+import { openBuildingArea, shellConfigIn } from "../harness/building-area.ts";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { rejection } from "../harness/settled.ts";

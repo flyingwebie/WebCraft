@@ -1,5 +1,5 @@
 // The Module boundary (ADR 0024): a Module imports nothing from WebCraft but @webcraft/module-sdk,
-// and nothing that reaches the database, the server or the network around it. Biome refuses such
+// and nothing that reaches the database, the server or the network around it. oxlint refuses such
 // imports as they are typed; this checks every Module in the repo, whatever the editor did.
 import { describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";

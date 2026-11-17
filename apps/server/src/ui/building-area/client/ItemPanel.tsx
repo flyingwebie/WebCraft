@@ -46,7 +46,7 @@ export function ItemPanel({
 	useEffect(() => {
 		heading.current?.focus({ preventScroll: true });
 	}, []);
-	// biome-ignore lint/correctness/useExhaustiveDependencies: another item's name comes with its form.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- another item's name comes with its form.
 	useEffect(() => setName(null), [selected.key]);
 	const shownName = name || selected.name;
 	const close = () => items.closePanel({ deselect: true, focusItem: true });
@@ -516,7 +516,7 @@ function RichText({
 }) {
 	const box = useRef<HTMLDivElement>(null);
 	// Shown once: what is typed afterwards is the person's.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: the stored value is read once, as the form opens.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- the stored value is read once, as the form opens.
 	useEffect(() => {
 		const element = box.current;
 		if (!element) return;
@@ -527,7 +527,7 @@ function RichText({
 			<span id={`${id}-label`} className="text-chrome-strong text-[13px] font-medium">
 				{label}
 			</span>
-			{/* biome-ignore lint/a11y/useSemanticElements: a box that takes formatting is a textbox, not an input. */}
+			{/* oxlint-disable-next-line jsx-a11y/prefer-tag-over-role -- a box that takes formatting is a textbox, not an input.*/}
 			<div
 				ref={box}
 				id={id}

@@ -94,7 +94,7 @@ function checkLength(runs: readonly Run[], at: string, report: Report, options: 
 
 /** Text as Blocks keep it: line breaks as `\n`, without control characters (tabs stay). */
 function cleanText(text: string, oneLine = false): string {
-	// biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what is being removed.
+	// oxlint-disable-next-line no-control-regex -- control characters are what is being removed.
 	const kept = text.replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, "");
 	return oneLine ? kept.replace(/\n/g, " ") : kept;
 }

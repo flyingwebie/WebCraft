@@ -1,5 +1,5 @@
-import { PLAYER_ORIGINS } from "./body/video.ts";
 import { VIDEO_SCRIPT } from "./body/video-script.ts";
+import { PLAYER_ORIGINS } from "./body/video.ts";
 import { COMPONENT_ROOT_ATTRIBUTE, COMPONENT_SCRIPT_RUNTIME } from "./component-scripts.ts";
 import {
 	consentBannerHtml,

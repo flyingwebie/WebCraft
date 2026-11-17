@@ -68,7 +68,7 @@ export function PostTypesList({
 	const ids = postTypes.map((postType) => postType.id).join(",");
 
 	// Which Templates each Post Type has: read when the list opens and whenever its Post Types change.
-	// biome-ignore lint/correctness/useExhaustiveDependencies: `ids` names the Post Types the list shows.
+	// oxlint-disable-next-line react-hooks/exhaustive-deps -- `ids` names the Post Types the list shows.
 	useEffect(() => {
 		let alive = true;
 		api.templates

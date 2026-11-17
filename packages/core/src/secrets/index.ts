@@ -1,11 +1,5 @@
 export { assertMasterKeyMatches, MasterKeyMismatchError } from "./key-versions.ts";
-export {
-	loadMasterKey,
-	MASTER_KEY_MIN_LENGTH,
-	MASTER_KEY_VARIABLE,
-	MasterKey,
-	parseMasterKey,
-} from "./master-key.ts";
+export { loadMasterKey, MASTER_KEY_MIN_LENGTH, MASTER_KEY_VARIABLE, MasterKey, parseMasterKey } from "./master-key.ts";
 export type { InstallSecretOwner, SecretOwner, SecretRef } from "./refs.ts";
 export {
 	CONFIRM_FINGERPRINT_LENGTH,

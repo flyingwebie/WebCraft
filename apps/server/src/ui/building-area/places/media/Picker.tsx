@@ -13,8 +13,8 @@ import { kindOf } from "./Files.tsx";
 import { shapeOf } from "./masonry.ts";
 import { ChosenMark, fileSize, Thumb, UploadButton, UploadProgress, useUpload } from "./parts.tsx";
 import type { PickMediaDetail } from "./pick.ts";
-import { MediaSidebar } from "./Sidebar.tsx";
 import { ShellMedia } from "./shell.tsx";
+import { MediaSidebar } from "./Sidebar.tsx";
 import { arrowTarget, useMasonry } from "./use-masonry.ts";
 import { defaultView, type MediaLayout, type MediaPart, rememberedLayout, rememberLayout } from "./view.ts";
 
@@ -311,7 +311,7 @@ function MediaPicker({
 											const image = imagePreview(siteId, item, 400, true);
 											const Glyph = KIND_ICONS[item.kind];
 											return (
-												// biome-ignore lint/a11y/useKeyWithClickEvents: the listbox takes the keys (arrows, Enter).
+												// oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- the listbox takes the keys (arrows, Enter).
 												<div
 													key={item.id}
 													id={`wc-pick-${item.id}`}
@@ -372,7 +372,7 @@ function MediaPicker({
 										const ready = choosable(item);
 										const on = ready && item.id === chosen;
 										return (
-											// biome-ignore lint/a11y/useKeyWithClickEvents: the listbox takes the keys (arrows, Enter).
+											// oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- the listbox takes the keys (arrows, Enter).
 											<div
 												key={item.id}
 												id={`wc-pick-${item.id}`}

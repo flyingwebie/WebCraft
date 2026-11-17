@@ -388,7 +388,7 @@ function Files({ files }: { files: readonly UploadValue[] }) {
 			{files.map((file, index) => {
 				const Icon = file.contentType.startsWith("image/") ? ImageIcon : FileIcon;
 				return (
-					// biome-ignore lint/suspicious/noArrayIndexKey: a Submission's files never change order.
+					// oxlint-disable-next-line react/no-array-index-key -- a Submission's files never change order.
 					<li key={index}>
 						{file.url ? (
 							<a

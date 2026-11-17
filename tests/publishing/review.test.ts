@@ -18,7 +18,9 @@ let workspaceId: string;
 beforeAll(async () => {
 	install = await createTestInstall();
 	// Emails go through the fake mail server, so a test counts every one.
-	await (await install.superadmin()).api.install.smtp.update({
+	await (
+		await install.superadmin()
+	).api.install.smtp.update({
 		host: "smtp.agency.example",
 		port: 587,
 		security: "starttls",

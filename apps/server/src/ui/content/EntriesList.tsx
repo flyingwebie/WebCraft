@@ -12,8 +12,8 @@ import {
 	DialogTitle,
 } from "@webcraft/ui/components/dialog.tsx";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@webcraft/ui/components/field.tsx";
-import { Input } from "@webcraft/ui/components/input.tsx";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@webcraft/ui/components/input-group.tsx";
+import { Input } from "@webcraft/ui/components/input.tsx";
 import { Label } from "@webcraft/ui/components/label.tsx";
 import { NativeSelect, NativeSelectOption } from "@webcraft/ui/components/native-select.tsx";
 import { Skeleton } from "@webcraft/ui/components/skeleton.tsx";

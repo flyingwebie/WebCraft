@@ -11,9 +11,9 @@ import { useAfterRender } from "../after-render.ts";
 
 import { errorCode, errorMessage } from "../errors.ts";
 import { type MessageKey, useT } from "../i18n.tsx";
+import { draftsOf, type FieldDraft, findDraft, inputsOf, locateProblem, walk } from "./field-drafts.ts";
 import { FieldBuilder, type FieldOwner } from "./FieldBuilder.tsx";
 import type { SettingProblems } from "./FieldSettingsPanel.tsx";
-import { draftsOf, type FieldDraft, findDraft, inputsOf, locateProblem, walk } from "./field-drafts.ts";
 import type { FieldDefinition, Problem } from "./model.ts";
 import { settingProblemText } from "./problems.ts";
 

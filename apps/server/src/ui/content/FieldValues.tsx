@@ -41,8 +41,8 @@ import {
 } from "./model.ts";
 import { problemText } from "./problems.ts";
 import { RelationshipPicker, type RelationshipTargets } from "./RelationshipPicker.tsx";
-import { RichTextEditor } from "./RichTextEditor.tsx";
 import { Announcer, DragHandle, moveItem, useDragOrder } from "./reorder.tsx";
+import { RichTextEditor } from "./RichTextEditor.tsx";
 
 /** What every value's control needs to know about where it is. */
 export type ValueContext = {

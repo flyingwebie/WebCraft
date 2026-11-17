@@ -8,8 +8,8 @@ import { ScrollTextIcon, TriangleAlertIcon } from "lucide-react";
 import { useState } from "react";
 
 import { getApi } from "../../ui/api.ts";
-import { SmtpForm, type SmtpView } from "../../ui/email/SmtpForm.tsx";
 import { SmtpFailingNotice } from "../../ui/email/smtp-parts.tsx";
+import { SmtpForm, type SmtpView } from "../../ui/email/SmtpForm.tsx";
 import { type MessageKey, pageTitle, useT } from "../../ui/i18n.tsx";
 import { useSensitiveAction } from "../../ui/identity-check.tsx";
 import { Forbidden, PageHeader } from "../../ui/PageHeader.tsx";
