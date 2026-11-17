@@ -53,7 +53,7 @@ describe("the web server's own body limit", () => {
 
 		expect(answer.status).toBe(200);
 		expect(await answer.json()).toMatchObject({ media: { fileName: "guide.pdf", sizeBytes: 130 * MB } });
-	}, 120_000);
+	});
 
 	test("a larger file than the Install takes is still refused as too large, by the Management API", async () => {
 		const admin = await install.superadmin();
@@ -73,7 +73,7 @@ describe("the web server's own body limit", () => {
 
 		expect(answer.status).toBe(413);
 		expect(await answer.json()).toMatchObject({ json: { code: "MEDIA_TOO_LARGE", data: { maxBytes: 140 * MB } } });
-	}, 120_000);
+	});
 
 	test("doesn't widen what anyone may post: an anonymous body stops at its route's limit", async () => {
 		const sent = chunkedBody(200 * MB, 64 * 1024);
@@ -89,7 +89,7 @@ describe("the web server's own body limit", () => {
 		expect(await answer.json()).toEqual({ error: "invalid_request", error_description: "The request is too large." });
 		// The route reads 64 KiB; the rest is what the connection's buffers held when it stopped.
 		expect(sent.taken()).toBeLessThan(16 * MB);
-	}, 120_000);
+	});
 
 	test("nor an upload from nobody signed in, which is refused without being read", async () => {
 		const sent = chunkedBody(200 * MB, 64 * 1024);
@@ -103,5 +103,5 @@ describe("the web server's own body limit", () => {
 
 		expect(answer.status).toBe(401);
 		expect(sent.taken()).toBeLessThan(16 * MB);
-	}, 120_000);
+	});
 });

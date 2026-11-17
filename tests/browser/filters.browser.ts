@@ -79,13 +79,13 @@ describe("with JavaScript", () => {
 		await page.keyboard.press("Space");
 		await page.waitForURL((url) => url.search === "?category=bread");
 
-		await expect(listed(page)).resolves.toEqual(["Country sourdough", "Rosemary focaccia", "Rye & caraway"]);
+		expect(await listed(page)).toEqual(["Country sourdough", "Rosemary focaccia", "Rye & caraway"]);
 		expect(await page.evaluate(() => (window as { wcStayed?: boolean }).wcStayed)).toBe(true);
 		expect(await page.getByRole("checkbox", { name: /^Bread/ }).evaluate((box) => box === document.activeElement)).toBe(
 			true,
 		);
 		await page.getByRole("status").filter({ hasText: "3 products" }).waitFor();
-		await expect(page.getByRole("checkbox", { name: /^Bread/ }).isChecked()).resolves.toBe(true);
+		expect(await page.getByRole("checkbox", { name: /^Bread/ }).isChecked()).toBe(true);
 	});
 
 	test("typing in the search box searches after a pause, the box keeping its text and focus", async () => {
@@ -98,7 +98,7 @@ describe("with JavaScript", () => {
 		await page.keyboard.type("chocolat");
 		await page.waitForURL((url) => url.searchParams.get("q") === "chocolat");
 
-		await expect(listed(page)).resolves.toEqual(["Pain au chocolat"]);
+		expect(await listed(page)).toEqual(["Pain au chocolat"]);
 		expect(await page.evaluate(() => (window as { wcStayed?: boolean }).wcStayed)).toBe(true);
 		const focused = page.getByRole("searchbox", { name: "Search the shop" });
 		expect(await focused.evaluate((element) => element === document.activeElement)).toBe(true);
@@ -114,19 +114,14 @@ describe("with JavaScript", () => {
 		await page.getByRole("link", { name: "Remove Vegan only" }).focus();
 		await page.keyboard.press("Enter");
 		await page.waitForURL((url) => url.search === "?category=bread,pastries");
-		await expect(listed(page)).resolves.toEqual([
-			"Butter croissant",
-			"Cinnamon bun",
-			"Country sourdough",
-			"Pain au chocolat",
-		]);
+		expect(await listed(page)).toEqual(["Butter croissant", "Cinnamon bun", "Country sourdough", "Pain au chocolat"]);
 		// The chip is gone: focus goes to the chip before it.
 		expect(await page.evaluate(() => document.activeElement?.textContent)).toBe("Pastries ×");
 
 		await page.goBack();
 		await page.waitForURL((url) => url.search === "?category=bread,pastries&vegan=1");
 		await page.getByRole("status").filter({ hasText: "2 products" }).waitFor();
-		await expect(listed(page)).resolves.toEqual(["Cinnamon bun", "Rosemary focaccia"]);
+		expect(await listed(page)).toEqual(["Cinnamon bun", "Rosemary focaccia"]);
 		expect(await page.evaluate(() => (window as { wcStayed?: boolean }).wcStayed)).toBe(true);
 	});
 
@@ -137,7 +132,7 @@ describe("with JavaScript", () => {
 
 		await page.getByRole("link", { name: "Next" }).click();
 		await page.waitForURL((url) => url.search === "?category=bread,pastries&page=2");
-		await expect(listed(page)).resolves.toEqual(["Rosemary focaccia", "Rye & caraway"]);
+		expect(await listed(page)).toEqual(["Rosemary focaccia", "Rye & caraway"]);
 		expect(await page.evaluate(() => (window as { wcStayed?: boolean }).wcStayed)).toBe(true);
 	});
 
@@ -152,12 +147,12 @@ describe("with JavaScript", () => {
 			await page.getByRole("checkbox", { name: /^Cakes/ }).check();
 			await page.waitForTimeout(600);
 			expect(new URL(page.url()).search).toBe("");
-			await expect(listed(page)).resolves.toHaveLength(4);
+			expect(await listed(page)).toHaveLength(4);
 
 			await page.getByRole("button", { name: "Apply" }).focus();
 			await page.keyboard.press("Enter");
 			await page.waitForURL((url) => url.search === "?category=cakes");
-			await expect(listed(page)).resolves.toEqual(["Birthday cake"]);
+			expect(await listed(page)).toEqual(["Birthday cake"]);
 			expect(await page.evaluate(() => (window as { wcStayed?: boolean }).wcStayed)).toBe(true);
 			await page.getByRole("status").filter({ hasText: "1 product" }).waitFor();
 		} finally {
@@ -178,11 +173,6 @@ describe("without JavaScript", () => {
 		await page.getByRole("button", { name: "Apply" }).click();
 		await page.waitForURL((url) => url.search === "?category=bread,pastries&price=3-");
 
-		await expect(listed(page)).resolves.toEqual([
-			"Cinnamon bun",
-			"Country sourdough",
-			"Pain au chocolat",
-			"Rosemary focaccia",
-		]);
+		expect(await listed(page)).toEqual(["Cinnamon bun", "Country sourdough", "Pain au chocolat", "Rosemary focaccia"]);
 	});
 });

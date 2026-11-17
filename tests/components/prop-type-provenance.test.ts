@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import type { DocumentJson } from "@webcraft/core";
 import { openDraft } from "../harness/co-editing.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 beforeAll(async () => {
@@ -204,7 +205,7 @@ test("retained type contracts reject unsupported metadata atomically", async () 
 	const held = node?.type === "component" ? node.props[0] : undefined;
 	if (!tree || !held?.contract) throw new Error("Missing retained contract");
 	held.contract.extra = "unsupported";
-	await expect(admin.api.templates.saveEntryTemplate({ ...holder, tree })).rejects.toMatchObject({
+	expect(await rejection(admin.api.templates.saveEntryTemplate({ ...holder, tree }))).toMatchObject({
 		code: "TEMPLATE_INVALID",
 	});
 	expect((await admin.api.templates.getEntryTemplateMarkup(holder)).template?.draft).toEqual(before.template?.draft);
@@ -345,14 +346,16 @@ test("a type change exceeding the retained value limit refuses the whole migrati
 		contract,
 		value: [{ type: "text", text: "42" }],
 	}));
-	await expect(admin.api.templates.saveEntryTemplate({ ...holder, tree: omitted })).rejects.toMatchObject({
+	expect(await rejection(admin.api.templates.saveEntryTemplate({ ...holder, tree: omitted }))).toMatchObject({
 		code: "COMPONENT_INVALID",
 	});
 	expect((await admin.api.templates.getEntryTemplateMarkup(holder)).template?.draft).toEqual(before.template?.draft);
 
-	await expect(
-		admin.api.components.saveMarkup({ ...target, markup: first.markup.replaceAll(": text", ": boolean") }),
-	).rejects.toMatchObject({ code: "COMPONENT_INVALID" });
+	expect(
+		await rejection(
+			admin.api.components.saveMarkup({ ...target, markup: first.markup.replaceAll(": text", ": boolean") }),
+		),
+	).toMatchObject({ code: "COMPONENT_INVALID" });
 	expect((await admin.api.templates.getEntryTemplateMarkup(holder)).template?.draft).toEqual(before.template?.draft);
 	expect((await admin.api.components.getMarkup(target)).component.draft).toEqual(componentBefore.component.draft);
 });
@@ -381,29 +384,35 @@ test("historical source contracts cannot bypass current same-type validation", a
 		componentId: component.id,
 		props: [{ ...component.draft.props[0], key: "value", label: "Value", type: "text", maxLength: 1 }],
 	});
-	await expect(
-		admin.api.templates.saveEntryTemplateMarkup({ ...holder, markup: '<Card value="Long" />' }),
-	).rejects.toMatchObject({ code: "TEMPLATE_MARKUP_INVALID" });
+	expect(
+		await rejection(admin.api.templates.saveEntryTemplateMarkup({ ...holder, markup: '<Card value="Long" />' })),
+	).toMatchObject({ code: "TEMPLATE_MARKUP_INVALID" });
 	const current = await admin.api.templates.saveEntryTemplateMarkup({ ...holder, markup: '<Card value="Z" />' });
 	const before = await admin.api.history.list({ siteId, item });
-	await expect(admin.api.history.restore({ siteId, item, copy })).rejects.toMatchObject({ code: "TEMPLATE_INVALID" });
-	await expect(admin.api.templates.saveEntryTemplate({ ...holder, tree: snapshot.content })).rejects.toMatchObject({
+	expect(await rejection(admin.api.history.restore({ siteId, item, copy }))).toMatchObject({
 		code: "TEMPLATE_INVALID",
 	});
-	await expect(
-		admin.api.builder.markup({
-			siteId,
-			target: { kind: "entryTemplate", postTypeId: postType.id },
-			tree: snapshot.content,
-		}),
-	).rejects.toMatchObject({ code: "TEMPLATE_INVALID" });
+	expect(await rejection(admin.api.templates.saveEntryTemplate({ ...holder, tree: snapshot.content }))).toMatchObject({
+		code: "TEMPLATE_INVALID",
+	});
+	expect(
+		await rejection(
+			admin.api.builder.markup({
+				siteId,
+				target: { kind: "entryTemplate", postTypeId: postType.id },
+				tree: snapshot.content,
+			}),
+		),
+	).toMatchObject({ code: "TEMPLATE_INVALID" });
 	const contract = (snapshot.content as { nodes: { props: { contract: unknown }[] }[] }).nodes[0]?.props[0]?.contract;
-	await expect(
-		admin.api.templates.saveEntryTemplateMarkup({
-			...holder,
-			markup: `<Card value="Long" data-wc-contracts='${JSON.stringify({ value: contract })}' />`,
-		}),
-	).rejects.toMatchObject({ code: "TEMPLATE_INVALID" });
+	expect(
+		await rejection(
+			admin.api.templates.saveEntryTemplateMarkup({
+				...holder,
+				markup: `<Card value="Long" data-wc-contracts='${JSON.stringify({ value: contract })}' />`,
+			}),
+		),
+	).toMatchObject({ code: "TEMPLATE_INVALID" });
 	expect((await admin.api.templates.getEntryTemplate(holder)).template?.draft).toEqual(current.template.draft);
 	expect(await admin.api.history.list({ siteId, item })).toEqual(before);
 });

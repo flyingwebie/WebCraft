@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { csv, csvSettings, importCsv } from "./support.ts";
 
 let install: TestInstall;
@@ -56,7 +57,7 @@ describe("who imports", () => {
 			() => author.imports.undo({ siteId, runId: run.id }),
 		];
 		for (const refusal of refusals) {
-			await expect(refusal()).rejects.toMatchObject({ code: "FORBIDDEN", data: { permission: "import.run" } });
+			expect(await rejection(refusal())).toMatchObject({ code: "FORBIDDEN", data: { permission: "import.run" } });
 		}
 	});
 });

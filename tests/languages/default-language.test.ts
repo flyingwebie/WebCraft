@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -112,7 +113,7 @@ describe("changing the Default language", () => {
 		});
 		expect((await staff.api.languages.list({ siteId: site.siteId })).settings.defaultLanguage).toBe("en");
 		expect((await visit(site, "/blog/fresh-bread")).status).toBe(200);
-		await expect(owner.api.languages.setDefault({ siteId: site.siteId, code: "fr" })).rejects.toMatchObject({
+		expect(await rejection(owner.api.languages.setDefault({ siteId: site.siteId, code: "fr" }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});
@@ -171,7 +172,7 @@ describe("changing the Default language", () => {
 		const { entry: rolls } = await editor.api.entries.get({ siteId: site.siteId, entryId: site.rolls });
 		expect(rolls.language).toBe("fr");
 		expect(rolls.draft.title).toBe("");
-		await expect(editor.api.entries.publish({ siteId: site.siteId, entryId: site.rolls })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.publish({ siteId: site.siteId, entryId: site.rolls }))).toMatchObject({
 			code: "ENTRY_INCOMPLETE",
 			data: { missing: ["title", "slug"] },
 		});
@@ -214,7 +215,7 @@ describe("changing the Default language", () => {
 		await editor.api.entries.saveDraft({ siteId: site.siteId, entryId: entry.id, language: "fr", slug: "en" });
 		await editor.api.entries.publish({ siteId: site.siteId, entryId: entry.id });
 
-		await expect(staff.api.languages.setDefault({ siteId: site.siteId, code: "fr" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.languages.setDefault({ siteId: site.siteId, code: "fr" }))).toMatchObject({
 			code: "PATH_TAKEN",
 			data: { path: "/en", by: { kind: "page", id: entry.id } },
 		});
@@ -223,10 +224,10 @@ describe("changing the Default language", () => {
 	test("refuses a language the Site doesn't have, and the one that is already its Default language", async () => {
 		const site = await newSite();
 
-		await expect(staff.api.languages.setDefault({ siteId: site.siteId, code: "de" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.languages.setDefault({ siteId: site.siteId, code: "de" }))).toMatchObject({
 			code: "LANGUAGE_NOT_FOUND",
 		});
-		await expect(staff.api.languages.setDefault({ siteId: site.siteId, code: "en" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.languages.setDefault({ siteId: site.siteId, code: "en" }))).toMatchObject({
 			code: "LANGUAGE_INVALID",
 			data: { problems: [{ at: "code" }] },
 		});

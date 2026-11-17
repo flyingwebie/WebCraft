@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -129,19 +130,21 @@ describe("a Form's emails", () => {
 
 	test("Owners and Editors read the Site's Forms, but never change their Structure", async () => {
 		expect((await owner.api.forms.list({ siteId })).forms.map((form) => form.key)).toContain("wedding-cakes");
-		await expect(owner.api.forms.saveDraft({ siteId, formId, form: { submitLabel: "Go" } })).rejects.toMatchObject({
+		expect(await rejection(owner.api.forms.saveDraft({ siteId, formId, form: { submitLabel: "Go" } }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(owner.api.forms.publish({ siteId, formId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(owner.api.forms.publish({ siteId, formId }))).toMatchObject({ code: "FORBIDDEN" });
 	});
 
 	test("Authors neither read Forms nor change their emails", async () => {
-		await expect(author.api.forms.list({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(author.api.forms.get({ siteId, formId })).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(author.api.forms.saveEmails({ siteId, formId, emails: { notifications: [] } })).rejects.toMatchObject({
+		expect(await rejection(author.api.forms.list({ siteId }))).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(author.api.forms.get({ siteId, formId }))).toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(author.api.forms.saveEmails({ siteId, formId, emails: { notifications: [] } })),
+		).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(author.api.forms.publishEmails({ siteId, formId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(author.api.forms.publishEmails({ siteId, formId }))).toMatchObject({ code: "FORBIDDEN" });
 	});
 });
 

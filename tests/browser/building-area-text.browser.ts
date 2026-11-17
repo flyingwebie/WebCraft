@@ -330,7 +330,7 @@ describe("content typed in place, for a Member", () => {
 	});
 
 	async function draftStateCase() {
-		await expect(draftState(page).getAttribute("data-wc-draft-state")).resolves.toBe("none");
+		expect(await draftState(page).getAttribute("data-wc-draft-state")).toBe("none");
 		expect(await draftState(page).textContent()).toContain("No changes yet");
 
 		// A save under way: "Saving…" until it is answered, then the page's changes.

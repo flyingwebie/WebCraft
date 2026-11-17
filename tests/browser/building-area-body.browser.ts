@@ -536,7 +536,7 @@ test("a paste keeps its place while it is converted", async () => {
 			{ type: "paragraph", text: [{ text: "FIRSTPASTED" }] },
 			{ type: "paragraph", text: [{ text: "SECOND" }] },
 		]);
-		await expect(paragraphs.allTextContents()).resolves.toEqual(["FIRSTPASTED", "SECOND"]);
+		expect(await paragraphs.allTextContents()).toEqual(["FIRSTPASTED", "SECOND"]);
 	} finally {
 		releasePaste();
 		await page.context().close();

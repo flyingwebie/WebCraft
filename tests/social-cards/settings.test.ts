@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 beforeAll(async () => {
@@ -39,18 +40,20 @@ test("Staff choose a Social card layout per Site, override it per Post Type and 
 		(await staff.api.postTypes.update({ siteId: site.id, postTypeId: postType.id, seo: { socialCardLayout: null } }))
 			.postType.seo,
 	).toMatchObject({ socialCardLayout: null });
-	await expect(owner.api.seoSettings.update({ siteId: site.id, socialCards: { enabled: true } })).rejects.toMatchObject(
-		{ code: "FORBIDDEN" },
-	);
-	await expect(
-		owner.api.postTypes.update({ siteId: site.id, postTypeId: postType.id, seo: { socialCardLayout: "frame" } }),
-	).rejects.toMatchObject({ code: "FORBIDDEN" });
+	expect(
+		await rejection(owner.api.seoSettings.update({ siteId: site.id, socialCards: { enabled: true } })),
+	).toMatchObject({ code: "FORBIDDEN" });
+	expect(
+		await rejection(
+			owner.api.postTypes.update({ siteId: site.id, postTypeId: postType.id, seo: { socialCardLayout: "frame" } }),
+		),
+	).toMatchObject({ code: "FORBIDDEN" });
 	const other = await install.createWorkspace();
 	const outsider = (await install.createStaff({ workspaces: [other.id] })).browser;
-	await expect(
-		outsider.api.seoSettings.update({ siteId: site.id, socialCards: { enabled: true } }),
-	).rejects.toBeDefined();
-	await expect(
-		staff.api.seoSettings.update({ siteId: site.id, socialCards: { layout: "unknown" as never } }),
-	).rejects.toBeDefined();
+	expect(
+		await rejection(outsider.api.seoSettings.update({ siteId: site.id, socialCards: { enabled: true } })),
+	).toBeDefined();
+	expect(
+		await rejection(staff.api.seoSettings.update({ siteId: site.id, socialCards: { layout: "unknown" as never } })),
+	).toBeDefined();
 });

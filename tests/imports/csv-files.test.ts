@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -92,8 +93,8 @@ describe("reading a CSV file", () => {
 });
 
 describe("refusing a CSV file", () => {
-	const refused = (file: File, reason: string, data: Record<string, unknown> = {}) =>
-		expect(editor.api.imports.uploadCsv({ siteId, file })).rejects.toMatchObject({
+	const refused = async (file: File, reason: string, data: Record<string, unknown> = {}) =>
+		expect(await rejection(editor.api.imports.uploadCsv({ siteId, file }))).toMatchObject({
 			code: "IMPORT_FILE_REFUSED",
 			data: { reason, ...data },
 		});
@@ -126,7 +127,7 @@ describe("refusing a CSV file", () => {
 
 	test("larger than 10 MB, before reading it", async () => {
 		const big = csv(`name\n${"x".repeat(10 * 1024 * 1024)}\n`);
-		await expect(editor.api.imports.uploadCsv({ siteId, file: big })).rejects.toMatchObject({
+		expect(await rejection(editor.api.imports.uploadCsv({ siteId, file: big }))).toMatchObject({
 			code: "IMPORT_FILE_REFUSED",
 			status: 413,
 			data: { reason: "size", maxBytes: 10 * 1024 * 1024 },
@@ -137,7 +138,7 @@ describe("refusing a CSV file", () => {
 describe("who uploads, and where the file goes", () => {
 	test("an Author can't: importing is for Staff, Owners and Editors", async () => {
 		const author = (await install.createMember({ workspaceId, role: "author" })).browser;
-		await expect(author.api.imports.uploadCsv({ siteId, file: csv("name\nRye\n") })).rejects.toMatchObject({
+		expect(await rejection(author.api.imports.uploadCsv({ siteId, file: csv("name\nRye\n") }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});

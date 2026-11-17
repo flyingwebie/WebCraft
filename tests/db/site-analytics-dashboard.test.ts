@@ -7,6 +7,7 @@ import { applyMigrationLevel, migrationsFolder } from "@webcraft/db";
 import pg from "pg";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 /** The migrations under test: the column that marks the built-in Dashboard, and the one giving it to every Site. */
 const BUILT_IN_MIGRATIONS = [
@@ -106,9 +107,11 @@ describe("an Install whose Sites were made before the built-in Dashboard", () =>
 		expect(upgraded).toEqual(await layout(made.id));
 
 		// It can't be deleted either.
-		await expect(api.dashboards.delete({ siteId: florist, dashboardId: second[0]?.id ?? "" })).rejects.toMatchObject({
-			code: "DASHBOARD_INVALID",
-			data: { problem: "builtIn" },
-		});
+		expect(await rejection(api.dashboards.delete({ siteId: florist, dashboardId: second[0]?.id ?? "" }))).toMatchObject(
+			{
+				code: "DASHBOARD_INVALID",
+				data: { problem: "builtIn" },
+			},
+		);
 	});
 });

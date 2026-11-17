@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { type HistorySite, historySite } from "./support.ts";
 
 let install: TestInstall;
@@ -49,10 +50,10 @@ describe("Install settings › Revisions", () => {
 			checkpointDays: 30,
 		});
 		const site = await historySite(install);
-		await expect(site.staff.api.install.history.update({ revisionDays: 10 })).rejects.toMatchObject({
+		expect(await rejection(site.staff.api.install.history.update({ revisionDays: 10 }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(admin.api.install.history.update({ revisionDays: 0 })).rejects.toMatchObject({ status: 400 });
+		expect(await rejection(admin.api.install.history.update({ revisionDays: 0 }))).toMatchObject({ status: 400 });
 
 		const changed = await admin.api.install.history.update({ revisionDays: 120, checkpointDays: 7 });
 		expect(changed).toEqual({ revisionsOn: true, revisionDays: 120, revisionsKept: 50, checkpointDays: 7 });
@@ -129,7 +130,7 @@ describe("turning Revisions off", () => {
 		const entryId = await publishedEntry(site, 1);
 		const other = await staff.api.postTypes.create({ siteId, name: "Recipes", urlPattern: "/recipes/{slug}" });
 
-		await expect(editor.api.postTypes.update({ siteId, postTypeId, revisions: false })).rejects.toMatchObject({
+		expect(await rejection(editor.api.postTypes.update({ siteId, postTypeId, revisions: false }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 		const { postType } = await staff.api.postTypes.update({ siteId, postTypeId, revisions: false });

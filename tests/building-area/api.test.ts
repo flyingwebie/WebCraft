@@ -13,6 +13,7 @@ import { type BuildingAreaApi, buildingAreaApi, refusalOf } from "../harness/bui
 import { openEditMode, withoutBuildingAreaCookie } from "../harness/edit-mode.ts";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -155,8 +156,7 @@ describe("a listed procedure", () => {
 
 		const read = area.api.entries.get({ siteId: site.siteId, entryId: other.entryId });
 
-		expect(read).rejects.toMatchObject({ code: "ENTRY_NOT_FOUND" });
-		await read.catch(() => {});
+		expect(await rejection(read)).toMatchObject({ code: "ENTRY_NOT_FOUND" });
 	});
 });
 
@@ -375,8 +375,7 @@ describe("what every call must carry, as an edit request does", () => {
 			const big = new Uint8Array(1024 * 1024 + 70 * 1024);
 			big.set(await photo({ width: 10, height: 10 }));
 			const tooLarge = building_.api.media.upload({ siteId: site.siteId, file: upload(big, "huge.jpg") });
-			expect(tooLarge).rejects.toMatchObject({ code: "MEDIA_TOO_LARGE", data: { maxBytes: 1024 * 1024 } });
-			await tooLarge.catch(() => {});
+			expect(await rejection(tooLarge)).toMatchObject({ code: "MEDIA_TOO_LARGE", data: { maxBytes: 1024 * 1024 } });
 		} finally {
 			await admin.install.media.update({ maxFileBytes: 100 * 1024 * 1024 });
 		}

@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { pdf, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import {
 	exportedArchive,
 	importArchive,
@@ -99,7 +100,7 @@ test("ambiguous manifests and invalid WebCraft versions are refused before impor
 			m.tables[0].module = "unrelated";
 		},
 	]) {
-		await expect(uploadArchive(admin, workspaceId, rewritten(archive, { manifest }))).rejects.toMatchObject({
+		expect(await rejection(uploadArchive(admin, workspaceId, rewritten(archive, { manifest })))).toMatchObject({
 			code: "SITE_IMPORT_REFUSED",
 		});
 	}
@@ -154,7 +155,7 @@ test("tar extension headers are bounded before the manifest is read", async () =
 	extended.write(`${sum.toString(8).padStart(6, "0")}\0 `, 148, "latin1");
 	const bytes = Buffer.concat([extended.subarray(0, -1024), archive]);
 	const workspaceId = (await install.createWorkspace("Header limit")).id;
-	await expect(uploadArchive(admin, workspaceId, bytes)).rejects.toMatchObject({ code: "SITE_IMPORT_REFUSED" });
+	expect(await rejection(uploadArchive(admin, workspaceId, bytes))).toMatchObject({ code: "SITE_IMPORT_REFUSED" });
 });
 
 function required<T>(value: T | undefined): T {
@@ -169,17 +170,19 @@ test("invalid UUID versions and variants are refused in manifest identities befo
 		"123e4567-e89b-42d3-0456-426614174000",
 		"00000000-0000-0000-0000-000000000000",
 	]) {
-		await expect(
-			uploadArchive(
-				admin,
-				workspaceId,
-				rewritten(archive, {
-					manifest: (m) => {
-						m.site.id = id;
-					},
-				}),
+		expect(
+			await rejection(
+				uploadArchive(
+					admin,
+					workspaceId,
+					rewritten(archive, {
+						manifest: (m) => {
+							m.site.id = id;
+						},
+					}),
+				),
 			),
-		).rejects.toMatchObject({ code: "SITE_IMPORT_REFUSED" });
+		).toMatchObject({ code: "SITE_IMPORT_REFUSED" });
 	}
 	expect((await admin.api.sites.list({ workspaceId })).sites).toEqual([]);
 });

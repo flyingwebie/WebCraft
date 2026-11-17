@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { analyticsApi, analyticsVisitor, liveSite } from "../harness/analytics.ts";
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -47,11 +48,13 @@ describe("who sees a Dashboard", () => {
 		]);
 		expect((await owner.api.dashboards.get({ siteId, dashboardId })).dashboard.canManage).toBe(false);
 		expect((await owner.api.dashboards.widgets.data({ siteId, dashboardId, widgetId })).widget.problem).toBeNull();
-		await expect(owner.api.dashboards.create({ siteId, name: "Mine" })).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(owner.api.dashboards.widgets.add({ siteId, dashboardId, kind: "note" })).rejects.toMatchObject({
+		expect(await rejection(owner.api.dashboards.create({ siteId, name: "Mine" }))).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(owner.api.dashboards.widgets.add({ siteId, dashboardId, kind: "note" }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(owner.api.dashboards.update({ siteId, dashboardId, sharedWithEveryone: true })).rejects.toMatchObject({
+		expect(
+			await rejection(owner.api.dashboards.update({ siteId, dashboardId, sharedWithEveryone: true })),
+		).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});
@@ -64,10 +67,10 @@ describe("who sees a Dashboard", () => {
 
 		for (const member of [editor, author]) {
 			expect((await member.api.dashboards.list({ siteId })).dashboards).toEqual([]);
-			await expect(member.api.dashboards.get({ siteId, dashboardId })).rejects.toMatchObject({
+			expect(await rejection(member.api.dashboards.get({ siteId, dashboardId }))).toMatchObject({
 				code: "DASHBOARD_NOT_FOUND",
 			});
-			await expect(member.api.dashboards.widgets.data({ siteId, dashboardId, widgetId })).rejects.toMatchObject({
+			expect(await rejection(member.api.dashboards.widgets.data({ siteId, dashboardId, widgetId }))).toMatchObject({
 				code: "DASHBOARD_NOT_FOUND",
 			});
 		}
@@ -82,10 +85,10 @@ describe("who sees a Dashboard", () => {
 			expect((await member.api.dashboards.widgets.data({ siteId, dashboardId, widgetId })).widget.data).toMatchObject({
 				shape: "number",
 			});
-			await expect(member.api.dashboards.get({ siteId, dashboardId: hidden.id })).rejects.toMatchObject({
+			expect(await rejection(member.api.dashboards.get({ siteId, dashboardId: hidden.id }))).toMatchObject({
 				code: "DASHBOARD_NOT_FOUND",
 			});
-			await expect(member.api.dashboards.widgets.remove({ siteId, dashboardId, widgetId })).rejects.toMatchObject({
+			expect(await rejection(member.api.dashboards.widgets.remove({ siteId, dashboardId, widgetId }))).toMatchObject({
 				code: "FORBIDDEN",
 			});
 		}
@@ -100,7 +103,7 @@ describe("who sees a Dashboard", () => {
 			shape: "number",
 		});
 		expect((await api.dashboards.export({ siteId, dashboardId })).csv).toContain("Totals");
-		await expect(api.dashboards.widgets.remove({ siteId, dashboardId, widgetId })).rejects.toMatchObject({
+		expect(await rejection(api.dashboards.widgets.remove({ siteId, dashboardId, widgetId }))).toMatchObject({
 			code: "TOKEN_READ_ONLY",
 		});
 	});

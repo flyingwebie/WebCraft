@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { photo } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { csvSettings, importCsv, runAgain, startRun } from "./support.ts";
 
 const PUBLIC = "93.184.216.34";
@@ -127,7 +128,7 @@ describe("Undo of an Import run", () => {
 			available: false,
 			reason: "published",
 		});
-		await expect(editor.api.imports.undo({ siteId, runId: run.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.imports.undo({ siteId, runId: run.id }))).toMatchObject({
 			code: "IMPORT_UNDO_REFUSED",
 			data: { reason: "published", entries: [{ id: rye, title: "Rye" }] },
 		});
@@ -140,7 +141,7 @@ describe("Undo of an Import run", () => {
 		await install.clock.advance(1000);
 		await editor.api.entries.saveDraft({ siteId, entryId: rye, fields: { price: 4 } });
 
-		await expect(editor.api.imports.undo({ siteId, runId: run.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.imports.undo({ siteId, runId: run.id }))).toMatchObject({
 			code: "IMPORT_UNDO_REFUSED",
 			data: { reason: "edited", entries: [{ id: rye, title: "Rye" }] },
 		});
@@ -151,7 +152,7 @@ describe("Undo of an Import run", () => {
 		const first = await importCsv(install, editor.api, siteId, settings, "name,sku,price,photo\nRye,RY-1,4,\n");
 		const second = await runAgain(install, editor.api, siteId, first.importId, "name,sku,price,photo\nRye,RY-1,5,\n");
 
-		await expect(editor.api.imports.undo({ siteId, runId: first.run.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.imports.undo({ siteId, runId: first.run.id }))).toMatchObject({
 			code: "IMPORT_UNDO_REFUSED",
 			data: { reason: "edited" },
 		});
@@ -167,13 +168,13 @@ describe("Undo of an Import run", () => {
 		const { import: created } = await editor.api.imports.create({ siteId, name: "Waiting", source: "csv", settings });
 		const waiting = await startRun(editor.api, siteId, created.id, "name,sku,price,photo\nRye,RY-1,4,\n");
 
-		await expect(editor.api.imports.undo({ siteId, runId: waiting.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.imports.undo({ siteId, runId: waiting.id }))).toMatchObject({
 			code: "IMPORT_UNDO_REFUSED",
 			data: { reason: "status" },
 		});
 		await install.drainJobs();
 		await undo(waiting.id);
-		await expect(editor.api.imports.undo({ siteId, runId: waiting.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.imports.undo({ siteId, runId: waiting.id }))).toMatchObject({
 			data: { reason: "status" },
 		});
 	});
@@ -192,9 +193,9 @@ describe("Undo of an Import run", () => {
 		const { confirmation } = await editor.api.entries.delete({ siteId, entryId: pie });
 		await editor.api.entries.delete({ siteId, entryId: pie, confirmation: confirmation?.id });
 
-		await expect(
-			editor.api.imports.undo({ siteId, runId: run.id, confirmation: confirmationOf(asked) }),
-		).rejects.toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "changed" } });
+		expect(
+			await rejection(editor.api.imports.undo({ siteId, runId: run.id, confirmation: confirmationOf(asked) })),
+		).toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "changed" } });
 	});
 
 	test("after Undo, the Import runs again as if the run had never been", async () => {
@@ -248,7 +249,7 @@ describe("Undo of an Import run", () => {
 			fields: { for: rye },
 		});
 
-		await expect(editor.api.imports.undo({ siteId, runId: run.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.imports.undo({ siteId, runId: run.id }))).toMatchObject({
 			code: "IMPORT_UNDO_REFUSED",
 			status: 409,
 			data: { reason: "linked", entries: [expect.objectContaining({ id: label.id })] },
@@ -270,9 +271,11 @@ describe("an Import's Post Type", () => {
 		);
 		expect((await editor.api.imports.get({ siteId, importId })).import.entries).toBe(1);
 
-		await expect(
-			editor.api.imports.update({ siteId, importId, settings: { ...settings, postTypeId: shirts.id } }),
-		).rejects.toMatchObject({ code: "IMPORT_POST_TYPE_FIXED", status: 409 });
+		expect(
+			await rejection(
+				editor.api.imports.update({ siteId, importId, settings: { ...settings, postTypeId: shirts.id } }),
+			),
+		).toMatchObject({ code: "IMPORT_POST_TYPE_FIXED", status: 409 });
 		// The name can still change.
 		await editor.api.imports.update({ siteId, importId, name: "Shoes" });
 		expect(await prices(shoes.id)).toEqual({ Rye: 4 });

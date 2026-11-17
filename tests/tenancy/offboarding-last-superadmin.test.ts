@@ -6,6 +6,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import pg from "pg";
 
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 
@@ -51,7 +52,7 @@ test("two Superadmins deactivating each other at once: one is refused, and one c
 		const winner = outcomes[0].status === "fulfilled" ? a : b;
 		const other = winner === a ? b : a;
 		winner.browser = await install.signIn(winner.account);
-		await expect(install.signIn(other.account)).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
+		expect(await rejection(install.signIn(other.account))).toMatchObject({ code: "INVALID_CREDENTIALS" });
 		await winner.browser.api.accounts.reactivate({ personId: other.id });
 		other.browser = await install.signIn(other.account);
 	}

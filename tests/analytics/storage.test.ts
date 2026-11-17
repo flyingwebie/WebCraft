@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { analyticsApi, analyticsVisitor, dayOf, liveSite } from "../harness/analytics.ts";
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -201,15 +202,17 @@ describe("raw events", () => {
 		expect(await keeping()).toEqual([{ table: "events", label: "Raw events", keepMonths: 2, defaultMonths: 13 }]);
 		expect((await (await stats()).coverage({ siteId: site.siteId })).rawEventsFrom).toBeNull();
 		const admin = await install.superadmin();
-		await expect(
-			admin.api.modules.setKeepMonths({ moduleId: "site-analytics", table: "events", months: 0 }),
-		).rejects.toMatchObject({ code: "BAD_REQUEST" });
-		await expect(
-			admin.api.modules.setKeepMonths({ moduleId: "site-analytics", table: "rollups", months: 2 }),
-		).rejects.toMatchObject({ code: "MODULE_NOT_FOUND" });
-		await expect(
-			(await staff()).api.modules.setKeepMonths({ moduleId: "site-analytics", table: "events", months: 24 }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(admin.api.modules.setKeepMonths({ moduleId: "site-analytics", table: "events", months: 0 })),
+		).toMatchObject({ code: "BAD_REQUEST" });
+		expect(
+			await rejection(admin.api.modules.setKeepMonths({ moduleId: "site-analytics", table: "rollups", months: 2 })),
+		).toMatchObject({ code: "MODULE_NOT_FOUND" });
+		expect(
+			await rejection(
+				(await staff()).api.modules.setKeepMonths({ moduleId: "site-analytics", table: "events", months: 24 }),
+			),
+		).toMatchObject({ code: "FORBIDDEN" });
 		const { entries } = await admin.api.audit.list({});
 		expect(entries.find((entry) => entry.action === "module.changeKeep")?.details).toEqual({
 			moduleId: "site-analytics",

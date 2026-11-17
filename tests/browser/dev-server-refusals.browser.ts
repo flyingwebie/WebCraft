@@ -7,7 +7,7 @@
 // in password-reset, invites and tenancy. So: after a change, every refusal keeps its own answer.
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { utimes } from "node:fs/promises";
-
+import { rejection } from "../harness/settled.ts";
 import { type BrowserInstall, pageErrors, startBrowserInstall } from "./harness.ts";
 
 let install: BrowserInstall;
@@ -38,11 +38,11 @@ afterAll(async () => {
 describe("refusals under the dev server, after a change to the web process's code", () => {
 	test("the Management API answers each with its own code", async () => {
 		const browser = install.webBrowser();
-		await expect(browser.api.session.signIn({ email, password: "not the right password" })).rejects.toMatchObject({
+		expect(await rejection(browser.api.session.signIn({ email, password: "not the right password" }))).toMatchObject({
 			code: "INVALID_CREDENTIALS",
 			status: 401,
 		});
-		await expect(browser.api.invites.get({ token: "not-a-link-anyone-was-sent" })).rejects.toMatchObject({
+		expect(await rejection(browser.api.invites.get({ token: "not-a-link-anyone-was-sent" }))).toMatchObject({
 			code: "INVITE_INVALID",
 		});
 	});

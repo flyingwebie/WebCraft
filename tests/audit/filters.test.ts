@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let superadmin: TestBrowser;
@@ -133,8 +134,10 @@ describe("the CSV export", () => {
 		const editor = await install.createMember({ workspaceId: acme, role: "editor" });
 
 		expect((await owner.browser.api.audit.export({ workspaceId: acme })).csv).toContain('"site.create"');
-		await expect(editor.browser.api.audit.export({ workspaceId: acme })).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(owner.browser.api.audit.export({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(editor.browser.api.audit.export({ workspaceId: acme }))).toMatchObject({
+			code: "FORBIDDEN",
+		});
+		expect(await rejection(owner.browser.api.audit.export({}))).toMatchObject({ code: "FORBIDDEN" });
 	});
 });
 

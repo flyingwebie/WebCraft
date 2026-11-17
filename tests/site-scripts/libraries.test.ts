@@ -11,6 +11,7 @@ import { LIBRARIES_PER_SITE, LIBRARY_ARCHIVE_UNPACKED_MAX_BYTES } from "@webcraf
 import { headOf } from "../harness/code-mode.ts";
 import { fakeNpmPackage, integrityOf, NPM_HOST } from "../harness/fake-npm.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage, expectSiteHeaders, policyOf } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -239,15 +240,22 @@ describe("adding a Library by address", () => {
 	test("an address inside the server's network, or not https, is refused", async () => {
 		const site = await newSite();
 		install.dns.answer("intranet.example.org", ["10.0.0.5"]);
-		await expect(
-			staff.api.libraries.add({
-				siteId: site.siteId,
-				library: { source: "url", url: "https://intranet.example.org/a.js" },
-			}),
-		).rejects.toMatchObject({ code: "LIBRARY_REFUSED", data: { problem: "unreachable" } });
-		await expect(
-			staff.api.libraries.add({ siteId: site.siteId, library: { source: "url", url: "http://cdn.example.org/a.js" } }),
-		).rejects.toMatchObject({ code: "LIBRARY_REFUSED", data: { problem: "url" } });
+		expect(
+			await rejection(
+				staff.api.libraries.add({
+					siteId: site.siteId,
+					library: { source: "url", url: "https://intranet.example.org/a.js" },
+				}),
+			),
+		).toMatchObject({ code: "LIBRARY_REFUSED", data: { problem: "unreachable" } });
+		expect(
+			await rejection(
+				staff.api.libraries.add({
+					siteId: site.siteId,
+					library: { source: "url", url: "http://cdn.example.org/a.js" },
+				}),
+			),
+		).toMatchObject({ code: "LIBRARY_REFUSED", data: { problem: "url" } });
 	});
 });
 
@@ -296,12 +304,14 @@ describe("a Site's Libraries", () => {
 			"1.0.0": { files: { "index.js": "ok()", "padding.txt": "0".repeat(LIBRARY_ARCHIVE_UNPACKED_MAX_BYTES) } },
 		});
 
-		await expect(
-			staff.api.libraries.add({
-				siteId: site.siteId,
-				library: { source: "npm", packageName: "padded-kit", version: "1.0.0" },
-			}),
-		).rejects.toMatchObject({ code: "LIBRARY_REFUSED", data: { problem: "size" } });
+		expect(
+			await rejection(
+				staff.api.libraries.add({
+					siteId: site.siteId,
+					library: { source: "npm", packageName: "padded-kit", version: "1.0.0" },
+				}),
+			),
+		).toMatchObject({ code: "LIBRARY_REFUSED", data: { problem: "size" } });
 		expect((await staff.api.libraries.list({ siteId: site.siteId })).libraries).toEqual([]);
 	});
 });
@@ -356,7 +366,7 @@ describe("Library updates", () => {
 		});
 		await staff.api.libraries.remove({ siteId: site.siteId, libraryId: library.id });
 		expect((await install.request(site.url("/")).then((page) => page.text())).includes(library.src)).toBe(false);
-		await expect(staff.api.libraries.remove({ siteId: site.siteId, libraryId: library.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.libraries.remove({ siteId: site.siteId, libraryId: library.id }))).toMatchObject({
 			code: "LIBRARY_NOT_FOUND",
 		});
 	});
@@ -372,7 +382,7 @@ describe("Library updates", () => {
 			() => editor.api.libraries.update({ siteId: site.siteId, libraryId: library.id }),
 			() => editor.api.libraries.remove({ siteId: site.siteId, libraryId: library.id }),
 		]) {
-			await expect(call()).rejects.toMatchObject({ code: "FORBIDDEN" });
+			expect(await rejection(call())).toMatchObject({ code: "FORBIDDEN" });
 		}
 
 		await staff.api.libraries.update({ siteId: site.siteId, libraryId: library.id, version: "3.12.0" });

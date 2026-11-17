@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import type { RecordedRequest } from "../harness/fake-http.ts";
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { confirmed, receiverAccepts } from "./support.ts";
 
 const MINUTE = 60_000;
@@ -136,7 +137,7 @@ describe("what a Webhook may be", () => {
 			["https://169.254.169.254/latest/meta-data", "host"],
 		] as const;
 		for (const [url, reason] of refused) {
-			await expect(staff.api.webhooks.add({ siteId, url, events: ["publish"] })).rejects.toMatchObject({
+			expect(await rejection(staff.api.webhooks.add({ siteId, url, events: ["publish"] }))).toMatchObject({
 				code: "WEBHOOK_INVALID",
 				data: { field: "url", reason },
 			});
@@ -157,21 +158,25 @@ describe("what a Webhook may be", () => {
 	test("a signing secret Staff give is 16 to 200 visible characters", async () => {
 		const siteId = await newSite();
 		for (const secret of ["too-short", "has spaces in the middle of it", "x".repeat(201)]) {
-			await expect(
-				staff.api.webhooks.add({ siteId, url: "https://hooks.agency.example/a", events: ["publish"], secret }),
-			).rejects.toMatchObject({ code: "WEBHOOK_INVALID", data: { field: "secret", reason: "format" } });
+			expect(
+				await rejection(
+					staff.api.webhooks.add({ siteId, url: "https://hooks.agency.example/a", events: ["publish"], secret }),
+				),
+			).toMatchObject({ code: "WEBHOOK_INVALID", data: { field: "secret", reason: "format" } });
 		}
 	});
 
 	test("it receives at least one event, from the list", async () => {
 		const siteId = await newSite();
 		expect((await staff.api.webhooks.list({ siteId })).events).toEqual(["publish", "unpublish", "formSubmitted"]);
-		await expect(
-			staff.api.webhooks.add({ siteId, url: "https://hooks.agency.example/a", events: [] }),
-		).rejects.toMatchObject({ code: "BAD_REQUEST" });
-		await expect(
-			staff.api.webhooks.add({ siteId, url: "https://hooks.agency.example/a", events: ["deleted" as "publish"] }),
-		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(
+			await rejection(staff.api.webhooks.add({ siteId, url: "https://hooks.agency.example/a", events: [] })),
+		).toMatchObject({ code: "BAD_REQUEST" });
+		expect(
+			await rejection(
+				staff.api.webhooks.add({ siteId, url: "https://hooks.agency.example/a", events: ["deleted" as "publish"] }),
+			),
+		).toMatchObject({ code: "BAD_REQUEST" });
 	});
 
 	test("a Site has at most 20 Webhooks", async () => {
@@ -179,9 +184,9 @@ describe("what a Webhook may be", () => {
 		for (let number = 1; number <= 20; number++) {
 			await staff.api.webhooks.add({ siteId, url: `https://hooks.agency.example/${number}`, events: ["publish"] });
 		}
-		await expect(
-			staff.api.webhooks.add({ siteId, url: "https://hooks.agency.example/21", events: ["publish"] }),
-		).rejects.toMatchObject({ code: "TOO_MANY_WEBHOOKS", data: { max: 20 } });
+		expect(
+			await rejection(staff.api.webhooks.add({ siteId, url: "https://hooks.agency.example/21", events: ["publish"] })),
+		).toMatchObject({ code: "TOO_MANY_WEBHOOKS", data: { max: 20 } });
 	});
 });
 
@@ -198,9 +203,11 @@ describe("who sees and changes Webhooks", () => {
 		});
 
 		for (const member of [owner, editor]) {
-			await expect(
-				member.browser.api.webhooks.add({ siteId, url: "https://evil.example/collect", events: ["publish"] }),
-			).rejects.toMatchObject({ code: "FORBIDDEN", data: { permission: "structure.edit" } });
+			expect(
+				await rejection(
+					member.browser.api.webhooks.add({ siteId, url: "https://evil.example/collect", events: ["publish"] }),
+				),
+			).toMatchObject({ code: "FORBIDDEN", data: { permission: "structure.edit" } });
 		}
 		const { webhooks } = await owner.browser.api.webhooks.list({ siteId });
 		expect(webhooks).toMatchObject([{ name: "Chat", url: "https://chat.agency.example", secret: null }]);
@@ -220,7 +227,7 @@ describe("changing a Webhook", () => {
 			url: "https://new-hooks.agency.example/new/token-b",
 			events: ["publish" as const],
 		};
-		await expect(staff.api.webhooks.update(change)).rejects.toMatchObject({
+		expect(await rejection(staff.api.webhooks.update(change))).toMatchObject({
 			code: "IDENTITY_CHECK_REQUIRED",
 			data: { action: "webhook.change" },
 		});
@@ -245,11 +252,18 @@ describe("changing a Webhook", () => {
 
 	test("its new URL keeps the rules", async () => {
 		const { siteId, webhookId } = await siteWithWebhook("https://hooks.agency.example/rules");
-		await expect(
-			confirmed(staff, staffAccount, () =>
-				staff.api.webhooks.update({ siteId, webhookId, url: "http://hooks.agency.example/rules", events: ["publish"] }),
+		expect(
+			await rejection(
+				confirmed(staff, staffAccount, () =>
+					staff.api.webhooks.update({
+						siteId,
+						webhookId,
+						url: "http://hooks.agency.example/rules",
+						events: ["publish"],
+					}),
+				),
 			),
-		).rejects.toMatchObject({ code: "WEBHOOK_INVALID", data: { field: "url", reason: "scheme" } });
+		).toMatchObject({ code: "WEBHOOK_INVALID", data: { field: "url", reason: "scheme" } });
 	});
 
 	test("replacing its secret: a new one is made and shown once, or Staff give one; deliveries are signed with it", async () => {
@@ -344,7 +358,7 @@ describe("changing a Webhook", () => {
 		});
 
 		expect((await staff.api.webhooks.list({ siteId })).webhooks).toEqual([]);
-		await expect(staff.api.webhooks.deliveries({ siteId, webhookId })).rejects.toMatchObject({
+		expect(await rejection(staff.api.webhooks.deliveries({ siteId, webhookId }))).toMatchObject({
 			code: "WEBHOOK_NOT_FOUND",
 		});
 		const signingSecret = {
@@ -370,6 +384,6 @@ describe("changing a Webhook", () => {
 			() => owner.browser.api.webhooks.setEnabled({ siteId, webhookId, enabled: false }),
 			() => owner.browser.api.webhooks.remove({ siteId, webhookId }),
 		];
-		for (const call of calls) await expect(call()).rejects.toMatchObject({ code: "FORBIDDEN" });
+		for (const call of calls) expect(await rejection(call())).toMatchObject({ code: "FORBIDDEN" });
 	});
 });

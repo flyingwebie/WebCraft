@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -130,17 +131,17 @@ describe("refused", () => {
 	test("for Pages, which have no Entry or Archive template", async () => {
 		const { postTypes } = await staff.api.postTypes.list({ siteId });
 		const pages = postTypes.find((postType) => postType.builtIn === "page")?.id ?? "";
-		await expect(
-			staff.api.builder.open({ siteId, target: { kind: "entryTemplate", postTypeId: pages } }),
-		).rejects.toMatchObject({ code: "PAGES_HAVE_NO_ENTRY_TEMPLATE" });
-		await expect(
-			staff.api.builder.open({ siteId, target: { kind: "archiveTemplate", postTypeId: pages } }),
-		).rejects.toMatchObject({ code: "ARCHIVE_UNAVAILABLE" });
+		expect(
+			await rejection(staff.api.builder.open({ siteId, target: { kind: "entryTemplate", postTypeId: pages } })),
+		).toMatchObject({ code: "PAGES_HAVE_NO_ENTRY_TEMPLATE" });
+		expect(
+			await rejection(staff.api.builder.open({ siteId, target: { kind: "archiveTemplate", postTypeId: pages } })),
+		).toMatchObject({ code: "ARCHIVE_UNAVAILABLE" });
 	});
 
 	test("for Members: the builder changes Structure", async () => {
 		const { browser: owner } = await install.createMember({ workspaceId, role: "owner" });
-		await expect(owner.api.builder.open({ siteId, target: { kind: "siteTemplate" } })).rejects.toMatchObject({
+		expect(await rejection(owner.api.builder.open({ siteId, target: { kind: "siteTemplate" } }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});

@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSiteHeaders } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 import { readSitemap, readSitemapIndex, type SitemapUrl } from "../harness/xml.ts";
@@ -392,8 +393,8 @@ describe("a Post Type Staff leave out", () => {
 		expect((await install.request(`${site.origin}/sitemaps/blog-1.xml`)).status).toBe(404);
 		expect((await install.request(`${site.origin}/blog/fresh-bread`)).status).toBe(200);
 		const owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
-		await expect(
-			owner.api.postTypes.update({ siteId: site.siteId, postTypeId: site.blogId, sitemap: true }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(owner.api.postTypes.update({ siteId: site.siteId, postTypeId: site.blogId, sitemap: true })),
+		).toMatchObject({ code: "FORBIDDEN" });
 	});
 });

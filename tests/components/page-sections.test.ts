@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { exportedArchive, importArchive, rowsIn } from "../harness/site-transfer.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -91,18 +92,18 @@ describe("making a Section on a Page", () => {
 		const { postTypes } = await staff.api.postTypes.list({ siteId });
 		const { postType } = await staff.api.postTypes.create({ siteId, name: "Recipes", urlPattern: "/recipes/{slug}" });
 		const { entry: recipe } = await staff.api.entries.create({ siteId, postTypeId: postType.id, title: "Scones" });
-		await expect(staff.api.components.create({ siteId, pageId: recipe.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.components.create({ siteId, pageId: recipe.id }))).toMatchObject({
 			code: "PAGE_NOT_FOUND",
 		});
 		const other = await siteWithPage("sections-owner-other");
-		await expect(staff.api.components.create({ siteId, pageId: other.pageId })).rejects.toMatchObject({
+		expect(await rejection(staff.api.components.create({ siteId, pageId: other.pageId }))).toMatchObject({
 			code: "PAGE_NOT_FOUND",
 		});
 		expect(postTypes.length).toBeGreaterThan(0);
 		// Members never make one: Sections are Structure.
-		await expect(
-			editor.api.components.create({ siteId, pageId: (await siteWithPage("sections-member")).pageId }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(editor.api.components.create({ siteId, pageId: (await siteWithPage("sections-member")).pageId })),
+		).toMatchObject({ code: "FORBIDDEN" });
 	});
 
 	test("is placed only on its own Page, once", async () => {
@@ -114,47 +115,57 @@ describe("making a Section on a Page", () => {
 		expect(layout.components.map((each) => each.id)).not.toContain(componentId);
 
 		// Twice on its Page: duplicating makes another Section instead.
-		await expect(
-			staff.api.pageLayouts.save({
-				siteId,
-				entryId: pageId,
-				basedOn: layout.version,
-				layout: {
-					placements: [...layout.layout.placements, { id: "again", component: componentId, props: [], values: {} }],
-				},
-			}),
-		).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+		expect(
+			await rejection(
+				staff.api.pageLayouts.save({
+					siteId,
+					entryId: pageId,
+					basedOn: layout.version,
+					layout: {
+						placements: [...layout.layout.placements, { id: "again", component: componentId, props: [], values: {} }],
+					},
+				}),
+			),
+		).toMatchObject({ code: "ENTRY_INVALID" });
 
 		// On another Page.
 		const { entry: other } = await staff.api.entries.create({ siteId, postTypeId: pageTypeId, title: "Team" });
 		const otherLayout = await staff.api.pageLayouts.get({ siteId, entryId: other.id });
-		await expect(
-			staff.api.pageLayouts.save({
-				siteId,
-				entryId: other.id,
-				basedOn: otherLayout.version,
-				layout: { placements: [{ id: "stolen", component: componentId, props: [], values: {} }] },
-			}),
-		).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+		expect(
+			await rejection(
+				staff.api.pageLayouts.save({
+					siteId,
+					entryId: other.id,
+					basedOn: otherLayout.version,
+					layout: { placements: [{ id: "stolen", component: componentId, props: [], values: {} }] },
+				}),
+			),
+		).toMatchObject({ code: "ENTRY_INVALID" });
 
 		// In a Template or a Component.
 		const { component } = await staff.api.components.get({ siteId, componentId });
-		await expect(
-			staff.api.templates.saveSiteTemplateMarkup({
-				siteId,
-				markup: `<header><${component.name} /></header><main>{{@outlet}}</main>`,
-			}),
-		).rejects.toMatchObject({ code: "TEMPLATE_MARKUP_INVALID" });
+		expect(
+			await rejection(
+				staff.api.templates.saveSiteTemplateMarkup({
+					siteId,
+					markup: `<header><${component.name} /></header><main>{{@outlet}}</main>`,
+				}),
+			),
+		).toMatchObject({ code: "TEMPLATE_MARKUP_INVALID" });
 		const { component: card } = await staff.api.components.create({ siteId, name: "Card" });
-		await expect(
-			staff.api.components.saveMarkup({ siteId, componentId: card.id, markup: `<div><${component.name} /></div>` }),
-		).rejects.toMatchObject({ code: "TEMPLATE_MARKUP_INVALID" });
+		expect(
+			await rejection(
+				staff.api.components.saveMarkup({ siteId, componentId: card.id, markup: `<div><${component.name} /></div>` }),
+			),
+		).toMatchObject({ code: "TEMPLATE_MARKUP_INVALID" });
 
 		// As an Allowed component, or renamed.
-		await expect(staff.api.pageLayouts.configure({ siteId, allowedComponents: [componentId] })).rejects.toMatchObject({
+		expect(
+			await rejection(staff.api.pageLayouts.configure({ siteId, allowedComponents: [componentId] })),
+		).toMatchObject({
 			code: "ENTRY_INVALID",
 		});
-		await expect(staff.api.components.rename({ siteId, componentId, name: "Hero" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.components.rename({ siteId, componentId, name: "Hero" }))).toMatchObject({
 			code: "COMPONENT_INVALID",
 		});
 	});
@@ -179,7 +190,7 @@ describe("Make reusable Component", () => {
 			markup: "<header><OpeningHours /></header><main>{{@outlet}}</main>",
 		});
 		// Once only.
-		await expect(staff.api.components.makeReusable({ siteId, componentId, name: "Hours" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.components.makeReusable({ siteId, componentId, name: "Hours" }))).toMatchObject({
 			code: "COMPONENT_NOT_PAGE_SECTION",
 		});
 	});
@@ -200,7 +211,7 @@ describe("Make reusable Component", () => {
 			siteId,
 			markup: "<header><Back /></header><main>{{@outlet}}</main>",
 		});
-		await expect(staff.api.components.makePageSection({ siteId, componentId, pageId })).rejects.toMatchObject({
+		expect(await rejection(staff.api.components.makePageSection({ siteId, componentId, pageId }))).toMatchObject({
 			code: "COMPONENT_IN_USE",
 		});
 	});
@@ -209,10 +220,10 @@ describe("Make reusable Component", () => {
 		const { siteId, pageId } = await siteWithPage("sections-names");
 		const { componentId } = await addSection(siteId, pageId, "<section></section>");
 		await staff.api.components.create({ siteId, name: "Hero" });
-		await expect(staff.api.components.makeReusable({ siteId, componentId, name: "Hero" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.components.makeReusable({ siteId, componentId, name: "Hero" }))).toMatchObject({
 			code: "COMPONENT_NAME_TAKEN",
 		});
-		await expect(staff.api.components.makeReusable({ siteId, componentId, name: "hero" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.components.makeReusable({ siteId, componentId, name: "hero" }))).toMatchObject({
 			code: "COMPONENT_INVALID",
 		});
 		expect((await staff.api.components.get({ siteId, componentId })).component.pageId).toBe(pageId);
@@ -245,7 +256,7 @@ describe("removing a Section, and deleting its Page", () => {
 		const html = await (await install.request("https://sections-removed.live.test/about")).text();
 		expect(html).toContain("Stays");
 		expect(html).not.toContain("Goes");
-		await expect(staff.api.components.get({ siteId, componentId: removed.componentId })).rejects.toMatchObject({
+		expect(await rejection(staff.api.components.get({ siteId, componentId: removed.componentId }))).toMatchObject({
 			code: "COMPONENT_NOT_FOUND",
 		});
 		expect((await staff.api.components.get({ siteId, componentId: kept.componentId })).component.status).toBe(
@@ -259,7 +270,7 @@ describe("removing a Section, and deleting its Page", () => {
 		await editor.api.entries.publish({ siteId, entryId: pageId });
 		const { confirmation } = await staff.api.entries.delete({ siteId, entryId: pageId });
 		await staff.api.entries.delete({ siteId, entryId: pageId, confirmation: confirmation?.id });
-		await expect(staff.api.components.get({ siteId, componentId })).rejects.toMatchObject({
+		expect(await rejection(staff.api.components.get({ siteId, componentId }))).toMatchObject({
 			code: "COMPONENT_NOT_FOUND",
 		});
 	});

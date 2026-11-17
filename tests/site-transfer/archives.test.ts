@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import {
 	exportedArchive,
 	importArchive,
@@ -41,12 +42,12 @@ describe("refused before anything is read in", () => {
 	test("a file that isn't a Site export", async () => {
 		const workspaceId = await workspace("Refusals 1");
 		const notTar = new TextEncoder().encode("<html>not an export</html>".repeat(40));
-		await expect(uploadArchive(admin, workspaceId, notTar)).rejects.toMatchObject({
+		expect(await rejection(uploadArchive(admin, workspaceId, notTar))).toMatchObject({
 			code: "SITE_IMPORT_REFUSED",
 			data: { reason: "not-an-export" },
 		});
 		const otherTar = tarOf([{ path: "manifest.json", data: new TextEncoder().encode('{"format":"webcraft-backup"}') }]);
-		await expect(uploadArchive(admin, workspaceId, otherTar)).rejects.toMatchObject({
+		expect(await rejection(uploadArchive(admin, workspaceId, otherTar))).toMatchObject({
 			code: "SITE_IMPORT_REFUSED",
 			data: { reason: "not-an-export" },
 		});
@@ -63,7 +64,7 @@ describe("refused before anything is read in", () => {
 				manifest.formatVersion = 4;
 			},
 		});
-		await expect(uploadArchive(admin, await workspace("Refusals 2"), newer)).rejects.toMatchObject({
+		expect(await rejection(uploadArchive(admin, await workspace("Refusals 2"), newer))).toMatchObject({
 			code: "SITE_IMPORT_REFUSED",
 			data: { reason: "newer-format", formatVersion: 4, readable: 3 },
 		});
@@ -75,7 +76,7 @@ describe("refused before anything is read in", () => {
 				manifest.webcraft.version = "99.0.0";
 			},
 		});
-		await expect(uploadArchive(admin, await workspace("Refusals 3"), newer)).rejects.toMatchObject({
+		expect(await rejection(uploadArchive(admin, await workspace("Refusals 3"), newer))).toMatchObject({
 			code: "SITE_IMPORT_REFUSED",
 			data: { reason: "newer-version", version: "99.0.0" },
 		});
@@ -167,7 +168,7 @@ test("format 1 uses known column contracts, while a new archive must declare ref
 			delete manifest.tables[0].uuidColumns;
 		},
 	});
-	await expect(uploadArchive(admin, await workspace("Incomplete metadata"), incomplete)).rejects.toMatchObject({
+	expect(await rejection(uploadArchive(admin, await workspace("Incomplete metadata"), incomplete))).toMatchObject({
 		code: "SITE_IMPORT_REFUSED",
 	});
 });

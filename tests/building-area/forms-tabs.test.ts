@@ -10,6 +10,7 @@ import { openBuildingArea } from "../harness/building-area.ts";
 import { type BuildingAreaApi, buildingAreaApi, refusalOf } from "../harness/building-area-api.ts";
 import { taggedTranslation } from "../harness/fake-ai.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -64,7 +65,7 @@ describe("Settings", () => {
 		const formId = await cakeForm("Order a cake");
 		const { form } = await staffArea.api.forms.rename({ siteId, formId, name: "Cake orders", key: "cake-orders" });
 		expect(form).toMatchObject({ name: "Cake orders", key: "cake-orders" });
-		await expect(ownerArea.api.forms.rename({ siteId, formId, name: "Mine" })).rejects.toMatchObject({
+		expect(await rejection(ownerArea.api.forms.rename({ siteId, formId, name: "Mine" }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 		const { entries } = await (await install.superadmin()).api.audit.list({ limit: 200 });
@@ -77,7 +78,7 @@ describe("Translations", () => {
 	test("without the Workspace's AI key nothing is filled, and the Draft stays as it was", async () => {
 		const formId = await cakeForm("Contact");
 		const refused = staffArea.api.forms.translateMissing({ siteId, formId, language: "it" });
-		await expect(refused).rejects.toMatchObject({ code: "AI_KEY_MISSING" });
+		expect(await rejection(refused)).toMatchObject({ code: "AI_KEY_MISSING" });
 		const { form } = await staff.api.forms.get({ siteId, formId });
 		expect(form.draft.fields[1]?.label).toEqual({ text: "Email" });
 	});
@@ -112,10 +113,10 @@ describe("Translations", () => {
 		expect(install.ai.translations().length).toBe(sent);
 
 		// The Default language has nothing to fill, and a Member may not ask.
-		await expect(staffArea.api.forms.translateMissing({ siteId, formId, language: "en" })).rejects.toMatchObject({
+		expect(await rejection(staffArea.api.forms.translateMissing({ siteId, formId, language: "en" }))).toMatchObject({
 			code: "TRANSLATION_LANGUAGE_INVALID",
 		});
-		await expect(ownerArea.api.forms.translateMissing({ siteId, formId, language: "it" })).rejects.toMatchObject({
+		expect(await rejection(ownerArea.api.forms.translateMissing({ siteId, formId, language: "it" }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});
@@ -147,7 +148,7 @@ describe("Emails", () => {
 			[...words.notifications, { recipients: ["thief@elsewhere.example"], routing: null, subject: "", intro: "" }],
 		]) {
 			const refused = ownerArea.api.forms.saveEmails({ siteId, formId, emails: { notifications } });
-			await expect(refused).rejects.toMatchObject({ code: "SENSITIVE_ACTION_REFUSED" });
+			expect(await rejection(refused)).toMatchObject({ code: "SENSITIVE_ACTION_REFUSED" });
 		}
 		const kept = (await staff.api.forms.get({ siteId, formId })).form;
 		expect(kept.emails.draft.notifications.map((each) => each.recipients)).toEqual([["bakery@acme.example"]]);

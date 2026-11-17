@@ -7,6 +7,7 @@ import {
 	type TestBrowser,
 	type TestInstall,
 } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -160,6 +161,6 @@ describe("the Email log", () => {
 	});
 
 	test("only the Superadmin can read it", async () => {
-		await expect(install.browser().api.install.emailLog.list({})).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+		expect(await rejection(install.browser().api.install.emailLog.list({}))).toMatchObject({ code: "UNAUTHORIZED" });
 	});
 });

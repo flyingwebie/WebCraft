@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { csv, csvSettings, importCsv, runAgain } from "./support.ts";
 
 const DAY = 24 * 60 * 60_000;
@@ -62,7 +63,7 @@ describe("what Imports keep", () => {
 
 		await install.clock.advance(2 * DAY);
 		await install.drainJobs();
-		await expect(editor.api.imports.report({ siteId, runId: run.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.imports.report({ siteId, runId: run.id }))).toMatchObject({
 			code: "IMPORT_RUN_NOT_FOUND",
 		});
 		const { import: kept, runs } = await editor.api.imports.get({ siteId, importId });
@@ -83,7 +84,9 @@ describe("what Imports keep", () => {
 		await install.drainJobs();
 
 		expect(await importFiles()).toEqual([]);
-		await expect(editor.api.imports.preview({ siteId, fileId: file.id, settings: settings() })).rejects.toMatchObject({
+		expect(
+			await rejection(editor.api.imports.preview({ siteId, fileId: file.id, settings: settings() })),
+		).toMatchObject({
 			code: "IMPORT_FILE_NOT_FOUND",
 		});
 	});

@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 import { createHash } from "node:crypto";
 
 import { createTestInstall, inviteLinkIn, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 /** The range service: given the first 5 characters of a password's SHA-1, it lists the leaked ones. */
 const RANGE = /^https:\/\/api\.pwnedpasswords\.com\/range\/[0-9A-F]{5}$/;
@@ -49,7 +50,7 @@ describe("the leaked-password check", () => {
 	test("refuses a password found in leaked-password lists; only the first 5 characters of its hash leave the server", async () => {
 		install.http.respond("GET", RANGE, { body: rangeListing(LEAKED, 52_579) });
 
-		await expect(changePassword(LEAKED)).rejects.toMatchObject({
+		expect(await rejection(changePassword(LEAKED))).toMatchObject({
 			code: "PASSWORD_REFUSED",
 			data: { problem: "leaked" },
 		});
@@ -67,17 +68,17 @@ describe("the leaked-password check", () => {
 
 	test("accepts a password the lists don't hold, and one only listed as padding (seen 0 times)", async () => {
 		install.http.respond("GET", RANGE, { body: rangeListing("some other password entirely", 7) });
-		await expect(changePassword("a password nobody has leaked yet")).resolves.toBeUndefined();
+		expect(await changePassword("a password nobody has leaked yet")).toBeUndefined();
 
 		install.http.respond("GET", RANGE, { body: rangeListing("padding only password here", 0) });
-		await expect(changePassword("padding only password here")).resolves.toBeUndefined();
+		expect(await changePassword("padding only password here")).toBeUndefined();
 	});
 
 	test("accepts the password and logs a warning when the lookup can't be reached", async () => {
-		await expect(changePassword("chosen while the service is down")).resolves.toBeUndefined();
+		expect(await changePassword("chosen while the service is down")).toBeUndefined();
 
 		install.http.respond("GET", RANGE, { status: 503, body: "Service Unavailable" });
-		await expect(changePassword("chosen while the service is failing")).resolves.toBeUndefined();
+		expect(await changePassword("chosen while the service is failing")).toBeUndefined();
 
 		const warnings = install.logs.filter(
 			(entry) => entry.level === "warn" && entry.msg.includes("leaked-password lookup failed"),
@@ -92,11 +93,13 @@ describe("the leaked-password check", () => {
 		await admin.api.staff.invite({ email: "leaky@agency.example", workspaces: "all" });
 		const token = new URL(inviteLinkIn(await install.lastEmailTo("leaky@agency.example"))).searchParams.get("token");
 
-		await expect(
-			install
-				.browser()
-				.api.invites.accept({ token: token ?? "", name: "Leaky", password: LEAKED, adminLanguage: "en" }),
-		).rejects.toMatchObject({ code: "PASSWORD_REFUSED", data: { problem: "leaked" } });
+		expect(
+			await rejection(
+				install
+					.browser()
+					.api.invites.accept({ token: token ?? "", name: "Leaky", password: LEAKED, adminLanguage: "en" }),
+			),
+		).toMatchObject({ code: "PASSWORD_REFUSED", data: { problem: "leaked" } });
 	});
 });
 
@@ -110,12 +113,12 @@ describe("switching the leaked-password check", () => {
 		await admin.api.install.security.update({ leakedPasswordCheck: false });
 
 		expect(await admin.api.install.security.get()).toEqual({ leakedPasswordCheck: false, requireTwoFactor: false });
-		await expect(changePassword(LEAKED)).resolves.toBeUndefined();
+		expect(await changePassword(LEAKED)).toBeUndefined();
 		expect(install.http.requests).toEqual([]);
 
 		await admin.api.install.security.update({ leakedPasswordCheck: true });
 		await person.api.session.confirmIdentity({ password: currentPassword });
-		await expect(changePassword(`${LEAKED}!`)).resolves.toBeUndefined();
+		expect(await changePassword(`${LEAKED}!`)).toBeUndefined();
 		expect(install.http.requests).toHaveLength(1);
 	});
 
@@ -136,11 +139,11 @@ describe("switching the leaked-password check", () => {
 	test("is for the Superadmin only", async () => {
 		const staff = await install.createStaff({ workspaces: "all" });
 
-		await expect(staff.browser.api.install.security.get()).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(staff.browser.api.install.security.update({ leakedPasswordCheck: false })).rejects.toMatchObject({
+		expect(await rejection(staff.browser.api.install.security.get())).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(staff.browser.api.install.security.update({ leakedPasswordCheck: false }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(person.api.install.security.update({ leakedPasswordCheck: false })).rejects.toMatchObject({
+		expect(await rejection(person.api.install.security.update({ leakedPasswordCheck: false }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});

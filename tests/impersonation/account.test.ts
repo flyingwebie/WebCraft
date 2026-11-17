@@ -10,6 +10,7 @@ import { createApiToken } from "../harness/api-tokens.ts";
 import { impersonate, type WithSecondFactor, withSecondFactor } from "../harness/impersonation.ts";
 import { createTestInstall, TEST_PASSWORD, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { approveAiClient, authorizationParameters, pkcePair, registerClient } from "../harness/mcp.ts";
+import { rejection } from "../harness/settled.ts";
 
 type Person = { personId: string; browser: TestBrowser };
 
@@ -86,7 +87,10 @@ const CHANGES: Record<string, [string, (api: ApiClient) => Promise<unknown>]> = 
 describe("while impersonating, refused", () => {
 	for (const [name, [what, change]] of Object.entries(CHANGES)) {
 		test(name, async () => {
-			await expect(change(anna.browser.api)).rejects.toMatchObject({ code: "NOT_WHILE_IMPERSONATING", data: { what } });
+			expect(await rejection(change(anna.browser.api))).toMatchObject({
+				code: "NOT_WHILE_IMPERSONATING",
+				data: { what },
+			});
 		});
 	}
 
@@ -120,8 +124,8 @@ test("an AI client's approval page can be opened, but never approved", async () 
 	const { challenge } = await pkcePair();
 	const parameters = authorizationParameters(install, String(client.body.client_id), challenge);
 
-	await expect(anna.browser.api.oauth.check({ parameters })).resolves.toBeDefined();
-	await expect(anna.browser.api.oauth.approve({ parameters, workspaceId: acme })).rejects.toMatchObject({
+	expect(await anna.browser.api.oauth.check({ parameters })).toBeDefined();
+	expect(await rejection(anna.browser.api.oauth.approve({ parameters, workspaceId: acme }))).toMatchObject({
 		code: "NOT_WHILE_IMPERSONATING",
 	});
 });

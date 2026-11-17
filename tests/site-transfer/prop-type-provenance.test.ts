@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { exportedArchive, importArchive, rewritten } from "../harness/site-transfer.ts";
 import { openStaging } from "../harness/staging.ts";
@@ -394,7 +395,7 @@ test("a Template Checkpoint preserves a new text contract after the Component ch
 				{ name: "value", value: value.value },
 			];
 			if (reverse) node.props.reverse();
-			await expect(admin.api.templates.saveEntryTemplate({ ...holder, tree: duplicate })).rejects.toMatchObject({
+			expect(await rejection(admin.api.templates.saveEntryTemplate({ ...holder, tree: duplicate }))).toMatchObject({
 				code: "TEMPLATE_INVALID",
 			});
 		}

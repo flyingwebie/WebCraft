@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage, expectSiteHeaders } from "../harness/site-safety.ts";
 import { exportedArchive, importArchive } from "../harness/site-transfer.ts";
 import { goLive } from "../harness/staging.ts";
@@ -64,7 +65,7 @@ test("Page Prop contracts follow published declaration identities, never renamed
 	expect((await admin.api.pageLayouts.get({ siteId, entryId, language: "it" })).placements[0]?.values.title).toBe(
 		"Ciao",
 	);
-	await expect(admin.api.components.delete(target)).rejects.toMatchObject({ code: "COMPONENT_IN_USE" });
+	expect(await rejection(admin.api.components.delete(target))).toMatchObject({ code: "COMPONENT_IN_USE" });
 });
 test("Author layout changes enter the existing Review and revisions without publishing early", async () => {
 	const { admin, workspaceId, siteId, entryId } = await fixture("layout-review");
@@ -104,7 +105,7 @@ test("Author layout changes enter the existing Review and revisions without publ
 	expect(await expectSafePage(await install.request("https://layout-review.live.test/example"))).not.toContain(
 		"Awaiting review",
 	);
-	await expect(author.api.entries.publish({ siteId, entryId })).rejects.toMatchObject({ status: 403 });
+	expect(await rejection(author.api.entries.publish({ siteId, entryId }))).toMatchObject({ status: 403 });
 	const submitted = await editing.edit("review/submit", { path: "/example" });
 	expectSiteHeaders(submitted);
 	expect(submitted.status).toBe(200);
@@ -213,18 +214,20 @@ test("unpublished Components and invalid typed Props cannot be published, while 
 			],
 		},
 	});
-	await expect(admin.api.entries.publish({ siteId, entryId })).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+	expect(await rejection(admin.api.entries.publish({ siteId, entryId }))).toMatchObject({ code: "ENTRY_INVALID" });
 	await admin.api.components.publish({ siteId, componentId: component.id });
 	state = await admin.api.pageLayouts.get({ siteId, entryId });
 	for (const values of [{ title: "not a language map" }, { count: { it: 4 } }, { count: { en: "not a number" } }])
-		await expect(
-			admin.api.pageLayouts.save({
-				siteId,
-				entryId,
-				basedOn: state.version,
-				layout: { placements: [{ ...state.layout.placements[0]!, values }] },
-			}),
-		).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+		expect(
+			await rejection(
+				admin.api.pageLayouts.save({
+					siteId,
+					entryId,
+					basedOn: state.version,
+					layout: { placements: [{ ...state.layout.placements[0]!, values }] },
+				}),
+			),
+		).toMatchObject({ code: "ENTRY_INVALID" });
 	await admin.api.entries.publish({ siteId, entryId });
 	const request = await admin.api.languages.setDefault({ siteId, code: "it" });
 	if (request.changed) throw new Error("Expected a preview");

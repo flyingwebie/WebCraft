@@ -91,7 +91,7 @@ describe("a run whose worker stopped", () => {
 		// The Import can run again.
 		const again = await startRun(editor.api, siteId, importId, loaves(1));
 		expect(again.status).toBe("waiting");
-	}, 120_000);
+	});
 
 	test("ends stopped, keeping what's done, when someone asked it to stop meanwhile", async () => {
 		const { postType, importId } = await anImport();
@@ -108,7 +108,7 @@ describe("a run whose worker stopped", () => {
 			counts: { created: 500 },
 		});
 		expect((await editor.api.entries.list({ siteId, postTypeId: postType.id })).entries).toHaveLength(500);
-	}, 120_000);
+	});
 
 	test("fails once it was picked up again three times and its worker stopped each time", async () => {
 		const { postType, importId } = await anImport();

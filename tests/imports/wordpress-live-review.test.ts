@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import type { FakeAnswer } from "../harness/fake-http.ts";
 import { createTestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { approveModules, OLD_SITE_ADDRESS } from "./wordpress.ts";
 
 function required<T>(value: T | null | undefined): T {
@@ -91,16 +92,18 @@ test("REST discovery refuses unsafe roots and failed responses before sending a 
 		for (const answer of answers) {
 			install.http.respond("HEAD", address, answer);
 			const before = install.http.requests.length;
-			await expect(
-				api.imports.connect({
-					siteId: site.id,
-					source: "wordpress-import.live",
-					name: "Refused discovery",
-					address,
-					username: "editor",
-					applicationPassword: "source-only-login",
-				}),
-			).rejects.toMatchObject({ code: "IMPORT_INVALID" });
+			expect(
+				await rejection(
+					api.imports.connect({
+						siteId: site.id,
+						source: "wordpress-import.live",
+						name: "Refused discovery",
+						address,
+						username: "editor",
+						applicationPassword: "source-only-login",
+					}),
+				),
+			).toMatchObject({ code: "IMPORT_INVALID" });
 			const calls = install.http.requests.slice(before);
 			expect(calls).toHaveLength(1);
 			expect(calls[0]?.url).toBe(address);
@@ -162,14 +165,16 @@ test("filtered Media still refuses changed totals, duplicates, oversized pages a
 				status: "refused",
 				refusal: { code: ["rateLimit", "response"].includes(problem) ? problem : "pagination" },
 			});
-			await expect(
-				api.imports.previewSource({
-					siteId: site.id,
-					importId: connected.importId,
-					fileId: file.id,
-					settings: { language: null, types: [] },
-				}),
-			).rejects.toMatchObject({ code: "IMPORT_FILE_NOT_READY" });
+			expect(
+				await rejection(
+					api.imports.previewSource({
+						siteId: site.id,
+						importId: connected.importId,
+						fileId: file.id,
+						settings: { language: null, types: [] },
+					}),
+				),
+			).toMatchObject({ code: "IMPORT_FILE_NOT_READY" });
 		}
 	} finally {
 		await install.close();
@@ -286,10 +291,10 @@ test("samples and Preview require their live Import and its current visibility r
 		const { file } = await api.imports.file({ siteId: site.id, fileId: hidden.file.id });
 		const input = { siteId: site.id, fileId: file.id, settings: required(file.suggested) };
 		for (const importId of [publicOnly.importId, null]) {
-			await expect(api.imports.previewSource({ ...input, importId })).rejects.toMatchObject({
+			expect(await rejection(api.imports.previewSource({ ...input, importId }))).toMatchObject({
 				code: "IMPORT_FILE_NOT_READY",
 			});
-			await expect(api.imports.sample({ ...input, importId, type: "post", index: 1 })).rejects.toMatchObject({
+			expect(await rejection(api.imports.sample({ ...input, importId, type: "post", index: 1 }))).toMatchObject({
 				code: "IMPORT_FILE_NOT_READY",
 			});
 		}
@@ -303,8 +308,8 @@ test("samples and Preview require their live Import and its current visibility r
 		]);
 		const fresh = await api.imports.connect({ ...common, importId: hidden.importId, includeHidden: false });
 		await install.drainJobs();
-		await expect(api.imports.previewSource(allowed)).rejects.toMatchObject({ code: "IMPORT_FILE_NOT_FOUND" });
-		await expect(api.imports.sample({ ...allowed, type: "post", index: 1 })).rejects.toMatchObject({
+		expect(await rejection(api.imports.previewSource(allowed))).toMatchObject({ code: "IMPORT_FILE_NOT_FOUND" });
+		expect(await rejection(api.imports.sample({ ...allowed, type: "post", index: 1 }))).toMatchObject({
 			code: "IMPORT_FILE_NOT_FOUND",
 		});
 		const latest = (await api.imports.file({ siteId: site.id, fileId: fresh.file.id })).file;

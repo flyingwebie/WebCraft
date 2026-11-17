@@ -7,6 +7,7 @@ import type { ImageDescriptionRequest } from "@webcraft/core";
 
 import { pdf, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const AI_KEY = "sk-test-workspace-key-0123456789";
 
@@ -44,7 +45,7 @@ describe("Suggest alt text", () => {
 	test("without the Workspace's AI key, isn't offered, and says why when asked", async () => {
 		const image = await readyImage(editor, "no-key.jpg");
 		expect((await editor.api.media.overview({ siteId })).altTextSuggestions).toBe(false);
-		await expect(editor.api.media.suggestAltText({ siteId, mediaId: image.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.media.suggestAltText({ siteId, mediaId: image.id }))).toMatchObject({
 			code: "AI_KEY_MISSING",
 			status: 409,
 		});
@@ -84,7 +85,7 @@ describe("Suggest alt text", () => {
 
 	test("only for images it can send, and only by people who may change the file", async () => {
 		const { media: document } = await editor.api.media.upload({ siteId, file: upload(pdf(), "menu.pdf") });
-		await expect(editor.api.media.suggestAltText({ siteId, mediaId: document.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.media.suggestAltText({ siteId, mediaId: document.id }))).toMatchObject({
 			code: "ALT_TEXT_UNAVAILABLE",
 			data: { reason: "kind" },
 		});
@@ -96,13 +97,13 @@ describe("Suggest alt text", () => {
 			),
 		});
 		await install.drainJobs();
-		await expect(editor.api.media.suggestAltText({ siteId, mediaId: svg.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.media.suggestAltText({ siteId, mediaId: svg.id }))).toMatchObject({
 			code: "ALT_TEXT_UNAVAILABLE",
 			data: { reason: "format" },
 		});
 
 		const image = await readyImage(editor, "editors.jpg");
-		await expect(author.api.media.suggestAltText({ siteId, mediaId: image.id })).rejects.toMatchObject({
+		expect(await rejection(author.api.media.suggestAltText({ siteId, mediaId: image.id }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});
@@ -110,7 +111,7 @@ describe("Suggest alt text", () => {
 	test("a provider that fails says so; another Workspace's key is never used", async () => {
 		const image = await readyImage(editor, "fails.jpg");
 		install.ai.fail();
-		await expect(editor.api.media.suggestAltText({ siteId, mediaId: image.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.media.suggestAltText({ siteId, mediaId: image.id }))).toMatchObject({
 			code: "AI_PROVIDER_FAILED",
 			data: { problem: "unavailable" },
 		});
@@ -123,7 +124,7 @@ describe("Suggest alt text", () => {
 			file: upload(await photo({ width: 100, height: 100 }), "other.jpg"),
 		});
 		await install.drainJobs();
-		await expect(admin.api.media.suggestAltText({ siteId: otherSite, mediaId: media.id })).rejects.toMatchObject({
+		expect(await rejection(admin.api.media.suggestAltText({ siteId: otherSite, mediaId: media.id }))).toMatchObject({
 			code: "AI_KEY_MISSING",
 		});
 	});

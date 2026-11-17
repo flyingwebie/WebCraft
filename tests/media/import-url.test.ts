@@ -3,11 +3,12 @@
 // largest file) and then treated exactly as an upload. Every refusal is proved here: addresses
 // inside a network after DNS and after each redirect, too many redirects, too large, too slow, and a
 // DNS answer that changes between the check and the connection.
-import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { MEDIA_IMPORT_LIMITS } from "@webcraft/core";
 
 import { photo } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const PUBLIC = "93.184.216.34";
 const OTHER_PUBLIC = "93.184.216.35";
@@ -18,11 +19,6 @@ let install: TestInstall;
 let siteId: string;
 let author: TestBrowser;
 let image: Uint8Array;
-
-// Every import here first moves the clock past the per-person limit (`importUrl` below), and each move
-// fires the job queue's timers: about 2.5 s a time, so a test with a dozen imports needs longer than
-// the suite's 30 s, more so on a CI runner.
-setDefaultTimeout(120_000);
 
 beforeAll(async () => {
 	install = await createTestInstall({ mediaImportTimeoutMs: IMPORT_TIMEOUT_MS });
@@ -50,7 +46,7 @@ async function importUrl(url: string) {
 /** Imports `url` as the Author, expecting a refusal with `problem`; answers the requests it made. */
 async function refused(url: string, problem: string) {
 	const before = install.http.requests.length;
-	await expect(importUrl(url)).rejects.toMatchObject({
+	expect(await rejection(importUrl(url))).toMatchObject({
 		code: "MEDIA_IMPORT_REFUSED",
 		data: { problem },
 	});
@@ -264,12 +260,12 @@ describe("Import from URL", () => {
 			await refused(url, "scheme");
 		}
 		install.http.respond("GET", "https://photos.example/missing.jpg", { status: 404, body: "Not Found" });
-		await expect(importUrl("https://photos.example/missing.jpg")).rejects.toMatchObject({
+		expect(await rejection(importUrl("https://photos.example/missing.jpg"))).toMatchObject({
 			code: "MEDIA_IMPORT_REFUSED",
 			data: { problem: "status", status: 404 },
 		});
 
 		install.http.respond("GET", "https://photos.example/page.jpg", { body: "<!doctype html><title>Hi</title>" });
-		await expect(importUrl("https://photos.example/page.jpg")).rejects.toMatchObject({ code: "MEDIA_TYPE_REFUSED" });
+		expect(await rejection(importUrl("https://photos.example/page.jpg"))).toMatchObject({ code: "MEDIA_TYPE_REFUSED" });
 	});
 });

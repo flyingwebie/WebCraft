@@ -2,6 +2,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let superadmin: TestBrowser;
@@ -64,13 +65,13 @@ describe("who sees which entries", () => {
 		expect(entries.every((entry) => entry.workspaceId === acme)).toBe(true);
 		expect(entries.map((entry) => entry.siteId)).toEqual(expect.arrayContaining([bakery, catering]));
 		expect(entries.map((entry) => entry.siteId)).not.toContain(shop);
-		await expect(staff.browser.api.audit.list({ workspaceId: nimbus })).rejects.toMatchObject({
+		expect(await rejection(staff.browser.api.audit.list({ workspaceId: nimbus }))).toMatchObject({
 			code: "WORKSPACE_NOT_FOUND",
 		});
 	});
 
 	test("Staff don't read the Install's own entries", async () => {
-		await expect(staff.browser.api.audit.list({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(staff.browser.api.audit.list({}))).toMatchObject({ code: "FORBIDDEN" });
 	});
 
 	test("an Owner sees their own Workspace", async () => {
@@ -78,7 +79,7 @@ describe("who sees which entries", () => {
 
 		expect(entries.every((entry) => entry.workspaceId === acme)).toBe(true);
 		expect(entries.map((entry) => entry.action)).toEqual(expect.arrayContaining(["site.create", "member.join"]));
-		await expect(owner.browser.api.audit.list({ workspaceId: nimbus })).rejects.toMatchObject({
+		expect(await rejection(owner.browser.api.audit.list({ workspaceId: nimbus }))).toMatchObject({
 			code: "WORKSPACE_NOT_FOUND",
 		});
 	});
@@ -94,8 +95,8 @@ describe("who sees which entries", () => {
 	});
 
 	test("Editors and Authors read no Audit log", async () => {
-		await expect(editor.browser.api.audit.list({ workspaceId: acme })).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(editor.browser.api.audit.list({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(editor.browser.api.audit.list({ workspaceId: acme }))).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(editor.browser.api.audit.list({}))).toMatchObject({ code: "FORBIDDEN" });
 	});
 
 	test("the people to filter by: a Workspace's Members, its Staff and the Superadmin", async () => {
@@ -105,7 +106,9 @@ describe("who sees which entries", () => {
 		expect(names).toEqual(expect.arrayContaining(["Agency Anna", "Olive Owner", "Bea Baker", "Eddie Editor"]));
 		expect(names).not.toContain("Nina Nimbus");
 		expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
-		await expect(editor.browser.api.audit.people({ workspaceId: acme })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(editor.browser.api.audit.people({ workspaceId: acme }))).toMatchObject({
+			code: "FORBIDDEN",
+		});
 	});
 
 	test("in a Workspace, Staff and the Superadmin are named without the address they sign in with", async () => {

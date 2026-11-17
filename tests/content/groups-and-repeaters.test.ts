@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -88,31 +89,37 @@ describe("defining them", () => {
 				fields,
 			});
 
-		await expect(
-			create([{ key: "box", label: "Box", type: "group", fields: [{ key: "Bad Key", label: "x", type: "text" }] }]),
-		).rejects.toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at: "fields[0].fields[0].key" }] } });
-		await expect(create([{ key: "box", label: "Box", type: "group", fields: [] }])).rejects.toMatchObject({
+		expect(
+			await rejection(
+				create([{ key: "box", label: "Box", type: "group", fields: [{ key: "Bad Key", label: "x", type: "text" }] }]),
+			),
+		).toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at: "fields[0].fields[0].key" }] } });
+		expect(await rejection(create([{ key: "box", label: "Box", type: "group", fields: [] }]))).toMatchObject({
 			data: { problems: [{ at: "fields[0].fields" }] },
 		});
-		await expect(
-			create([{ key: "rows", label: "Rows", type: "repeater", fields: [{ key: "id", label: "Id", type: "text" }] }]),
-		).rejects.toMatchObject({ data: { problems: [{ at: "fields[0].fields[0].key" }] } });
-		await expect(
-			create([
-				{
-					key: "box",
-					label: "Box",
-					type: "group",
-					translatable: true,
-					fields: [{ key: "a", label: "A", type: "text" }],
-				},
-			]),
-		).rejects.toMatchObject({ data: { problems: [{ at: "fields[0].translatable" }] } });
+		expect(
+			await rejection(
+				create([{ key: "rows", label: "Rows", type: "repeater", fields: [{ key: "id", label: "Id", type: "text" }] }]),
+			),
+		).toMatchObject({ data: { problems: [{ at: "fields[0].fields[0].key" }] } });
+		expect(
+			await rejection(
+				create([
+					{
+						key: "box",
+						label: "Box",
+						type: "group",
+						translatable: true,
+						fields: [{ key: "a", label: "A", type: "text" }],
+					},
+				]),
+			),
+		).toMatchObject({ data: { problems: [{ at: "fields[0].translatable" }] } });
 		const deep = (depth: number): unknown =>
 			depth === 0
 				? { key: "leaf", label: "Leaf", type: "text" }
 				: { key: `level${depth}`, label: "Level", type: "group", fields: [deep(depth - 1)] };
-		await expect(create([deep(3)])).rejects.toMatchObject({
+		expect(await rejection(create([deep(3)]))).toMatchObject({
 			data: { problems: [{ at: "fields[0].fields[0].fields[0].fields" }] },
 		});
 		// Keys inside a Group are its own: a Field may be called like a built-in one there.
@@ -193,10 +200,10 @@ describe("values", () => {
 			{ fields: { team: [{ id: "same" }, { id: "same" }] }, at: "fields.team[1].id" },
 		];
 		for (const { fields, at } of cases) {
-			await expect(
-				author.api.entries.saveDraft({ siteId, entryId: entry.id, fields }),
+			expect(
+				await rejection(author.api.entries.saveDraft({ siteId, entryId: entry.id, fields })),
 				`${JSON.stringify(fields)} is refused at ${at}`,
-			).rejects.toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at }] } });
+			).toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at }] } });
 		}
 	});
 
@@ -216,7 +223,7 @@ describe("values", () => {
 			{ at: "fields.team[0].years", rule: "min", message: expect.any(String) },
 			{ at: "fields.team[1].name", rule: "required", message: expect.any(String) },
 		]);
-		await expect(editor.api.entries.publish({ siteId, entryId: entry.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.publish({ siteId, entryId: entry.id }))).toMatchObject({
 			code: "ENTRY_INVALID",
 			data: { problems: entry.problems },
 		});
@@ -230,7 +237,7 @@ describe("values", () => {
 			{ at: "fields.address.city", rule: "required", message: expect.any(String) },
 			{ at: "fields.team[1].name", rule: "required", message: expect.any(String) },
 		]);
-		await expect(editor.api.entries.publish({ siteId, entryId: entry.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.publish({ siteId, entryId: entry.id }))).toMatchObject({
 			code: "ENTRY_INCOMPLETE",
 			data: { missing: ["address.city", "team[1].name"] },
 		});

@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -85,29 +86,33 @@ describe("an Archive template", () => {
 		const refused = (markup: string) =>
 			staff.api.templates.saveArchiveTemplateMarkup({ siteId, postTypeId: recipesId, markup });
 
-		await expect(refused("<p>{{ title }}</p>")).rejects.toMatchObject({
+		expect(await rejection(refused("<p>{{ title }}</p>"))).toMatchObject({
 			code: "TEMPLATE_MARKUP_INVALID",
 			data: { problems: [{ message: expect.stringContaining("There is no value named title") }] },
 		});
-		await expect(refused("<main>x</main>")).rejects.toMatchObject({ code: "TEMPLATE_MARKUP_INVALID" });
-		await expect(refused("{{@outlet}}")).rejects.toMatchObject({ code: "TEMPLATE_MARKUP_INVALID" });
+		expect(await rejection(refused("<main>x</main>"))).toMatchObject({ code: "TEMPLATE_MARKUP_INVALID" });
+		expect(await rejection(refused("{{@outlet}}"))).toMatchObject({ code: "TEMPLATE_MARKUP_INVALID" });
 		const { template } = await staff.api.templates.getArchiveTemplateMarkup({ siteId, postTypeId: recipesId });
 		expect(template?.kind).toBe("archive");
 	});
 
 	test("Pages have none, nor does a Post Type whose URL pattern starts with its slug", async () => {
-		await expect(
-			staff.api.templates.saveArchiveTemplateMarkup({ siteId, postTypeId: pagesId, markup: "<p>x</p>" }),
-		).rejects.toMatchObject({ code: "ARCHIVE_UNAVAILABLE", data: { reason: "pages" } });
+		expect(
+			await rejection(
+				staff.api.templates.saveArchiveTemplateMarkup({ siteId, postTypeId: pagesId, markup: "<p>x</p>" }),
+			),
+		).toMatchObject({ code: "ARCHIVE_UNAVAILABLE", data: { reason: "pages" } });
 		const { postType } = await staff.api.postTypes.create({
 			siteId,
 			name: "Notes",
 			key: "notes",
 			urlPattern: "/{slug}/note",
 		});
-		await expect(
-			staff.api.templates.saveArchiveTemplateMarkup({ siteId, postTypeId: postType.id, markup: "<p>x</p>" }),
-		).rejects.toMatchObject({ code: "ARCHIVE_UNAVAILABLE", data: { reason: "address" } });
+		expect(
+			await rejection(
+				staff.api.templates.saveArchiveTemplateMarkup({ siteId, postTypeId: postType.id, markup: "<p>x</p>" }),
+			),
+		).toMatchObject({ code: "ARCHIVE_UNAVAILABLE", data: { reason: "address" } });
 	});
 });
 
@@ -205,23 +210,25 @@ describe("one path, one page", () => {
 			markup: "<p>Events</p>",
 		});
 
-		await expect(staff.api.templates.publish({ siteId, templateId: template.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.templates.publish({ siteId, templateId: template.id }))).toMatchObject({
 			code: "PATH_TAKEN",
 			data: { path: "/events", by: { kind: "page", id: page.id } },
 		});
 		await staff.api.entries.saveDraft({ siteId, entryId: page.id, slug: "whats-on" });
 		// Slugs never change on their own: the French address keeps the slug it was published with.
-		await expect(
-			staff.api.entries
-				.publish({ siteId, entryId: page.id })
-				.then(() => staff.api.templates.publish({ siteId, templateId: template.id })),
-		).rejects.toMatchObject({ code: "PATH_TAKEN", data: { path: "/fr/events" } });
+		expect(
+			await rejection(
+				staff.api.entries
+					.publish({ siteId, entryId: page.id })
+					.then(() => staff.api.templates.publish({ siteId, templateId: template.id })),
+			),
+		).toMatchObject({ code: "PATH_TAKEN", data: { path: "/fr/events" } });
 		await staff.api.entries.saveDraft({ siteId, entryId: page.id, language: "fr", slug: "agenda" });
 		await staff.api.entries.publish({ siteId, entryId: page.id });
 		await staff.api.templates.publish({ siteId, templateId: template.id });
 
 		const { entry: another } = await staff.api.entries.create({ siteId, postTypeId: pagesId, title: "Events" });
-		await expect(staff.api.entries.publish({ siteId, entryId: another.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.entries.publish({ siteId, entryId: another.id }))).toMatchObject({
 			code: "PATH_TAKEN",
 			data: { path: "/events", by: { kind: "archive", postTypeId: postType.id } },
 		});
@@ -241,15 +248,15 @@ describe("one path, one page", () => {
 		});
 		await staff.api.templates.publish({ siteId, templateId: template.id });
 
-		await expect(
-			staff.api.postTypes.create({ siteId, name: "Stories", key: "stories", urlPattern: "/{slug}" }),
-		).rejects.toMatchObject({ code: "PATH_TAKEN", data: { by: { kind: "archive" } } });
-		await expect(
-			staff.api.postTypes.create({ siteId, name: "Stories", key: "stories", urlPattern: "/{slug}/story" }),
-		).resolves.toBeDefined();
-		await expect(
-			staff.api.postTypes.update({ siteId, postTypeId: news.id, urlPattern: "/about/{slug}" }),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(staff.api.postTypes.create({ siteId, name: "Stories", key: "stories", urlPattern: "/{slug}" })),
+		).toMatchObject({ code: "PATH_TAKEN", data: { by: { kind: "archive" } } });
+		expect(
+			await staff.api.postTypes.create({ siteId, name: "Stories", key: "stories", urlPattern: "/{slug}/story" }),
+		).toBeDefined();
+		expect(
+			await rejection(staff.api.postTypes.update({ siteId, postTypeId: news.id, urlPattern: "/about/{slug}" })),
+		).toMatchObject({
 			code: "PATH_TAKEN",
 			data: { path: "/about", by: { kind: "page" } },
 		});

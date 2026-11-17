@@ -8,6 +8,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { downloadExport, exportSite, manifestIn } from "../harness/site-transfer.ts";
 
 let install: TestInstall;
@@ -38,11 +39,11 @@ afterAll(async () => {
 describe("who exports", () => {
 	test("Staff and the Superadmin; never Owners or Editors", async () => {
 		for (const member of [owner, editor]) {
-			await expect(member.api.siteExports.start({ siteId, passphrase: null })).rejects.toMatchObject({
+			expect(await rejection(member.api.siteExports.start({ siteId, passphrase: null }))).toMatchObject({
 				code: "FORBIDDEN",
 				status: 403,
 			});
-			await expect(member.api.siteExports.list({ siteId })).rejects.toMatchObject({ status: 403 });
+			expect(await rejection(member.api.siteExports.list({ siteId }))).toMatchObject({ status: 403 });
 		}
 		const done = await exportSite(install, admin, siteId);
 		expect(done.status).toBe("done");
@@ -60,7 +61,7 @@ describe("who exports", () => {
 
 	test("one export of a Site at a time", async () => {
 		await staff.browser.api.siteExports.start({ siteId, passphrase: null });
-		await expect(colleague.api.siteExports.start({ siteId, passphrase: null })).rejects.toMatchObject({
+		expect(await rejection(colleague.api.siteExports.start({ siteId, passphrase: null }))).toMatchObject({
 			code: "SITE_EXPORT_RUNNING",
 			status: 409,
 		});

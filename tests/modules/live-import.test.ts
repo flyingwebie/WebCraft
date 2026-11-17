@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import type { AnyModuleDefinition, ModuleDefinition } from "@webcraft/module-sdk";
 import wordpress from "@webcraft/module-wordpress-import";
 import { createTestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 test("adding source HTTP requires fresh consent, and a live source cannot run without declaring it", async () => {
 	const old: ModuleDefinition = {
@@ -93,7 +94,7 @@ test("the live SDK port confines a Module to the chosen REST root and never expo
 			"https://login:password@source.example/blog/wp-json/wp/v2/users/me",
 		]) {
 			route = path;
-			await expect(admin.api.imports.connect(input)).rejects.toMatchObject({ code: "IMPORT_INVALID" });
+			expect(await rejection(admin.api.imports.connect(input))).toMatchObject({ code: "IMPORT_INVALID" });
 		}
 		expect(install.http.requests).toHaveLength(before);
 		route = "wp/v2/users/me";

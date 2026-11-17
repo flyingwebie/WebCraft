@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { exportedArchive, importArchive } from "../harness/site-transfer.ts";
 
 let install: TestInstall;
@@ -45,9 +46,9 @@ describe("a Site import's domains", () => {
 	test("can't be switched on while another Site of the Install has them", async () => {
 		const { paused } = await staff.api.domains.paused({ siteId: newSiteId });
 		const primary = paused.find((domain) => domain.role === "primary");
-		await expect(
-			staff.api.domains.switchOnPaused({ siteId: newSiteId, pausedId: primary?.id ?? "" }),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(staff.api.domains.switchOnPaused({ siteId: newSiteId, pausedId: primary?.id ?? "" })),
+		).toMatchObject({
 			code: "DOMAIN_TAKEN",
 		});
 		expect((await staff.api.domains.paused({ siteId: newSiteId })).paused).toHaveLength(3);
@@ -107,6 +108,6 @@ describe("a Site import's domains", () => {
 				role: "owner",
 			})
 		).browser;
-		await expect(owner.api.domains.paused({ siteId: newSiteId })).rejects.toMatchObject({ status: 403 });
+		expect(await rejection(owner.api.domains.paused({ siteId: newSiteId }))).toMatchObject({ status: 403 });
 	});
 });

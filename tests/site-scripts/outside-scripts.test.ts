@@ -8,6 +8,7 @@ import { ALLOWED_HOSTS_PER_SITE } from "@webcraft/core";
 import { headOf } from "../harness/code-mode.ts";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage, expectSiteHeaders, policyOf } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -183,15 +184,17 @@ describe("outside scripts on visitors' pages", () => {
 		expect(await refused('<script src="javascript:alert(1)"></script>')).toEqual([1]);
 		expect(await refused("<!-- nothing here -->")).toEqual([1]);
 		expect(await refused("<script>go()")).toEqual([1]);
-		await expect(
-			staff.api.outsideScripts.add({
-				siteId: site.siteId,
-				name: "Bad",
-				placement: "head",
-				consentCategory: "necessary",
-				source: { kind: "url", url: "http://insecure.example.com/a.js" },
-			}),
-		).rejects.toMatchObject({ code: "OUTSIDE_SCRIPT_INVALID" });
+		expect(
+			await rejection(
+				staff.api.outsideScripts.add({
+					siteId: site.siteId,
+					name: "Bad",
+					placement: "head",
+					consentCategory: "necessary",
+					source: { kind: "url", url: "http://insecure.example.com/a.js" },
+				}),
+			),
+		).toMatchObject({ code: "OUTSIDE_SCRIPT_INVALID" });
 		expect((await staff.api.outsideScripts.list({ siteId: site.siteId })).outsideScripts).toEqual([]);
 	});
 });
@@ -204,15 +207,17 @@ describe("the Site's allowed hosts", () => {
 			(_, index) => `load("https://cdn-${index}.example.com/a.js");`,
 		);
 
-		await expect(
-			staff.api.outsideScripts.add({
-				siteId: site.siteId,
-				name: "Many hosts",
-				placement: "head",
-				consentCategory: "marketing",
-				source: { kind: "snippet", snippet: `<script>${loads.join("\n")}</script>` },
-			}),
-		).rejects.toMatchObject({ code: "TOO_MANY_HOSTS" });
+		expect(
+			await rejection(
+				staff.api.outsideScripts.add({
+					siteId: site.siteId,
+					name: "Many hosts",
+					placement: "head",
+					consentCategory: "marketing",
+					source: { kind: "snippet", snippet: `<script>${loads.join("\n")}</script>` },
+				}),
+			),
+		).toMatchObject({ code: "TOO_MANY_HOSTS" });
 		expect((await staff.api.outsideScripts.list({ siteId: site.siteId })).outsideScripts).toEqual([]);
 		expect(JSON.stringify([...policyOf(await install.request(site.url("/")))])).not.toContain("cdn-0.example.com");
 	});
@@ -280,9 +285,9 @@ describe("changing outside scripts", () => {
 		const page = await install.request(site.url("/"));
 		expect(scriptTags(await page.clone().text())).toEqual([]);
 		expect(policyOf(page).get("script-src")).toEqual(["'self'", "https://tags.example.com"]);
-		await expect(
-			staff.api.outsideScripts.remove({ siteId: site.siteId, outsideScriptId: outsideScript.id }),
-		).rejects.toMatchObject({ code: "OUTSIDE_SCRIPT_NOT_FOUND" });
+		expect(
+			await rejection(staff.api.outsideScripts.remove({ siteId: site.siteId, outsideScriptId: outsideScript.id })),
+		).toMatchObject({ code: "OUTSIDE_SCRIPT_NOT_FOUND" });
 	});
 
 	test("when Staff remove a host an outside script needs, the script shows as blocked there", async () => {
@@ -317,7 +322,7 @@ describe("changing outside scripts", () => {
 			() => editor.api.outsideScripts.update({ ...input, outsideScriptId: outsideScript.id }),
 			() => editor.api.outsideScripts.remove({ siteId: site.siteId, outsideScriptId: outsideScript.id }),
 		]) {
-			await expect(call()).rejects.toMatchObject({ code: "FORBIDDEN" });
+			expect(await rejection(call())).toMatchObject({ code: "FORBIDDEN" });
 		}
 
 		await staff.api.outsideScripts.update({

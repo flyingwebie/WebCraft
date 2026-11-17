@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -315,18 +316,22 @@ describe("publishing them all", () => {
 
 		const first = await staff.api.publishing.publishAll({ siteId: site.siteId, items });
 		await staff.api.entries.saveDraft({ siteId: site.siteId, entryId: post.entry.id, title: "Summer menu" });
-		await expect(
-			staff.api.publishing.publishAll({ siteId: site.siteId, items, confirmation: confirmationOf(first) }),
-		).rejects.toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "changed" } });
+		expect(
+			await rejection(
+				staff.api.publishing.publishAll({ siteId: site.siteId, items, confirmation: confirmationOf(first) }),
+			),
+		).toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "changed" } });
 
 		const again = await staff.api.publishing.publishAll({ siteId: site.siteId, items });
-		await expect(
-			staff.api.publishing.publishAll({
-				siteId: site.siteId,
-				items: [...items, { kind: "entry", id: other.entry.id }],
-				confirmation: confirmationOf(again),
-			}),
-		).rejects.toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "changed" } });
+		expect(
+			await rejection(
+				staff.api.publishing.publishAll({
+					siteId: site.siteId,
+					items: [...items, { kind: "entry", id: other.entry.id }],
+					confirmation: confirmationOf(again),
+				}),
+			),
+		).toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "changed" } });
 		expect((await install.request(`${site.live}/blog/summer-menu`)).status).toBe(404);
 	});
 
@@ -350,7 +355,7 @@ describe("publishing them all", () => {
 			{ kind: "entry" as const, id: published.entry.id },
 			{ kind: "globals" as const },
 		]) {
-			await expect(staff.api.publishing.publishAll({ siteId: site.siteId, items: [item] })).rejects.toMatchObject({
+			expect(await rejection(staff.api.publishing.publishAll({ siteId: site.siteId, items: [item] }))).toMatchObject({
 				code: "PUBLISH_ALL_INVALID",
 				data: { items: [item] },
 			});
@@ -367,19 +372,21 @@ describe("publishing them all", () => {
 		});
 		await staff.api.designSystem.saveDraft({ siteId: site.siteId, customCss: "main { padding: 2rem; }" });
 
-		await expect(
-			editor.api.publishing.publishAll({
-				siteId: site.siteId,
-				items: [{ kind: "entry", id: post.entry.id }, { kind: "designSystem" }],
-			}),
-		).rejects.toMatchObject({ code: "FORBIDDEN", data: { permission: "structure.edit" } });
+		expect(
+			await rejection(
+				editor.api.publishing.publishAll({
+					siteId: site.siteId,
+					items: [{ kind: "entry", id: post.entry.id }, { kind: "designSystem" }],
+				}),
+			),
+		).toMatchObject({ code: "FORBIDDEN", data: { permission: "structure.edit" } });
 
 		await publishAll(editor, site.siteId, [{ kind: "entry", id: post.entry.id }]);
 		expect((await install.request(`${site.live}/blog/spring-menu`)).status).toBe(200);
 		const author = (await install.createMember({ workspaceId, role: "author", sites: [site.siteId] })).browser;
-		await expect(
-			author.api.publishing.publishAll({ siteId: site.siteId, items: [{ kind: "designSystem" }] }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(author.api.publishing.publishAll({ siteId: site.siteId, items: [{ kind: "designSystem" }] })),
+		).toMatchObject({ code: "FORBIDDEN" });
 	});
 
 	test("publishes what items need first: a new Page's parent, the Components a Template places, the Design system's Classes", async () => {
@@ -434,9 +441,11 @@ describe("publishing them all", () => {
 			{ kind: "entry" as const, id: empty.entry.id },
 		];
 		const preview = await staff.api.publishing.publishAll({ siteId: site.siteId, items });
-		await expect(
-			staff.api.publishing.publishAll({ siteId: site.siteId, items, confirmation: confirmationOf(preview) }),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.publishing.publishAll({ siteId: site.siteId, items, confirmation: confirmationOf(preview) }),
+			),
+		).toMatchObject({
 			code: "PUBLISH_ALL_REFUSED",
 			data: {
 				item: { kind: "entry", id: empty.entry.id },
@@ -526,7 +535,7 @@ describe("through an API token", () => {
 
 		const listed = await readOnly.api.publishing.drafts({ siteId });
 		expect(listed.drafts.map((draft) => draft.name)).toEqual(["Spring menu"]);
-		await expect(readOnly.api.publishing.publishAll({ siteId, items })).rejects.toMatchObject({
+		expect(await rejection(readOnly.api.publishing.publishAll({ siteId, items }))).toMatchObject({
 			code: "TOKEN_READ_ONLY",
 			status: 403,
 		});

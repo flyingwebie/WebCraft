@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -82,12 +83,14 @@ test("the statement participates in ordinary translation jobs, protects its Comp
 		...input,
 		organisation: "<script>alert(1)</script> Council",
 	});
-	await expect(site.owner.api.accessibilityStatement.generate({ siteId: site.siteId, ...input })).rejects.toMatchObject(
-		{ code: "FORBIDDEN" },
-	);
-	await expect(
-		site.staff.api.components.delete({ siteId: site.siteId, componentId: generated.settings.componentId }),
-	).rejects.toMatchObject({ code: "COMPONENT_IN_USE" });
+	expect(
+		await rejection(site.owner.api.accessibilityStatement.generate({ siteId: site.siteId, ...input })),
+	).toMatchObject({ code: "FORBIDDEN" });
+	expect(
+		await rejection(
+			site.staff.api.components.delete({ siteId: site.siteId, componentId: generated.settings.componentId }),
+		),
+	).toMatchObject({ code: "COMPONENT_IN_USE" });
 	// A Page alone cannot expose a footer link to a not-yet-published Component.
 	await site.owner.api.entries.publish({ siteId: site.siteId, entryId: generated.page.id });
 	expect(await expectSafePage(await install.request(`${site.origin}/missing`))).not.toContain("<footer");

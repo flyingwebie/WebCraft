@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { createTestInstall, type TestAccount, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { addAuthenticator, signInWithAuthenticator } from "../harness/two-factor.ts";
 
 const CLI = join(new URL("../../", import.meta.url).pathname, "apps/cli/src/main.ts");
@@ -62,7 +63,7 @@ describe("webcraft admin reset-password", () => {
 			expect(code).toBe(1);
 			expect(stderr).toContain("Usage: webcraft");
 		}
-		await expect(install.signIn(superadmin)).resolves.toBeDefined();
+		expect(await install.signIn(superadmin)).toBeDefined();
 	});
 
 	test("gives the Superadmin the new password: they are signed out everywhere, keep their second factor, and it is logged", async () => {
@@ -75,7 +76,7 @@ describe("webcraft admin reset-password", () => {
 		expect(stdout).toContain("Changed the password of superadmin@agency.example");
 		expect(`${stdout}${stderr}`).not.toContain(NEW_PASSWORD);
 		expect((await browser.api.session.current()).person).toBeNull();
-		await expect(install.browser().api.session.signIn(superadmin)).rejects.toMatchObject({
+		expect(await rejection(install.browser().api.session.signIn(superadmin))).toMatchObject({
 			code: "INVALID_CREDENTIALS",
 		});
 		const account = { email: superadmin.email, password: NEW_PASSWORD };

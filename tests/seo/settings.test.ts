@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { titleIn } from "../harness/seo.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -148,9 +149,11 @@ describe("a Post Type's SEO settings", () => {
 		const { siteId } = await newSite();
 		const { postType } = await staff.api.postTypes.create({ siteId, name: "Posts", urlPattern: "/posts/{slug}" });
 
-		await expect(
-			owner.api.postTypes.update({ siteId, postTypeId: postType.id, seo: { titlePattern: "{title}" } }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(
+				owner.api.postTypes.update({ siteId, postTypeId: postType.id, seo: { titlePattern: "{title}" } }),
+			),
+		).toMatchObject({ code: "FORBIDDEN" });
 	});
 });
 
@@ -194,7 +197,7 @@ describe("a Site's SEO settings", () => {
 			siteId,
 			details: { changed: ["siteName", "separator"] },
 		});
-		await expect(owner.api.seoSettings.update({ siteId, separator: "-" })).rejects.toMatchObject({
+		expect(await rejection(owner.api.seoSettings.update({ siteId, separator: "-" }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});

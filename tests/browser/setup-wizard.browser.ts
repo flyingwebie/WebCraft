@@ -145,7 +145,7 @@ describe("the setup wizard's first client step", () => {
 		await page.keyboard.press("Tab");
 		await page.keyboard.press("Space");
 		expect(await page.getByRole("checkbox", { name: "Also create its first Site" }).isChecked()).toBe(false);
-		await expect(page.locator("#first-site-name").count()).resolves.toBe(0);
+		expect(await page.locator("#first-site-name").count()).toBe(0);
 		await page.locator("#first-workspace-name").press("Enter");
 
 		await page.waitForURL((url) => url.pathname.startsWith("/workspaces/"));

@@ -6,6 +6,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -354,15 +355,17 @@ describe("Markdown written by hand", () => {
 	});
 
 	test("a body given as Markdown is refused for a Field that isn't a body", async () => {
-		await expect(
-			author.api.entries.create({
-				siteId,
-				postTypeId,
-				title: "Sourdough",
-				fields: { summary: "Short", body: ["not Markdown"] },
-				bodyFormat: "markdown",
-			}),
-		).rejects.toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at: "fields.body" }] } });
+		expect(
+			await rejection(
+				author.api.entries.create({
+					siteId,
+					postTypeId,
+					title: "Sourdough",
+					fields: { summary: "Short", body: ["not Markdown"] },
+					bodyFormat: "markdown",
+				}),
+			),
+		).toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at: "fields.body" }] } });
 	});
 });
 

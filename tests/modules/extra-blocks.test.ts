@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -282,14 +283,16 @@ test("turning the Module off preserves existing Blocks while refusing new or cha
 		});
 		expect(saved.entry.problems).toEqual([]);
 		await editor.api.entries.publish({ siteId, entryId: entry.id });
-		await expect(
-			editor.api.entries.create({
-				siteId,
-				postTypeId: postType.id,
-				title: "Refused",
-				fields: { body: [{ type: "component", component: "extra-blocks:Accordion", props: [] }] },
-			}),
-		).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+		expect(
+			await rejection(
+				editor.api.entries.create({
+					siteId,
+					postTypeId: postType.id,
+					title: "Refused",
+					fields: { body: [{ type: "component", component: "extra-blocks:Accordion", props: [] }] },
+				}),
+			),
+		).toMatchObject({ code: "ENTRY_INVALID" });
 	} finally {
 		await staff.api.modules.setOnSite({ siteId, moduleId: "extra-blocks", on: true });
 	}
@@ -333,14 +336,16 @@ test("Gallery validates real Media references and keeps per-placement alt/Decora
 			},
 		],
 	});
-	await expect(
-		editor.api.entries.create({
-			siteId,
-			postTypeId: postType.id,
-			title: "Foreign",
-			fields: { body: [block(foreign.id)] },
-		}),
-	).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+	expect(
+		await rejection(
+			editor.api.entries.create({
+				siteId,
+				postTypeId: postType.id,
+				title: "Foreign",
+				fields: { body: [block(foreign.id)] },
+			}),
+		),
+	).toMatchObject({ code: "ENTRY_INVALID" });
 	const { entry } = await editor.api.entries.create({
 		siteId,
 		postTypeId: postType.id,
@@ -401,14 +406,16 @@ test("maps use the declared host, script assets carry Site headers, and Edit/Cod
 			{ name: "url", value: url },
 		],
 	});
-	await expect(
-		editor.api.entries.create({
-			siteId,
-			postTypeId: postType.id,
-			title: "Bad",
-			fields: { body: [block("https://evil.test/map")] },
-		}),
-	).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+	expect(
+		await rejection(
+			editor.api.entries.create({
+				siteId,
+				postTypeId: postType.id,
+				title: "Bad",
+				fields: { body: [block("https://evil.test/map")] },
+			}),
+		),
+	).toMatchObject({ code: "ENTRY_INVALID" });
 	const { entry } = await editor.api.entries.create({
 		siteId,
 		postTypeId: postType.id,
@@ -477,16 +484,18 @@ test("API tokens retain Content permissions, tenant isolation and authoritative 
 		fields: { body: [{ type: "component", component: "extra-blocks:Accordion", props: [] }] },
 	};
 	expect((await token.api.entries.create(input)).entry.draft.title).toBe("Allowed");
-	await expect(
-		token.api.postTypes.update({ siteId: site.id, postTypeId: postType.id, fields: [] }),
-	).rejects.toMatchObject({ status: 403 });
-	await expect(
-		token.api.entries.create({
-			...input,
-			fields: { body: [{ type: "component", component: "extra-blocks:Gallery", props: [] }] },
-		}),
-	).rejects.toMatchObject({ code: "ENTRY_INVALID" });
-	await expect(token.api.entries.create({ ...input, siteId })).rejects.toMatchObject({ status: 404 });
+	expect(
+		await rejection(token.api.postTypes.update({ siteId: site.id, postTypeId: postType.id, fields: [] })),
+	).toMatchObject({ status: 403 });
+	expect(
+		await rejection(
+			token.api.entries.create({
+				...input,
+				fields: { body: [{ type: "component", component: "extra-blocks:Gallery", props: [] }] },
+			}),
+		),
+	).toMatchObject({ code: "ENTRY_INVALID" });
+	expect(await rejection(token.api.entries.create({ ...input, siteId }))).toMatchObject({ status: 404 });
 });
 
 test("Gallery translation changes alt and captions while keeping Media references and Decorative settings", async () => {

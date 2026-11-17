@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -112,7 +113,7 @@ describe("the Site's own order", () => {
 	test("refuses a folder that isn't the Site's", async () => {
 		const other = (await install.createSite(workspaceId)).id;
 		const { folder } = await editor.api.media.folders.create({ siteId: other, name: "Elsewhere" });
-		await expect(editor.api.media.folders.reorder({ siteId, folderIds: [folder.id] })).rejects.toMatchObject({
+		expect(await rejection(editor.api.media.folders.reorder({ siteId, folderIds: [folder.id] }))).toMatchObject({
 			code: "MEDIA_FOLDER_NOT_FOUND",
 			status: 404,
 		});
@@ -121,10 +122,10 @@ describe("the Site's own order", () => {
 
 describe("who may change it", () => {
 	test("Authors can't set the order or arrange the folders", async () => {
-		await expect(author.api.media.folders.setOrder({ siteId, order: "name" })).rejects.toMatchObject({
+		expect(await rejection(author.api.media.folders.setOrder({ siteId, order: "name" }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(author.api.media.folders.reorder({ siteId, folderIds: [] })).rejects.toMatchObject({
+		expect(await rejection(author.api.media.folders.reorder({ siteId, folderIds: [] }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});

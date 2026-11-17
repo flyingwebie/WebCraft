@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 
@@ -46,7 +47,7 @@ describe("the setup token", () => {
 	test("the wizard refuses a token the web process never printed", async () => {
 		const browser = install.browser();
 
-		await expect(browser.api.setup.checkToken({ token: "x".repeat(43) })).rejects.toMatchObject({
+		expect(await rejection(browser.api.setup.checkToken({ token: "x".repeat(43) }))).toMatchObject({
 			code: "SETUP_TOKEN_INVALID",
 			status: 403,
 		});
@@ -93,10 +94,10 @@ describe("the setup token", () => {
 		await install.browser().api.setup.claim({ token, ...account() });
 
 		const someoneElse = install.browser();
-		await expect(someoneElse.api.setup.checkToken({ token })).rejects.toMatchObject({ code: "SETUP_CLOSED" });
-		await expect(
-			someoneElse.api.setup.claim({ token, ...account({ email: "mallory@example.org" }) }),
-		).rejects.toMatchObject({ code: "SETUP_CLOSED", status: 410 });
+		expect(await rejection(someoneElse.api.setup.checkToken({ token }))).toMatchObject({ code: "SETUP_CLOSED" });
+		expect(
+			await rejection(someoneElse.api.setup.claim({ token, ...account({ email: "mallory@example.org" }) })),
+		).toMatchObject({ code: "SETUP_CLOSED", status: 410 });
 		expect(await someoneElse.api.session.current()).toEqual({ person: null });
 	});
 
@@ -108,10 +109,10 @@ describe("the setup token", () => {
 		const newest = install.setupToken() ?? "";
 		expect(newest).not.toBe(before);
 
-		await expect(install.browser().api.setup.checkToken({ token: before })).rejects.toMatchObject({
+		expect(await rejection(install.browser().api.setup.checkToken({ token: before }))).toMatchObject({
 			code: "SETUP_TOKEN_INVALID",
 		});
-		await expect(install.browser().api.setup.claim({ token: before, ...account() })).rejects.toMatchObject({
+		expect(await rejection(install.browser().api.setup.claim({ token: before, ...account() }))).toMatchObject({
 			code: "SETUP_TOKEN_INVALID",
 		});
 		await install.browser().api.setup.claim({ token: newest, ...account() });
@@ -123,11 +124,11 @@ describe("the setup token", () => {
 		await install.browser().api.setup.checkToken({ token });
 
 		await install.clock.advance(60_000);
-		await expect(install.browser().api.setup.checkToken({ token })).rejects.toMatchObject({
+		expect(await rejection(install.browser().api.setup.checkToken({ token }))).toMatchObject({
 			code: "SETUP_TOKEN_INVALID",
 			status: 403,
 		});
-		await expect(install.browser().api.setup.claim({ token, ...account() })).rejects.toMatchObject({
+		expect(await rejection(install.browser().api.setup.claim({ token, ...account() }))).toMatchObject({
 			code: "SETUP_TOKEN_INVALID",
 		});
 		expect(await install.browser().api.setup.state()).toMatchObject({ stage: "claim" });
@@ -151,7 +152,7 @@ describe("the Superadmin account", () => {
 		const browser = install.browser();
 		const token = install.setupToken() ?? "";
 
-		await expect(browser.api.setup.claim({ token, ...account({ password: "short pass1" }) })).rejects.toMatchObject({
+		expect(await rejection(browser.api.setup.claim({ token, ...account({ password: "short pass1" }) }))).toMatchObject({
 			code: "PASSWORD_REFUSED",
 			data: { problem: "too-short" },
 		});
@@ -161,17 +162,19 @@ describe("the Superadmin account", () => {
 	test("needs a usable email address", async () => {
 		const browser = install.browser();
 
-		await expect(
-			browser.api.setup.claim({ token: install.setupToken() ?? "", ...account({ email: "ada at agency" }) }),
-		).rejects.toMatchObject({ code: "EMAIL_INVALID" });
+		expect(
+			await rejection(
+				browser.api.setup.claim({ token: install.setupToken() ?? "", ...account({ email: "ada at agency" }) }),
+			),
+		).toMatchObject({ code: "EMAIL_INVALID" });
 	});
 
 	test("needs a name", async () => {
 		const browser = install.browser();
 
-		await expect(
-			browser.api.setup.claim({ token: install.setupToken() ?? "", ...account({ name: "  " }) }),
-		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(
+			await rejection(browser.api.setup.claim({ token: install.setupToken() ?? "", ...account({ name: "  " }) })),
+		).toMatchObject({ code: "BAD_REQUEST" });
 	});
 });
 
@@ -185,14 +188,14 @@ describe("after the account step", () => {
 
 		expect(await superadmin.api.setup.state()).toEqual({ stage: "done" });
 		expect(await install.browser().api.setup.state()).toEqual({ stage: "done" });
-		await expect(superadmin.api.setup.finish()).rejects.toMatchObject({ code: "SETUP_STAGE" });
-		await expect(install.browser().api.setup.checkToken({ token })).rejects.toMatchObject({ code: "SETUP_CLOSED" });
+		expect(await rejection(superadmin.api.setup.finish())).toMatchObject({ code: "SETUP_STAGE" });
+		expect(await rejection(install.browser().api.setup.checkToken({ token }))).toMatchObject({ code: "SETUP_CLOSED" });
 	});
 
 	test("nobody signed out can finish setup for the Superadmin", async () => {
 		await install.browser().api.setup.claim({ token: install.setupToken() ?? "", ...account() });
 
-		await expect(install.browser().api.setup.finish()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+		expect(await rejection(install.browser().api.setup.finish())).toMatchObject({ code: "UNAUTHORIZED" });
 		expect(await install.browser().api.setup.state()).toEqual({ stage: "continue" });
 	});
 
@@ -205,7 +208,7 @@ describe("after the account step", () => {
 
 		// Created without the wizard, so setup is already finished.
 		expect(await superadmin.api.setup.state()).toEqual({ stage: "done" });
-		await expect(superadmin.api.setup.finish()).rejects.toMatchObject({ code: "SETUP_STAGE" });
+		expect(await rejection(superadmin.api.setup.finish())).toMatchObject({ code: "SETUP_STAGE" });
 	});
 });
 
@@ -296,12 +299,16 @@ describe("the first client step", () => {
 	test("a slug no Site may have creates nothing and leaves setup open to try again", async () => {
 		const { superadmin } = await claimed();
 
-		await expect(
-			superadmin.api.setup.finish({ workspace: { name: "Acme Ltd", site: { name: "Admin", slug: "admin" } } }),
-		).rejects.toMatchObject({ code: "SLUG_INVALID", data: { problem: "reserved" } });
-		await expect(
-			superadmin.api.setup.finish({ workspace: { name: "Acme Ltd", site: { name: "Acme", slug: "-acme" } } }),
-		).rejects.toMatchObject({ code: "SLUG_INVALID", data: { problem: "shape" } });
+		expect(
+			await rejection(
+				superadmin.api.setup.finish({ workspace: { name: "Acme Ltd", site: { name: "Admin", slug: "admin" } } }),
+			),
+		).toMatchObject({ code: "SLUG_INVALID", data: { problem: "reserved" } });
+		expect(
+			await rejection(
+				superadmin.api.setup.finish({ workspace: { name: "Acme Ltd", site: { name: "Acme", slug: "-acme" } } }),
+			),
+		).toMatchObject({ code: "SLUG_INVALID", data: { problem: "shape" } });
 
 		expect((await superadmin.api.workspaces.list()).workspaces).toEqual([]);
 		expect(await superadmin.api.setup.state()).toEqual({ stage: "continue" });
@@ -316,9 +323,11 @@ describe("the first client step", () => {
 		const { workspace } = await superadmin.api.workspaces.create({ name: "Existing" });
 		await superadmin.api.sites.create({ workspaceId: workspace.id, name: "Bakery", slug: "bakery" });
 
-		await expect(
-			superadmin.api.setup.finish({ workspace: { name: "Acme Ltd", site: { name: "Acme Bakery", slug: "bakery" } } }),
-		).rejects.toMatchObject({ code: "SLUG_TAKEN", status: 409 });
+		expect(
+			await rejection(
+				superadmin.api.setup.finish({ workspace: { name: "Acme Ltd", site: { name: "Acme Bakery", slug: "bakery" } } }),
+			),
+		).toMatchObject({ code: "SLUG_TAKEN", status: 409 });
 
 		expect((await superadmin.api.workspaces.list()).workspaces.map((each) => each.name)).toEqual(["Existing"]);
 		expect(await superadmin.api.setup.state()).toEqual({ stage: "continue" });
@@ -327,12 +336,14 @@ describe("the first client step", () => {
 	test("a missing Workspace or Site name is refused and creates nothing", async () => {
 		const { superadmin } = await claimed();
 
-		await expect(superadmin.api.setup.finish({ workspace: { name: "  " } })).rejects.toMatchObject({
+		expect(await rejection(superadmin.api.setup.finish({ workspace: { name: "  " } }))).toMatchObject({
 			code: "BAD_REQUEST",
 		});
-		await expect(
-			superadmin.api.setup.finish({ workspace: { name: "Acme Ltd", site: { name: " ", slug: "acme" } } }),
-		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(
+			await rejection(
+				superadmin.api.setup.finish({ workspace: { name: "Acme Ltd", site: { name: " ", slug: "acme" } } }),
+			),
+		).toMatchObject({ code: "BAD_REQUEST" });
 
 		expect((await superadmin.api.workspaces.list()).workspaces).toEqual([]);
 		expect(await superadmin.api.setup.state()).toEqual({ stage: "continue" });
@@ -342,7 +353,7 @@ describe("the first client step", () => {
 		const { superadmin } = await claimed();
 		await superadmin.api.setup.finish({});
 
-		await expect(superadmin.api.setup.finish({ workspace: { name: "Acme Ltd" } })).rejects.toMatchObject({
+		expect(await rejection(superadmin.api.setup.finish({ workspace: { name: "Acme Ltd" } }))).toMatchObject({
 			code: "SETUP_STAGE",
 		});
 		expect((await superadmin.api.workspaces.list()).workspaces).toEqual([]);

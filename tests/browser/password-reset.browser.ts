@@ -76,9 +76,9 @@ for (const theme of THEMES) {
 			await page.getByRole("heading", { level: 1, name: /^Sign in/ }).waitFor();
 			// Nothing on these pages was refused by the admin's Content Security Policy, or failed.
 			expect(pageErrors(page)).toEqual([]);
-			await expect(
-				install.install.signIn({ email: person.account.email, password: "a new password chosen here" }),
-			).resolves.toBeDefined();
+			expect(
+				await install.install.signIn({ email: person.account.email, password: "a new password chosen here" }),
+			).toBeDefined();
 		});
 
 		test("a link that doesn't work says so and offers a new one", async () => {

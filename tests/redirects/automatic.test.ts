@@ -7,6 +7,7 @@ import type redirects from "@webcraft/module-redirects";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -170,15 +171,18 @@ describe("a published slug that changes", () => {
 		await rules().add({ siteId: site.siteId, from: "/blog/buns", to: "/old-buns", status: 302 });
 		await rules().add({ siteId: site.siteId, from: "/old-buns", to: "/blog/rolls", status: 302 });
 		// A person changing it so would be refused.
-		await expect(
-			rules().update({
-				siteId: site.siteId,
-				ruleId: (await rules().list({ siteId: site.siteId })).rules.find((rule) => rule.from === "/old-buns")?.id ?? "",
-				from: "/old-buns",
-				to: "/blog/buns",
-				status: 302,
-			}),
-		).rejects.toMatchObject({ data: { code: "RULE_LOOP" } });
+		expect(
+			await rejection(
+				rules().update({
+					siteId: site.siteId,
+					ruleId:
+						(await rules().list({ siteId: site.siteId })).rules.find((rule) => rule.from === "/old-buns")?.id ?? "",
+					from: "/old-buns",
+					to: "/blog/buns",
+					status: 302,
+				}),
+			),
+		).toMatchObject({ data: { code: "RULE_LOOP" } });
 
 		await republish(site, post, { slug: "buns" });
 		await drained();

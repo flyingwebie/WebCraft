@@ -4,6 +4,7 @@ import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import type { FakeAnswer } from "../harness/fake-http.ts";
 import { photo } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { exportedArchive, importArchive, manifestIn, PASSPHRASE, tarFiles } from "../harness/site-transfer.ts";
 import { approveModules, OLD_SITE_ADDRESS } from "./wordpress.ts";
 
@@ -146,14 +147,16 @@ test("visibility is explicit, source-bound and partial REST reads never become r
 	const hidden = await api.imports.connect({ ...common, includeHidden: true });
 	await install.drainJobs();
 	expect((await api.imports.file({ siteId: site.id, fileId: hidden.file.id })).file.survey?.items).toBe(2);
-	await expect(
-		api.imports.connect({ ...common, importId: hidden.importId, address: "https://elsewhere.example" }),
-	).rejects.toMatchObject({ code: "IMPORT_INVALID" });
+	expect(
+		await rejection(
+			api.imports.connect({ ...common, importId: hidden.importId, address: "https://elsewhere.example" }),
+		),
+	).toMatchObject({ code: "IMPORT_INVALID" });
 	const full = (await api.imports.file({ siteId: site.id, fileId: hidden.file.id })).file;
 	await api.imports.update({ siteId: site.id, importId: publicOnly.importId, settings: required(full.suggested) });
-	await expect(
-		api.imports.start({ siteId: site.id, importId: publicOnly.importId, fileId: full.id }),
-	).rejects.toMatchObject({ code: "IMPORT_FILE_NOT_READY" });
+	expect(
+		await rejection(api.imports.start({ siteId: site.id, importId: publicOnly.importId, fileId: full.id })),
+	).toMatchObject({ code: "IMPORT_FILE_NOT_READY" });
 	const previewInput = {
 		siteId: site.id,
 		importId: hidden.importId,
@@ -179,9 +182,11 @@ test("visibility is explicit, source-bound and partial REST reads never become r
 	const refused = (await api.imports.file({ siteId: site.id, fileId: partial.file.id })).file;
 	expect(refused.status).toBe("refused");
 	expect(refused.refusal?.code).toBe("pagination");
-	await expect(
-		api.imports.previewSource({ siteId: site.id, fileId: refused.id, settings: required(full.suggested) }),
-	).rejects.toMatchObject({ code: "IMPORT_FILE_NOT_READY" });
+	expect(
+		await rejection(
+			api.imports.previewSource({ siteId: site.id, fileId: refused.id, settings: required(full.suggested) }),
+		),
+	).toMatchObject({ code: "IMPORT_FILE_NOT_READY" });
 	truncated = false;
 	broadened = true;
 	const broadenedSource = await api.imports.connect(common);
@@ -208,9 +213,9 @@ test("guarded calls refuse credentials in addresses, private DNS, redirects, aut
 		"https://login:password@live.example",
 		"https://live.example/?password=oops",
 	])
-		await expect(api.imports.connect({ ...input, address })).rejects.toMatchObject({ code: "IMPORT_INVALID" });
+		expect(await rejection(api.imports.connect({ ...input, address }))).toMatchObject({ code: "IMPORT_INVALID" });
 	install.dns.answer("internal.example", ["127.0.0.1"]);
-	await expect(api.imports.connect({ ...input, address: "https://internal.example" })).rejects.toMatchObject({
+	expect(await rejection(api.imports.connect({ ...input, address: "https://internal.example" }))).toMatchObject({
 		code: "IMPORT_INVALID",
 	});
 	expect(install.http.requests.some((r) => r.url.includes("internal.example"))).toBe(false);
@@ -225,7 +230,7 @@ test("guarded calls refuse credentials in addresses, private DNS, redirects, aut
 		{ status: 200, body: "<html>Not REST</html>" },
 	] as FakeAnswer[]) {
 		install.http.respond("GET", /^https:\/\/refuse.example\//, answer);
-		await expect(api.imports.connect({ ...input, address: "https://refuse.example" })).rejects.toMatchObject({
+		expect(await rejection(api.imports.connect({ ...input, address: "https://refuse.example" }))).toMatchObject({
 			code: "IMPORT_INVALID",
 		});
 	}
@@ -371,7 +376,7 @@ test("source permissions, token Toolsets, Module off and worker actor rechecks a
 		username: "writer",
 		applicationPassword: "one-time-password",
 	};
-	await expect(owner.imports.connect(input)).rejects.toMatchObject({ code: "FORBIDDEN" });
+	expect(await rejection(owner.imports.connect(input))).toMatchObject({ code: "FORBIDDEN" });
 	const connected = await api.imports.connect(input);
 	const { secret } = await createApiToken(staff.browser, {
 		workspaceId: workspace.id,
@@ -379,16 +384,16 @@ test("source permissions, token Toolsets, Module off and worker actor rechecks a
 		toolsets: ["content"],
 	});
 	const token = tokenClient(install, secret).api;
-	await expect(token.imports.refresh({ siteId: site.id, importId: connected.importId })).rejects.toMatchObject({
+	expect(await rejection(token.imports.refresh({ siteId: site.id, importId: connected.importId }))).toMatchObject({
 		code: "TOOLSET_OFF",
 	});
 	const outsider = (await install.createStaff({ workspaces: [] })).browser.api;
-	await expect(outsider.imports.refresh({ siteId: site.id, importId: connected.importId })).rejects.toMatchObject({
+	expect(await rejection(outsider.imports.refresh({ siteId: site.id, importId: connected.importId }))).toMatchObject({
 		code: "SITE_NOT_FOUND",
 	});
 	const switched = await api.imports.refresh({ siteId: site.id, importId: connected.importId });
 	await api.modules.setOnSite({ siteId: site.id, moduleId: "wordpress-import", on: false });
-	await expect(api.imports.refresh({ siteId: site.id, importId: connected.importId })).rejects.toMatchObject({
+	expect(await rejection(api.imports.refresh({ siteId: site.id, importId: connected.importId }))).toMatchObject({
 		code: "IMPORT_SOURCE_NOT_FOUND",
 	});
 	await install.drainJobs();
@@ -443,9 +448,9 @@ test("login use is audited, Site exports encrypt it, and transfers remap it to t
 	const dropped = await importArchive(install, admin, workspace.id, archive, { name: "No login", slug: "no-login" });
 	expect(dropped.status).toBe("done");
 	const noLogin = required((await admin.api.imports.list({ siteId: required(dropped.site).id })).imports[0]);
-	await expect(
-		admin.api.imports.refresh({ siteId: required(dropped.site).id, importId: noLogin.id }),
-	).rejects.toMatchObject({
+	expect(
+		await rejection(admin.api.imports.refresh({ siteId: required(dropped.site).id, importId: noLogin.id })),
+	).toMatchObject({
 		code: "IMPORT_INVALID",
 	});
 });
@@ -472,7 +477,7 @@ test("removing an Import works with its Module off, requires Staff confirmation 
 	expect(first.removed).toBe(false);
 	if (first.removed) throw new Error("No confirmation");
 	const owner = (await install.createMember({ workspaceId: workspace.id, role: "owner" })).browser;
-	await expect(owner.api.imports.remove({ siteId: site.id, importId: connected.importId })).rejects.toMatchObject({
+	expect(await rejection(owner.api.imports.remove({ siteId: site.id, importId: connected.importId }))).toMatchObject({
 		code: "FORBIDDEN",
 	});
 	await staff.api.imports.remove({
@@ -527,7 +532,7 @@ test("credentials expire 30 days after the last run, including when the Module i
 		`import:${connected.importId}:credentials`,
 	);
 	await staff.api.modules.setOnSite({ siteId: site.id, moduleId: "wordpress-import", on: true });
-	await expect(staff.api.imports.refresh({ siteId: site.id, importId: connected.importId })).rejects.toMatchObject({
+	expect(await rejection(staff.api.imports.refresh({ siteId: site.id, importId: connected.importId }))).toMatchObject({
 		code: "IMPORT_INVALID",
 	});
 });

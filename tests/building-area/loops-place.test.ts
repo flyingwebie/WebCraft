@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { openBuildingArea } from "../harness/building-area.ts";
 import { type BuildingAreaApi, buildingAreaApi } from "../harness/building-area-api.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -122,7 +123,7 @@ describe("a Loop's result from the Site's address", () => {
 			() => member.api.loops.result({ siteId, loopId }),
 			() => member.api.loops.saveDraft({ siteId, loopId, query: { limit: 1 } }),
 		]) {
-			await expect(call()).rejects.toMatchObject({ code: "FORBIDDEN", data: { permission: "structure.edit" } });
+			expect(await rejection(call())).toMatchObject({ code: "FORBIDDEN", data: { permission: "structure.edit" } });
 		}
 	});
 });

@@ -71,7 +71,7 @@ describe("behind Caddy (WEBCRAFT_EDGE=caddy, the default)", () => {
 		).toBe("198.51.100.77");
 
 		const neighbour = install(caddy).browser({ address: CADDY, headers: { "x-forwarded-for": "198.51.100.78" } });
-		await expect(neighbour.api.session.signIn(caddy.account)).resolves.toMatchObject({
+		expect(await neighbour.api.session.signIn(caddy.account)).toMatchObject({
 			person: { email: caddy.account.email },
 		});
 	});

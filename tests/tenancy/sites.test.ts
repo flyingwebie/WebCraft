@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let admin: TestBrowser;
@@ -49,16 +50,16 @@ describe("creating Sites", () => {
 	});
 
 	test("Staff can't create Sites in a Workspace they aren't assigned to, nor see its Sites", async () => {
-		await expect(staff.api.sites.create({ workspaceId: nimbus, name: "Sneaky", slug: "sneaky" })).rejects.toMatchObject(
-			{ code: "WORKSPACE_NOT_FOUND" },
-		);
-		await expect(staff.api.sites.list({ workspaceId: nimbus })).rejects.toMatchObject({
+		expect(
+			await rejection(staff.api.sites.create({ workspaceId: nimbus, name: "Sneaky", slug: "sneaky" })),
+		).toMatchObject({ code: "WORKSPACE_NOT_FOUND" });
+		expect(await rejection(staff.api.sites.list({ workspaceId: nimbus }))).toMatchObject({
 			code: "WORKSPACE_NOT_FOUND",
 		});
 	});
 
 	test("refuses a Site without a name", async () => {
-		await expect(staff.api.sites.create({ workspaceId: acme, name: " ", slug: "nameless" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.sites.create({ workspaceId: acme, name: " ", slug: "nameless" }))).toMatchObject({
 			code: "BAD_REQUEST",
 		});
 	});
@@ -68,17 +69,17 @@ describe("Site slugs", () => {
 	test("are unique on the Install, across Workspaces", async () => {
 		await admin.api.sites.create({ workspaceId: acme, name: "Careers", slug: "careers" });
 
-		await expect(
-			admin.api.sites.create({ workspaceId: nimbus, name: "Careers", slug: "careers" }),
-		).rejects.toMatchObject({ code: "SLUG_TAKEN" });
-		await expect(
-			admin.api.sites.create({ workspaceId: acme, name: "Careers", slug: " CAREERS " }),
-		).rejects.toMatchObject({ code: "SLUG_TAKEN" });
+		expect(
+			await rejection(admin.api.sites.create({ workspaceId: nimbus, name: "Careers", slug: "careers" })),
+		).toMatchObject({ code: "SLUG_TAKEN" });
+		expect(
+			await rejection(admin.api.sites.create({ workspaceId: acme, name: "Careers", slug: " CAREERS " })),
+		).toMatchObject({ code: "SLUG_TAKEN" });
 	});
 
 	test("are lower-case letters, digits and dashes, at most 63, starting and ending with a letter or digit", async () => {
 		for (const slug of ["", "-bakery", "bakery-", "two words", "bäckerei", "a.b", "x".repeat(64)]) {
-			await expect(admin.api.sites.create({ workspaceId: acme, name: "Bad", slug })).rejects.toMatchObject({
+			expect(await rejection(admin.api.sites.create({ workspaceId: acme, name: "Bad", slug }))).toMatchObject({
 				code: "SLUG_INVALID",
 				data: { problem: "shape" },
 			});
@@ -91,7 +92,7 @@ describe("Site slugs", () => {
 
 	test("can't be a name the Install keeps for itself", async () => {
 		for (const slug of ["admin", "www"]) {
-			await expect(admin.api.sites.create({ workspaceId: acme, name: "Reserved", slug })).rejects.toMatchObject({
+			expect(await rejection(admin.api.sites.create({ workspaceId: acme, name: "Reserved", slug }))).toMatchObject({
 				code: "SLUG_INVALID",
 				data: { problem: "reserved" },
 			});
@@ -123,7 +124,7 @@ describe("the Audit log", () => {
 
 describe("opening a Site", () => {
 	test("a Site that doesn't exist is not found", async () => {
-		await expect(admin.api.sites.get({ siteId: crypto.randomUUID() })).rejects.toMatchObject({
+		expect(await rejection(admin.api.sites.get({ siteId: crypto.randomUUID() }))).toMatchObject({
 			code: "SITE_NOT_FOUND",
 		});
 	});
@@ -140,8 +141,8 @@ describe("opening a Site", () => {
 	test("people who aren't signed in can't list, open or create Sites", async () => {
 		const browser = install.browser();
 
-		await expect(browser.api.sites.list({ workspaceId: acme })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-		await expect(browser.api.sites.create({ workspaceId: acme, name: "X", slug: "x" })).rejects.toMatchObject({
+		expect(await rejection(browser.api.sites.list({ workspaceId: acme }))).toMatchObject({ code: "UNAUTHORIZED" });
+		expect(await rejection(browser.api.sites.create({ workspaceId: acme, name: "X", slug: "x" }))).toMatchObject({
 			code: "UNAUTHORIZED",
 		});
 	});

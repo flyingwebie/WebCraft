@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { exportedArchive, importArchive, rewritten } from "../harness/site-transfer.ts";
 import { goLive } from "../harness/staging.ts";
@@ -87,7 +88,7 @@ test("Bar placement and page flow are Structure, default to a bottom overlay, an
 	expect(html).toContain('data-bar-position="top"');
 	expect(html).toContain('data-bar-behavior="push"');
 	const member = (await install.createMember({ workspaceId: workspace.id, role: "owner" })).browser;
-	await expect(
-		member.api.popups.saveDraft({ siteId, popupId: popup.id, popup: { barPosition: "top" } }),
-	).rejects.toMatchObject({ code: "FORBIDDEN" });
+	expect(
+		await rejection(member.api.popups.saveDraft({ siteId, popupId: popup.id, popup: { barPosition: "top" } })),
+	).toMatchObject({ code: "FORBIDDEN" });
 });

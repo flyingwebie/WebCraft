@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -91,11 +92,11 @@ describe("deleting a Post Type", () => {
 		});
 
 		expect(second).toEqual({ deleted: true, entries: 2, templates: 2 });
-		await expect(staff.api.postTypes.get({ siteId, postTypeId: postType.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.postTypes.get({ siteId, postTypeId: postType.id }))).toMatchObject({
 			code: "POST_TYPE_NOT_FOUND",
 		});
 		expect((await staff.api.postTypes.list({ siteId })).postTypes.map((each) => each.id)).not.toContain(postType.id);
-		await expect(staff.api.entries.get({ siteId, entryId: entries[0]?.id ?? "" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.entries.get({ siteId, entryId: entries[0]?.id ?? "" }))).toMatchObject({
 			code: "ENTRY_NOT_FOUND",
 		});
 		const listed = (await staff.api.templates.list({ siteId })).templates;
@@ -124,9 +125,11 @@ describe("deleting a Post Type", () => {
 		if (first.deleted) throw new Error("deleted on the first call");
 		await staff.api.entries.create({ siteId, postTypeId: postType.id, title: "Linus" });
 
-		await expect(
-			staff.api.postTypes.delete({ siteId, postTypeId: postType.id, confirmation: first.confirmation.id }),
-		).rejects.toMatchObject({ code: "CONFIRMATION_INVALID" });
+		expect(
+			await rejection(
+				staff.api.postTypes.delete({ siteId, postTypeId: postType.id, confirmation: first.confirmation.id }),
+			),
+		).toMatchObject({ code: "CONFIRMATION_INVALID" });
 		expect((await staff.api.entries.list({ siteId, postTypeId: postType.id })).entries).toHaveLength(3);
 	});
 
@@ -145,7 +148,7 @@ describe("refused deletes", () => {
 	test("the Page Post Type every Site has can't be deleted", async () => {
 		const pages = (await staff.api.postTypes.list({ siteId })).postTypes.find((each) => each.builtIn === "page");
 
-		await expect(staff.api.postTypes.delete({ siteId, postTypeId: pages?.id ?? "" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.postTypes.delete({ siteId, postTypeId: pages?.id ?? "" }))).toMatchObject({
 			code: "POST_TYPE_BUILT_IN",
 		});
 	});
@@ -153,7 +156,7 @@ describe("refused deletes", () => {
 	test("Members can't delete a Post Type: it is Structure", async () => {
 		const { postType } = await team();
 
-		await expect(owner.api.postTypes.delete({ siteId, postTypeId: postType.id })).rejects.toMatchObject({
+		expect(await rejection(owner.api.postTypes.delete({ siteId, postTypeId: postType.id }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});
@@ -161,9 +164,11 @@ describe("refused deletes", () => {
 	test("a Post Type of another Site isn't found", async () => {
 		const { postType } = await team();
 
-		await expect(staff.api.postTypes.delete({ siteId: otherSiteId, postTypeId: postType.id })).rejects.toMatchObject({
-			code: "POST_TYPE_NOT_FOUND",
-		});
+		expect(await rejection(staff.api.postTypes.delete({ siteId: otherSiteId, postTypeId: postType.id }))).toMatchObject(
+			{
+				code: "POST_TYPE_NOT_FOUND",
+			},
+		);
 	});
 
 	test("while another Post Type's Relationship, a Component's Prop or a Loop names it, it is in use", async () => {
@@ -194,7 +199,7 @@ describe("refused deletes", () => {
 			query: { postTypes: [key] },
 		});
 
-		await expect(staff.api.postTypes.delete({ siteId, postTypeId: postType.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.postTypes.delete({ siteId, postTypeId: postType.id }))).toMatchObject({
 			code: "POST_TYPE_IN_USE",
 			data: {
 				usedIn: [

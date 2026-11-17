@@ -3,6 +3,7 @@ import { type AnyModuleDefinition, ModuleError } from "@webcraft/module-sdk";
 import wordpress from "@webcraft/module-wordpress-import";
 
 import { createTestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 for (const phase of ["test", "read"] as const) {
 	for (const expected of [false, true]) {
@@ -47,7 +48,7 @@ for (const phase of ["test", "read"] as const) {
 					applicationPassword: "never-log-this-password",
 				});
 				if (phase === "test") {
-					await expect(connecting).rejects.toMatchObject({ code: "IMPORT_INVALID" });
+					expect(await rejection(connecting)).toMatchObject({ code: "IMPORT_INVALID" });
 				} else {
 					const connected = await connecting;
 					await install.drainJobs();

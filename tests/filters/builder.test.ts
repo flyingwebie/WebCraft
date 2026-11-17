@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { withoutCodeRanges } from "../harness/code-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { buildShop, listed, optionsIn, type Shop } from "./shop.ts";
 
 let install: TestInstall;
@@ -128,21 +129,23 @@ describe("the live preview", () => {
 	});
 
 	test("refuses what saving refuses, every problem where it is", async () => {
-		await expect(
-			shop.staff.api.filters.preview({
-				siteId: shop.siteId,
-				filterId: shop.filterId,
-				layout: "grid",
-				controls: [{ type: "toggle", key: "vegan", label: "Vegan", field: "price" }],
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				shop.staff.api.filters.preview({
+					siteId: shop.siteId,
+					filterId: shop.filterId,
+					layout: "grid",
+					controls: [{ type: "toggle", key: "vegan", label: "Vegan", field: "price" }],
+				}),
+			),
+		).toMatchObject({
 			code: "FILTER_INVALID",
 			data: { problems: [{ at: "layout" }, { at: "controls[0].field" }] },
 		});
 	});
 
 	test("Members can't preview a Filter: it is Structure", async () => {
-		await expect(owner.api.filters.preview({ siteId: shop.siteId, filterId: shop.filterId })).rejects.toMatchObject({
+		expect(await rejection(owner.api.filters.preview({ siteId: shop.siteId, filterId: shop.filterId }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});

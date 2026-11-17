@@ -8,6 +8,7 @@ import wordpressImport from "@webcraft/module-wordpress-import";
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, TEST_PASSWORD, type TestAccount, type TestInstall } from "../harness/index.ts";
 import { authorizationParameters, pkcePair, registerClient } from "../harness/mcp.ts";
+import { rejection } from "../harness/settled.ts";
 import { exportedArchive, uploadArchive } from "../harness/site-transfer.ts";
 import { addAuthenticator, signInWithAuthenticator } from "../harness/two-factor.ts";
 import { sample } from "../modules/sample/index.ts";
@@ -198,13 +199,13 @@ describe("each Sensitive action", () => {
 				: await install.signIn(superadmin);
 			await install.clock.advance(11 * MINUTE);
 
-			await expect(call(browser.api, fixture)).rejects.toMatchObject({
+			expect(await rejection(call(browser.api, fixture))).toMatchObject({
 				code: "IDENTITY_CHECK_REQUIRED",
 				data: { action },
 			});
 
 			await browser.api.session.confirmIdentity({ password: TEST_PASSWORD });
-			await expect(call(browser.api, fixture)).resolves.toBeDefined();
+			expect(await call(browser.api, fixture)).toBeDefined();
 		});
 	}
 

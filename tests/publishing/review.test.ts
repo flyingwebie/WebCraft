@@ -8,6 +8,7 @@ import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { approveAiClient, connectMcp } from "../harness/mcp.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -303,12 +304,16 @@ describe("acting on it", () => {
 		const site = await newSite();
 		const { entry, review } = await submitted(site, "Autumn menu");
 		install.mail.clear();
-		await expect(
-			site.editor.browser.api.reviews.sendBack({ siteId: site.siteId, reviewId: review.id, comment: "   " }),
-		).rejects.toMatchObject({ code: "BAD_REQUEST" });
-		await expect(
-			site.author.browser.api.reviews.sendBack({ siteId: site.siteId, reviewId: review.id, comment: "Fine." }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(
+				site.editor.browser.api.reviews.sendBack({ siteId: site.siteId, reviewId: review.id, comment: "   " }),
+			),
+		).toMatchObject({ code: "BAD_REQUEST" });
+		expect(
+			await rejection(
+				site.author.browser.api.reviews.sendBack({ siteId: site.siteId, reviewId: review.id, comment: "Fine." }),
+			),
+		).toMatchObject({ code: "FORBIDDEN" });
 
 		const { review: sentBack } = await site.editor.browser.api.reviews.sendBack({
 			siteId: site.siteId,
@@ -327,13 +332,15 @@ describe("acting on it", () => {
 			decidedBy: { name: site.editor.name },
 		});
 		expect(shown.entry.status).toBe("draft");
-		await expect(
-			site.editor.browser.api.entries
-				.publish({ siteId: site.siteId, entryId: entry.id })
-				.then(() =>
-					site.editor.browser.api.reviews.sendBack({ siteId: site.siteId, reviewId: review.id, comment: "Again." }),
-				),
-		).rejects.toMatchObject({ code: "REVIEW_DECIDED", data: { status: "sentBack" } });
+		expect(
+			await rejection(
+				site.editor.browser.api.entries
+					.publish({ siteId: site.siteId, entryId: entry.id })
+					.then(() =>
+						site.editor.browser.api.reviews.sendBack({ siteId: site.siteId, reviewId: review.id, comment: "Again." }),
+					),
+			),
+		).toMatchObject({ code: "REVIEW_DECIDED", data: { status: "sentBack" } });
 		// Published since: the comment no longer shows.
 		const published = await site.author.browser.api.entries.get({ siteId: site.siteId, entryId: entry.id });
 		expect(published.entry.review).toBeNull();
@@ -452,12 +459,12 @@ describe("withdrawing", () => {
 		const { entry, review } = await submitted(site, "Pie");
 		const otherAuthor = await install.createMember({ workspaceId, role: "author", sites: [site.siteId] });
 		install.mail.clear();
-		await expect(
-			otherAuthor.browser.api.reviews.withdraw({ siteId: site.siteId, reviewId: review.id }),
-		).rejects.toMatchObject({ code: "REVIEW_NOT_YOURS" });
-		await expect(
-			site.editor.browser.api.reviews.withdraw({ siteId: site.siteId, reviewId: review.id }),
-		).rejects.toMatchObject({ code: "REVIEW_NOT_YOURS" });
+		expect(
+			await rejection(otherAuthor.browser.api.reviews.withdraw({ siteId: site.siteId, reviewId: review.id })),
+		).toMatchObject({ code: "REVIEW_NOT_YOURS" });
+		expect(
+			await rejection(site.editor.browser.api.reviews.withdraw({ siteId: site.siteId, reviewId: review.id })),
+		).toMatchObject({ code: "REVIEW_NOT_YOURS" });
 
 		const { review: withdrawn } = await site.author.browser.api.reviews.withdraw({
 			siteId: site.siteId,
@@ -468,12 +475,14 @@ describe("withdrawing", () => {
 			(await site.editor.browser.api.entries.get({ siteId: site.siteId, entryId: entry.id })).entry.review,
 		).toBeNull();
 		expect((await site.editor.browser.api.reviews.list({ siteId: site.siteId })).reviews).toEqual([]);
-		await expect(
-			site.author.browser.api.reviews.withdraw({ siteId: site.siteId, reviewId: review.id }),
-		).rejects.toMatchObject({ code: "REVIEW_DECIDED", data: { status: "withdrawn" } });
-		await expect(
-			site.editor.browser.api.reviews.sendBack({ siteId: site.siteId, reviewId: review.id, comment: "Late." }),
-		).rejects.toMatchObject({ code: "REVIEW_DECIDED" });
+		expect(
+			await rejection(site.author.browser.api.reviews.withdraw({ siteId: site.siteId, reviewId: review.id })),
+		).toMatchObject({ code: "REVIEW_DECIDED", data: { status: "withdrawn" } });
+		expect(
+			await rejection(
+				site.editor.browser.api.reviews.sendBack({ siteId: site.siteId, reviewId: review.id, comment: "Late." }),
+			),
+		).toMatchObject({ code: "REVIEW_DECIDED" });
 		await install.drainJobs();
 		expect(install.mail.sent).toEqual([]);
 		expect((await auditOf(site.siteId)).find((each) => each.action === "review.withdraw")).toMatchObject({
@@ -522,12 +531,16 @@ describe("what can be submitted", () => {
 		const entry = await draftEntry(site, "Scones");
 		const item = { kind: "entry" as const, id: entry.id };
 		await site.author.browser.api.reviews.submit({ siteId: site.siteId, items: [item] });
-		await expect(site.author.browser.api.reviews.submit({ siteId: site.siteId, items: [item] })).rejects.toMatchObject({
+		expect(
+			await rejection(site.author.browser.api.reviews.submit({ siteId: site.siteId, items: [item] })),
+		).toMatchObject({
 			code: "ALREADY_IN_REVIEW",
 			data: { item },
 		});
 		await site.editor.browser.api.entries.publish({ siteId: site.siteId, entryId: entry.id });
-		await expect(site.author.browser.api.reviews.submit({ siteId: site.siteId, items: [item] })).rejects.toMatchObject({
+		expect(
+			await rejection(site.author.browser.api.reviews.submit({ siteId: site.siteId, items: [item] })),
+		).toMatchObject({
 			code: "REVIEW_INVALID",
 			data: { reason: "nothingToReview", item },
 		});
@@ -538,15 +551,19 @@ describe("what can be submitted", () => {
 			fields: [{ key: "price", label: "Price", type: "text", required: true }],
 		});
 		const unpriced = await draftEntry(site, "Muffins");
-		await expect(
-			site.author.browser.api.reviews.submit({ siteId: site.siteId, items: [{ kind: "entry", id: unpriced.id }] }),
-		).rejects.toMatchObject({ code: "ENTRY_INCOMPLETE", data: { missing: ["price"] } });
-		await expect(
-			site.author.browser.api.reviews.submit({
-				siteId: site.siteId,
-				items: [{ kind: "template", id: entry.id } as never],
-			}),
-		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(
+			await rejection(
+				site.author.browser.api.reviews.submit({ siteId: site.siteId, items: [{ kind: "entry", id: unpriced.id }] }),
+			),
+		).toMatchObject({ code: "ENTRY_INCOMPLETE", data: { missing: ["price"] } });
+		expect(
+			await rejection(
+				site.author.browser.api.reviews.submit({
+					siteId: site.siteId,
+					items: [{ kind: "template", id: entry.id } as never],
+				}),
+			),
+		).toMatchObject({ code: "BAD_REQUEST" });
 		expect((await site.editor.browser.api.reviews.list({ siteId: site.siteId })).reviews).toEqual([]);
 	});
 
@@ -588,16 +605,20 @@ describe("Authors never publish", () => {
 		const author = site.author.browser.api;
 		const forbidden = { code: "FORBIDDEN" };
 
-		await expect(author.entries.publish({ siteId: site.siteId, entryId: entry.id })).rejects.toMatchObject(forbidden);
-		await expect(author.publishing.publishAll({ siteId: site.siteId, items: [item] })).rejects.toMatchObject(forbidden);
-		const at = new Date(install.clock.now().getTime() + 60 * MINUTE);
-		await expect(author.publishing.schedule({ siteId: site.siteId, item, at })).rejects.toMatchObject(forbidden);
-		await expect(author.publishing.scheduleAll({ siteId: site.siteId, items: [item], at })).rejects.toMatchObject(
+		expect(await rejection(author.entries.publish({ siteId: site.siteId, entryId: entry.id }))).toMatchObject(
 			forbidden,
 		);
-		await expect(author.globals.publish({ siteId: site.siteId })).rejects.toMatchObject(forbidden);
+		expect(await rejection(author.publishing.publishAll({ siteId: site.siteId, items: [item] }))).toMatchObject(
+			forbidden,
+		);
+		const at = new Date(install.clock.now().getTime() + 60 * MINUTE);
+		expect(await rejection(author.publishing.schedule({ siteId: site.siteId, item, at }))).toMatchObject(forbidden);
+		expect(await rejection(author.publishing.scheduleAll({ siteId: site.siteId, items: [item], at }))).toMatchObject(
+			forbidden,
+		);
+		expect(await rejection(author.globals.publish({ siteId: site.siteId }))).toMatchObject(forbidden);
 		const reviewId = (await author.reviews.list({ siteId: site.siteId })).reviews[0]?.id as string;
-		await expect(author.reviews.sendBack({ siteId: site.siteId, reviewId, comment: "Mine." })).rejects.toMatchObject(
+		expect(await rejection(author.reviews.sendBack({ siteId: site.siteId, reviewId, comment: "Mine." }))).toMatchObject(
 			forbidden,
 		);
 
@@ -607,7 +628,7 @@ describe("Authors never publish", () => {
 
 		const { secret } = await createApiToken(site.author.browser, { workspaceId, name: "Author's script" });
 		const script = tokenClient(install, secret);
-		await expect(script.api.entries.publish({ siteId: site.siteId, entryId: entry.id })).rejects.toMatchObject(
+		expect(await rejection(script.api.entries.publish({ siteId: site.siteId, entryId: entry.id }))).toMatchObject(
 			forbidden,
 		);
 

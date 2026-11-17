@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { pdf, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let siteId: string;
@@ -47,11 +48,11 @@ describe("folders", () => {
 
 	test("two folders can't share a name, whatever its case", async () => {
 		await editor.api.media.folders.create({ siteId, name: "Weddings" });
-		await expect(editor.api.media.folders.create({ siteId, name: "weddings" })).rejects.toMatchObject({
+		expect(await rejection(editor.api.media.folders.create({ siteId, name: "weddings" }))).toMatchObject({
 			code: "MEDIA_FOLDER_TAKEN",
 			status: 409,
 		});
-		await expect(editor.api.media.folders.create({ siteId, name: "   " })).rejects.toMatchObject({
+		expect(await rejection(editor.api.media.folders.create({ siteId, name: "   " }))).toMatchObject({
 			code: "BAD_REQUEST",
 		});
 	});
@@ -73,12 +74,12 @@ describe("folders", () => {
 
 	test("a folder of another Site, or none, is refused", async () => {
 		const file = await uploadPdf("stray.pdf");
-		await expect(
-			editor.api.media.update({ siteId, mediaId: file.id, folderId: crypto.randomUUID() }),
-		).rejects.toMatchObject({ code: "MEDIA_FOLDER_NOT_FOUND", status: 404 });
-		await expect(
-			editor.api.media.upload({ siteId, file: upload(pdf(), "x.pdf"), folderId: crypto.randomUUID() }),
-		).rejects.toMatchObject({ code: "MEDIA_FOLDER_NOT_FOUND" });
+		expect(
+			await rejection(editor.api.media.update({ siteId, mediaId: file.id, folderId: crypto.randomUUID() })),
+		).toMatchObject({ code: "MEDIA_FOLDER_NOT_FOUND", status: 404 });
+		expect(
+			await rejection(editor.api.media.upload({ siteId, file: upload(pdf(), "x.pdf"), folderId: crypto.randomUUID() })),
+		).toMatchObject({ code: "MEDIA_FOLDER_NOT_FOUND" });
 	});
 });
 
@@ -169,23 +170,25 @@ describe("title, alt text and caption", () => {
 
 	test("a language the Site doesn't have is refused", async () => {
 		const file = await uploadPdf("languages.pdf");
-		await expect(
-			editor.api.media.update({ siteId, mediaId: file.id, language: "de", alt: "Ein Brot" }),
-		).rejects.toMatchObject({ code: "MEDIA_INVALID", status: 400 });
-		await expect(editor.api.media.get({ siteId, mediaId: file.id, language: "de" })).rejects.toMatchObject({
+		expect(
+			await rejection(editor.api.media.update({ siteId, mediaId: file.id, language: "de", alt: "Ein Brot" })),
+		).toMatchObject({ code: "MEDIA_INVALID", status: 400 });
+		expect(await rejection(editor.api.media.get({ siteId, mediaId: file.id, language: "de" }))).toMatchObject({
 			code: "MEDIA_INVALID",
 		});
 	});
 
 	test("an alt text over 1000 characters is refused", async () => {
 		const file = await uploadPdf("long.pdf");
-		await expect(editor.api.media.update({ siteId, mediaId: file.id, alt: "a".repeat(1001) })).rejects.toMatchObject({
-			code: "BAD_REQUEST",
-		});
+		expect(await rejection(editor.api.media.update({ siteId, mediaId: file.id, alt: "a".repeat(1001) }))).toMatchObject(
+			{
+				code: "BAD_REQUEST",
+			},
+		);
 	});
 
 	test("a Media item of another Site isn't found", async () => {
-		await expect(editor.api.media.get({ siteId, mediaId: crypto.randomUUID() })).rejects.toMatchObject({
+		expect(await rejection(editor.api.media.get({ siteId, mediaId: crypto.randomUUID() }))).toMatchObject({
 			code: "MEDIA_NOT_FOUND",
 			status: 404,
 		});

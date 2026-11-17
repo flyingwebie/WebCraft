@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { RecordedRequest } from "../harness/fake-http.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { element, tree, value } from "../harness/trees.ts";
 import { receiverAccepts } from "./support.ts";
 
@@ -112,7 +113,7 @@ describe("publishing an Entry", () => {
 		});
 		const { entry } = await staff.api.entries.create({ siteId, postTypeId: postType.id, title: "Unpriced loaf" });
 
-		await expect(staff.api.entries.publish({ siteId, entryId: entry.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.entries.publish({ siteId, entryId: entry.id }))).toMatchObject({
 			code: "ENTRY_INCOMPLETE",
 		});
 		await install.drainJobs();

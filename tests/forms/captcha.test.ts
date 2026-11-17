@@ -8,6 +8,7 @@ import { openEditMode } from "../harness/edit-mode.ts";
 import { formIn, formVisitor } from "../harness/forms.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage, policyOf } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -81,7 +82,7 @@ describe("setting it up", () => {
 		expect(view.captcha).toEqual(CAPTCHA);
 		expect(view.secret).toMatchObject({ set: true, lastFour: "1234" });
 		expect(JSON.stringify(await staff.api.forms.captcha.get({ siteId }))).not.toContain("the-secret-key");
-		await expect(owner.api.forms.captcha.get({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(owner.api.forms.captcha.get({ siteId }))).toMatchObject({ code: "FORBIDDEN" });
 	});
 
 	test("a CAPTCHA needs its secret key, and addresses on https", async () => {
@@ -89,17 +90,19 @@ describe("setting it up", () => {
 			await install.createSite((await staff.api.sites.get({ siteId })).site.workspaceId, { slug: "other" })
 		).id;
 
-		await expect(staff.api.forms.captcha.set({ siteId: other, captcha: CAPTCHA })).rejects.toMatchObject({
+		expect(await rejection(staff.api.forms.captcha.set({ siteId: other, captcha: CAPTCHA }))).toMatchObject({
 			code: "CAPTCHA_INVALID",
 			data: { problems: [{ at: "secret" }] },
 		});
-		await expect(
-			staff.api.forms.captcha.set({
-				siteId: other,
-				captcha: { ...CAPTCHA, verifyUrl: "http://plain.example/check" },
-				secret: "x",
-			}),
-		).rejects.toMatchObject({ code: "CAPTCHA_INVALID", data: { problems: [{ at: "verifyUrl" }] } });
+		expect(
+			await rejection(
+				staff.api.forms.captcha.set({
+					siteId: other,
+					captcha: { ...CAPTCHA, verifyUrl: "http://plain.example/check" },
+					secret: "x",
+				}),
+			),
+		).toMatchObject({ code: "CAPTCHA_INVALID", data: { problems: [{ at: "verifyUrl" }] } });
 	});
 
 	test("pages with a Form show its widget and load the provider's script", async () => {

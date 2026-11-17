@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { thrown } from "../harness/settled.ts";
 
 let install: TestInstall;
 let superadmin: TestAccount;
@@ -88,7 +89,7 @@ describe("a System email", () => {
 			data: { resetPath: "https://elsewhere.example/steal", expiresInMinutes: 30 },
 		});
 
-		await expect(sending).rejects.toThrow();
+		expect(await thrown(sending)).toThrow();
 		await install.drainJobs();
 		expect(install.mail.sent).toEqual([]);
 	});

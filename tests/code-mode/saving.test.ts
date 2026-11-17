@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { answer, mainOf, openCodeMode, withoutCodeRanges } from "../harness/code-mode.ts";
 import { type EditModeBrowser, openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -337,9 +338,16 @@ describe("the Management API's markup saves", () => {
 			markup: ARTICLE.replace("Fresh", "Warm"),
 			basedOn: first.version,
 		});
-		await expect(
-			otherStaff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId, markup: ARTICLE, basedOn: first.version }),
-		).rejects.toMatchObject({ code: "CHANGED_MEANWHILE", data: { version: saved.version } });
+		expect(
+			await rejection(
+				otherStaff.api.templates.saveEntryTemplateMarkup({
+					siteId,
+					postTypeId,
+					markup: ARTICLE,
+					basedOn: first.version,
+				}),
+			),
+		).toMatchObject({ code: "CHANGED_MEANWHILE", data: { version: saved.version } });
 
 		const component = await staff.api.components.getMarkup({ siteId, componentId });
 		await staff.api.components.saveMarkup({
@@ -348,22 +356,26 @@ describe("the Management API's markup saves", () => {
 			markup: component.markup.draft,
 			basedOn: component.version,
 		});
-		await expect(
-			staff.api.components.saveMarkup({
-				siteId,
-				componentId,
-				markup: "<p>{{ props.heading }}</p>",
-				basedOn: "0000000000000000",
-			}),
-		).rejects.toMatchObject({ code: "CHANGED_MEANWHILE" });
+		expect(
+			await rejection(
+				staff.api.components.saveMarkup({
+					siteId,
+					componentId,
+					markup: "<p>{{ props.heading }}</p>",
+					basedOn: "0000000000000000",
+				}),
+			),
+		).toMatchObject({ code: "CHANGED_MEANWHILE" });
 
-		await expect(
-			staff.api.templates.saveSiteTemplateMarkup({
-				siteId,
-				markup: "<main>{{@outlet}}</main>",
-				basedOn: "0000000000000000",
-			}),
-		).rejects.toMatchObject({ code: "CHANGED_MEANWHILE", data: { version: null } });
+		expect(
+			await rejection(
+				staff.api.templates.saveSiteTemplateMarkup({
+					siteId,
+					markup: "<main>{{@outlet}}</main>",
+					basedOn: "0000000000000000",
+				}),
+			),
+		).toMatchObject({ code: "CHANGED_MEANWHILE", data: { version: null } });
 		const made = await staff.api.templates.saveSiteTemplateMarkup({
 			siteId,
 			markup: "<main>{{@outlet}}</main>",

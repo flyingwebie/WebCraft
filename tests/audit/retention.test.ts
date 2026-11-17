@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -75,10 +76,10 @@ test("the Superadmin chooses how long, which is recorded", async () => {
 test("never less than 90 days, nor more than 10 years", async () => {
 	await signIn();
 
-	await expect(superadmin.api.install.security.setAuditRetention({ days: 30 })).rejects.toMatchObject({
+	expect(await rejection(superadmin.api.install.security.setAuditRetention({ days: 30 }))).toMatchObject({
 		code: "BAD_REQUEST",
 	});
-	await expect(superadmin.api.install.security.setAuditRetention({ days: 3651 })).rejects.toMatchObject({
+	expect(await rejection(superadmin.api.install.security.setAuditRetention({ days: 3651 }))).toMatchObject({
 		code: "BAD_REQUEST",
 	});
 });
@@ -88,8 +89,8 @@ test("only the Superadmin changes it", async () => {
 	const { workspace } = await superadmin.api.workspaces.create({ name: "Staffed Ltd" });
 	const staff = await install.createStaff({ workspaces: [workspace.id] });
 
-	await expect(staff.browser.api.install.security.setAuditRetention({ days: 400 })).rejects.toMatchObject({
+	expect(await rejection(staff.browser.api.install.security.setAuditRetention({ days: 400 }))).toMatchObject({
 		code: "FORBIDDEN",
 	});
-	await expect(staff.browser.api.install.security.auditRetention()).rejects.toMatchObject({ code: "FORBIDDEN" });
+	expect(await rejection(staff.browser.api.install.security.auditRetention())).toMatchObject({ code: "FORBIDDEN" });
 });

@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 import { element, tree, value } from "../harness/trees.ts";
 
@@ -74,18 +75,20 @@ describe("creating a Component", () => {
 	});
 
 	test("Props are checked as Fields are, each problem where it is", async () => {
-		await expect(
-			staff.api.components.create({
-				siteId,
-				name: "Broken",
-				props: [
-					{ key: "heading", label: "Heading", type: "text" },
-					{ key: "size", label: "Size", type: "select", options: [] },
-					{ key: "heading", label: "Again", type: "text" },
-					{ key: "and", label: "And", type: "text" },
-				],
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.components.create({
+					siteId,
+					name: "Broken",
+					props: [
+						{ key: "heading", label: "Heading", type: "text" },
+						{ key: "size", label: "Size", type: "select", options: [] },
+						{ key: "heading", label: "Again", type: "text" },
+						{ key: "and", label: "And", type: "text" },
+					],
+				}),
+			),
+		).toMatchObject({
 			code: "COMPONENT_INVALID",
 			data: {
 				problems: [
@@ -99,22 +102,22 @@ describe("creating a Component", () => {
 
 	test("its name is a PascalCase tag name, unique on the Site", async () => {
 		for (const name of ["postCard", "POSTCARD", "Post-Card", "Post Card", "", "P".repeat(65)]) {
-			await expect(staff.api.components.create({ siteId, name })).rejects.toMatchObject({
+			expect(await rejection(staff.api.components.create({ siteId, name }))).toMatchObject({
 				code: "COMPONENT_INVALID",
 				data: { problems: [{ at: "name" }] },
 			});
 		}
 		await staff.api.components.create({ siteId, name: "Banner" });
-		await expect(staff.api.components.create({ siteId, name: "Banner" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.components.create({ siteId, name: "Banner" }))).toMatchObject({
 			code: "COMPONENT_NAME_TAKEN",
 		});
 	});
 
 	test("is Structure: Members can't create or see Components", async () => {
-		await expect(owner.api.components.create({ siteId, name: "Sneaky" })).rejects.toMatchObject({
+		expect(await rejection(owner.api.components.create({ siteId, name: "Sneaky" }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(owner.api.components.list({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(owner.api.components.list({ siteId }))).toMatchObject({ code: "FORBIDDEN" });
 	});
 });
 
@@ -158,13 +161,15 @@ describe("a Component's Draft", () => {
 			props: [{ key: "link", label: "Link", type: "link" }],
 		});
 
-		await expect(
-			staff.api.components.saveMarkup({
-				siteId,
-				componentId: component.id,
-				markup: "<p>{{ props.nope }}</p>\n<p>{{ title }} {{ props.link.colour }}</p>",
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.components.saveMarkup({
+					siteId,
+					componentId: component.id,
+					markup: "<p>{{ props.nope }}</p>\n<p>{{ title }} {{ props.link.colour }}</p>",
+				}),
+			),
+		).toMatchObject({
 			code: "TEMPLATE_MARKUP_INVALID",
 			data: {
 				problems: [
@@ -179,9 +184,11 @@ describe("a Component's Draft", () => {
 	test("holds neither <main> nor {{@outlet}}: it goes inside pages", async () => {
 		const { component } = await staff.api.components.create({ siteId, name: "Frame" });
 
-		await expect(
-			staff.api.components.saveMarkup({ siteId, componentId: component.id, markup: "<main>{{@outlet}}</main>" }),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.components.saveMarkup({ siteId, componentId: component.id, markup: "<main>{{@outlet}}</main>" }),
+			),
+		).toMatchObject({
 			code: "TEMPLATE_MARKUP_INVALID",
 			data: {
 				problems: [
@@ -222,13 +229,15 @@ describe("a Component's Draft", () => {
 			],
 		});
 		expect(changed.component.draft.props[0]?.type).toBe("number");
-		await expect(
-			staff.api.components.saveDraft({
-				siteId,
-				componentId: component.id,
-				props: [{ key: "heading", label: "Heading", type: "text" }],
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.components.saveDraft({
+					siteId,
+					componentId: component.id,
+					props: [{ key: "heading", label: "Heading", type: "text" }],
+				}),
+			),
+		).toMatchObject({
 			code: "TEMPLATE_INVALID",
 			data: { problems: [{ message: "There is no Prop named count on this Component." }] },
 		});
@@ -368,12 +377,12 @@ describe("where a Component is used", () => {
 		});
 		expect(recipes.markup?.draft).toMatch(/^<div data-wc-id="\w+"><SideNote data-wc-id="\w+" \/><\/div>$/);
 		expect(recipes.markup?.published).toBe(recipes.markup?.draft);
-		await expect(
-			staff.api.components.rename({ siteId: site, componentId: footnoteId, name: "Wrapper" }),
-		).rejects.toMatchObject({ code: "COMPONENT_NAME_TAKEN" });
-		await expect(
-			staff.api.components.rename({ siteId: site, componentId: footnoteId, name: "side-note" }),
-		).rejects.toMatchObject({ code: "COMPONENT_INVALID", data: { problems: [{ at: "name" }] } });
+		expect(
+			await rejection(staff.api.components.rename({ siteId: site, componentId: footnoteId, name: "Wrapper" })),
+		).toMatchObject({ code: "COMPONENT_NAME_TAKEN" });
+		expect(
+			await rejection(staff.api.components.rename({ siteId: site, componentId: footnoteId, name: "side-note" })),
+		).toMatchObject({ code: "COMPONENT_INVALID", data: { problems: [{ at: "name" }] } });
 	});
 
 	test("deleting it is refused while anything places it, listing where", async () => {
@@ -403,7 +412,7 @@ describe("where a Component is used", () => {
 		const done = await staff.api.components.delete({ siteId: site, componentId: component.id, confirmation });
 
 		expect(done).toEqual({ deleted: true });
-		await expect(staff.api.components.get({ siteId: site, componentId: component.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.components.get({ siteId: site, componentId: component.id }))).toMatchObject({
 			code: "COMPONENT_NOT_FOUND",
 		});
 		const logged = (await (await install.superadmin()).api.audit.list({ limit: 20 })).entries.map((entry) => [

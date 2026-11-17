@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { analyticsApi, analyticsVisitor, liveSite } from "../harness/analytics.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -160,36 +161,44 @@ describe("a Dashboard's grid", () => {
 		const dashboardId = dashboard.id;
 		const refused = (problem: string) => expect.objectContaining({ code: "DASHBOARD_INVALID", data: { problem } });
 
-		await expect(
-			staff.api.dashboards.widgets.add({ siteId, dashboardId, kind: "site-analytics:nope" }),
-		).rejects.toEqual(refused("kind"));
-		await expect(
-			staff.api.dashboards.widgets.add({
-				siteId,
-				dashboardId,
-				kind: "site-analytics:funnel",
-				filters: { page: { path: "/", match: "exact" } },
-			}),
-		).rejects.toEqual(refused("filter"));
-		await expect(
-			staff.api.dashboards.widgets.add({
-				siteId,
-				dashboardId,
-				kind: "site-analytics:totals",
-				settings: { measures: ["bounces"] },
-			}),
-		).rejects.toEqual(refused("setting"));
-		await expect(
-			staff.api.dashboards.widgets.add({
-				siteId,
-				dashboardId,
-				kind: "site-analytics:totals",
-				range: { preset: "custom", from: "2026-03-10", to: "2026-03-01" },
-			}),
-		).rejects.toEqual(refused("range"));
-		await expect(
-			staff.api.dashboards.widgets.add({ siteId, dashboardId, kind: "note", settings: { text: "x".repeat(2001) } }),
-		).rejects.toMatchObject({ status: 400 });
+		expect(
+			await rejection(staff.api.dashboards.widgets.add({ siteId, dashboardId, kind: "site-analytics:nope" })),
+		).toEqual(refused("kind"));
+		expect(
+			await rejection(
+				staff.api.dashboards.widgets.add({
+					siteId,
+					dashboardId,
+					kind: "site-analytics:funnel",
+					filters: { page: { path: "/", match: "exact" } },
+				}),
+			),
+		).toEqual(refused("filter"));
+		expect(
+			await rejection(
+				staff.api.dashboards.widgets.add({
+					siteId,
+					dashboardId,
+					kind: "site-analytics:totals",
+					settings: { measures: ["bounces"] },
+				}),
+			),
+		).toEqual(refused("setting"));
+		expect(
+			await rejection(
+				staff.api.dashboards.widgets.add({
+					siteId,
+					dashboardId,
+					kind: "site-analytics:totals",
+					range: { preset: "custom", from: "2026-03-10", to: "2026-03-01" },
+				}),
+			),
+		).toEqual(refused("range"));
+		expect(
+			await rejection(
+				staff.api.dashboards.widgets.add({ siteId, dashboardId, kind: "note", settings: { text: "x".repeat(2001) } }),
+			),
+		).toMatchObject({ status: 400 });
 	});
 });
 

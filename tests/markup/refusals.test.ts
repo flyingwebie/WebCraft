@@ -206,9 +206,7 @@ describe("limits", () => {
 	test("elements nest at most 64 deep", async () => {
 		const deep = (levels: number) => `${"<div>".repeat(levels)}x${"</div>".repeat(levels)}`;
 
-		await expect(
-			staff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId, markup: deep(63) }),
-		).resolves.toBeDefined();
+		expect(await staff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId, markup: deep(63) })).toBeDefined();
 		await refuses(deep(64), 1, 321, "Elements nest at most 64 deep");
 		await refuses(`${"{{@if title}}".repeat(64)}x${"{{/if}}".repeat(64)}`, 1, 833, "Elements nest at most 64 deep");
 	});

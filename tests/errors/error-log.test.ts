@@ -11,6 +11,7 @@ import { buildingAreaApi } from "../harness/building-area-api.ts";
 import { pdf, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 import { sample } from "../modules/sample/index.ts";
 
@@ -113,9 +114,11 @@ describe("failures in requests", () => {
 		const folder = join(install.storageDir, workspace.id, site.id);
 		chmodSync(folder, 0o000);
 		try {
-			await expect(
-				api.media.upload({ siteId: site.id, file: upload(await photo({ width: 20, height: 10 }), "loaf.jpg") }),
-			).rejects.toMatchObject({ status: 500 });
+			expect(
+				await rejection(
+					api.media.upload({ siteId: site.id, file: upload(await photo({ width: 20, height: 10 }), "loaf.jpg") }),
+				),
+			).toMatchObject({ status: 500 });
 		} finally {
 			chmodSync(folder, 0o755);
 		}
@@ -135,8 +138,8 @@ describe("failures in requests", () => {
 		const workspace = await install.createWorkspace();
 		const member = await install.createMember({ workspaceId: workspace.id, role: "author" });
 
-		await expect(admin.api.workspaces.create({ name: "" })).rejects.toMatchObject({ code: "BAD_REQUEST" });
-		await expect(member.browser.api.errorLog.list({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(admin.api.workspaces.create({ name: "" }))).toMatchObject({ code: "BAD_REQUEST" });
+		expect(await rejection(member.browser.api.errorLog.list({}))).toMatchObject({ code: "FORBIDDEN" });
 		expect(await install.request(install.adminUrl("/api/rpc/no/such/procedure"), { method: "POST" })).toHaveProperty(
 			"status",
 			404,
@@ -153,9 +156,9 @@ describe("who reads it", () => {
 		const { browser: owner } = await install.createMember({ workspaceId: workspace.id, role: "owner" });
 
 		for (const browser of [staff, owner]) {
-			await expect(browser.api.errorLog.list({})).rejects.toMatchObject({ code: "FORBIDDEN" });
+			expect(await rejection(browser.api.errorLog.list({}))).toMatchObject({ code: "FORBIDDEN" });
 		}
-		await expect(install.browser().api.errorLog.list({})).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+		expect(await rejection(install.browser().api.errorLog.list({}))).toMatchObject({ code: "UNAUTHORIZED" });
 	});
 });
 
@@ -186,7 +189,7 @@ describe("resolving", () => {
 	});
 
 	test("a cause that isn't there any more is refused", async () => {
-		await expect(admin.api.errorLog.resolve({ groupId: crypto.randomUUID() })).rejects.toMatchObject({
+		expect(await rejection(admin.api.errorLog.resolve({ groupId: crypto.randomUUID() }))).toMatchObject({
 			code: "ERROR_GROUP_NOT_FOUND",
 			status: 404,
 		});
@@ -231,9 +234,11 @@ describe("what isn't in it", () => {
 			const workspace = await withModule.createWorkspace();
 			const site = await withModule.createSite(workspace.id);
 
-			await expect(moduleApi<typeof sample>(superadmin, "sample").broken({ siteId: site.id })).rejects.toMatchObject({
-				code: "MODULE_FAILED",
-			});
+			expect(await rejection(moduleApi<typeof sample>(superadmin, "sample").broken({ siteId: site.id }))).toMatchObject(
+				{
+					code: "MODULE_FAILED",
+				},
+			);
 
 			expect((await superadmin.api.modules.log({ moduleId: "sample" })).lines[0]).toMatchObject({ level: "error" });
 			expect((await superadmin.api.errorLog.list({ state: "all" })).groups).toEqual([]);

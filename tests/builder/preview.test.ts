@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { withoutCodeRanges } from "../harness/code-mode.ts";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectNoInlineCode } from "../harness/site-safety.ts";
 import { element, outlet, text, tree, value, withId } from "../harness/trees.ts";
 
@@ -116,7 +117,7 @@ describe("an Entry template", () => {
 			await api.postTypes.create({ siteId: ownSite, name: "Other", urlPattern: "/other/{slug}", fields: [] })
 		).postType;
 		const foreign = (await api.entries.create({ siteId: ownSite, postTypeId: other.id, title: "Wrong" })).entry;
-		await expect(api.builder.preview({ ...input, entryId: foreign.id })).rejects.toMatchObject({
+		expect(await rejection(api.builder.preview({ ...input, entryId: foreign.id }))).toMatchObject({
 			code: "ENTRY_NOT_FOUND",
 		});
 	});
@@ -156,7 +157,7 @@ describe("an Entry template", () => {
 
 	test("refuses what a save would refuse, saying where", async () => {
 		const refused = async (input: { tree: unknown; styles?: Record<string, string> }, at: string) => {
-			await expect(staff.api.builder.preview({ siteId, target: entryTemplate(), ...input })).rejects.toMatchObject({
+			expect(await rejection(staff.api.builder.preview({ siteId, target: entryTemplate(), ...input }))).toMatchObject({
 				code: "TEMPLATE_INVALID",
 				data: { problems: [expect.objectContaining({ at })] },
 			});

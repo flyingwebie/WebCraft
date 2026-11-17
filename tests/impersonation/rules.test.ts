@@ -7,6 +7,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { impersonate, type WithSecondFactor, withSecondFactor } from "../harness/impersonation.ts";
 import { createTestInstall, TEST_PASSWORD, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { signInWithAuthenticator } from "../harness/two-factor.ts";
 
 const MINUTE = 60 * 1000;
@@ -76,15 +77,15 @@ describe("Staff", () => {
 			endsAt: new Date(install.clock.now().getTime() + 60 * MINUTE),
 		});
 		// As the Editor, not as Staff: no Members screen.
-		await expect(anna.browser.api.members.list({ workspaceId: acme })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(anna.browser.api.members.list({ workspaceId: acme }))).toMatchObject({ code: "FORBIDDEN" });
 	});
 
 	test("never impersonate other Staff or the Superadmin", async () => {
-		await expect(impersonate(anna.browser, tom.personId)).rejects.toMatchObject({
+		expect(await rejection(impersonate(anna.browser, tom.personId))).toMatchObject({
 			code: "IMPERSONATION_REFUSED",
 			data: { reason: "staff" },
 		});
-		await expect(impersonate(anna.browser, superadmin.personId)).rejects.toMatchObject({
+		expect(await rejection(impersonate(anna.browser, superadmin.personId))).toMatchObject({
 			code: "IMPERSONATION_REFUSED",
 			data: { reason: "superadmin" },
 		});
@@ -92,20 +93,22 @@ describe("Staff", () => {
 	});
 
 	test("never impersonate a Member of a Workspace they aren't assigned to", async () => {
-		await expect(impersonate(anna.browser, nimbusAuthor.personId)).rejects.toMatchObject({ code: "PERSON_NOT_FOUND" });
+		expect(await rejection(impersonate(anna.browser, nimbusAuthor.personId))).toMatchObject({
+			code: "PERSON_NOT_FOUND",
+		});
 	});
 
 	test("reach only their own Workspaces as a Member who belongs to others too", async () => {
 		await impersonate(anna.browser, both.personId);
 
 		expect((await anna.browser.api.shell.context()).workspaces.map((workspace) => workspace.id)).toEqual([acme]);
-		await expect(anna.browser.api.sites.list({ workspaceId: nimbus })).rejects.toMatchObject({
+		expect(await rejection(anna.browser.api.sites.list({ workspaceId: nimbus }))).toMatchObject({
 			code: "WORKSPACE_NOT_FOUND",
 		});
 	});
 
 	test("can't impersonate themselves", async () => {
-		await expect(impersonate(anna.browser, anna.personId)).rejects.toMatchObject({
+		expect(await rejection(impersonate(anna.browser, anna.personId))).toMatchObject({
 			code: "IMPERSONATION_REFUSED",
 			data: { reason: "self" },
 		});
@@ -133,7 +136,7 @@ describe("the Superadmin", () => {
 
 describe("Members", () => {
 	test("never impersonate anyone, not even in their own Workspace", async () => {
-		await expect(impersonate(owner.browser, editor.personId)).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(impersonate(owner.browser, editor.personId))).toMatchObject({ code: "FORBIDDEN" });
 	});
 });
 
@@ -141,14 +144,14 @@ describe("starting", () => {
 	test("needs the impersonator's own second factor", async () => {
 		const plain = await install.createStaff({ workspaces: [acme] });
 
-		await expect(impersonate(plain.browser, editor.personId)).rejects.toMatchObject({ code: "TWO_FACTOR_OFF" });
+		expect(await rejection(impersonate(plain.browser, editor.personId))).toMatchObject({ code: "TWO_FACTOR_OFF" });
 		expect(await actingAs(plain.browser)).toBe(plain.personId);
 	});
 
 	test("needs a recent identity check (a Sensitive action)", async () => {
 		await install.clock.advance(11 * MINUTE);
 
-		await expect(anna.browser.api.impersonation.start({ personId: editor.personId })).rejects.toMatchObject({
+		expect(await rejection(anna.browser.api.impersonation.start({ personId: editor.personId }))).toMatchObject({
 			code: "IDENTITY_CHECK_REQUIRED",
 			data: { action: "impersonation.start" },
 		});
@@ -160,7 +163,7 @@ describe("starting", () => {
 	test("one at a time: not while impersonating someone already", async () => {
 		await impersonate(anna.browser, editor.personId);
 
-		await expect(anna.browser.api.impersonation.start({ personId: owner.personId })).rejects.toMatchObject({
+		expect(await rejection(anna.browser.api.impersonation.start({ personId: owner.personId }))).toMatchObject({
 			code: "NOT_WHILE_IMPERSONATING",
 		});
 	});
@@ -186,7 +189,7 @@ describe("ending", () => {
 		expect(await actingAs(anna.browser)).toBe(anna.personId);
 		expect((await anna.browser.api.shell.context()).impersonation).toBeNull();
 		// Their own Members screen again.
-		await expect(anna.browser.api.members.list({ workspaceId: acme })).resolves.toBeDefined();
+		expect(await anna.browser.api.members.list({ workspaceId: acme })).toBeDefined();
 	});
 
 	test("after an hour at most it ends by itself, back to the impersonator", async () => {
@@ -245,7 +248,7 @@ describe("ending", () => {
 
 	test("a return address is a page of the admin, nowhere else", async () => {
 		for (const returnTo of ["https://evil.example/", "//evil.example/", "javascript:alert(1)"]) {
-			await expect(impersonate(anna.browser, editor.personId, { returnTo })).rejects.toMatchObject({
+			expect(await rejection(impersonate(anna.browser, editor.personId, { returnTo }))).toMatchObject({
 				code: "BAD_REQUEST",
 			});
 		}

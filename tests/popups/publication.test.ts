@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -22,14 +23,16 @@ test("API publishing clients are directed to the Popup before previewing or sche
 	});
 	const { api } = tokenClient(install, secret);
 	const refusal = { code: "POPUP_PUBLISH_REQUIRED", data: { item: { kind: "popup", id: popup.id } } };
-	await expect(api.components.publish({ siteId, componentId: popup.componentId })).rejects.toMatchObject(refusal);
-	await expect(
-		api.publishing.schedule({
-			siteId,
-			item: { kind: "component", id: popup.componentId },
-			at: new Date(install.clock.now().getTime() + 60_000),
-		}),
-	).rejects.toMatchObject(refusal);
+	expect(await rejection(api.components.publish({ siteId, componentId: popup.componentId }))).toMatchObject(refusal);
+	expect(
+		await rejection(
+			api.publishing.schedule({
+				siteId,
+				item: { kind: "component", id: popup.componentId },
+				at: new Date(install.clock.now().getTime() + 60_000),
+			}),
+		),
+	).toMatchObject(refusal);
 	const preview = (await api.popups.publish({ siteId, popupId: popup.id })) as unknown as {
 		preview: { item: unknown };
 		confirmation: { id: string };
@@ -46,9 +49,9 @@ test("a schedule freezes the whole Popup and refuses its backing Component on it
 	await fixture.change();
 	const { api, siteId, popup } = fixture;
 	const at = new Date(install.clock.now().getTime() + 60_000);
-	await expect(
-		api.publishing.schedule({ siteId, item: { kind: "component", id: popup.componentId }, at }),
-	).rejects.toMatchObject({ code: "POPUP_PUBLISH_REQUIRED" });
+	expect(
+		await rejection(api.publishing.schedule({ siteId, item: { kind: "component", id: popup.componentId }, at })),
+	).toMatchObject({ code: "POPUP_PUBLISH_REQUIRED" });
 	await api.publishing.schedule({ siteId, item: { kind: "popup", id: popup.id }, at });
 	await api.popups.saveDraft({ siteId, popupId: popup.id, popup: { layout: "slide-in" } });
 	await api.components.saveMarkup({ siteId, componentId: popup.componentId, markup: "<p>Later unscheduled tree</p>" });
@@ -73,9 +76,9 @@ test("Publish all includes the Popup once, and a retained Component publishes no
 	const drafts = (await api.publishing.drafts({ siteId })).drafts;
 	expect(drafts.filter((draft) => draft.item.kind === "popup" && draft.item.id === popup.id)).toHaveLength(1);
 	expect(drafts.some((draft) => draft.item.kind === "component" && draft.item.id === popup.componentId)).toBe(false);
-	await expect(
-		api.publishing.publishAll({ siteId, items: [{ kind: "component", id: popup.componentId }] }),
-	).rejects.toMatchObject({ code: "PUBLISH_ALL_INVALID" });
+	expect(
+		await rejection(api.publishing.publishAll({ siteId, items: [{ kind: "component", id: popup.componentId }] })),
+	).toMatchObject({ code: "PUBLISH_ALL_INVALID" });
 	const items = [{ kind: "popup" as const, id: popup.id }];
 	const preview = await api.publishing.publishAll({ siteId, items });
 	if (preview.published) throw new Error("Expected a confirmation");
@@ -83,7 +86,7 @@ test("Publish all includes the Popup once, and a retained Component publishes no
 	expect(await fixture.html()).toContain("Changed Popup tree");
 	expect(await fixture.html()).not.toContain("Unrelated pending Component");
 	const foreign = (await install.createSite(fixture.workspaceId)).id;
-	await expect(api.components.publish({ siteId: foreign, componentId: popup.componentId })).rejects.toMatchObject({
+	expect(await rejection(api.components.publish({ siteId: foreign, componentId: popup.componentId }))).toMatchObject({
 		code: "COMPONENT_NOT_FOUND",
 	});
 	const removal = await api.popups.delete({ siteId, popupId: popup.id });
@@ -179,7 +182,7 @@ test("publishing a backing Component is refused with its Popup action, leaving l
 	const { api, siteId, popup } = fixture;
 	const before = (await fixture.history()).copies.filter((copy) => copy.type === "revision").length;
 	await fixture.change();
-	await expect(api.components.publish({ siteId, componentId: popup.componentId })).rejects.toMatchObject({
+	expect(await rejection(api.components.publish({ siteId, componentId: popup.componentId }))).toMatchObject({
 		code: "POPUP_PUBLISH_REQUIRED",
 		data: { item: { kind: "popup", id: popup.id } },
 	});

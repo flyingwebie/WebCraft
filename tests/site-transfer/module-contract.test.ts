@@ -14,6 +14,7 @@ import {
 	galleryImage,
 	importGallery,
 } from "../harness/module-contracts.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { exportedArchive } from "../harness/site-transfer.ts";
 import { goLive } from "../harness/staging.ts";
@@ -39,10 +40,10 @@ test("imported source Props fence incompatible same-key types while unchanged Bo
 	await admin.api.modules.setOnSite({ siteId, moduleId: "extra-blocks", on: true });
 	const mixed = galleryBlock(mediaId, mediaId, "Written with v2");
 	// The Spec repro used a new v2 Entry, while the existing Site's archive still described v1.
-	await expect(
-		admin.api.entries.create({ siteId, postTypeId, title: "New v2", fields: { body: [mixed] } }),
-	).rejects.toMatchObject({ code: "ENTRY_INVALID" });
-	await expect(admin.api.entries.saveDraft({ siteId, entryId, fields: { body: [mixed] } })).rejects.toMatchObject({
+	expect(
+		await rejection(admin.api.entries.create({ siteId, postTypeId, title: "New v2", fields: { body: [mixed] } })),
+	).toMatchObject({ code: "ENTRY_INVALID" });
+	expect(await rejection(admin.api.entries.saveDraft({ siteId, entryId, fields: { body: [mixed] } }))).toMatchObject({
 		code: "ENTRY_INVALID",
 	});
 	expect((await admin.api.entries.bodyComponents({ siteId, postTypeId })).components).toEqual([]);
@@ -65,23 +66,27 @@ test("imported source Props fence incompatible same-key types while unchanged Bo
 		fields: { body: markdown.replace("Unrelated paragraph", "Markdown paragraph") },
 	});
 	expect((saved.entry.draft.fields.body as unknown[])[1]).toEqual(block);
-	await expect(
-		admin.api.entries.saveDraft({
-			siteId,
-			entryId,
-			bodyFormat: "markdown",
-			fields: { body: markdown.replace("Original alt", "Changed alt") },
-		}),
-	).rejects.toMatchObject({ code: "ENTRY_INVALID" });
-	await expect(
-		admin.api.entries.create({
-			siteId,
-			postTypeId,
-			title: "New Markdown",
-			bodyFormat: "markdown",
-			fields: { body: markdown },
-		}),
-	).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+	expect(
+		await rejection(
+			admin.api.entries.saveDraft({
+				siteId,
+				entryId,
+				bodyFormat: "markdown",
+				fields: { body: markdown.replace("Original alt", "Changed alt") },
+			}),
+		),
+	).toMatchObject({ code: "ENTRY_INVALID" });
+	expect(
+		await rejection(
+			admin.api.entries.create({
+				siteId,
+				postTypeId,
+				title: "New Markdown",
+				bodyFormat: "markdown",
+				fields: { body: markdown },
+			}),
+		),
+	).toMatchObject({ code: "ENTRY_INVALID" });
 	await admin.api.templates.publish({ siteId, templateId });
 	const published = await admin.api.entries.publish({ siteId, entryId });
 	const origin = await goLive(install, siteId);
@@ -111,21 +116,25 @@ test("fixed Template and Component Props keep their source contract through JSON
 	const before = await admin.api.templates.getEntryTemplateMarkup(query);
 	const markup = before.markup?.draft ?? "";
 	const changed = markup.replace("Original alt", mediaId);
-	await expect(admin.api.templates.saveEntryTemplateMarkup({ ...query, markup: changed })).rejects.toMatchObject({
+	expect(await rejection(admin.api.templates.saveEntryTemplateMarkup({ ...query, markup: changed }))).toMatchObject({
 		code: "TEMPLATE_INVALID",
 	});
-	await expect(
-		admin.api.templates.saveEntryTemplate({
-			...query,
-			tree: JSON.parse(JSON.stringify(before.template?.draft).replace("Original alt", mediaId)),
-		}),
-	).rejects.toMatchObject({ code: "TEMPLATE_INVALID" });
-	await expect(
-		admin.api.templates.saveEntryTemplateMarkup({
-			...query,
-			markup: markup.replace('data-wc-id="fixed"', 'data-wc-id="another"'),
-		}),
-	).rejects.toMatchObject({ code: "TEMPLATE_INVALID" });
+	expect(
+		await rejection(
+			admin.api.templates.saveEntryTemplate({
+				...query,
+				tree: JSON.parse(JSON.stringify(before.template?.draft).replace("Original alt", mediaId)),
+			}),
+		),
+	).toMatchObject({ code: "TEMPLATE_INVALID" });
+	expect(
+		await rejection(
+			admin.api.templates.saveEntryTemplateMarkup({
+				...query,
+				markup: markup.replace('data-wc-id="fixed"', 'data-wc-id="another"'),
+			}),
+		),
+	).toMatchObject({ code: "TEMPLATE_INVALID" });
 	const saved = await admin.api.templates.saveEntryTemplateMarkup({
 		...query,
 		markup: markup.replace("Original lead", "Other lead"),
@@ -134,15 +143,22 @@ test("fixed Template and Component Props keep their source contract through JSON
 	expect(saved.markup).toContain(mediaId);
 	const componentQuery = { siteId, componentId };
 	const fixed = await admin.api.components.getMarkup(componentQuery);
-	await expect(
-		admin.api.components.saveMarkup({ ...componentQuery, markup: fixed.markup.draft.replace("Original alt", mediaId) }),
-	).rejects.toMatchObject({ code: "TEMPLATE_INVALID" });
-	await expect(
-		admin.api.components.saveDraft({
-			...componentQuery,
-			tree: JSON.parse(JSON.stringify(fixed.component.draft.tree).replace("Original alt", mediaId)),
-		}),
-	).rejects.toMatchObject({ code: "TEMPLATE_INVALID" });
+	expect(
+		await rejection(
+			admin.api.components.saveMarkup({
+				...componentQuery,
+				markup: fixed.markup.draft.replace("Original alt", mediaId),
+			}),
+		),
+	).toMatchObject({ code: "TEMPLATE_INVALID" });
+	expect(
+		await rejection(
+			admin.api.components.saveDraft({
+				...componentQuery,
+				tree: JSON.parse(JSON.stringify(fixed.component.draft.tree).replace("Original alt", mediaId)),
+			}),
+		),
+	).toMatchObject({ code: "TEMPLATE_INVALID" });
 	const unchanged = await admin.api.components.saveMarkup({
 		...componentQuery,
 		markup: fixed.markup.draft.replace("Original note", "Other note"),
@@ -153,9 +169,11 @@ test("fixed Template and Component Props keep their source contract through JSON
 	expect(revisions).toHaveLength(2);
 	await admin.api.history.restore({ siteId, item, copy: { type: "revision", id: revisions[0]?.id ?? "" } });
 	expect((await admin.api.templates.getEntryTemplateMarkup(query)).markup?.draft).toBe(markup);
-	await expect(
-		admin.api.history.restore({ siteId, item, copy: { type: "revision", id: revisions[1]?.id ?? "" } }),
-	).rejects.toMatchObject({ code: "TEMPLATE_INVALID" });
+	expect(
+		await rejection(
+			admin.api.history.restore({ siteId, item, copy: { type: "revision", id: revisions[1]?.id ?? "" } }),
+		),
+	).toMatchObject({ code: "TEMPLATE_INVALID" });
 	expect((await admin.api.templates.getEntryTemplateMarkup(query)).markup?.draft).toBe(markup);
 });
 for (const destination of ["changed", "missing"] as const) {
@@ -220,14 +238,16 @@ for (const destination of ["changed", "missing"] as const) {
 				bodyFormat: "markdown",
 				fields: { body: markdown.replace("[it] Original paragraph", "Manual paragraph") },
 			});
-			await expect(
-				admin.api.entries.saveDraft({
-					siteId,
-					entryId,
-					language: "it",
-					fields: { body: [{ ...translatedBlock, props: galleryBlock(mediaId, mediaId).props }] },
-				}),
-			).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+			expect(
+				await rejection(
+					admin.api.entries.saveDraft({
+						siteId,
+						entryId,
+						language: "it",
+						fields: { body: [{ ...translatedBlock, props: galleryBlock(mediaId, mediaId).props }] },
+					}),
+				),
+			).toMatchObject({ code: "ENTRY_INVALID" });
 			const copy = await importGallery(
 				target,
 				await exportedArchive(target, admin, siteId),

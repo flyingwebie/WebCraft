@@ -1898,6 +1898,8 @@ Every screen sits in one frame (`ui/shell/AdminShell.tsx`): the sidebar's inset 
 
 Tests live in `tests/`, grouped by area, and run with `bun run test` from the repo root. They test at the spec's seams and check what a person, visitor or client would observe: HTTP responses, emails that went out, outgoing calls, job outcomes and later responses. They never import internal functions or read tables directly; refactoring without changing behaviour must not break a test.
 
+**Await, then assert.** Never write `expect(promise)` followed by `.rejects` or `.resolves`: while Bun waits there it runs no queued `setImmediate` callback, and the test clock and pg-pool wait with one, so each such assertion sat for up to a second until a timer woke the event loop. Await the promise and assert on the value: `expect(await promise).toEqual(…)`, `expect(await rejection(promise)).toMatchObject({ code })`, or `expect(await thrown(promise)).toThrow(…)` (`tests/harness/settled.ts`). `tests/ci/settled-assertions.test.ts` fails on the old form. Never widen a test's timeout or retry it to make it pass: a test that needs either has a bug to find.
+
 **Seam 1** is the web process's handler, booted in-process against a real Postgres. `createTestInstall()` from `tests/harness/index.ts` gives each test file its own Install:
 
 | Part | What it does |

@@ -5,6 +5,7 @@ import { createSocialCardRenderer } from "@webcraft/worker/social-cards";
 import { imageInfo, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { metaProperty } from "../harness/seo.ts";
+import { thrown } from "../harness/settled.ts";
 import { expectSafePage, expectSiteHeaders } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -80,12 +81,14 @@ test("the worker handles absent words and refuses a vector logo at its raster-on
 		logo: null,
 	};
 	expect(await imageInfo(await renderer.render(input))).toMatchObject({ width: 1200, height: 630, format: "png" });
-	await expect(
-		renderer.render({
-			...input,
-			logo: new TextEncoder().encode(
-				'<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50"><rect width="50" height="50"/></svg>',
-			),
-		}),
-	).rejects.toThrow("raster image");
+	expect(
+		await thrown(
+			renderer.render({
+				...input,
+				logo: new TextEncoder().encode(
+					'<svg xmlns="http://www.w3.org/2000/svg" width="50" height="50"><rect width="50" height="50"/></svg>',
+				),
+			}),
+		),
+	).toThrow("raster image");
 });

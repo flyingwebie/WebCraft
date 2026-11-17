@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { csvSettings, importCsv, runAgain, startRun } from "./support.ts";
 
 let install: TestInstall;
@@ -199,7 +200,7 @@ describe("Run again", () => {
 			siteId,
 			file: new File(["name,sku,price\nRye,RY-1,4\n"], "again.csv"),
 		});
-		await expect(editor.api.imports.start({ siteId, importId: created.id, fileId: file.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.imports.start({ siteId, importId: created.id, fileId: file.id }))).toMatchObject({
 			code: "IMPORT_RUNNING",
 			data: { runId: waiting.id },
 		});
@@ -212,23 +213,25 @@ describe("Run again", () => {
 describe("settings that don't fit the Site", () => {
 	test("are refused, each problem at its place", async () => {
 		const { postType } = await products();
-		await expect(
-			editor.api.imports.create({
-				siteId,
-				name: "Wrong",
-				source: "csv",
-				settings: csvSettings(
-					postType.id,
-					[
-						{ column: "name", to: "title" },
-						{ column: "colour", to: "fields.colour" },
-						{ column: "cost", to: "fields.price" },
-						{ column: "price", to: "fields.price" },
-					],
-					{ match: "fields.sku", language: "fr" },
-				),
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				editor.api.imports.create({
+					siteId,
+					name: "Wrong",
+					source: "csv",
+					settings: csvSettings(
+						postType.id,
+						[
+							{ column: "name", to: "title" },
+							{ column: "colour", to: "fields.colour" },
+							{ column: "cost", to: "fields.price" },
+							{ column: "price", to: "fields.price" },
+						],
+						{ match: "fields.sku", language: "fr" },
+					),
+				}),
+			),
+		).toMatchObject({
 			code: "IMPORT_INVALID",
 			data: {
 				problems: [

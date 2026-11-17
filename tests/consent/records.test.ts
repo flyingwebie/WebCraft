@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { ipv6Network } from "../harness/addresses.ts";
 import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSiteHeaders } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -125,7 +126,7 @@ describe("recording a visitor's choice", () => {
 			() => owner.api.consentBanner.record({ siteId: other.siteId, recordId: id }),
 			() => owner.api.consentBanner.record({ siteId: site.siteId, recordId: crypto.randomUUID() }),
 		]) {
-			await expect(call()).rejects.toMatchObject({ code: "CONSENT_RECORD_NOT_FOUND" });
+			expect(await rejection(call())).toMatchObject({ code: "CONSENT_RECORD_NOT_FOUND" });
 		}
 	});
 });
@@ -235,6 +236,6 @@ describe("how long records are kept", () => {
 
 		await install.clock.advance(2 * day);
 		await install.drainJobs();
-		await expect(lookUp()).rejects.toMatchObject({ code: "CONSENT_RECORD_NOT_FOUND" });
+		expect(await rejection(lookUp())).toMatchObject({ code: "CONSENT_RECORD_NOT_FOUND" });
 	});
 });

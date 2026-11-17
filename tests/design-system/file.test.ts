@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { layerOf, pageWithStyles } from "../harness/site-styles.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -139,9 +140,11 @@ describe("importing", () => {
 		if (!("confirmation" in asked)) throw new Error("expected a confirmation");
 		await staff.api.designSystem.saveDraft({ siteId: into.siteId, customCss: "p { margin: 0; }" });
 
-		await expect(
-			staff.api.designSystem.importFile({ siteId: into.siteId, file, confirmation: asked.confirmation.id }),
-		).rejects.toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "changed" } });
+		expect(
+			await rejection(
+				staff.api.designSystem.importFile({ siteId: into.siteId, file, confirmation: asked.confirmation.id }),
+			),
+		).toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "changed" } });
 		expect((await staff.api.designSystem.get({ siteId: into.siteId })).designSystem.draft.customCss).toBe(
 			"p { margin: 0; }",
 		);
@@ -182,9 +185,9 @@ describe("importing", () => {
 			markup: '<main class="card">{{@outlet}}</main>',
 		});
 
-		await expect(
-			staff.api.designSystem.importFile({ siteId: site.siteId, file: { ...file, classes: [] } }),
-		).rejects.toMatchObject({ code: "CLASS_IN_USE" });
+		expect(
+			await rejection(staff.api.designSystem.importFile({ siteId: site.siteId, file: { ...file, classes: [] } })),
+		).toMatchObject({ code: "CLASS_IN_USE" });
 	});
 
 	test("both are recorded in the Audit log", async () => {
@@ -287,12 +290,14 @@ describe("files it refuses", () => {
 	test("CSS the Design system can't hold is refused like any save, with where", async () => {
 		const { siteId } = await newSite();
 		const { file } = await staff.api.designSystem.exportFile({ siteId });
-		await expect(
-			staff.api.designSystem.importFile({
-				siteId,
-				file: { ...file, classes: [{ name: "card", styles: "color: red !important;" }] },
-			}),
-		).rejects.toMatchObject({ code: "DESIGN_SYSTEM_INVALID", data: { problems: [{ at: "classes[0].styles" }] } });
+		expect(
+			await rejection(
+				staff.api.designSystem.importFile({
+					siteId,
+					file: { ...file, classes: [{ name: "card", styles: "color: red !important;" }] },
+				}),
+			),
+		).toMatchObject({ code: "DESIGN_SYSTEM_INVALID", data: { problems: [{ at: "classes[0].styles" }] } });
 	});
 });
 
@@ -301,8 +306,8 @@ describe("who may", () => {
 		const { siteId } = await newSite();
 		const owner = await install.createMember({ workspaceId, role: "owner" });
 		const { file } = await staff.api.designSystem.exportFile({ siteId });
-		await expect(owner.browser.api.designSystem.exportFile({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(owner.browser.api.designSystem.importFile({ siteId, file })).rejects.toMatchObject({
+		expect(await rejection(owner.browser.api.designSystem.exportFile({ siteId }))).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(owner.browser.api.designSystem.importFile({ siteId, file }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});

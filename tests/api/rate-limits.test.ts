@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createApiToken, type TokenClient, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 
@@ -79,7 +80,7 @@ describe("per token", () => {
 
 		for (let done = 0; done < 30; done++) await write();
 
-		await expect(write()).rejects.toMatchObject({
+		expect(await rejection(write())).toMatchObject({
 			code: "TOO_MANY_REQUESTS",
 			status: 429,
 			data: { limit: "writes" },

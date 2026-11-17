@@ -6,6 +6,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -202,10 +203,10 @@ describe("the preview", () => {
 
 	test("refused as saving it would be, and only for Staff", async () => {
 		const { siteId } = await newSite();
-		await expect(
-			staff.api.designSystem.preview({ siteId, customCss: "p { color: red !important; }" }),
-		).rejects.toMatchObject({ code: "DESIGN_SYSTEM_INVALID" });
+		expect(
+			await rejection(staff.api.designSystem.preview({ siteId, customCss: "p { color: red !important; }" })),
+		).toMatchObject({ code: "DESIGN_SYSTEM_INVALID" });
 		const owner = await install.createMember({ workspaceId, role: "owner" });
-		await expect(owner.browser.api.designSystem.preview({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(owner.browser.api.designSystem.preview({ siteId }))).toMatchObject({ code: "FORBIDDEN" });
 	});
 });

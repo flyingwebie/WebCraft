@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -66,11 +67,11 @@ describe("the Consent banner setting", () => {
 		const siteId = await newSite();
 
 		for (const member of [owner, author]) {
-			await expect(member.api.consentBanner.setSettings({ siteId, mode: "none", layout: "bar" })).rejects.toMatchObject(
-				{
-					code: "FORBIDDEN",
-				},
-			);
+			expect(
+				await rejection(member.api.consentBanner.setSettings({ siteId, mode: "none", layout: "bar" })),
+			).toMatchObject({
+				code: "FORBIDDEN",
+			});
 		}
 		expect((await staff.api.consentBanner.get({ siteId })).banner.mode).toBe("optIn");
 	});
@@ -78,11 +79,11 @@ describe("the Consent banner setting", () => {
 	test("an unknown mode or layout is refused", async () => {
 		const siteId = await newSite();
 
-		await expect(
-			staff.api.consentBanner.setSettings({ siteId, mode: "sometimes" as never, layout: "bar" }),
-		).rejects.toMatchObject({ code: "BAD_REQUEST" });
-		await expect(
-			staff.api.consentBanner.setSettings({ siteId, mode: "none", layout: "sidebar" as never }),
-		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(
+			await rejection(staff.api.consentBanner.setSettings({ siteId, mode: "sometimes" as never, layout: "bar" })),
+		).toMatchObject({ code: "BAD_REQUEST" });
+		expect(
+			await rejection(staff.api.consentBanner.setSettings({ siteId, mode: "none", layout: "sidebar" as never })),
+		).toMatchObject({ code: "BAD_REQUEST" });
 	});
 });

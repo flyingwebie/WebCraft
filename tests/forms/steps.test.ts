@@ -9,6 +9,7 @@ import forms from "@webcraft/module-forms";
 import { formVisitor } from "../harness/forms.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -183,7 +184,7 @@ describe("building a Form with steps, sections and conditions", () => {
 			},
 		});
 
-		await expect(refused).rejects.toMatchObject({ code: "FORM_INVALID" });
+		expect(await rejection(refused)).toMatchObject({ code: "FORM_INVALID" });
 		const problems = ((await refused.catch((error) => error)) as { data: { problems: { at: string }[] } }).data
 			.problems;
 		expect(problems.map((problem) => problem.at)).toEqual([

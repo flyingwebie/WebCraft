@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { thrown } from "../harness/settled.ts";
 
 const ROOT = new URL("../../", import.meta.url).pathname;
 const WORKER = join(ROOT, "apps/worker/src/main.ts");
@@ -122,7 +123,7 @@ describe("on an Install whose secrets are encrypted under another key", () => {
 	}, 20_000);
 
 	test("the web process's services refuse to open the same way", async () => {
-		await expect(install.restart({ masterKey: OTHER_KEY })).rejects.toThrow(
+		expect(await thrown(install.restart({ masterKey: OTHER_KEY }))).toThrow(
 			"WEBCRAFT_SECRET_KEY is not this Install's Master key: its secrets are encrypted under Master key version 1",
 		);
 	});

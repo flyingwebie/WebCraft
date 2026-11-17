@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -146,13 +147,15 @@ describe("values per language", () => {
 		const site = await newSite();
 		const entryId = await freshBread(site);
 
-		await expect(editor.api.entries.get({ siteId: site.siteId, entryId, language: "de" })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.get({ siteId: site.siteId, entryId, language: "de" }))).toMatchObject({
 			code: "ENTRY_INVALID",
 			data: { problems: [{ at: "language" }] },
 		});
-		await expect(
-			editor.api.entries.saveDraft({ siteId: site.siteId, entryId, language: "de", title: "Frisches Brot" }),
-		).rejects.toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at: "language" }] } });
+		expect(
+			await rejection(
+				editor.api.entries.saveDraft({ siteId: site.siteId, entryId, language: "de", title: "Frisches Brot" }),
+			),
+		).toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at: "language" }] } });
 	});
 
 	test("publishing checks the rules of every language's values", async () => {
@@ -175,7 +178,7 @@ describe("values per language", () => {
 			fields: { summary: "Croustillant et doré" },
 		});
 
-		await expect(editor.api.entries.publish({ siteId: site.siteId, entryId: entry.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.publish({ siteId: site.siteId, entryId: entry.id }))).toMatchObject({
 			code: "ENTRY_INVALID",
 			data: { problems: [{ at: "fields.summary", language: "fr", rule: "maxLength" }] },
 		});
@@ -260,7 +263,7 @@ describe("addresses per language", () => {
 			title: "Pain",
 		});
 
-		await expect(editor.api.entries.publish({ siteId: site.siteId, entryId: second.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.publish({ siteId: site.siteId, entryId: second.id }))).toMatchObject({
 			code: "ENTRY_SLUG_TAKEN",
 			data: { slug: "pain", language: "fr" },
 		});
@@ -350,7 +353,7 @@ describe("adding a language", () => {
 			title: "Fr",
 		});
 		await editor.api.entries.publish({ siteId: site.siteId, entryId: page.id });
-		await expect(staff.api.languages.add({ siteId: site.siteId, code: "fr" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.languages.add({ siteId: site.siteId, code: "fr" }))).toMatchObject({
 			code: "PATH_TAKEN",
 			data: { path: "/fr", by: { kind: "page", id: page.id } },
 		});
@@ -360,7 +363,7 @@ describe("adding a language", () => {
 			name: "Recettes",
 			urlPattern: "/de/{slug}",
 		});
-		await expect(staff.api.languages.add({ siteId: site.siteId, code: "de" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.languages.add({ siteId: site.siteId, code: "de" }))).toMatchObject({
 			code: "PATH_TAKEN",
 			data: { path: "/de", by: { kind: "postType", id: postType.id } },
 		});
@@ -376,7 +379,7 @@ describe("adding a language", () => {
 			title: "It",
 		});
 		await editor.api.entries.publish({ siteId: site.siteId, entryId: special.id });
-		await expect(staff.api.languages.add({ siteId: site.siteId, code: "it" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.languages.add({ siteId: site.siteId, code: "it" }))).toMatchObject({
 			code: "PATH_TAKEN",
 			data: { path: "/it/today", by: { kind: "postType", id: topLevel.id } },
 		});
@@ -391,20 +394,20 @@ describe("adding a language", () => {
 		});
 		const language = { kind: "language", code: "fr", name: "Français" };
 
-		await expect(editor.api.entries.publish({ siteId: site.siteId, entryId: page.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.publish({ siteId: site.siteId, entryId: page.id }))).toMatchObject({
 			code: "PATH_TAKEN",
 			data: { path: "/fr", by: language },
 		});
-		await expect(
-			staff.api.postTypes.create({ siteId: site.siteId, name: "Recettes", urlPattern: "/fr/{slug}" }),
-		).rejects.toMatchObject({ code: "PATH_TAKEN", data: { path: "/fr", by: language } });
+		expect(
+			await rejection(staff.api.postTypes.create({ siteId: site.siteId, name: "Recettes", urlPattern: "/fr/{slug}" })),
+		).toMatchObject({ code: "PATH_TAKEN", data: { path: "/fr", by: language } });
 		const { postType } = await staff.api.postTypes.create({
 			siteId: site.siteId,
 			name: "Specials",
 			urlPattern: "/{slug}/today",
 		});
 		const { entry } = await editor.api.entries.create({ siteId: site.siteId, postTypeId: postType.id, title: "Fr" });
-		await expect(editor.api.entries.publish({ siteId: site.siteId, entryId: entry.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.publish({ siteId: site.siteId, entryId: entry.id }))).toMatchObject({
 			code: "PATH_TAKEN",
 			data: { path: "/fr/today", by: language },
 		});

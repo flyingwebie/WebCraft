@@ -9,6 +9,7 @@ import type redirects from "@webcraft/module-redirects";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -173,7 +174,7 @@ describe("from the log", () => {
 	test("only Editors, Owners and Staff read it", async () => {
 		const site = await newSite();
 		const author = (await install.createMember({ workspaceId, role: "author" })).browser;
-		await expect(api(author).notFound.list({ siteId: site.siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(api(author).notFound.list({ siteId: site.siteId }))).toMatchObject({ code: "FORBIDDEN" });
 	});
 });
 
@@ -204,5 +205,5 @@ describe("the log stays bounded", () => {
 		const kept = await api().notFound.list({ siteId: site.siteId, limit: 2000 });
 		expect(kept.total).toBeLessThanOrEqual(1100);
 		expect(kept.misses.map((miss) => miss.path)).not.toContain("/oldest");
-	}, 60_000);
+	});
 });

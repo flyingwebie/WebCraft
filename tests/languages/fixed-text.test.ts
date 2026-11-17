@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -125,13 +126,15 @@ describe("fixed text per language", () => {
 		expect(template.draft.nodes[0]).toMatchObject({
 			children: [{ type: "text", text: "Menu", translations: { "pt-BR": "Cardápio", it: "Menù" } }],
 		});
-		await expect(
-			staff.api.templates.saveEntryTemplate({
-				siteId: site.siteId,
-				postTypeId: site.postTypeId,
-				tree: { version: 1, nodes: [{ type: "text", text: "Menu", translations: { french: "Carte" } }] },
-			}),
-		).rejects.toMatchObject({ code: "TEMPLATE_INVALID", data: { problems: [{ at: "nodes[0].translations" }] } });
+		expect(
+			await rejection(
+				staff.api.templates.saveEntryTemplate({
+					siteId: site.siteId,
+					postTypeId: site.postTypeId,
+					tree: { version: 1, nodes: [{ type: "text", text: "Menu", translations: { french: "Carte" } }] },
+				}),
+			),
+		).toMatchObject({ code: "TEMPLATE_INVALID", data: { problems: [{ at: "nodes[0].translations" }] } });
 	});
 
 	test("markup that can't be read is refused where it is", async () => {
@@ -145,9 +148,11 @@ describe("fixed text per language", () => {
 				'In quoted text, write \\" for a quote, \\\\ for a backslash and \\r for a carriage return.',
 			],
 		] as const) {
-			await expect(
-				staff.api.templates.saveEntryTemplateMarkup({ siteId: site.siteId, postTypeId: site.postTypeId, markup }),
-			).rejects.toMatchObject({ code: "TEMPLATE_MARKUP_INVALID", data: { problems: [{ message }] } });
+			expect(
+				await rejection(
+					staff.api.templates.saveEntryTemplateMarkup({ siteId: site.siteId, postTypeId: site.postTypeId, markup }),
+				),
+			).toMatchObject({ code: "TEMPLATE_MARKUP_INVALID", data: { problems: [{ message }] } });
 		}
 	});
 });

@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { pdf, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -241,19 +242,21 @@ describe("fixed Prop values", () => {
 			urlPattern: "/strict/{slug}",
 		});
 
-		await expect(
-			staff.api.templates.saveEntryTemplateMarkup({
-				siteId,
-				postTypeId: postType.id,
-				markup: [
-					`<Strict address="Dublin" />`,
-					`<Strict address='{"town": "Cork"}' />`,
-					`<Strict rows='[{"n": "one"}]' />`,
-					`<Strict rows='[{"n": 1}, {"n": 2}]' />`,
-					`<Strict when="2 March" more="javascript:alert(1)" />`,
-				].join("\n"),
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.templates.saveEntryTemplateMarkup({
+					siteId,
+					postTypeId: postType.id,
+					markup: [
+						`<Strict address="Dublin" />`,
+						`<Strict address='{"town": "Cork"}' />`,
+						`<Strict rows='[{"n": "one"}]' />`,
+						`<Strict rows='[{"n": 1}, {"n": 2}]' />`,
+						`<Strict when="2 March" more="javascript:alert(1)" />`,
+					].join("\n"),
+				}),
+			),
+		).toMatchObject({
 			code: "TEMPLATE_MARKUP_INVALID",
 			data: {
 				problems: [

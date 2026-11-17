@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 import { element, searchElement, text, tree, value } from "../harness/trees.ts";
@@ -101,21 +102,23 @@ describe("the Search element in Template markup", () => {
 			['<a href="/">{{@search}}</a>', "{{@search}} is a form of its own: it can't go inside <a>."],
 			["<ul>{{@search}}</ul>", "{{@search}} goes inside an <li>, not directly in a list."],
 		] as const) {
-			await expect(
-				staff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId: recipesId, markup }),
+			expect(
+				await rejection(staff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId: recipesId, markup })),
 				markup,
-			).rejects.toMatchObject({ code: "TEMPLATE_MARKUP_INVALID", data: { problems: [{ message }] } });
+			).toMatchObject({ code: "TEMPLATE_MARKUP_INVALID", data: { problems: [{ message }] } });
 		}
 	});
 
 	test("a stored tree holding one inside a paragraph is refused where it is", async () => {
-		await expect(
-			staff.api.templates.saveEntryTemplate({
-				siteId,
-				postTypeId: recipesId,
-				tree: tree(element("p", [searchElement()])),
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.templates.saveEntryTemplate({
+					siteId,
+					postTypeId: recipesId,
+					tree: tree(element("p", [searchElement()])),
+				}),
+			),
+		).toMatchObject({
 			code: "TEMPLATE_INVALID",
 			data: { problems: [{ at: "nodes[0].children[0]", message: expect.stringContaining("can't go inside <p>") }] },
 		});
@@ -166,7 +169,7 @@ describe("the Search results template", () => {
 			["{{@loop search as hit}}{{ hit.phone }}{{/loop}}", "phone"],
 			["{{@loop search as hit}}{{ hit.price }}{{/loop}}", "price"],
 		] as const) {
-			await expect(staff.api.templates.saveSearchTemplateMarkup({ siteId, markup }), markup).rejects.toMatchObject({
+			expect(await rejection(staff.api.templates.saveSearchTemplateMarkup({ siteId, markup })), markup).toMatchObject({
 				code: "TEMPLATE_MARKUP_INVALID",
 				data: { problems: [{ message: expect.stringContaining(message) }] },
 			});
@@ -179,19 +182,23 @@ describe("the Search results template", () => {
 			"{{ search.query }}",
 			"{{@pagination search}}",
 		]) {
-			await expect(
-				staff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId: recipesId, markup }),
+			expect(
+				await rejection(staff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId: recipesId, markup })),
 				markup,
-			).rejects.toMatchObject({ code: "TEMPLATE_MARKUP_INVALID" });
+			).toMatchObject({ code: "TEMPLATE_MARKUP_INVALID" });
 		}
-		await expect(
-			staff.api.loops.create({ siteId, name: "search", source: "query", query: { postTypes: ["recipes"] } }),
-		).rejects.toMatchObject({ code: "LOOP_INVALID" });
+		expect(
+			await rejection(
+				staff.api.loops.create({ siteId, name: "search", source: "query", query: { postTypes: ["recipes"] } }),
+			),
+		).toMatchObject({ code: "LOOP_INVALID" });
 	});
 
 	test("Members can't see or change it", async () => {
-		await expect(owner.api.templates.getSearchTemplate({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(owner.api.templates.saveSearchTemplateMarkup({ siteId, markup: "<p>Hi</p>" })).rejects.toMatchObject({
+		expect(await rejection(owner.api.templates.getSearchTemplate({ siteId }))).toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(owner.api.templates.saveSearchTemplateMarkup({ siteId, markup: "<p>Hi</p>" })),
+		).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});

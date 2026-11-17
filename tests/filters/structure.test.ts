@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -143,10 +144,10 @@ describe("building a Filter", () => {
 	});
 
 	test("its name is lower-case words joined by dashes, its own on the Site", async () => {
-		await expect(
-			staff.api.filters.create({ siteId, name: "Shop Filter", loop: await newLoop() }),
-		).rejects.toMatchObject({ code: "FILTER_INVALID", data: { problems: [{ at: "name" }] } });
-		await expect(staff.api.filters.create({ siteId, name: "shop", loop: await newLoop() })).rejects.toMatchObject({
+		expect(
+			await rejection(staff.api.filters.create({ siteId, name: "Shop Filter", loop: await newLoop() })),
+		).toMatchObject({ code: "FILTER_INVALID", data: { problems: [{ at: "name" }] } });
+		expect(await rejection(staff.api.filters.create({ siteId, name: "shop", loop: await newLoop() }))).toMatchObject({
 			code: "FILTER_NAME_TAKEN",
 			data: { name: "shop" },
 		});
@@ -155,15 +156,15 @@ describe("building a Filter", () => {
 	test("it narrows one query Loop, which has one Filter at most", async () => {
 		const refused = (loop: string) => staff.api.filters.create({ siteId, name: `for-${loop}`, loop });
 
-		await expect(refused("products")).rejects.toMatchObject({
+		expect(await rejection(refused("products"))).toMatchObject({
 			code: "FILTER_INVALID",
 			data: { problems: [{ at: "loop", message: expect.stringContaining("already has a Filter") }] },
 		});
-		await expect(refused("nothing")).rejects.toMatchObject({
+		expect(await rejection(refused("nothing"))).toMatchObject({
 			code: "FILTER_INVALID",
 			data: { problems: [{ at: "loop", message: "The Site has no Loop named nothing." }] },
 		});
-		await expect(refused("openings")).rejects.toMatchObject({
+		expect(await rejection(refused("openings"))).toMatchObject({
 			code: "FILTER_INVALID",
 			data: { problems: [{ at: "loop", message: expect.stringContaining("only a Loop with a query") }] },
 		});
@@ -174,17 +175,19 @@ describe("building a Filter", () => {
 		const refused = (controls: unknown[]) =>
 			staff.api.filters.create({ siteId, name: `checked-${loop}`, loop, controls: controls as never });
 
-		await expect(
-			refused([
-				{ type: "checkboxes", key: "category", label: "Category", source: { kind: "field", field: "summary" } },
-				{ type: "toggle", key: "vegan", label: "Vegan", field: "price" },
-				{ type: "range", key: "time", label: "Time", field: "time" },
-				{ type: "range", key: "price", label: "", field: "price" },
-				{ type: "sort", key: "sort", options: [{ value: "x", label: "X", by: "summary-nope", direction: "asc" }] },
-				{ type: "chips", key: "nope" },
-				{ type: "wizard" },
-			]),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				refused([
+					{ type: "checkboxes", key: "category", label: "Category", source: { kind: "field", field: "summary" } },
+					{ type: "toggle", key: "vegan", label: "Vegan", field: "price" },
+					{ type: "range", key: "time", label: "Time", field: "time" },
+					{ type: "range", key: "price", label: "", field: "price" },
+					{ type: "sort", key: "sort", options: [{ value: "x", label: "X", by: "summary-nope", direction: "asc" }] },
+					{ type: "chips", key: "nope" },
+					{ type: "wizard" },
+				]),
+			),
+		).toMatchObject({
 			code: "FILTER_INVALID",
 			data: {
 				problems: expect.arrayContaining([
@@ -198,16 +201,18 @@ describe("building a Filter", () => {
 				]),
 			},
 		});
-		await expect(
-			refused([
-				{ type: "toggle", key: "q", label: "Q", field: "vegan" },
-				{ type: "toggle", key: "Vegan Only", label: "V", field: "vegan" },
-				{ type: "toggle", key: "same", label: "A", field: "vegan" },
-				{ type: "range", key: "same", label: "B", field: "price" },
-				{ type: "count" },
-				{ type: "count" },
-			]),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				refused([
+					{ type: "toggle", key: "q", label: "Q", field: "vegan" },
+					{ type: "toggle", key: "Vegan Only", label: "V", field: "vegan" },
+					{ type: "toggle", key: "same", label: "A", field: "vegan" },
+					{ type: "range", key: "same", label: "B", field: "price" },
+					{ type: "count" },
+					{ type: "count" },
+				]),
+			),
+		).toMatchObject({
 			code: "FILTER_INVALID",
 			data: {
 				problems: [
@@ -219,11 +224,17 @@ describe("building a Filter", () => {
 			},
 		});
 		// Sorting by relevance needs a search box to rank by.
-		await expect(
-			refused([
-				{ type: "sort", key: "sort", options: [{ value: "best", label: "Best", by: "relevance", direction: "desc" }] },
-			]),
-		).rejects.toMatchObject({ data: { problems: [{ at: "controls[0].options[0].by" }] } });
+		expect(
+			await rejection(
+				refused([
+					{
+						type: "sort",
+						key: "sort",
+						options: [{ value: "best", label: "Best", by: "relevance", direction: "desc" }],
+					},
+				]),
+			),
+		).toMatchObject({ data: { problems: [{ at: "controls[0].options[0].by" }] } });
 		// Options come from a select or Relationship Field, or the Loop's Post Types.
 		const { filter } = await staff.api.filters.create({
 			siteId,
@@ -265,14 +276,14 @@ describe("building a Filter", () => {
 			query: { postTypes: ["products"] },
 		});
 		const { filter } = await staff.api.filters.create({ siteId, name: "early", loop: loop.name, controls: CONTROLS });
-		await expect(staff.api.filters.publish({ siteId, filterId: filter.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.filters.publish({ siteId, filterId: filter.id }))).toMatchObject({
 			code: "FILTER_INVALID",
 			data: { problems: [{ at: "loop", message: expect.stringContaining("isn't published yet") }] },
 		});
 		// The Loop's published query lists Bakers only: the Products' Fields are gone.
 		await staff.api.loops.saveDraft({ siteId, loopId: loop.id, query: { postTypes: ["bakers"] } });
 		await staff.api.loops.publish({ siteId, loopId: loop.id });
-		await expect(staff.api.filters.publish({ siteId, filterId: filter.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.filters.publish({ siteId, filterId: filter.id }))).toMatchObject({
 			code: "FILTER_INVALID",
 			data: { problems: expect.arrayContaining([expect.objectContaining({ at: "controls[1].source.field" })]) },
 		});
@@ -317,10 +328,12 @@ describe("building a Filter", () => {
 	});
 
 	test("Members can't see or change Filters: they are Structure", async () => {
-		await expect(owner.api.filters.list({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(owner.api.filters.create({ siteId, name: "members", loop: await newLoop() })).rejects.toMatchObject({
-			code: "FORBIDDEN",
-		});
+		expect(await rejection(owner.api.filters.list({ siteId }))).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(owner.api.filters.create({ siteId, name: "members", loop: await newLoop() }))).toMatchObject(
+			{
+				code: "FORBIDDEN",
+			},
+		);
 	});
 });
 
@@ -403,7 +416,7 @@ describe("placing a Filter in Template markup", () => {
 
 	test("a published Template places only a published Filter", async () => {
 		const saved = await save(`{{@filter placed for="listing-placed"}}${LOOP}`);
-		await expect(staff.api.templates.publish({ siteId, templateId: saved.template.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.templates.publish({ siteId, templateId: saved.template.id }))).toMatchObject({
 			code: "TEMPLATE_INVALID",
 			data: {
 				problems: [expect.objectContaining({ message: "The Filter placed isn't published yet: publish it first." })],

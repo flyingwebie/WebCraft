@@ -14,6 +14,7 @@ import {
 	type TestInstall,
 } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 import { confirmed } from "../webhooks/support.ts";
 
@@ -202,7 +203,9 @@ describe("the inbox", () => {
 	});
 
 	test("Authors never see Submissions; the admin learns who may from the Site's Module Permissions", async () => {
-		await expect(submissions(author).submissions.list({ siteId, formId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(submissions(author).submissions.list({ siteId, formId }))).toMatchObject({
+			code: "FORBIDDEN",
+		});
 		expect((await author.api.sites.get({ siteId })).modulePermissions).toEqual([]);
 		expect((await editor.api.sites.get({ siteId })).modulePermissions).toEqual([
 			"forms.submissions.view",
@@ -265,9 +268,9 @@ describe("a Submission", () => {
 	});
 
 	test("a Submission of another Site is never found", async () => {
-		await expect(
-			submissions(owner).submissions.get({ siteId, id: "00000000-0000-4000-8000-000000000000" }),
-		).rejects.toMatchObject({ code: "MODULE_ERROR", data: { code: "submission-not-found" } });
+		expect(
+			await rejection(submissions(owner).submissions.get({ siteId, id: "00000000-0000-4000-8000-000000000000" })),
+		).toMatchObject({ code: "MODULE_ERROR", data: { code: "submission-not-found" } });
 	});
 });
 
@@ -309,7 +312,7 @@ describe("the Spam folder", () => {
 		await submit({ name: "Kept", email: "kept@example.ie" });
 		const [kept] = (await submissions(owner).submissions.list({ siteId, formId, limit: 1 })).submissions;
 
-		await expect(submissions(owner).submissions.notSpam({ siteId, id: kept?.id ?? "" })).rejects.toMatchObject({
+		expect(await rejection(submissions(owner).submissions.notSpam({ siteId, id: kept?.id ?? "" }))).toMatchObject({
 			code: "MODULE_ERROR",
 			data: { code: "not-spam" },
 		});
@@ -353,12 +356,14 @@ describe("deleting", () => {
 		const asked = await submissions(owner).submissions.delete({ siteId, ids });
 		if (asked.deleted) throw new Error("It deleted at once.");
 
-		await expect(
-			submissions(owner).submissions.delete({ siteId, ids: [...ids, formId], confirmation: asked.confirmation.id }),
-		).rejects.toMatchObject({ code: "CONFIRMATION_INVALID" });
-		await expect(
-			submissions(editor).submissions.delete({ siteId, ids, confirmation: asked.confirmation.id }),
-		).rejects.toMatchObject({ code: "CONFIRMATION_INVALID" });
+		expect(
+			await rejection(
+				submissions(owner).submissions.delete({ siteId, ids: [...ids, formId], confirmation: asked.confirmation.id }),
+			),
+		).toMatchObject({ code: "CONFIRMATION_INVALID" });
+		expect(
+			await rejection(submissions(editor).submissions.delete({ siteId, ids, confirmation: asked.confirmation.id })),
+		).toMatchObject({ code: "CONFIRMATION_INVALID" });
 	});
 });
 
@@ -398,10 +403,10 @@ describe("CSV export", () => {
 
 describe("how long Submissions are kept", () => {
 	test("only 30, 90 or 365 days, or forever; Authors can't change it", async () => {
-		await expect(submissions(owner).retention.set({ siteId, formId, keepDays: 7 as 30 })).rejects.toMatchObject({
+		expect(await rejection(submissions(owner).retention.set({ siteId, formId, keepDays: 7 as 30 }))).toMatchObject({
 			code: "BAD_REQUEST",
 		});
-		await expect(submissions(author).retention.set({ siteId, formId, keepDays: 30 })).rejects.toMatchObject({
+		expect(await rejection(submissions(author).retention.set({ siteId, formId, keepDays: 30 }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});

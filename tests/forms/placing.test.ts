@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -102,7 +103,7 @@ describe("publishing what places a Form", () => {
 	test("a Template placing a Form that isn't published yet can't be published", async () => {
 		const { template } = await staff.api.templates.getEntryTemplateMarkup({ siteId, postTypeId });
 
-		await expect(staff.api.templates.publish({ siteId, templateId: template?.id ?? "" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.templates.publish({ siteId, templateId: template?.id ?? "" }))).toMatchObject({
 			code: "TEMPLATE_INVALID",
 		});
 		await staff.api.forms.publish({ siteId, formId: contactId });
@@ -112,7 +113,7 @@ describe("publishing what places a Form", () => {
 	});
 
 	test("a Form can't be deleted while something places it", async () => {
-		await expect(staff.api.forms.delete({ siteId, formId: contactId })).rejects.toMatchObject({
+		expect(await rejection(staff.api.forms.delete({ siteId, formId: contactId }))).toMatchObject({
 			code: "FORM_IN_USE",
 			data: { usedIn: expect.arrayContaining([expect.objectContaining({ kind: "component", name: "ContactBox" })]) },
 		});

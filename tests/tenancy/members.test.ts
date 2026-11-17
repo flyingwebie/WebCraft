@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let admin: TestBrowser;
@@ -112,9 +113,11 @@ describe("the Members screen", () => {
 		expect(await lastSeen()).toEqual(joinedAt);
 
 		// A wrong password is not either; the right one is.
-		await expect(
-			install.browser().api.session.signIn({ email: author.account.email, password: "not the password at all" }),
-		).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
+		expect(
+			await rejection(
+				install.browser().api.session.signIn({ email: author.account.email, password: "not the password at all" }),
+			),
+		).toMatchObject({ code: "INVALID_CREDENTIALS" });
 		expect(await lastSeen()).toEqual(joinedAt);
 		await install.signIn(author.account);
 		expect(await lastSeen()).toEqual(install.clock.now());
@@ -128,18 +131,20 @@ describe("the Members screen", () => {
 			id: staff.personId,
 			name: "Read Only",
 		});
-		await expect(
-			owner.browser.api.members.remove({ workspaceId: acme.id, personId: staff.personId }),
-		).rejects.toMatchObject({ code: "MEMBER_NOT_FOUND" });
-		await expect(
-			owner.browser.api.members.changeAccess({
-				workspaceId: acme.id,
-				personId: staff.personId,
-				role: "author",
-				sites: "all",
-			}),
-		).rejects.toMatchObject({ code: "MEMBER_NOT_FOUND" });
-		await expect(owner.browser.api.staff.list()).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(owner.browser.api.members.remove({ workspaceId: acme.id, personId: staff.personId })),
+		).toMatchObject({ code: "MEMBER_NOT_FOUND" });
+		expect(
+			await rejection(
+				owner.browser.api.members.changeAccess({
+					workspaceId: acme.id,
+					personId: staff.personId,
+					role: "author",
+					sites: "all",
+				}),
+			),
+		).toMatchObject({ code: "MEMBER_NOT_FOUND" });
+		expect(await rejection(owner.browser.api.staff.list())).toMatchObject({ code: "FORBIDDEN" });
 	});
 
 	test("an Owner who reaches some Sites sees only those Sites by name, and offers only them", async () => {
@@ -165,7 +170,7 @@ describe("the Members screen", () => {
 		for (const role of ["editor", "author"] as const) {
 			const { browser } = await install.createMember({ workspaceId: acme.id, role });
 
-			await expect(browser.api.members.list({ workspaceId: acme.id })).rejects.toMatchObject({
+			expect(await rejection(browser.api.members.list({ workspaceId: acme.id }))).toMatchObject({
 				code: "FORBIDDEN",
 				status: 403,
 			});
@@ -191,7 +196,7 @@ describe("changing a Member's role and Sites", () => {
 			sites: [{ id: bakery.id, name: "Acme Bakery" }],
 		});
 		expect((await member.browser.api.sites.get({ siteId: bakery.id })).permissions).not.toContain("entry.publish");
-		await expect(member.browser.api.sites.get({ siteId: careers.id })).rejects.toMatchObject({
+		expect(await rejection(member.browser.api.sites.get({ siteId: careers.id }))).toMatchObject({
 			code: "SITE_NOT_FOUND",
 		});
 		expect((await member.browser.api.sites.list({ workspaceId: acme.id })).sites.map((site) => site.id)).toEqual([
@@ -206,11 +211,11 @@ describe("changing a Member's role and Sites", () => {
 		const change = (personId: string, sites: "all" | string[]) =>
 			owner.browser.api.members.changeAccess({ workspaceId: acme.id, personId, role: "editor", sites });
 
-		await expect(change(author.personId, "all")).rejects.toMatchObject({
+		expect(await rejection(change(author.personId, "all"))).toMatchObject({
 			code: "ACCESS_NOT_HELD",
 			data: { problem: "grant" },
 		});
-		await expect(change(wider.personId, [bakery.id])).rejects.toMatchObject({
+		expect(await rejection(change(wider.personId, [bakery.id]))).toMatchObject({
 			code: "ACCESS_NOT_HELD",
 			data: { problem: "manage" },
 		});
@@ -221,28 +226,32 @@ describe("changing a Member's role and Sites", () => {
 		const target = await install.createMember({ workspaceId: acme.id, role: "author" });
 		const { browser } = await install.createMember({ workspaceId: acme.id, role: "editor" });
 
-		await expect(
-			browser.api.members.changeAccess({
-				workspaceId: acme.id,
-				personId: target.personId,
-				role: "editor",
-				sites: "all",
-			}),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(
+				browser.api.members.changeAccess({
+					workspaceId: acme.id,
+					personId: target.personId,
+					role: "editor",
+					sites: "all",
+				}),
+			),
+		).toMatchObject({ code: "FORBIDDEN" });
 	});
 
 	test("refuses a person who isn't a Member of the Workspace", async () => {
 		const elsewhere = await install.createWorkspace("Elsewhere Ltd");
 		const stranger = await install.createMember({ workspaceId: elsewhere.id, role: "author" });
 
-		await expect(
-			admin.api.members.changeAccess({
-				workspaceId: acme.id,
-				personId: stranger.personId,
-				role: "editor",
-				sites: "all",
-			}),
-		).rejects.toMatchObject({ code: "MEMBER_NOT_FOUND" });
+		expect(
+			await rejection(
+				admin.api.members.changeAccess({
+					workspaceId: acme.id,
+					personId: stranger.personId,
+					role: "editor",
+					sites: "all",
+				}),
+			),
+		).toMatchObject({ code: "MEMBER_NOT_FOUND" });
 	});
 });
 
@@ -255,10 +264,12 @@ describe("removing a Member", () => {
 
 		await staff.browser.api.members.remove({ workspaceId: acme.id, personId: member.personId });
 
-		await expect(member.browser.api.workspaces.get({ workspaceId: acme.id })).rejects.toMatchObject({
+		expect(await rejection(member.browser.api.workspaces.get({ workspaceId: acme.id }))).toMatchObject({
 			code: "WORKSPACE_NOT_FOUND",
 		});
-		await expect(member.browser.api.sites.get({ siteId: bakery.id })).rejects.toMatchObject({ code: "SITE_NOT_FOUND" });
+		expect(await rejection(member.browser.api.sites.get({ siteId: bakery.id }))).toMatchObject({
+			code: "SITE_NOT_FOUND",
+		});
 		expect((await member.browser.api.workspaces.list()).workspaces.map((workspace) => workspace.name)).toEqual([
 			"Second Ltd",
 		]);
@@ -284,11 +295,11 @@ describe("removing a Member", () => {
 		const owner = await install.createMember({ workspaceId: acme.id, role: "owner", sites: [bakery.id] });
 		const wider = await install.createMember({ workspaceId: acme.id, role: "owner", sites: "all" });
 
-		await expect(
-			owner.browser.api.members.remove({ workspaceId: acme.id, personId: wider.personId }),
-		).rejects.toMatchObject({ code: "ACCESS_NOT_HELD", data: { problem: "manage" } });
+		expect(
+			await rejection(owner.browser.api.members.remove({ workspaceId: acme.id, personId: wider.personId })),
+		).toMatchObject({ code: "ACCESS_NOT_HELD", data: { problem: "manage" } });
 		await wider.browser.api.members.remove({ workspaceId: acme.id, personId: owner.personId });
-		await expect(owner.browser.api.members.list({ workspaceId: acme.id })).rejects.toMatchObject({
+		expect(await rejection(owner.browser.api.members.list({ workspaceId: acme.id }))).toMatchObject({
 			code: "WORKSPACE_NOT_FOUND",
 		});
 	});

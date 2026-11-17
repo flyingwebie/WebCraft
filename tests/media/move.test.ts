@@ -8,6 +8,7 @@ import { join } from "node:path";
 
 import { pdf, photo, upload } from "../harness/images.ts";
 import { createFakeS3, createTestInstall, type FakeS3, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { thrown } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -71,11 +72,11 @@ async function served(url: string): Promise<Uint8Array> {
 
 describe("moving Media to a bucket", () => {
 	test("is refused while new files still go to local disk", async () => {
-		await expect(install.moveMedia({ to: "s3" })).rejects.toThrow("No S3-compatible bucket is set");
+		expect(await thrown(install.moveMedia({ to: "s3" }))).toThrow("No S3-compatible bucket is set");
 		await admin.api.install.storage.update({ kind: "s3", ...S3, prefix: "install-1", pathStyle: true });
 		await admin.api.install.storage.update({ kind: "disk" });
 
-		await expect(install.moveMedia({ to: "s3" })).rejects.toThrow("New files go to local disk");
+		expect(await thrown(install.moveMedia({ to: "s3" }))).toThrow("New files go to local disk");
 	});
 
 	test("moves every stored file, keeping every address, and leaves nothing on disk", async () => {

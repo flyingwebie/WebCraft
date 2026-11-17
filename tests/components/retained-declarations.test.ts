@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import type { DocumentJson } from "@webcraft/core";
 import { openDraft } from "../harness/co-editing.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -387,12 +388,14 @@ test("retention input refuses malformed identities and payloads atomically with 
 		'[{"name":"a","name":"b","retained":"unknown","value":[]}]',
 	];
 	for (const data of cases) {
-		await expect(
-			admin.api.templates.saveEntryTemplateMarkup({
-				...holder,
-				markup: `<!--Before-->\n\n<Card a="Kept" data-wc-retained='${data}' />`,
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				admin.api.templates.saveEntryTemplateMarkup({
+					...holder,
+					markup: `<!--Before-->\n\n<Card a="Kept" data-wc-retained='${data}' />`,
+				}),
+			),
+		).toMatchObject({
 			code: "TEMPLATE_MARKUP_INVALID",
 			data: { problems: expect.arrayContaining([expect.objectContaining({ line: 3 })]) },
 		});

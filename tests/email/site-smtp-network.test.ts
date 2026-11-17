@@ -7,6 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { rejection } from "../harness/settled.ts";
 import { sample } from "../modules/sample/index.ts";
 
 const PUBLIC = "93.184.216.40";
@@ -154,7 +155,7 @@ describe("servers inside the Install's network", () => {
 	test("only the Superadmin lets Sites use them; then Send test connects, still to the address it checked", async () => {
 		const admin = await install.superadmin();
 		expect((await admin.api.install.smtp.get()).sitePrivateServers).toBe(false);
-		await expect(staff.api.install.smtp.setSitePrivateServers({ on: true })).rejects.toMatchObject({
+		expect(await rejection(staff.api.install.smtp.setSitePrivateServers({ on: true }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 

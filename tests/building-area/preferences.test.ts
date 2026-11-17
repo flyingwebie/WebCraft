@@ -10,6 +10,7 @@ import pg from "pg";
 
 import { impersonate, withSecondFactor } from "../harness/impersonation.ts";
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -146,18 +147,20 @@ describe("the person's own only", () => {
 	test("the Site named must be one the person edits", async () => {
 		const { browser } = await install.createMember({ workspaceId, role: "editor" });
 
-		await expect(browser.api.me.editorPreferences({ siteId: elsewhere })).rejects.toMatchObject({ status: 404 });
-		await expect(
-			browser.api.me.saveEditorPreferences({
-				siteId: elsewhere,
-				preferences: { version: EDITOR_LAYOUT_VERSION, hintSeen: true },
-			}),
-		).rejects.toMatchObject({ status: 404 });
+		expect(await rejection(browser.api.me.editorPreferences({ siteId: elsewhere }))).toMatchObject({ status: 404 });
+		expect(
+			await rejection(
+				browser.api.me.saveEditorPreferences({
+					siteId: elsewhere,
+					preferences: { version: EDITOR_LAYOUT_VERSION, hintSeen: true },
+				}),
+			),
+		).toMatchObject({ status: 404 });
 		expect((await browser.api.me.editorPreferences({ siteId: bakery })).preferences).toEqual(DEFAULTS);
 	});
 
 	test("signed out, nothing answers", async () => {
-		await expect(install.browser().api.me.editorPreferences({ siteId: bakery })).rejects.toMatchObject({
+		expect(await rejection(install.browser().api.me.editorPreferences({ siteId: bakery }))).toMatchObject({
 			code: "UNAUTHORIZED",
 		});
 	});
@@ -172,12 +175,14 @@ describe("the person's own only", () => {
 		await impersonate(anna.browser, member.personId);
 
 		expect((await anna.browser.api.me.editorPreferences({ siteId: bakery })).preferences).toEqual(saved.preferences);
-		await expect(
-			anna.browser.api.me.saveEditorPreferences({
-				siteId: bakery,
-				preferences: { version: EDITOR_LAYOUT_VERSION, layout: null, formatOnLeave: true },
-			}),
-		).rejects.toMatchObject({ code: "NOT_WHILE_IMPERSONATING", data: { what: "preferences" } });
+		expect(
+			await rejection(
+				anna.browser.api.me.saveEditorPreferences({
+					siteId: bakery,
+					preferences: { version: EDITOR_LAYOUT_VERSION, layout: null, formatOnLeave: true },
+				}),
+			),
+		).toMatchObject({ code: "NOT_WHILE_IMPERSONATING", data: { what: "preferences" } });
 		expect((await member.browser.api.me.editorPreferences({ siteId: bakery })).preferences).toEqual(saved.preferences);
 	});
 });
@@ -221,12 +226,14 @@ describe("the shape", () => {
 		test(`refused: ${name}`, async () => {
 			const { browser } = await install.createMember({ workspaceId, role: "editor" });
 
-			await expect(
-				browser.api.me.saveEditorPreferences({
-					siteId: bakery,
-					preferences: preferences as Parameters<ApiClient["me"]["saveEditorPreferences"]>[0]["preferences"],
-				}),
-			).rejects.toMatchObject({ code: "BAD_REQUEST" });
+			expect(
+				await rejection(
+					browser.api.me.saveEditorPreferences({
+						siteId: bakery,
+						preferences: preferences as Parameters<ApiClient["me"]["saveEditorPreferences"]>[0]["preferences"],
+					}),
+				),
+			).toMatchObject({ code: "BAD_REQUEST" });
 			expect((await browser.api.me.editorPreferences({ siteId: bakery })).preferences).toEqual(DEFAULTS);
 		});
 	}
@@ -243,19 +250,24 @@ describe("the shape", () => {
 		const layout = { docks: { left: { panels }, right: { panels: [] }, bottom: { panels: [] } } };
 		expect(new TextEncoder().encode(JSON.stringify(layout)).length).toBeGreaterThan(EDITOR_PREFERENCES_MAX_BYTES);
 
-		await expect(
-			browser.api.me.saveEditorPreferences({ siteId: bakery, preferences: { version: EDITOR_LAYOUT_VERSION, layout } }),
-		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(
+			await rejection(
+				browser.api.me.saveEditorPreferences({
+					siteId: bakery,
+					preferences: { version: EDITOR_LAYOUT_VERSION, layout },
+				}),
+			),
+		).toMatchObject({ code: "BAD_REQUEST" });
 		expect((await browser.api.me.editorPreferences({ siteId: bakery })).preferences).toEqual(DEFAULTS);
 
 		// The same panels, few enough bytes: saved.
 		const fewer = { ...layout, docks: { ...layout.docks, left: { panels: panels.slice(0, 20) } } };
-		await expect(
-			browser.api.me.saveEditorPreferences({
+		expect(
+			await browser.api.me.saveEditorPreferences({
 				siteId: bakery,
 				preferences: { version: EDITOR_LAYOUT_VERSION, layout: fewer },
 			}),
-		).resolves.toMatchObject({ preferences: { layout: fewer } });
+		).toMatchObject({ preferences: { layout: fewer } });
 	});
 });
 

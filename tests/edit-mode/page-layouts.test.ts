@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { openDraft } from "../harness/co-editing.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -42,7 +43,9 @@ test("Management API Page layout settings preserve omitted switches and allowed 
 	});
 	expect(await api.pageLayouts.settings({ siteId })).toEqual({ enabled: false, allowedComponents: [] });
 	// An Allowed component is a Component's id: anything else is refused as input, as every id is.
-	await expect(api.pageLayouts.configure({ siteId, allowedComponents: ["not-a-component-id"] })).rejects.toMatchObject({
+	expect(
+		await rejection(api.pageLayouts.configure({ siteId, allowedComponents: ["not-a-component-id"] })),
+	).toMatchObject({
 		code: "BAD_REQUEST",
 	});
 });
@@ -147,17 +150,19 @@ test("Member limits apply to HTTP: switches, nesting, locks, stale versions and 
 		editor.api.pageLayouts.save({ siteId, entryId: entry.id, basedOn, layout });
 	// What only Staff may do is refused as such (403), never as invalid input.
 	const refused = (reason: string) => ({ code: "PAGE_LAYOUT_REFUSED", status: 403, data: { reason } });
-	await expect(save({ placements: [placement] })).rejects.toMatchObject(refused("notAllowed"));
-	await expect(editor.api.pageLayouts.configure({ siteId, enabled: true })).rejects.toMatchObject({ status: 403 });
+	expect(await rejection(save({ placements: [placement] }))).toMatchObject(refused("notAllowed"));
+	expect(await rejection(editor.api.pageLayouts.configure({ siteId, enabled: true }))).toMatchObject({ status: 403 });
 	await staff.api.pageLayouts.configure({ siteId, enabled: true });
-	await expect(save({ placements: [placement] })).rejects.toMatchObject(refused("allowedComponents"));
+	expect(await rejection(save({ placements: [placement] }))).toMatchObject(refused("allowedComponents"));
 	await staff.api.pageLayouts.configure({ siteId, allowedComponents: [component.id] });
 	state = await save({ placements: [placement] });
-	await expect(save({ placements: [] }, "obsolete")).rejects.toMatchObject({ code: "CHANGED_MEANWHILE" });
-	await expect(save({ placements: [{ ...placement, children: [] }] })).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+	expect(await rejection(save({ placements: [] }, "obsolete"))).toMatchObject({ code: "CHANGED_MEANWHILE" });
+	expect(await rejection(save({ placements: [{ ...placement, children: [] }] }))).toMatchObject({
+		code: "ENTRY_INVALID",
+	});
 	await staff.api.pageLayouts.configure({ siteId, allowedComponents: [] });
 	state = await save({ placements: [{ ...placement, hidden: true }] });
-	await expect(save({ placements: [placement, { ...placement, id: "copy" }] })).rejects.toMatchObject(
+	expect(await rejection(save({ placements: [placement, { ...placement, id: "copy" }] }))).toMatchObject(
 		refused("allowedComponents"),
 	);
 	state = await staff.api.pageLayouts.save({
@@ -166,13 +171,13 @@ test("Member limits apply to HTTP: switches, nesting, locks, stale versions and 
 		basedOn: state.version,
 		layout: { placements: [{ ...placement, locked: true }] },
 	});
-	await expect(save({ placements: [] })).rejects.toMatchObject(refused("locked"));
-	await expect(save({ placements: [{ ...placement, hidden: true, locked: true }] })).rejects.toMatchObject(
+	expect(await rejection(save({ placements: [] }))).toMatchObject(refused("locked"));
+	expect(await rejection(save({ placements: [{ ...placement, hidden: true, locked: true }] }))).toMatchObject(
 		refused("locked"),
 	);
-	await expect(save({ placements: [placement] })).rejects.toMatchObject(refused("locking"));
+	expect(await rejection(save({ placements: [placement] }))).toMatchObject(refused("locking"));
 	const other = (await install.createSite(workspaceId, { slug: "foreign-layout" })).id;
-	await expect(editor.api.pageLayouts.get({ siteId: other, entryId: entry.id })).rejects.toMatchObject({
+	expect(await rejection(editor.api.pageLayouts.get({ siteId: other, entryId: entry.id }))).toMatchObject({
 		code: "PAGE_NOT_FOUND",
 	});
 });

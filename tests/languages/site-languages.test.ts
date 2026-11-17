@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -88,31 +89,31 @@ describe("a Site's languages", () => {
 	test("refuses a code that isn't a language tag, a language the Site has, and a domain another language has", async () => {
 		const siteId = await newSite();
 		for (const code of ["french", "f", "en_GB", "x-private", "en-u-ca-gregory", "_fr", "de-1996-foo"]) {
-			await expect(staff.api.languages.add({ siteId, code })).rejects.toMatchObject({
+			expect(await rejection(staff.api.languages.add({ siteId, code }))).toMatchObject({
 				code: "LANGUAGE_INVALID",
 				data: { problems: [{ at: "code" }] },
 			});
 		}
-		await expect(staff.api.languages.add({ siteId, code: "EN" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.languages.add({ siteId, code: "EN" }))).toMatchObject({
 			code: "LANGUAGE_TAKEN",
 			data: { field: "code" },
 		});
-		await expect(staff.api.languages.add({ siteId, code: "it", name: " " })).rejects.toMatchObject({
+		expect(await rejection(staff.api.languages.add({ siteId, code: "it", name: " " }))).toMatchObject({
 			code: "LANGUAGE_INVALID",
 			data: { problems: [{ at: "name" }] },
 		});
-		await expect(staff.api.languages.add({ siteId, code: "it", domain: "not a domain" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.languages.add({ siteId, code: "it", domain: "not a domain" }))).toMatchObject({
 			code: "LANGUAGE_INVALID",
 			data: { problems: [{ at: "domain" }] },
 		});
 
 		await staff.api.languages.add({ siteId, code: "it", domain: "acme.it" });
 		const other = await newSite();
-		await expect(staff.api.languages.add({ siteId: other, code: "it", domain: "ACME.it" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.languages.add({ siteId: other, code: "it", domain: "ACME.it" }))).toMatchObject({
 			code: "LANGUAGE_TAKEN",
 			data: { field: "domain" },
 		});
-		await expect(staff.api.languages.update({ siteId, code: "de", name: "Deutsch" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.languages.update({ siteId, code: "de", name: "Deutsch" }))).toMatchObject({
 			code: "LANGUAGE_NOT_FOUND",
 		});
 	});
@@ -120,8 +121,8 @@ describe("a Site's languages", () => {
 	test("Members see the languages; only Staff change them", async () => {
 		const siteId = await newSite();
 
-		await expect(owner.api.languages.add({ siteId, code: "fr" })).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(owner.api.languages.update({ siteId, code: "en", name: "Inglese" })).rejects.toMatchObject({
+		expect(await rejection(owner.api.languages.add({ siteId, code: "fr" }))).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(owner.api.languages.update({ siteId, code: "en", name: "Inglese" }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});
@@ -180,7 +181,7 @@ describe("removing a language", () => {
 
 		expect(done).toEqual({ removed: true, settings: expect.objectContaining({ languages: [english] }) });
 		expect((await french()).status).toBe(404);
-		await expect(staff.api.entries.get({ siteId, entryId: entry.id, language: "fr" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.entries.get({ siteId, entryId: entry.id, language: "fr" }))).toMatchObject({
 			code: "ENTRY_INVALID",
 		});
 		const [logged] = (await admin.api.audit.list({ limit: 1 })).entries;
@@ -197,12 +198,12 @@ describe("removing a language", () => {
 		const siteId = await newSite();
 		await staff.api.languages.add({ siteId, code: "fr" });
 
-		await expect(staff.api.languages.remove({ siteId, code: "en" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.languages.remove({ siteId, code: "en" }))).toMatchObject({
 			code: "LANGUAGE_INVALID",
 			data: { problems: [{ at: "code" }] },
 		});
-		await expect(owner.api.languages.remove({ siteId, code: "fr" })).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(staff.api.languages.remove({ siteId, code: "de" })).rejects.toMatchObject({
+		expect(await rejection(owner.api.languages.remove({ siteId, code: "fr" }))).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(staff.api.languages.remove({ siteId, code: "de" }))).toMatchObject({
 			code: "LANGUAGE_NOT_FOUND",
 		});
 	});

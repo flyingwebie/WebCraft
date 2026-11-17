@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const SMTP = {
 	host: "smtp.agency.example",
@@ -99,20 +100,22 @@ describe("Install branding", () => {
 	});
 
 	test("refuses a logo that isn't an HTTPS address, and an accent colour that isn't #rrggbb", async () => {
-		await expect(
-			admin.api.install.emailBranding.update({ logoUrl: "http://cdn.northwind.example/logo.png" }),
-		).rejects.toMatchObject({ code: "BAD_REQUEST" });
-		await expect(admin.api.install.emailBranding.update({ accentColour: "orange" })).rejects.toMatchObject({
+		expect(
+			await rejection(admin.api.install.emailBranding.update({ logoUrl: "http://cdn.northwind.example/logo.png" })),
+		).toMatchObject({ code: "BAD_REQUEST" });
+		expect(await rejection(admin.api.install.emailBranding.update({ accentColour: "orange" }))).toMatchObject({
 			code: "BAD_REQUEST",
 		});
-		await expect(admin.api.install.emailBranding.update({ footer: "x".repeat(501) })).rejects.toMatchObject({
+		expect(await rejection(admin.api.install.emailBranding.update({ footer: "x".repeat(501) }))).toMatchObject({
 			code: "BAD_REQUEST",
 		});
 	});
 
 	test("only the Superadmin can read or change it", async () => {
-		await expect(install.browser().api.install.emailBranding.get()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-		await expect(install.browser().api.install.emailBranding.update({ senderName: "Mallory" })).rejects.toMatchObject({
+		expect(await rejection(install.browser().api.install.emailBranding.get())).toMatchObject({ code: "UNAUTHORIZED" });
+		expect(
+			await rejection(install.browser().api.install.emailBranding.update({ senderName: "Mallory" })),
+		).toMatchObject({
 			code: "UNAUTHORIZED",
 		});
 	});

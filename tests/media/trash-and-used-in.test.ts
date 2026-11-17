@@ -7,6 +7,7 @@ import { join } from "node:path";
 
 import { pdf, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -221,15 +222,21 @@ describe("deleting", () => {
 		const other = await uploadImage(editor, "macaron.jpg");
 		const asked = await editor.api.media.delete({ siteId, mediaId: image.id });
 		const confirmation = asked.trashed ? "" : asked.confirmation.id;
-		await expect(editor.api.media.delete({ siteId, mediaId: other.id, confirmation })).rejects.toMatchObject({
+		expect(await rejection(editor.api.media.delete({ siteId, mediaId: other.id, confirmation }))).toMatchObject({
 			code: "CONFIRMATION_INVALID",
 		});
 
 		const again = await editor.api.media.delete({ siteId, mediaId: image.id });
 		await publishedPost("Eclairs", image.id);
-		await expect(
-			editor.api.media.delete({ siteId, mediaId: image.id, confirmation: again.trashed ? "" : again.confirmation.id }),
-		).rejects.toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "changed" } });
+		expect(
+			await rejection(
+				editor.api.media.delete({
+					siteId,
+					mediaId: image.id,
+					confirmation: again.trashed ? "" : again.confirmation.id,
+				}),
+			),
+		).toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "changed" } });
 	});
 
 	test("restoring puts the file back as it was, and pages show it again", async () => {
@@ -244,7 +251,7 @@ describe("deleting", () => {
 		expect(media).toMatchObject({ id: image.id, trashedAt: null, purgeAt: null, alt: "A sesame bagel" });
 		expect(await (await install.request(onSite("/posts/bagels"))).text()).toContain(image.url ?? "-");
 		expect((await install.request(onSite(image.url ?? ""))).status).toBe(200);
-		await expect(editor.api.media.restore({ siteId, mediaId: image.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.media.restore({ siteId, mediaId: image.id }))).toMatchObject({
 			code: "MEDIA_NOT_IN_TRASH",
 		});
 	});
@@ -252,9 +259,9 @@ describe("deleting", () => {
 	test("a file in the Trash can't be chosen for a media Field", async () => {
 		const image = await uploadImage(editor, "scone.jpg");
 		await trash(editor, image.id);
-		await expect(
-			editor.api.entries.create({ siteId, postTypeId, title: "Scones", fields: { hero: image.id } }),
-		).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+		expect(
+			await rejection(editor.api.entries.create({ siteId, postTypeId, title: "Scones", fields: { hero: image.id } })),
+		).toMatchObject({ code: "ENTRY_INVALID" });
 	});
 
 	test("Authors put only their own uploads in the Trash and take only those out; Editors any", async () => {
@@ -262,9 +269,11 @@ describe("deleting", () => {
 		const others = await uploadImage(editor, "editors.jpg");
 
 		await trash(author, own.id);
-		await expect(author.api.media.delete({ siteId, mediaId: others.id })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(author.api.media.delete({ siteId, mediaId: others.id }))).toMatchObject({
+			code: "FORBIDDEN",
+		});
 		await trash(editor, others.id);
-		await expect(author.api.media.restore({ siteId, mediaId: others.id })).rejects.toMatchObject({
+		expect(await rejection(author.api.media.restore({ siteId, mediaId: others.id }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 		expect((await author.api.media.restore({ siteId, mediaId: own.id })).media.trashedAt).toBeNull();
@@ -299,7 +308,7 @@ describe("the Trash", () => {
 
 		await later(2 * DAY);
 		expect((await install.drainJobs()).failed).toEqual([]);
-		await expect(editor.api.media.get({ siteId, mediaId: first.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.media.get({ siteId, mediaId: first.id }))).toMatchObject({
 			code: "MEDIA_NOT_FOUND",
 		});
 		// The other item still holds the same bytes.
@@ -317,7 +326,7 @@ describe("the Trash", () => {
 	test("deleting for good and emptying the Trash take two steps; emptying needs media.manage", async () => {
 		const one = await uploadImage(editor, "one.jpg");
 		const two = await uploadImage(author, "two.jpg");
-		await expect(editor.api.media.deleteForever({ siteId, mediaId: one.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.media.deleteForever({ siteId, mediaId: one.id }))).toMatchObject({
 			code: "MEDIA_NOT_IN_TRASH",
 		});
 		await trash(editor, one.id);
@@ -330,9 +339,11 @@ describe("the Trash", () => {
 			mediaId: two.id,
 			confirmation: asked.deleted ? "" : asked.confirmation.id,
 		});
-		await expect(author.api.media.get({ siteId, mediaId: two.id })).rejects.toMatchObject({ code: "MEDIA_NOT_FOUND" });
+		expect(await rejection(author.api.media.get({ siteId, mediaId: two.id }))).toMatchObject({
+			code: "MEDIA_NOT_FOUND",
+		});
 
-		await expect(author.api.media.emptyTrash({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(author.api.media.emptyTrash({ siteId }))).toMatchObject({ code: "FORBIDDEN" });
 		const inTrash = (await editor.api.media.list({ siteId, trash: true })).total;
 		const empty = await editor.api.media.emptyTrash({ siteId });
 		expect(empty).toMatchObject({ emptied: false, count: inTrash });
@@ -340,7 +351,9 @@ describe("the Trash", () => {
 			await editor.api.media.emptyTrash({ siteId, confirmation: empty.emptied ? "" : empty.confirmation.id }),
 		).toEqual({ emptied: true, count: inTrash });
 		expect((await editor.api.media.list({ siteId, trash: true })).total).toBe(0);
-		await expect(editor.api.media.get({ siteId, mediaId: one.id })).rejects.toMatchObject({ code: "MEDIA_NOT_FOUND" });
+		expect(await rejection(editor.api.media.get({ siteId, mediaId: one.id }))).toMatchObject({
+			code: "MEDIA_NOT_FOUND",
+		});
 		const { entries } = await (await install.superadmin()).api.audit.list({});
 		expect(entries.find((entry) => entry.action === "mediaTrash.empty")).toMatchObject({
 			details: { count: inTrash },

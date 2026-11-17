@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -106,8 +107,8 @@ describe("the 404 page per language", () => {
 		const site = await newSite([]);
 		const lost = await publishedPage(site, "Lost your way?");
 
-		await expect(
-			staff.api.pages.setNotFoundPage({ siteId: site.siteId, pageId: lost, language: "fr" }),
-		).rejects.toMatchObject({ code: "LANGUAGE_NOT_FOUND" });
+		expect(
+			await rejection(staff.api.pages.setNotFoundPage({ siteId: site.siteId, pageId: lost, language: "fr" })),
+		).toMatchObject({ code: "LANGUAGE_NOT_FOUND" });
 	});
 });

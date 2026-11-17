@@ -6,6 +6,7 @@ import type { ModuleRefusal } from "@webcraft/module-sdk";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { rejection } from "../harness/settled.ts";
 import { sampleBoard } from "./sample/board.ts";
 import { PROBES, sample } from "./sample/index.ts";
 
@@ -52,8 +53,8 @@ describe("a Module's procedures", () => {
 	test("refuse people whose role the Module doesn't give its Permission", async () => {
 		const author = await install.createMember({ workspaceId, role: "author" });
 
-		await expect(api(author.browser).notes.list({ siteId })).resolves.toBeDefined();
-		await expect(api(author.browser).notes.add({ siteId, body: "Not mine to add" })).rejects.toMatchObject({
+		expect(await api(author.browser).notes.list({ siteId })).toBeDefined();
+		expect(await rejection(api(author.browser).notes.add({ siteId, body: "Not mine to add" }))).toMatchObject({
 			code: "FORBIDDEN",
 			status: 403,
 			data: { permission: "sample.notes.edit" },
@@ -61,17 +62,17 @@ describe("a Module's procedures", () => {
 	});
 
 	test("check their input", async () => {
-		await expect(api(staff).notes.add({ siteId, body: "   " })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(await rejection(api(staff).notes.add({ siteId, body: "   " }))).toMatchObject({ code: "BAD_REQUEST" });
 	});
 
 	test("answer a Module's own refusals with MODULE_ERROR", async () => {
-		await expect(
-			api(staff).notes.share({ siteId, noteId: crypto.randomUUID(), email: "someone@client.example" }),
-		).rejects.toMatchObject({ code: "MODULE_ERROR", status: 404, data: { code: "note-not-found" } });
+		expect(
+			await rejection(api(staff).notes.share({ siteId, noteId: crypto.randomUUID(), email: "someone@client.example" })),
+		).toMatchObject({ code: "MODULE_ERROR", status: 404, data: { code: "note-not-found" } });
 	});
 
 	test("that fail answer MODULE_FAILED and leave the reason in the Module log", async () => {
-		await expect(api(staff).broken({ siteId })).rejects.toMatchObject({ code: "MODULE_FAILED", status: 500 });
+		expect(await rejection(api(staff).broken({ siteId }))).toMatchObject({ code: "MODULE_FAILED", status: 500 });
 
 		const { lines } = await (await install.superadmin()).api.modules.log({ moduleId: "sample" });
 		expect(lines[0]).toMatchObject({
@@ -86,7 +87,7 @@ describe("a Module's procedures", () => {
 	test("refuse a Site of another Workspace, as if it didn't exist", async () => {
 		const theirs = await install.createSite((await install.createWorkspace()).id);
 
-		await expect(api(staff).notes.list({ siteId: theirs.id })).rejects.toMatchObject({ code: "SITE_NOT_FOUND" });
+		expect(await rejection(api(staff).notes.list({ siteId: theirs.id }))).toMatchObject({ code: "SITE_NOT_FOUND" });
 	});
 
 	test("of a Workspace-level Module take the Workspace, and the Permission its roles hold there", async () => {
@@ -98,7 +99,7 @@ describe("a Module's procedures", () => {
 
 		await board(owner.browser).pins.add({ workspaceId, text: "Owners pin" });
 
-		await expect(board(editor.browser).pins.add({ workspaceId, text: "Editors don't" })).rejects.toMatchObject({
+		expect(await rejection(board(editor.browser).pins.add({ workspaceId, text: "Editors don't" }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 		expect((await board(editor.browser).pins.list({ workspaceId })).pins.map((pin) => pin.text)).toEqual([
@@ -219,7 +220,7 @@ describe("the Module log", () => {
 		try {
 			await (await kept.superadmin()).api.modules.approve({ moduleId: "sample", version: "1.0.0" });
 			const site = await kept.createSite((await kept.createWorkspace()).id);
-			await expect(api(await kept.superadmin()).broken({ siteId: site.id })).rejects.toMatchObject({
+			expect(await rejection(api(await kept.superadmin()).broken({ siteId: site.id }))).toMatchObject({
 				code: "MODULE_FAILED",
 			});
 			const lines = async () => (await (await kept.superadmin()).api.modules.log({ moduleId: "sample" })).lines;

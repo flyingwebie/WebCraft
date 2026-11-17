@@ -6,6 +6,7 @@ import { SecretNotSetError, type SecretRef } from "@webcraft/core";
 import pg from "pg";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { thrown } from "../harness/settled.ts";
 
 let install: TestInstall;
 
@@ -97,7 +98,7 @@ describe("useWith", () => {
 			called = true;
 		});
 
-		await expect(missing).rejects.toThrow(new SecretNotSetError('The secret "never.set" of the Install is not set.'));
+		expect(await thrown(missing)).toThrow(new SecretNotSetError('The secret "never.set" of the Install is not set.'));
 		expect(called).toBe(false);
 	});
 });
@@ -106,7 +107,7 @@ describe("owners", () => {
 	test("a secret can't belong to a Workspace that doesn't exist", async () => {
 		const ref: SecretRef = { owner: { kind: "workspace", workspaceId: crypto.randomUUID() }, name: "ai.key" };
 
-		await expect(install.secrets.set(ref, "sk-a-key-for-nobody-0000000000")).rejects.toThrow();
+		expect(await thrown(install.secrets.set(ref, "sk-a-key-for-nobody-0000000000"))).toThrow();
 	});
 
 	test("a Site's secret belongs to a Site of its own Workspace, never another Workspace's", async () => {
@@ -115,8 +116,8 @@ describe("owners", () => {
 			name: "smtp.password",
 		};
 
-		await expect(install.secrets.set(ref, "a password for the wrong Site")).rejects.toThrow();
-		await expect(install.secrets.describe(ref)).resolves.toEqual({ set: false });
+		expect(await thrown(install.secrets.set(ref, "a password for the wrong Site"))).toThrow();
+		expect(await install.secrets.describe(ref)).toEqual({ set: false });
 	});
 });
 
@@ -167,7 +168,7 @@ describe("remove", () => {
 		await install.secrets.remove(ref);
 
 		expect(await install.secrets.describe(ref)).toEqual({ set: false });
-		await expect(install.secrets.useWith(ref, () => "used")).rejects.toThrow(SecretNotSetError);
+		expect(await thrown(install.secrets.useWith(ref, () => "used"))).toThrow(SecretNotSetError);
 	});
 
 	test("removing a secret nobody set does nothing", async () => {
@@ -201,10 +202,10 @@ describe("no read-back", () => {
 	});
 
 	test("useWith refuses to hand the value back out of the callback", async () => {
-		await expect(install.secrets.useWith(ref, (value) => value)).rejects.toThrow(
+		expect(await thrown(install.secrets.useWith(ref, (value) => value))).toThrow(
 			`The useWith callback for the secret "webhook.secret" of Site ${ids.shop} in Workspace ${ids.acme} returned the secret's value. A secret's value must not leave the callback.`,
 		);
-		await expect(install.secrets.useWith(ref, async (value) => `Bearer ${value}`)).rejects.toThrow(
+		expect(await thrown(install.secrets.useWith(ref, async (value) => `Bearer ${value}`))).toThrow(
 			"returned the secret's value",
 		);
 	});
@@ -258,7 +259,7 @@ describe("what a secret can be", () => {
 	test("an empty value is refused: remove a secret instead", async () => {
 		const ref: SecretRef = { owner: { kind: "install" }, name: "smtp.password" };
 
-		await expect(install.secrets.set(ref, "")).rejects.toThrow(
+		expect(await thrown(install.secrets.set(ref, ""))).toThrow(
 			"A secret's value can't be empty; remove the secret instead.",
 		);
 	});
@@ -266,14 +267,14 @@ describe("what a secret can be", () => {
 	test("a value longer than 64 KiB is refused", async () => {
 		const ref: SecretRef = { owner: { kind: "install" }, name: "huge" };
 
-		await expect(install.secrets.set(ref, "x".repeat(65_537))).rejects.toThrow(
+		expect(await thrown(install.secrets.set(ref, "x".repeat(65_537)))).toThrow(
 			"A secret's value can't be longer than 65536 characters.",
 		);
 	});
 
 	test("names are 1 to 200 letters, digits, dots, colons, dashes and underscores", async () => {
 		for (const name of ["", " smtp", "smtp password", "smtp/password", "x".repeat(201)]) {
-			await expect(install.secrets.set({ owner: { kind: "install" }, name }, "a value long enough")).rejects.toThrow(
+			expect(await thrown(install.secrets.set({ owner: { kind: "install" }, name }, "a value long enough"))).toThrow(
 				`"${name}" is not a secret name`,
 			);
 		}
@@ -283,11 +284,13 @@ describe("what a secret can be", () => {
 	});
 
 	test("a Workspace or Site owner needs its ids", async () => {
-		await expect(
-			install.secrets.describe({ owner: { kind: "workspace", workspaceId: "" }, name: "ai.key" }),
-		).rejects.toThrow("A secret's owner needs a Workspace id.");
-		await expect(
-			install.secrets.describe({ owner: { kind: "site", workspaceId: "acme", siteId: " " }, name: "smtp.password" }),
-		).rejects.toThrow("A secret's owner needs a Site id.");
+		expect(
+			await thrown(install.secrets.describe({ owner: { kind: "workspace", workspaceId: "" }, name: "ai.key" })),
+		).toThrow("A secret's owner needs a Workspace id.");
+		expect(
+			await thrown(
+				install.secrets.describe({ owner: { kind: "site", workspaceId: "acme", siteId: " " }, name: "smtp.password" }),
+			),
+		).toThrow("A secret's owner needs a Site id.");
 	});
 });

@@ -1,16 +1,14 @@
 // The Media place's ground on the server (ADR 0037, BA-22): what the admin's Media screen changes, the
 // building area changes from the Site's own address, with the same Permissions and the same two steps
 // for the Trash; the shell starts knowing what the person may do with Media.
-import { afterAll, beforeAll, describe, expect, setDefaultTimeout, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { MEDIA_IMPORT_LIMITS } from "@webcraft/core";
 
 import { openBuildingArea, shellConfigIn } from "../harness/building-area.ts";
 import { type BuildingAreaApi, buildingAreaApi } from "../harness/building-area-api.ts";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
-
-// Import from URL moves the clock past the per-person limit, which fires the job queue's timers.
-setDefaultTimeout(60_000);
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -144,8 +142,7 @@ describe("a Member changes the Media library from the Site's address, as in the 
 
 		expect(media.fileName).toBe("rye.jpg");
 		const refused = editorArea.api.media.importUrl({ siteId, url: "http://127.0.0.1/a.jpg" });
-		expect(refused).rejects.toMatchObject({ code: "MEDIA_IMPORT_REFUSED" });
-		await refused.catch(() => {});
+		expect(await rejection(refused)).toMatchObject({ code: "MEDIA_IMPORT_REFUSED" });
 	});
 
 	test("the Trash: two steps in, Restore, two steps to delete for good, two steps to empty", async () => {

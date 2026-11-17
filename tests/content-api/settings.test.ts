@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -34,17 +35,19 @@ describe("who", () => {
 	test("Staff only: Owners and Editors may neither read nor change it", async () => {
 		const { key } = await staff.api.contentApi.keys.create({ siteId, name: "Staff's" });
 		for (const member of [owner, editor]) {
-			await expect(member.api.contentApi.get({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
-			await expect(member.api.contentApi.update({ siteId, enabled: true })).rejects.toMatchObject({
+			expect(await rejection(member.api.contentApi.get({ siteId }))).toMatchObject({ code: "FORBIDDEN" });
+			expect(await rejection(member.api.contentApi.update({ siteId, enabled: true }))).toMatchObject({
 				code: "FORBIDDEN",
 			});
-			await expect(member.api.contentApi.keys.create({ siteId, name: "Mine" })).rejects.toMatchObject({
+			expect(await rejection(member.api.contentApi.keys.create({ siteId, name: "Mine" }))).toMatchObject({
 				code: "FORBIDDEN",
 			});
-			await expect(member.api.contentApi.keys.update({ siteId, keyId: key.id, name: "Mine" })).rejects.toMatchObject({
-				code: "FORBIDDEN",
-			});
-			await expect(member.api.contentApi.keys.revoke({ siteId, keyId: key.id })).rejects.toMatchObject({
+			expect(await rejection(member.api.contentApi.keys.update({ siteId, keyId: key.id, name: "Mine" }))).toMatchObject(
+				{
+					code: "FORBIDDEN",
+				},
+			);
+			expect(await rejection(member.api.contentApi.keys.revoke({ siteId, keyId: key.id }))).toMatchObject({
 				code: "FORBIDDEN",
 			});
 		}
@@ -55,10 +58,10 @@ describe("who", () => {
 		const script = tokenClient(install, secret);
 		const otherSiteId = (await install.createSite(workspaceId, { name: "Acme Deli", slug: "deli" })).id;
 
-		await expect(
-			script.api.contentApi.keys.create({ siteId: otherSiteId, name: "From a script", origins: [] }),
-		).rejects.toMatchObject({ code: "SENSITIVE_ACTION_REFUSED", data: { action: "contentApi.open" } });
-		await expect(script.api.contentApi.update({ siteId: otherSiteId, enabled: true })).rejects.toMatchObject({
+		expect(
+			await rejection(script.api.contentApi.keys.create({ siteId: otherSiteId, name: "From a script", origins: [] })),
+		).toMatchObject({ code: "SENSITIVE_ACTION_REFUSED", data: { action: "contentApi.open" } });
+		expect(await rejection(script.api.contentApi.update({ siteId: otherSiteId, enabled: true }))).toMatchObject({
 			code: "SENSITIVE_ACTION_REFUSED",
 			data: { action: "contentApi.open" },
 		});
@@ -99,12 +102,12 @@ describe("the settings", () => {
 
 	test("a key's name has 1 to 100 characters, a key unknown to the Site is not found", async () => {
 		for (const name of ["", " ", "x".repeat(101)]) {
-			await expect(staff.api.contentApi.keys.create({ siteId, name })).rejects.toMatchObject({
+			expect(await rejection(staff.api.contentApi.keys.create({ siteId, name }))).toMatchObject({
 				code: "CONTENT_API_INVALID",
 				data: { problems: [expect.objectContaining({ at: "name", rule: "contentKeyName" })] },
 			});
 		}
-		await expect(staff.api.contentApi.keys.revoke({ siteId, keyId: crypto.randomUUID() })).rejects.toMatchObject({
+		expect(await rejection(staff.api.contentApi.keys.revoke({ siteId, keyId: crypto.randomUUID() }))).toMatchObject({
 			code: "CONTENT_KEY_NOT_FOUND",
 		});
 	});

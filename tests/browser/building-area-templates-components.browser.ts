@@ -16,6 +16,7 @@ import type { Page } from "playwright";
 
 import { fakeNpmPackage } from "../harness/fake-npm.ts";
 import type { TestAccount, TestBrowser } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { announced, enterBuildingArea, frameOf, shellFocusVisible } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, forgetPageErrors, pageErrors, startBrowserInstall, THEMES } from "./harness.ts";
@@ -386,7 +387,7 @@ describe("Templates and Components, for Staff", () => {
 		await dialog.waitFor({ state: "detached" });
 		await page.locator(`[data-wc-component-card="${heroId}"]`).waitFor({ state: "detached" });
 		expect(await announced(page)).toBe("HeroSplit deleted");
-		await expect(superadmin.api.components.get({ siteId, componentId: heroId })).rejects.toMatchObject({
+		expect(await rejection(superadmin.api.components.get({ siteId, componentId: heroId }))).toMatchObject({
 			code: "COMPONENT_NOT_FOUND",
 		});
 		expect((await superadmin.api.pageLayouts.get({ siteId, entryId: homeId })).placements).toEqual([]);

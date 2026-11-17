@@ -5,6 +5,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { answer } from "../harness/code-mode.ts";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSiteHeaders } from "../harness/site-safety.ts";
 
 let install: TestInstall;
@@ -114,26 +115,26 @@ test("a Member is refused Templates, Components and Structure, on the Site and i
 		expect([action, refused.status]).toEqual([action, 403]);
 	}
 	// Page layout settings are Structure too: refused as any other missing Permission is, and left as they were.
-	await expect(editor.api.pageLayouts.configure({ siteId, enabled: true })).rejects.toMatchObject({ status: 403 });
+	expect(await rejection(editor.api.pageLayouts.configure({ siteId, enabled: true }))).toMatchObject({ status: 403 });
 	expect(await staff.api.pageLayouts.settings({ siteId })).toEqual({ enabled: false, allowedComponents: [] });
 
 	const api = editor.api;
 	const forbidden = { status: 403 };
-	await expect(api.templates.saveSiteTemplateMarkup({ siteId, markup: "<main></main>" })).rejects.toMatchObject(
+	expect(await rejection(api.templates.saveSiteTemplateMarkup({ siteId, markup: "<main></main>" }))).toMatchObject(
 		forbidden,
 	);
-	await expect(
-		api.templates.saveEntryTemplateMarkup({ siteId, postTypeId, markup: "<article></article>" }),
-	).rejects.toMatchObject(forbidden);
-	await expect(api.components.create({ siteId, name: "Mine" })).rejects.toMatchObject(forbidden);
-	await expect(api.components.saveMarkup({ siteId, componentId, markup: "<p>Mine</p>" })).rejects.toMatchObject(
+	expect(
+		await rejection(api.templates.saveEntryTemplateMarkup({ siteId, postTypeId, markup: "<article></article>" })),
+	).toMatchObject(forbidden);
+	expect(await rejection(api.components.create({ siteId, name: "Mine" }))).toMatchObject(forbidden);
+	expect(await rejection(api.components.saveMarkup({ siteId, componentId, markup: "<p>Mine</p>" }))).toMatchObject(
 		forbidden,
 	);
-	await expect(api.components.publish({ siteId, componentId })).rejects.toMatchObject(forbidden);
-	await expect(api.postTypes.create({ siteId, name: "Mine", urlPattern: "/mine/{slug}" })).rejects.toMatchObject(
+	expect(await rejection(api.components.publish({ siteId, componentId }))).toMatchObject(forbidden);
+	expect(await rejection(api.postTypes.create({ siteId, name: "Mine", urlPattern: "/mine/{slug}" }))).toMatchObject(
 		forbidden,
 	);
-	await expect(api.pageLayouts.configure({ siteId, enabled: true })).rejects.toMatchObject(forbidden);
+	expect(await rejection(api.pageLayouts.configure({ siteId, enabled: true }))).toMatchObject(forbidden);
 });
 
 test("a Member is refused other Sites: their menu, their pages and their Edit mode", async () => {
@@ -148,11 +149,13 @@ test("a Member is refused other Sites: their menu, their pages and their Edit mo
 	const theirs = (await foreignStaff.api.entries.create({ siteId: foreign, postTypeId: pageType.id, title: "Theirs" }))
 		.entry;
 
-	await expect(editor.api.builder.commandMenu({ siteId: foreign })).rejects.toMatchObject({ code: "SITE_NOT_FOUND" });
-	await expect(editor.api.editMode.open({ siteId: foreign, path: "/" })).rejects.toMatchObject({
+	expect(await rejection(editor.api.builder.commandMenu({ siteId: foreign }))).toMatchObject({
 		code: "SITE_NOT_FOUND",
 	});
-	await expect(editor.api.pageLayouts.get({ siteId: foreign, entryId: theirs.id })).rejects.toMatchObject({
+	expect(await rejection(editor.api.editMode.open({ siteId: foreign, path: "/" }))).toMatchObject({
+		code: "SITE_NOT_FOUND",
+	});
+	expect(await rejection(editor.api.pageLayouts.get({ siteId: foreign, entryId: theirs.id }))).toMatchObject({
 		code: "SITE_NOT_FOUND",
 	});
 
@@ -182,14 +185,16 @@ test("a Member is refused arranging while it is off, and Components that aren't 
 	// Off: nothing to arrange with, and the write is refused.
 	expect(await read()).toMatchObject({ canArrange: false, components: [] });
 	await expectRefused(save([placement]), "PAGE_LAYOUT_REFUSED");
-	await expect(
-		editor.api.pageLayouts.save({
-			siteId,
-			entryId: homeId,
-			basedOn: (await read()).version,
-			layout: { placements: [placement] },
-		}),
-	).rejects.toMatchObject({ code: "PAGE_LAYOUT_REFUSED", status: 403 });
+	expect(
+		await rejection(
+			editor.api.pageLayouts.save({
+				siteId,
+				entryId: homeId,
+				basedOn: (await read()).version,
+				layout: { placements: [placement] },
+			}),
+		),
+	).toMatchObject({ code: "PAGE_LAYOUT_REFUSED", status: 403 });
 
 	// On, with no Allowed components: still nothing a Member may insert.
 	await staff.api.pageLayouts.configure({ siteId, enabled: true });
@@ -244,7 +249,7 @@ test("an Author is refused Publish, and sends the page to Review instead", async
 	const published = await editing.edit("publish", { path: "/" });
 	expectSiteHeaders(published);
 	expect(published.status).toBe(403);
-	await expect(author.api.entries.publish({ siteId, entryId: homeId })).rejects.toMatchObject({ status: 403 });
+	expect(await rejection(author.api.entries.publish({ siteId, entryId: homeId }))).toMatchObject({ status: 403 });
 
 	const submitted = await answer<{ reviews: { status: string }[] }>(
 		editing.edit("review/submit", { path: "/", note: "Ready" }),

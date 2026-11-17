@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -76,10 +77,10 @@ describe("making a domain the Primary domain", () => {
 		await staff.api.languages.add({ siteId, code: "fr", domain: "lang-primary.fr" });
 		const french = (await staff.api.domains.list({ siteId })).domains.find((domain) => domain.language === "fr");
 
-		await expect(
-			staff.api.domains.makePrimary({ siteId, domainId: id(ids, "slow-redirect.example") }),
-		).rejects.toMatchObject({ code: "DOMAIN_CHANGE_REFUSED", data: { problem: "not-verified" } });
-		await expect(staff.api.domains.makePrimary({ siteId, domainId: french?.id ?? "" })).rejects.toMatchObject({
+		expect(
+			await rejection(staff.api.domains.makePrimary({ siteId, domainId: id(ids, "slow-redirect.example") })),
+		).toMatchObject({ code: "DOMAIN_CHANGE_REFUSED", data: { problem: "not-verified" } });
+		expect(await rejection(staff.api.domains.makePrimary({ siteId, domainId: french?.id ?? "" }))).toMatchObject({
 			code: "DOMAIN_CHANGE_REFUSED",
 			data: { problem: "language" },
 		});
@@ -158,7 +159,7 @@ describe("removing a domain", () => {
 		await staff.api.languages.add({ siteId, code: "fr", domain: "lang-remove.fr" });
 		const french = (await staff.api.domains.list({ siteId })).domains.find((domain) => domain.language === "fr");
 
-		await expect(staff.api.domains.remove({ siteId, domainId: french?.id ?? "" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.domains.remove({ siteId, domainId: french?.id ?? "" }))).toMatchObject({
 			code: "DOMAIN_CHANGE_REFUSED",
 			data: { problem: "language" },
 		});
@@ -171,7 +172,7 @@ describe("removing a domain", () => {
 		const owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
 		const domainId = id(ids, "owned-bakery.example");
 
-		await expect(owner.api.domains.remove({ siteId, domainId })).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(owner.api.domains.makePrimary({ siteId, domainId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(owner.api.domains.remove({ siteId, domainId }))).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(owner.api.domains.makePrimary({ siteId, domainId }))).toMatchObject({ code: "FORBIDDEN" });
 	});
 });

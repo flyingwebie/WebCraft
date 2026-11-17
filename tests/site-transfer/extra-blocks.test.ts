@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { exportedArchive, importArchive, rewritten, uploadArchive } from "../harness/site-transfer.ts";
 
 test("Extra blocks cross Installs: allowances and declarations survive, real Media remaps, literal UUID text does not", async () => {
@@ -99,7 +100,7 @@ test("Extra blocks cross Installs: allowances and declarations survive, real Med
 				manifest.moduleComponents[0].props = [null];
 			},
 		});
-		await expect(uploadArchive(receiving, destination.id, invalid)).rejects.toMatchObject({
+		expect(await rejection(uploadArchive(receiving, destination.id, invalid))).toMatchObject({
 			code: "SITE_IMPORT_REFUSED",
 			data: { reason: "not-an-export" },
 		});
@@ -230,9 +231,11 @@ for (const destination of ["missing", "changed"] as const) {
 				if (install === target) {
 					await install.clock.advance(91 * 24 * 60 * 60 * 1000);
 					await install.drainJobs();
-					await expect(
-						(await install.superadmin()).api.siteImports.get({ workspaceId: ws.id, importId: result.id }),
-					).rejects.toMatchObject({
+					expect(
+						await rejection(
+							(await install.superadmin()).api.siteImports.get({ workspaceId: ws.id, importId: result.id }),
+						),
+					).toMatchObject({
 						code: "SITE_IMPORT_NOT_FOUND",
 					});
 				}

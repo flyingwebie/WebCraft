@@ -597,5 +597,5 @@ describe("generated trees", () => {
 			}),
 			{ numRuns: 150 },
 		);
-	}, 120_000);
+	});
 });

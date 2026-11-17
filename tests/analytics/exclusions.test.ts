@@ -9,6 +9,7 @@ import { ipv6Network } from "../harness/addresses.ts";
 import { analyticsApi, analyticsVisitor, COLLECT_PATH, dayOf, liveSite } from "../harness/analytics.ts";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSiteHeaders } from "../harness/site-safety.ts";
 import { givePassword, stagingVisitor } from "../harness/staging.ts";
 
@@ -132,9 +133,9 @@ describe("excluded address ranges", () => {
 		const site = await newSite();
 
 		for (const range of ["203.0.113.0/33", "office", "203.0.113.256", "2001:db8::/129"]) {
-			await expect(
-				analyticsApi(staff).settings.update({ siteId: site.siteId, excludedRanges: [range] }),
-			).rejects.toMatchObject({ code: "BAD_REQUEST" });
+			expect(
+				await rejection(analyticsApi(staff).settings.update({ siteId: site.siteId, excludedRanges: [range] })),
+			).toMatchObject({ code: "BAD_REQUEST" });
 		}
 	});
 
@@ -142,12 +143,14 @@ describe("excluded address ranges", () => {
 		const site = await newSite();
 		const owner = await install.createMember({ workspaceId, role: "owner" });
 
-		await expect(
-			analyticsApi(owner.browser).settings.update({ siteId: site.siteId, excludedRanges: ["203.0.113.0/24"] }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(
-			analyticsApi(owner.browser).stats.totals({ siteId: site.siteId, ...dayOf(install.clock.now()) }),
-		).resolves.toBeDefined();
+		expect(
+			await rejection(
+				analyticsApi(owner.browser).settings.update({ siteId: site.siteId, excludedRanges: ["203.0.113.0/24"] }),
+			),
+		).toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await analyticsApi(owner.browser).stats.totals({ siteId: site.siteId, ...dayOf(install.clock.now()) }),
+		).toBeDefined();
 	});
 });
 

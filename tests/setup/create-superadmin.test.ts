@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const CLI = join(new URL("../../", import.meta.url).pathname, "apps/cli/src/main.ts");
 const EMPTY_DIRECTORY = mkdtempSync(join(tmpdir(), "webcraft-cli-"));
@@ -78,7 +79,7 @@ describe("webcraft admin create-superadmin", () => {
 
 		const browser = install.browser();
 		expect(await browser.api.setup.state()).toEqual({ stage: "done" });
-		await expect(browser.api.setup.checkToken({ token })).rejects.toMatchObject({ code: "SETUP_CLOSED" });
+		expect(await rejection(browser.api.setup.checkToken({ token }))).toMatchObject({ code: "SETUP_CLOSED" });
 	});
 
 	test("creates no Workspace: the wizard's first client step is skipped with the rest of it", async () => {

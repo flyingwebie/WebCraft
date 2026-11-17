@@ -8,6 +8,7 @@ import { REPORT_PAGE_POLICY } from "@webcraft/core";
 import { ipv6Network } from "../harness/addresses.ts";
 import { chunkedBody, chunkedPost } from "../harness/bodies.ts";
 import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { reportedSite, views } from "./support.ts";
 
 let install: TestInstall;
@@ -253,14 +254,16 @@ describe("a Share link", () => {
 			["Until tomorrow", "expired"],
 			["Wrong one", "revoked"],
 		]);
-		await expect(
-			fresh.api.shareLinks.create({
-				siteId: site.siteId,
-				dashboardId: site.dashboardId,
-				name: "Yesterday",
-				expiresAt: new Date("2026-03-01T00:00:00Z"),
-			}),
-		).rejects.toMatchObject({ code: "SHARE_LINK_INVALID", data: { field: "expiresAt" } });
+		expect(
+			await rejection(
+				fresh.api.shareLinks.create({
+					siteId: site.siteId,
+					dashboardId: site.dashboardId,
+					name: "Yesterday",
+					expiresAt: new Date("2026-03-01T00:00:00Z"),
+				}),
+			),
+		).toMatchObject({ code: "SHARE_LINK_INVALID", data: { field: "expiresAt" } });
 	});
 
 	test("Owners see a Dashboard's Share links but don't make them; Editors don't see them", async () => {
@@ -274,12 +277,14 @@ describe("a Share link", () => {
 		expect(
 			(await owner.api.shareLinks.list({ siteId: site.siteId, dashboardId: site.dashboardId })).links,
 		).toHaveLength(1);
-		await expect(
-			owner.api.shareLinks.create({ siteId: site.siteId, dashboardId: site.dashboardId, name: "Mine" }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(
-			editor.api.shareLinks.list({ siteId: site.siteId, dashboardId: site.dashboardId }),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				owner.api.shareLinks.create({ siteId: site.siteId, dashboardId: site.dashboardId, name: "Mine" }),
+			),
+		).toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(editor.api.shareLinks.list({ siteId: site.siteId, dashboardId: site.dashboardId })),
+		).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});
@@ -300,7 +305,7 @@ describe("a Share link", () => {
 	});
 
 	test("no Site can take the Share link address's name", async () => {
-		await expect(install.createSite(workspaceId, { slug: "share" })).rejects.toMatchObject({ code: "SLUG_INVALID" });
+		expect(await rejection(install.createSite(workspaceId, { slug: "share" }))).toMatchObject({ code: "SLUG_INVALID" });
 	});
 
 	test("an address asking for too many pages is told to wait", async () => {
@@ -318,9 +323,11 @@ describe("without a sites domain", () => {
 			const site = await bare.createSite(workspace.id);
 			const superadmin = await bare.superadmin();
 			const { dashboard } = await superadmin.api.dashboards.create({ siteId: site.id, name: "Overview" });
-			await expect(
-				superadmin.api.shareLinks.create({ siteId: site.id, dashboardId: dashboard.id, name: "Nowhere" }),
-			).rejects.toMatchObject({ code: "SHARE_LINKS_UNAVAILABLE" });
+			expect(
+				await rejection(
+					superadmin.api.shareLinks.create({ siteId: site.id, dashboardId: dashboard.id, name: "Nowhere" }),
+				),
+			).toMatchObject({ code: "SHARE_LINKS_UNAVAILABLE" });
 		} finally {
 			await bare.close();
 		}

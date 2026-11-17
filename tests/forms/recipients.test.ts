@@ -8,6 +8,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { formVisitor } from "../harness/forms.ts";
 import { createTestInstall, TEST_PASSWORD, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -113,27 +114,35 @@ test("an API token never changes who receives a Form's Submissions, whatever its
 	});
 	const script = tokenClient(install, secret).api;
 
-	await expect(
-		script.forms.saveEmails({ siteId, formId, emails: { notifications: [{ ...OWNERS, recipients: [THEIRS] }] } }),
-	).rejects.toMatchObject({ code: "SENSITIVE_ACTION_REFUSED" });
+	expect(
+		await rejection(
+			script.forms.saveEmails({ siteId, formId, emails: { notifications: [{ ...OWNERS, recipients: [THEIRS] }] } }),
+		),
+	).toMatchObject({ code: "SENSITIVE_ACTION_REFUSED" });
 	// Nor through routing, which sends some Submissions elsewhere.
-	await expect(
-		script.forms.saveEmails({
-			siteId,
-			formId,
-			emails: {
-				notifications: [{ ...OWNERS, routing: { field: "topic", routes: [{ value: "order", recipients: [THEIRS] }] } }],
-			},
-		}),
-	).rejects.toMatchObject({ code: "SENSITIVE_ACTION_REFUSED" });
+	expect(
+		await rejection(
+			script.forms.saveEmails({
+				siteId,
+				formId,
+				emails: {
+					notifications: [
+						{ ...OWNERS, routing: { field: "topic", routes: [{ value: "order", recipients: [THEIRS] }] } },
+					],
+				},
+			}),
+		),
+	).toMatchObject({ code: "SENSITIVE_ACTION_REFUSED" });
 	// Nor by adding a Notification of its own.
-	await expect(
-		script.forms.saveEmails({
-			siteId,
-			formId,
-			emails: { notifications: [OWNERS, { recipients: [THEIRS], subject: "", intro: "" }] },
-		}),
-	).rejects.toMatchObject({ code: "SENSITIVE_ACTION_REFUSED" });
+	expect(
+		await rejection(
+			script.forms.saveEmails({
+				siteId,
+				formId,
+				emails: { notifications: [OWNERS, { recipients: [THEIRS], subject: "", intro: "" }] },
+			}),
+		),
+	).toMatchObject({ code: "SENSITIVE_ACTION_REFUSED" });
 
 	// A token publishes in two steps: the first call answers a confirmation, the second gives it back.
 	const asked: unknown = await script.forms.publishEmails({ siteId, formId });
@@ -169,10 +178,12 @@ test("without the Submissions Toolset, an API token neither changes nor publishe
 	});
 	const script = tokenClient(install, secret).api;
 
-	await expect(
-		script.forms.saveEmails({ siteId, formId, emails: { notifications: [{ ...OWNERS, subject: "Changed" }] } }),
-	).rejects.toMatchObject({ code: "TOOLSET_OFF", data: { toolsets: ["submissions"] } });
-	await expect(script.forms.publishEmails({ siteId, formId })).rejects.toMatchObject({
+	expect(
+		await rejection(
+			script.forms.saveEmails({ siteId, formId, emails: { notifications: [{ ...OWNERS, subject: "Changed" }] } }),
+		),
+	).toMatchObject({ code: "TOOLSET_OFF", data: { toolsets: ["submissions"] } });
+	expect(await rejection(script.forms.publishEmails({ siteId, formId }))).toMatchObject({
 		code: "TOOLSET_OFF",
 		data: { toolsets: ["submissions"] },
 	});
@@ -188,7 +199,7 @@ test("in the admin, changing who receives Submissions needs a recent identity ch
 			emails: { notifications: [{ ...OWNERS, recipients: ["orders@acmebakery.example", "chef@acmebakery.example"] }] },
 		});
 
-	await expect(change()).rejects.toMatchObject({
+	expect(await rejection(change())).toMatchObject({
 		code: "IDENTITY_CHECK_REQUIRED",
 		data: { action: "formRecipients.change" },
 	});
@@ -230,11 +241,11 @@ test("restoring a Form's earlier emails with other recipients is a Sensitive act
 		toolsets: ["content", "structure", "submissions"],
 	});
 
-	await expect(tokenClient(install, secret).api.history.restore({ siteId, item, copy })).rejects.toMatchObject({
+	expect(await rejection(tokenClient(install, secret).api.history.restore({ siteId, item, copy }))).toMatchObject({
 		code: "SENSITIVE_ACTION_REFUSED",
 	});
 	await install.clock.advance(11 * MINUTE);
-	await expect(editor.api.history.restore({ siteId, item, copy })).rejects.toMatchObject({
+	expect(await rejection(editor.api.history.restore({ siteId, item, copy }))).toMatchObject({
 		code: "IDENTITY_CHECK_REQUIRED",
 		data: { action: "formRecipients.change" },
 	});

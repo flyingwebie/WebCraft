@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -175,29 +176,33 @@ describe("defining Fields", () => {
 			{ field: { type: "text", help: "x".repeat(501) }, at: "fields[0].help" },
 		];
 		for (const { field, at } of cases) {
-			await expect(
-				staff.api.postTypes.create({
-					siteId,
-					name: "Bad",
-					urlPattern: "/bad/{slug}",
-					// @ts-expect-error: settings as a client could send them
-					fields: [{ key: "value", label: "Value", ...field }],
-				}),
+			expect(
+				await rejection(
+					staff.api.postTypes.create({
+						siteId,
+						name: "Bad",
+						urlPattern: "/bad/{slug}",
+						// @ts-expect-error: settings as a client could send them
+						fields: [{ key: "value", label: "Value", ...field }],
+					}),
+				),
 				`${JSON.stringify(field)} is refused at ${at}`,
-			).rejects.toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at }] } });
+			).toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at }] } });
 		}
 	});
 
 	test("a Field keeps its type, but its settings can change", async () => {
 		const postType = await postTypeWith([{ key: "weight", label: "Weight", type: "number" }]);
 
-		await expect(
-			staff.api.postTypes.update({
-				siteId,
-				postTypeId: postType.id,
-				fields: [{ key: "weight", label: "Weight", type: "text" }],
-			}),
-		).rejects.toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at: "fields[0].type" }] } });
+		expect(
+			await rejection(
+				staff.api.postTypes.update({
+					siteId,
+					postTypeId: postType.id,
+					fields: [{ key: "weight", label: "Weight", type: "text" }],
+				}),
+			),
+		).toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at: "fields[0].type" }] } });
 
 		const { postType: changed } = await staff.api.postTypes.update({
 			siteId,
@@ -337,10 +342,10 @@ describe("values", () => {
 		];
 		for (const fields of refused) {
 			const [key] = Object.keys(fields);
-			await expect(
-				author.api.entries.saveDraft({ siteId, entryId: entry.id, fields }),
+			expect(
+				await rejection(author.api.entries.saveDraft({ siteId, entryId: entry.id, fields })),
 				`${JSON.stringify(fields)} is refused`,
-			).rejects.toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at: `fields.${key}` }] } });
+			).toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at: `fields.${key}` }] } });
 		}
 		expect((await author.api.entries.get({ siteId, entryId: entry.id })).entry.draft.fields.price).toBe(3);
 	});
@@ -404,7 +409,7 @@ describe("rules", () => {
 			{ at: "fields.contact", rule: "email", message: expect.any(String) },
 			{ at: "fields.intro", rule: "maxLength", message: expect.any(String) },
 		]);
-		await expect(editor.api.entries.publish({ siteId, entryId: entry.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.publish({ siteId, entryId: entry.id }))).toMatchObject({
 			code: "ENTRY_INVALID",
 			data: { problems: entry.problems },
 		});
@@ -448,7 +453,7 @@ describe("rules", () => {
 			{ at: "fields.price", rule: "required", message: expect.any(String) },
 			{ at: "fields.size", rule: "required", message: expect.any(String) },
 		]);
-		await expect(editor.api.entries.publish({ siteId, entryId: entry.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.publish({ siteId, entryId: entry.id }))).toMatchObject({
 			code: "ENTRY_INCOMPLETE",
 			data: { missing: ["price", "size"] },
 		});

@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { openBuildingArea, shellConfigIn } from "../harness/building-area.ts";
 import { buildingAreaApi } from "../harness/building-area-api.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -83,7 +84,7 @@ describe("Components from the Site's address", () => {
 
 		const area = buildingAreaApi(install, await openBuildingArea(install, staff, siteId));
 		// Without asking for its Placements to go, it is refused as in the admin.
-		await expect(area.api.components.delete({ siteId, componentId: hero.id })).rejects.toMatchObject({
+		expect(await rejection(area.api.components.delete({ siteId, componentId: hero.id }))).toMatchObject({
 			code: "COMPONENT_IN_USE",
 		});
 		const first = await area.api.components.delete({ siteId, componentId: hero.id, placements: "remove" });
@@ -93,9 +94,11 @@ describe("Components from the Site's address", () => {
 			[`template:${site.template.id}`, `component:${wrapper.id}`, `entry:${pageId}`].sort(),
 		);
 		// The confirmation is for removing them: without `placements` it is another request.
-		await expect(
-			area.api.components.delete({ siteId, componentId: hero.id, confirmation: first.confirmation.id }),
-		).rejects.toMatchObject({ code: "COMPONENT_IN_USE" });
+		expect(
+			await rejection(
+				area.api.components.delete({ siteId, componentId: hero.id, confirmation: first.confirmation.id }),
+			),
+		).toMatchObject({ code: "COMPONENT_IN_USE" });
 		expect(
 			await area.api.components.delete({
 				siteId,
@@ -105,7 +108,7 @@ describe("Components from the Site's address", () => {
 			}),
 		).toEqual({ deleted: true });
 
-		await expect(staff.api.components.get({ siteId, componentId: hero.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.components.get({ siteId, componentId: hero.id }))).toMatchObject({
 			code: "COMPONENT_NOT_FOUND",
 		});
 		const template = (await staff.api.templates.getSiteTemplateMarkup({ siteId })).markup;
@@ -134,14 +137,16 @@ describe("Components from the Site's address", () => {
 		if (first.deleted) throw new Error("deleted on the first call");
 		expect(first.usage).toEqual({ pages: 0, usedIn: [] });
 		await pagePlacing("Prices", "prices", card.id, card.draft.props);
-		await expect(
-			area.api.components.delete({
-				siteId,
-				componentId: card.id,
-				confirmation: first.confirmation.id,
-				placements: "remove",
-			}),
-		).rejects.toMatchObject({ code: "CONFIRMATION_INVALID" });
+		expect(
+			await rejection(
+				area.api.components.delete({
+					siteId,
+					componentId: card.id,
+					confirmation: first.confirmation.id,
+					placements: "remove",
+				}),
+			),
+		).toMatchObject({ code: "CONFIRMATION_INVALID" });
 		expect((await staff.api.components.get({ siteId, componentId: card.id })).component.name).toBe("PriceCard");
 	});
 
@@ -170,13 +175,13 @@ describe("Components from the Site's address", () => {
 		expect((await staff.api.pageLayouts.settings({ siteId })).allowedComponents).toContain(quote.id);
 
 		const member = buildingAreaApi(install, await openBuildingArea(install, editor, siteId));
-		await expect(member.api.pageLayouts.configure({ siteId, allowedComponents: [] })).rejects.toMatchObject({
+		expect(await rejection(member.api.pageLayouts.configure({ siteId, allowedComponents: [] }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(
-			member.api.components.delete({ siteId, componentId: quote.id, placements: "remove" }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(member.api.templates.list({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(member.api.components.delete({ siteId, componentId: quote.id, placements: "remove" })),
+		).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(member.api.templates.list({ siteId }))).toMatchObject({ code: "FORBIDDEN" });
 		expect((await staff.api.pageLayouts.settings({ siteId })).allowedComponents).toContain(quote.id);
 	});
 });

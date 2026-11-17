@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import type { TestAccount } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectAccessibleScreen, expectNoAxeViolations, expectOverlayUsable } from "./checks.ts";
 import { type BrowserInstall, pageErrors, startBrowserInstall, THEMES } from "./harness.ts";
 
@@ -39,7 +40,7 @@ for (const theme of THEMES) {
 			await row.getByText("Deactivated").waitFor();
 			await page.getByRole("dialog").waitFor({ state: "hidden" });
 			await expectAccessibleScreen(page, `Staff, with a deactivated account (${theme})`);
-			await expect(install.install.signIn(leaver.account)).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
+			expect(await rejection(install.install.signIn(leaver.account))).toMatchObject({ code: "INVALID_CREDENTIALS" });
 
 			const reactivate = page.getByRole("button", { name: `Reactivate account of ${name}` });
 			await expectOverlayUsable(page, reactivate, "dialog", `reactivating an account (${theme})`);

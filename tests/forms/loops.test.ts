@@ -8,6 +8,7 @@ import type forms from "@webcraft/module-forms";
 import { formVisitor } from "../harness/forms.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -90,9 +91,9 @@ describe("a Form in a Loop", () => {
 		const markup = (text: string) =>
 			staff.api.templates.saveArchiveTemplateMarkup({ siteId, postTypeId: recipesId, markup: text });
 
-		await expect(
-			markup("{{@loop paged-recipes as r}}<article>{{@form order}}</article>{{/loop}}"),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(markup("{{@loop paged-recipes as r}}<article>{{@form order}}</article>{{/loop}}")),
+		).toMatchObject({
 			code: "TEMPLATE_MARKUP_INVALID",
 			data: {
 				problems: [
@@ -104,24 +105,26 @@ describe("a Form in a Loop", () => {
 				],
 			},
 		});
-		await expect(
-			staff.api.templates.saveArchiveTemplate({
-				siteId,
-				postTypeId: recipesId,
-				tree: {
-					version: 1,
-					nodes: [
-						{
-							type: "loop",
-							source: "paged-recipes",
-							alias: "r",
-							children: [{ type: "form", form: formId }],
-							empty: null,
-						},
-					],
-				},
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.templates.saveArchiveTemplate({
+					siteId,
+					postTypeId: recipesId,
+					tree: {
+						version: 1,
+						nodes: [
+							{
+								type: "loop",
+								source: "paged-recipes",
+								alias: "r",
+								children: [{ type: "form", form: formId }],
+								empty: null,
+							},
+						],
+					},
+				}),
+			),
+		).toMatchObject({
 			code: "TEMPLATE_INVALID",
 			data: {
 				problems: [{ at: "nodes[0].children[0]", message: expect.stringContaining("can't go inside a Loop's items") }],
@@ -169,7 +172,7 @@ describe("a Form on page 2 of a paginated Archive", () => {
 		const { usage } = await staff.api.forms.get({ siteId, formId });
 
 		expect(usage.usedIn).toContainEqual({ kind: "archiveTemplate", id: expect.any(String), name: "Recipes" });
-		await expect(staff.api.forms.delete({ siteId, formId })).rejects.toMatchObject({ code: "FORM_IN_USE" });
+		expect(await rejection(staff.api.forms.delete({ siteId, formId }))).toMatchObject({ code: "FORM_IN_USE" });
 	});
 
 	test("posts back to page 2, and every answer of the cached page carries a token of its own", async () => {

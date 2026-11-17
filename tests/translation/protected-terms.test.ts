@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { requestsInto, type TranslatedSite, translatedSite } from "./support.ts";
 
 let install: TestInstall;
@@ -160,31 +161,37 @@ describe("the lists", () => {
 
 	test("Authors can't change them; a term can't hold a marker or be empty", async () => {
 		const site = await translatedSite(install, { it: "review" });
-		await expect(
-			site.author.api.protectedTerms.add({
-				workspaceId: site.workspaceId,
-				siteId: site.siteId,
-				terms: [{ term: "Acme", matchCase: true }],
-			}),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(
-			site.author.api.protectedTerms.add({
-				workspaceId: site.workspaceId,
-				siteId: null,
-				terms: [{ term: "Acme", matchCase: true }],
-			}),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(
+				site.author.api.protectedTerms.add({
+					workspaceId: site.workspaceId,
+					siteId: site.siteId,
+					terms: [{ term: "Acme", matchCase: true }],
+				}),
+			),
+		).toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(
+				site.author.api.protectedTerms.add({
+					workspaceId: site.workspaceId,
+					siteId: null,
+					terms: [{ term: "Acme", matchCase: true }],
+				}),
+			),
+		).toMatchObject({ code: "FORBIDDEN" });
 		for (const [term, reason] of [
 			["   ", "empty"],
 			["Acme ⟦T1⟧", "characters"],
 		] as const) {
-			await expect(
-				site.owner.api.protectedTerms.add({
-					workspaceId: site.workspaceId,
-					siteId: null,
-					terms: [{ term, matchCase: true }],
-				}),
-			).rejects.toMatchObject({ code: "PROTECTED_TERM_INVALID", data: { index: 0, reason } });
+			expect(
+				await rejection(
+					site.owner.api.protectedTerms.add({
+						workspaceId: site.workspaceId,
+						siteId: null,
+						terms: [{ term, matchCase: true }],
+					}),
+				),
+			).toMatchObject({ code: "PROTECTED_TERM_INVALID", data: { index: 0, reason } });
 		}
 	});
 });

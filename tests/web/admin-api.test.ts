@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { API_PATH, createTestInstall, type TestAccount, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let superadmin: TestAccount;
@@ -130,7 +131,7 @@ describe("when the database can't be reached", () => {
 	test("a call fails with a 500 that explains nothing, and the failure is logged", async () => {
 		const browser = unreachable.browser();
 
-		await expect(browser.api.setup.state()).rejects.toMatchObject({
+		expect(await rejection(browser.api.setup.state())).toMatchObject({
 			status: 500,
 			code: "INTERNAL_SERVER_ERROR",
 			message: "Internal server error",

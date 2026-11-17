@@ -9,6 +9,7 @@ import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { formVisitor } from "../harness/forms.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 const HOOK = "https://hooks.crm.example/leads";
@@ -78,7 +79,7 @@ test("Staff read a delivery's body and what the receiver answered", async () => 
 
 test("an Author, who may not read Submissions, is refused the delivery log that holds them", async () => {
 	const author = (await install.createMember({ workspaceId, role: "author" })).browser;
-	await expect(moduleApi<typeof forms>(author, "forms").submissions.list({ siteId, formId })).rejects.toMatchObject({
+	expect(await rejection(moduleApi<typeof forms>(author, "forms").submissions.list({ siteId, formId }))).toMatchObject({
 		code: "FORBIDDEN",
 	});
 
@@ -86,7 +87,7 @@ test("an Author, who may not read Submissions, is refused the delivery log that 
 	const { webhooks } = await author.api.webhooks.list({ siteId });
 	expect(webhooks).toMatchObject([{ id: webhookId, name: "CRM", lastDelivery: { status: "retrying" } }]);
 
-	await expect(author.api.webhooks.deliveries({ siteId, webhookId })).rejects.toMatchObject({
+	expect(await rejection(author.api.webhooks.deliveries({ siteId, webhookId }))).toMatchObject({
 		code: "FORBIDDEN",
 		data: { permission: "structure.edit" },
 	});
@@ -96,7 +97,7 @@ test("Owners and Editors see the Webhooks, never the delivery log", async () => 
 	for (const role of ["owner", "editor"] as const) {
 		const member = (await install.createMember({ workspaceId, role })).browser;
 		expect((await member.api.webhooks.list({ siteId })).webhooks).toHaveLength(1);
-		await expect(member.api.webhooks.deliveries({ siteId, webhookId })).rejects.toMatchObject({
+		expect(await rejection(member.api.webhooks.deliveries({ siteId, webhookId }))).toMatchObject({
 			code: "FORBIDDEN",
 			data: { permission: "structure.edit" },
 		});
@@ -114,5 +115,5 @@ test("an Owner's API token with the Site settings Toolset is refused the deliver
 	const token = tokenClient(install, secret);
 
 	expect((await token.api.webhooks.list({ siteId })).webhooks).toHaveLength(1);
-	await expect(token.api.webhooks.deliveries({ siteId, webhookId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+	expect(await rejection(token.api.webhooks.deliveries({ siteId, webhookId }))).toMatchObject({ code: "FORBIDDEN" });
 });

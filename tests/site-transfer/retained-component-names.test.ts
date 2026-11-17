@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { createTestInstall } from "../harness/index.ts";
 import { galleryArchive, importGallery } from "../harness/module-contracts.ts";
+import { rejection } from "../harness/settled.ts";
 
 test("retained missing-Module Component names stay reserved on their imported Site", async () => {
 	const archive = await galleryArchive();
@@ -15,11 +16,11 @@ test("retained missing-Module Component names stay reserved on their imported Si
 			code: "COMPONENT_NAME_TAKEN",
 			data: { name: "Gallery", by: { kind: "module", moduleId: "extra-blocks" } },
 		};
-		await expect(admin.api.components.create({ siteId, name: "Gallery" })).rejects.toMatchObject(taken);
+		expect(await rejection(admin.api.components.create({ siteId, name: "Gallery" }))).toMatchObject(taken);
 		const local = await admin.api.components.create({ siteId, name: "LocalGallery" });
-		await expect(
-			admin.api.components.rename({ siteId, componentId: local.component.id, name: "Gallery" }),
-		).rejects.toMatchObject(taken);
+		expect(
+			await rejection(admin.api.components.rename({ siteId, componentId: local.component.id, name: "Gallery" })),
+		).toMatchObject(taken);
 		expect((await admin.api.components.get({ siteId, componentId: local.component.id })).component.name).toBe(
 			"LocalGallery",
 		);

@@ -6,6 +6,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -110,7 +111,7 @@ describe("Pages and URL patterns never share a path", () => {
 			parentId: blog,
 		});
 
-		await expect(editor.api.entries.publish({ siteId: site.siteId, entryId: entry.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.publish({ siteId: site.siteId, entryId: entry.id }))).toMatchObject({
 			code: "PATH_TAKEN",
 			status: 409,
 			data: { path: "/blog/archive", by: { kind: "postType", name: "Blog posts", urlPattern: "/blog/{slug}" } },
@@ -129,7 +130,7 @@ describe("Pages and URL patterns never share a path", () => {
 		await editor.api.entries.publish({ siteId: site.siteId, entryId: blog });
 		await editor.api.entries.saveDraft({ siteId: site.siteId, entryId: archive, slug: "blog" });
 
-		await expect(editor.api.entries.publish({ siteId: site.siteId, entryId: archive })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.publish({ siteId: site.siteId, entryId: archive }))).toMatchObject({
 			code: "PATH_TAKEN",
 			data: { path: "/blog/old", by: { kind: "postType", name: "Blog posts" } },
 		});
@@ -142,14 +143,14 @@ describe("Pages and URL patterns never share a path", () => {
 		await publishEntry(site, site.pagesId, "Team", about);
 
 		for (const urlPattern of ["/{slug}", "/about/{slug}", "/{slug}/team"]) {
-			await expect(
-				staff.api.postTypes.create({ siteId: site.siteId, name: "Posts", urlPattern }),
-			).rejects.toMatchObject({ code: "PATH_TAKEN", data: { by: { kind: "page", id: expect.any(String) } } });
+			expect(
+				await rejection(staff.api.postTypes.create({ siteId: site.siteId, name: "Posts", urlPattern })),
+			).toMatchObject({ code: "PATH_TAKEN", data: { by: { kind: "page", id: expect.any(String) } } });
 		}
 		const posts = await postTypeAt(site, "Posts", "/posts/{slug}");
-		await expect(
-			staff.api.postTypes.update({ siteId: site.siteId, postTypeId: posts, urlPattern: "/{slug}" }),
-		).rejects.toMatchObject({ code: "PATH_TAKEN", data: { path: "/about", by: { kind: "page", title: "About" } } });
+		expect(
+			await rejection(staff.api.postTypes.update({ siteId: site.siteId, postTypeId: posts, urlPattern: "/{slug}" })),
+		).toMatchObject({ code: "PATH_TAKEN", data: { path: "/about", by: { kind: "page", title: "About" } } });
 		// Draft Pages hold no path yet: they are checked when they are published.
 		await editor.api.entries.create({ siteId: site.siteId, postTypeId: site.pagesId, title: "Contact" });
 		await staff.api.postTypes.update({ siteId: site.siteId, postTypeId: posts, urlPattern: "/contact/{slug}" });
@@ -164,7 +165,7 @@ describe("Pages and URL patterns never share a path", () => {
 
 		await editor.api.entries.saveDraft({ siteId: site.siteId, entryId: branch, parentId: parent });
 
-		await expect(editor.api.entries.publish({ siteId: site.siteId, entryId: branch })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.publish({ siteId: site.siteId, entryId: branch }))).toMatchObject({
 			code: "ENTRY_INVALID",
 			data: { problems: [{ at: "parentId", message: "Pages nest at most 10 deep." }] },
 		});

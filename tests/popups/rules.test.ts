@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, expect, test } from "bun:test";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -139,7 +140,7 @@ test("every Trigger and frequency can be saved; unknown targeting and other-Site
 		expect(popup.draft.frequency).toEqual({ kind: "interval", days: 2 });
 		expect(popup.checks.length).toBe(trigger.kind === "load" || trigger.kind === "delay" ? 1 : 0);
 	}
-	await expect(staff.api.popups.get({ siteId: otherSite, popupId: id })).rejects.toMatchObject({
+	expect(await rejection(staff.api.popups.get({ siteId: otherSite, popupId: id }))).toMatchObject({
 		code: "POPUP_NOT_FOUND",
 	});
 	const { entry } = await staff.api.entries.create({
@@ -148,9 +149,11 @@ test("every Trigger and frequency can be saved; unknown targeting and other-Site
 		title: "Other",
 		fields: {},
 	});
-	await expect(
-		staff.api.popups.saveDraft({ siteId, popupId: id, popup: { rules: { ...rules, entryIds: [entry.id] } } }),
-	).rejects.toMatchObject({ code: "POPUP_INVALID" });
+	expect(
+		await rejection(
+			staff.api.popups.saveDraft({ siteId, popupId: id, popup: { rules: { ...rules, entryIds: [entry.id] } } }),
+		),
+	).toMatchObject({ code: "POPUP_INVALID" });
 });
 test("history, Publish all and Scheduled publish expose Content independently", async () => {
 	await owner.api.popups.saveContent({ siteId, popupId: id, values: { title: "Frozen" } });
@@ -207,13 +210,15 @@ test("exclusions override includes, while a Popup command attaches regardless of
 	expect(await visible()).toBe(false);
 	await settings({ excludeEntryIds: [entryId] });
 	expect(await visible()).toBe(false);
-	await expect(
-		staff.api.popups.saveDraft({
-			siteId,
-			popupId: id,
-			popup: { rules: { ...rules, referrer: "https://example.test" } },
-		}),
-	).rejects.toMatchObject({ code: "POPUP_INVALID" });
+	expect(
+		await rejection(
+			staff.api.popups.saveDraft({
+				siteId,
+				popupId: id,
+				popup: { rules: { ...rules, referrer: "https://example.test" } },
+			}),
+		),
+	).toMatchObject({ code: "POPUP_INVALID" });
 	const { template } = await staff.api.templates.saveEntryTemplateMarkup({
 		siteId,
 		postTypeId,

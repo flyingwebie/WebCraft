@@ -9,6 +9,7 @@ import type { AddressInfo } from "node:net";
 import { reportPage } from "@webcraft/core";
 import { createChromiumPdf } from "@webcraft/worker/pdf";
 import { chromium } from "playwright";
+import { rejection } from "../harness/settled.ts";
 
 const executable = process.env.WEBCRAFT_CHROMIUM ?? chromium.executablePath();
 const installed = existsSync(executable);
@@ -74,7 +75,7 @@ describe.skipIf(!installed)("headless Chromium", () => {
 	});
 
 	test("gives up after its time limit", async () => {
-		await expect(createChromiumPdf({ executable, timeoutMs: 1 }).render(page)).rejects.toMatchObject({
+		expect(await rejection(createChromiumPdf({ executable, timeoutMs: 1 }).render(page))).toMatchObject({
 			name: "PdfRenderError",
 			problem: "timeout",
 		});
@@ -87,7 +88,7 @@ test("a page its policy can't be put into is never printed: Chromium runs unsand
 	expect(unusual).not.toBe(page);
 
 	// Wherever Chromium is: it is never started for such a page.
-	await expect(createChromiumPdf({ executable }).render(unusual)).rejects.toMatchObject({
+	expect(await rejection(createChromiumPdf({ executable }).render(unusual))).toMatchObject({
 		name: "PdfRenderError",
 		problem: "failed",
 		message: "The page has no place for its policy.",
@@ -95,7 +96,7 @@ test("a page its policy can't be put into is never printed: Chromium runs unsand
 });
 
 test("says plainly when there is no Chromium", async () => {
-	await expect(createChromiumPdf({ executable: "/nowhere/chromium" }).render(page)).rejects.toMatchObject({
+	expect(await rejection(createChromiumPdf({ executable: "/nowhere/chromium" }).render(page))).toMatchObject({
 		name: "PdfRenderError",
 		problem: "unavailable",
 	});

@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestAccount, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let superadmin: TestAccount;
@@ -30,14 +31,14 @@ describe("creating Workspaces", () => {
 	test("refuses a Workspace without a name", async () => {
 		const browser = await install.signIn(superadmin);
 
-		await expect(browser.api.workspaces.create({ name: "   " })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(await rejection(browser.api.workspaces.create({ name: "   " }))).toMatchObject({ code: "BAD_REQUEST" });
 	});
 
 	test("people who aren't signed in can't list or create Workspaces", async () => {
 		const browser = install.browser();
 
-		await expect(browser.api.workspaces.list()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-		await expect(browser.api.workspaces.create({ name: "Mallory Ltd" })).rejects.toMatchObject({
+		expect(await rejection(browser.api.workspaces.list())).toMatchObject({ code: "UNAUTHORIZED" });
+		expect(await rejection(browser.api.workspaces.create({ name: "Mallory Ltd" }))).toMatchObject({
 			code: "UNAUTHORIZED",
 		});
 	});

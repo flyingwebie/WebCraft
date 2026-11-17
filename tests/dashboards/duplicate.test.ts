@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -92,12 +93,12 @@ describe("duplicating a Widget", () => {
 			["site-analytics:totals", 6, 0, 6, 2],
 		]);
 
-		await expect(
-			staff.api.dashboards.widgets.duplicate({ ...place, widgetId: crypto.randomUUID() }),
-		).rejects.toMatchObject({ code: "WIDGET_NOT_FOUND" });
+		expect(
+			await rejection(staff.api.dashboards.widgets.duplicate({ ...place, widgetId: crypto.randomUUID() })),
+		).toMatchObject({ code: "WIDGET_NOT_FOUND" });
 
 		for (let count = 2; count < 40; count++) await staff.api.dashboards.widgets.add({ ...place, kind: "note" });
-		await expect(staff.api.dashboards.widgets.duplicate({ ...place, widgetId })).rejects.toMatchObject({
+		expect(await rejection(staff.api.dashboards.widgets.duplicate({ ...place, widgetId }))).toMatchObject({
 			code: "DASHBOARD_INVALID",
 			data: { problem: "widgets" },
 		});
@@ -106,8 +107,10 @@ describe("duplicating a Widget", () => {
 		const owner = (await install.createMember({ workspaceId, role: "owner", sites: "all" })).browser;
 		const { dashboard: board } = await staff.api.dashboards.create({ siteId, name: "Mine" });
 		const added = await staff.api.dashboards.widgets.add({ siteId, dashboardId: board.id, kind: "note" });
-		await expect(
-			owner.api.dashboards.widgets.duplicate({ siteId, dashboardId: board.id, widgetId: added.widgetId }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(
+				owner.api.dashboards.widgets.duplicate({ siteId, dashboardId: board.id, widgetId: added.widgetId }),
+			),
+		).toMatchObject({ code: "FORBIDDEN" });
 	});
 });

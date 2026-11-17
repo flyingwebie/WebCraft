@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -87,13 +88,15 @@ describe("the Globals per language", () => {
 			fields: { footer: "Ouvert tous les jours, même le dimanche" },
 		});
 
-		await expect(editor.api.globals.publish({ siteId: site.siteId })).rejects.toMatchObject({
+		expect(await rejection(editor.api.globals.publish({ siteId: site.siteId }))).toMatchObject({
 			code: "GLOBALS_INVALID",
 			data: { problems: [{ at: "fields.footer", language: "fr", rule: "maxLength" }] },
 		});
-		await expect(
-			editor.api.globals.saveDraft({ siteId: site.siteId, language: "it", fields: { footer: "Aperto" } }),
-		).rejects.toMatchObject({ code: "GLOBALS_INVALID", data: { problems: [{ at: "language" }] } });
+		expect(
+			await rejection(
+				editor.api.globals.saveDraft({ siteId: site.siteId, language: "it", fields: { footer: "Aperto" } }),
+			),
+		).toMatchObject({ code: "GLOBALS_INVALID", data: { problems: [{ at: "language" }] } });
 	});
 });
 
@@ -128,8 +131,10 @@ describe("Media texts per language", () => {
 		expect((await editor.api.media.get({ siteId: site.siteId, mediaId: media.id, language: "de" })).media.alt).toBe(
 			"A round loaf",
 		);
-		await expect(
-			editor.api.media.update({ siteId: site.siteId, mediaId: media.id, language: "it", alt: "Una pagnotta" }),
-		).rejects.toMatchObject({ code: "MEDIA_INVALID", data: { problems: [{ at: "language" }] } });
+		expect(
+			await rejection(
+				editor.api.media.update({ siteId: site.siteId, mediaId: media.id, language: "it", alt: "Una pagnotta" }),
+			),
+		).toMatchObject({ code: "MEDIA_INVALID", data: { problems: [{ at: "language" }] } });
 	});
 });

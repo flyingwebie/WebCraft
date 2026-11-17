@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import pg from "pg";
 
 import { createTestInstall, TEST_INSTALL_ADDRESSES, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -286,7 +287,7 @@ describe("checking again until it is verified", () => {
 		const { siteId, domainId } = await siteWithDomain("owner-checked-bakery.example");
 		const owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
 
-		await expect(owner.api.domains.check({ siteId, domainId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(owner.api.domains.check({ siteId, domainId }))).toMatchObject({ code: "FORBIDDEN" });
 	});
 });
 

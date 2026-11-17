@@ -8,6 +8,7 @@ import type { TestBrowser } from "../harness/browser.ts";
 import { createTestInstall, fromAddress, type TestAccount, type TestInstall } from "../harness/index.ts";
 import { approveAiClient, connectMcp } from "../harness/mcp.ts";
 import { type SoftwareAuthenticator, softwareAuthenticator } from "../harness/passkeys.ts";
+import { rejection } from "../harness/settled.ts";
 
 const MINUTE = 60 * 1000;
 const DAY = 24 * 60 * MINUTE;
@@ -45,7 +46,7 @@ function attempt(account: Pick<TestAccount, "email">, password: string, address:
 /** `times` wrong passwords for the account from one address (at most 10: the address's limit a minute). */
 async function failFrom(address: string, account: Pick<TestAccount, "email">, times = 10) {
 	for (let attempts = 0; attempts < times; attempts++) {
-		await expect(attempt(account, WRONG, address)).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
+		expect(await rejection(attempt(account, WRONG, address))).toMatchObject({ code: "INVALID_CREDENTIALS" });
 	}
 }
 
@@ -67,7 +68,7 @@ describe("wrong passwords from an outsider", () => {
 		const person = await newPerson();
 		await failFrom(newAddress(), person);
 
-		await expect(attempt(person, person.password, newAddress())).resolves.toMatchObject({
+		expect(await attempt(person, person.password, newAddress())).toMatchObject({
 			person: { email: person.email },
 		});
 	});
@@ -107,7 +108,7 @@ describe("wrong passwords from an outsider", () => {
 		await failFrom(person.browser.address ?? "", person);
 		await install.clock.advance(MINUTE);
 
-		await expect(person.browser.api.session.confirmIdentity({ password: person.password })).resolves.toEqual({
+		expect(await person.browser.api.session.confirmIdentity({ password: person.password })).toEqual({
 			ok: true,
 		});
 	});
@@ -120,7 +121,7 @@ describe("wrong passwords from one network", () => {
 		await failFrom(address, person);
 
 		await install.clock.advance(5 * MINUTE);
-		await expect(attempt(person, person.password, address)).rejects.toMatchObject({
+		expect(await rejection(attempt(person, person.password, address))).toMatchObject({
 			code: "INVALID_CREDENTIALS",
 			status: 401,
 		});
@@ -168,10 +169,10 @@ describe("wrong passwords from one network", () => {
 
 		await install.clock.advance(14 * MINUTE);
 		await failFrom(address, person, 1);
-		await expect(attempt(person, person.password, address)).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
+		expect(await rejection(attempt(person, person.password, address))).toMatchObject({ code: "INVALID_CREDENTIALS" });
 		await install.clock.advance(MINUTE);
 
-		await expect(attempt(person, person.password, address)).resolves.toMatchObject({
+		expect(await attempt(person, person.password, address)).toMatchObject({
 			person: { email: person.email },
 		});
 	});
@@ -184,7 +185,7 @@ describe("wrong passwords from one network", () => {
 		await install.clock.advance(MINUTE);
 
 		await failFrom(address, person, 9);
-		await expect(attempt(person, person.password, address)).resolves.toBeDefined();
+		expect(await attempt(person, person.password, address)).toBeDefined();
 	});
 
 	test("wrong passwords days apart aren't in a row: the count of a network nobody tried from for a day is forgotten", async () => {
@@ -198,7 +199,7 @@ describe("wrong passwords from one network", () => {
 		expect(drained.completed.map((job) => job.name)).toContain("sign-in-counters.purge");
 
 		await failFrom(address, person, 9);
-		await expect(attempt(person, person.password, address)).resolves.toMatchObject({
+		expect(await attempt(person, person.password, address)).toMatchObject({
 			person: { email: person.email },
 		});
 	});
@@ -210,10 +211,10 @@ describe("wrong passwords from one network", () => {
 		// The auth endpoints' own limit counts the /64 as one client too: its minute passes first.
 		await install.clock.advance(MINUTE);
 
-		await expect(attempt(person, person.password, "2001:db8:77:1::c")).rejects.toMatchObject({
+		expect(await rejection(attempt(person, person.password, "2001:db8:77:1::c"))).toMatchObject({
 			code: "INVALID_CREDENTIALS",
 		});
-		await expect(attempt(person, person.password, "2001:db8:77:2::a")).resolves.toMatchObject({
+		expect(await attempt(person, person.password, "2001:db8:77:2::a")).toMatchObject({
 			person: { email: person.email },
 		});
 	});
@@ -281,11 +282,11 @@ describe("wrong passwords from many networks", () => {
 		for (let guesser = 0; guesser < 50; guesser++) await failFrom(newAddress(), person, 1);
 
 		const elsewhere = newAddress();
-		await expect(attempt(person, person.password, elsewhere)).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
-		await expect(attempt(person, person.password, home)).resolves.toMatchObject({ person: { email: person.email } });
+		expect(await rejection(attempt(person, person.password, elsewhere))).toMatchObject({ code: "INVALID_CREDENTIALS" });
+		expect(await attempt(person, person.password, home)).toMatchObject({ person: { email: person.email } });
 
 		await install.clock.advance(15 * MINUTE);
-		await expect(attempt(person, person.password, newAddress())).resolves.toMatchObject({
+		expect(await attempt(person, person.password, newAddress())).toMatchObject({
 			person: { email: person.email },
 		});
 	});
@@ -296,26 +297,26 @@ describe("wrong passwords confirming who you are", () => {
 		const person = await newPerson();
 		const browser = person.browser;
 		for (let attempts = 0; attempts < 9; attempts++) {
-			await expect(browser.api.session.confirmIdentity({ password: WRONG })).rejects.toMatchObject({
+			expect(await rejection(browser.api.session.confirmIdentity({ password: WRONG }))).toMatchObject({
 				code: "INVALID_CREDENTIALS",
 			});
 		}
 		// Past the per-address limit's minute: the count of wrong passwords goes on regardless.
 		await install.clock.advance(MINUTE);
 
-		await expect(browser.api.session.confirmIdentity({ password: WRONG })).rejects.toMatchObject({
+		expect(await rejection(browser.api.session.confirmIdentity({ password: WRONG }))).toMatchObject({
 			code: "ACCOUNT_LOCKED",
 			status: 423,
 		});
-		await expect(browser.api.session.confirmIdentity({ password: person.password })).rejects.toMatchObject({
+		expect(await rejection(browser.api.session.confirmIdentity({ password: person.password }))).toMatchObject({
 			code: "ACCOUNT_LOCKED",
 		});
 		expect(await browser.api.session.current()).toMatchObject({ person: { email: person.email } });
-		await expect(attempt(person, person.password, newAddress())).resolves.toMatchObject({
+		expect(await attempt(person, person.password, newAddress())).toMatchObject({
 			person: { email: person.email },
 		});
 
 		await install.clock.advance(15 * MINUTE);
-		await expect(browser.api.session.confirmIdentity({ password: person.password })).resolves.toEqual({ ok: true });
+		expect(await browser.api.session.confirmIdentity({ password: person.password })).toEqual({ ok: true });
 	});
 });

@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { attachedReport, mailTo, reportedSite, runUntil, views } from "./support.ts";
 
 let install: TestInstall;
@@ -192,9 +193,9 @@ describe("the AI text of a Report", () => {
 			whatHappened: "A quiet week.",
 			suggestions: [{ text: "Post more often.", service: null }],
 		});
-		await expect(
-			owner.api.reports.sends.approve({ siteId: place.siteId, sendId: held?.id as string }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(owner.api.reports.sends.approve({ siteId: place.siteId, sendId: held?.id as string })),
+		).toMatchObject({ code: "FORBIDDEN" });
 
 		await staff.api.reports.sends.editText({
 			siteId: place.siteId,
@@ -212,9 +213,9 @@ describe("the AI text of a Report", () => {
 		expect(pdf.text).toContain("Four page views, all on Tuesday.");
 		expect(pdf.text).toContain("What happened A quiet but steady week.");
 		expect(pdf.text).not.toContain("Post more often.");
-		await expect(
-			staff.api.reports.sends.approve({ siteId: place.siteId, sendId: held?.id as string }),
-		).rejects.toMatchObject({ code: "REPORT_SEND_REFUSED", data: { reason: "notHeld" } });
+		expect(
+			await rejection(staff.api.reports.sends.approve({ siteId: place.siteId, sendId: held?.id as string })),
+		).toMatchObject({ code: "REPORT_SEND_REFUSED", data: { reason: "notHeld" } });
 	});
 
 	test("a Report waiting for review can be discarded: it never goes out", async () => {

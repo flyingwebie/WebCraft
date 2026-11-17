@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -53,5 +54,5 @@ test("lists the Site template, the Search results template, then each Post Type'
 
 test("is Staff's only", async () => {
 	const { browser: owner } = await install.createMember({ workspaceId, role: "owner" });
-	await expect(owner.api.templates.list({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+	expect(await rejection(owner.api.templates.list({ siteId }))).toMatchObject({ code: "FORBIDDEN" });
 });

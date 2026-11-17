@@ -1,6 +1,6 @@
 // Workspace isolation (ADR 0007): every procedure that takes a Workspace or a Site refuses another
 // Workspace's data. Each procedure gets one line here; the last test fails when one is missing.
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, afterEach, beforeAll, describe, expect, test } from "bun:test";
 import { traverseContractProcedures } from "@orpc/server";
 import { type ApiClient, apiRouter } from "@webcraft/api";
 import type forms from "@webcraft/module-forms";
@@ -40,6 +40,12 @@ beforeAll(async () => {
 
 afterAll(async () => {
 	await install.close();
+});
+
+// Every test here shares one Install. The jobs a test's calls enqueue (social cards, Reports, imports)
+// run before the next test starts, so no test's own drain inherits the work of the hundreds before it.
+afterEach(async () => {
+	await install.drainJobs();
 });
 
 const isolation = workspaceIsolation(() => install);

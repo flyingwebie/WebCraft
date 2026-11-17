@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { approveDevice, type CliUser, cliUser, signInCli, userCodeIn } from "../harness/cli.ts";
 import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { approveAiClient, connectMcp } from "../harness/mcp.ts";
+import { rejection, thrown } from "../harness/settled.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -350,7 +351,7 @@ describe("the device authorization grant", () => {
 		expect(await owner.browser.api.oauth.checkDevice({ userCode, typed: true })).toMatchObject({
 			check: { kind: "refused", problem: "decided" },
 		});
-		await expect(approveDevice(owner.browser, userCode, { workspaceId })).rejects.toMatchObject({
+		expect(await rejection(approveDevice(owner.browser, userCode, { workspaceId }))).toMatchObject({
 			code: "DEVICE_CODE_INVALID",
 		});
 	});
@@ -404,11 +405,13 @@ describe("the device authorization grant", () => {
 		for (let attempt = 0; attempt < 20; attempt++) {
 			await guesser.browser.api.oauth.checkDevice({ userCode: "BBBB-BBBB", typed: true });
 		}
-		await expect(guesser.browser.api.oauth.checkDevice({ userCode: "BBBB-BBBB", typed: true })).rejects.toMatchObject({
+		expect(
+			await rejection(guesser.browser.api.oauth.checkDevice({ userCode: "BBBB-BBBB", typed: true })),
+		).toMatchObject({
 			code: "TOO_MANY_REQUESTS",
 		});
 		// Denying (or approving) a code counts the same: guessing one to deny someone's sign-in is hopeless too.
-		await expect(guesser.browser.api.oauth.denyDevice({ userCode: "BBBB-BBBC" })).rejects.toMatchObject({
+		expect(await rejection(guesser.browser.api.oauth.denyDevice({ userCode: "BBBB-BBBC" }))).toMatchObject({
 			code: "TOO_MANY_REQUESTS",
 		});
 	});
@@ -429,7 +432,7 @@ describe("the device authorization grant", () => {
 				{ accessToken: string }
 			>;
 			const cliToken = Object.values(stored)[0]?.accessToken ?? "";
-			await expect(connectMcp(install, cliToken)).rejects.toThrow();
+			expect(await thrown(connectMcp(install, cliToken))).toThrow();
 
 			const aiClient = await approveAiClient(install, owner.browser, { workspaceId });
 			const response = await install.request(

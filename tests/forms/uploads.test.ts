@@ -18,6 +18,7 @@ import {
 	type TestInstall,
 } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -144,7 +145,7 @@ describe("building a file field", () => {
 				],
 			},
 		});
-		await expect(refused).rejects.toMatchObject({ code: "FORM_INVALID" });
+		expect(await rejection(refused)).toMatchObject({ code: "FORM_INVALID" });
 		const problems = ((await refused.catch((error) => error)) as { data: { problems: { at: string }[] } }).data
 			.problems;
 		expect(problems.map((problem) => problem.at)).toEqual([
@@ -494,9 +495,11 @@ describe("Notifications", () => {
 
 		expect(email.attachments ?? []).toEqual([]);
 		expect(email.text).toContain(`Only.pdf: ${downloadPath(file?.uploadId ?? null)}`);
-		await expect(
-			owner.api.forms.saveEmails({ siteId, formId, emails: { attachmentsMaxBytes: 26 * 1024 * 1024 } }),
-		).rejects.toMatchObject({ code: "FORM_INVALID", data: { problems: [{ at: "attachmentsMaxBytes" }] } });
+		expect(
+			await rejection(
+				owner.api.forms.saveEmails({ siteId, formId, emails: { attachmentsMaxBytes: 26 * 1024 * 1024 } }),
+			),
+		).toMatchObject({ code: "FORM_INVALID", data: { problems: [{ at: "attachmentsMaxBytes" }] } });
 	});
 });
 

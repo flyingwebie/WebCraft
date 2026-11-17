@@ -274,5 +274,5 @@ describe("Format keeps what Template markup means", () => {
 				);
 		}
 		expect(failures).toEqual([]);
-	}, 120_000);
+	});
 });
