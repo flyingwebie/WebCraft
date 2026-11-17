@@ -5,6 +5,15 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 const root = join(import.meta.dir, "..");
+const wanted = (
+	(await Bun.file(join(root, "package.json")).json()) as { packageManager: string }
+).packageManager.replace("bun@", "");
+if (Bun.semver.order(Bun.version, wanted) < 0) {
+	console.error(
+		`The typecheck needs Bun ${wanted} or later for \`bun check\`; this is Bun ${Bun.version}. Run \`bun upgrade\`.`,
+	);
+	process.exit(1);
+}
 const { workspaces } = (await Bun.file(join(root, "package.json")).json()) as { workspaces: { packages: string[] } };
 
 const all = [
