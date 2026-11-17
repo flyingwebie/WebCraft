@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, TEST_PASSWORD, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 /** What the database client warned about while these tests ran. */
@@ -49,7 +50,7 @@ describe("revoked when access ends", () => {
 
 		await sensitively((admin) => admin.api.members.remove({ workspaceId: workspace.id, personId: owner.personId }));
 
-		await expect(script.api.workspaces.get({ workspaceId: workspace.id })).rejects.toMatchObject({
+		expect(await rejection(script.api.workspaces.get({ workspaceId: workspace.id }))).toMatchObject({
 			code: "TOKEN_INVALID",
 			data: { problem: "revoked" },
 		});
@@ -58,7 +59,7 @@ describe("revoked when access ends", () => {
 
 		// A Membership again later doesn't bring the token back.
 		await install.addMembership({ workspaceId: workspace.id, personId: owner.personId, role: "owner", sites: "all" });
-		await expect(script.api.workspaces.get({ workspaceId: workspace.id })).rejects.toMatchObject({
+		expect(await rejection(script.api.workspaces.get({ workspaceId: workspace.id }))).toMatchObject({
 			data: { problem: "revoked" },
 		});
 
@@ -83,7 +84,9 @@ describe("revoked when access ends", () => {
 
 		await sensitively((admin) => admin.api.staff.setWorkspaces({ personId: staff.personId, workspaces: [other.id] }));
 
-		await expect(tokenClient(install, secret).api.workspaces.get({ workspaceId: workspace.id })).rejects.toMatchObject({
+		expect(
+			await rejection(tokenClient(install, secret).api.workspaces.get({ workspaceId: workspace.id })),
+		).toMatchObject({
 			data: { problem: "revoked" },
 		});
 		expect(await tokenStatus(staff.browser, tokenId)).toMatchObject({ status: "revoked", revokedReason: "access" });
@@ -110,7 +113,7 @@ describe("revoked when access ends", () => {
 			}),
 		);
 
-		await expect(tokenClient(install, secret).api.sites.get({ siteId: second.id })).rejects.toMatchObject({
+		expect(await rejection(tokenClient(install, secret).api.sites.get({ siteId: second.id }))).toMatchObject({
 			data: { problem: "revoked" },
 		});
 		expect(await tokenStatus(editor.browser, tokenId)).toMatchObject({ revokedReason: "access" });
@@ -134,7 +137,9 @@ describe("checked live on every request", () => {
 			}),
 		);
 
-		await expect(script.api.members.list({ workspaceId: workspace.id })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(script.api.members.list({ workspaceId: workspace.id }))).toMatchObject({
+			code: "FORBIDDEN",
+		});
 		await script.api.workspaces.get({ workspaceId: workspace.id });
 	});
 
@@ -156,7 +161,7 @@ describe("checked live on every request", () => {
 			}),
 		);
 
-		await expect(script.api.sites.get({ siteId: second.id })).rejects.toMatchObject({ status: 404 });
+		expect(await rejection(script.api.sites.get({ siteId: second.id }))).toMatchObject({ status: 404 });
 		await script.api.sites.get({ siteId: first.id });
 	});
 

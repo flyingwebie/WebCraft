@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestAccount, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import {
 	addAuthenticator,
 	confirmIfAsked,
@@ -101,10 +102,12 @@ describe("adding an authenticator app", () => {
 		const { browser } = await newPerson();
 		const { secret } = await browser.api.me.twoFactor.startAuthenticator();
 
-		await expect(
-			browser.api.me.twoFactor.confirmAuthenticator({ code: totpCode(secret, install.clock.now(), 5) }),
-		).rejects.toMatchObject({ code: "TWO_FACTOR_CODE_INVALID", status: 400 });
-		await expect(browser.api.me.twoFactor.confirmAuthenticator({ code: "12345" })).rejects.toMatchObject({
+		expect(
+			await rejection(
+				browser.api.me.twoFactor.confirmAuthenticator({ code: totpCode(secret, install.clock.now(), 5) }),
+			),
+		).toMatchObject({ code: "TWO_FACTOR_CODE_INVALID", status: 400 });
+		expect(await rejection(browser.api.me.twoFactor.confirmAuthenticator({ code: "12345" }))).toMatchObject({
 			code: "BAD_REQUEST",
 		});
 		expect((await browser.api.me.twoFactor.get()).authenticator).toBeNull();
@@ -113,7 +116,7 @@ describe("adding an authenticator app", () => {
 	test("refuses a code when no app is being added", async () => {
 		const { browser } = await newPerson();
 
-		await expect(browser.api.me.twoFactor.confirmAuthenticator({ code: "123456" })).rejects.toMatchObject({
+		expect(await rejection(browser.api.me.twoFactor.confirmAuthenticator({ code: "123456" }))).toMatchObject({
 			code: "TWO_FACTOR_CODE_INVALID",
 		});
 	});
@@ -130,16 +133,16 @@ describe("adding an authenticator app", () => {
 		const { browser, account } = await newPerson();
 		await install.clock.advance(11 * MINUTE);
 
-		await expect(browser.api.me.twoFactor.startAuthenticator()).rejects.toMatchObject({
+		expect(await rejection(browser.api.me.twoFactor.startAuthenticator())).toMatchObject({
 			code: "IDENTITY_CHECK_REQUIRED",
 			data: { action: "twoFactor.change" },
 		});
 		await browser.api.session.confirmIdentity({ password: account.password });
 		const { secret } = await browser.api.me.twoFactor.startAuthenticator();
 		await install.clock.advance(11 * MINUTE);
-		await expect(
-			browser.api.me.twoFactor.confirmAuthenticator({ code: totpCode(secret, install.clock.now()) }),
-		).rejects.toMatchObject({ code: "IDENTITY_CHECK_REQUIRED" });
+		expect(
+			await rejection(browser.api.me.twoFactor.confirmAuthenticator({ code: totpCode(secret, install.clock.now()) })),
+		).toMatchObject({ code: "IDENTITY_CHECK_REQUIRED" });
 	});
 
 	test("emails the person, signs out their other sessions and is in the Audit log", async () => {
@@ -168,7 +171,7 @@ describe("signing in with an authenticator app", () => {
 
 		expect(await answer).toEqual({ person: null, secondStep: { methods: ["authenticator", "backupCode"] } });
 		expect((await browser.api.session.current()).person).toBeNull();
-		await expect(browser.api.me.twoFactor.get()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+		expect(await rejection(browser.api.me.twoFactor.get())).toMatchObject({ code: "UNAUTHORIZED" });
 	});
 
 	test("a code from the app finishes signing in", async () => {
@@ -203,12 +206,14 @@ describe("signing in with an authenticator app", () => {
 			await install.clock.advance(3 * TOTP_STEP_MS);
 			const { browser, answer } = signInFirstStep(account);
 			await answer;
-			await expect(
-				browser.api.session.secondStep({
-					method: "authenticator",
-					code: totpCode(secret, install.clock.now(), offset),
-				}),
-			).rejects.toMatchObject({ code: "TWO_FACTOR_CODE_INVALID", status: 401 });
+			expect(
+				await rejection(
+					browser.api.session.secondStep({
+						method: "authenticator",
+						code: totpCode(secret, install.clock.now(), offset),
+					}),
+				),
+			).toMatchObject({ code: "TWO_FACTOR_CODE_INVALID", status: 401 });
 		}
 	});
 
@@ -224,9 +229,9 @@ describe("signing in with an authenticator app", () => {
 		for (const reused of [code, older]) {
 			const again = signInFirstStep(account);
 			await again.answer;
-			await expect(
-				again.browser.api.session.secondStep({ method: "authenticator", code: reused }),
-			).rejects.toMatchObject({
+			expect(
+				await rejection(again.browser.api.session.secondStep({ method: "authenticator", code: reused })),
+			).toMatchObject({
 				code: "TWO_FACTOR_CODE_INVALID",
 			});
 		}
@@ -236,28 +241,34 @@ describe("signing in with an authenticator app", () => {
 		const { account, secret } = await personWithAuthenticator();
 		await install.clock.advance(TOTP_STEP_MS);
 
-		await expect(
-			install
-				.browser()
-				.api.session.secondStep({ method: "authenticator", code: totpCode(secret, install.clock.now()) }),
-		).rejects.toMatchObject({ code: "SIGN_IN_EXPIRED", status: 401 });
+		expect(
+			await rejection(
+				install
+					.browser()
+					.api.session.secondStep({ method: "authenticator", code: totpCode(secret, install.clock.now()) }),
+			),
+		).toMatchObject({ code: "SIGN_IN_EXPIRED", status: 401 });
 
 		const wrong = install.browser();
-		await expect(
-			wrong.api.session.signIn({ email: account.email, password: "not the right password" }),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(wrong.api.session.signIn({ email: account.email, password: "not the right password" })),
+		).toMatchObject({
 			code: "INVALID_CREDENTIALS",
 		});
-		await expect(
-			wrong.api.session.secondStep({ method: "authenticator", code: totpCode(secret, install.clock.now()) }),
-		).rejects.toMatchObject({ code: "SIGN_IN_EXPIRED" });
+		expect(
+			await rejection(
+				wrong.api.session.secondStep({ method: "authenticator", code: totpCode(secret, install.clock.now()) }),
+			),
+		).toMatchObject({ code: "SIGN_IN_EXPIRED" });
 
 		const slow = signInFirstStep(account);
 		await slow.answer;
 		await install.clock.advance(5 * MINUTE + 1000);
-		await expect(
-			slow.browser.api.session.secondStep({ method: "authenticator", code: totpCode(secret, install.clock.now()) }),
-		).rejects.toMatchObject({ code: "SIGN_IN_EXPIRED" });
+		expect(
+			await rejection(
+				slow.browser.api.session.secondStep({ method: "authenticator", code: totpCode(secret, install.clock.now()) }),
+			),
+		).toMatchObject({ code: "SIGN_IN_EXPIRED" });
 	});
 
 	test("10 wrong codes in a row lock the second step for 15 minutes, and a right password in between doesn't start the count again", async () => {
@@ -269,16 +280,16 @@ describe("signing in with an authenticator app", () => {
 			await answer;
 			const tries = round === 0 ? 5 : 4;
 			for (let attempt = 0; attempt < tries; attempt++) {
-				await expect(
-					browser.api.session.secondStep({ method: "authenticator", code: wrongCode() }),
-				).rejects.toMatchObject({
+				expect(
+					await rejection(browser.api.session.secondStep({ method: "authenticator", code: wrongCode() })),
+				).toMatchObject({
 					code: "TWO_FACTOR_CODE_INVALID",
 				});
 			}
 			if (round === 1) {
-				await expect(
-					browser.api.session.secondStep({ method: "authenticator", code: wrongCode() }),
-				).rejects.toMatchObject({
+				expect(
+					await rejection(browser.api.session.secondStep({ method: "authenticator", code: wrongCode() })),
+				).toMatchObject({
 					code: "ACCOUNT_LOCKED",
 					status: 423,
 				});
@@ -290,9 +301,11 @@ describe("signing in with an authenticator app", () => {
 		await install.clock.advance(TOTP_STEP_MS);
 		const locked = signInFirstStep(account);
 		await locked.answer;
-		await expect(
-			locked.browser.api.session.secondStep({ method: "authenticator", code: totpCode(secret, install.clock.now()) }),
-		).rejects.toMatchObject({ code: "ACCOUNT_LOCKED", status: 423 });
+		expect(
+			await rejection(
+				locked.browser.api.session.secondStep({ method: "authenticator", code: totpCode(secret, install.clock.now()) }),
+			),
+		).toMatchObject({ code: "ACCOUNT_LOCKED", status: 423 });
 		await install.clock.advance(15 * MINUTE);
 		expect(
 			(await signInWithAuthenticator(install, account, secret).then((b) => b.api.session.current())).person,
@@ -337,7 +350,7 @@ describe("backup codes", () => {
 
 		const again = signInFirstStep(account);
 		await again.answer;
-		await expect(again.browser.api.session.secondStep({ method: "backupCode", code: first })).rejects.toMatchObject({
+		expect(await rejection(again.browser.api.session.secondStep({ method: "backupCode", code: first }))).toMatchObject({
 			code: "TWO_FACTOR_CODE_INVALID",
 		});
 	});
@@ -354,9 +367,9 @@ describe("backup codes", () => {
 		expect(fresh.some((code) => backupCodes.includes(code))).toBe(false);
 		const old = signInFirstStep(account);
 		await old.answer;
-		await expect(
-			old.browser.api.session.secondStep({ method: "backupCode", code: backupCodes[0] ?? "" }),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(old.browser.api.session.secondStep({ method: "backupCode", code: backupCodes[0] ?? "" })),
+		).toMatchObject({
 			code: "TWO_FACTOR_CODE_INVALID",
 		});
 		await old.browser.api.session.secondStep({ method: "backupCode", code: fresh[0] ?? "" });
@@ -386,7 +399,7 @@ describe("removing the authenticator app", () => {
 		const browser = await signInWithAuthenticator(install, account, secret);
 		await install.clock.advance(11 * MINUTE);
 
-		await expect(browser.api.me.twoFactor.removeAuthenticator()).rejects.toMatchObject({
+		expect(await rejection(browser.api.me.twoFactor.removeAuthenticator())).toMatchObject({
 			code: "IDENTITY_CHECK_REQUIRED",
 			data: { action: "twoFactor.change" },
 		});

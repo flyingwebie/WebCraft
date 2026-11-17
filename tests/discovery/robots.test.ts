@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { AI_CRAWLERS } from "@webcraft/core";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSiteHeaders } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -132,9 +133,9 @@ describe("the AI crawler setting", () => {
 		const response = await install.request(`${site.origin}/robots.txt`);
 		expect(response.headers.get("x-cache")).toBe("MISS");
 		expect(await response.text()).toContain(`User-agent: ${training[0]}`);
-		await expect(
-			editor.api.seoSettings.setAiCrawlers({ siteId: site.siteId, aiCrawlers: "allowAll" }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(editor.api.seoSettings.setAiCrawlers({ siteId: site.siteId, aiCrawlers: "allowAll" })),
+		).toMatchObject({ code: "FORBIDDEN" });
 		const { entries } = await (await install.superadmin()).api.audit.list({});
 		expect(entries.find((logged) => logged.action === "aiCrawlers.change")).toMatchObject({
 			siteId: site.siteId,
@@ -192,9 +193,11 @@ describe("Staff's own lines", () => {
 		const site = await newSite();
 		await staff.api.seoSettings.update({ siteId: site.siteId, robotsLines: "User-agent: *\nDisallow: /x" });
 
-		await expect(
-			owner.api.seoSettings.update({ siteId: site.siteId, robotsLines: "User-agent: *\nDisallow: /y" }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(
+				owner.api.seoSettings.update({ siteId: site.siteId, robotsLines: "User-agent: *\nDisallow: /y" }),
+			),
+		).toMatchObject({ code: "FORBIDDEN" });
 		await staff.api.seoSettings.update({ siteId: site.siteId, robotsLines: "" });
 
 		expect(await robotsOf(site.origin)).toBe(`User-agent: *\nAllow: /\n\nSitemap: ${site.origin}/sitemap.xml\n`);

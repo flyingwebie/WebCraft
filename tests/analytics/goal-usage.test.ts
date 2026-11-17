@@ -5,6 +5,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 
 import { analyticsApi, liveSite } from "../harness/analytics.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -97,5 +98,5 @@ test("names the Widgets, templates, Workspace Dashboards and Funnels that use ea
 test("only Staff ask: Owners are refused", async () => {
 	const { siteId } = await liveSite(install, staff, workspaceId, "usage-owner.example");
 	const owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
-	await expect(analyticsApi(owner).goals.usage({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+	expect(await rejection(analyticsApi(owner).goals.usage({ siteId }))).toMatchObject({ code: "FORBIDDEN" });
 });

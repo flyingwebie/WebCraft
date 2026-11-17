@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { photo } from "../harness/images.ts";
 import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { attachedReport, mailTo, reportedSite } from "./support.ts";
 
 let install: TestInstall;
@@ -131,52 +132,60 @@ describe("the brand on Reports and Share links", () => {
 
 	test("takes only PNG, JPEG and WebP logos of at most 256 KB, checked by their bytes, and colours written #rrggbb", async () => {
 		const gif = Buffer.from(await photo({ width: 4, height: 4, format: "gif" })).toString("base64");
-		await expect(
-			staff.api.reportBranding.workspace.update({
-				workspaceId,
-				client: { logo: { contentType: "image/gif", data: gif } },
-			}),
-		).rejects.toMatchObject({ code: "BRANDING_INVALID", data: { field: "logo" } });
-		await expect(
-			staff.api.reportBranding.workspace.update({
-				workspaceId,
-				client: { logo: { contentType: "image/png", data: gif } },
-			}),
-		).rejects.toMatchObject({ code: "BRANDING_INVALID", data: { field: "logo" } });
+		expect(
+			await rejection(
+				staff.api.reportBranding.workspace.update({
+					workspaceId,
+					client: { logo: { contentType: "image/gif", data: gif } },
+				}),
+			),
+		).toMatchObject({ code: "BRANDING_INVALID", data: { field: "logo" } });
+		expect(
+			await rejection(
+				staff.api.reportBranding.workspace.update({
+					workspaceId,
+					client: { logo: { contentType: "image/png", data: gif } },
+				}),
+			),
+		).toMatchObject({ code: "BRANDING_INVALID", data: { field: "logo" } });
 		const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>').toString(
 			"base64",
 		);
-		await expect(
-			staff.api.reportBranding.workspace.update({
-				workspaceId,
-				client: { logo: { contentType: "image/svg+xml", data: svg } },
-			}),
-		).rejects.toMatchObject({ code: "BRANDING_INVALID", data: { field: "logo" } });
+		expect(
+			await rejection(
+				staff.api.reportBranding.workspace.update({
+					workspaceId,
+					client: { logo: { contentType: "image/svg+xml", data: svg } },
+				}),
+			),
+		).toMatchObject({ code: "BRANDING_INVALID", data: { field: "logo" } });
 		const large = Buffer.concat([
 			Buffer.from(await photo({ width: 4, height: 4, format: "png" })),
 			Buffer.alloc(262_000),
 		]);
-		await expect(
-			staff.api.reportBranding.workspace.update({
-				workspaceId,
-				client: { logo: { contentType: "image/png", data: large.toString("base64") } },
-			}),
-		).rejects.toMatchObject({ code: "BRANDING_INVALID", data: { field: "logo" } });
-		await expect(
-			staff.api.reportBranding.workspace.update({ workspaceId, agency: { accentColour: "orange" } }),
-		).rejects.toMatchObject({ code: "BRANDING_INVALID", data: { field: "accentColour" } });
+		expect(
+			await rejection(
+				staff.api.reportBranding.workspace.update({
+					workspaceId,
+					client: { logo: { contentType: "image/png", data: large.toString("base64") } },
+				}),
+			),
+		).toMatchObject({ code: "BRANDING_INVALID", data: { field: "logo" } });
+		expect(
+			await rejection(staff.api.reportBranding.workspace.update({ workspaceId, agency: { accentColour: "orange" } })),
+		).toMatchObject({ code: "BRANDING_INVALID", data: { field: "accentColour" } });
 	});
 
 	test("Staff brand Workspaces and Sites; only the Superadmin brands the Install; Owners do neither", async () => {
 		const site = await newSite();
 		const owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
-		await expect(staff.api.reportBranding.install.update({ name: "Mine" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.reportBranding.install.update({ name: "Mine" }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(owner.api.reportBranding.workspace.update({ workspaceId, madeWith: true })).rejects.toMatchObject({
+		expect(await rejection(owner.api.reportBranding.workspace.update({ workspaceId, madeWith: true }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(owner.api.reportBranding.site.get({ siteId: site.siteId })).rejects.toMatchObject({
+		expect(await rejection(owner.api.reportBranding.site.get({ siteId: site.siteId }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 		const { entries } = await superadmin.api.audit.list({ limit: 50 });
@@ -212,11 +221,11 @@ describe("the Services list", () => {
 			"Email newsletters",
 			"Hosting",
 		]);
-		await expect(owner.api.servicesList.get()).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(staff.api.servicesList.update({ services: [{ name: " " }] })).rejects.toMatchObject({
+		expect(await rejection(owner.api.servicesList.get())).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(staff.api.servicesList.update({ services: [{ name: " " }] }))).toMatchObject({
 			code: "SERVICES_LIST_INVALID",
 		});
 		// Staff hold nothing else on the Install: not the whole Install's Audit log.
-		await expect(staff.api.audit.list({ limit: 5 })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(staff.api.audit.list({ limit: 5 }))).toMatchObject({ code: "FORBIDDEN" });
 	});
 });

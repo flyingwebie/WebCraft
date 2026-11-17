@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import type { RecordedRequest } from "../harness/fake-http.ts";
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { confirmed, receiverAccepts } from "./support.ts";
 
 const MINUTE = 60_000;
@@ -158,7 +159,9 @@ describe("Send test", () => {
 	test("only Staff send tests", async () => {
 		const { siteId, webhookId } = await webhookAt("members-cannot-test");
 		const owner = await install.createMember({ workspaceId, role: "owner" });
-		await expect(owner.browser.api.webhooks.test({ siteId, webhookId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(owner.browser.api.webhooks.test({ siteId, webhookId }))).toMatchObject({
+			code: "FORBIDDEN",
+		});
 	});
 });
 
@@ -196,23 +199,23 @@ describe("Redeliver", () => {
 		await staff.api.globals.publish({ siteId });
 		await install.drainJobs();
 		const [retrying] = await deliveriesOf(siteId, webhookId);
-		await expect(
-			staff.api.webhooks.redeliver({ siteId, webhookId, deliveryId: retrying?.id ?? "" }),
-		).rejects.toMatchObject({ code: "WEBHOOK_REDELIVERY_REFUSED", data: { problem: "not-failed" } });
+		expect(
+			await rejection(staff.api.webhooks.redeliver({ siteId, webhookId, deliveryId: retrying?.id ?? "" })),
+		).toMatchObject({ code: "WEBHOOK_REDELIVERY_REFUSED", data: { problem: "not-failed" } });
 
 		const { delivery: test } = await staff.api.webhooks.test({ siteId, webhookId });
-		await expect(staff.api.webhooks.redeliver({ siteId, webhookId, deliveryId: test.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.webhooks.redeliver({ siteId, webhookId, deliveryId: test.id }))).toMatchObject({
 			code: "WEBHOOK_REDELIVERY_REFUSED",
 			data: { problem: "test" },
 		});
 
 		await staff.api.webhooks.setEnabled({ siteId, webhookId, enabled: false });
-		await expect(
-			staff.api.webhooks.redeliver({ siteId, webhookId, deliveryId: retrying?.id ?? "" }),
-		).rejects.toMatchObject({ code: "WEBHOOK_REDELIVERY_REFUSED", data: { problem: "switched-off" } });
-		await expect(
-			staff.api.webhooks.redeliver({ siteId, webhookId, deliveryId: crypto.randomUUID() }),
-		).rejects.toMatchObject({ code: "WEBHOOK_DELIVERY_NOT_FOUND" });
+		expect(
+			await rejection(staff.api.webhooks.redeliver({ siteId, webhookId, deliveryId: retrying?.id ?? "" })),
+		).toMatchObject({ code: "WEBHOOK_REDELIVERY_REFUSED", data: { problem: "switched-off" } });
+		expect(
+			await rejection(staff.api.webhooks.redeliver({ siteId, webhookId, deliveryId: crypto.randomUUID() })),
+		).toMatchObject({ code: "WEBHOOK_DELIVERY_NOT_FOUND" });
 	});
 });
 

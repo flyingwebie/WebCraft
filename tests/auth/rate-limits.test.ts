@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { ipv6Network } from "../harness/addresses.ts";
 import { API_PATH, createTestInstall, type TestAccount, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const SECOND = 1000;
 
@@ -27,19 +28,19 @@ describe("auth endpoints", () => {
 	test("take at most 10 requests a minute from one address; the next ones wait for the minute to pass", async () => {
 		const guesser = install.browser({ address: "203.0.113.10" });
 		for (let attempt = 0; attempt < 10; attempt++) {
-			await expect(guess(guesser)).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
+			expect(await rejection(guess(guesser))).toMatchObject({ code: "INVALID_CREDENTIALS" });
 		}
 		await install.clock.advance(20 * SECOND);
 
-		await expect(guess(guesser)).rejects.toMatchObject({
+		expect(await rejection(guess(guesser))).toMatchObject({
 			code: "TOO_MANY_REQUESTS",
 			status: 429,
 			data: { retryAfterSeconds: 40 },
 		});
-		await expect(guesser.api.session.signIn(superadmin)).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+		expect(await rejection(guesser.api.session.signIn(superadmin))).toMatchObject({ code: "TOO_MANY_REQUESTS" });
 
 		await install.clock.advance(40 * SECOND);
-		await expect(guesser.api.session.signIn(superadmin)).resolves.toMatchObject({
+		expect(await guesser.api.session.signIn(superadmin)).toMatchObject({
 			person: { email: superadmin.email },
 		});
 	});
@@ -49,24 +50,24 @@ describe("auth endpoints", () => {
 		for (let attempt = 0; attempt < 11; attempt++) await guess(guesser).catch(() => {});
 
 		const neighbour = install.browser({ address: "203.0.113.12" });
-		await expect(neighbour.api.session.signIn(superadmin)).resolves.toBeDefined();
+		expect(await neighbour.api.session.signIn(superadmin)).toBeDefined();
 	});
 
 	test("count an IPv6 connection by its /64: another address of it is no fresh start", async () => {
 		const network = ipv6Network();
 		for (let attempt = 0; attempt < 10; attempt++) {
-			await expect(guess(install.browser({ address: network(attempt + 1) }))).rejects.toMatchObject({
+			expect(await rejection(guess(install.browser({ address: network(attempt + 1) })))).toMatchObject({
 				code: "INVALID_CREDENTIALS",
 			});
 		}
 
-		await expect(guess(install.browser({ address: network(11) }))).rejects.toMatchObject({
+		expect(await rejection(guess(install.browser({ address: network(11) })))).toMatchObject({
 			code: "TOO_MANY_REQUESTS",
 			status: 429,
 		});
 		// Another connection's /64 isn't held back.
 		const neighbour = install.browser({ address: ipv6Network()(1) });
-		await expect(neighbour.api.session.signIn(superadmin)).resolves.toBeDefined();
+		expect(await neighbour.api.session.signIn(superadmin)).toBeDefined();
 	});
 
 	test("share one limit: signing in, confirming who you are, setup tokens and invite links", async () => {
@@ -74,35 +75,41 @@ describe("auth endpoints", () => {
 		const signedIn = await install.signIn(superadmin, { address });
 		const visitor = install.browser({ address });
 		await signedIn.api.session.confirmIdentity({ password: superadmin.password });
-		await expect(visitor.api.setup.checkToken({ token: "not-a-token" })).rejects.toMatchObject({
+		expect(await rejection(visitor.api.setup.checkToken({ token: "not-a-token" }))).toMatchObject({
 			code: "SETUP_CLOSED",
 		});
-		await expect(visitor.api.invites.get({ token: "not-a-token" })).rejects.toMatchObject({ code: "INVITE_INVALID" });
+		expect(await rejection(visitor.api.invites.get({ token: "not-a-token" }))).toMatchObject({
+			code: "INVITE_INVALID",
+		});
 		for (let attempt = 0; attempt < 6; attempt++) await guess(visitor).catch(() => {});
 
-		await expect(visitor.api.invites.get({ token: "not-a-token" })).rejects.toMatchObject({
+		expect(await rejection(visitor.api.invites.get({ token: "not-a-token" }))).toMatchObject({
 			code: "TOO_MANY_REQUESTS",
 		});
-		await expect(signedIn.api.session.confirmIdentity({ password: superadmin.password })).rejects.toMatchObject({
+		expect(await rejection(signedIn.api.session.confirmIdentity({ password: superadmin.password }))).toMatchObject({
 			code: "TOO_MANY_REQUESTS",
 		});
-		await expect(
-			visitor.api.setup.claim({
-				token: "not-a-token",
-				name: "Someone",
-				email: "someone@agency.example",
-				password: "a long enough password",
-				adminLanguage: "en",
-			}),
-		).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
-		await expect(
-			visitor.api.invites.accept({
-				token: "not-a-token",
-				name: "Someone",
-				password: "a long enough password",
-				adminLanguage: "en",
-			}),
-		).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+		expect(
+			await rejection(
+				visitor.api.setup.claim({
+					token: "not-a-token",
+					name: "Someone",
+					email: "someone@agency.example",
+					password: "a long enough password",
+					adminLanguage: "en",
+				}),
+			),
+		).toMatchObject({ code: "TOO_MANY_REQUESTS" });
+		expect(
+			await rejection(
+				visitor.api.invites.accept({
+					token: "not-a-token",
+					name: "Someone",
+					password: "a long enough password",
+					adminLanguage: "en",
+				}),
+			),
+		).toMatchObject({ code: "TOO_MANY_REQUESTS" });
 	});
 
 	test("leave everything else alone", async () => {
@@ -112,7 +119,7 @@ describe("auth endpoints", () => {
 		for (let call = 0; call < 20; call++) {
 			expect(await browser.api.session.current()).toMatchObject({ person: { email: superadmin.email } });
 		}
-		await expect(browser.api.workspaces.list()).resolves.toBeDefined();
+		expect(await browser.api.workspaces.list()).toBeDefined();
 	});
 
 	test("answer with Retry-After, and log the address once a minute", async () => {
@@ -139,6 +146,6 @@ describe("auth endpoints", () => {
 		const second = install.browser({ address: null });
 		for (let attempt = 0; attempt < 10; attempt++) await guess(first).catch(() => {});
 
-		await expect(guess(second)).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
+		expect(await rejection(guess(second))).toMatchObject({ code: "TOO_MANY_REQUESTS" });
 	});
 });

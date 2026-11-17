@@ -11,6 +11,7 @@ import {
 	type TestBrowser,
 	type TestInstall,
 } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { exportedArchive, importArchive } from "../harness/site-transfer.ts";
 
 let source: TestInstall;
@@ -148,7 +149,7 @@ describe("imported into a fresh Install", () => {
 		expect(imported.report?.invited.map((invite) => invite.email).sort()).toEqual(
 			[editor.email, owner.email, INVITEE].sort(),
 		);
-		await expect(target.signIn({ email: editor.email, password: "anything at all 123" })).rejects.toBeDefined();
+		expect(await rejection(target.signIn({ email: editor.email, password: "anything at all 123" }))).toBeDefined();
 	});
 
 	test("the Audit log keeps the Site's entries, naming people who have no account here", async () => {

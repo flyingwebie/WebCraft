@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 beforeAll(async () => {
@@ -33,7 +34,7 @@ test("the Publishing toolset previews and confirms each Popup layer independentl
 		await publish(first.confirmation.id);
 		const after = await admin.api.popups.get({ siteId, popupId: popup.id });
 		expect(kind === "popup" ? after.popup.published : after.content.published).not.toBeNull();
-		await expect(publish(first.confirmation.id)).rejects.toMatchObject({ code: "CONFIRMATION_INVALID" });
+		expect(await rejection(publish(first.confirmation.id))).toMatchObject({ code: "CONFIRMATION_INVALID" });
 	}
 });
 test("a public API client changes one Popup setting without resetting omitted settings", async () => {

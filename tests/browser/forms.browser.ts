@@ -276,7 +276,7 @@ for (const theme of THEMES) {
 			]);
 			await page.waitForLoadState("load");
 
-			await expect(page.getByRole("status").textContent()).resolves.toBe("Thank you. We have received your message.");
+			expect(await page.getByRole("status").textContent()).toBe("Thank you. We have received your message.");
 			expect(await page.evaluate(() => document.activeElement?.className)).toBe("wc-form-sent");
 			await expectAccessibleScreen(page, `a Form once sent (${theme})`);
 		});
@@ -319,7 +319,7 @@ describe("building a Form from the keyboard", () => {
 		await page.getByRole("button", { name: "Add Phone" }).focus();
 		await page.keyboard.press("Enter");
 		const added = page.getByRole("button", { name: /^Phone\b/ }).last();
-		await expect(added.getAttribute("aria-current")).resolves.toBe("true");
+		expect(await added.getAttribute("aria-current")).toBe("true");
 		expect(await page.getByLabel("Field key").inputValue()).toBe("phone_2");
 		await page.getByLabel("Label", { exact: true }).fill("Mobile");
 		await expectOverlayUsable(
@@ -344,14 +344,14 @@ describe("reading Submissions from the keyboard", () => {
 		const page = await install.newPage("light");
 		await install.signIn(page, owner);
 		await page.goto(install.adminUrl(`/sites/${siteId}/forms/${formId}`));
-		await expect(page.getByRole("tab", { name: "Submissions" }).getAttribute("aria-selected")).resolves.toBe("true");
+		expect(await page.getByRole("tab", { name: "Submissions" }).getAttribute("aria-selected")).toBe("true");
 		const row = page.getByRole("button", { name: /Siobhán Murphy/ });
 		await row.waitFor();
 
 		await row.focus();
 		await page.keyboard.press("Enter");
 		await page.getByRole("heading", { name: "Siobhán Murphy" }).waitFor();
-		await expect(row.getAttribute("aria-current")).resolves.toBe("true");
+		expect(await row.getAttribute("aria-current")).toBe("true");
 		await page.getByRole("button", { name: "Mark as unread" }).focus();
 		await page.keyboard.press("Enter");
 		await page.getByRole("button", { name: "Mark as read" }).waitFor();
@@ -383,7 +383,7 @@ describe("reading Submissions from the keyboard", () => {
 		await page.getByLabel("When Cake is Tiered").last().waitFor();
 		expect(await page.getByText("Unsaved changes").isVisible()).toBe(true);
 		expect(await page.getByText("Draft · 1 change").isVisible()).toBe(true);
-		await expect(page.getByRole("button", { name: "Save Draft" }).isEnabled()).resolves.toBe(true);
+		expect(await page.getByRole("button", { name: "Save Draft" }).isEnabled()).toBe(true);
 	});
 
 	test("the counts of new Submissions follow, without a reload, as Submissions are opened and marked unread", async () => {
@@ -425,11 +425,11 @@ describe("reading Submissions from the keyboard", () => {
 		await rows.first().waitFor();
 
 		await page.locator("body").press("j");
-		await expect(rows.nth(0).getAttribute("aria-current")).resolves.toBe("true");
+		expect(await rows.nth(0).getAttribute("aria-current")).toBe("true");
 		await page.locator("body").press("j");
-		await expect(rows.nth(1).getAttribute("aria-current")).resolves.toBe("true");
+		expect(await rows.nth(1).getAttribute("aria-current")).toBe("true");
 		await page.locator("body").press("k");
-		await expect(rows.nth(0).getAttribute("aria-current")).resolves.toBe("true");
+		expect(await rows.nth(0).getAttribute("aria-current")).toBe("true");
 		// The keys act on the Submission open once it has come.
 		const first = (await rows.nth(0).locator(".truncate").first().textContent()) ?? "";
 		await page.getByRole("heading", { name: first, exact: true }).waitFor();
@@ -440,7 +440,7 @@ describe("reading Submissions from the keyboard", () => {
 		await dialog.getByText("Its files are deleted with it. This cannot be undone.").waitFor();
 		await page.keyboard.press("Escape");
 		await dialog.waitFor({ state: "hidden" });
-		await expect(rows.nth(0).getAttribute("aria-current")).resolves.toBe("true");
+		expect(await rows.nth(0).getAttribute("aria-current")).toBe("true");
 	});
 
 	test("Export asks what the file holds", async () => {
@@ -457,9 +457,9 @@ describe("reading Submissions from the keyboard", () => {
 		);
 		await page.getByRole("button", { name: "Export", exact: true }).click();
 		const dialog = page.getByRole("dialog", { name: "Export this list as CSV" });
-		await expect(dialog.getByRole("checkbox", { name: "Every answer" }).isChecked()).resolves.toBe(true);
+		expect(await dialog.getByRole("checkbox", { name: "Every answer" }).isChecked()).toBe(true);
 		// The delivery log is left out unless asked for.
-		await expect(dialog.getByRole("checkbox", { name: "Delivery log" }).isChecked()).resolves.toBe(false);
+		expect(await dialog.getByRole("checkbox", { name: "Delivery log" }).isChecked()).toBe(false);
 		await dialog.getByRole("checkbox", { name: "Every answer" }).click();
 		await dialog.getByRole("checkbox", { name: "Delivery log" }).click();
 		const [download] = await Promise.all([

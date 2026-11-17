@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { pdf, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import {
 	expectNoInlineCode,
 	expectSafePage,
@@ -247,7 +248,7 @@ describe("the Site's policy", () => {
 			"",
 			`${"a".repeat(64)}.example.com`,
 		]) {
-			await expect(staff.api.csp.addHost({ siteId: site.siteId, host }), host).rejects.toMatchObject({
+			expect(await rejection(staff.api.csp.addHost({ siteId: site.siteId, host })), host).toMatchObject({
 				code: "HOST_INVALID",
 			});
 		}
@@ -297,7 +298,7 @@ describe("the Site's policy", () => {
 			() => editor.api.csp.addHost({ siteId: site.siteId, host: "tags.example.com" }),
 			() => editor.api.csp.removeHost({ siteId: site.siteId, host: "tags.example.com" }),
 		]) {
-			await expect(call()).rejects.toMatchObject({ code: "FORBIDDEN" });
+			expect(await rejection(call())).toMatchObject({ code: "FORBIDDEN" });
 		}
 
 		await staff.api.csp.setMode({ siteId: site.siteId, mode: "reportOnly" });

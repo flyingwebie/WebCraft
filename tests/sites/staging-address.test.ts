@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { openStaging, type StagingBrowser } from "../harness/staging.ts";
 import { element, tree, value } from "../harness/trees.ts";
 
@@ -153,9 +154,9 @@ describe("Site hostnames never reach the admin", () => {
 			const superadmin = await shared.superadmin();
 			const { workspace } = await superadmin.api.workspaces.create({ name: "Acme Ltd" });
 
-			await expect(
-				superadmin.api.sites.create({ workspaceId: workspace.id, name: "CMS", slug: "cms" }),
-			).rejects.toMatchObject({ code: "SLUG_INVALID", data: { problem: "reserved" } });
+			expect(
+				await rejection(superadmin.api.sites.create({ workspaceId: workspace.id, name: "CMS", slug: "cms" })),
+			).toMatchObject({ code: "SLUG_INVALID", data: { problem: "reserved" } });
 			expect((await shared.request("https://cms.sites.test/healthz")).status).toBe(200);
 		} finally {
 			await shared.close();

@@ -9,6 +9,7 @@ import { TOOLSETS, type Toolset } from "@webcraft/core";
 import { createApiToken, type TokenClient, tokenClient } from "../harness/api-tokens.ts";
 import { fakeNpmPackage } from "../harness/fake-npm.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { element, tree, value } from "../harness/trees.ts";
 
 const MINUTE = 60 * 1000;
@@ -72,15 +73,15 @@ describe("publishing through a token", () => {
 		const summary = { key: "summary", label: "Summary", type: "text" } as const;
 		await admin.api.postTypes.update({ siteId, postTypeId, fields: [{ ...summary, required: true }] });
 
-		await expect(
-			script.api.entries.publish({ siteId, entryId, confirmation: first.confirmation.id }),
-		).rejects.toMatchObject({ code: "ENTRY_INCOMPLETE" });
+		expect(
+			await rejection(script.api.entries.publish({ siteId, entryId, confirmation: first.confirmation.id })),
+		).toMatchObject({ code: "ENTRY_INCOMPLETE" });
 		expect(await entryStatus(siteId, entryId)).toBe("draft");
 
 		await admin.api.postTypes.update({ siteId, postTypeId, fields: [summary] });
-		await expect(
-			script.api.entries.publish({ siteId, entryId, confirmation: first.confirmation.id }),
-		).rejects.toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "unknown" } });
+		expect(
+			await rejection(script.api.entries.publish({ siteId, entryId, confirmation: first.confirmation.id })),
+		).toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "unknown" } });
 		const again = await asked(script.api.entries.publish({ siteId, entryId }));
 		await script.api.entries.publish({ siteId, entryId, confirmation: again.confirmation.id });
 		expect(await entryStatus(siteId, entryId)).toBe("published");
@@ -111,22 +112,22 @@ describe("publishing through a token", () => {
 
 		const used = await asked(script.api.entries.publish({ siteId, entryId }));
 		await script.api.entries.publish({ siteId, entryId, confirmation: used.confirmation.id });
-		await expect(
-			script.api.entries.publish({ siteId, entryId, confirmation: used.confirmation.id }),
-		).rejects.toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "unknown" } });
+		expect(
+			await rejection(script.api.entries.publish({ siteId, entryId, confirmation: used.confirmation.id })),
+		).toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "unknown" } });
 
 		await admin.api.entries.saveDraft({ siteId, entryId, title: "Fresher bread" });
 		const late = await asked(script.api.entries.publish({ siteId, entryId }));
 		await install.clock.advance(5 * MINUTE + 1000);
-		await expect(
-			script.api.entries.publish({ siteId, entryId, confirmation: late.confirmation.id }),
-		).rejects.toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "expired" } });
+		expect(
+			await rejection(script.api.entries.publish({ siteId, entryId, confirmation: late.confirmation.id })),
+		).toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "expired" } });
 
 		const shown = await asked(script.api.entries.publish({ siteId, entryId }));
 		await admin.api.entries.saveDraft({ siteId, entryId, title: "Freshest bread" });
-		await expect(
-			script.api.entries.publish({ siteId, entryId, confirmation: shown.confirmation.id }),
-		).rejects.toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "changed" } });
+		expect(
+			await rejection(script.api.entries.publish({ siteId, entryId, confirmation: shown.confirmation.id })),
+		).toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "changed" } });
 		expect((await admin.api.entries.get({ siteId, entryId })).entry.published?.title).toBe("Fresh bread");
 	});
 
@@ -136,7 +137,7 @@ describe("publishing through a token", () => {
 		const author = await install.createMember({ workspaceId: site.workspaceId, role: "author" });
 		const { secret } = await createApiToken(author.browser, { workspaceId: site.workspaceId, name: "Author's" });
 
-		await expect(tokenClient(install, secret).api.entries.publish({ siteId, entryId })).rejects.toMatchObject({
+		expect(await rejection(tokenClient(install, secret).api.entries.publish({ siteId, entryId }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});
@@ -237,7 +238,7 @@ describe("deleting Structure through a token", () => {
 		expect(first.deleted).toBe(false);
 		await script.api.entries.delete({ siteId, entryId, confirmation: first.confirmation.id });
 
-		await expect(admin.api.entries.get({ siteId, entryId })).rejects.toMatchObject({ code: "ENTRY_NOT_FOUND" });
+		expect(await rejection(admin.api.entries.get({ siteId, entryId }))).toMatchObject({ code: "ENTRY_NOT_FOUND" });
 	});
 });
 

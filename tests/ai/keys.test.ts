@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const OWN_KEY = "sk-ant-own-workspace-key-0123456789abcd";
 const SHARED_KEY = "sk-or-shared-install-key-9876543210wxyz";
@@ -79,16 +80,18 @@ describe("a Workspace's own AI key", () => {
 
 		for (const role of ["editor", "author"] as const) {
 			const member = (await install.createMember({ workspaceId, role })).browser;
-			await expect(member.api.aiKeys.get({ workspaceId })).rejects.toMatchObject({ code: "FORBIDDEN" });
-			await expect(
-				member.api.aiKeys.setOwn({
-					workspaceId,
-					provider: "openai",
-					model: "gpt-5-mini",
-					endpoint: null,
-					key: OWN_KEY,
-				}),
-			).rejects.toMatchObject({ code: "FORBIDDEN" });
+			expect(await rejection(member.api.aiKeys.get({ workspaceId }))).toMatchObject({ code: "FORBIDDEN" });
+			expect(
+				await rejection(
+					member.api.aiKeys.setOwn({
+						workspaceId,
+						provider: "openai",
+						model: "gpt-5-mini",
+						endpoint: null,
+						key: OWN_KEY,
+					}),
+				),
+			).toMatchObject({ code: "FORBIDDEN" });
 		}
 	});
 
@@ -102,17 +105,21 @@ describe("a Workspace's own AI key", () => {
 			key: OWN_KEY,
 		});
 
-		await expect(
-			owner.api.aiKeys.setOwn({
-				workspaceId,
-				provider: "openaiCompatible",
-				model: "llama-4-scout",
-				endpoint: "https://collector.attacker.example/v1",
-			}),
-		).rejects.toMatchObject({ code: "AI_KEY_INVALID", data: { field: "key", reason: "needed" } });
-		await expect(
-			owner.api.aiKeys.setOwn({ workspaceId, provider: "openai", model: "gpt-5-mini", endpoint: null }),
-		).rejects.toMatchObject({ code: "AI_KEY_INVALID", data: { field: "key", reason: "needed" } });
+		expect(
+			await rejection(
+				owner.api.aiKeys.setOwn({
+					workspaceId,
+					provider: "openaiCompatible",
+					model: "llama-4-scout",
+					endpoint: "https://collector.attacker.example/v1",
+				}),
+			),
+		).toMatchObject({ code: "AI_KEY_INVALID", data: { field: "key", reason: "needed" } });
+		expect(
+			await rejection(
+				owner.api.aiKeys.setOwn({ workspaceId, provider: "openai", model: "gpt-5-mini", endpoint: null }),
+			),
+		).toMatchObject({ code: "AI_KEY_INVALID", data: { field: "key", reason: "needed" } });
 
 		// The model alone may change without it.
 		await owner.api.aiKeys.setOwn({
@@ -137,18 +144,20 @@ describe("a Workspace's own AI key", () => {
 			"https://localhost:11434/v1",
 			"https://user:pass@llm.client.example/v1",
 		]) {
-			await expect(set(endpoint)).rejects.toMatchObject({ code: "AI_KEY_INVALID", data: { field: "endpoint" } });
+			expect(await rejection(set(endpoint))).toMatchObject({ code: "AI_KEY_INVALID", data: { field: "endpoint" } });
 		}
-		await expect(set(null)).rejects.toMatchObject({ code: "AI_KEY_INVALID", data: { field: "endpoint" } });
-		await expect(
-			owner.api.aiKeys.setOwn({
-				workspaceId,
-				provider: "openai",
-				model: "gpt-5-mini",
-				endpoint: "https://api.openai.example/v1",
-				key: OWN_KEY,
-			}),
-		).rejects.toMatchObject({ code: "AI_KEY_INVALID", data: { field: "endpoint" } });
+		expect(await rejection(set(null))).toMatchObject({ code: "AI_KEY_INVALID", data: { field: "endpoint" } });
+		expect(
+			await rejection(
+				owner.api.aiKeys.setOwn({
+					workspaceId,
+					provider: "openai",
+					model: "gpt-5-mini",
+					endpoint: "https://api.openai.example/v1",
+					key: OWN_KEY,
+				}),
+			),
+		).toMatchObject({ code: "AI_KEY_INVALID", data: { field: "endpoint" } });
 	});
 
 	test("removing it forgets the key; an API token can never set or remove one", async () => {
@@ -162,10 +171,18 @@ describe("a Workspace's own AI key", () => {
 		});
 		const token = await createApiToken(owner, { workspaceId, name: "Script" });
 		const script = tokenClient(install, token.secret);
-		await expect(
-			script.api.aiKeys.setOwn({ workspaceId, provider: "openai", model: "gpt-5-mini", endpoint: null, key: OWN_KEY }),
-		).rejects.toMatchObject({ code: "SENSITIVE_ACTION_REFUSED" });
-		await expect(script.api.aiKeys.removeOwn({ workspaceId })).rejects.toMatchObject({
+		expect(
+			await rejection(
+				script.api.aiKeys.setOwn({
+					workspaceId,
+					provider: "openai",
+					model: "gpt-5-mini",
+					endpoint: null,
+					key: OWN_KEY,
+				}),
+			),
+		).toMatchObject({ code: "SENSITIVE_ACTION_REFUSED" });
+		expect(await rejection(script.api.aiKeys.removeOwn({ workspaceId }))).toMatchObject({
 			code: "SENSITIVE_ACTION_REFUSED",
 		});
 
@@ -187,9 +204,9 @@ describe("shared Install keys", () => {
 		});
 		expect(key).toMatchObject({ name: "Agency OpenRouter", key: { set: true, lastFour: "wxyz" } });
 
-		await expect(
-			admin.api.sharedAiKeys.assign({ workspace: workspaceId, keyId: key.id, monthlyCap: null }),
-		).rejects.toMatchObject({ code: "AI_KEY_INVALID", data: { field: "monthlyCap" } });
+		expect(
+			await rejection(admin.api.sharedAiKeys.assign({ workspace: workspaceId, keyId: key.id, monthlyCap: null })),
+		).toMatchObject({ code: "AI_KEY_INVALID", data: { field: "monthlyCap" } });
 		await admin.api.sharedAiKeys.assign({ workspace: workspaceId, keyId: key.id, monthlyCap: 5 });
 
 		const view = await owner.api.aiKeys.get({ workspaceId });
@@ -217,16 +234,18 @@ describe("shared Install keys", () => {
 		const { workspaceId, owner } = await workspaceWithOwner();
 		const staff = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 		for (const browser of [staff, owner]) {
-			await expect(browser.api.sharedAiKeys.list()).rejects.toMatchObject({ code: "FORBIDDEN" });
-			await expect(
-				browser.api.sharedAiKeys.add({
-					name: "Mine",
-					provider: "openai",
-					model: "gpt-5-mini",
-					endpoint: null,
-					key: SHARED_KEY,
-				}),
-			).rejects.toMatchObject({ code: "FORBIDDEN" });
+			expect(await rejection(browser.api.sharedAiKeys.list())).toMatchObject({ code: "FORBIDDEN" });
+			expect(
+				await rejection(
+					browser.api.sharedAiKeys.add({
+						name: "Mine",
+						provider: "openai",
+						model: "gpt-5-mini",
+						endpoint: null,
+						key: SHARED_KEY,
+					}),
+				),
+			).toMatchObject({ code: "FORBIDDEN" });
 		}
 	});
 
@@ -279,7 +298,7 @@ describe("shared Install keys", () => {
 				// A model on the agency's own server costs nothing per token.
 				price: { input: 0, output: 0 },
 			});
-		await expect(add("http://10.1.2.3:11434/v1")).rejects.toMatchObject({
+		expect(await rejection(add("http://10.1.2.3:11434/v1"))).toMatchObject({
 			code: "AI_KEY_INVALID",
 			data: { field: "endpoint" },
 		});

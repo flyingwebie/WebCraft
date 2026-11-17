@@ -8,6 +8,7 @@ import { ipv6Network } from "../harness/addresses.ts";
 import { formVisitor } from "../harness/forms.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -205,8 +206,8 @@ describe("the Spam folder", () => {
 	test("Authors can't read Submissions", async () => {
 		const author = (await install.createMember({ workspaceId, role: "author" })).browser;
 
-		await expect(
-			moduleApi<typeof forms>(author, "forms").submissions.list({ siteId, formId, folder: "inbox" }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(moduleApi<typeof forms>(author, "forms").submissions.list({ siteId, formId, folder: "inbox" })),
+		).toMatchObject({ code: "FORBIDDEN" });
 	});
 });

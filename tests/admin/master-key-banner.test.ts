@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import { createTestInstall, TEST_MASTER_KEY, type TestAccount, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let superadmin: TestAccount;
@@ -86,6 +87,6 @@ describe("the Master key banner", () => {
 		const browser = install.browser();
 
 		expect((await browser.api.shell.context()).banners.masterKey).toBe(false);
-		await expect(browser.api.install.masterKey.confirmStored()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+		expect(await rejection(browser.api.install.masterKey.confirmStored())).toMatchObject({ code: "UNAUTHORIZED" });
 	});
 });

@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { analyticsApi, analyticsVisitor, dayOf, IPHONE_SAFARI, liveSite } from "../harness/analytics.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -131,20 +132,22 @@ describe("Funnels", () => {
 		const { siteId } = await newSite();
 		const funnels = analyticsApi(staff).funnels;
 		const page = (path: string) => ({ kind: "page" as const, path, match: "exact" as const });
-		await expect(funnels.create({ siteId, name: "One", steps: [page("/")] })).rejects.toMatchObject({ status: 400 });
-		await expect(
-			funnels.create({ siteId, name: "Six", steps: ["/1", "/2", "/3", "/4", "/5", "/6"].map(page) }),
-		).rejects.toMatchObject({ status: 400 });
-		await expect(
-			funnels.create({
-				siteId,
-				name: "Ghost",
-				steps: [page("/"), { kind: "goal", goalId: "00000000-0000-4000-8000-000000000000" }],
-			}),
-		).rejects.toMatchObject({ data: { code: "FUNNEL_STEP_INVALID" } });
+		expect(await rejection(funnels.create({ siteId, name: "One", steps: [page("/")] }))).toMatchObject({ status: 400 });
+		expect(
+			await rejection(funnels.create({ siteId, name: "Six", steps: ["/1", "/2", "/3", "/4", "/5", "/6"].map(page) })),
+		).toMatchObject({ status: 400 });
+		expect(
+			await rejection(
+				funnels.create({
+					siteId,
+					name: "Ghost",
+					steps: [page("/"), { kind: "goal", goalId: "00000000-0000-4000-8000-000000000000" }],
+				}),
+			),
+		).toMatchObject({ data: { code: "FUNNEL_STEP_INVALID" } });
 
 		await funnels.create({ siteId, name: "Menu", steps: [page("/"), page("/menu")] });
-		await expect(funnels.create({ siteId, name: "MENU", steps: [page("/"), page("/menu")] })).rejects.toMatchObject({
+		expect(await rejection(funnels.create({ siteId, name: "MENU", steps: [page("/"), page("/menu")] }))).toMatchObject({
 			data: { code: "FUNNEL_NAME_TAKEN" },
 		});
 		const { funnels: listed } = await funnels.list({ siteId });
@@ -201,6 +204,6 @@ describe("filters narrow counts", () => {
 		]);
 		const series = await stats.series({ siteId, ...day, interval: "day", filters: { device: "mobile" } });
 		expect(series.points).toEqual([{ start: day.from, pageviews: 1, visitors: 1, visits: 1, events: 0 }]);
-		await expect(totals({ goal: "Nope" })).rejects.toMatchObject({ data: { code: "GOAL_NOT_FOUND" } });
+		expect(await rejection(totals({ goal: "Nope" }))).toMatchObject({ data: { code: "GOAL_NOT_FOUND" } });
 	});
 });

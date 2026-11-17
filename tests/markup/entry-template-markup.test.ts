@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -169,12 +170,12 @@ describe("saving Template markup", () => {
 	});
 
 	test("Members can't read or save Template markup: Templates are Structure", async () => {
-		await expect(owner.api.templates.getEntryTemplateMarkup({ siteId, postTypeId })).rejects.toMatchObject({
+		expect(await rejection(owner.api.templates.getEntryTemplateMarkup({ siteId, postTypeId }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(
-			owner.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId, markup: "<p>Hi</p>" }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(owner.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId, markup: "<p>Hi</p>" })),
+		).toMatchObject({ code: "FORBIDDEN" });
 	});
 });
 
@@ -251,9 +252,11 @@ describe("inline styles", () => {
 			["-ms-behavior: url(x.htc)", "isn't allowed"],
 			["color red", "isn't a CSS declaration"],
 		] as const) {
-			await expect(
-				staff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId, markup: `<p style="${style}">x</p>` }),
-			).rejects.toMatchObject({
+			expect(
+				await rejection(
+					staff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId, markup: `<p style="${style}">x</p>` }),
+				),
+			).toMatchObject({
 				code: "TEMPLATE_MARKUP_INVALID",
 				data: { problems: [{ line: 1, column: 11, message: expect.stringContaining(says) }] },
 			});

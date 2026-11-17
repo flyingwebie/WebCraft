@@ -8,6 +8,7 @@ import { emptyField } from "@webcraft/renderer/forms";
 import { openBuildingArea, shellConfigIn } from "../harness/building-area.ts";
 import { type BuildingAreaApi, buildingAreaApi, refusalOf } from "../harness/building-area-api.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -77,7 +78,7 @@ describe("Staff build a Form from the Site's address", () => {
 			formId: form.id,
 			form: { fields: [field("name", "text", "Name"), field("name", "email", "Email")] },
 		});
-		await expect(refused).rejects.toMatchObject({ code: "FORM_INVALID" });
+		expect(await rejection(refused)).toMatchObject({ code: "FORM_INVALID" });
 		const problems: { at: string }[] = await refused.then(
 			() => [],
 			(error: { data?: { problems?: { at: string }[] } }) => error.data?.problems ?? [],
@@ -96,7 +97,7 @@ describe("a Member", () => {
 			() => editorArea.api.forms.saveDraft({ siteId, formId: form.id, form: { fields } }),
 			() => editorArea.api.forms.publish({ siteId, formId: form.id }),
 		]) {
-			await expect(call()).rejects.toMatchObject({ code: "FORBIDDEN" });
+			expect(await rejection(call())).toMatchObject({ code: "FORBIDDEN" });
 		}
 		expect((await staff.api.forms.get({ siteId, formId: form.id })).form.draft.fields).toEqual([]);
 	});

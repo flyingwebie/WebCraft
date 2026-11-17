@@ -10,6 +10,7 @@ import {
 	type TestBrowser,
 	type TestInstall,
 } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -111,7 +112,7 @@ describe("accepting a Member invite", () => {
 			"media.manage",
 			"import.run",
 		]);
-		await expect(browser.api.sites.get({ siteId: careers.id })).rejects.toMatchObject({ code: "SITE_NOT_FOUND" });
+		expect(await rejection(browser.api.sites.get({ siteId: careers.id }))).toMatchObject({ code: "SITE_NOT_FOUND" });
 	});
 
 	test("refuses a password shorter than 12 characters, and the link keeps working", async () => {
@@ -123,9 +124,11 @@ describe("accepting a Member invite", () => {
 		});
 		const token = await tokenFor("short@acmeltd.example");
 
-		await expect(
-			install.browser().api.invites.accept({ token, name: "Short", password: "elevenchars", adminLanguage: "en" }),
-		).rejects.toMatchObject({ code: "PASSWORD_REFUSED" });
+		expect(
+			await rejection(
+				install.browser().api.invites.accept({ token, name: "Short", password: "elevenchars", adminLanguage: "en" }),
+			),
+		).toMatchObject({ code: "PASSWORD_REFUSED" });
 
 		// An invite to every Site says so, rather than naming them.
 		expect(await install.browser().api.invites.get({ token })).toMatchObject({
@@ -155,11 +158,13 @@ describe("accepting a Member invite", () => {
 	});
 
 	test("an invite link that doesn't work says so before the password is looked at", async () => {
-		await expect(
-			install
-				.browser()
-				.api.invites.accept({ token: "no-such-link", name: "Nobody", password: "short", adminLanguage: "en" }),
-		).rejects.toMatchObject({ code: "INVITE_INVALID" });
+		expect(
+			await rejection(
+				install
+					.browser()
+					.api.invites.accept({ token: "no-such-link", name: "Nobody", password: "short", adminLanguage: "en" }),
+			),
+		).toMatchObject({ code: "INVITE_INVALID" });
 	});
 
 	test("one person holds Memberships in several Workspaces with one account: they sign in and join", async () => {
@@ -174,9 +179,11 @@ describe("accepting a Member invite", () => {
 		// In the invitee's own Admin language.
 		expect(email.subject).toBe("Sam Superadmin ti ha invitato in Nimbus Bikes");
 		expect((await install.browser().api.invites.get({ token })).hasAccount).toBe(true);
-		await expect(
-			install.browser().api.invites.accept({ token, name: "Twin", password: TEST_PASSWORD, adminLanguage: "en" }),
-		).rejects.toMatchObject({ code: "EMAIL_IN_USE" });
+		expect(
+			await rejection(
+				install.browser().api.invites.accept({ token, name: "Twin", password: TEST_PASSWORD, adminLanguage: "en" }),
+			),
+		).toMatchObject({ code: "EMAIL_IN_USE" });
 
 		expect(await browser.api.invites.join({ token })).toEqual({ workspaceId: nimbus.id });
 
@@ -184,7 +191,7 @@ describe("accepting a Member invite", () => {
 		expect(names).toEqual(["Acme Ltd", "Nimbus Bikes"]);
 		expect((await browser.api.workspaces.get({ workspaceId: nimbus.id })).permissions).toContain("member.invite");
 		expect((await browser.api.workspaces.get({ workspaceId: acme.id })).permissions).not.toContain("member.invite");
-		await expect(browser.api.invites.join({ token })).rejects.toMatchObject({ code: "INVITE_INVALID" });
+		expect(await rejection(browser.api.invites.join({ token }))).toMatchObject({ code: "INVITE_INVALID" });
 	});
 
 	test("joining needs the account the invite was sent to", async () => {
@@ -194,10 +201,10 @@ describe("accepting a Member invite", () => {
 		const token = await tokenFor(account.email);
 		const someoneElse = await install.createMember({ workspaceId: acme.id, role: "editor" });
 
-		await expect(someoneElse.browser.api.invites.join({ token })).rejects.toMatchObject({
+		expect(await rejection(someoneElse.browser.api.invites.join({ token }))).toMatchObject({
 			code: "INVITE_OTHER_ACCOUNT",
 		});
-		await expect(install.browser().api.invites.join({ token })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+		expect(await rejection(install.browser().api.invites.join({ token }))).toMatchObject({ code: "UNAUTHORIZED" });
 		expect((await install.browser().api.invites.get({ token })).email).toBe(account.email);
 	});
 });
@@ -221,14 +228,16 @@ describe("who may invite, and what they may grant", () => {
 		for (const role of ["editor", "author"] as const) {
 			const { browser } = await install.createMember({ workspaceId: acme.id, role });
 
-			await expect(
-				browser.api.members.invite({
-					workspaceId: acme.id,
-					email: `by-${role}@acmeltd.example`,
-					role: "author",
-					sites: "all",
-				}),
-			).rejects.toMatchObject({ code: "FORBIDDEN" });
+			expect(
+				await rejection(
+					browser.api.members.invite({
+						workspaceId: acme.id,
+						email: `by-${role}@acmeltd.example`,
+						role: "author",
+						sites: "all",
+					}),
+				),
+			).toMatchObject({ code: "FORBIDDEN" });
 		}
 	});
 
@@ -242,9 +251,9 @@ describe("who may invite, and what they may grant", () => {
 				sites,
 			});
 
-		await expect(invite("all")).rejects.toMatchObject({ code: "ACCESS_NOT_HELD", status: 403 });
+		expect(await rejection(invite("all"))).toMatchObject({ code: "ACCESS_NOT_HELD", status: 403 });
 		// A Site they don't reach is one they can't see.
-		await expect(invite([bakery.id, careers.id])).rejects.toMatchObject({ code: "SITE_NOT_FOUND", status: 404 });
+		expect(await rejection(invite([bakery.id, careers.id]))).toMatchObject({ code: "SITE_NOT_FOUND", status: 404 });
 		expect((await invite([bakery.id])).invite).toMatchObject({ role: "owner", sites: [{ id: bakery.id }] });
 	});
 
@@ -252,22 +261,26 @@ describe("who may invite, and what they may grant", () => {
 		const other = await install.createWorkspace("Elsewhere Ltd");
 		const theirSite = await install.createSite(other.id);
 
-		await expect(
-			staff.browser.api.members.invite({
-				workspaceId: acme.id,
-				email: "x@acmeltd.example",
-				role: "author",
-				sites: [theirSite.id],
-			}),
-		).rejects.toMatchObject({ code: "SITE_NOT_FOUND" });
+		expect(
+			await rejection(
+				staff.browser.api.members.invite({
+					workspaceId: acme.id,
+					email: "x@acmeltd.example",
+					role: "author",
+					sites: [theirSite.id],
+				}),
+			),
+		).toMatchObject({ code: "SITE_NOT_FOUND" });
 	});
 
 	test("one Membership per Workspace: a Member of it can't be invited again", async () => {
 		const { account } = await install.createMember({ workspaceId: acme.id, role: "author" });
 
-		await expect(
-			staff.browser.api.members.invite({ workspaceId: acme.id, email: account.email, role: "editor", sites: "all" }),
-		).rejects.toMatchObject({ code: "ALREADY_MEMBER" });
+		expect(
+			await rejection(
+				staff.browser.api.members.invite({ workspaceId: acme.id, email: account.email, role: "editor", sites: "all" }),
+			),
+		).toMatchObject({ code: "ALREADY_MEMBER" });
 	});
 
 	test("Staff and the Superadmin can't be invited as Members", async () => {
@@ -275,16 +288,25 @@ describe("who may invite, and what they may grant", () => {
 		const { person } = await admin.api.session.current();
 
 		for (const address of [(await other.browser.api.session.current()).person?.email, person?.email]) {
-			await expect(
-				staff.browser.api.members.invite({ workspaceId: acme.id, email: address ?? "", role: "author", sites: "all" }),
-			).rejects.toMatchObject({ code: "STAFF_MEMBERSHIP" });
+			expect(
+				await rejection(
+					staff.browser.api.members.invite({
+						workspaceId: acme.id,
+						email: address ?? "",
+						role: "author",
+						sites: "all",
+					}),
+				),
+			).toMatchObject({ code: "STAFF_MEMBERSHIP" });
 		}
 	});
 
 	test("refuses a malformed email address", async () => {
-		await expect(
-			staff.browser.api.members.invite({ workspaceId: acme.id, email: "not an email", role: "author", sites: "all" }),
-		).rejects.toMatchObject({ code: "EMAIL_INVALID" });
+		expect(
+			await rejection(
+				staff.browser.api.members.invite({ workspaceId: acme.id, email: "not an email", role: "author", sites: "all" }),
+			),
+		).toMatchObject({ code: "EMAIL_INVALID" });
 	});
 });
 
@@ -299,10 +321,12 @@ describe("Member invite links", () => {
 		const token = await tokenFor("once@acmeltd.example");
 		await install.browser().api.invites.accept({ token, name: "Once", password: TEST_PASSWORD, adminLanguage: "en" });
 
-		await expect(install.browser().api.invites.get({ token })).rejects.toMatchObject({ code: "INVITE_INVALID" });
-		await expect(
-			install.browser().api.invites.accept({ token, name: "Twice", password: TEST_PASSWORD, adminLanguage: "en" }),
-		).rejects.toMatchObject({ code: "INVITE_INVALID" });
+		expect(await rejection(install.browser().api.invites.get({ token }))).toMatchObject({ code: "INVITE_INVALID" });
+		expect(
+			await rejection(
+				install.browser().api.invites.accept({ token, name: "Twice", password: TEST_PASSWORD, adminLanguage: "en" }),
+			),
+		).toMatchObject({ code: "INVITE_INVALID" });
 	});
 
 	test("stop working after 7 days, and leave the pending list", async () => {
@@ -321,10 +345,12 @@ describe("Member invite links", () => {
 
 			await later.clock.advance(7 * DAY + 1000);
 
-			await expect(later.browser().api.invites.get({ token })).rejects.toMatchObject({ code: "INVITE_INVALID" });
-			await expect(
-				later.browser().api.invites.accept({ token, name: "Late", password: TEST_PASSWORD, adminLanguage: "en" }),
-			).rejects.toMatchObject({ code: "INVITE_INVALID" });
+			expect(await rejection(later.browser().api.invites.get({ token }))).toMatchObject({ code: "INVITE_INVALID" });
+			expect(
+				await rejection(
+					later.browser().api.invites.accept({ token, name: "Late", password: TEST_PASSWORD, adminLanguage: "en" }),
+				),
+			).toMatchObject({ code: "INVITE_INVALID" });
 			expect((await (await later.superadmin()).api.members.list({ workspaceId: workspace.id })).invites).toEqual([]);
 		} finally {
 			await later.close();
@@ -348,7 +374,9 @@ describe("Member invite links", () => {
 			sites: [bakery.id],
 		});
 
-		await expect(install.browser().api.invites.get({ token: first })).rejects.toMatchObject({ code: "INVITE_INVALID" });
+		expect(await rejection(install.browser().api.invites.get({ token: first }))).toMatchObject({
+			code: "INVITE_INVALID",
+		});
 		const { invites } = await staff.browser.api.members.list({ workspaceId: acme.id });
 		expect(invites.filter((invite) => invite.email === "again@acmeltd.example")).toEqual([
 			expect.objectContaining({ role: "author", sites: [{ id: bakery.id, name: "Acme Bakery" }] }),
@@ -373,7 +401,9 @@ describe("Member invite links", () => {
 
 		expect(resent).toMatchObject({ id: invite.id, expiresAt: new Date(install.clock.now().getTime() + 7 * DAY) });
 		expect(second).not.toBe(first);
-		await expect(install.browser().api.invites.get({ token: first })).rejects.toMatchObject({ code: "INVITE_INVALID" });
+		expect(await rejection(install.browser().api.invites.get({ token: first }))).toMatchObject({
+			code: "INVITE_INVALID",
+		});
 		expect((await install.browser().api.invites.get({ token: second })).email).toBe("resend@acmeltd.example");
 		// Inviting is a Sensitive action: the shared sessions confirm again after the clock moved.
 		await admin.api.session.confirmIdentity({ password: TEST_PASSWORD });
@@ -391,7 +421,7 @@ describe("Member invite links", () => {
 
 		await staff.browser.api.members.revokeInvite({ workspaceId: acme.id, inviteId: invite.id });
 
-		await expect(install.browser().api.invites.get({ token })).rejects.toMatchObject({ code: "INVITE_INVALID" });
+		expect(await rejection(install.browser().api.invites.get({ token }))).toMatchObject({ code: "INVITE_INVALID" });
 		const { invites } = await staff.browser.api.members.list({ workspaceId: acme.id });
 		expect(invites.map((pending) => pending.email)).not.toContain("revoked@acmeltd.example");
 	});
@@ -405,12 +435,12 @@ describe("Member invite links", () => {
 			sites: "all",
 		});
 
-		await expect(
-			staff.browser.api.members.revokeInvite({ workspaceId: acme.id, inviteId: invite.id }),
-		).rejects.toMatchObject({ code: "INVITE_INVALID" });
-		await expect(
-			staff.browser.api.members.resendInvite({ workspaceId: acme.id, inviteId: invite.id }),
-		).rejects.toMatchObject({ code: "INVITE_INVALID" });
+		expect(
+			await rejection(staff.browser.api.members.revokeInvite({ workspaceId: acme.id, inviteId: invite.id })),
+		).toMatchObject({ code: "INVITE_INVALID" });
+		expect(
+			await rejection(staff.browser.api.members.resendInvite({ workspaceId: acme.id, inviteId: invite.id })),
+		).toMatchObject({ code: "INVITE_INVALID" });
 	});
 
 	test("an Owner can't resend or revoke an invite that grants more than they hold", async () => {
@@ -423,7 +453,7 @@ describe("Member invite links", () => {
 		});
 
 		for (const call of [owner.browser.api.members.resendInvite, owner.browser.api.members.revokeInvite]) {
-			await expect(call({ workspaceId: acme.id, inviteId: invite.id })).rejects.toMatchObject({
+			expect(await rejection(call({ workspaceId: acme.id, inviteId: invite.id }))).toMatchObject({
 				code: "ACCESS_NOT_HELD",
 				data: { problem: "manage" },
 			});
@@ -446,10 +476,12 @@ describe("an invite whose inviter lost the access it grants", () => {
 
 		await staff.browser.api.members.remove({ workspaceId: acme.id, personId: owner.personId });
 
-		await expect(install.browser().api.invites.get({ token })).rejects.toMatchObject({ code: "INVITE_INVALID" });
-		await expect(
-			install.browser().api.invites.accept({ token, name: "Left", password: TEST_PASSWORD, adminLanguage: "en" }),
-		).rejects.toMatchObject({ code: "INVITE_INVALID" });
+		expect(await rejection(install.browser().api.invites.get({ token }))).toMatchObject({ code: "INVITE_INVALID" });
+		expect(
+			await rejection(
+				install.browser().api.invites.accept({ token, name: "Left", password: TEST_PASSWORD, adminLanguage: "en" }),
+			),
+		).toMatchObject({ code: "INVITE_INVALID" });
 		const { members } = await staff.browser.api.members.list({ workspaceId: acme.id });
 		expect(members.map((member) => member.email)).not.toContain("left-behind@acmeltd.example");
 	});
@@ -475,8 +507,8 @@ describe("an invite whose inviter lost the access it grants", () => {
 			sites: [bakery.id],
 		});
 
-		await expect(existing.browser.api.invites.join({ token })).rejects.toMatchObject({ code: "INVITE_INVALID" });
-		await expect(existing.browser.api.workspaces.get({ workspaceId: acme.id })).rejects.toMatchObject({
+		expect(await rejection(existing.browser.api.invites.join({ token }))).toMatchObject({ code: "INVITE_INVALID" });
+		expect(await rejection(existing.browser.api.workspaces.get({ workspaceId: acme.id }))).toMatchObject({
 			code: "WORKSPACE_NOT_FOUND",
 		});
 	});

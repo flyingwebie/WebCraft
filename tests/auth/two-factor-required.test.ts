@@ -7,6 +7,7 @@ import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import type { TestBrowser } from "../harness/browser.ts";
 import { createTestInstall, type TestAccount, type TestInstall } from "../harness/index.ts";
 import { softwareAuthenticator } from "../harness/passkeys.ts";
+import { rejection } from "../harness/settled.ts";
 import { addAuthenticator, confirmIfAsked, signInWithAuthenticator } from "../harness/two-factor.ts";
 
 const DAY = 24 * 60 * 60_000;
@@ -38,15 +39,15 @@ async function superadminWithAuthenticator(): Promise<TestBrowser> {
 describe("the Install's switch", () => {
 	test("is the Superadmin's, a Sensitive action, recorded in the Audit log, and needs their own second factor first", async () => {
 		const staff = await install.createStaff({ workspaces: "all" });
-		await expect(staff.browser.api.install.security.requireTwoFactor({ required: true })).rejects.toMatchObject({
+		expect(await rejection(staff.browser.api.install.security.requireTwoFactor({ required: true }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(admin.api.install.security.requireTwoFactor({ required: true })).rejects.toMatchObject({
+		expect(await rejection(admin.api.install.security.requireTwoFactor({ required: true }))).toMatchObject({
 			code: "TWO_FACTOR_OFF",
 		});
 		await superadminWithAuthenticator();
 		await install.clock.advance(11 * 60_000);
-		await expect(admin.api.install.security.requireTwoFactor({ required: true })).rejects.toMatchObject({
+		expect(await rejection(admin.api.install.security.requireTwoFactor({ required: true }))).toMatchObject({
 			code: "IDENTITY_CHECK_REQUIRED",
 			data: { action: "twoFactorRequirement.change" },
 		});
@@ -78,14 +79,14 @@ describe("the Install's switch", () => {
 				mustSetUp: true,
 				reminder: false,
 			});
-			await expect(browser.api.workspaces.list()).rejects.toMatchObject({
+			expect(await rejection(browser.api.workspaces.list())).toMatchObject({
 				code: "TWO_FACTOR_SETUP_REQUIRED",
 				status: 403,
 			});
-			await expect(browser.api.members.list({ workspaceId })).rejects.toMatchObject({
+			expect(await rejection(browser.api.members.list({ workspaceId }))).toMatchObject({
 				code: "TWO_FACTOR_SETUP_REQUIRED",
 			});
-			await expect(browser.api.me.sessions.list()).rejects.toMatchObject({ code: "TWO_FACTOR_SETUP_REQUIRED" });
+			expect(await rejection(browser.api.me.sessions.list())).toMatchObject({ code: "TWO_FACTOR_SETUP_REQUIRED" });
 			expect((await browser.api.session.current()).person?.email).toBe(person.account.email);
 			expect(await browser.api.me.twoFactor.get()).toMatchObject({
 				authenticator: null,
@@ -125,9 +126,11 @@ describe("the Install's switch", () => {
 			browser.api.install.security.requireTwoFactor({ required: true }),
 		);
 
-		await expect(
-			confirmIfAsked(browser, superadmin.password, () => browser.api.me.twoFactor.removeAuthenticator()),
-		).rejects.toMatchObject({ code: "TWO_FACTOR_REQUIRED", status: 409 });
+		expect(
+			await rejection(
+				confirmIfAsked(browser, superadmin.password, () => browser.api.me.twoFactor.removeAuthenticator()),
+			),
+		).toMatchObject({ code: "TWO_FACTOR_REQUIRED", status: 409 });
 
 		const { options } = await browser.api.me.twoFactor.passkeyOptions();
 		await browser.api.me.twoFactor.addPasskey({
@@ -136,7 +139,7 @@ describe("the Install's switch", () => {
 		});
 		await browser.api.me.twoFactor.removeAuthenticator();
 		const [passkey] = (await browser.api.me.twoFactor.get()).passkeys;
-		await expect(browser.api.me.twoFactor.removePasskey({ passkeyId: passkey?.id ?? "" })).rejects.toMatchObject({
+		expect(await rejection(browser.api.me.twoFactor.removePasskey({ passkeyId: passkey?.id ?? "" }))).toMatchObject({
 			code: "TWO_FACTOR_REQUIRED",
 		});
 	});
@@ -163,10 +166,12 @@ describe("a Workspace's switch", () => {
 		});
 		const staff = await install.createStaff({ workspaces: [workspaceId] });
 
-		await expect(editor.browser.api.members.requireTwoFactor({ workspaceId, required: true })).rejects.toMatchObject({
-			code: "FORBIDDEN",
-		});
-		await expect(owner.browser.api.members.requireTwoFactor({ workspaceId, required: true })).rejects.toMatchObject({
+		expect(await rejection(editor.browser.api.members.requireTwoFactor({ workspaceId, required: true }))).toMatchObject(
+			{
+				code: "FORBIDDEN",
+			},
+		);
+		expect(await rejection(owner.browser.api.members.requireTwoFactor({ workspaceId, required: true }))).toMatchObject({
 			code: "TWO_FACTOR_OFF",
 		});
 		const { secret } = await addAuthenticator(install, owner.browser);
@@ -182,7 +187,7 @@ describe("a Workspace's switch", () => {
 			install: false,
 			workspaces: [{ id: workspaceId, name: "Acme" }],
 		});
-		await expect(editorBrowser.api.sites.list({ workspaceId })).rejects.toMatchObject({
+		expect(await rejection(editorBrowser.api.sites.list({ workspaceId }))).toMatchObject({
 			code: "TWO_FACTOR_SETUP_REQUIRED",
 		});
 		for (const free of [elsewhere, staff]) {
@@ -224,7 +229,9 @@ describe("a Workspace's switch", () => {
 				[without.personId, []],
 			]),
 		);
-		await expect(withApp.browser.api.members.twoFactor({ workspaceId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(withApp.browser.api.members.twoFactor({ workspaceId }))).toMatchObject({
+			code: "FORBIDDEN",
+		});
 	});
 });
 

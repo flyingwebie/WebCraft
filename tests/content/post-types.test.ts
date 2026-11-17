@@ -5,6 +5,7 @@ import { BUILT_IN_FIELDS } from "@webcraft/core";
 import { SETTING_RULES } from "@webcraft/core/field-rules";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 import { element, tree, value } from "../harness/trees.ts";
 
@@ -118,9 +119,9 @@ describe("creating a Post Type", () => {
 	test("Members see a Site's Post Types, to write Entries, but can't create them", async () => {
 		expect((await owner.api.postTypes.list({ siteId })).postTypes.map((postType) => postType.key)).toContain("blog");
 
-		await expect(
-			owner.api.postTypes.create({ siteId, name: "Events", urlPattern: "/events/{slug}" }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(owner.api.postTypes.create({ siteId, name: "Events", urlPattern: "/events/{slug}" })),
+		).toMatchObject({ code: "FORBIDDEN" });
 	});
 
 	test("is recorded in the Audit log", async () => {
@@ -201,7 +202,7 @@ describe("refused Post Types", () => {
 			"/blog/{id}",
 		];
 		for (const urlPattern of refused) {
-			await expect(staff.api.postTypes.create({ siteId, name: "Bad", urlPattern })).rejects.toMatchObject({
+			expect(await rejection(staff.api.postTypes.create({ siteId, name: "Bad", urlPattern }))).toMatchObject({
 				code: "POST_TYPE_INVALID",
 				data: { problems: [{ at: "urlPattern" }] },
 			});
@@ -222,44 +223,48 @@ describe("refused Post Types", () => {
 			{ key: "true", at: "fields[0].key" },
 		];
 		for (const { key, at } of cases) {
-			await expect(
+			expect(
+				await rejection(
+					staff.api.postTypes.create({
+						siteId,
+						name: "Bad",
+						urlPattern: "/bad/{slug}",
+						fields: [{ key, label: "Label", type: "text" }],
+					}),
+				),
+			).toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at }] } });
+		}
+		expect(
+			await rejection(
 				staff.api.postTypes.create({
 					siteId,
 					name: "Bad",
 					urlPattern: "/bad/{slug}",
-					fields: [{ key, label: "Label", type: "text" }],
+					fields: [
+						{ key: "intro", label: "Intro", type: "text" },
+						{ key: "intro", label: "Intro again", type: "text" },
+					],
 				}),
-			).rejects.toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at }] } });
-		}
-		await expect(
-			staff.api.postTypes.create({
-				siteId,
-				name: "Bad",
-				urlPattern: "/bad/{slug}",
-				fields: [
-					{ key: "intro", label: "Intro", type: "text" },
-					{ key: "intro", label: "Intro again", type: "text" },
-				],
-			}),
-		).rejects.toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at: "fields[1].key" }] } });
+			),
+		).toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at: "fields[1].key" }] } });
 	});
 
 	test("a Post Type needs a name and a key", async () => {
-		await expect(staff.api.postTypes.create({ siteId, name: " ", urlPattern: "/x/{slug}" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.postTypes.create({ siteId, name: " ", urlPattern: "/x/{slug}" }))).toMatchObject({
 			code: "POST_TYPE_INVALID",
 		});
-		await expect(
-			staff.api.postTypes.create({ siteId, name: "Events", key: "Events!", urlPattern: "/x/{slug}" }),
-		).rejects.toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at: "key" }] } });
+		expect(
+			await rejection(staff.api.postTypes.create({ siteId, name: "Events", key: "Events!", urlPattern: "/x/{slug}" })),
+		).toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at: "key" }] } });
 	});
 
 	test("two Post Types of a Site can't share a key or a URL pattern; another Site's can", async () => {
-		await expect(
-			staff.api.postTypes.create({ siteId, name: "News", key: "blog", urlPattern: "/news/{slug}" }),
-		).rejects.toMatchObject({ code: "POST_TYPE_TAKEN", data: { field: "key" } });
-		await expect(
-			staff.api.postTypes.create({ siteId, name: "News", key: "news", urlPattern: "/blog/{slug}" }),
-		).rejects.toMatchObject({ code: "POST_TYPE_TAKEN", data: { field: "urlPattern" } });
+		expect(
+			await rejection(staff.api.postTypes.create({ siteId, name: "News", key: "blog", urlPattern: "/news/{slug}" })),
+		).toMatchObject({ code: "POST_TYPE_TAKEN", data: { field: "key" } });
+		expect(
+			await rejection(staff.api.postTypes.create({ siteId, name: "News", key: "news", urlPattern: "/blog/{slug}" })),
+		).toMatchObject({ code: "POST_TYPE_TAKEN", data: { field: "urlPattern" } });
 
 		const { postType } = await staff.api.postTypes.create({
 			siteId: otherSiteId,
@@ -277,12 +282,12 @@ describe("refused Post Types", () => {
 			urlPattern: "/jobs/{slug}",
 		});
 
-		await expect(staff.api.postTypes.get({ siteId, postTypeId: postType.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.postTypes.get({ siteId, postTypeId: postType.id }))).toMatchObject({
 			code: "POST_TYPE_NOT_FOUND",
 		});
-		await expect(staff.api.postTypes.update({ siteId, postTypeId: postType.id, name: "Stolen" })).rejects.toMatchObject(
-			{ code: "POST_TYPE_NOT_FOUND" },
-		);
+		expect(
+			await rejection(staff.api.postTypes.update({ siteId, postTypeId: postType.id, name: "Stolen" })),
+		).toMatchObject({ code: "POST_TYPE_NOT_FOUND" });
 	});
 });
 
@@ -339,21 +344,23 @@ describe("changing a Post Type", () => {
 			["duration", "Duration"],
 			["level", "Difficulty"],
 		]);
-		await expect(
-			staff.api.postTypes.update({
-				siteId,
-				postTypeId: postType.id,
-				// @ts-expect-error: a type no Field has, as a client could send it
-				fields: [{ key: "level", label: "Level", type: "colour" }],
-			}),
-		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(
+			await rejection(
+				staff.api.postTypes.update({
+					siteId,
+					postTypeId: postType.id,
+					// @ts-expect-error: a type no Field has, as a client could send it
+					fields: [{ key: "level", label: "Level", type: "colour" }],
+				}),
+			),
+		).toMatchObject({ code: "BAD_REQUEST" });
 	});
 
 	test("Members can't change one", async () => {
 		const { postTypes } = await owner.api.postTypes.list({ siteId });
 		const postTypeId = postTypes[0]?.id ?? "";
 
-		await expect(owner.api.postTypes.update({ siteId, postTypeId, name: "Renamed" })).rejects.toMatchObject({
+		expect(await rejection(owner.api.postTypes.update({ siteId, postTypeId, name: "Renamed" }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});

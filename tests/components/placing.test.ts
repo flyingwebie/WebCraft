@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -207,7 +208,7 @@ describe("a Component's Draft and publishing", () => {
 			markup: '<p><Tag word="new" colour="blue" /></p>',
 		});
 		// Published Templates place published Components: colour isn't one of its Props yet.
-		await expect(staff.api.templates.publish({ siteId, templateId: placing.template.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.templates.publish({ siteId, templateId: placing.template.id }))).toMatchObject({
 			code: "TEMPLATE_INVALID",
 			data: { problems: [{ message: "Tag has no Prop named colour." }] },
 		});
@@ -227,7 +228,7 @@ describe("a Component's Draft and publishing", () => {
 			markup: "<Later />",
 		});
 
-		await expect(staff.api.templates.publish({ siteId, templateId: saved.template.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.templates.publish({ siteId, templateId: saved.template.id }))).toMatchObject({
 			code: "TEMPLATE_INVALID",
 			data: { problems: [{ at: "nodes[0].component", message: "Later isn't published yet: publish it first." }] },
 		});
@@ -237,7 +238,7 @@ describe("a Component's Draft and publishing", () => {
 		await component("Inner", [], "<b>in</b>", { publish: false });
 		const outerId = await component("Outer", [], "<p><Inner /></p>", { publish: false });
 
-		await expect(staff.api.components.publish({ siteId, componentId: outerId })).rejects.toMatchObject({
+		expect(await rejection(staff.api.components.publish({ siteId, componentId: outerId }))).toMatchObject({
 			code: "TEMPLATE_INVALID",
 			data: { problems: [{ message: "Inner isn't published yet: publish it first." }] },
 		});
@@ -246,7 +247,7 @@ describe("a Component's Draft and publishing", () => {
 	test("only Staff publish Components", async () => {
 		const id = await component("Stamp", [], "<p>Stamp</p>", { publish: false });
 
-		await expect(editor.api.components.publish({ siteId, componentId: id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.components.publish({ siteId, componentId: id }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});
@@ -291,13 +292,15 @@ describe("what a Placement can't be", () => {
 			{ tree: { version: 1, nodes: [] } },
 			{ nodes: [] },
 		]) {
-			await expect(
-				staff.api.templates.saveEntryTemplate({
-					siteId,
-					postTypeId: kind.postTypeId,
-					tree: { version: 1, nodes: [{ ...placement, ...internals }] } as never,
-				}),
-			).rejects.toMatchObject({
+			expect(
+				await rejection(
+					staff.api.templates.saveEntryTemplate({
+						siteId,
+						postTypeId: kind.postTypeId,
+						tree: { version: 1, nodes: [{ ...placement, ...internals }] } as never,
+					}),
+				),
+			).toMatchObject({
 				code: "TEMPLATE_INVALID",
 				data: {
 					problems: [
@@ -348,30 +351,32 @@ describe("what a Placement can't be", () => {
 				message: "Card can't go here: <div> can't go inside <p>: a browser would end the paragraph before it.",
 			},
 		]);
-		await expect(
-			staff.api.templates.saveEntryTemplate({
-				siteId,
-				postTypeId: kind.postTypeId,
-				tree: {
-					version: 1,
-					nodes: [
-						{
-							type: "element",
-							tag: "p",
-							attributes: [],
-							classes: [],
-							children: [
-								{
-									type: "component",
-									component: cardId,
-									props: [{ name: "heading", value: [{ type: "text", text: "Hi" }] }],
-								},
-							],
-						},
-					],
-				} as never,
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.templates.saveEntryTemplate({
+					siteId,
+					postTypeId: kind.postTypeId,
+					tree: {
+						version: 1,
+						nodes: [
+							{
+								type: "element",
+								tag: "p",
+								attributes: [],
+								classes: [],
+								children: [
+									{
+										type: "component",
+										component: cardId,
+										props: [{ name: "heading", value: [{ type: "text", text: "Hi" }] }],
+									},
+								],
+							},
+						],
+					} as never,
+				}),
+			),
+		).toMatchObject({
 			code: "TEMPLATE_INVALID",
 			data: { problems: [{ at: "nodes[0].children[0]", message: expect.stringContaining("Card can't go here") }] },
 		});
@@ -380,13 +385,15 @@ describe("what a Placement can't be", () => {
 	test("names its Component by an id the Site has", async () => {
 		const unknown = "3f9a1c2b-7d4e-4f60-9a1c-2b7d4e5f6071";
 
-		await expect(
-			staff.api.templates.saveEntryTemplate({
-				siteId,
-				postTypeId: kind.postTypeId,
-				tree: { version: 1, nodes: [{ type: "component", component: unknown, props: [] }] } as never,
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.templates.saveEntryTemplate({
+					siteId,
+					postTypeId: kind.postTypeId,
+					tree: { version: 1, nodes: [{ type: "component", component: unknown, props: [] }] } as never,
+				}),
+			),
+		).toMatchObject({
 			code: "TEMPLATE_INVALID",
 			data: {
 				problems: [{ at: "nodes[0].component", message: `There is no Component with the id ${unknown} on this Site.` }],
@@ -419,17 +426,19 @@ describe("Components placing Components", () => {
 
 	test("a Component never places itself, directly or through others", async () => {
 		const loopId = await component("Loop", [], "<p>Loop</p>", { publish: false });
-		await expect(
-			staff.api.components.saveMarkup({ siteId, componentId: loopId, markup: "<div><Loop /></div>" }),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(staff.api.components.saveMarkup({ siteId, componentId: loopId, markup: "<div><Loop /></div>" })),
+		).toMatchObject({
 			code: "TEMPLATE_MARKUP_INVALID",
 			data: { problems: [{ line: 1, column: 6, message: "A Component can't place itself: Loop would never end." }] },
 		});
 
 		await component("Around", [], "<div><Loop /></div>", { publish: false });
-		await expect(
-			staff.api.components.saveMarkup({ siteId, componentId: loopId, markup: "<div><Around /></div>" }),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.components.saveMarkup({ siteId, componentId: loopId, markup: "<div><Around /></div>" }),
+			),
+		).toMatchObject({
 			code: "TEMPLATE_MARKUP_INVALID",
 			data: {
 				problems: [{ message: "Around places this Component, so placing it here would never end." }],
@@ -446,7 +455,7 @@ describe("Components placing Components", () => {
 		await staff.api.components.saveMarkup({ siteId, componentId: pongId, markup: "<div><Ping /></div>" });
 
 		// Published, Ping still places Pong.
-		await expect(staff.api.components.publish({ siteId, componentId: pongId })).rejects.toMatchObject({
+		expect(await rejection(staff.api.components.publish({ siteId, componentId: pongId }))).toMatchObject({
 			code: "TEMPLATE_INVALID",
 			data: { problems: [{ message: "Ping places this Component, so placing it here would never end." }] },
 		});
@@ -459,7 +468,7 @@ describe("Components placing Components", () => {
 			await component(`Level${level}`, [], `<span><Level${level + 1} /></span>`, { publish: false });
 		}
 
-		await expect(component("Level1", [], "<span><Level2 /></span>", { publish: false })).rejects.toMatchObject({
+		expect(await rejection(component("Level1", [], "<span><Level2 /></span>", { publish: false }))).toMatchObject({
 			code: "TEMPLATE_MARKUP_INVALID",
 			data: { problems: [{ message: "Components place Components at most 10 deep." }] },
 		});
@@ -467,7 +476,7 @@ describe("Components placing Components", () => {
 
 	test("a Component's HTML must fit where it is placed, inside other Components too", async () => {
 		await component("Block", [], "<div>Block</div>");
-		await expect(component("Para", [], "<p><Block /></p>", { publish: false })).rejects.toMatchObject({
+		expect(await rejection(component("Para", [], "<p><Block /></p>", { publish: false }))).toMatchObject({
 			code: "TEMPLATE_MARKUP_INVALID",
 			data: {
 				problems: [
@@ -520,13 +529,15 @@ describe("size", () => {
 			postTypeId: kind.postTypeId,
 			markup: "<Long />".repeat(11),
 		});
-		await expect(
-			staff.api.templates.saveEntryTemplateMarkup({
-				siteId,
-				postTypeId: kind.postTypeId,
-				markup: "<Long />".repeat(12),
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.templates.saveEntryTemplateMarkup({
+					siteId,
+					postTypeId: kind.postTypeId,
+					markup: "<Long />".repeat(12),
+				}),
+			),
+		).toMatchObject({
 			code: "TEMPLATE_MARKUP_INVALID",
 			data: {
 				problems: [

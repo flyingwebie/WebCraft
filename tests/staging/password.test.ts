@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { ipv6Network } from "../harness/addresses.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { givePassword, stagingVisitor } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -81,7 +82,7 @@ describe("setting the staging password", () => {
 	test("Editors and Authors can't set it; everyone who sees the Site sees whether there is one", async () => {
 		const { siteId } = await newSite();
 		const editor = (await install.createMember({ workspaceId, role: "editor", sites: [siteId] })).browser;
-		await expect(editor.api.staging.setPassword({ siteId, password: "crusty sourdough" })).rejects.toMatchObject({
+		expect(await rejection(editor.api.staging.setPassword({ siteId, password: "crusty sourdough" }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 		expect((await editor.api.staging.get({ siteId })).password.set).toBe(false);
@@ -90,7 +91,7 @@ describe("setting the staging password", () => {
 	test("refuses one shorter than 8 characters, longer than 200, or only spaces", async () => {
 		const { siteId } = await newSite();
 		for (const password of ["short", " ".repeat(12), "x".repeat(201)]) {
-			await expect(staff.api.staging.setPassword({ siteId, password })).rejects.toMatchObject({
+			expect(await rejection(staff.api.staging.setPassword({ siteId, password }))).toMatchObject({
 				code: "STAGING_PASSWORD_INVALID",
 			});
 		}

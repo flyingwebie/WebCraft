@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import type { DocumentJson } from "@webcraft/core";
 import { openDraft } from "../harness/co-editing.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { exportedArchive, importArchive, rewritten } from "../harness/site-transfer.ts";
 import { goLive } from "../harness/staging.ts";
@@ -315,12 +316,14 @@ test("target binding mappings survive public markup, archive and history and rej
 		(await admin.api.templates.getEntryTemplateMarkup({ siteId: destination, postTypeId: type?.id ?? "" })).markup
 			?.draft,
 	).toContain("data-wc-bindings=");
-	await expect(
-		admin.api.templates.saveEntryTemplateMarkup({
-			...holder,
-			markup: mapped.markup?.draft.replace("{{ address }}", "{{ freshAddress }}") ?? "",
-		}),
-	).rejects.toMatchObject({
+	expect(
+		await rejection(
+			admin.api.templates.saveEntryTemplateMarkup({
+				...holder,
+				markup: mapped.markup?.draft.replace("{{ address }}", "{{ freshAddress }}") ?? "",
+			}),
+		),
+	).toMatchObject({
 		code: "TEMPLATE_MARKUP_INVALID",
 		data: {
 			problems: [expect.objectContaining({ line: 1, message: expect.stringContaining("Remove it when replacing") })],

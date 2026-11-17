@@ -159,7 +159,7 @@ for (const theme of THEMES) {
 				// Choose shows the categories; focus moves to the first one that can change.
 				await pressButton(page, "Choose");
 				const analytics = page.getByRole("checkbox", { name: "Analytics" });
-				await expect(analytics.evaluate((element) => element === document.activeElement)).resolves.toBe(true);
+				expect(await analytics.evaluate((element) => element === document.activeElement)).toBe(true);
 				expect(await page.getByRole("checkbox", { name: "Necessary" }).isDisabled()).toBe(true);
 				await expectNoAxeViolations(page, `the ${layout} banner's categories (${theme})`);
 				await page.keyboard.press("Space");
@@ -187,7 +187,7 @@ for (const theme of THEMES) {
 				expect(headingFocused).toBe(true);
 				await page.keyboard.press("Escape");
 				await banner.waitFor({ state: "hidden" });
-				await expect(settings.evaluate((element) => element === document.activeElement)).resolves.toBe(true);
+				expect(await settings.evaluate((element) => element === document.activeElement)).toBe(true);
 			});
 		}
 	});

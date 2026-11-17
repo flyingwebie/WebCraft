@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -97,9 +98,9 @@ describe("{{@consentSettings}}", () => {
 			"<main>{{@outlet}}</main><footer><ul>{{@consentSettings}}</ul></footer>",
 			"<main>{{@outlet}}</main><footer>{{@consentSettings now}}</footer>",
 		]) {
-			await expect(
-				staff.api.templates.saveSiteTemplateMarkup({ siteId: site.siteId, markup: markupWithIt }),
-			).rejects.toMatchObject({ code: "TEMPLATE_MARKUP_INVALID" });
+			expect(
+				await rejection(staff.api.templates.saveSiteTemplateMarkup({ siteId: site.siteId, markup: markupWithIt })),
+			).toMatchObject({ code: "TEMPLATE_MARKUP_INVALID" });
 		}
 	});
 });

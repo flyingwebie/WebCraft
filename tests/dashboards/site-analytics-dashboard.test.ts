@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { analyticsVisitor, liveSite } from "../harness/analytics.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -118,7 +119,7 @@ describe("the Site analytics Dashboard", () => {
 		const { id: siteId } = await install.createSite(workspaceId, { name: "Butcher" });
 		const board = await builtInOf(staff, siteId);
 
-		await expect(staff.api.dashboards.delete({ siteId, dashboardId: board.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.dashboards.delete({ siteId, dashboardId: board.id }))).toMatchObject({
 			code: "DASHBOARD_INVALID",
 			status: 400,
 			data: { problem: "builtIn" },

@@ -7,6 +7,7 @@ import { chmodSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { createTestInstall, type SentEmail, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const MINUTE = 60_000;
 
@@ -173,7 +174,7 @@ describe("when the worker stops", () => {
 
 describe("the emails", () => {
 	test("can't be turned off", async () => {
-		await expect((await admin()).api.me.emails.update({ turnedOff: ["health-failing"] })).rejects.toMatchObject({
+		expect(await rejection((await admin()).api.me.emails.update({ turnedOff: ["health-failing"] }))).toMatchObject({
 			code: "EMAIL_ALWAYS_SENT",
 		});
 		const { emails } = await (await admin()).api.me.emails.get();

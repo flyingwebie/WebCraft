@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -154,9 +155,9 @@ describe("the Data tab of an Entry template and of the Globals", () => {
 	});
 
 	test("only Staff see the Data tab", async () => {
-		await expect(editor.api.postTypes.data({ siteId, postTypeId: recipesId })).rejects.toMatchObject({
+		expect(await rejection(editor.api.postTypes.data({ siteId, postTypeId: recipesId }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(editor.api.globals.data({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(editor.api.globals.data({ siteId }))).toMatchObject({ code: "FORBIDDEN" });
 	});
 });

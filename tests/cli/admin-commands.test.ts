@@ -111,7 +111,7 @@ describe("webcraft admin health", () => {
 		}
 		// A worker that stops says so.
 		expect((await webcraft(["health", "--worker"])).code).toBe(1);
-	}, 60_000);
+	});
 });
 
 describe("webcraft admin doctor", () => {

@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 
 import { createTestInstall, FAKE_SMTP_RESPONSE, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -128,28 +129,28 @@ describe("Site SMTP", () => {
 
 	test("addresses, host and port are checked", async () => {
 		const change = { siteId, fromName: null, replyTo: null, server: SERVER };
-		await expect(staff.api.siteSmtp.update({ ...change, replyTo: "nope" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.siteSmtp.update({ ...change, replyTo: "nope" }))).toMatchObject({
 			code: "EMAIL_INVALID",
 		});
-		await expect(
-			staff.api.siteSmtp.update({ ...change, server: { ...SERVER, fromAddress: "not an address" } }),
-		).rejects.toMatchObject({ code: "EMAIL_INVALID" });
-		await expect(staff.api.siteSmtp.update({ ...change, server: { ...SERVER, port: 0 } })).rejects.toMatchObject({
+		expect(
+			await rejection(staff.api.siteSmtp.update({ ...change, server: { ...SERVER, fromAddress: "not an address" } })),
+		).toMatchObject({ code: "EMAIL_INVALID" });
+		expect(await rejection(staff.api.siteSmtp.update({ ...change, server: { ...SERVER, port: 0 } }))).toMatchObject({
 			code: "BAD_REQUEST",
 		});
-		await expect(
-			staff.api.siteSmtp.update({ ...change, server: { ...SERVER, host: "smtp example com" } }),
-		).rejects.toMatchObject({ code: "BAD_REQUEST" });
-		await expect(
-			staff.api.siteSmtp.update({ ...change, fromName: "Bakery\r\nBcc: everyone@example.com" }),
-		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(
+			await rejection(staff.api.siteSmtp.update({ ...change, server: { ...SERVER, host: "smtp example com" } })),
+		).toMatchObject({ code: "BAD_REQUEST" });
+		expect(
+			await rejection(staff.api.siteSmtp.update({ ...change, fromName: "Bakery\r\nBcc: everyone@example.com" })),
+		).toMatchObject({ code: "BAD_REQUEST" });
 	});
 
 	test("it is Structure: Owners can't read or change it", async () => {
-		await expect(owner.api.siteSmtp.get({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(
-			owner.api.siteSmtp.update({ siteId, fromName: null, replyTo: null, server: null }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(owner.api.siteSmtp.get({ siteId }))).toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(owner.api.siteSmtp.update({ siteId, fromName: null, replyTo: null, server: null })),
+		).toMatchObject({ code: "FORBIDDEN" });
 	});
 });
 
@@ -192,9 +193,11 @@ describe("Send test email", () => {
 			{ ...SERVER, host: "smtp.elsewhere.example" },
 			{ ...SERVER, username: "someone-else@acmebakery.example" },
 		]) {
-			await expect(
-				staff.api.siteSmtp.sendTest({ siteId, to: "davide@agency.example", fromName: null, replyTo: null, server }),
-			).rejects.toMatchObject({ code: "SMTP_PASSWORD_NEEDED", status: 400 });
+			expect(
+				await rejection(
+					staff.api.siteSmtp.sendTest({ siteId, to: "davide@agency.example", fromName: null, replyTo: null, server }),
+				),
+			).toMatchObject({ code: "SMTP_PASSWORD_NEEDED", status: 400 });
 		}
 		expect(install.mail.attempts).toEqual([]);
 

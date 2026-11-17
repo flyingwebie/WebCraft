@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { layerOf, pageWithStyles, stylesheetIn } from "../harness/site-styles.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -174,7 +175,7 @@ describe("who changes it", () => {
 			() => owner.browser.api.designSystem.saveDraft({ siteId, darkMode: true }),
 			() => owner.browser.api.designSystem.publish({ siteId }),
 		]) {
-			await expect(call()).rejects.toMatchObject({ code: "FORBIDDEN" });
+			expect(await rejection(call())).toMatchObject({ code: "FORBIDDEN" });
 		}
 	});
 });

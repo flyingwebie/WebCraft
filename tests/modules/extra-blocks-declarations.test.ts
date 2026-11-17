@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import type { ModuleDefinition } from "@webcraft/module-sdk";
 import extraBlocks from "../../modules/extra-blocks/src/index.ts";
 import { createTestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const first = extraBlocks.blockTypes?.[0];
 if (!first) throw new Error("Extra blocks must declare Gallery.");
@@ -34,7 +35,7 @@ for (const [what, definition] of invalid) {
 			expect(modules).toHaveLength(1);
 			expect(modules[0]?.status).toBe("cannot-run");
 			expect(modules[0]?.problem).toBeTruthy();
-			await expect(admin.api.modules.approve({ moduleId: "extra-blocks", version: "1.0.0" })).rejects.toMatchObject({
+			expect(await rejection(admin.api.modules.approve({ moduleId: "extra-blocks", version: "1.0.0" }))).toMatchObject({
 				code: "MODULE_CANNOT_RUN",
 			});
 		} finally {
@@ -84,12 +85,21 @@ test("absent and malformed Modules retain allowances, JSON and Markdown while ot
 				.fields.body;
 			expect(markdown).toContain("<Accordion");
 			expect(markdown).toContain("Unchanged");
-			await expect(
-				admin.api.entries.saveDraft({ siteId, entryId: entry.id, fields: { body: [{ ...original, props: [] }] } }),
-			).rejects.toMatchObject({ code: "ENTRY_INVALID" });
-			await expect(
-				admin.api.entries.saveDraft({ siteId, entryId: entry.id, bodyFormat: "markdown", fields: { body: markdown } }),
-			).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+			expect(
+				await rejection(
+					admin.api.entries.saveDraft({ siteId, entryId: entry.id, fields: { body: [{ ...original, props: [] }] } }),
+				),
+			).toMatchObject({ code: "ENTRY_INVALID" });
+			expect(
+				await rejection(
+					admin.api.entries.saveDraft({
+						siteId,
+						entryId: entry.id,
+						bodyFormat: "markdown",
+						fields: { body: markdown },
+					}),
+				),
+			).toMatchObject({ code: "ENTRY_INVALID" });
 			expect((await admin.api.entries.get({ siteId, entryId: entry.id })).entry.draft.fields.body).toEqual(
 				saved.draft.fields.body,
 			);
@@ -167,9 +177,11 @@ test("Markdown refuses an ambiguous Module/Site Component name instead of changi
 		});
 		const markdown = (await admin.api.entries.get({ siteId, entryId: entry.id, bodyFormat: "markdown" })).entry.draft
 			.fields.body;
-		await expect(
-			admin.api.entries.saveDraft({ siteId, entryId: entry.id, bodyFormat: "markdown", fields: { body: markdown } }),
-		).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+		expect(
+			await rejection(
+				admin.api.entries.saveDraft({ siteId, entryId: entry.id, bodyFormat: "markdown", fields: { body: markdown } }),
+			),
+		).toMatchObject({ code: "ENTRY_INVALID" });
 		expect((await admin.api.entries.get({ siteId, entryId: entry.id })).entry.draft.fields.body).toEqual(
 			entry.draft.fields.body,
 		);
@@ -180,9 +192,11 @@ test("Markdown refuses an ambiguous Module/Site Component name instead of changi
 			postTypeId: postType.id,
 			fields: [{ key: "body", label: "Body", type: "body", components: [component.id] }],
 		});
-		await expect(
-			admin.api.entries.saveDraft({ siteId, entryId: entry.id, bodyFormat: "markdown", fields: { body: markdown } }),
-		).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+		expect(
+			await rejection(
+				admin.api.entries.saveDraft({ siteId, entryId: entry.id, bodyFormat: "markdown", fields: { body: markdown } }),
+			),
+		).toMatchObject({ code: "ENTRY_INVALID" });
 		expect((await admin.api.entries.get({ siteId, entryId: entry.id })).entry.draft.fields.body).toEqual(
 			entry.draft.fields.body,
 		);

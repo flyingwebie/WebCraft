@@ -11,6 +11,7 @@ import { type BuildingAreaBrowser, openBuildingArea, shellConfigIn } from "../ha
 import { headOf } from "../harness/code-mode.ts";
 import { openEditMode, withoutBuildingAreaCookie } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -155,7 +156,7 @@ describe("the shell's addresses", () => {
 		});
 		expect(entry.landed).toBe(`/_webcraft/build/entry-template/${postTypeId}?entry=${firstId}`);
 
-		await expect(staff.api.editMode.open({ siteId, open: "/component/not-an-id" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.editMode.open({ siteId, open: "/component/not-an-id" }))).toMatchObject({
 			status: 400,
 		});
 	});

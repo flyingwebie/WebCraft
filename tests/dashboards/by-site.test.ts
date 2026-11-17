@@ -6,6 +6,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { analyticsVisitor, DESKTOP_CHROME, liveSite } from "../harness/analytics.ts";
 import { formVisitor } from "../harness/forms.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -116,11 +117,13 @@ test("lists each counted Site by name: visitors, their change and Form Submissio
 	const workspaceCatalog = await staff.api.dashboards.catalog(place);
 	expect(workspaceCatalog.kinds.map((kind) => kind.kind)).toContain("site-analytics:by-site");
 	const onSite = await staff.api.dashboards.create({ siteId: north.siteId, name: "North" });
-	await expect(
-		staff.api.dashboards.widgets.add({
-			siteId: north.siteId,
-			dashboardId: onSite.dashboard.id,
-			kind: "site-analytics:by-site",
-		}),
-	).rejects.toMatchObject({ code: "DASHBOARD_INVALID" });
+	expect(
+		await rejection(
+			staff.api.dashboards.widgets.add({
+				siteId: north.siteId,
+				dashboardId: onSite.dashboard.id,
+				kind: "site-analytics:by-site",
+			}),
+		),
+	).toMatchObject({ code: "DASHBOARD_INVALID" });
 });

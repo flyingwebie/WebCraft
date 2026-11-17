@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { API_PATH, createTestInstall, type TestAccount, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let superadmin: TestAccount;
@@ -60,9 +61,9 @@ describe("signing in", () => {
 	test("is refused when the request comes from another site's page", async () => {
 		const browser = install.browser({ origin: "https://evil.example" });
 
-		await expect(
-			browser.api.session.signIn({ email: superadmin.email, password: superadmin.password }),
-		).rejects.toMatchObject({ status: 403 });
+		expect(
+			await rejection(browser.api.session.signIn({ email: superadmin.email, password: superadmin.password })),
+		).toMatchObject({ status: 403 });
 	});
 });
 

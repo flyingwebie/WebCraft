@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -78,7 +79,7 @@ describe("saving", () => {
 			text: "p { margin: 0; }",
 			version: "0000000000000000",
 		});
-		await expect(stale).rejects.toMatchObject({ code: "CHANGED_MEANWHILE" });
+		expect(await rejection(stale)).toMatchObject({ code: "CHANGED_MEANWHILE" });
 		const { designSystem } = await otherStaff.api.designSystem.get({ siteId: site.siteId });
 		expect(designSystem.draft.classes.find((each) => each.id === site.cardId)?.styles).toBe("padding: var(--space-l);");
 		expect(designSystem.draft.customCss).toBe("");
@@ -95,16 +96,18 @@ describe("saving", () => {
 			version: siteCss.version,
 		});
 
-		await expect(refused).rejects.toMatchObject({ code: "DESIGN_SYSTEM_INVALID" });
+		expect(await rejection(refused)).toMatchObject({ code: "DESIGN_SYSTEM_INVALID" });
 	});
 });
 
 test("Members can't read or save the CSS", async () => {
 	const site = await bakery();
-	await expect(editor.api.builder.css({ siteId: site.siteId, classes: site.classes })).rejects.toMatchObject({
+	expect(await rejection(editor.api.builder.css({ siteId: site.siteId, classes: site.classes }))).toMatchObject({
 		code: "FORBIDDEN",
 	});
-	await expect(
-		editor.api.builder.saveCss({ siteId: site.siteId, target: { kind: "site" }, text: "", version: null }),
-	).rejects.toMatchObject({ code: "FORBIDDEN" });
+	expect(
+		await rejection(
+			editor.api.builder.saveCss({ siteId: site.siteId, target: { kind: "site" }, text: "", version: null }),
+		),
+	).toMatchObject({ code: "FORBIDDEN" });
 });

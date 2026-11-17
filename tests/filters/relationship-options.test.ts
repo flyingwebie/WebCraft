@@ -109,4 +109,4 @@ test("keeps every target Post Type's Entries among a Relationship control's opti
 	// unordered query happened to starve.
 	expect(options.some((option) => option.label === "0000 Bakery")).toBe(true);
 	expect(options.some((option) => option.label === "0001 Workshop")).toBe(true);
-}, 120000);
+});

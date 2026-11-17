@@ -8,6 +8,7 @@ import type { ModuleApi } from "@webcraft/module-sdk";
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { sample } from "../modules/sample/index.ts";
 
 let install: TestInstall;
@@ -56,9 +57,9 @@ describe("acting as its person", () => {
 			title: "From a script",
 		});
 		expect(entry.draft.title).toBe("From a script");
-		await expect(
-			script.api.postTypes.create({ siteId: first.id, name: "Pages two", urlPattern: "/two/{slug}" }),
-		).rejects.toMatchObject({ code: "FORBIDDEN", status: 403 });
+		expect(
+			await rejection(script.api.postTypes.create({ siteId: first.id, name: "Pages two", urlPattern: "/two/{slug}" })),
+		).toMatchObject({ code: "FORBIDDEN", status: 403 });
 	});
 });
 
@@ -73,12 +74,14 @@ describe("one Workspace", () => {
 		expect(listed.map((workspace) => workspace.id)).toEqual([ours.id]);
 		await script.api.sites.get({ siteId: first.id });
 
-		await expect(script.api.workspaces.get({ workspaceId: theirs.id })).rejects.toMatchObject({ status: 404 });
-		await expect(script.api.sites.list({ workspaceId: theirs.id })).rejects.toMatchObject({ status: 404 });
-		await expect(script.api.sites.get({ siteId: theirSite.id })).rejects.toMatchObject({ status: 404 });
-		await expect(
-			script.api.sites.create({ workspaceId: theirs.id, name: "Elsewhere", slug: "elsewhere-by-token" }),
-		).rejects.toMatchObject({ status: 404 });
+		expect(await rejection(script.api.workspaces.get({ workspaceId: theirs.id }))).toMatchObject({ status: 404 });
+		expect(await rejection(script.api.sites.list({ workspaceId: theirs.id }))).toMatchObject({ status: 404 });
+		expect(await rejection(script.api.sites.get({ siteId: theirSite.id }))).toMatchObject({ status: 404 });
+		expect(
+			await rejection(
+				script.api.sites.create({ workspaceId: theirs.id, name: "Elsewhere", slug: "elsewhere-by-token" }),
+			),
+		).toMatchObject({ status: 404 });
 	});
 
 	test("a token for some Sites reaches only those, and nothing else of the Workspace but seeing it", async () => {
@@ -92,11 +95,11 @@ describe("one Workspace", () => {
 		const { sites } = await script.api.sites.list({ workspaceId: ours.id });
 		expect(sites.map((site) => site.id)).toEqual([first.id]);
 
-		await expect(script.api.sites.get({ siteId: second.id })).rejects.toMatchObject({ status: 404 });
-		await expect(
-			script.api.sites.create({ workspaceId: ours.id, name: "More", slug: "more-by-site-token" }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(script.api.members.list({ workspaceId: ours.id })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(script.api.sites.get({ siteId: second.id }))).toMatchObject({ status: 404 });
+		expect(
+			await rejection(script.api.sites.create({ workspaceId: ours.id, name: "More", slug: "more-by-site-token" })),
+		).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(script.api.members.list({ workspaceId: ours.id }))).toMatchObject({ code: "FORBIDDEN" });
 	});
 });
 
@@ -116,7 +119,7 @@ describe("read-only tokens", () => {
 			() => script.api.sites.create({ workspaceId: ours.id, name: "More", slug: "more-by-reader" }),
 			() => notes.notes.add({ siteId: first.id, body: "A note" }),
 		]) {
-			await expect(write()).rejects.toMatchObject({ code: "TOKEN_READ_ONLY", status: 403 });
+			expect(await rejection(write())).toMatchObject({ code: "TOKEN_READ_ONLY", status: 403 });
 		}
 		const { postTypes } = await script.api.postTypes.list({ siteId: first.id });
 		expect(postTypes.filter((postType) => postType.name === "Posts")).toEqual([]);
@@ -130,12 +133,16 @@ describe("what a token never does", () => {
 		const { secret } = await createApiToken(admin, { workspaceId: ours.id, name: "Ambitious" });
 		const script = tokenClient(install, secret);
 
-		await expect(
-			script.api.members.invite({ workspaceId: ours.id, email: "new@client.example", role: "owner", sites: "all" }),
-		).rejects.toMatchObject({ code: "SENSITIVE_ACTION_REFUSED", status: 403, data: { action: "member.invite" } });
-		await expect(
-			script.api.webhooks.add({ siteId: first.id, url: "https://hooks.agency.example/x", events: ["publish"] }),
-		).rejects.toMatchObject({ code: "SENSITIVE_ACTION_REFUSED", data: { action: "webhook.change" } });
+		expect(
+			await rejection(
+				script.api.members.invite({ workspaceId: ours.id, email: "new@client.example", role: "owner", sites: "all" }),
+			),
+		).toMatchObject({ code: "SENSITIVE_ACTION_REFUSED", status: 403, data: { action: "member.invite" } });
+		expect(
+			await rejection(
+				script.api.webhooks.add({ siteId: first.id, url: "https://hooks.agency.example/x", events: ["publish"] }),
+			),
+		).toMatchObject({ code: "SENSITIVE_ACTION_REFUSED", data: { action: "webhook.change" } });
 		const { webhooks } = await admin.api.webhooks.list({ siteId: first.id });
 		expect(webhooks).toEqual([]);
 	});
@@ -155,7 +162,7 @@ describe("what a token never does", () => {
 			() => script.api.shell.context(),
 			() => script.api.workspaces.create({ name: "By a token" }),
 		]) {
-			await expect(internal()).rejects.toMatchObject({ code: "NOT_FOUND", status: 404 });
+			expect(await rejection(internal())).toMatchObject({ code: "NOT_FOUND", status: 404 });
 		}
 	});
 
@@ -168,7 +175,7 @@ describe("what a token never does", () => {
 		await notes.add({ siteId: first.id, body: "Through the API" });
 		const { notes: listed } = await notes.list({ siteId: first.id });
 		expect(listed.map((note: { body: string }) => note.body)).toContain("Through the API");
-		await expect(notes.list({ siteId: theirSite.id })).rejects.toMatchObject({ status: 404 });
+		expect(await rejection(notes.list({ siteId: theirSite.id }))).toMatchObject({ status: 404 });
 	});
 });
 

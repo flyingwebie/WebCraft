@@ -15,6 +15,7 @@ import {
 } from "../harness/index.ts";
 import { approveAiClient, connectMcp } from "../harness/mcp.ts";
 import { softwareAuthenticator } from "../harness/passkeys.ts";
+import { rejection } from "../harness/settled.ts";
 import { addAuthenticator, confirmIfAsked, signInWithAuthenticator } from "../harness/two-factor.ts";
 
 const MINUTE = 60 * 1000;
@@ -76,9 +77,9 @@ async function expectAllEnded(
 		status: 401,
 		body: { code: "TOKEN_INVALID", data: { problem: "revoked" } },
 	});
-	await expect(connectMcp(install, held.aiClient.accessToken)).rejects.toBeDefined();
+	expect(await rejection(connectMcp(install, held.aiClient.accessToken))).toBeDefined();
 	expect((await cli.run(["whoami"])).code).not.toBe(0);
-	await expect(install.browser().api.invites.get({ token: held.inviteToken })).rejects.toMatchObject({
+	expect(await rejection(install.browser().api.invites.get({ token: held.inviteToken }))).toMatchObject({
 		code: "INVITE_INVALID",
 	});
 }
@@ -89,7 +90,7 @@ describe("what the admin offered before", () => {
 		await sensitively(() => admin.api.staff.setWorkspaces({ personId: leaver.personId, workspaces: [] }));
 
 		const again = await install.signIn(leaver.account);
-		await expect(again.api.servicesList.update({ services: [] })).resolves.toBeDefined();
+		expect(await again.api.servicesList.update({ services: [] })).toBeDefined();
 	});
 });
 
@@ -111,17 +112,19 @@ describe("ending a Staff role", () => {
 
 		const again = await install.signIn(leaver.account);
 		expect((await again.api.workspaces.list()).workspaces).toEqual([]);
-		await expect(again.api.servicesList.get()).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(again.api.servicesList.update({ services: [] })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(again.api.servicesList.get())).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(again.api.servicesList.update({ services: [] }))).toMatchObject({ code: "FORBIDDEN" });
 	});
 
 	test("frees the address: the person can be invited as a Member and joins with their account", async () => {
 		const leaver = await install.createStaff({ workspaces: [workspaceId] });
-		await expect(
-			sensitively(() =>
-				admin.api.members.invite({ workspaceId, email: leaver.account.email, role: "editor", sites: "all" }),
+		expect(
+			await rejection(
+				sensitively(() =>
+					admin.api.members.invite({ workspaceId, email: leaver.account.email, role: "editor", sites: "all" }),
+				),
 			),
-		).rejects.toMatchObject({ code: "STAFF_MEMBERSHIP" });
+		).toMatchObject({ code: "STAFF_MEMBERSHIP" });
 		await sensitively(() => admin.api.staff.remove({ personId: leaver.personId }));
 
 		await sensitively(() =>
@@ -162,19 +165,19 @@ describe("ending a Staff role", () => {
 		const owner = await install.createMember({ workspaceId, role: "owner" });
 
 		for (const browser of [staff.browser, owner.browser]) {
-			await expect(browser.api.staff.remove({ personId: other.personId })).rejects.toMatchObject({
+			expect(await rejection(browser.api.staff.remove({ personId: other.personId }))).toMatchObject({
 				code: "FORBIDDEN",
 			});
 		}
 		const superadminId = (await admin.api.session.current()).person?.id ?? "";
 		for (const personId of [superadminId, owner.personId, "5f6c0ad0-8f8c-4d0e-9f6b-0a3d1c1f7e11"]) {
-			await expect(sensitively(() => admin.api.staff.remove({ personId }))).rejects.toMatchObject({
+			expect(await rejection(sensitively(() => admin.api.staff.remove({ personId })))).toMatchObject({
 				code: "STAFF_NOT_FOUND",
 			});
 		}
 
 		await install.clock.advance(11 * MINUTE);
-		await expect(admin.api.staff.remove({ personId: other.personId })).rejects.toMatchObject({
+		expect(await rejection(admin.api.staff.remove({ personId: other.personId }))).toMatchObject({
 			code: "IDENTITY_CHECK_REQUIRED",
 			data: { action: "staff.remove" },
 		});
@@ -194,12 +197,12 @@ describe("deactivating an account", () => {
 
 		await expectAllEnded(leaver, held);
 		// Exactly like an address nobody signs in with.
-		await expect(install.signIn(leaver.account)).rejects.toMatchObject({ code: "INVALID_CREDENTIALS", status: 401 });
+		expect(await rejection(install.signIn(leaver.account))).toMatchObject({ code: "INVALID_CREDENTIALS", status: 401 });
 		const browser = install.browser();
 		const passkey = await browser.api.session.passkeyOptions();
-		await expect(
-			browser.api.session.signInWithPasskey({ credential: await device.get(passkey.options) }),
-		).rejects.toMatchObject({ code: "PASSKEY_INVALID" });
+		expect(
+			await rejection(browser.api.session.signInWithPasskey({ credential: await device.get(passkey.options) })),
+		).toMatchObject({ code: "PASSKEY_INVALID" });
 		// They stay listed, marked, so the Superadmin sees who was deactivated.
 		expect((await admin.api.staff.list()).staff.find((person) => person.id === leaver.personId)).toMatchObject({
 			name: "Dana Deactivated",
@@ -214,7 +217,7 @@ describe("deactivating an account", () => {
 		await sensitively(() => admin.api.accounts.deactivate({ personId: leaver.personId }));
 
 		await expectAllEnded(leaver, held);
-		await expect(install.signIn(leaver.account)).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
+		expect(await rejection(install.signIn(leaver.account))).toMatchObject({ code: "INVALID_CREDENTIALS" });
 		const { members } = await admin.api.members.list({ workspaceId });
 		expect(members.find((member) => member.id === leaver.personId)).toMatchObject({ deactivated: true });
 		expect(members.filter((member) => member.id !== leaver.personId).every((member) => !member.deactivated)).toBe(true);
@@ -228,7 +231,7 @@ describe("deactivating an account", () => {
 		await install.browser().api.passwordReset.check({ token });
 
 		await sensitively(() => admin.api.accounts.deactivate({ personId: leaver.personId }));
-		await expect(install.browser().api.passwordReset.check({ token })).rejects.toMatchObject({
+		expect(await rejection(install.browser().api.passwordReset.check({ token }))).toMatchObject({
 			code: "PASSWORD_RESET_INVALID",
 		});
 		const before = (await install.lastEmailTo(leaver.account.email)).subject;
@@ -252,7 +255,7 @@ describe("deactivating an account", () => {
 		await sensitively(() => admin.api.accounts.deactivate({ personId: leaver.personId }));
 
 		const staff = await signInWithAuthenticator(install, helper.account, secret);
-		await expect(staff.api.impersonation.start({ personId: leaver.personId })).rejects.toMatchObject({
+		expect(await rejection(staff.api.impersonation.start({ personId: leaver.personId }))).toMatchObject({
 			code: "PERSON_NOT_FOUND",
 		});
 	});
@@ -281,15 +284,19 @@ describe("deactivating an account", () => {
 
 	test("the last Superadmin can't be deactivated, nor anyone by themselves; an unknown person is refused", async () => {
 		const superadminId = (await admin.api.session.current()).person?.id ?? "";
-		await expect(sensitively(() => admin.api.accounts.deactivate({ personId: superadminId }))).rejects.toMatchObject({
-			code: "ACCOUNT_DEACTIVATION_REFUSED",
-			status: 409,
-			data: { reason: "lastSuperadmin" },
-		});
+		expect(await rejection(sensitively(() => admin.api.accounts.deactivate({ personId: superadminId })))).toMatchObject(
+			{
+				code: "ACCOUNT_DEACTIVATION_REFUSED",
+				status: 409,
+				data: { reason: "lastSuperadmin" },
+			},
+		);
 		expect((await admin.api.session.current()).person).not.toBeNull();
-		await expect(
-			sensitively(() => admin.api.accounts.deactivate({ personId: "5f6c0ad0-8f8c-4d0e-9f6b-0a3d1c1f7e11" })),
-		).rejects.toMatchObject({ code: "PERSON_NOT_FOUND" });
+		expect(
+			await rejection(
+				sensitively(() => admin.api.accounts.deactivate({ personId: "5f6c0ad0-8f8c-4d0e-9f6b-0a3d1c1f7e11" })),
+			),
+		).toMatchObject({ code: "PERSON_NOT_FOUND" });
 	});
 
 	test("is the Superadmin's alone and a Sensitive action", async () => {
@@ -299,13 +306,13 @@ describe("deactivating an account", () => {
 
 		for (const browser of [staff.browser, owner.browser]) {
 			for (const call of ["deactivate", "reactivate"] as const) {
-				await expect(browser.api.accounts[call]({ personId: member.personId })).rejects.toMatchObject({
+				expect(await rejection(browser.api.accounts[call]({ personId: member.personId }))).toMatchObject({
 					code: "FORBIDDEN",
 				});
 			}
 		}
 		await install.clock.advance(11 * MINUTE);
-		await expect(admin.api.accounts.deactivate({ personId: member.personId })).rejects.toMatchObject({
+		expect(await rejection(admin.api.accounts.deactivate({ personId: member.personId }))).toMatchObject({
 			code: "IDENTITY_CHECK_REQUIRED",
 			data: { action: "account.deactivate" },
 		});

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let superadmin: TestAccount;
@@ -103,7 +104,7 @@ describe("email switches", () => {
 	});
 
 	test("security emails can't be turned off", async () => {
-		await expect(browser.api.me.emails.update({ turnedOff: ["password-reset"] })).rejects.toMatchObject({
+		expect(await rejection(browser.api.me.emails.update({ turnedOff: ["password-reset"] }))).toMatchObject({
 			code: "EMAIL_ALWAYS_SENT",
 		});
 
@@ -118,9 +119,9 @@ describe("email switches", () => {
 
 	test("refuses a type that doesn't exist, and people who aren't signed in", async () => {
 		// @ts-expect-error The typed client already refuses it; a raw call must be refused too.
-		await expect(browser.api.me.emails.update({ turnedOff: ["newsletter"] })).rejects.toMatchObject({
+		expect(await rejection(browser.api.me.emails.update({ turnedOff: ["newsletter"] }))).toMatchObject({
 			code: "BAD_REQUEST",
 		});
-		await expect(install.browser().api.me.emails.get()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+		expect(await rejection(install.browser().api.me.emails.get())).toMatchObject({ code: "UNAUTHORIZED" });
 	});
 });

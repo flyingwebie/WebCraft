@@ -7,6 +7,7 @@ import type { ComparedPart } from "@webcraft/core";
 
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { type HistorySite, historySite } from "./support.ts";
 
 let install: TestInstall;
@@ -192,9 +193,9 @@ describe("an Entry", () => {
 		});
 		expect(comparison.changes).toBe(0);
 
-		await expect(
-			editor.api.history.compare({ siteId, item, copy: { type: "checkpoint", id: revisionId } }),
-		).rejects.toMatchObject({ code: "CHECKPOINT_NOT_FOUND", status: 404 });
+		expect(
+			await rejection(editor.api.history.compare({ siteId, item, copy: { type: "checkpoint", id: revisionId } })),
+		).toMatchObject({ code: "CHECKPOINT_NOT_FOUND", status: 404 });
 	});
 });
 

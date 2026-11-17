@@ -7,6 +7,7 @@ import { type SecretRef, SecretUnreadableError } from "@webcraft/core";
 import pg from "pg";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { thrown } from "../harness/settled.ts";
 
 let install: TestInstall;
 let database: pg.Client;
@@ -73,9 +74,9 @@ async function expectRefused(secret: SecretRef): Promise<void> {
 	const use = install.secrets.useWith(secret, () => {
 		called = true;
 	});
-	await expect(use).rejects.toThrow(SecretUnreadableError);
-	await expect(use).rejects.toThrow(/was changed outside WebCraft/);
-	await expect(install.secrets.describe(secret)).rejects.toThrow(SecretUnreadableError);
+	expect(await thrown(use)).toThrow(SecretUnreadableError);
+	expect(await thrown(use)).toThrow(/was changed outside WebCraft/);
+	expect(await thrown(install.secrets.describe(secret))).toThrow(SecretUnreadableError);
 	expect(called).toBe(false);
 }
 

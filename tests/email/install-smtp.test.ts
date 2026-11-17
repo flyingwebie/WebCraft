@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 
 import { createTestInstall, FAKE_SMTP_RESPONSE, type TestAccount, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let superadmin: TestAccount;
@@ -101,16 +102,16 @@ describe("Install SMTP", () => {
 	test("addresses, host and port are checked", async () => {
 		const browser = await install.signIn(superadmin);
 
-		await expect(browser.api.install.smtp.update({ ...SMTP, fromAddress: "not an address" })).rejects.toMatchObject({
+		expect(await rejection(browser.api.install.smtp.update({ ...SMTP, fromAddress: "not an address" }))).toMatchObject({
 			code: "EMAIL_INVALID",
 		});
-		await expect(browser.api.install.smtp.update({ ...SMTP, replyTo: "nope" })).rejects.toMatchObject({
+		expect(await rejection(browser.api.install.smtp.update({ ...SMTP, replyTo: "nope" }))).toMatchObject({
 			code: "EMAIL_INVALID",
 		});
-		await expect(browser.api.install.smtp.update({ ...SMTP, port: 0 })).rejects.toMatchObject({
+		expect(await rejection(browser.api.install.smtp.update({ ...SMTP, port: 0 }))).toMatchObject({
 			code: "BAD_REQUEST",
 		});
-		await expect(browser.api.install.smtp.update({ ...SMTP, host: "smtp example com" })).rejects.toMatchObject({
+		expect(await rejection(browser.api.install.smtp.update({ ...SMTP, host: "smtp example com" }))).toMatchObject({
 			code: "BAD_REQUEST",
 		});
 	});
@@ -118,8 +119,8 @@ describe("Install SMTP", () => {
 	test("people who aren't signed in can't read or change it", async () => {
 		const browser = install.browser();
 
-		await expect(browser.api.install.smtp.get()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-		await expect(browser.api.install.smtp.update({ ...SMTP, password: "x".repeat(20) })).rejects.toMatchObject({
+		expect(await rejection(browser.api.install.smtp.get())).toMatchObject({ code: "UNAUTHORIZED" });
+		expect(await rejection(browser.api.install.smtp.update({ ...SMTP, password: "x".repeat(20) }))).toMatchObject({
 			code: "UNAUTHORIZED",
 		});
 	});
@@ -182,7 +183,7 @@ describe("Send test email", () => {
 			{ ...SMTP, port: 2525 },
 			{ ...SMTP, username: "someone-else" },
 		]) {
-			await expect(browser.api.install.smtp.sendTest({ to: "ops@agency.example", settings })).rejects.toMatchObject({
+			expect(await rejection(browser.api.install.smtp.sendTest({ to: "ops@agency.example", settings }))).toMatchObject({
 				code: "SMTP_PASSWORD_NEEDED",
 				status: 400,
 			});
@@ -223,12 +224,12 @@ describe("Send test email", () => {
 	test("refuses a recipient that isn't an email address, and people who aren't signed in", async () => {
 		const browser = await install.signIn(superadmin);
 
-		await expect(browser.api.install.smtp.sendTest({ to: "not an address", settings: SMTP })).rejects.toMatchObject({
+		expect(await rejection(browser.api.install.smtp.sendTest({ to: "not an address", settings: SMTP }))).toMatchObject({
 			code: "EMAIL_INVALID",
 		});
-		await expect(
-			install.browser().api.install.smtp.sendTest({ to: "ops@agency.example", settings: SMTP }),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(install.browser().api.install.smtp.sendTest({ to: "ops@agency.example", settings: SMTP })),
+		).toMatchObject({
 			code: "UNAUTHORIZED",
 		});
 		expect(install.mail.attempts).toEqual([]);

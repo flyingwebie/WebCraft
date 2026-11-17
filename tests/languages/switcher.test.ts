@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -155,9 +156,11 @@ describe("in Template markup", () => {
 			["<ul>{{@languageSwitcher}}</ul>", "{{@languageSwitcher}} goes inside an <li>, not directly in a list."],
 			["{{@languageSwitcher fr}}", "{{@languageSwitcher}} takes nothing: write it alone."],
 		] as const) {
-			await expect(
-				staff.api.templates.saveEntryTemplateMarkup({ siteId: site.siteId, postTypeId: site.postTypeId, markup }),
-			).rejects.toMatchObject({ code: "TEMPLATE_MARKUP_INVALID", data: { problems: [{ message }] } });
+			expect(
+				await rejection(
+					staff.api.templates.saveEntryTemplateMarkup({ siteId: site.siteId, postTypeId: site.postTypeId, markup }),
+				),
+			).toMatchObject({ code: "TEMPLATE_MARKUP_INVALID", data: { problems: [{ message }] } });
 		}
 	});
 });

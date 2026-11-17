@@ -6,6 +6,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -216,7 +217,7 @@ describe("pasting text", () => {
 		const outsider = (
 			await install.createMember({ workspaceId: (await install.createWorkspace("Other")).id, role: "owner" })
 		).browser;
-		await expect(outsider.api.entries.pasteBody({ siteId, postTypeId, text: "Hi" })).rejects.toMatchObject({
+		expect(await rejection(outsider.api.entries.pasteBody({ siteId, postTypeId, text: "Hi" }))).toMatchObject({
 			code: "SITE_NOT_FOUND",
 		});
 	});

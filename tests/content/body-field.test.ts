@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -108,37 +109,43 @@ describe("defining a Body field", () => {
 			[[{ key: "body", label: "Body", type: "body", default: [] }], "fields[0].default"],
 		];
 		for (const [fields, at] of refusals) {
-			await expect(
-				staff.api.postTypes.create({
-					siteId,
-					name: "Articles",
-					key: "articles",
-					urlPattern: "/articles/{slug}",
-					fields,
-				}),
+			expect(
+				await rejection(
+					staff.api.postTypes.create({
+						siteId,
+						name: "Articles",
+						key: "articles",
+						urlPattern: "/articles/{slug}",
+						fields,
+					}),
+				),
 				`${JSON.stringify(fields)} is refused at ${at}`,
-			).rejects.toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at }] } });
+			).toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at }] } });
 		}
 	});
 
 	test("Pages, the Globals and Components' Props never have one", async () => {
 		const { postTypes: all } = await staff.api.postTypes.list({ siteId });
 		const pages = all.find((each) => each.builtIn === "page");
-		await expect(
-			staff.api.postTypes.update({
-				siteId,
-				postTypeId: pages?.id ?? "",
-				fields: [{ key: "body", label: "Body", type: "body" }],
-			}),
-		).rejects.toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at: "fields[0].type" }] } });
+		expect(
+			await rejection(
+				staff.api.postTypes.update({
+					siteId,
+					postTypeId: pages?.id ?? "",
+					fields: [{ key: "body", label: "Body", type: "body" }],
+				}),
+			),
+		).toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at: "fields[0].type" }] } });
 
-		await expect(
-			staff.api.globals.setFields({ siteId, fields: [{ key: "body", label: "Body", type: "body" }] }),
-		).rejects.toMatchObject({ code: "GLOBALS_INVALID", data: { problems: [{ at: "fields[0].type" }] } });
+		expect(
+			await rejection(staff.api.globals.setFields({ siteId, fields: [{ key: "body", label: "Body", type: "body" }] })),
+		).toMatchObject({ code: "GLOBALS_INVALID", data: { problems: [{ at: "fields[0].type" }] } });
 
-		await expect(
-			staff.api.components.create({ siteId, name: "Story", props: [{ key: "body", label: "Body", type: "body" }] }),
-		).rejects.toMatchObject({ data: { problems: [{ at: "props[0].type" }] } });
+		expect(
+			await rejection(
+				staff.api.components.create({ siteId, name: "Story", props: [{ key: "body", label: "Body", type: "body" }] }),
+			),
+		).toMatchObject({ data: { problems: [{ at: "props[0].type" }] } });
 	});
 });
 
@@ -265,10 +272,10 @@ describe("Blocks in a Draft", () => {
 			[[{ type: "paragraph", text: "x".repeat(20_001) }], "fields.body[0].text"],
 		];
 		for (const [body, at] of refusals) {
-			await expect(
-				author.api.entries.saveDraft({ siteId, entryId: entry.id, fields: { body } }),
+			expect(
+				await rejection(author.api.entries.saveDraft({ siteId, entryId: entry.id, fields: { body } })),
 				`${JSON.stringify(body).slice(0, 120)} is refused at ${at}`,
-			).rejects.toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at }] } });
+			).toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at }] } });
 		}
 		expect((await author.api.entries.get({ siteId, entryId: entry.id })).entry.draft.fields.body).toEqual([
 			{ id: "a", type: "paragraph", text: [{ text: "Kept." }] },
@@ -291,7 +298,7 @@ describe("Blocks in a Draft", () => {
 			{ at: "fields.body[2].url", rule: "video", message: expect.any(String) },
 			{ at: "fields.body[3].media", rule: "media", message: expect.any(String) },
 		]);
-		await expect(editor.api.entries.publish({ siteId, entryId: entry.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.publish({ siteId, entryId: entry.id }))).toMatchObject({
 			code: "ENTRY_INVALID",
 			data: { problems: entry.problems },
 		});
@@ -316,7 +323,7 @@ describe("Blocks in a Draft", () => {
 		const { entry } = await entryWithBody([{ type: "paragraph", text: "  " }, { type: "divider" }], { required: true });
 
 		expect(entry.problems).toEqual([{ at: "fields.body", rule: "required", message: expect.any(String) }]);
-		await expect(editor.api.entries.publish({ siteId, entryId: entry.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.publish({ siteId, entryId: entry.id }))).toMatchObject({
 			code: "ENTRY_INCOMPLETE",
 			data: { missing: ["body"] },
 		});

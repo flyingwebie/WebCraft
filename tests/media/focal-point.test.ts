@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { pdf, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { layerOf, pageWithStyles } from "../harness/site-styles.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -107,17 +108,17 @@ describe("the Focal point", () => {
 
 	test("only images have one; it is within the image; Authors set it on their own uploads only", async () => {
 		const { media: document } = await editor.api.media.upload({ siteId, file: upload(pdf(), "guide.pdf") });
-		await expect(
-			editor.api.media.update({ siteId, mediaId: document.id, focalPoint: { x: 50, y: 50 } }),
-		).rejects.toMatchObject({ code: "MEDIA_INVALID", data: { problems: [{ at: "focalPoint" }] } });
+		expect(
+			await rejection(editor.api.media.update({ siteId, mediaId: document.id, focalPoint: { x: 50, y: 50 } })),
+		).toMatchObject({ code: "MEDIA_INVALID", data: { problems: [{ at: "focalPoint" }] } });
 
 		const image = await readyImage(editor, "pier.jpg");
-		await expect(
-			editor.api.media.update({ siteId, mediaId: image.id, focalPoint: { x: 101, y: 50 } }),
-		).rejects.toMatchObject({ code: "BAD_REQUEST" });
-		await expect(
-			author.api.media.update({ siteId, mediaId: image.id, focalPoint: { x: 10, y: 10 } }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(editor.api.media.update({ siteId, mediaId: image.id, focalPoint: { x: 101, y: 50 } })),
+		).toMatchObject({ code: "BAD_REQUEST" });
+		expect(
+			await rejection(author.api.media.update({ siteId, mediaId: image.id, focalPoint: { x: 10, y: 10 } })),
+		).toMatchObject({ code: "FORBIDDEN" });
 
 		const own = await readyImage(author, "author-photo.jpg");
 		expect(

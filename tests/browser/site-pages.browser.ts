@@ -145,17 +145,17 @@ describe("the Design system's page parts", () => {
 			);
 		const light = await background();
 
-		await expect(toggle.getAttribute("aria-pressed")).resolves.toBe("false");
+		expect(await toggle.getAttribute("aria-pressed")).toBe("false");
 		await toggle.focus();
 		await page.keyboard.press("Enter");
 
-		await expect(toggle.getAttribute("aria-pressed")).resolves.toBe("true");
+		expect(await toggle.getAttribute("aria-pressed")).toBe("true");
 		const dark = await background();
 		expect(dark).not.toBe(light);
 		await expectAccessibleScreen(page, "a page switched to the dark theme");
 
 		await page.reload();
-		await expect(page.getByRole("button", { name: "Dark theme" }).getAttribute("aria-pressed")).resolves.toBe("true");
+		expect(await page.getByRole("button", { name: "Dark theme" }).getAttribute("aria-pressed")).toBe("true");
 		expect(await background()).toBe(dark);
 
 		await page.getByRole("button", { name: "Dark theme" }).focus();

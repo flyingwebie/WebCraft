@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -101,15 +102,23 @@ describe("making a token", () => {
 		const theirSite = await install.createSite(theirs.id);
 		const editor = await install.createMember({ workspaceId: ours.id, role: "editor", sites: [site.id] });
 
-		await expect(createApiToken(editor.browser, { workspaceId: theirs.id, name: "Not theirs" })).rejects.toMatchObject({
+		expect(
+			await rejection(createApiToken(editor.browser, { workspaceId: theirs.id, name: "Not theirs" })),
+		).toMatchObject({
 			code: "WORKSPACE_NOT_FOUND",
 		});
-		await expect(
-			createApiToken(editor.browser, { workspaceId: ours.id, name: "Unseen Site", sites: [other.id] }),
-		).rejects.toMatchObject({ code: "SITE_NOT_FOUND" });
-		await expect(
-			createApiToken(editor.browser, { workspaceId: ours.id, name: "Another Workspace's Site", sites: [theirSite.id] }),
-		).rejects.toMatchObject({ code: "SITE_NOT_FOUND" });
+		expect(
+			await rejection(createApiToken(editor.browser, { workspaceId: ours.id, name: "Unseen Site", sites: [other.id] })),
+		).toMatchObject({ code: "SITE_NOT_FOUND" });
+		expect(
+			await rejection(
+				createApiToken(editor.browser, {
+					workspaceId: ours.id,
+					name: "Another Workspace's Site",
+					sites: [theirSite.id],
+				}),
+			),
+		).toMatchObject({ code: "SITE_NOT_FOUND" });
 
 		const { workspaces } = await editor.browser.api.apiTokens.list();
 		expect(workspaces).toEqual([{ id: ours.id, name: ours.name, sites: [{ id: site.id, name: expect.any(String) }] }]);
@@ -153,7 +162,7 @@ describe("a token at the door", () => {
 
 		await install.clock.advance(30 * DAY);
 
-		await expect(script.api.workspaces.get({ workspaceId: workspace.id })).rejects.toMatchObject({
+		expect(await rejection(script.api.workspaces.get({ workspaceId: workspace.id }))).toMatchObject({
 			code: "TOKEN_INVALID",
 			status: 401,
 			data: { problem: "expired" },
@@ -172,7 +181,7 @@ describe("a token at the door", () => {
 		const { token } = await owner.browser.api.apiTokens.revoke({ tokenId });
 
 		expect(token).toMatchObject({ status: "revoked", revokedReason: "person" });
-		await expect(script.api.workspaces.get({ workspaceId: workspace.id })).rejects.toMatchObject({
+		expect(await rejection(script.api.workspaces.get({ workspaceId: workspace.id }))).toMatchObject({
 			code: "TOKEN_INVALID",
 			data: { problem: "revoked" },
 		});
@@ -192,7 +201,7 @@ describe("a token at the door", () => {
 		const { tokenId } = await createApiToken(owner.browser, { workspaceId: workspace.id, name: "Mine" });
 		const admin = await install.superadmin();
 
-		await expect(admin.api.apiTokens.revoke({ tokenId })).rejects.toMatchObject({ code: "API_TOKEN_NOT_FOUND" });
+		expect(await rejection(admin.api.apiTokens.revoke({ tokenId }))).toMatchObject({ code: "API_TOKEN_NOT_FOUND" });
 	});
 
 	test("what a token does is recorded in the Audit log as the token, with its person", async () => {
@@ -220,9 +229,9 @@ describe("a token at the door", () => {
 		const { secret, tokenId } = await createApiToken(admin, { workspaceId: workspace.id, name: "Curious" });
 		const script = tokenClient(install, secret);
 
-		await expect(script.api.apiTokens.list()).rejects.toMatchObject({ status: 404 });
-		await expect(script.api.apiTokens.revoke({ tokenId })).rejects.toMatchObject({ status: 404 });
-		await expect(script.api.apiTokens.create({ workspaceId: workspace.id, name: "Another" })).rejects.toMatchObject({
+		expect(await rejection(script.api.apiTokens.list())).toMatchObject({ status: 404 });
+		expect(await rejection(script.api.apiTokens.revoke({ tokenId }))).toMatchObject({ status: 404 });
+		expect(await rejection(script.api.apiTokens.create({ workspaceId: workspace.id, name: "Another" }))).toMatchObject({
 			status: 404,
 		});
 	});

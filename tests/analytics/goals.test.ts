@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { analyticsApi, analyticsVisitor, DESKTOP_CHROME, dayOf, liveSite } from "../harness/analytics.ts";
 import { formVisitor } from "../harness/forms.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -87,9 +88,9 @@ describe("Staff keep a Site's Goals", () => {
 			["Shop visit", { kind: "page", path: "/shop", match: "prefix" }],
 			["Signed up", { kind: "event", event: "signup" }],
 		]);
-		await expect(
-			goals.create({ siteId, name: "signed UP", definition: { kind: "event", event: "other" } }),
-		).rejects.toMatchObject({ code: "MODULE_ERROR", data: { code: "GOAL_NAME_TAKEN" } });
+		expect(
+			await rejection(goals.create({ siteId, name: "signed UP", definition: { kind: "event", event: "other" } })),
+		).toMatchObject({ code: "MODULE_ERROR", data: { code: "GOAL_NAME_TAKEN" } });
 
 		const shop = listed.find((goal) => goal.name === "Shop visit");
 		const { goal } = await goals.update({ siteId, goalId: shop?.id ?? "", name: "Shop" });
@@ -101,9 +102,9 @@ describe("Staff keep a Site's Goals", () => {
 		await goalsOf(staff).create({ siteId, name: "Signed up", definition: { kind: "event", event: "signup" } });
 
 		expect((await goalsOf(owner).list({ siteId })).goals.map((goal) => goal.name)).toEqual(["Signed up"]);
-		await expect(
-			goalsOf(owner).create({ siteId, name: "Mine", definition: { kind: "event", event: "mine" } }),
-		).rejects.toMatchObject({ status: 403 });
+		expect(
+			await rejection(goalsOf(owner).create({ siteId, name: "Mine", definition: { kind: "event", event: "mine" } })),
+		).toMatchObject({ status: 403 });
 	});
 
 	test("are deleted in two steps, and never while a Funnel uses them", async () => {
@@ -119,7 +120,7 @@ describe("Staff keep a Site's Goals", () => {
 				{ kind: "goal", goalId: goal.id },
 			],
 		});
-		await expect(goals.delete({ siteId, goalId: goal.id })).rejects.toMatchObject({
+		expect(await rejection(goals.delete({ siteId, goalId: goal.id }))).toMatchObject({
 			data: { code: "GOAL_IN_FUNNEL" },
 		});
 		await funnels.update({
@@ -229,8 +230,8 @@ describe("a Goal counts", () => {
 
 	test("refuses a Goal the Site doesn't have", async () => {
 		const { siteId } = await newSite();
-		await expect(
-			analyticsApi(staff).stats.goals({ siteId, ...dayOf(install.clock.now()), goals: ["Nope"] }),
-		).rejects.toMatchObject({ data: { code: "GOAL_NOT_FOUND" } });
+		expect(
+			await rejection(analyticsApi(staff).stats.goals({ siteId, ...dayOf(install.clock.now()), goals: ["Nope"] })),
+		).toMatchObject({ data: { code: "GOAL_NOT_FOUND" } });
 	});
 });

@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { type ModuleDefinition, submissionReceiver } from "@webcraft/module-sdk";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { sampleBoard } from "./sample/board.ts";
 import { sample } from "./sample/index.ts";
 
@@ -98,11 +99,11 @@ describe("the Modules screen", () => {
 		const owner = await install.createMember({ workspaceId: workspace.id, role: "owner" });
 
 		for (const browser of [staff.browser, owner.browser]) {
-			await expect(browser.api.modules.list()).rejects.toMatchObject({ code: "FORBIDDEN" });
-			await expect(browser.api.modules.approve({ moduleId: "sample", version: "1.0.0" })).rejects.toMatchObject({
+			expect(await rejection(browser.api.modules.list())).toMatchObject({ code: "FORBIDDEN" });
+			expect(await rejection(browser.api.modules.approve({ moduleId: "sample", version: "1.0.0" }))).toMatchObject({
 				code: "FORBIDDEN",
 			});
-			await expect(browser.api.modules.log({ moduleId: "sample" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+			expect(await rejection(browser.api.modules.log({ moduleId: "sample" }))).toMatchObject({ code: "FORBIDDEN" });
 		}
 	});
 });
@@ -151,11 +152,11 @@ describe("approving a Module", () => {
 	test("refuses a version other than the one this Install runs, which the screen would have shown", async () => {
 		const admin = await install.superadmin();
 
-		await expect(admin.api.modules.approve({ moduleId: "sample-board", version: "0.9.0" })).rejects.toMatchObject({
+		expect(await rejection(admin.api.modules.approve({ moduleId: "sample-board", version: "0.9.0" }))).toMatchObject({
 			code: "MODULE_CHANGED",
 			status: 409,
 		});
-		await expect(admin.api.modules.approve({ moduleId: "no-such-module", version: "1.0.0" })).rejects.toMatchObject({
+		expect(await rejection(admin.api.modules.approve({ moduleId: "no-such-module", version: "1.0.0" }))).toMatchObject({
 			code: "MODULE_NOT_FOUND",
 			status: 404,
 		});
@@ -387,7 +388,7 @@ describe("Modules WebCraft can't run", () => {
 
 			expect(modules[0]).toMatchObject({ id: "sample", status: "cannot-run" });
 			expect(modules[0]?.problem).toContain("SDK");
-			await expect(admin.api.modules.approve({ moduleId: "sample", version: "1.0.0" })).rejects.toMatchObject({
+			expect(await rejection(admin.api.modules.approve({ moduleId: "sample", version: "1.0.0" }))).toMatchObject({
 				code: "MODULE_CANNOT_RUN",
 			});
 		} finally {

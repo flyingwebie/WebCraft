@@ -11,6 +11,7 @@ import pg from "pg";
 import { createApiToken, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { approveAiClient, connectMcp } from "../harness/mcp.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 import { confirmed } from "../webhooks/support.ts";
 
@@ -316,9 +317,11 @@ describe("unpublishing an Entry", () => {
 		await page("Team", about);
 		await page("Contact");
 
-		await expect(
-			site.editor.api.publishing.scheduleUnpublish({ siteId: site.siteId, entryId: home, at: inMinutes(5) }),
-		).rejects.toMatchObject({ code: "HOME_PAGE_UNPUBLISH" });
+		expect(
+			await rejection(
+				site.editor.api.publishing.scheduleUnpublish({ siteId: site.siteId, entryId: home, at: inMinutes(5) }),
+			),
+		).toMatchObject({ code: "HOME_PAGE_UNPUBLISH" });
 		await site.editor.api.publishing.scheduleUnpublish({ siteId: site.siteId, entryId: about, at: inMinutes(5) });
 		await waitMinutes(5);
 
@@ -392,9 +395,9 @@ describe("Publish all at…", () => {
 		expect(asEditor.scheduled.map((each) => ({ id: each.id, canChange: each.canChange }))).toEqual([
 			{ id: scheduled.id, canChange: false },
 		]);
-		await expect(
-			site.editor.api.publishing.cancelScheduled({ siteId: site.siteId, scheduleId: scheduled.id }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(site.editor.api.publishing.cancelScheduled({ siteId: site.siteId, scheduleId: scheduled.id })),
+		).toMatchObject({ code: "FORBIDDEN" });
 
 		await waitMinutes(120);
 		expect(await visit(site.live, "/blog/launch")).toEqual({ status: 200, heading: "Launch" });
@@ -424,9 +427,11 @@ describe("Publish all at…", () => {
 			at: later,
 		});
 		expect(moved.scheduled).toMatchObject({ at: later, items: [{ changedSinceScheduled: true }] });
-		await expect(
-			site.editor.api.publishing.reschedule({ siteId: site.siteId, scheduleId: scheduled.id, at: inMinutes(-1) }),
-		).rejects.toMatchObject({ code: "SCHEDULE_INVALID", data: { reason: "past" } });
+		expect(
+			await rejection(
+				site.editor.api.publishing.reschedule({ siteId: site.siteId, scheduleId: scheduled.id, at: inMinutes(-1) }),
+			),
+		).toMatchObject({ code: "SCHEDULE_INVALID", data: { reason: "past" } });
 		await waitMinutes(60);
 		expect((await install.request(`${site.live}/blog/first`)).status).toBe(404);
 
@@ -448,9 +453,11 @@ describe("Publish all at…", () => {
 		await site.editor.api.publishing.cancelScheduled({ siteId: site.siteId, scheduleId: cancelled.scheduled.id });
 		await waitMinutes(10);
 		expect((await install.request(`${site.live}/blog/other`)).status).toBe(404);
-		await expect(
-			site.editor.api.publishing.cancelScheduled({ siteId: site.siteId, scheduleId: cancelled.scheduled.id }),
-		).rejects.toMatchObject({ code: "SCHEDULED_PUBLISH_NOT_FOUND" });
+		expect(
+			await rejection(
+				site.editor.api.publishing.cancelScheduled({ siteId: site.siteId, scheduleId: cancelled.scheduled.id }),
+			),
+		).toMatchObject({ code: "SCHEDULED_PUBLISH_NOT_FOUND" });
 	});
 
 	test("an item published now leaves the Scheduled publish it waited in, so its newer version stays live", async () => {
@@ -579,24 +586,30 @@ describe("a Scheduled publish that can't go through", () => {
 			title: "Mine",
 		});
 		const item = { kind: "entry" as const, id: entry.id };
-		await expect(
-			author.browser.api.publishing.schedule({ siteId: site.siteId, item, at: inMinutes(5) }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(
-			author.browser.api.publishing.scheduleUnpublish({ siteId: site.siteId, entryId: entry.id, at: inMinutes(5) }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(
-			author.browser.api.publishing.scheduleAll({ siteId: site.siteId, items: [item], at: inMinutes(5) }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(
-			site.editor.api.publishing.schedule({ siteId: site.siteId, item, at: inMinutes(0) }),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(author.browser.api.publishing.schedule({ siteId: site.siteId, item, at: inMinutes(5) })),
+		).toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(
+				author.browser.api.publishing.scheduleUnpublish({ siteId: site.siteId, entryId: entry.id, at: inMinutes(5) }),
+			),
+		).toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(
+				author.browser.api.publishing.scheduleAll({ siteId: site.siteId, items: [item], at: inMinutes(5) }),
+			),
+		).toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(site.editor.api.publishing.schedule({ siteId: site.siteId, item, at: inMinutes(0) })),
+		).toMatchObject({
 			code: "SCHEDULE_INVALID",
 			data: { reason: "past" },
 		});
-		await expect(
-			site.editor.api.publishing.schedule({ siteId: site.siteId, item, at: inMinutes(11 * 365 * 24 * 60) }),
-		).rejects.toMatchObject({ code: "SCHEDULE_INVALID", data: { reason: "tooFar" } });
+		expect(
+			await rejection(
+				site.editor.api.publishing.schedule({ siteId: site.siteId, item, at: inMinutes(11 * 365 * 24 * 60) }),
+			),
+		).toMatchObject({ code: "SCHEDULE_INVALID", data: { reason: "tooFar" } });
 
 		// What it needs must be published first, or scheduled with it ("Publish all at…").
 		const parent = await site.editor.api.entries.create({
@@ -610,13 +623,15 @@ describe("a Scheduled publish that can't go through", () => {
 			title: "Spring",
 			parentId: parent.entry.id,
 		});
-		await expect(
-			site.editor.api.publishing.schedule({
-				siteId: site.siteId,
-				item: { kind: "entry", id: child.entry.id },
-				at: inMinutes(5),
-			}),
-		).rejects.toMatchObject({ code: "PAGE_PARENT_UNPUBLISHED" });
+		expect(
+			await rejection(
+				site.editor.api.publishing.schedule({
+					siteId: site.siteId,
+					item: { kind: "entry", id: child.entry.id },
+					at: inMinutes(5),
+				}),
+			),
+		).toMatchObject({ code: "PAGE_PARENT_UNPUBLISHED" });
 		const together = await scheduleAll(
 			site.editor,
 			site.siteId,
@@ -629,9 +644,9 @@ describe("a Scheduled publish that can't go through", () => {
 		expect(together.items.map((each) => each.name)).toEqual(["Menus", "Spring"]);
 
 		const first = await site.editor.api.publishing.schedule({ siteId: site.siteId, item, at: inMinutes(5) });
-		await expect(
-			site.editor.api.publishing.schedule({ siteId: site.siteId, item, at: inMinutes(9) }),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(site.editor.api.publishing.schedule({ siteId: site.siteId, item, at: inMinutes(9) })),
+		).toMatchObject({
 			code: "ALREADY_SCHEDULED",
 			data: { scheduleId: first.scheduled.id },
 		});

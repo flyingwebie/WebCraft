@@ -8,6 +8,7 @@ import { createApiToken } from "../harness/api-tokens.ts";
 import { chunkedBody, chunkedPost } from "../harness/bodies.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { answerOf, approveAiClient, connectMcp, refusalOf } from "../harness/mcp.ts";
+import { thrown } from "../harness/settled.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -150,9 +151,11 @@ describe("calling tools", () => {
 		const { accessToken } = await approveAiClient(install, owner.browser, { workspaceId, readOnly: true });
 		const client = await connectMcp(install, accessToken);
 
-		await expect(
-			client.callTool({ name: "entries_create", arguments: { siteId, postTypeId: pagesId, title: "Nope" } }),
-		).rejects.toThrow(/no tool entries_create/);
+		expect(
+			await thrown(
+				client.callTool({ name: "entries_create", arguments: { siteId, postTypeId: pagesId, title: "Nope" } }),
+			),
+		).toThrow(/no tool entries_create/);
 		const refused = await client.callTool({ name: "entries_get", arguments: { siteId, entryId: crypto.randomUUID() } });
 		expect(refusalOf(refused).code).toBe("ENTRY_NOT_FOUND");
 		await client.close();

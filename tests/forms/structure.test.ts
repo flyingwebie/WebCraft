@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -48,15 +49,15 @@ describe("creating a Form", () => {
 	test("a key is lower-case words joined by dashes, and names one Form of the Site", async () => {
 		await staff.api.forms.create({ siteId, name: "Newsletter", key: "newsletter" });
 
-		await expect(staff.api.forms.create({ siteId, name: "Another", key: "newsletter" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.forms.create({ siteId, name: "Another", key: "newsletter" }))).toMatchObject({
 			code: "FORM_KEY_TAKEN",
 			data: { key: "newsletter" },
 		});
-		await expect(staff.api.forms.create({ siteId, name: "Bad", key: "Not A Key" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.forms.create({ siteId, name: "Bad", key: "Not A Key" }))).toMatchObject({
 			code: "FORM_INVALID",
 			data: { problems: [{ at: "key" }] },
 		});
-		await expect(staff.api.forms.create({ siteId, name: "  " })).rejects.toMatchObject({
+		expect(await rejection(staff.api.forms.create({ siteId, name: "  " }))).toMatchObject({
 			code: "FORM_INVALID",
 			data: { problems: [{ at: "name" }] },
 		});
@@ -66,11 +67,11 @@ describe("creating a Form", () => {
 		const { form } = await staff.api.forms.create({ siteId, name: "Staff only" });
 
 		expect((await owner.api.forms.get({ siteId, formId: form.id })).form.name).toBe("Staff only");
-		await expect(owner.api.forms.create({ siteId, name: "Mine" })).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(
-			owner.api.forms.saveDraft({ siteId, formId: form.id, form: { submitLabel: "Go" } }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(owner.api.forms.rename({ siteId, formId: form.id, name: "Mine" })).rejects.toMatchObject({
+		expect(await rejection(owner.api.forms.create({ siteId, name: "Mine" }))).toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(owner.api.forms.saveDraft({ siteId, formId: form.id, form: { submitLabel: "Go" } })),
+		).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(owner.api.forms.rename({ siteId, formId: form.id, name: "Mine" }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});
@@ -179,7 +180,7 @@ describe("building a Form", () => {
 			},
 		});
 
-		await expect(refused).rejects.toMatchObject({ code: "FORM_INVALID" });
+		expect(await rejection(refused)).toMatchObject({ code: "FORM_INVALID" });
 		const problems = ((await refused.catch((error) => error)) as { data: { problems: { at: string }[] } }).data
 			.problems;
 		expect(problems.map((problem) => problem.at)).toEqual([
@@ -204,9 +205,11 @@ describe("building a Form", () => {
 		});
 
 		expect(saved.draft.fields[0]).toMatchObject({ label: { text: "Search the site" }, hideLabel: true });
-		await expect(
-			staff.api.forms.saveDraft({ siteId, formId: form.id, form: { fields: [{ key: "q", type: "text" }] } }),
-		).rejects.toMatchObject({ code: "FORM_INVALID", data: { problems: [{ at: "fields[0].label" }] } });
+		expect(
+			await rejection(
+				staff.api.forms.saveDraft({ siteId, formId: form.id, form: { fields: [{ key: "q", type: "text" }] } }),
+			),
+		).toMatchObject({ code: "FORM_INVALID", data: { problems: [{ at: "fields[0].label" }] } });
 	});
 
 	test("a redirect after sending goes to one of the Site's Pages", async () => {
@@ -228,13 +231,15 @@ describe("building a Form", () => {
 		});
 
 		expect(saved.draft.success).toEqual({ kind: "redirect", pageId: thanks.id });
-		await expect(
-			staff.api.forms.saveDraft({
-				siteId,
-				formId: form.id,
-				form: { success: { kind: "redirect", pageId: crypto.randomUUID() } },
-			}),
-		).rejects.toMatchObject({ code: "FORM_INVALID", data: { problems: [{ at: "success.pageId" }] } });
+		expect(
+			await rejection(
+				staff.api.forms.saveDraft({
+					siteId,
+					formId: form.id,
+					form: { success: { kind: "redirect", pageId: crypto.randomUUID() } },
+				}),
+			),
+		).toMatchObject({ code: "FORM_INVALID", data: { problems: [{ at: "success.pageId" }] } });
 	});
 
 	test("publishing makes the Draft what visitors fill in; a later save changes only the Draft", async () => {
@@ -257,7 +262,7 @@ describe("building a Form", () => {
 		});
 		expect(changed.status).toBe("changed");
 		expect(changed.published?.fields.map((field) => field.key)).toEqual(["email"]);
-		await expect(owner.api.forms.publish({ siteId, formId: form.id })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(owner.api.forms.publish({ siteId, formId: form.id }))).toMatchObject({ code: "FORBIDDEN" });
 		const { entries } = await (await install.superadmin()).api.audit.list({ limit: 5 });
 		expect(entries.map((entry) => entry.action)).toContain("form.publish");
 	});
@@ -268,7 +273,7 @@ describe("building a Form", () => {
 		const { form: renamed } = await staff.api.forms.rename({ siteId, formId: form.id, name: "New name", key: "new" });
 
 		expect(renamed).toMatchObject({ name: "New name", key: "new" });
-		await expect(staff.api.forms.rename({ siteId, formId: form.id, key: "newsletter" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.forms.rename({ siteId, formId: form.id, key: "newsletter" }))).toMatchObject({
 			code: "FORM_KEY_TAKEN",
 		});
 	});
@@ -285,6 +290,6 @@ describe("building a Form", () => {
 		});
 
 		expect(second.deleted).toBe(true);
-		await expect(staff.api.forms.get({ siteId, formId: form.id })).rejects.toMatchObject({ code: "FORM_NOT_FOUND" });
+		expect(await rejection(staff.api.forms.get({ siteId, formId: form.id }))).toMatchObject({ code: "FORM_NOT_FOUND" });
 	});
 });

@@ -8,6 +8,7 @@ import type { TestBrowser } from "../harness/browser.ts";
 import { createTestInstall, type TestAccount, type TestInstall } from "../harness/index.ts";
 import { approveAiClient, connectMcp } from "../harness/mcp.ts";
 import { softwareAuthenticator } from "../harness/passkeys.ts";
+import { rejection } from "../harness/settled.ts";
 import { addAuthenticator, confirmIfAsked, signInWithAuthenticator } from "../harness/two-factor.ts";
 
 const MINUTE = 60_000;
@@ -56,11 +57,11 @@ describe("a Member's reset", () => {
 			admin.api.members.resetTwoFactor({ workspaceId, personId: member.personId }),
 		);
 
-		await expect(tokenClient(install, secret).api.workspaces.get({ workspaceId })).rejects.toMatchObject({
+		expect(await rejection(tokenClient(install, secret).api.workspaces.get({ workspaceId }))).toMatchObject({
 			code: "TOKEN_INVALID",
 			data: { problem: "revoked" },
 		});
-		await expect(connectMcp(install, client.accessToken)).rejects.toBeDefined();
+		expect(await rejection(connectMcp(install, client.accessToken))).toBeDefined();
 		const { entries } = await admin.api.audit.list({ limit: 20 });
 		expect(
 			entries.find((found) => found.action === "twoFactor.reset" && found.details.personId === member.personId),
@@ -117,12 +118,14 @@ describe("a Member's reset", () => {
 		await staff.browser.api.members.resetTwoFactor({ workspaceId, personId: member.personId });
 		expect((await install.lastEmailTo(member.account.email)).text).toContain(`${staff.account.name} reset`);
 
-		await expect(
-			staff.browser.api.members.resetTwoFactor({ workspaceId: otherWorkspaceId, personId: elsewhere.personId }),
-		).rejects.toMatchObject({ code: "WORKSPACE_NOT_FOUND" });
-		await expect(
-			staff.browser.api.members.resetTwoFactor({ workspaceId, personId: elsewhere.personId }),
-		).rejects.toMatchObject({ code: "MEMBER_NOT_FOUND" });
+		expect(
+			await rejection(
+				staff.browser.api.members.resetTwoFactor({ workspaceId: otherWorkspaceId, personId: elsewhere.personId }),
+			),
+		).toMatchObject({ code: "WORKSPACE_NOT_FOUND" });
+		expect(
+			await rejection(staff.browser.api.members.resetTwoFactor({ workspaceId, personId: elsewhere.personId })),
+		).toMatchObject({ code: "MEMBER_NOT_FOUND" });
 		expect((await elsewhere.laptop.api.session.current()).person).not.toBeNull();
 	});
 
@@ -132,9 +135,9 @@ describe("a Member's reset", () => {
 		const member = await memberWithTwoFactor();
 		await install.addMembership({ personId: member.personId, workspaceId: otherWorkspaceId, role: "owner" });
 
-		await expect(
-			staff.browser.api.members.resetTwoFactor({ workspaceId, personId: member.personId }),
-		).rejects.toMatchObject({ code: "FORBIDDEN", data: { permission: "twoFactor.reset" } });
+		expect(
+			await rejection(staff.browser.api.members.resetTwoFactor({ workspaceId, personId: member.personId })),
+		).toMatchObject({ code: "FORBIDDEN", data: { permission: "twoFactor.reset" } });
 		expect((await member.laptop.api.session.current()).person).not.toBeNull();
 		expect(await member.laptop.api.me.twoFactor.get()).toMatchObject({ authenticator: { addedAt: expect.anything() } });
 
@@ -150,16 +153,16 @@ describe("a Member's reset", () => {
 		const superadminId = (await admin.api.session.current()).person?.id ?? "";
 
 		for (const personId of [colleague.personId, superadminId]) {
-			await expect(staff.browser.api.members.resetTwoFactor({ workspaceId, personId })).rejects.toMatchObject({
+			expect(await rejection(staff.browser.api.members.resetTwoFactor({ workspaceId, personId }))).toMatchObject({
 				code: "MEMBER_NOT_FOUND",
 			});
 		}
-		await expect(staff.browser.api.staff.resetTwoFactor({ personId: colleague.personId })).rejects.toMatchObject({
+		expect(await rejection(staff.browser.api.staff.resetTwoFactor({ personId: colleague.personId }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(
-			owner.browser.api.members.resetTwoFactor({ workspaceId, personId: member.personId }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(owner.browser.api.members.resetTwoFactor({ workspaceId, personId: member.personId })),
+		).toMatchObject({ code: "FORBIDDEN" });
 	});
 
 	test("is a Sensitive action", async () => {
@@ -167,9 +170,9 @@ describe("a Member's reset", () => {
 		const member = await memberWithTwoFactor();
 		await install.clock.advance(11 * MINUTE);
 
-		await expect(
-			staff.browser.api.members.resetTwoFactor({ workspaceId, personId: member.personId }),
-		).rejects.toMatchObject({ code: "IDENTITY_CHECK_REQUIRED", data: { action: "twoFactor.reset" } });
+		expect(
+			await rejection(staff.browser.api.members.resetTwoFactor({ workspaceId, personId: member.personId })),
+		).toMatchObject({ code: "IDENTITY_CHECK_REQUIRED", data: { action: "twoFactor.reset" } });
 	});
 
 	test("lifts a lock wrong codes put on the second step", async () => {
@@ -184,7 +187,7 @@ describe("a Member's reset", () => {
 		}
 		const locked = install.browser();
 		await locked.api.session.signIn(member.account);
-		await expect(locked.api.session.secondStep({ method: "authenticator", code: "000000" })).rejects.toMatchObject({
+		expect(await rejection(locked.api.session.secondStep({ method: "authenticator", code: "000000" }))).toMatchObject({
 			code: "ACCOUNT_LOCKED",
 		});
 
@@ -219,9 +222,9 @@ describe("a Staff member's reset", () => {
 		const superadminId = (await admin.api.session.current()).person?.id ?? "";
 
 		for (const personId of [member.personId, superadminId]) {
-			await expect(
-				confirmIfAsked(admin, superadmin.password, () => admin.api.staff.resetTwoFactor({ personId })),
-			).rejects.toMatchObject({ code: "STAFF_NOT_FOUND" });
+			expect(
+				await rejection(confirmIfAsked(admin, superadmin.password, () => admin.api.staff.resetTwoFactor({ personId }))),
+			).toMatchObject({ code: "STAFF_NOT_FOUND" });
 		}
 	});
 });

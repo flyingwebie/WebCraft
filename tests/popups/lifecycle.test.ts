@@ -3,6 +3,7 @@ import type { DocumentJson } from "@webcraft/core";
 import { openDraft } from "../harness/co-editing.ts";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -29,16 +30,16 @@ test("Staff build a Popup; Members change and publish its Content independently"
 		popupId: popup.id,
 		popup: { layout: "slide-in", trigger: { kind: "delay", seconds: 8 } },
 	});
-	await expect(
-		owner.api.popups.saveDraft({ siteId, popupId: popup.id, popup: { layout: "bar" } }),
-	).rejects.toMatchObject({ code: "FORBIDDEN" });
+	expect(
+		await rejection(owner.api.popups.saveDraft({ siteId, popupId: popup.id, popup: { layout: "bar" } })),
+	).toMatchObject({ code: "FORBIDDEN" });
 	await author.api.popups.saveContent({
 		siteId,
 		popupId: popup.id,
 		language: "en",
 		values: { title: "Summer savings", enabled: true },
 	});
-	await expect(author.api.popups.publishContent({ siteId, popupId: popup.id })).rejects.toMatchObject({
+	expect(await rejection(author.api.popups.publishContent({ siteId, popupId: popup.id }))).toMatchObject({
 		code: "FORBIDDEN",
 	});
 	await staff.api.popups.publish({ siteId, popupId: popup.id });
@@ -124,16 +125,16 @@ test("Popup API refuses other Workspaces, restricted Sites and other-Site Media"
 		() => other.api.popups.saveContent({ siteId, popupId: popup.id, values: { enabled: false } }),
 		() => staff.api.popups.get({ siteId: foreign, popupId: popup.id }),
 	])
-		await expect(call()).rejects.toMatchObject({ code: "SITE_NOT_FOUND" });
+		expect(await rejection(call())).toMatchObject({ code: "SITE_NOT_FOUND" });
 	const denied = (await install.createMember({ workspaceId: ws.id, role: "owner", sites: [foreign] })).browser;
-	await expect(denied.api.popups.list({ siteId })).rejects.toMatchObject({ code: "SITE_NOT_FOUND" });
+	expect(await rejection(denied.api.popups.list({ siteId }))).toMatchObject({ code: "SITE_NOT_FOUND" });
 	const { media } = await other.api.media.upload({
 		siteId: foreign,
 		file: upload(await photo({ width: 80, height: 80 }), "private.jpg"),
 	});
-	await expect(
-		owner.api.popups.saveContent({ siteId, popupId: popup.id, values: { image: media.id } }),
-	).rejects.toMatchObject({ code: "POPUP_INVALID" });
+	expect(
+		await rejection(owner.api.popups.saveContent({ siteId, popupId: popup.id, values: { image: media.id } })),
+	).toMatchObject({ code: "POPUP_INVALID" });
 });
 
 test("a Popup publishes its own tree and settings atomically; a Scheduled publish freezes both", async () => {

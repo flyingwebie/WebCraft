@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { taggedTranslation } from "../harness/fake-ai.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { answerOf, approveAiClient, connectMcp } from "../harness/mcp.ts";
+import { rejection, thrown } from "../harness/settled.ts";
 import { freshBread, requestsInto, translatedSite, visit } from "./support.ts";
 
 let install: TestInstall;
@@ -240,12 +241,12 @@ describe("who may", () => {
 			() => site.editor.api.translations.translateNow({ siteId: site.siteId }),
 			() => site.author.api.translations.approve({ siteId: site.siteId, language: "it" }),
 		]) {
-			await expect(call()).rejects.toMatchObject({ code: "FORBIDDEN" });
+			expect(await rejection(call())).toMatchObject({ code: "FORBIDDEN" });
 		}
 		await site.staff.api.translations.setMode({ siteId: site.siteId, language: "it", mode: "automatic" });
-		await expect(
-			site.owner.api.translations.setMode({ siteId: site.siteId, language: "en", mode: "automatic" }),
-		).rejects.toMatchObject({ code: "TRANSLATION_LANGUAGE_INVALID", data: { reason: "default" } });
+		expect(
+			await rejection(site.owner.api.translations.setMode({ siteId: site.siteId, language: "en", mode: "automatic" })),
+		).toMatchObject({ code: "TRANSLATION_LANGUAGE_INVALID", data: { reason: "default" } });
 		const { entries } = await (await install.superadmin()).api.audit.list({ limit: 50 });
 		expect(entries.find((candidate) => candidate.action === "translationMode.change")).toMatchObject({
 			siteId: site.siteId,
@@ -271,15 +272,17 @@ describe("AI clients", () => {
 		expect(tools).not.toContain("translations_set_mode");
 		expect(tools).not.toContain("translations_translate_now");
 		// Not listed, so not callable either.
-		await expect(
-			client.callTool({
-				name: "translations_set_mode",
-				arguments: { siteId: site.siteId, language: "de", mode: "automatic" },
-			}),
-		).rejects.toThrow("There is no tool translations_set_mode");
-		await expect(
-			client.callTool({ name: "translations_translate_now", arguments: { siteId: site.siteId } }),
-		).rejects.toThrow("There is no tool translations_translate_now");
+		expect(
+			await thrown(
+				client.callTool({
+					name: "translations_set_mode",
+					arguments: { siteId: site.siteId, language: "de", mode: "automatic" },
+				}),
+			),
+		).toThrow("There is no tool translations_set_mode");
+		expect(
+			await thrown(client.callTool({ name: "translations_translate_now", arguments: { siteId: site.siteId } })),
+		).toThrow("There is no tool translations_translate_now");
 		await client.close();
 
 		expect((await install.drainJobs()).failed).toEqual([]);

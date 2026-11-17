@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { element, text, tree, value, withId } from "../harness/trees.ts";
 
 let install: TestInstall;
@@ -100,9 +101,11 @@ describe("the builder's tree as Template markup", () => {
 		expect(read.tree).toEqual(saved.template.draft);
 		expect(read.styles).toEqual({});
 		// A save based on the version before is someone else's change meanwhile.
-		await expect(
-			staff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId, markup, basedOn: opened.version }),
-		).rejects.toMatchObject({ code: "CHANGED_MEANWHILE", data: { version: saved.version } });
+		expect(
+			await rejection(
+				staff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId, markup, basedOn: opened.version }),
+			),
+		).toMatchObject({ code: "CHANGED_MEANWHILE", data: { version: saved.version } });
 	});
 
 	test("markup typed with its own line breaks reads into a tree that prints back exactly as typed", async () => {
@@ -122,9 +125,9 @@ describe("the builder's tree as Template markup", () => {
 	});
 
 	test("markup that can't be read is refused with each problem's line and column", async () => {
-		await expect(
-			staff.api.builder.read({ siteId, target: target(), markup: "<p>\n  <script>x</script>\n</p>" }),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(staff.api.builder.read({ siteId, target: target(), markup: "<p>\n  <script>x</script>\n</p>" })),
+		).toMatchObject({
 			code: "TEMPLATE_MARKUP_INVALID",
 			data: { problems: [expect.objectContaining({ line: 2, column: 3 })] },
 		});

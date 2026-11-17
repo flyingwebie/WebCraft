@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 beforeAll(async () => {
@@ -48,12 +49,14 @@ test("binding metadata refuses malformed, duplicate, oversized and unsupported u
 		meta("address", Object.fromEntries(Array.from({ length: 257 }, (_, i) => [`k${i}`, "city"]))),
 		JSON.stringify({ missing: { root: "address", paths: { city: "city" } } }),
 	]) {
-		await expect(
-			admin.api.templates.saveEntryTemplateMarkup({
-				...holder,
-				markup: `<Card card="{{ address }}"\n data-wc-bindings='${invalid}' />`,
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				admin.api.templates.saveEntryTemplateMarkup({
+					...holder,
+					markup: `<Card card="{{ address }}"\n data-wc-bindings='${invalid}' />`,
+				}),
+			),
+		).toMatchObject({
 			code: "TEMPLATE_MARKUP_INVALID",
 			data: { problems: [expect.objectContaining({ line: 2, message: expect.stringContaining("data-wc-bindings") })] },
 		});
@@ -65,20 +68,25 @@ test("binding metadata refuses malformed, duplicate, oversized and unsupported u
 		`<div data-wc-bindings='${meta("address", { city: "city" })}'></div>`,
 		`<Card card="{{ address }}" data-wc-bindings='{}' data-wc-bindings='{}' />`,
 	])
-		await expect(admin.api.templates.saveEntryTemplateMarkup({ ...holder, markup })).rejects.toMatchObject({
+		expect(await rejection(admin.api.templates.saveEntryTemplateMarkup({ ...holder, markup }))).toMatchObject({
 			code: "TEMPLATE_MARKUP_INVALID",
 		});
 	const node = kept.template.draft.nodes[0];
 	if (node?.type !== "component") throw new Error("Missing Placement");
-	await expect(
-		admin.api.templates.saveEntryTemplate({
-			...holder,
-			tree: {
-				...kept.template.draft,
-				nodes: [
-					{ ...node, props: node.props.map((p) => ({ ...p, binding: { root: "changed", paths: { city: "city" } } })) },
-				],
-			},
-		}),
-	).rejects.toMatchObject({ code: "TEMPLATE_INVALID" });
+	expect(
+		await rejection(
+			admin.api.templates.saveEntryTemplate({
+				...holder,
+				tree: {
+					...kept.template.draft,
+					nodes: [
+						{
+							...node,
+							props: node.props.map((p) => ({ ...p, binding: { root: "changed", paths: { city: "city" } } })),
+						},
+					],
+				},
+			}),
+		),
+	).toMatchObject({ code: "TEMPLATE_INVALID" });
 });

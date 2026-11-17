@@ -129,7 +129,7 @@ test("the worker cleans an uploaded photo on Node, then makes its AVIF and WebP 
 		worker.kill("SIGTERM");
 	}
 	expect(await worker.exited).toBe(0);
-}, 60_000);
+});
 
 test("the worker says when the database drops connections it had open: a flapping database shows in the log", async () => {
 	const url = `http://127.0.0.1:${pingTarget.port}/before-the-drop`;
@@ -174,7 +174,7 @@ test("the worker says when the database drops connections it had open: a flappin
 	}
 	await worker.exited;
 	await reading;
-}, 60_000);
+});
 
 /** Asks `check` again every 100 ms until it answers something, for at most 10 seconds. */
 async function eventually<Value>(check: () => Promise<Value | undefined>): Promise<Value> {

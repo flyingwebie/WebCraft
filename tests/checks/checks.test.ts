@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -213,16 +214,16 @@ test("Checks and statement settings stay inside their Site, and only Staff can g
 	const otherSite = (await install.createSite(workspace.id)).id;
 	const owner = (await install.createMember({ workspaceId: workspace.id, role: "owner" })).browser;
 	const otherStaff = (await install.createStaff({ workspaces: [workspace.id] })).browser;
-	await expect(staff.api.checks.list({ siteId: otherSite })).rejects.toMatchObject({ code: "SITE_NOT_FOUND" });
-	await expect(staff.api.accessibilityStatement.get({ siteId: otherSite })).rejects.toMatchObject({
+	expect(await rejection(staff.api.checks.list({ siteId: otherSite }))).toMatchObject({ code: "SITE_NOT_FOUND" });
+	expect(await rejection(staff.api.accessibilityStatement.get({ siteId: otherSite }))).toMatchObject({
 		code: "SITE_NOT_FOUND",
 	});
-	await expect(owner.api.accessibilityStatement.get({ siteId: otherSite })).rejects.toMatchObject({
+	expect(await rejection(owner.api.accessibilityStatement.get({ siteId: otherSite }))).toMatchObject({
 		code: "FORBIDDEN",
 	});
-	await expect(owner.api.accessibilityStatement.setEnabled({ siteId: otherSite, enabled: true })).rejects.toMatchObject(
-		{ code: "FORBIDDEN" },
-	);
+	expect(
+		await rejection(owner.api.accessibilityStatement.setEnabled({ siteId: otherSite, enabled: true })),
+	).toMatchObject({ code: "FORBIDDEN" });
 	const { postType } = await otherStaff.api.postTypes.create({
 		siteId: otherSite,
 		name: "Other",
@@ -233,7 +234,7 @@ test("Checks and statement settings stay inside their Site, and only Staff can g
 		postTypeId: postType.id,
 		title: "Private entry",
 	});
-	await expect(staff.api.checks.entry({ siteId, entryId: entry.id })).rejects.toMatchObject({
+	expect(await rejection(staff.api.checks.entry({ siteId, entryId: entry.id }))).toMatchObject({
 		code: "ENTRY_NOT_FOUND",
 	});
 	expect((await otherStaff.api.accessibilityStatement.get({ siteId: otherSite })).settings).toBeNull();

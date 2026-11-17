@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { HistoryItem } from "@webcraft/core";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 import { type HistorySite, historySite } from "./support.ts";
 
@@ -117,10 +118,10 @@ describe("restoring a Revision", () => {
 		await staff.api.components.publish({ siteId, componentId: component.id });
 		const item = { kind: "component", id: component.id } as const;
 		const revision = await newestRevision(staff.api, siteId, item);
-		await expect(
-			editor.api.history.restore({ siteId, item, copy: { type: "revision", id: revision.id } }),
-		).rejects.toMatchObject({ code: "FORBIDDEN", status: 403 });
-		await expect(editor.api.history.list({ siteId, item })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(editor.api.history.restore({ siteId, item, copy: { type: "revision", id: revision.id } })),
+		).toMatchObject({ code: "FORBIDDEN", status: 403 });
+		expect(await rejection(editor.api.history.list({ siteId, item }))).toMatchObject({ code: "FORBIDDEN" });
 	});
 
 	test("is checked as any save is: a Template placing a Component deleted since is refused, and nothing changes", async () => {
@@ -146,9 +147,9 @@ describe("restoring a Revision", () => {
 		});
 		const before = await staff.api.history.list({ siteId, item });
 
-		await expect(
-			staff.api.history.restore({ siteId, item, copy: { type: "revision", id: revision.id } }),
-		).rejects.toMatchObject({ status: 400 });
+		expect(
+			await rejection(staff.api.history.restore({ siteId, item, copy: { type: "revision", id: revision.id } })),
+		).toMatchObject({ status: 400 });
 		expect((await staff.api.history.list({ siteId, item })).copies).toEqual(before.copies);
 	});
 });

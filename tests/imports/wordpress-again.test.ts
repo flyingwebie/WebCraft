@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { photo } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 import { approveModules, runImport, serveOldSite, surveyedExport, WORDPRESS } from "./wordpress.ts";
 
@@ -283,14 +284,16 @@ describe("an Import of the source", () => {
 	test("refuses a file of another source, and settings of another kind", async () => {
 		const { siteId, file, settings } = await siteWithFile();
 		const { postTypes } = await staff.api.postTypes.list({ siteId });
-		await expect(
-			staff.api.imports.create({
-				siteId,
-				name: "Mixed",
-				source: WORDPRESS,
-				settings: { postTypeId: postTypes[0]?.id ?? "", language: null, match: "title", columns: [] },
-			}),
-		).rejects.toMatchObject({ code: "IMPORT_INVALID" });
+		expect(
+			await rejection(
+				staff.api.imports.create({
+					siteId,
+					name: "Mixed",
+					source: WORDPRESS,
+					settings: { postTypeId: postTypes[0]?.id ?? "", language: null, match: "title", columns: [] },
+				}),
+			),
+		).toMatchObject({ code: "IMPORT_INVALID" });
 		const { import: csv } = await staff.api.imports.create({
 			siteId,
 			name: "Products",
@@ -302,7 +305,7 @@ describe("an Import of the source", () => {
 				columns: [{ column: "Title", to: "title" }],
 			},
 		});
-		await expect(staff.api.imports.start({ siteId, importId: csv.id, fileId: file.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.imports.start({ siteId, importId: csv.id, fileId: file.id }))).toMatchObject({
 			code: "IMPORT_FILE_NOT_READY",
 		});
 		expect(settings.types.length).toBeGreaterThan(0);

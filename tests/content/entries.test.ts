@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -102,14 +103,14 @@ describe("creating an Entry", () => {
 		const { entry } = await author.api.entries.create({ siteId, postTypeId, title: "Rye", slug: "Rye-Bread" });
 		expect(entry.draft.slug).toBe("rye-bread");
 
-		await expect(
-			author.api.entries.create({ siteId, postTypeId, title: "Rye again", slug: "rye-bread" }),
-		).rejects.toMatchObject({ code: "ENTRY_SLUG_TAKEN", data: { slug: "rye-bread" } });
+		expect(
+			await rejection(author.api.entries.create({ siteId, postTypeId, title: "Rye again", slug: "rye-bread" })),
+		).toMatchObject({ code: "ENTRY_SLUG_TAKEN", data: { slug: "rye-bread" } });
 	});
 
 	test("refuses a slug that isn't lower-case letters and digits joined by dashes", async () => {
 		for (const slug of ["two words", "-rye", "rye-", "rye--bread", "rye/bread", "pão"]) {
-			await expect(author.api.entries.create({ siteId, postTypeId, title: "Rye", slug })).rejects.toMatchObject({
+			expect(await rejection(author.api.entries.create({ siteId, postTypeId, title: "Rye", slug }))).toMatchObject({
 				code: "ENTRY_INVALID",
 				data: { problems: [{ at: "slug" }] },
 			});
@@ -117,16 +118,16 @@ describe("creating an Entry", () => {
 	});
 
 	test("refuses values for Fields the Post Type doesn't have, and languages the Site doesn't have", async () => {
-		await expect(
-			author.api.entries.create({ siteId, postTypeId, title: "Rye", fields: { price: "4.50" } }),
-		).rejects.toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at: "fields.price" }] } });
-		await expect(author.api.entries.create({ siteId, postTypeId, title: "Rye", language: "it" })).rejects.toMatchObject(
-			{ code: "ENTRY_INVALID", data: { problems: [{ at: "language" }] } },
-		);
+		expect(
+			await rejection(author.api.entries.create({ siteId, postTypeId, title: "Rye", fields: { price: "4.50" } })),
+		).toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at: "fields.price" }] } });
+		expect(
+			await rejection(author.api.entries.create({ siteId, postTypeId, title: "Rye", language: "it" })),
+		).toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at: "language" }] } });
 	});
 
 	test("refuses an Entry without a title", async () => {
-		await expect(author.api.entries.create({ siteId, postTypeId, title: "  " })).rejects.toMatchObject({
+		expect(await rejection(author.api.entries.create({ siteId, postTypeId, title: "  " }))).toMatchObject({
 			code: "BAD_REQUEST",
 		});
 	});
@@ -223,17 +224,19 @@ describe("the Draft and the published version", () => {
 		});
 		const { entry } = await admin.api.entries.create({ siteId: otherSiteId, postTypeId: postType.id, title: "Secret" });
 
-		await expect(admin.api.entries.get({ siteId, entryId: entry.id })).rejects.toMatchObject({
+		expect(await rejection(admin.api.entries.get({ siteId, entryId: entry.id }))).toMatchObject({
 			code: "ENTRY_NOT_FOUND",
 		});
-		await expect(admin.api.entries.saveDraft({ siteId, entryId: entry.id, title: "Changed" })).rejects.toMatchObject({
+		expect(await rejection(admin.api.entries.saveDraft({ siteId, entryId: entry.id, title: "Changed" }))).toMatchObject(
+			{
+				code: "ENTRY_NOT_FOUND",
+			},
+		);
+		expect(await rejection(admin.api.entries.publish({ siteId, entryId: entry.id }))).toMatchObject({
 			code: "ENTRY_NOT_FOUND",
 		});
-		await expect(admin.api.entries.publish({ siteId, entryId: entry.id })).rejects.toMatchObject({
-			code: "ENTRY_NOT_FOUND",
-		});
-		await expect(
-			admin.api.entries.create({ siteId, postTypeId: postType.id, title: "Into the wrong Site" }),
-		).rejects.toMatchObject({ code: "POST_TYPE_NOT_FOUND" });
+		expect(
+			await rejection(admin.api.entries.create({ siteId, postTypeId: postType.id, title: "Into the wrong Site" })),
+		).toMatchObject({ code: "POST_TYPE_NOT_FOUND" });
 	});
 });

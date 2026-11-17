@@ -10,6 +10,7 @@ import {
 	type TestBrowser,
 	type TestInstall,
 } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -122,7 +123,7 @@ describe("inviting Staff", () => {
 		const { workspaces } = await staff.api.workspaces.list();
 
 		expect(workspaces.map((workspace) => workspace.name)).toEqual(["Nimbus Bikes"]);
-		await expect(staff.api.workspaces.get({ workspaceId: acme.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.workspaces.get({ workspaceId: acme.id }))).toMatchObject({
 			code: "WORKSPACE_NOT_FOUND",
 		});
 		expect((await staff.api.workspaces.get({ workspaceId: nimbus.id })).workspace.name).toBe("Nimbus Bikes");
@@ -152,19 +153,19 @@ describe("inviting Staff", () => {
 	});
 
 	test("refuses Workspaces that don't exist", async () => {
-		await expect(
-			admin.api.staff.invite({ email: "ghost@agency.example", workspaces: [crypto.randomUUID()] }),
-		).rejects.toMatchObject({ code: "WORKSPACE_NOT_FOUND" });
+		expect(
+			await rejection(admin.api.staff.invite({ email: "ghost@agency.example", workspaces: [crypto.randomUUID()] })),
+		).toMatchObject({ code: "WORKSPACE_NOT_FOUND" });
 	});
 
 	test("refuses to invite someone who already has an account: Staff never hold a Membership", async () => {
-		await expect(admin.api.staff.invite({ email: superadmin.email, workspaces: "all" })).rejects.toMatchObject({
+		expect(await rejection(admin.api.staff.invite({ email: superadmin.email, workspaces: "all" }))).toMatchObject({
 			code: "EMAIL_IN_USE",
 		});
 	});
 
 	test("refuses a malformed email address", async () => {
-		await expect(admin.api.staff.invite({ email: "not an email", workspaces: "all" })).rejects.toMatchObject({
+		expect(await rejection(admin.api.staff.invite({ email: "not an email", workspaces: "all" }))).toMatchObject({
 			code: "EMAIL_INVALID",
 		});
 	});
@@ -176,10 +177,12 @@ describe("invite links", () => {
 		const token = await tokenFor("once@agency.example");
 		await accept("once@agency.example");
 
-		await expect(install.browser().api.invites.get({ token })).rejects.toMatchObject({ code: "INVITE_INVALID" });
-		await expect(
-			install.browser().api.invites.accept({ token, name: "Twice", password: TEST_PASSWORD, adminLanguage: "en" }),
-		).rejects.toMatchObject({ code: "INVITE_INVALID" });
+		expect(await rejection(install.browser().api.invites.get({ token }))).toMatchObject({ code: "INVITE_INVALID" });
+		expect(
+			await rejection(
+				install.browser().api.invites.accept({ token, name: "Twice", password: TEST_PASSWORD, adminLanguage: "en" }),
+			),
+		).toMatchObject({ code: "INVITE_INVALID" });
 	});
 
 	test("stop working after 7 days", async () => {
@@ -190,10 +193,12 @@ describe("invite links", () => {
 		// A week unused also ends the Superadmin's session.
 		admin = await install.signIn(superadmin);
 
-		await expect(install.browser().api.invites.get({ token })).rejects.toMatchObject({ code: "INVITE_INVALID" });
-		await expect(
-			install.browser().api.invites.accept({ token, name: "Late", password: TEST_PASSWORD, adminLanguage: "en" }),
-		).rejects.toMatchObject({ code: "INVITE_INVALID" });
+		expect(await rejection(install.browser().api.invites.get({ token }))).toMatchObject({ code: "INVITE_INVALID" });
+		expect(
+			await rejection(
+				install.browser().api.invites.accept({ token, name: "Late", password: TEST_PASSWORD, adminLanguage: "en" }),
+			),
+		).toMatchObject({ code: "INVITE_INVALID" });
 	});
 
 	test("inviting the same address again sends a new link and the earlier one stops working", async () => {
@@ -202,7 +207,7 @@ describe("invite links", () => {
 
 		await admin.api.staff.invite({ email: "again@agency.example", workspaces: [nimbus.id] });
 
-		await expect(install.browser().api.invites.get({ token: first })).rejects.toMatchObject({
+		expect(await rejection(install.browser().api.invites.get({ token: first }))).toMatchObject({
 			code: "INVITE_INVALID",
 		});
 		const staff = await accept("again@agency.example");
@@ -217,7 +222,7 @@ describe("invite links", () => {
 
 		await admin.api.staff.revokeInvite({ inviteId: invite.id });
 
-		await expect(install.browser().api.invites.get({ token })).rejects.toMatchObject({ code: "INVITE_INVALID" });
+		expect(await rejection(install.browser().api.invites.get({ token }))).toMatchObject({ code: "INVITE_INVALID" });
 		expect((await admin.api.staff.list()).invites.map((pending) => pending.email)).not.toContain(
 			"revoked@agency.example",
 		);
@@ -227,9 +232,11 @@ describe("invite links", () => {
 		await admin.api.staff.invite({ email: "short@agency.example", workspaces: [acme.id] });
 		const token = await tokenFor("short@agency.example");
 
-		await expect(
-			install.browser().api.invites.accept({ token, name: "Short", password: "too short", adminLanguage: "en" }),
-		).rejects.toMatchObject({ code: "PASSWORD_REFUSED" });
+		expect(
+			await rejection(
+				install.browser().api.invites.accept({ token, name: "Short", password: "too short", adminLanguage: "en" }),
+			),
+		).toMatchObject({ code: "PASSWORD_REFUSED" });
 
 		expect((await install.browser().api.invites.get({ token })).email).toBe("short@agency.example");
 	});
@@ -256,7 +263,7 @@ describe("a Staff invite to an address that got an account meanwhile", () => {
 		const { staffToken, member } = await staffInviteThenMembership("dual@agency.example");
 
 		expect((await member.api.invites.get({ token: staffToken })).hasAccount).toBe(true);
-		await expect(member.api.invites.join({ token: staffToken })).rejects.toMatchObject({ code: "STAFF_MEMBERSHIP" });
+		expect(await rejection(member.api.invites.join({ token: staffToken }))).toMatchObject({ code: "STAFF_MEMBERSHIP" });
 		expect((await member.api.session.current()).person?.installRole ?? null).toBeNull();
 	});
 
@@ -269,7 +276,7 @@ describe("a Staff invite to an address that got an account meanwhile", () => {
 
 		expect(workspaceId).toBeNull();
 		expect((await member.api.session.current()).person?.installRole).toBe("staff");
-		await expect(member.api.invites.get({ token: staffToken })).rejects.toMatchObject({ code: "INVITE_INVALID" });
+		expect(await rejection(member.api.invites.get({ token: staffToken }))).toMatchObject({ code: "INVITE_INVALID" });
 	});
 });
 
@@ -304,7 +311,7 @@ describe("changing which Workspaces Staff reach", () => {
 		await admin.api.staff.setWorkspaces({ personId: person.id, workspaces: [nimbus.id] });
 
 		expect((await staff.api.workspaces.list()).workspaces.map((workspace) => workspace.name)).toEqual(["Nimbus Bikes"]);
-		await expect(staff.api.workspaces.get({ workspaceId: acme.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.workspaces.get({ workspaceId: acme.id }))).toMatchObject({
 			code: "WORKSPACE_NOT_FOUND",
 		});
 
@@ -316,9 +323,9 @@ describe("changing which Workspaces Staff reach", () => {
 	test("refuses someone who isn't Staff", async () => {
 		const { person } = await admin.api.session.current();
 
-		await expect(
-			admin.api.staff.setWorkspaces({ personId: person?.id ?? "", workspaces: [acme.id] }),
-		).rejects.toMatchObject({ code: "STAFF_NOT_FOUND" });
+		expect(
+			await rejection(admin.api.staff.setWorkspaces({ personId: person?.id ?? "", workspaces: [acme.id] })),
+		).toMatchObject({ code: "STAFF_NOT_FOUND" });
 	});
 });
 
@@ -329,19 +336,21 @@ describe("who can manage Staff", () => {
 		const { invite } = await admin.api.staff.invite({ email: "target@agency.example", workspaces: [acme.id] });
 		const target = (await staff.api.session.current()).person?.id ?? "";
 
-		await expect(staff.api.staff.invite({ email: "friend@agency.example", workspaces: "all" })).rejects.toMatchObject({
+		expect(
+			await rejection(staff.api.staff.invite({ email: "friend@agency.example", workspaces: "all" })),
+		).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(staff.api.staff.list()).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(staff.api.staff.revokeInvite({ inviteId: invite.id })).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(staff.api.staff.setWorkspaces({ personId: target, workspaces: "all" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.staff.list())).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(staff.api.staff.revokeInvite({ inviteId: invite.id }))).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(staff.api.staff.setWorkspaces({ personId: target, workspaces: "all" }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(staff.api.workspaces.create({ name: "Rogue Ltd" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(staff.api.workspaces.create({ name: "Rogue Ltd" }))).toMatchObject({ code: "FORBIDDEN" });
 	});
 
 	test("people who aren't signed in can't manage Staff", async () => {
-		await expect(install.browser().api.staff.list()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+		expect(await rejection(install.browser().api.staff.list())).toMatchObject({ code: "UNAUTHORIZED" });
 	});
 });
 

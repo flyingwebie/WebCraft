@@ -6,6 +6,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, fromAddress, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { buildShop, listed, optionsIn, type Shop } from "./shop.ts";
 
@@ -61,9 +62,11 @@ describe("layout presets", () => {
 			phone: "same",
 		});
 		expect(saved.draft).toMatchObject({ layout: "topbar", phone: "same" });
-		await expect(
-			shop.staff.api.filters.saveDraft({ siteId: shop.siteId, filterId: shop.filterId, layout: "grid", phone: "x" }),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				shop.staff.api.filters.saveDraft({ siteId: shop.siteId, filterId: shop.filterId, layout: "grid", phone: "x" }),
+			),
+		).toMatchObject({
 			code: "FILTER_INVALID",
 			data: { problems: [{ at: "layout" }, { at: "phone" }] },
 		});
@@ -211,13 +214,15 @@ describe("a control placed on its own", () => {
 			children: [{ type: "filter", filter: shop.filterId, loop: "products", control: "search" }],
 		});
 
-		await expect(
-			shop.staff.api.templates.saveArchiveTemplateMarkup({
-				siteId: shop.siteId,
-				postTypeId: shop.productsId,
-				markup: `{{@filter shop for="products" control="colour"}}${LOOP}`,
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				shop.staff.api.templates.saveArchiveTemplateMarkup({
+					siteId: shop.siteId,
+					postTypeId: shop.productsId,
+					markup: `{{@filter shop for="products" control="colour"}}${LOOP}`,
+				}),
+			),
+		).toMatchObject({
 			code: "TEMPLATE_MARKUP_INVALID",
 			data: {
 				problems: [

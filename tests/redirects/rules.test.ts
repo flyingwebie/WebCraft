@@ -6,6 +6,7 @@ import type redirects from "@webcraft/module-redirects";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSiteHeaders } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -126,7 +127,7 @@ describe("what a rule may be", () => {
 			"mailto:a@b.example",
 			"https://user:pass@x.example/",
 		]) {
-			await expect(rules().add({ siteId, from: "/bad-target", to, status: 301 }), to).rejects.toMatchObject({
+			expect(await rejection(rules().add({ siteId, from: "/bad-target", to, status: 301 })), to).toMatchObject({
 				code: "MODULE_ERROR",
 				data: { code: expect.stringMatching(/^TO_(INVALID|SCHEME)$/) },
 			});
@@ -138,7 +139,7 @@ describe("what a rule may be", () => {
 
 	test("a rule can't match the Install's own paths, a * anywhere but the end, or a path with a query", async () => {
 		const refused = async (from: string, to: string, code: string) =>
-			expect(rules().add({ siteId, from, to, status: 301 }), from).rejects.toMatchObject({ data: { code } });
+			expect(await rejection(rules().add({ siteId, from, to, status: 301 })), from).toMatchObject({ data: { code } });
 		await refused("/_media/x.png", "/blog", "FROM_RESERVED");
 		await refused("/_wc/*", "/blog", "FROM_RESERVED");
 		await refused("/old*", "/blog", "WILDCARD_INVALID");
@@ -153,22 +154,22 @@ describe("what a rule may be", () => {
 
 	test("one rule per path, and none that would send visitors round in a circle", async () => {
 		await rules().add({ siteId, from: "/loop-a", to: "/loop-b", status: 301 });
-		await expect(rules().add({ siteId, from: "/loop-a", to: "/blog", status: 301 })).rejects.toMatchObject({
+		expect(await rejection(rules().add({ siteId, from: "/loop-a", to: "/blog", status: 301 }))).toMatchObject({
 			status: 409,
 			data: { code: "RULE_TAKEN" },
 		});
-		await expect(rules().add({ siteId, from: "/loop-b", to: "/loop-a", status: 301 })).rejects.toMatchObject({
+		expect(await rejection(rules().add({ siteId, from: "/loop-b", to: "/loop-a", status: 301 }))).toMatchObject({
 			status: 409,
 			data: { code: "RULE_LOOP" },
 		});
-		await expect(rules().add({ siteId, from: "/self", to: "/self/", status: 301 })).rejects.toMatchObject({
+		expect(await rejection(rules().add({ siteId, from: "/self", to: "/self/", status: 301 }))).toMatchObject({
 			data: { code: "RULE_LOOP" },
 		});
 		// A wildcard whose target is under itself would never end.
-		await expect(rules().add({ siteId, from: "/deep/*", to: "/deep/er/*", status: 301 })).rejects.toMatchObject({
+		expect(await rejection(rules().add({ siteId, from: "/deep/*", to: "/deep/er/*", status: 301 }))).toMatchObject({
 			data: { code: "RULE_LOOP" },
 		});
-		await expect(rules().add({ siteId, from: "/loop-c/*", to: "/loop-a", status: 301 })).resolves.toBeDefined();
+		expect(await rules().add({ siteId, from: "/loop-c/*", to: "/loop-a", status: 301 })).toBeDefined();
 	});
 
 	test("a chain of any length gets visitors there, whichever order its rules were added in", async () => {
@@ -185,7 +186,7 @@ describe("what a rule may be", () => {
 			expect(second.headers.get("location")).toBe(`/${chain}-8`);
 		}
 		// Closing either chain into a circle is still refused.
-		await expect(rules().add({ siteId, from: "/head-8", to: "/head-1", status: 301 })).rejects.toMatchObject({
+		expect(await rejection(rules().add({ siteId, from: "/head-8", to: "/head-1", status: 301 }))).toMatchObject({
 			data: { code: "RULE_LOOP" },
 		});
 	});
@@ -197,10 +198,10 @@ describe("managing rules", () => {
 		const owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
 		const author = (await install.createMember({ workspaceId, role: "author" })).browser;
 
-		await expect(rules(owner).add({ siteId, from: "/by-owner", to: "/blog", status: 301 })).resolves.toBeDefined();
-		await expect(rules(staff).add({ siteId, from: "/by-staff", to: "/blog", status: 301 })).resolves.toBeDefined();
-		await expect(rules(author).list({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(rules(author).add({ siteId, from: "/by-author", to: "/blog", status: 301 })).rejects.toMatchObject({
+		expect(await rules(owner).add({ siteId, from: "/by-owner", to: "/blog", status: 301 })).toBeDefined();
+		expect(await rules(staff).add({ siteId, from: "/by-staff", to: "/blog", status: 301 })).toBeDefined();
+		expect(await rejection(rules(author).list({ siteId }))).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(rules(author).add({ siteId, from: "/by-author", to: "/blog", status: 301 }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});
@@ -222,7 +223,7 @@ describe("managing rules", () => {
 			["redirects.rule.update", "/soon"],
 			["redirects.rule.add", "/soon"],
 		]);
-		await expect(rules().remove({ siteId, ruleId: rule.id })).rejects.toMatchObject({
+		expect(await rejection(rules().remove({ siteId, ruleId: rule.id }))).toMatchObject({
 			status: 404,
 			data: { code: "RULE_NOT_FOUND" },
 		});

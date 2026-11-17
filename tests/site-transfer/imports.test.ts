@@ -7,6 +7,7 @@ import type redirects from "@webcraft/module-redirects";
 
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { rejection } from "../harness/settled.ts";
 import { exportedArchive, importArchive, rewritten, rowsIn, uploadArchive } from "../harness/site-transfer.ts";
 import { approveModules } from "./support.ts";
 
@@ -39,25 +40,27 @@ describe("who imports", () => {
 	test("Staff and the Superadmin; never Owners or Editors", async () => {
 		for (const role of ["owner", "editor"] as const) {
 			const member = (await install.createMember({ workspaceId, role })).browser;
-			await expect(
-				member.api.siteImports.startUpload({ workspaceId, fileName: "site.tar", size: 100 }),
-			).rejects.toMatchObject({ code: "FORBIDDEN", status: 403 });
-			await expect(member.api.siteImports.list({ workspaceId })).rejects.toMatchObject({ status: 403 });
+			expect(
+				await rejection(member.api.siteImports.startUpload({ workspaceId, fileName: "site.tar", size: 100 })),
+			).toMatchObject({ code: "FORBIDDEN", status: 403 });
+			expect(await rejection(member.api.siteImports.list({ workspaceId }))).toMatchObject({ status: 403 });
 		}
 	});
 
 	test("an upload is its uploader's alone: nobody else adds to it or starts it", async () => {
 		const colleague = (await install.createStaff({ workspaces: [workspaceId] })).browser;
 		const uploaded = await uploadArchive(staff.browser, workspaceId, archive);
-		await expect(
-			colleague.api.siteImports.start({
-				workspaceId,
-				importId: uploaded.id,
-				name: "Mine",
-				slug: "mine",
-				passphrase: null,
-			}),
-		).rejects.toMatchObject({ code: "SITE_IMPORT_NOT_FOUND", status: 404 });
+		expect(
+			await rejection(
+				colleague.api.siteImports.start({
+					workspaceId,
+					importId: uploaded.id,
+					name: "Mine",
+					slug: "mine",
+					passphrase: null,
+				}),
+			),
+		).toMatchObject({ code: "SITE_IMPORT_NOT_FOUND", status: 404 });
 	});
 
 	test("the worker reads it in as the person who started it, with their access as it is then", async () => {
@@ -83,9 +86,9 @@ describe("starting an import", () => {
 		const uploaded = await uploadArchive(staff.browser, workspaceId, archive);
 		const start = (slug: string) =>
 			staff.browser.api.siteImports.start({ workspaceId, importId: uploaded.id, name: "Copy", slug, passphrase: null });
-		await expect(start("bakery")).rejects.toMatchObject({ code: "SLUG_TAKEN", status: 409 });
-		await expect(start("admin")).rejects.toMatchObject({ code: "SLUG_INVALID" });
-		await expect(start("Not a slug!")).rejects.toMatchObject({ code: "SLUG_INVALID" });
+		expect(await rejection(start("bakery"))).toMatchObject({ code: "SLUG_TAKEN", status: 409 });
+		expect(await rejection(start("admin"))).toMatchObject({ code: "SLUG_INVALID" });
+		expect(await rejection(start("Not a slug!"))).toMatchObject({ code: "SLUG_INVALID" });
 	});
 
 	test("keeps within the Workspace's Media storage quota", async () => {
@@ -97,30 +100,34 @@ describe("starting an import", () => {
 			},
 		});
 		const uploaded = await uploadArchive(admin, quotaed, big);
-		await expect(
-			admin.api.siteImports.start({
-				workspaceId: quotaed,
-				importId: uploaded.id,
-				name: "Big",
-				slug: "big",
-				passphrase: null,
-			}),
-		).rejects.toMatchObject({ code: "MEDIA_QUOTA_FULL", status: 413 });
+		expect(
+			await rejection(
+				admin.api.siteImports.start({
+					workspaceId: quotaed,
+					importId: uploaded.id,
+					name: "Big",
+					slug: "big",
+					passphrase: null,
+				}),
+			),
+		).toMatchObject({ code: "MEDIA_QUOTA_FULL", status: 413 });
 	});
 
 	test("can't start twice", async () => {
 		const target = (await install.createWorkspace("Twice Ltd")).id;
 		const done = await importArchive(install, admin, target, archive, { name: "Once", slug: "once" });
 		expect(done.status).toBe("done");
-		await expect(
-			admin.api.siteImports.start({
-				workspaceId: target,
-				importId: done.id,
-				name: "Again",
-				slug: "again",
-				passphrase: null,
-			}),
-		).rejects.toMatchObject({ code: "SITE_IMPORT_NOT_READY", status: 409 });
+		expect(
+			await rejection(
+				admin.api.siteImports.start({
+					workspaceId: target,
+					importId: done.id,
+					name: "Again",
+					slug: "again",
+					passphrase: null,
+				}),
+			),
+		).toMatchObject({ code: "SITE_IMPORT_NOT_READY", status: 409 });
 	});
 });
 

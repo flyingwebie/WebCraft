@@ -15,6 +15,7 @@ import {
 	type TestInstall,
 } from "../harness/index.ts";
 import { approveAiClient } from "../harness/mcp.ts";
+import { rejection } from "../harness/settled.ts";
 import { addAuthenticator, confirmIfAsked, signInWithAuthenticator } from "../harness/two-factor.ts";
 
 const MINUTE = 60 * 1000;
@@ -146,24 +147,24 @@ describe("asking for a reset link", () => {
 		const browser = install.browser({ address: "198.18.0.77" });
 		for (let asked = 0; asked < 5; asked++) await request(`someone-${asked}@client.example`, browser);
 
-		await expect(request("someone-else@client.example", browser)).rejects.toMatchObject({
+		expect(await rejection(request("someone-else@client.example", browser))).toMatchObject({
 			code: "TOO_MANY_REQUESTS",
 			status: 429,
 		});
 		await install.clock.advance(15 * MINUTE);
-		await expect(request("someone-else@client.example", browser)).resolves.toEqual({ ok: true });
+		expect(await request("someone-else@client.example", browser)).toEqual({ ok: true });
 	});
 
 	test("counts an IPv6 client by its /64, not by each address of it", async () => {
 		for (let asked = 0; asked < 5; asked++) {
 			await request(`someone-${asked}@client.example`, install.browser({ address: `2001:db8:5:5::${asked + 1}` }));
 		}
-		await expect(
-			request("someone-else@client.example", install.browser({ address: "2001:db8:5:5:ffff::9" })),
-		).rejects.toMatchObject({ code: "TOO_MANY_REQUESTS" });
-		await expect(
-			request("someone-else@client.example", install.browser({ address: "2001:db8:5:6::1" })),
-		).resolves.toEqual({ ok: true });
+		expect(
+			await rejection(request("someone-else@client.example", install.browser({ address: "2001:db8:5:5:ffff::9" }))),
+		).toMatchObject({ code: "TOO_MANY_REQUESTS" });
+		expect(await request("someone-else@client.example", install.browser({ address: "2001:db8:5:6::1" }))).toEqual({
+			ok: true,
+		});
 	});
 
 	test("is in the person's Admin language", async () => {
@@ -196,18 +197,20 @@ describe("choosing a new password with the link", () => {
 		expect((await visitor.api.session.current()).person).toBeNull();
 		expect((await person.browser.api.session.current()).person).toBeNull();
 		expect((await elsewhere.api.session.current()).person).toBeNull();
-		await expect(install.signIn(person)).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
+		expect(await rejection(install.signIn(person))).toMatchObject({ code: "INVALID_CREDENTIALS" });
 		const signedIn = await install.signIn({ email: person.email, password: NEW_PASSWORD });
 		expect((await signedIn.api.session.current()).person?.email).toBe(person.email);
 
-		await expect(install.browser().api.passwordReset.check({ token: tokenOf(link) })).rejects.toMatchObject({
+		expect(await rejection(install.browser().api.passwordReset.check({ token: tokenOf(link) }))).toMatchObject({
 			code: "PASSWORD_RESET_INVALID",
 			status: 404,
 		});
-		await expect(
-			install.browser().api.passwordReset.complete({ token: tokenOf(link), newPassword: "another password to use" }),
-		).rejects.toMatchObject({ code: "PASSWORD_RESET_INVALID" });
-		await expect(install.signIn({ email: person.email, password: NEW_PASSWORD })).resolves.toBeDefined();
+		expect(
+			await rejection(
+				install.browser().api.passwordReset.complete({ token: tokenOf(link), newPassword: "another password to use" }),
+			),
+		).toMatchObject({ code: "PASSWORD_RESET_INVALID" });
+		expect(await install.signIn({ email: person.email, password: NEW_PASSWORD })).toBeDefined();
 	});
 
 	test("stops working after 30 minutes", async () => {
@@ -215,10 +218,12 @@ describe("choosing a new password with the link", () => {
 		const link = await linkFor(person.email);
 		await install.clock.advance(30 * MINUTE);
 
-		await expect(
-			install.browser().api.passwordReset.complete({ token: tokenOf(link), newPassword: NEW_PASSWORD }),
-		).rejects.toMatchObject({ code: "PASSWORD_RESET_INVALID" });
-		await expect(install.signIn(person)).resolves.toBeDefined();
+		expect(
+			await rejection(
+				install.browser().api.passwordReset.complete({ token: tokenOf(link), newPassword: NEW_PASSWORD }),
+			),
+		).toMatchObject({ code: "PASSWORD_RESET_INVALID" });
+		expect(await install.signIn(person)).toBeDefined();
 	});
 
 	test("only the newest link works", async () => {
@@ -229,16 +234,20 @@ describe("choosing a new password with the link", () => {
 		const second = await linkFor(person.email);
 		expect(tokenOf(second)).not.toBe(tokenOf(first));
 
-		await expect(
-			install.browser().api.passwordReset.complete({ token: tokenOf(first), newPassword: NEW_PASSWORD }),
-		).rejects.toMatchObject({ code: "PASSWORD_RESET_INVALID" });
+		expect(
+			await rejection(
+				install.browser().api.passwordReset.complete({ token: tokenOf(first), newPassword: NEW_PASSWORD }),
+			),
+		).toMatchObject({ code: "PASSWORD_RESET_INVALID" });
 		await install.browser().api.passwordReset.complete({ token: tokenOf(second), newPassword: NEW_PASSWORD });
 	});
 
 	test("a made-up token is refused like a used one", async () => {
-		await expect(
-			install.browser().api.passwordReset.complete({ token: "not-a-token", newPassword: NEW_PASSWORD }),
-		).rejects.toMatchObject({ code: "PASSWORD_RESET_INVALID", status: 404 });
+		expect(
+			await rejection(
+				install.browser().api.passwordReset.complete({ token: "not-a-token", newPassword: NEW_PASSWORD }),
+			),
+		).toMatchObject({ code: "PASSWORD_RESET_INVALID", status: 404 });
 	});
 
 	test("refuses a password the rules don't allow, and the link still works for a good one", async () => {
@@ -246,21 +255,21 @@ describe("choosing a new password with the link", () => {
 		const link = await linkFor(person.email);
 		const visitor = install.browser();
 
-		await expect(
-			visitor.api.passwordReset.complete({ token: tokenOf(link), newPassword: "too short" }),
-		).rejects.toMatchObject({ code: "PASSWORD_REFUSED", data: { problem: "too-short" } });
+		expect(
+			await rejection(visitor.api.passwordReset.complete({ token: tokenOf(link), newPassword: "too short" })),
+		).toMatchObject({ code: "PASSWORD_REFUSED", data: { problem: "too-short" } });
 
 		const leaked = "correct horse battery staple";
 		const hash = createHash("sha1").update(leaked).digest("hex").toUpperCase();
 		install.http.respond("GET", RANGE, { body: `${hash.slice(5)}:12\r\n` });
-		await expect(
-			visitor.api.passwordReset.complete({ token: tokenOf(link), newPassword: leaked }),
-		).rejects.toMatchObject({ code: "PASSWORD_REFUSED", data: { problem: "leaked" } });
-		await expect(install.signIn(person)).resolves.toBeDefined();
+		expect(
+			await rejection(visitor.api.passwordReset.complete({ token: tokenOf(link), newPassword: leaked })),
+		).toMatchObject({ code: "PASSWORD_REFUSED", data: { problem: "leaked" } });
+		expect(await install.signIn(person)).toBeDefined();
 
 		install.http.reset();
 		await visitor.api.passwordReset.complete({ token: tokenOf(link), newPassword: NEW_PASSWORD });
-		await expect(install.signIn({ email: person.email, password: NEW_PASSWORD })).resolves.toBeDefined();
+		expect(await install.signIn({ email: person.email, password: NEW_PASSWORD })).toBeDefined();
 	});
 
 	test("never removes or skips a second factor, and leaves API tokens as they are", async () => {
@@ -308,9 +317,9 @@ describe("choosing a new password with the link", () => {
 
 		await install.browser({ address }).api.passwordReset.complete({ token: tokenOf(link), newPassword: NEW_PASSWORD });
 
-		await expect(
-			install.browser({ address }).api.session.signIn({ email: person.email, password: NEW_PASSWORD }),
-		).resolves.toMatchObject({ person: { email: person.email } });
+		expect(
+			await install.browser({ address }).api.session.signIn({ email: person.email, password: NEW_PASSWORD }),
+		).toMatchObject({ person: { email: person.email } });
 	});
 });
 
@@ -325,15 +334,17 @@ describe("a link asked for before the account was secured", () => {
 		await person.browser.api.session.confirmIdentity({ password: person.password });
 		await person.browser.api.me.changePassword({ newPassword: NEW_PASSWORD });
 
-		await expect(install.browser().api.passwordReset.check({ token: tokenOf(link) })).rejects.toMatchObject({
+		expect(await rejection(install.browser().api.passwordReset.check({ token: tokenOf(link) }))).toMatchObject({
 			code: "PASSWORD_RESET_INVALID",
 		});
-		await expect(
-			install
-				.browser()
-				.api.passwordReset.complete({ token: tokenOf(link), newPassword: "the intruder's own password" }),
-		).rejects.toMatchObject({ code: "PASSWORD_RESET_INVALID" });
-		await expect(install.signIn({ email: person.email, password: NEW_PASSWORD })).resolves.toBeDefined();
+		expect(
+			await rejection(
+				install
+					.browser()
+					.api.passwordReset.complete({ token: tokenOf(link), newPassword: "the intruder's own password" }),
+			),
+		).toMatchObject({ code: "PASSWORD_RESET_INVALID" });
+		expect(await install.signIn({ email: person.email, password: NEW_PASSWORD })).toBeDefined();
 	});
 
 	test("stops working once their two-factor authentication is reset", async () => {
@@ -346,12 +357,14 @@ describe("a link asked for before the account was secured", () => {
 			admin.api.members.resetTwoFactor({ workspaceId, personId: person.personId }),
 		);
 
-		await expect(
-			install
-				.browser()
-				.api.passwordReset.complete({ token: tokenOf(link), newPassword: "the intruder's own password" }),
-		).rejects.toMatchObject({ code: "PASSWORD_RESET_INVALID" });
-		await expect(install.signIn(person)).resolves.toBeDefined();
+		expect(
+			await rejection(
+				install
+					.browser()
+					.api.passwordReset.complete({ token: tokenOf(link), newPassword: "the intruder's own password" }),
+			),
+		).toMatchObject({ code: "PASSWORD_RESET_INVALID" });
+		expect(await install.signIn(person)).toBeDefined();
 	});
 });
 

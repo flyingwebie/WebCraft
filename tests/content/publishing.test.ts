@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 import { element, tree, value } from "../harness/trees.ts";
 
@@ -74,7 +75,7 @@ describe("who publishes an Entry", () => {
 		const { api } = roles.author.browser;
 		const { entry } = await api.entries.create({ siteId, postTypeId, title: "Secret recipe", fields: { price: "9" } });
 
-		await expect(api.entries.publish({ siteId, entryId: entry.id })).rejects.toMatchObject({
+		expect(await rejection(api.entries.publish({ siteId, entryId: entry.id }))).toMatchObject({
 			code: "FORBIDDEN",
 			data: { permission: "entry.publish" },
 		});
@@ -104,12 +105,12 @@ describe("what can be published", () => {
 		const { api } = roles.editor.browser;
 		const { entry } = await api.entries.create({ siteId, postTypeId, title: "Pretzel" });
 
-		await expect(api.entries.publish({ siteId, entryId: entry.id })).rejects.toMatchObject({
+		expect(await rejection(api.entries.publish({ siteId, entryId: entry.id }))).toMatchObject({
 			code: "ENTRY_INCOMPLETE",
 			data: { missing: ["price"] },
 		});
 		await api.entries.saveDraft({ siteId, entryId: entry.id, slug: "", fields: { price: "2" } });
-		await expect(api.entries.publish({ siteId, entryId: entry.id })).rejects.toMatchObject({
+		expect(await rejection(api.entries.publish({ siteId, entryId: entry.id }))).toMatchObject({
 			code: "ENTRY_INCOMPLETE",
 			data: { missing: ["slug"] },
 		});
@@ -136,9 +137,11 @@ describe("what can be published", () => {
 		const { api } = roles.editor.browser;
 		const { entry } = await api.entries.create({ siteId, postTypeId, title: "Bagel two", fields: { price: "1" } });
 
-		await expect(api.entries.saveDraft({ siteId, entryId: entry.id, slug: "new-york-bagel" })).rejects.toMatchObject({
-			code: "ENTRY_SLUG_TAKEN",
-		});
+		expect(await rejection(api.entries.saveDraft({ siteId, entryId: entry.id, slug: "new-york-bagel" }))).toMatchObject(
+			{
+				code: "ENTRY_SLUG_TAKEN",
+			},
+		);
 	});
 
 	test("a published Entry has no page until its Entry template is published", async () => {
@@ -171,7 +174,7 @@ describe("what can be published", () => {
 		});
 		await staff.api.postTypes.update({ siteId, postTypeId: postType.id, fields: [] });
 
-		await expect(staff.api.templates.publish({ siteId, templateId: template.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.templates.publish({ siteId, templateId: template.id }))).toMatchObject({
 			code: "TEMPLATE_INVALID",
 			data: { problems: [{ at: "nodes[0].children[0].path" }] },
 		});

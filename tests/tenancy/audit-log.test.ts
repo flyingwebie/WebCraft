@@ -5,6 +5,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import pg from "pg";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { thrown } from "../harness/settled.ts";
 
 let install: TestInstall;
 let database: pg.Client;
@@ -23,10 +24,10 @@ afterAll(async () => {
 test("an entry can't be changed, even with access to the database", async () => {
 	await install.createWorkspace("Acme Ltd");
 
-	await expect(database.query("UPDATE audit_log SET action = 'nothing.happened'")).rejects.toThrow(
+	expect(await thrown(database.query("UPDATE audit_log SET action = 'nothing.happened'"))).toThrow(
 		"Audit log entries can't be changed",
 	);
-	await expect(database.query("TRUNCATE audit_log")).rejects.toThrow("Audit log entries can't be changed");
+	expect(await thrown(database.query("TRUNCATE audit_log"))).toThrow("Audit log entries can't be changed");
 
 	const { entries } = await (await install.superadmin()).api.audit.list();
 	expect(entries.map((entry) => entry.action)).toContain("workspace.create");

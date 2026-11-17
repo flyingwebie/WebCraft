@@ -192,7 +192,7 @@ describe("the Loops place, for Staff", () => {
 
 		// The result reads its items once the place is open: wait for it rather than read it at once.
 		await page.waitForFunction(() => Boolean(document.querySelector("[data-wc-loop-count]")?.textContent));
-		await expect(count(page).textContent()).resolves.toBe("3 of 5 items · just now");
+		expect(await count(page).textContent()).toBe("3 of 5 items · just now");
 		expect(await page.locator("[data-wc-loop-used-on]").textContent()).toBe("Used on 2 pages");
 		// The first item starts open, its values by key.
 		expect(await page.locator('[data-wc-loop-item-toggle="0"]').getAttribute("aria-expanded")).toBe("true");

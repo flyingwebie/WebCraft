@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -78,21 +79,21 @@ describe("creating a Loop", () => {
 
 	test("a Loop's name is lower-case words joined by dashes, unique on the Site", async () => {
 		for (const name of ["Latest", "latest_posts", "-posts", "posts-", "1posts", "site", "title", ""]) {
-			await expect(staff.api.loops.create({ siteId, name, source: "query" })).rejects.toMatchObject({
+			expect(await rejection(staff.api.loops.create({ siteId, name, source: "query" }))).toMatchObject({
 				code: "LOOP_INVALID",
 				data: { problems: [{ at: "name" }] },
 			});
 		}
 		await staff.api.loops.create({ siteId, name: "chefs-list", source: "query" });
-		await expect(staff.api.loops.create({ siteId, name: "chefs-list", source: "items" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.loops.create({ siteId, name: "chefs-list", source: "items" }))).toMatchObject({
 			code: "LOOP_NAME_TAKEN",
 			status: 409,
 		});
 	});
 
 	test("Members never see or change Loops: they are Structure", async () => {
-		await expect(editor.api.loops.list({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(editor.api.loops.create({ siteId, name: "mine", source: "query" })).rejects.toMatchObject({
+		expect(await rejection(editor.api.loops.list({ siteId }))).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(editor.api.loops.create({ siteId, name: "mine", source: "query" }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});
@@ -141,25 +142,27 @@ describe("a query", () => {
 	test("a query is refused with each problem where it is", async () => {
 		const { loop } = await staff.api.loops.create({ siteId, name: "broken", source: "query" });
 
-		await expect(
-			staff.api.loops.saveDraft({
-				siteId,
-				loopId: loop.id,
-				query: {
-					postTypes: ["recipes", "events"],
-					filters: [
-						{ type: "field", field: "colour", operator: "equals", value: "red" },
-						{ type: "field", field: "minutes", operator: "contains", value: "3" },
-						{ type: "field", field: "minutes", operator: "atLeast", value: "three" },
-						{ type: "relationship", field: "summary", to: "current" },
-						{ type: "date", field: "summary", window: "past" },
-					],
-					sort: [{ by: "photo", direction: "asc" }],
-					limit: 500,
-					offset: -1,
-				},
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.loops.saveDraft({
+					siteId,
+					loopId: loop.id,
+					query: {
+						postTypes: ["recipes", "events"],
+						filters: [
+							{ type: "field", field: "colour", operator: "equals", value: "red" },
+							{ type: "field", field: "minutes", operator: "contains", value: "3" },
+							{ type: "field", field: "minutes", operator: "atLeast", value: "three" },
+							{ type: "relationship", field: "summary", to: "current" },
+							{ type: "date", field: "summary", window: "past" },
+						],
+						sort: [{ by: "photo", direction: "asc" }],
+						limit: 500,
+						offset: -1,
+					},
+				}),
+			),
+		).toMatchObject({
 			code: "LOOP_INVALID",
 			data: {
 				problems: [
@@ -180,7 +183,7 @@ describe("a query", () => {
 	test("a query Loop with no Post Type can't be published", async () => {
 		const { loop } = await staff.api.loops.create({ siteId, name: "unfinished", source: "query" });
 
-		await expect(staff.api.loops.publish({ siteId, loopId: loop.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.loops.publish({ siteId, loopId: loop.id }))).toMatchObject({
 			code: "LOOP_INVALID",
 			data: { problems: [{ at: "query.postTypes" }] },
 		});
@@ -240,29 +243,33 @@ describe("Loop items", () => {
 			fields: [{ key: "name", label: "Name", type: "text", required: true }],
 		});
 
-		await expect(staff.api.loops.saveItems({ siteId, loopId: loop.id, items: [{ name: 42 }] })).rejects.toMatchObject({
+		expect(
+			await rejection(staff.api.loops.saveItems({ siteId, loopId: loop.id, items: [{ name: 42 }] })),
+		).toMatchObject({
 			code: "LOOP_INVALID",
 			data: { problems: [{ at: "items[0].name" }] },
 		});
 		await staff.api.loops.saveItems({ siteId, loopId: loop.id, items: [{ name: "" }] });
-		await expect(staff.api.loops.publish({ siteId, loopId: loop.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.loops.publish({ siteId, loopId: loop.id }))).toMatchObject({
 			code: "LOOP_INCOMPLETE",
 			data: { missing: ["items[0].name"] },
 		});
 	});
 
 	test("Loop items hold no Body field and no Relationship", async () => {
-		await expect(
-			staff.api.loops.create({
-				siteId,
-				name: "odd-fields",
-				source: "items",
-				fields: [
-					{ key: "text", label: "Text", type: "body" },
-					{ key: "chef", label: "Chef", type: "relationship", postTypes: ["chefs"] },
-				],
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.loops.create({
+					siteId,
+					name: "odd-fields",
+					source: "items",
+					fields: [
+						{ key: "text", label: "Text", type: "body" },
+						{ key: "chef", label: "Chef", type: "relationship", postTypes: ["chefs"] },
+					],
+				}),
+			),
+		).toMatchObject({
 			code: "LOOP_INVALID",
 			data: { problems: [{ at: "fields[0].type" }, { at: "fields[1].type" }] },
 		});

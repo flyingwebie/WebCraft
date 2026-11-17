@@ -9,6 +9,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, fromAddress, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 /** Where Caddy reaches the web process in the Compose file. */
@@ -97,7 +98,7 @@ describe("a Site's CDN (Site settings)", () => {
 		const { siteId } = await newSite();
 		expect((await owner.api.domains.list({ siteId })).cdn).toBeNull();
 
-		await expect(staff.api.domains.setCdn({ siteId, cdn: "cloudflare" })).resolves.toEqual({ cdn: "cloudflare" });
+		expect(await staff.api.domains.setCdn({ siteId, cdn: "cloudflare" })).toEqual({ cdn: "cloudflare" });
 
 		expect((await owner.api.domains.list({ siteId })).cdn).toBe("cloudflare");
 		await staff.api.domains.setCdn({ siteId, cdn: null });
@@ -114,14 +115,16 @@ describe("a Site's CDN (Site settings)", () => {
 	test("only Staff change it", async () => {
 		const { siteId } = await newSite();
 
-		await expect(owner.api.domains.setCdn({ siteId, cdn: "fastly" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(owner.api.domains.setCdn({ siteId, cdn: "fastly" }))).toMatchObject({ code: "FORBIDDEN" });
 		expect((await staff.api.domains.list({ siteId })).cdn).toBeNull();
 	});
 
 	test("only the CDNs WebCraft knows the ranges of", async () => {
 		const { siteId } = await newSite();
 
-		await expect(staff.api.domains.setCdn({ siteId, cdn: "my-own-cdn" as unknown as "fastly" })).rejects.toMatchObject({
+		expect(
+			await rejection(staff.api.domains.setCdn({ siteId, cdn: "my-own-cdn" as unknown as "fastly" })),
+		).toMatchObject({
 			code: "BAD_REQUEST",
 		});
 	});
@@ -234,7 +237,9 @@ describe("the Site's CDN secret", () => {
 		expect((await owner.api.domains.list({ siteId: site.siteId })).cdnSecret).toBe(true);
 		expect(JSON.stringify(await staff.api.domains.list({ siteId: site.siteId }))).not.toContain(first);
 		expect(await install.tablesHolding(first)).toEqual([]);
-		await expect(owner.api.domains.newCdnSecret({ siteId: site.siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(owner.api.domains.newCdnSecret({ siteId: site.siteId }))).toMatchObject({
+			code: "FORBIDDEN",
+		});
 
 		const made = await staff.api.domains.newCdnSecret({ siteId: site.siteId });
 		expect(made).toEqual({ secret: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/), header: "X-CDN-Secret" });
@@ -261,7 +266,7 @@ describe("the Site's CDN secret", () => {
 	test("a Site without a CDN has no secret to make", async () => {
 		const site = await newSite();
 
-		await expect(staff.api.domains.newCdnSecret({ siteId: site.siteId })).rejects.toMatchObject({
+		expect(await rejection(staff.api.domains.newCdnSecret({ siteId: site.siteId }))).toMatchObject({
 			code: "CDN_NOT_SET",
 		});
 	});

@@ -9,6 +9,7 @@ import { type HealthPart, samplePing } from "@webcraft/core";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { rejection, thrown } from "../harness/settled.ts";
 import { sample } from "../modules/sample/index.ts";
 
 const MINUTE = 60_000;
@@ -151,9 +152,11 @@ describe("the job queue", () => {
 	});
 
 	test("a queue WebCraft doesn't have is refused", async () => {
-		await expect((await admin()).api.installHealth.retry({ queue: "no.such", jobIds: "all" })).rejects.toMatchObject({
-			code: "JOB_QUEUE_NOT_FOUND",
-		});
+		expect(await rejection((await admin()).api.installHealth.retry({ queue: "no.such", jobIds: "all" }))).toMatchObject(
+			{
+				code: "JOB_QUEUE_NOT_FOUND",
+			},
+		);
 	});
 
 	test("jobs waiting long past their time while a worker runs are stuck: Failing", async () => {
@@ -232,7 +235,7 @@ describe("the last Backup", () => {
 
 			chmodSync(isolated.backupDir, 0o555);
 			try {
-				await expect(isolated.backup()).rejects.toThrow();
+				expect(await thrown(isolated.backup())).toThrow();
 			} finally {
 				chmodSync(isolated.backupDir, 0o755);
 			}
@@ -344,7 +347,7 @@ describe("the Error log and the Module log", () => {
 		const superadmin = await admin();
 		const workspace = await install.createWorkspace();
 		const site = await install.createSite(workspace.id);
-		await expect(moduleApi<typeof sample>(superadmin, "sample").broken({ siteId: site.id })).rejects.toMatchObject({
+		expect(await rejection(moduleApi<typeof sample>(superadmin, "sample").broken({ siteId: site.id }))).toMatchObject({
 			code: "MODULE_FAILED",
 		});
 
@@ -364,8 +367,8 @@ describe("who sees it", () => {
 		const { browser: owner } = await install.createMember({ workspaceId: workspace.id, role: "owner" });
 
 		for (const browser of [staff, owner]) {
-			await expect(browser.api.installHealth.get({})).rejects.toMatchObject({ code: "FORBIDDEN" });
-			await expect(browser.api.installHealth.queues()).rejects.toMatchObject({ code: "FORBIDDEN" });
+			expect(await rejection(browser.api.installHealth.get({}))).toMatchObject({ code: "FORBIDDEN" });
+			expect(await rejection(browser.api.installHealth.queues())).toMatchObject({ code: "FORBIDDEN" });
 			expect((await browser.api.shell.context()).banners.health).toBeNull();
 		}
 	});

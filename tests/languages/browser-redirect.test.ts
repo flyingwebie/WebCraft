@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -63,9 +64,9 @@ describe("the browser-language redirect", () => {
 		expect((await staff.api.languages.list({ siteId: site.siteId })).settings.browserLanguageRedirect).toBe(false);
 		expect((await visit(site, "/", { "accept-language": "fr" })).status).toBe(200);
 
-		await expect(
-			owner.api.languages.setBrowserRedirect({ siteId: site.siteId, browserLanguageRedirect: true }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(owner.api.languages.setBrowserRedirect({ siteId: site.siteId, browserLanguageRedirect: true })),
+		).toMatchObject({ code: "FORBIDDEN" });
 		const { settings } = await staff.api.languages.setBrowserRedirect({
 			siteId: site.siteId,
 			browserLanguageRedirect: true,

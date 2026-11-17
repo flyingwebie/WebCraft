@@ -18,6 +18,7 @@ import {
 	registerClient,
 	tokenRequest,
 } from "../harness/mcp.ts";
+import { rejection } from "../harness/settled.ts";
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -217,7 +218,7 @@ describe("approving a client", () => {
 		const parameters = authorizationParameters(install, String(body.client_id), challenge);
 		await install.clock.advance(11 * 60 * 1000);
 
-		await expect(owner.browser.api.oauth.approve({ parameters, workspaceId: workspace.id })).rejects.toMatchObject({
+		expect(await rejection(owner.browser.api.oauth.approve({ parameters, workspaceId: workspace.id }))).toMatchObject({
 			code: "IDENTITY_CHECK_REQUIRED",
 		});
 		const back = await approveInAdmin(owner.browser, parameters, { workspaceId: workspace.id, mayPublish: true });
@@ -428,7 +429,7 @@ describe("ending a grant", () => {
 		const other = await install.createMember({ workspaceId: workspace.id, role: "owner" });
 		await approveAiClient(install, owner.browser, { workspaceId: workspace.id });
 		const { grants } = await owner.browser.api.aiClients.list();
-		await expect(other.browser.api.aiClients.revoke({ grantId: grants[0]?.id as string })).rejects.toMatchObject({
+		expect(await rejection(other.browser.api.aiClients.revoke({ grantId: grants[0]?.id as string }))).toMatchObject({
 			code: "AI_CLIENT_NOT_FOUND",
 		});
 	});

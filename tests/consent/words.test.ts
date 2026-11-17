@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -154,7 +155,7 @@ describe("the banner's words", () => {
 		const site = await newSite();
 		await author.api.consentBanner.saveDraft({ siteId: site.siteId, fields: { heading: "Choices" } });
 
-		await expect(author.api.consentBanner.publish({ siteId: site.siteId })).rejects.toMatchObject({
+		expect(await rejection(author.api.consentBanner.publish({ siteId: site.siteId }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});
@@ -209,7 +210,7 @@ describe("the banner's words", () => {
 			{ fields: { footer: "Hello" } },
 			{ language: "de", fields: { heading: "Ihre Wahl" } },
 		]) {
-			await expect(editor.api.consentBanner.saveDraft({ siteId: site.siteId, ...change })).rejects.toMatchObject({
+			expect(await rejection(editor.api.consentBanner.saveDraft({ siteId: site.siteId, ...change }))).toMatchObject({
 				code: "CONSENT_BANNER_INVALID",
 			});
 		}
@@ -224,7 +225,7 @@ describe("the banner's words", () => {
 		});
 
 		expect(saved.banner.text.problems.map((problem) => problem.at)).toEqual(["fields.acceptAll"]);
-		await expect(editor.api.consentBanner.publish({ siteId: site.siteId })).rejects.toMatchObject({
+		expect(await rejection(editor.api.consentBanner.publish({ siteId: site.siteId }))).toMatchObject({
 			code: "CONSENT_BANNER_INVALID",
 		});
 	});

@@ -64,8 +64,8 @@ jobs:
       # libheif's encoder, so the Media tests can make a HEIC photo the way phones take them.
       - run: sudo apt-get update && sudo apt-get install --yes libheif-examples libheif-plugin-x265
       - run: bun install --frozen-lockfile
-      # --retry: a test that fails is tried twice more, since the runners are slow enough to trip timing-sensitive tests.
-      - run: bun test --timeout 30000 --retry=2 --shard=${{ matrix.shard }}/4
+      # No --retry: a test that passes only on a second try has a bug, and a retry would hide it.
+      - run: bun test --timeout 30000 --shard=${{ matrix.shard }}/4
 
   deploy:
     name: Deploy files (Compose smoke test)

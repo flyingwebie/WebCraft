@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -120,9 +121,9 @@ describe("language visibility", () => {
 		const site = await newSite();
 		const entryId = await publishedEntry(site, site.postTypeId, "Fresh bread");
 
-		await expect(
-			editor.api.entries.saveDraft({ siteId: site.siteId, entryId, hiddenLanguages: ["it"] }),
-		).rejects.toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at: "hiddenLanguages" }] } });
+		expect(
+			await rejection(editor.api.entries.saveDraft({ siteId: site.siteId, entryId, hiddenLanguages: ["it"] })),
+		).toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at: "hiddenLanguages" }] } });
 	});
 
 	test("a language it is hidden in isn't checked when it is published", async () => {
@@ -139,7 +140,7 @@ describe("language visibility", () => {
 			language: "fr",
 			fields: { summary: "Croustillant et doré, sorti du four" },
 		});
-		await expect(editor.api.entries.publish({ siteId: site.siteId, entryId: entry.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.publish({ siteId: site.siteId, entryId: entry.id }))).toMatchObject({
 			code: "ENTRY_INVALID",
 		});
 

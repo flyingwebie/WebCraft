@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createApiToken, type TokenClient, tokenClient } from "../harness/api-tokens.ts";
 import { createTestInstall, TEST_PASSWORD, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const MINUTE = 60_000;
 
@@ -42,15 +43,21 @@ afterAll(async () => {
 describe("through an API token", () => {
 	test("changing who receives a Report is refused, however it is asked", async () => {
 		const refused = { code: "SENSITIVE_ACTION_REFUSED", data: { action: "reportRecipients.change" } };
-		await expect(
-			script.api.reports.setRecipients({ siteId, reportId, recipients: ["someone@elsewhere.example"] }),
-		).rejects.toMatchObject(refused);
-		await expect(
-			script.api.reports.update({ siteId, reportId, recipients: ["client@bakery.example", "x@elsewhere.example"] }),
-		).rejects.toMatchObject(refused);
-		await expect(
-			script.api.reports.create({ siteId, dashboardId, ...report, recipients: ["someone@elsewhere.example"] }),
-		).rejects.toMatchObject(refused);
+		expect(
+			await rejection(
+				script.api.reports.setRecipients({ siteId, reportId, recipients: ["someone@elsewhere.example"] }),
+			),
+		).toMatchObject(refused);
+		expect(
+			await rejection(
+				script.api.reports.update({ siteId, reportId, recipients: ["client@bakery.example", "x@elsewhere.example"] }),
+			),
+		).toMatchObject(refused);
+		expect(
+			await rejection(
+				script.api.reports.create({ siteId, dashboardId, ...report, recipients: ["someone@elsewhere.example"] }),
+			),
+		).toMatchObject(refused);
 
 		const [kept] = (await staff.api.reports.list({ siteId, dashboardId })).reports.filter(
 			(listed) => listed.id === reportId,
@@ -80,9 +87,9 @@ describe("in the admin", () => {
 			[staff, "staff-chose@bakery.example"],
 			[owner, "owner-chose@bakery.example"],
 		] as const) {
-			await expect(person.api.reports.setRecipients({ siteId, reportId, recipients: [address] })).rejects.toMatchObject(
-				{ code: "IDENTITY_CHECK_REQUIRED", data: { action: "reportRecipients.change" } },
-			);
+			expect(
+				await rejection(person.api.reports.setRecipients({ siteId, reportId, recipients: [address] })),
+			).toMatchObject({ code: "IDENTITY_CHECK_REQUIRED", data: { action: "reportRecipients.change" } });
 			await person.api.session.confirmIdentity({ password: TEST_PASSWORD });
 			const { report: changed } = await person.api.reports.setRecipients({
 				siteId,

@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { pdf, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -46,25 +47,25 @@ describe("Authors", () => {
 		expect(seen.canEdit).toBe(false);
 		expect((await author.api.media.list({ siteId })).items.map((item) => item.id)).toContain(theirs.id);
 
-		await expect(author.api.media.update({ siteId, mediaId: theirs.id, alt: "Changed" })).rejects.toMatchObject({
+		expect(await rejection(author.api.media.update({ siteId, mediaId: theirs.id, alt: "Changed" }))).toMatchObject({
 			code: "FORBIDDEN",
 			status: 403,
 		});
 		const other = await uploadAs(otherAuthor, "other-author.pdf");
-		await expect(author.api.media.update({ siteId, mediaId: other.id, alt: "Changed" })).rejects.toMatchObject({
+		expect(await rejection(author.api.media.update({ siteId, mediaId: other.id, alt: "Changed" }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});
 
 	test("can't make, rename or delete folders, but file their own uploads in one", async () => {
-		await expect(author.api.media.folders.create({ siteId, name: "Mine" })).rejects.toMatchObject({
+		expect(await rejection(author.api.media.folders.create({ siteId, name: "Mine" }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 		const { folder } = await editor.api.media.folders.create({ siteId, name: "Shared" });
-		await expect(author.api.media.folders.rename({ siteId, folderId: folder.id, name: "X" })).rejects.toMatchObject({
+		expect(await rejection(author.api.media.folders.rename({ siteId, folderId: folder.id, name: "X" }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(author.api.media.folders.delete({ siteId, folderId: folder.id })).rejects.toMatchObject({
+		expect(await rejection(author.api.media.folders.delete({ siteId, folderId: folder.id }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 
@@ -103,11 +104,11 @@ describe("people outside the Site", () => {
 		const outsider = (await install.createMember({ workspaceId, role: "editor", sites: [otherSiteId] })).browser;
 		const file = await uploadAs(editor, "private-to-site.pdf");
 
-		await expect(outsider.api.media.list({ siteId })).rejects.toMatchObject({ code: "SITE_NOT_FOUND", status: 404 });
-		await expect(outsider.api.media.get({ siteId, mediaId: file.id })).rejects.toMatchObject({
+		expect(await rejection(outsider.api.media.list({ siteId }))).toMatchObject({ code: "SITE_NOT_FOUND", status: 404 });
+		expect(await rejection(outsider.api.media.get({ siteId, mediaId: file.id }))).toMatchObject({
 			code: "SITE_NOT_FOUND",
 		});
-		await expect(outsider.api.media.upload({ siteId, file: upload(pdf(), "x.pdf") })).rejects.toMatchObject({
+		expect(await rejection(outsider.api.media.upload({ siteId, file: upload(pdf(), "x.pdf") }))).toMatchObject({
 			code: "SITE_NOT_FOUND",
 		});
 	});
@@ -136,6 +137,6 @@ describe("people outside the Site", () => {
 	});
 
 	test("signed-out people get nothing", async () => {
-		await expect(install.browser().api.media.list({ siteId })).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+		expect(await rejection(install.browser().api.media.list({ siteId }))).toMatchObject({ code: "UNAUTHORIZED" });
 	});
 });

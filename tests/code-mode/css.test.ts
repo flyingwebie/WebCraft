@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { answer, openCodeMode } from "../harness/code-mode.ts";
 import { openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -367,10 +368,12 @@ test("Members can't read or change CSS, in Edit mode or through the API", async 
 	const editing = await openEditMode(install, editor, site.siteId, path);
 
 	expect((await refusal(await editing.edit("code/createClass", { name: "sneaky" }), 403)).code).toBe("FORBIDDEN");
-	await expect(readCss(site.siteId, [site.classId], editor)).rejects.toMatchObject({ code: "FORBIDDEN" });
-	await expect(
-		editor.api.builder.saveCss({ siteId: site.siteId, target: { kind: "site" }, text: "", version: null }),
-	).rejects.toMatchObject({ code: "FORBIDDEN" });
+	expect(await rejection(readCss(site.siteId, [site.classId], editor))).toMatchObject({ code: "FORBIDDEN" });
+	expect(
+		await rejection(
+			editor.api.builder.saveCss({ siteId: site.siteId, target: { kind: "site" }, text: "", version: null }),
+		),
+	).toMatchObject({ code: "FORBIDDEN" });
 });
 
 describe("a Generated Class in the CSS pane", () => {

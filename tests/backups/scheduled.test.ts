@@ -14,6 +14,7 @@ import {
 	type TestBrowser,
 	type TestInstall,
 } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 /** Moves the clock to 01:30 UTC of the next day, after the daily Backup's time, and runs the worker's jobs. */
 async function nextNight(install: TestInstall) {
@@ -93,7 +94,7 @@ describe("into the Backups folder", () => {
 		]);
 		const { backups } = await (await install.superadmin()).api.install.backups.get();
 		expect(backups.filter((backup) => backup.removedAt === null)).toHaveLength(9);
-	}, 120_000);
+	});
 
 	test("Backups taken by command or before migrations aren't removed by the keep rules", async () => {
 		const taken = await install.backup();
@@ -149,9 +150,9 @@ describe("into an S3-compatible bucket", () => {
 	test("the bucket is checked before it is saved, and its secret is kept like every secret", async () => {
 		const admin = await confirmedSuperadmin(install);
 
-		await expect(
-			admin.api.install.backups.update({ scheduled: true, target: target("a-wrong-secret-key") }),
-		).rejects.toMatchObject({ code: "STORAGE_UNREACHABLE" });
+		expect(
+			await rejection(admin.api.install.backups.update({ scheduled: true, target: target("a-wrong-secret-key") })),
+		).toMatchObject({ code: "STORAGE_UNREACHABLE" });
 		const saved = await admin.api.install.backups.update({ scheduled: true, target: target(S3.secretAccessKey) });
 
 		expect(saved).toMatchObject({

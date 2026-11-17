@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { answer, headOf, openCodeMode } from "../harness/code-mode.ts";
 import { type EditModeBrowser, openEditMode } from "../harness/edit-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -235,13 +236,13 @@ describe("publishing scripts", () => {
 		const { script } = await staff.api.scripts.saveDraft({ siteId: site.siteId, entryId: null, code: "1;" });
 		await staff.api.scripts.publish({ siteId: site.siteId, scriptId: script.id });
 
-		await expect(editor.api.scripts.get({ siteId: site.siteId, entryId: null })).rejects.toMatchObject({
+		expect(await rejection(editor.api.scripts.get({ siteId: site.siteId, entryId: null }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(
-			editor.api.scripts.saveDraft({ siteId: site.siteId, entryId: null, code: "2;" }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(editor.api.scripts.publish({ siteId: site.siteId, scriptId: script.id })).rejects.toMatchObject({
+		expect(
+			await rejection(editor.api.scripts.saveDraft({ siteId: site.siteId, entryId: null, code: "2;" })),
+		).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(editor.api.scripts.publish({ siteId: site.siteId, scriptId: script.id }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 		const admin = await install.superadmin();
@@ -256,8 +257,8 @@ describe("publishing scripts", () => {
 		const site = await bakery();
 		const other = await bakery();
 
-		await expect(
-			staff.api.scripts.saveDraft({ siteId: site.siteId, entryId: other.entryId, code: "1;" }),
-		).rejects.toMatchObject({ code: "ENTRY_NOT_FOUND" });
+		expect(
+			await rejection(staff.api.scripts.saveDraft({ siteId: site.siteId, entryId: other.entryId, code: "1;" })),
+		).toMatchObject({ code: "ENTRY_NOT_FOUND" });
 	});
 });

@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, TEST_PASSWORD, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSiteHeaders } from "../harness/site-safety.ts";
 import { openStaging, stagingVisitor } from "../harness/staging.ts";
 import { addAuthenticator, confirmIfAsked } from "../harness/two-factor.ts";
@@ -179,13 +180,15 @@ describe("opening the Staging address from the admin", () => {
 			const reviewer = await openStaging(install, person, siteId, "/about");
 			expect((await reviewer.page("/about")).status).toBe(200);
 		}
-		await expect(elsewhere.api.staging.open({ siteId, path: "/" })).rejects.toMatchObject({ code: "SITE_NOT_FOUND" });
+		expect(await rejection(elsewhere.api.staging.open({ siteId, path: "/" }))).toMatchObject({
+			code: "SITE_NOT_FOUND",
+		});
 	});
 
 	test("refuses a path that isn't one on the Site", async () => {
 		const { siteId } = await newSite();
 		for (const path of ["https://evil.example/", "//evil.example", "/a b", "about"]) {
-			await expect(staff.api.staging.open({ siteId, path })).rejects.toMatchObject({ code: "BAD_REQUEST" });
+			expect(await rejection(staff.api.staging.open({ siteId, path }))).toMatchObject({ code: "BAD_REQUEST" });
 		}
 	});
 
@@ -195,7 +198,7 @@ describe("opening the Staging address from the admin", () => {
 			const admin = await bare.superadmin();
 			const { id } = await bare.createWorkspace();
 			const site = await bare.createSite(id);
-			await expect(admin.api.staging.open({ siteId: site.id, path: "/" })).rejects.toMatchObject({
+			expect(await rejection(admin.api.staging.open({ siteId: site.id, path: "/" }))).toMatchObject({
 				code: "STAGING_UNAVAILABLE",
 			});
 		} finally {

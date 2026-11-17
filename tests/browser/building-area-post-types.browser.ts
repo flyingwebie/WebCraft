@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { Page } from "playwright";
 
 import type { TestAccount, TestBrowser } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { announced, enterBuildingArea } from "./building-area.ts";
 import { expectAccessibleScreen, expectNoAxeViolations } from "./checks.ts";
 import { type BrowserInstall, forgetPageErrors, pageErrors, startBrowserInstall, THEMES } from "./harness.ts";
@@ -365,7 +366,7 @@ describe("Post Types and Fields, for Staff", () => {
 		await page.locator('[data-wc-post-type="post"]').waitFor({ state: "detached" });
 		expect(await announced(page)).toBe("Blog posts deleted, with its Entries and Templates");
 		expect(await page.locator(`[data-wc-content-row="${blogId}"]`).count()).toBe(0);
-		await expect(superadmin.api.postTypes.get({ siteId, postTypeId: blogId })).rejects.toMatchObject({
+		expect(await rejection(superadmin.api.postTypes.get({ siteId, postTypeId: blogId }))).toMatchObject({
 			code: "POST_TYPE_NOT_FOUND",
 		});
 		forgetRefusals(page, reported);

@@ -9,6 +9,7 @@ import { answer, codeTagsIn, headOf, mainOf, openCodeMode } from "../harness/cod
 import { openEditMode } from "../harness/edit-mode.ts";
 import { fakeNpmPackage } from "../harness/fake-npm.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -416,14 +417,16 @@ describe("Libraries a Component script declares", () => {
 
 	test("must be the Site's own", async () => {
 		const site = await bakery();
-		await expect(
-			staff.api.components.saveScriptDraft({
-				siteId: site.siteId,
-				componentId: site.componentId,
-				code: "",
-				libraryIds: ["00000000-0000-4000-8000-000000000000"],
-			}),
-		).rejects.toMatchObject({ code: "LIBRARY_NOT_FOUND" });
+		expect(
+			await rejection(
+				staff.api.components.saveScriptDraft({
+					siteId: site.siteId,
+					componentId: site.componentId,
+					code: "",
+					libraryIds: ["00000000-0000-4000-8000-000000000000"],
+				}),
+			),
+		).toMatchObject({ code: "LIBRARY_NOT_FOUND" });
 	});
 });
 
@@ -451,7 +454,7 @@ describe("publishing with its Component", () => {
 		expect(script).toMatchObject({ status: "published", published: { code: "export default () => { /* new */ };" } });
 		expect((await staff.api.components.get({ siteId, componentId })).component.status).toBe("published");
 		// It is never published on its own.
-		await expect(staff.api.scripts.publish({ siteId, scriptId: script?.id as string })).rejects.toMatchObject({
+		expect(await rejection(staff.api.scripts.publish({ siteId, scriptId: script?.id as string }))).toMatchObject({
 			code: "SCRIPT_NOT_FOUND",
 		});
 		// A script never published and still empty is nothing to publish.

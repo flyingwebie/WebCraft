@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 import { element, type TestNode, text, tree, value } from "../harness/trees.ts";
 
@@ -246,14 +247,16 @@ describe("names a Template may read", () => {
 			"photo.alt",
 			"site.phone",
 		]) {
-			await expect(
-				staff.api.templates.saveEntryTemplate({
-					siteId,
-					postTypeId: productsId,
-					tree: tree(element("p", [value(path)])),
-				}),
+			expect(
+				await rejection(
+					staff.api.templates.saveEntryTemplate({
+						siteId,
+						postTypeId: productsId,
+						tree: tree(element("p", [value(path)])),
+					}),
+				),
 				path,
-			).rejects.toMatchObject({ code: "TEMPLATE_INVALID", data: { problems: [{ at: "nodes[0].children[0].path" }] } });
+			).toMatchObject({ code: "TEMPLATE_INVALID", data: { problems: [{ at: "nodes[0].children[0].path" }] } });
 		}
 	});
 });

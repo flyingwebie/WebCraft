@@ -9,6 +9,7 @@ import { type DocumentPublish, isBuildingDocument, parseBuildingDocument } from 
 
 import { openBuildingArea } from "../harness/building-area.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -70,12 +71,14 @@ describe("a Template opened with a Filter selected", () => {
 	});
 
 	test("a link naming something that isn't a Filter's id is refused when it is made", async () => {
-		await expect(
-			staff.api.editMode.open({
-				siteId,
-				open: `/archive-template/${postTypeId}?wc-filter=<script>`,
-			}),
-		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(
+			await rejection(
+				staff.api.editMode.open({
+					siteId,
+					open: `/archive-template/${postTypeId}?wc-filter=<script>`,
+				}),
+			),
+		).toMatchObject({ code: "BAD_REQUEST" });
 	});
 });
 

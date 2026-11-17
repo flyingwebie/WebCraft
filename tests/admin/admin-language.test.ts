@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 
@@ -50,7 +51,7 @@ describe("Admin language", () => {
 		// @ts-expect-error The typed client already refuses it; a raw call must be refused too.
 		const picking = browser.api.me.updatePreferences({ adminLanguage: "xx" });
 
-		await expect(picking).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(await rejection(picking)).toMatchObject({ code: "BAD_REQUEST" });
 	});
 });
 

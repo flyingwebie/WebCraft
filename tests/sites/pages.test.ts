@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { BUILT_IN_FIELDS } from "@webcraft/core";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -104,7 +105,7 @@ describe("the Page Post Type's rules", () => {
 			() => staff.api.templates.saveEntryTemplateMarkup({ ...ids(site), markup: "<h1>{{ title }}</h1>" }),
 			() => staff.api.templates.saveEntryTemplate({ ...ids(site), tree: { version: 1, nodes: [] } }),
 		]) {
-			await expect(save()).rejects.toMatchObject({ code: "PAGES_HAVE_NO_ENTRY_TEMPLATE", status: 400 });
+			expect(await rejection(save())).toMatchObject({ code: "PAGES_HAVE_NO_ENTRY_TEMPLATE", status: 400 });
 		}
 		expect(await staff.api.templates.getEntryTemplate(ids(site))).toEqual({ template: null });
 	});
@@ -119,20 +120,24 @@ describe("the Page Post Type's rules", () => {
 		});
 		expect(postType).toMatchObject({ name: "Site pages", urlPattern: "/{path}", fields: [{ key: "summary" }] });
 
-		await expect(staff.api.postTypes.update({ ...ids(site), urlPattern: "/pages/{slug}" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.postTypes.update({ ...ids(site), urlPattern: "/pages/{slug}" }))).toMatchObject({
 			code: "POST_TYPE_INVALID",
 			data: { problems: [{ at: "urlPattern" }] },
 		});
-		await expect(
-			staff.api.postTypes.update({ ...ids(site), fields: [{ key: "parent", label: "Parent", type: "text" }] }),
-		).rejects.toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at: "fields[0].key" }] } });
+		expect(
+			await rejection(
+				staff.api.postTypes.update({ ...ids(site), fields: [{ key: "parent", label: "Parent", type: "text" }] }),
+			),
+		).toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at: "fields[0].key" }] } });
 		// Staff can't make another one: its key and its pattern are taken, and /{path} is no URL pattern.
-		await expect(
-			staff.api.postTypes.create({ siteId: site.siteId, name: "Pages", key: "page", urlPattern: "/p/{slug}" }),
-		).rejects.toMatchObject({ code: "POST_TYPE_TAKEN" });
-		await expect(
-			staff.api.postTypes.create({ siteId: site.siteId, name: "More pages", urlPattern: "/{path}" }),
-		).rejects.toMatchObject({ code: "POST_TYPE_INVALID" });
+		expect(
+			await rejection(
+				staff.api.postTypes.create({ siteId: site.siteId, name: "Pages", key: "page", urlPattern: "/p/{slug}" }),
+			),
+		).toMatchObject({ code: "POST_TYPE_TAKEN" });
+		expect(
+			await rejection(staff.api.postTypes.create({ siteId: site.siteId, name: "More pages", urlPattern: "/{path}" })),
+		).toMatchObject({ code: "POST_TYPE_INVALID" });
 	});
 });
 
@@ -211,15 +216,17 @@ describe("slugs and parents", () => {
 
 		expect(await titleAt(site, "/about/team")).toBe("Team");
 		expect(await titleAt(site, "/careers/team")).toBe("Team");
-		await expect(
-			editor.api.entries.create({
-				siteId: site.siteId,
-				postTypeId: site.pagesId,
-				title: "Our team",
-				slug: "team",
-				parentId: about,
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				editor.api.entries.create({
+					siteId: site.siteId,
+					postTypeId: site.pagesId,
+					title: "Our team",
+					slug: "team",
+					parentId: about,
+				}),
+			),
+		).toMatchObject({
 			code: "ENTRY_SLUG_TAKEN",
 			data: { slug: "team" },
 			message: "Another Page under the same parent already has the slug team.",
@@ -240,9 +247,9 @@ describe("slugs and parents", () => {
 		await publishPage(site, "Team", about);
 		const team = await publishPage(site, "Team");
 
-		await expect(
-			editor.api.entries.saveDraft({ siteId: site.siteId, entryId: team, parentId: about }),
-		).rejects.toMatchObject({ code: "ENTRY_SLUG_TAKEN", data: { slug: "team" } });
+		expect(
+			await rejection(editor.api.entries.saveDraft({ siteId: site.siteId, entryId: team, parentId: about })),
+		).toMatchObject({ code: "ENTRY_SLUG_TAKEN", data: { slug: "team" } });
 	});
 
 	test("a parent is another Page of the Site, never the Page itself or a Page under it", async () => {
@@ -266,7 +273,7 @@ describe("slugs and parents", () => {
 			[post.entry.id, about, "Only Pages have a parent Page."],
 		];
 		for (const [entryId, parentId, message] of refusals) {
-			await expect(editor.api.entries.saveDraft({ siteId: site.siteId, entryId, parentId })).rejects.toMatchObject({
+			expect(await rejection(editor.api.entries.saveDraft({ siteId: site.siteId, entryId, parentId }))).toMatchObject({
 				code: "ENTRY_INVALID",
 				data: { problems: [{ at: "parentId", message }] },
 			});
@@ -282,9 +289,16 @@ describe("slugs and parents", () => {
 		expect(await titleAt(site, `/${Array.from({ length: 10 }, (_, index) => `level-${index + 1}`).join("/")}`)).toBe(
 			"Level 10",
 		);
-		await expect(
-			editor.api.entries.create({ siteId: site.siteId, postTypeId: site.pagesId, title: "Level 11", parentId: parent }),
-		).rejects.toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at: "parentId" }] } });
+		expect(
+			await rejection(
+				editor.api.entries.create({
+					siteId: site.siteId,
+					postTypeId: site.pagesId,
+					title: "Level 11",
+					parentId: parent,
+				}),
+			),
+		).toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at: "parentId" }] } });
 	});
 
 	test("a Page is published only under a published parent Page", async () => {
@@ -301,7 +315,7 @@ describe("slugs and parents", () => {
 			parentId: about.id,
 		});
 
-		await expect(editor.api.entries.publish({ siteId: site.siteId, entryId: team.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.publish({ siteId: site.siteId, entryId: team.id }))).toMatchObject({
 			code: "PAGE_PARENT_UNPUBLISHED",
 			status: 409,
 		});
@@ -320,7 +334,7 @@ describe("slugs and parents", () => {
 		await editor.api.entries.saveDraft({ siteId: site.siteId, entryId: b, parentId: null });
 		await editor.api.entries.saveDraft({ siteId: site.siteId, entryId: a, parentId: b });
 
-		await expect(editor.api.entries.publish({ siteId: site.siteId, entryId: a })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.publish({ siteId: site.siteId, entryId: a }))).toMatchObject({
 			code: "ENTRY_INVALID",
 			data: { problems: [{ at: "parentId", message: "A Page can't go under one of its own child Pages." }] },
 		});
@@ -345,7 +359,7 @@ describe("deleting a Page", () => {
 		await staff.api.pages.setHomePage({ siteId: site.siteId, pageId: about });
 
 		for (const entryId of [about, team]) {
-			await expect(editor.api.entries.delete({ siteId: site.siteId, entryId })).rejects.toMatchObject({
+			expect(await rejection(editor.api.entries.delete({ siteId: site.siteId, entryId }))).toMatchObject({
 				code: "PAGE_HAS_CHILDREN",
 				status: 409,
 				data: { children: 1 },

@@ -8,6 +8,7 @@ import { formVisitor } from "../harness/forms.ts";
 import { pdf, upload } from "../harness/images.ts";
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { rejection } from "../harness/settled.ts";
 import { downloadExport, exportSite } from "../harness/site-transfer.ts";
 import { goLive } from "../harness/staging.ts";
 import { addAuthenticator, signInWithAuthenticator } from "../harness/two-factor.ts";
@@ -101,7 +102,7 @@ describe("the admin's downloads, for a person who must set up two-factor authent
 		const withFactor = await signInWithAuthenticator(install, superadmin, secret);
 		await withFactor.api.install.security.requireTwoFactor({ required: true });
 
-		await expect(late.browser.api.workspaces.list()).rejects.toMatchObject({ code: "TWO_FACTOR_SETUP_REQUIRED" });
+		expect(await rejection(late.browser.api.workspaces.list())).toMatchObject({ code: "TWO_FACTOR_SETUP_REQUIRED" });
 		expect(await statuses()).toEqual({ "Media preview": 404, "Form upload": 404, "Site export": 404 });
 
 		await addAuthenticator(install, late.browser, late.account.password);

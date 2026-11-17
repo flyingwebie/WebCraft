@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 import { element, text, tree, value } from "../harness/trees.ts";
 
@@ -88,7 +89,7 @@ describe("defining the Globals", () => {
 			problems: [{ at: "fields.phone", rule: "required" }],
 			updatedAt: install.clock.now(),
 		});
-		await expect(owner.api.globals.setFields({ siteId, fields: [] })).rejects.toMatchObject({
+		expect(await rejection(owner.api.globals.setFields({ siteId, fields: [] }))).toMatchObject({
 			code: "FORBIDDEN",
 			data: { permission: "structure.edit" },
 		});
@@ -111,11 +112,14 @@ describe("defining the Globals", () => {
 			{ fields: [{ key: "phone", label: "Phone", type: "number" }], at: "fields[0].type" },
 		];
 		for (const { fields, at } of cases) {
-			await expect(
+			expect(
 				// @ts-expect-error: Fields as a client could send them
-				staff.api.globals.setFields({ siteId, fields }),
+				await rejection(staff.api.globals.setFields({ siteId, fields })),
 				at,
-			).rejects.toMatchObject({ code: "GLOBALS_INVALID", data: { problems: [{ at }] } });
+			).toMatchObject({
+				code: "GLOBALS_INVALID",
+				data: { problems: [{ at }] },
+			});
 		}
 	});
 });
@@ -143,28 +147,28 @@ describe("editing and publishing the Globals", () => {
 			published: null,
 			problems: [],
 		});
-		await expect(
-			author.api.globals.saveDraft({ siteId, fields: { hours: [{ day: "Tuesday", opens: "7am" }] } }),
-		).rejects.toMatchObject({ code: "GLOBALS_INVALID", data: { problems: [{ at: "fields.hours[0].opens" }] } });
-		await expect(author.api.globals.saveDraft({ siteId, fields: { fax: "1" } })).rejects.toMatchObject({
+		expect(
+			await rejection(author.api.globals.saveDraft({ siteId, fields: { hours: [{ day: "Tuesday", opens: "7am" }] } })),
+		).toMatchObject({ code: "GLOBALS_INVALID", data: { problems: [{ at: "fields.hours[0].opens" }] } });
+		expect(await rejection(author.api.globals.saveDraft({ siteId, fields: { fax: "1" } }))).toMatchObject({
 			code: "GLOBALS_INVALID",
 			data: { problems: [{ at: "fields.fax" }] },
 		});
 	});
 
 	test("Editors publish them; Authors can't; broken rules and empty required values block publishing", async () => {
-		await expect(author.api.globals.publish({ siteId })).rejects.toMatchObject({
+		expect(await rejection(author.api.globals.publish({ siteId }))).toMatchObject({
 			code: "FORBIDDEN",
 			data: { permission: "entry.publish" },
 		});
 
 		await author.api.globals.saveDraft({ siteId, fields: { phone: "call us" } });
-		await expect(editor.api.globals.publish({ siteId })).rejects.toMatchObject({
+		expect(await rejection(editor.api.globals.publish({ siteId }))).toMatchObject({
 			code: "GLOBALS_INVALID",
 			data: { problems: [{ at: "fields.phone", rule: "pattern" }] },
 		});
 		await author.api.globals.saveDraft({ siteId, fields: { phone: null } });
-		await expect(editor.api.globals.publish({ siteId })).rejects.toMatchObject({
+		expect(await rejection(editor.api.globals.publish({ siteId }))).toMatchObject({
 			code: "GLOBALS_INCOMPLETE",
 			data: { missing: ["phone"] },
 		});
@@ -243,12 +247,14 @@ describe("site.x in Templates", () => {
 			urlPattern: "/notes/{slug}",
 		});
 
-		await expect(
-			staff.api.templates.saveEntryTemplate({
-				siteId,
-				postTypeId: postType.id,
-				tree: tree(element("p", [value("site.fax")])),
-			}),
-		).rejects.toMatchObject({ code: "TEMPLATE_INVALID", data: { problems: [{ at: "nodes[0].children[0].path" }] } });
+		expect(
+			await rejection(
+				staff.api.templates.saveEntryTemplate({
+					siteId,
+					postTypeId: postType.id,
+					tree: tree(element("p", [value("site.fax")])),
+				}),
+			),
+		).toMatchObject({ code: "TEMPLATE_INVALID", data: { problems: [{ at: "nodes[0].children[0].path" }] } });
 	});
 });

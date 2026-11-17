@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { imageInfo, pdf, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestAccount, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -152,9 +153,9 @@ describe("Replace file", () => {
 
 	test("a file is replaced by one of the same kind", async () => {
 		const image = await readyImage(editor, "kind.jpg");
-		await expect(
-			editor.api.media.replace({ siteId, mediaId: image.id, file: upload(pdf(), "kind.pdf") }),
-		).rejects.toMatchObject({ code: "MEDIA_REPLACE_REFUSED", data: { reason: "kind" } });
+		expect(
+			await rejection(editor.api.media.replace({ siteId, mediaId: image.id, file: upload(pdf(), "kind.pdf") })),
+		).toMatchObject({ code: "MEDIA_REPLACE_REFUSED", data: { reason: "kind" } });
 	});
 
 	test("a new image the worker can't read leaves the item as it was, and says so", async () => {
@@ -176,23 +177,27 @@ describe("Replace file", () => {
 
 	test("Authors replace only their own uploads; a file in the Trash isn't replaced", async () => {
 		const editors = await readyImage(editor, "editors-file.jpg");
-		await expect(
-			author.api.media.replace({
-				siteId,
-				mediaId: editors.id,
-				file: upload(await photo({ width: 50, height: 50 }), "x.jpg"),
-			}),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(
+				author.api.media.replace({
+					siteId,
+					mediaId: editors.id,
+					file: upload(await photo({ width: 50, height: 50 }), "x.jpg"),
+				}),
+			),
+		).toMatchObject({ code: "FORBIDDEN" });
 
 		const asked = await editor.api.media.delete({ siteId, mediaId: editors.id });
 		if (!asked.trashed)
 			await editor.api.media.delete({ siteId, mediaId: editors.id, confirmation: asked.confirmation.id });
-		await expect(
-			editor.api.media.replace({
-				siteId,
-				mediaId: editors.id,
-				file: upload(await photo({ width: 50, height: 50 }), "y.jpg"),
-			}),
-		).rejects.toMatchObject({ code: "MEDIA_IN_TRASH" });
+		expect(
+			await rejection(
+				editor.api.media.replace({
+					siteId,
+					mediaId: editors.id,
+					file: upload(await photo({ width: 50, height: 50 }), "y.jpg"),
+				}),
+			),
+		).toMatchObject({ code: "MEDIA_IN_TRASH" });
 	});
 });

@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { gunzipSync } from "node:zlib";
 
 import { createTestInstall, TEST_MASTER_KEY, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import {
 	exportedArchive,
 	importArchive,
@@ -136,15 +137,17 @@ describe("exported with a passphrase", () => {
 		const admin = await install.superadmin();
 		const uploaded = await uploadArchive(admin, otherWorkspaceId, withPassphrase);
 		expect(uploaded.archive?.secrets).toMatchObject({ carried: true });
-		await expect(
-			admin.api.siteImports.start({
-				workspaceId: otherWorkspaceId,
-				importId: uploaded.id,
-				name: "Delta Bakery",
-				slug: "delta-bakery",
-				passphrase: "not the passphrase at all",
-			}),
-		).rejects.toMatchObject({ code: "SITE_IMPORT_PASSPHRASE_WRONG", status: 400 });
+		expect(
+			await rejection(
+				admin.api.siteImports.start({
+					workspaceId: otherWorkspaceId,
+					importId: uploaded.id,
+					name: "Delta Bakery",
+					slug: "delta-bakery",
+					passphrase: "not the passphrase at all",
+				}),
+			),
+		).toMatchObject({ code: "SITE_IMPORT_PASSPHRASE_WRONG", status: 400 });
 		const { import: after } = await admin.api.siteImports.get({ workspaceId: otherWorkspaceId, importId: uploaded.id });
 		expect(after.status).toBe("ready");
 	});
@@ -173,7 +176,7 @@ describe("exported without a passphrase", () => {
 
 describe("the passphrase", () => {
 	test("has at least 12 characters", async () => {
-		await expect(staff.api.siteExports.start({ siteId, passphrase: "short" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.siteExports.start({ siteId, passphrase: "short" }))).toMatchObject({
 			code: "BAD_REQUEST",
 		});
 	});
@@ -247,7 +250,7 @@ test("an archive can't make the Install hash a passphrase for longer than WebCra
 		manifest.secrets.sha256 = createHash("sha256").update(file.data).digest("hex");
 		head.data = Buffer.from(JSON.stringify(manifest));
 
-		await expect(uploadArchive(admin, target, tarOf(files))).rejects.toMatchObject({
+		expect(await rejection(uploadArchive(admin, target, tarOf(files)))).toMatchObject({
 			code: "SITE_IMPORT_REFUSED",
 			data: { reason: "damaged" },
 		});
@@ -275,7 +278,7 @@ test("the secret inventory must agree with the manifest, without duplicate names
 		const manifest = manifestIn(withPassphrase);
 		manifest.secrets.sha256 = createHash("sha256").update(file.data).digest("hex");
 		head.data = Buffer.from(JSON.stringify(manifest));
-		await expect(uploadArchive(admin, target, tarOf(files))).rejects.toMatchObject({
+		expect(await rejection(uploadArchive(admin, target, tarOf(files)))).toMatchObject({
 			code: "SITE_IMPORT_REFUSED",
 			data: { reason: "damaged" },
 		});

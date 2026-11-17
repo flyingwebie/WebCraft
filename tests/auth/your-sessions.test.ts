@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestAccount, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
@@ -153,18 +154,18 @@ describe("revoking sessions", () => {
 		const theirs = await install.signIn(other);
 		const theirSession = (await theirs.api.me.sessions.list()).sessions[0];
 
-		await expect(mine.api.me.sessions.revoke({ sessionId: theirSession?.id ?? "" })).rejects.toMatchObject({
+		expect(await rejection(mine.api.me.sessions.revoke({ sessionId: theirSession?.id ?? "" }))).toMatchObject({
 			code: "SESSION_NOT_FOUND",
 			status: 404,
 		});
-		await expect(
-			mine.api.me.sessions.revoke({ sessionId: "00000000-0000-4000-8000-000000000000" }),
-		).rejects.toMatchObject({ code: "SESSION_NOT_FOUND", status: 404 });
+		expect(
+			await rejection(mine.api.me.sessions.revoke({ sessionId: "00000000-0000-4000-8000-000000000000" })),
+		).toMatchObject({ code: "SESSION_NOT_FOUND", status: 404 });
 		expect(await theirs.api.session.current()).toMatchObject({ person: { email: other.email } });
 	});
 
 	test("needs a session", async () => {
-		await expect(install.browser().api.me.sessions.list()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+		expect(await rejection(install.browser().api.me.sessions.list())).toMatchObject({ code: "UNAUTHORIZED" });
 	});
 
 	test("is recorded in the Audit log", async () => {
@@ -197,10 +198,8 @@ describe("changing your password", () => {
 
 		expect(await phone.api.session.current()).toEqual({ person: null });
 		expect(await laptop.api.session.current()).toMatchObject({ person: { email: account.email } });
-		await expect(install.signIn(account)).rejects.toMatchObject({ code: "INVALID_CREDENTIALS" });
-		await expect(
-			install.signIn({ email: account.email, password: "a brand new long password" }),
-		).resolves.toBeDefined();
+		expect(await rejection(install.signIn(account))).toMatchObject({ code: "INVALID_CREDENTIALS" });
+		expect(await install.signIn({ email: account.email, password: "a brand new long password" })).toBeDefined();
 	});
 
 	test("refuses a password the rules don't allow, and changes nothing", async () => {
@@ -208,13 +207,13 @@ describe("changing your password", () => {
 		const laptop = await install.signIn(account);
 		const phone = await install.signIn(account);
 
-		await expect(laptop.api.me.changePassword({ newPassword: "too short" })).rejects.toMatchObject({
+		expect(await rejection(laptop.api.me.changePassword({ newPassword: "too short" }))).toMatchObject({
 			code: "PASSWORD_REFUSED",
 			data: { problem: "too-short" },
 		});
 
 		expect(await phone.api.session.current()).toMatchObject({ person: { email: account.email } });
-		await expect(install.signIn(account)).resolves.toBeDefined();
+		expect(await install.signIn(account)).toBeDefined();
 	});
 
 	test("is recorded in the Audit log, without the password", async () => {

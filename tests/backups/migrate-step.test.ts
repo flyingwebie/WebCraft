@@ -8,6 +8,7 @@ import type { ModuleDefinition, ModuleMigration } from "@webcraft/module-sdk";
 
 import { manifestOf } from "../harness/backups.ts";
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { thrown } from "../harness/settled.ts";
 import { sample } from "../modules/sample/index.ts";
 
 /** The sample Module at a later version, with more migrations. */
@@ -140,7 +141,7 @@ test("a migrate step that fails stops before anything else changes, the Backup a
 		const broken = sampleWith("1.1.0", [{ name: "0002-broken", sql: "ALTER TABLE nowhere ADD COLUMN size integer;" }]);
 		await install.restart({ modules: [broken] });
 
-		await expect(install.migrate({ backup: true })).rejects.toThrow("0002-broken failed");
+		expect(await thrown(install.migrate({ backup: true }))).toThrow("0002-broken failed");
 
 		expect(readdirSync(install.backupDir)).toEqual([
 			expect.stringMatching(/^webcraft-backup-\d{8}-\d{6}-before-migrations-[0-9a-f]{4}\.tar$/),

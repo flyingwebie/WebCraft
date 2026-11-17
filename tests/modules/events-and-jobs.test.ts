@@ -4,6 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 import { SAMPLE_HOOK, sample } from "./sample/index.ts";
 
@@ -162,7 +163,7 @@ describe("events", () => {
 			fields: [{ key: "summary", label: "Summary", type: "text", required: true }],
 		});
 
-		await expect(staff.api.entries.publish({ siteId, entryId })).rejects.toMatchObject({ code: "ENTRY_INCOMPLETE" });
+		expect(await rejection(staff.api.entries.publish({ siteId, entryId }))).toMatchObject({ code: "ENTRY_INCOMPLETE" });
 		const report = await install.drainJobs();
 
 		expect(report.completed.filter((job) => job.name === "modules.event")).toEqual([]);
@@ -194,9 +195,9 @@ describe("a Module's own jobs", () => {
 		await goLive(install, site.id);
 		const { note } = await notes(staff).add({ siteId: site.id, body: "Remind me, or not" });
 
-		await expect(
-			notes(staff).remind({ siteId: site.id, noteId: note.id, delaySeconds: 0, giveUp: true }),
-		).rejects.toMatchObject({ code: "MODULE_ERROR", status: 409, data: { code: "gave-up" } });
+		expect(
+			await rejection(notes(staff).remind({ siteId: site.id, noteId: note.id, delaySeconds: 0, giveUp: true })),
+		).toMatchObject({ code: "MODULE_ERROR", status: 409, data: { code: "gave-up" } });
 
 		await install.clock.advance(MINUTE);
 		expect((await install.drainJobs()).completed.map((job) => job.name)).not.toContain("modules.job");
@@ -468,9 +469,9 @@ describe("email", () => {
 			const site = await quiet.createSite((await quiet.createWorkspace()).id);
 			const { note } = await notes(admin).add({ siteId: site.id, body: "Hush" });
 
-			await expect(
-				notes(admin).share({ siteId: site.id, noteId: note.id, email: "someone@client.example" }),
-			).rejects.toMatchObject({ code: "MODULE_FAILED" });
+			expect(
+				await rejection(notes(admin).share({ siteId: site.id, noteId: note.id, email: "someone@client.example" })),
+			).toMatchObject({ code: "MODULE_FAILED" });
 			const { lines } = await admin.api.modules.log({ moduleId: "sample" });
 			expect(lines[0]?.details).toMatchObject({ error: { name: "ModuleRefusedError", reason: "use" } });
 		} finally {

@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 import { element, tree, value } from "../harness/trees.ts";
 
@@ -121,14 +122,16 @@ describe("defining a Relationship", () => {
 			{ field: { postTypes: ["tags"], min: 1 }, at: "fields[0].min" },
 		];
 		for (const { field, at } of cases) {
-			await expect(
-				staff.api.postTypes.create({
-					siteId,
-					name: "Bad",
-					urlPattern: "/bad/{slug}",
-					fields: [{ key: "links", label: "Links", type: "relationship", ...field }],
-				}),
-			).rejects.toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at }] } });
+			expect(
+				await rejection(
+					staff.api.postTypes.create({
+						siteId,
+						name: "Bad",
+						urlPattern: "/bad/{slug}",
+						fields: [{ key: "links", label: "Links", type: "relationship", ...field }],
+					}),
+				),
+			).toMatchObject({ code: "POST_TYPE_INVALID", data: { problems: [{ at }] } });
 		}
 		// A Post Type may point at its own Entries.
 		const { postType } = await staff.api.postTypes.create({
@@ -179,17 +182,17 @@ describe("values", () => {
 			{ writer: [tag.id] },
 		]) {
 			const [key] = Object.keys(fields);
-			await expect(
-				author.api.entries.saveDraft({ siteId, entryId: post.id, fields }),
+			expect(
+				await rejection(author.api.entries.saveDraft({ siteId, entryId: post.id, fields })),
 				JSON.stringify(fields),
-			).rejects.toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at: `fields.${key}` }] } });
+			).toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at: `fields.${key}` }] } });
 		}
 		const credit = author.api.entries.saveDraft({
 			siteId,
 			entryId: post.id,
 			fields: { credits: [{ person: tag.id }] },
 		});
-		await expect(credit).rejects.toMatchObject({ data: { problems: [{ at: "fields.credits[0].person" }] } });
+		expect(await rejection(credit)).toMatchObject({ data: { problems: [{ at: "fields.credits[0].person" }] } });
 	});
 });
 
@@ -244,7 +247,7 @@ describe("deleting an Entry", () => {
 
 		const done = await editor.api.entries.delete({ siteId, entryId: tag.id, confirmation: asked.confirmation?.id });
 		expect(done).toEqual({ deleted: true, links: 2 });
-		await expect(editor.api.entries.get({ siteId, entryId: tag.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.get({ siteId, entryId: tag.id }))).toMatchObject({
 			code: "ENTRY_NOT_FOUND",
 		});
 		expect((await editor.api.entries.get({ siteId, entryId: draftOnly.id })).entry.draft.fields.tags).toEqual([
@@ -281,7 +284,7 @@ describe("deleting an Entry", () => {
 		const dee = await entryOf("people", "Dee");
 		const recipe = await entryOf("recipes", "Scones", { chef: cal.id });
 
-		await expect(editor.api.entries.delete({ siteId, entryId: cal.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.delete({ siteId, entryId: cal.id }))).toMatchObject({
 			code: "ENTRY_LINKED",
 			data: { blockedBy: [{ entryId: recipe.id, postTypeId: postTypeIds.recipes, title: "Scones", fields: ["chef"] }] },
 		});
@@ -297,38 +300,38 @@ describe("deleting an Entry", () => {
 		const asked = await editor.api.entries.delete({ siteId, entryId: tag.id });
 		const id = asked.confirmation?.id;
 
-		await expect(editor.api.entries.delete({ siteId, entryId: other.id, confirmation: id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.delete({ siteId, entryId: other.id, confirmation: id }))).toMatchObject({
 			code: "CONFIRMATION_INVALID",
 			data: { problem: "unknown" },
 		});
-		await expect(staff.api.entries.delete({ siteId, entryId: tag.id, confirmation: id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.entries.delete({ siteId, entryId: tag.id, confirmation: id }))).toMatchObject({
 			code: "CONFIRMATION_INVALID",
 			data: { problem: "unknown" },
 		});
 
 		await entryOf("blog", "Rye bread", { tags: [tag.id] });
-		await expect(editor.api.entries.delete({ siteId, entryId: tag.id, confirmation: id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.delete({ siteId, entryId: tag.id, confirmation: id }))).toMatchObject({
 			code: "CONFIRMATION_INVALID",
 			data: { problem: "changed" },
 		});
 
 		const again = await editor.api.entries.delete({ siteId, entryId: tag.id });
 		install.clock.advance(5 * 60_000 + 1);
-		await expect(
-			editor.api.entries.delete({ siteId, entryId: tag.id, confirmation: again.confirmation?.id }),
-		).rejects.toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "expired" } });
+		expect(
+			await rejection(editor.api.entries.delete({ siteId, entryId: tag.id, confirmation: again.confirmation?.id })),
+		).toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "expired" } });
 
 		const last = await editor.api.entries.delete({ siteId, entryId: tag.id });
 		await editor.api.entries.delete({ siteId, entryId: tag.id, confirmation: last.confirmation?.id });
-		await expect(
-			editor.api.entries.delete({ siteId, entryId: other.id, confirmation: last.confirmation?.id }),
-		).rejects.toMatchObject({ code: "CONFIRMATION_INVALID" });
+		expect(
+			await rejection(editor.api.entries.delete({ siteId, entryId: other.id, confirmation: last.confirmation?.id })),
+		).toMatchObject({ code: "CONFIRMATION_INVALID" });
 	});
 
 	test("Authors can't delete Entries", async () => {
 		const tag = await entryOf("tags", "Mine");
 
-		await expect(author.api.entries.delete({ siteId, entryId: tag.id })).rejects.toMatchObject({
+		expect(await rejection(author.api.entries.delete({ siteId, entryId: tag.id }))).toMatchObject({
 			code: "FORBIDDEN",
 			data: { permission: "entry.delete" },
 		});

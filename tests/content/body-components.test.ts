@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -100,9 +101,11 @@ describe("allowing Components in a Body field", () => {
 		const fields: FieldInputs = [
 			{ key: "body", label: "Body", type: "body", components: [noteId, "8f14e45f-ceea-467a-9575-5ef3d3cbbd6c"] },
 		];
-		await expect(
-			staff.api.postTypes.create({ siteId, name: "Notes", key: "notes", urlPattern: "/notes/{slug}", fields }),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.postTypes.create({ siteId, name: "Notes", key: "notes", urlPattern: "/notes/{slug}", fields }),
+			),
+		).toMatchObject({
 			code: "POST_TYPE_INVALID",
 			data: { problems: [{ at: "fields[0].components[1]", rule: "componentUnknown" }] },
 		});
@@ -192,10 +195,12 @@ describe("inserting a Component in a body", () => {
 			],
 		];
 		for (const [block, at] of refusals) {
-			await expect(
-				author.api.entries.create({ siteId, postTypeId: postType.id, title: "Plans", fields: { body: [block] } }),
+			expect(
+				await rejection(
+					author.api.entries.create({ siteId, postTypeId: postType.id, title: "Plans", fields: { body: [block] } }),
+				),
 				`${JSON.stringify(block)} is refused at ${at}`,
-			).rejects.toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at }] } });
+			).toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at }] } });
 		}
 	});
 
@@ -208,7 +213,7 @@ describe("inserting a Component in a body", () => {
 			fields: { body: [{ type: "component", component: pricingId, props: [] }] },
 		});
 		expect(entry.problems).toEqual([expect.objectContaining({ at: "fields.body[0].props.plan", rule: "prop" })]);
-		await expect(editor.api.entries.publish({ siteId, entryId: entry.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.publish({ siteId, entryId: entry.id }))).toMatchObject({
 			code: "ENTRY_INVALID",
 		});
 	});
@@ -239,20 +244,22 @@ describe("inserting a Component in a body", () => {
 			fields: { body: [{ ...blocks[0], text: "New intro" }, blocks[1]] },
 		});
 		expect(saved.problems).toEqual([expect.objectContaining({ at: "fields.body[1].component", rule: "component" })]);
-		await expect(editor.api.entries.publish({ siteId, entryId: entry.id })).rejects.toMatchObject({
+		expect(await rejection(editor.api.entries.publish({ siteId, entryId: entry.id }))).toMatchObject({
 			code: "ENTRY_INVALID",
 		});
 
 		// Placing it again, as a new Block, is refused.
-		await expect(
-			author.api.entries.saveDraft({
-				siteId,
-				entryId: entry.id,
-				fields: {
-					body: [...(saved.draft.fields.body as unknown[]), { type: "component", component: noteId, props: [] }],
-				},
-			}),
-		).rejects.toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at: "fields.body[2].component" }] } });
+		expect(
+			await rejection(
+				author.api.entries.saveDraft({
+					siteId,
+					entryId: entry.id,
+					fields: {
+						body: [...(saved.draft.fields.body as unknown[]), { type: "component", component: noteId, props: [] }],
+					},
+				}),
+			),
+		).toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at: "fields.body[2].component" }] } });
 	});
 });
 

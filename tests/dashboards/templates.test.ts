@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { analyticsApi, analyticsVisitor, liveSite } from "../harness/analytics.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let domains = 0;
@@ -131,13 +132,15 @@ describe("Dashboard templates", () => {
 			],
 		});
 
-		await expect(
-			onlyOther.api.dashboards.create({
-				siteId: florist.siteId,
-				name: "Copied",
-				template: { workspaceId: agency.id, templateId: template.id },
-			}),
-		).rejects.toMatchObject({ code: "DASHBOARD_TEMPLATE_NOT_FOUND" });
+		expect(
+			await rejection(
+				onlyOther.api.dashboards.create({
+					siteId: florist.siteId,
+					name: "Copied",
+					template: { workspaceId: agency.id, templateId: template.id },
+				}),
+			),
+		).toMatchObject({ code: "DASHBOARD_TEMPLATE_NOT_FOUND" });
 
 		await staff.api.dashboardTemplates.delete({ workspaceId: agency.id, templateId: template.id });
 		expect((await staff.api.dashboardTemplates.list()).templates).toEqual([]);
@@ -370,11 +373,13 @@ describe("a Workspace Dashboard", () => {
 		const { dashboard } = await staff.api.dashboards.create({ siteId: site.id, name: "Site board" });
 
 		expect((await staff.api.dashboards.list({ workspaceId: workspace.id })).dashboards).toEqual([]);
-		await expect(
-			staff.api.dashboards.get({ workspaceId: workspace.id, dashboardId: dashboard.id }),
-		).rejects.toMatchObject({ code: "DASHBOARD_NOT_FOUND" });
-		await expect(
-			staff.api.dashboards.get({ workspaceId: workspace.id, siteId: site.id, dashboardId: dashboard.id }),
-		).rejects.toMatchObject({ status: 400 });
+		expect(
+			await rejection(staff.api.dashboards.get({ workspaceId: workspace.id, dashboardId: dashboard.id })),
+		).toMatchObject({ code: "DASHBOARD_NOT_FOUND" });
+		expect(
+			await rejection(
+				staff.api.dashboards.get({ workspaceId: workspace.id, siteId: site.id, dashboardId: dashboard.id }),
+			),
+		).toMatchObject({ status: 400 });
 	});
 });

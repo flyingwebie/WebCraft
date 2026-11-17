@@ -3,6 +3,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { element, type TestNode, text, tree, value } from "../harness/trees.ts";
 
 let install: TestInstall;
@@ -106,13 +107,13 @@ describe("saving an Entry template", () => {
 			tree: tree(element("h1", [value("title")])),
 		});
 
-		await expect(owner.api.templates.getEntryTemplate({ siteId, postTypeId })).rejects.toMatchObject({
+		expect(await rejection(owner.api.templates.getEntryTemplate({ siteId, postTypeId }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(
-			owner.api.templates.saveEntryTemplate({ siteId, postTypeId, tree: tree(element("h1")) }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(owner.api.templates.publish({ siteId, templateId: template.id })).rejects.toMatchObject({
+		expect(
+			await rejection(owner.api.templates.saveEntryTemplate({ siteId, postTypeId, tree: tree(element("h1")) })),
+		).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(owner.api.templates.publish({ siteId, templateId: template.id }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});
@@ -121,7 +122,7 @@ describe("saving an Entry template", () => {
 describe("refused trees", () => {
 	const refuses = async (nodes: TestNode[] | unknown, at: string) => {
 		const input = Array.isArray(nodes) ? tree(...(nodes as TestNode[])) : nodes;
-		await expect(staff.api.templates.saveEntryTemplate({ siteId, postTypeId, tree: input })).rejects.toMatchObject({
+		expect(await rejection(staff.api.templates.saveEntryTemplate({ siteId, postTypeId, tree: input }))).toMatchObject({
 			code: "TEMPLATE_INVALID",
 			data: { problems: [{ at }] },
 		});
@@ -183,12 +184,14 @@ describe("refused trees", () => {
 	});
 
 	test("an Entry template for a Post Type the Site doesn't have", async () => {
-		await expect(
-			staff.api.templates.saveEntryTemplate({
-				siteId,
-				postTypeId: "00000000-0000-4000-8000-000000000000",
-				tree: tree(element("h1")),
-			}),
-		).rejects.toMatchObject({ code: "POST_TYPE_NOT_FOUND" });
+		expect(
+			await rejection(
+				staff.api.templates.saveEntryTemplate({
+					siteId,
+					postTypeId: "00000000-0000-4000-8000-000000000000",
+					tree: tree(element("h1")),
+				}),
+			),
+		).toMatchObject({ code: "POST_TYPE_NOT_FOUND" });
 	});
 });

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestAccount, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const MINUTE = 60 * 1000;
 
@@ -27,7 +28,7 @@ describe("Sensitive actions", () => {
 
 		await install.clock.advance(10 * MINUTE - 1000);
 
-		await expect(inviteStaff(browser)).resolves.toMatchObject({ invite: { workspaces: "all" } });
+		expect(await inviteStaff(browser)).toMatchObject({ invite: { workspaces: "all" } });
 	});
 
 	test("are refused once the last identity check is more than 10 minutes old", async () => {
@@ -35,7 +36,7 @@ describe("Sensitive actions", () => {
 
 		await install.clock.advance(10 * MINUTE + 1000);
 
-		await expect(inviteStaff(browser)).rejects.toMatchObject({
+		expect(await rejection(inviteStaff(browser))).toMatchObject({
 			code: "IDENTITY_CHECK_REQUIRED",
 			status: 403,
 			data: { action: "staff.invite" },
@@ -48,23 +49,23 @@ describe("Sensitive actions", () => {
 
 		await browser.api.session.confirmIdentity({ password: superadmin.password });
 
-		await expect(inviteStaff(browser)).resolves.toBeDefined();
+		expect(await inviteStaff(browser)).toBeDefined();
 		await install.clock.advance(9 * MINUTE);
-		await expect(inviteStaff(browser)).resolves.toBeDefined();
+		expect(await inviteStaff(browser)).toBeDefined();
 		await install.clock.advance(2 * MINUTE);
-		await expect(inviteStaff(browser)).rejects.toMatchObject({ code: "IDENTITY_CHECK_REQUIRED" });
+		expect(await rejection(inviteStaff(browser))).toMatchObject({ code: "IDENTITY_CHECK_REQUIRED" });
 	});
 
 	test("a wrong password confirms nothing", async () => {
 		const browser = await install.signIn(superadmin);
 		await install.clock.advance(30 * MINUTE);
 
-		await expect(browser.api.session.confirmIdentity({ password: "not the right password" })).rejects.toMatchObject({
+		expect(await rejection(browser.api.session.confirmIdentity({ password: "not the right password" }))).toMatchObject({
 			code: "INVALID_CREDENTIALS",
 			status: 401,
 		});
 
-		await expect(inviteStaff(browser)).rejects.toMatchObject({ code: "IDENTITY_CHECK_REQUIRED" });
+		expect(await rejection(inviteStaff(browser))).toMatchObject({ code: "IDENTITY_CHECK_REQUIRED" });
 		expect(await browser.api.session.current()).toMatchObject({ person: { email: superadmin.email } });
 	});
 
@@ -75,8 +76,8 @@ describe("Sensitive actions", () => {
 
 		await laptop.api.session.confirmIdentity({ password: superadmin.password });
 
-		await expect(inviteStaff(laptop)).resolves.toBeDefined();
-		await expect(inviteStaff(phone)).rejects.toMatchObject({ code: "IDENTITY_CHECK_REQUIRED" });
+		expect(await inviteStaff(laptop)).toBeDefined();
+		expect(await rejection(inviteStaff(phone))).toMatchObject({ code: "IDENTITY_CHECK_REQUIRED" });
 	});
 
 	test("are refused to people who may not take them before any identity check is asked for", async () => {
@@ -84,13 +85,13 @@ describe("Sensitive actions", () => {
 		const staff = await install.createStaff({ workspaces: [workspace.id] });
 		await install.clock.advance(30 * MINUTE);
 
-		await expect(inviteStaff(staff.browser)).rejects.toMatchObject({ code: "FORBIDDEN", status: 403 });
+		expect(await rejection(inviteStaff(staff.browser))).toMatchObject({ code: "FORBIDDEN", status: 403 });
 	});
 
 	test("confirming needs a session", async () => {
 		const browser = install.browser();
 
-		await expect(browser.api.session.confirmIdentity({ password: superadmin.password })).rejects.toMatchObject({
+		expect(await rejection(browser.api.session.confirmIdentity({ password: superadmin.password }))).toMatchObject({
 			code: "UNAUTHORIZED",
 		});
 	});
@@ -101,7 +102,7 @@ describe("the test harness", () => {
 		await install.superadmin();
 		await install.clock.advance(30 * MINUTE);
 
-		await expect(install.createStaff({ workspaces: "all" })).resolves.toMatchObject({ personId: expect.any(String) });
+		expect(await install.createStaff({ workspaces: "all" })).toMatchObject({ personId: expect.any(String) });
 	});
 });
 
@@ -110,6 +111,6 @@ describe("actions that aren't Sensitive", () => {
 		const browser = await install.signIn(superadmin);
 		await install.clock.advance(2 * 24 * 60 * MINUTE);
 
-		await expect(browser.api.workspaces.create({ name: "No check needed" })).resolves.toBeDefined();
+		expect(await browser.api.workspaces.create({ name: "No check needed" })).toBeDefined();
 	});
 });

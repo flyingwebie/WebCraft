@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { photo } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { csv, csvSettings, importCsv, startRun } from "./support.ts";
 
 const PUBLIC = "93.184.216.34";
@@ -92,7 +93,7 @@ describe("the preview before a run", () => {
 		const other = (await install.createMember({ workspaceId, role: "editor" })).browser;
 		const { file } = await other.api.imports.uploadCsv({ siteId, file: csv("name,sku,price,photo\nRye,RY-1,4,\n") });
 
-		await expect(editor.api.imports.preview({ siteId, fileId: file.id, settings })).rejects.toMatchObject({
+		expect(await rejection(editor.api.imports.preview({ siteId, fileId: file.id, settings }))).toMatchObject({
 			code: "IMPORT_FILE_NOT_FOUND",
 		});
 	});
@@ -213,7 +214,7 @@ describe("a run in the background", () => {
 			problems: [{ row: 603, column: null, rule: "matchedTwice", params: { row: 5 } }],
 		});
 		expect((await editor.api.entries.list({ siteId, postTypeId: postType.id })).entries).toHaveLength(601);
-	}, 120_000);
+	});
 
 	test("fails when the person who started it lost access to the Site meanwhile", async () => {
 		const { postType, settings } = await products();

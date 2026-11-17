@@ -9,6 +9,7 @@ import { openEditMode } from "../harness/edit-mode.ts";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { withoutStructuredData } from "../harness/seo.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -346,20 +347,24 @@ describe("what Templates read from a body", () => {
 	});
 
 	test("a Template can't read a part a body doesn't have", async () => {
-		await expect(
-			staff.api.templates.saveEntryTemplateMarkup({
-				siteId,
-				postTypeId: articlesId,
-				markup: "<p>{{ body.summary }}</p>",
-			}),
-		).rejects.toMatchObject({ code: "TEMPLATE_MARKUP_INVALID" });
-		await expect(
-			staff.api.templates.saveEntryTemplateMarkup({
-				siteId,
-				postTypeId: articlesId,
-				markup: "<p>{{ body.toc.text }}</p>",
-			}),
-		).rejects.toMatchObject({ code: "TEMPLATE_MARKUP_INVALID" });
+		expect(
+			await rejection(
+				staff.api.templates.saveEntryTemplateMarkup({
+					siteId,
+					postTypeId: articlesId,
+					markup: "<p>{{ body.summary }}</p>",
+				}),
+			),
+		).toMatchObject({ code: "TEMPLATE_MARKUP_INVALID" });
+		expect(
+			await rejection(
+				staff.api.templates.saveEntryTemplateMarkup({
+					siteId,
+					postTypeId: articlesId,
+					markup: "<p>{{ body.toc.text }}</p>",
+				}),
+			),
+		).toMatchObject({ code: "TEMPLATE_MARKUP_INVALID" });
 	});
 });
 

@@ -315,7 +315,7 @@ test("the Spam folder keeps a Site's newest 1,000, and the daily purge empties a
 	expect(failed).toEqual([]);
 	expect((await site.kept("spam")).total).toBe(0);
 	expect((await site.kept("inbox")).total).toBe(1);
-}, 120_000);
+});
 
 test("a Form's retention deletes more Submissions than one batch holds, each batch in the Audit log", async () => {
 	const site = await siteWithForm("retention", { perMinute: 1000, perHour: 10_000 });
@@ -343,7 +343,7 @@ test("a Form's retention deletes more Submissions than one batch holds, each bat
 	expect(entries.map((entry) => (entry.details as { deleted: number }).deleted).sort((a, b) => a - b)).toEqual([
 		20, 500,
 	]);
-}, 120_000);
+});
 
 test("an IPv6 connection asks for those 60 pages by its /64, whichever address each request comes from", async () => {
 	const site = await siteWithForm("sent-network", { perMinute: 5, perHour: 30 });

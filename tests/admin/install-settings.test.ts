@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestAccount, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let superadmin: TestAccount;
@@ -39,8 +40,8 @@ describe("Install settings › General", () => {
 	test("people who aren't signed in can't read or change them", async () => {
 		const browser = install.browser();
 
-		await expect(browser.api.install.settings.get()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-		await expect(browser.api.install.settings.update({ name: "Mallory" })).rejects.toMatchObject({
+		expect(await rejection(browser.api.install.settings.get())).toMatchObject({ code: "UNAUTHORIZED" });
+		expect(await rejection(browser.api.install.settings.update({ name: "Mallory" }))).toMatchObject({
 			code: "UNAUTHORIZED",
 		});
 	});

@@ -4,6 +4,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { GO_TO_ENTRIES } from "@webcraft/core";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -100,5 +101,5 @@ test("a Member sees only the Permissions their role gives them, never Code mode'
 	]);
 	expect((await author.api.builder.commandMenu({ siteId })).permissions).toEqual(["site.view", "entry.edit"]);
 	const other = (await install.createSite((await install.createWorkspace()).id)).id;
-	await expect(editor.api.builder.commandMenu({ siteId: other })).rejects.toMatchObject({ code: "SITE_NOT_FOUND" });
+	expect(await rejection(editor.api.builder.commandMenu({ siteId: other }))).toMatchObject({ code: "SITE_NOT_FOUND" });
 });

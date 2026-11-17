@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
 import { answerOf, approveAiClient, connectMcp, refusalOf } from "../harness/mcp.ts";
+import { thrown } from "../harness/settled.ts";
 
 let install: TestInstall;
 let workspaceId: string;
@@ -142,7 +143,7 @@ describe("resources", () => {
 		const content = read.contents[0] as { text: string; mimeType: string };
 		expect(content.mimeType).toBe("application/json");
 		expect(JSON.parse(content.text).site.id).toBe(siteId);
-		await expect(client.readResource({ uri: `webcraft://sites/${otherSiteId}/schema` })).rejects.toThrow();
+		expect(await thrown(client.readResource({ uri: `webcraft://sites/${otherSiteId}/schema` }))).toThrow();
 		await client.close();
 	});
 });

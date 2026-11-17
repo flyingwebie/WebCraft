@@ -14,6 +14,7 @@ import {
 	softwareAuthenticator,
 	TEST_RP_ID,
 } from "../harness/passkeys.ts";
+import { rejection, thrown } from "../harness/settled.ts";
 import { addAuthenticator, confirmIfAsked, signInWithAuthenticator, totpCode } from "../harness/two-factor.ts";
 
 const MINUTE = 60_000;
@@ -104,7 +105,7 @@ describe("adding a passkey", () => {
 		expect(options.excludeCredentials).toEqual([
 			{ id: device.credentialIds[0] ?? "", type: "public-key", transports: ["internal", "hybrid"] },
 		]);
-		await expect(device.create(options)).rejects.toThrow("InvalidStateError");
+		expect(await thrown(device.create(options))).toThrow("InvalidStateError");
 
 		// Passkeys are listed oldest first: the second is added a minute later.
 		await install.clock.advance(60_000);
@@ -131,7 +132,7 @@ describe("adding a passkey", () => {
 		for (const tamper of tampered) {
 			const { options } = await browser.api.me.twoFactor.passkeyOptions();
 			const credential = await device.create(options, tamper);
-			await expect(browser.api.me.twoFactor.addPasskey({ credential, name: "Laptop" })).rejects.toMatchObject({
+			expect(await rejection(browser.api.me.twoFactor.addPasskey({ credential, name: "Laptop" }))).toMatchObject({
 				code: "PASSKEY_INVALID",
 				status: 400,
 			});
@@ -164,7 +165,7 @@ describe("adding a passkey", () => {
 				]),
 			),
 		);
-		await expect(browser.api.me.twoFactor.addPasskey({ credential, name: "Laptop" })).rejects.toMatchObject({
+		expect(await rejection(browser.api.me.twoFactor.addPasskey({ credential, name: "Laptop" }))).toMatchObject({
 			code: "PASSKEY_INVALID",
 			status: 400,
 		});
@@ -177,7 +178,7 @@ describe("adding a passkey", () => {
 		const data = new Uint8Array(Buffer.from(assertion.response.authenticatorData, "base64url"));
 		data[32] = (data[32] ?? 0) | 0x80;
 		assertion.response.authenticatorData = base64url(new Uint8Array([...data, 0xa5]));
-		await expect(visitor.api.session.signInWithPasskey({ credential: assertion })).rejects.toMatchObject({
+		expect(await rejection(visitor.api.session.signInWithPasskey({ credential: assertion }))).toMatchObject({
 			code: "PASSKEY_INVALID",
 			status: 401,
 		});
@@ -190,7 +191,7 @@ describe("adding a passkey", () => {
 		await browser.api.me.twoFactor.addPasskey({ credential: first, name: "One" });
 
 		const second = await softwareAuthenticator().create(options);
-		await expect(browser.api.me.twoFactor.addPasskey({ credential: second, name: "Two" })).rejects.toMatchObject({
+		expect(await rejection(browser.api.me.twoFactor.addPasskey({ credential: second, name: "Two" }))).toMatchObject({
 			code: "PASSKEY_INVALID",
 		});
 	});
@@ -200,7 +201,7 @@ describe("adding a passkey", () => {
 		const laptop = await install.signIn(account);
 		await install.clock.advance(11 * MINUTE);
 
-		await expect(browser.api.me.twoFactor.passkeyOptions()).rejects.toMatchObject({
+		expect(await rejection(browser.api.me.twoFactor.passkeyOptions())).toMatchObject({
 			code: "IDENTITY_CHECK_REQUIRED",
 			data: { action: "twoFactor.change" },
 		});
@@ -243,11 +244,13 @@ describe("signing in with a passkey", () => {
 			{ id: device.credentialIds[0] ?? "", type: "public-key", transports: ["internal", "hybrid"] },
 		]);
 
-		await expect(
-			browser.api.session.signInWithPasskey({
-				credential: await other.device.get({ ...options, allowCredentials: [] }),
-			}),
-		).rejects.toMatchObject({ code: "PASSKEY_INVALID", status: 401 });
+		expect(
+			await rejection(
+				browser.api.session.signInWithPasskey({
+					credential: await other.device.get({ ...options, allowCredentials: [] }),
+				}),
+			),
+		).toMatchObject({ code: "PASSKEY_INVALID", status: 401 });
 		const { options: again } = await browser.api.session.passkeyOptions();
 		const { person } = await browser.api.session.signInWithPasskey({ credential: await device.get(again) });
 		expect(person.id).toBe(personId);
@@ -263,14 +266,17 @@ describe("signing in with a passkey", () => {
 			{ type: "webauthn.create" },
 		];
 		for (const tamper of tampered) {
-			await expect(signInWithPasskey(device, tamper)).rejects.toMatchObject({ code: "PASSKEY_INVALID", status: 401 });
+			expect(await rejection(signInWithPasskey(device, tamper))).toMatchObject({
+				code: "PASSKEY_INVALID",
+				status: 401,
+			});
 		}
 
 		const browser = install.browser();
 		const { options } = await browser.api.session.passkeyOptions();
 		const credential = await device.get(options);
 		await browser.api.session.signInWithPasskey({ credential });
-		await expect(install.browser().api.session.signInWithPasskey({ credential })).rejects.toMatchObject({
+		expect(await rejection(install.browser().api.session.signInWithPasskey({ credential }))).toMatchObject({
 			code: "PASSKEY_INVALID",
 		});
 	});
@@ -280,7 +286,7 @@ describe("signing in with a passkey", () => {
 		await signInWithPasskey(device);
 		await signInWithPasskey(device);
 
-		await expect(signInWithPasskey(device, { signCount: 1 })).rejects.toMatchObject({ code: "PASSKEY_INVALID" });
+		expect(await rejection(signInWithPasskey(device, { signCount: 1 }))).toMatchObject({ code: "PASSKEY_INVALID" });
 	});
 
 	test("a passkey nobody has here is refused", async () => {
@@ -291,7 +297,7 @@ describe("signing in with a passkey", () => {
 			user: { id: "c29tZW9uZQ", name: "someone@example.org", displayName: "Someone" },
 			pubKeyCredParams: [{ type: "public-key", alg: -7 }],
 		});
-		await expect(signInWithPasskey(stranger)).rejects.toMatchObject({ code: "PASSKEY_INVALID", status: 401 });
+		expect(await rejection(signInWithPasskey(stranger))).toMatchObject({ code: "PASSKEY_INVALID", status: 401 });
 	});
 
 	test("passkey sign-in is rate-limited per client address", async () => {
@@ -315,7 +321,7 @@ describe("confirming who you are with a passkey or an authenticator app", () => 
 		const { device } = await personWithPasskey();
 		const { browser } = await signInWithPasskey(device);
 		await install.clock.advance(11 * MINUTE);
-		await expect(browser.api.me.twoFactor.regenerateBackupCodes()).rejects.toMatchObject({
+		expect(await rejection(browser.api.me.twoFactor.regenerateBackupCodes())).toMatchObject({
 			code: "IDENTITY_CHECK_REQUIRED",
 		});
 
@@ -334,13 +340,15 @@ describe("confirming who you are with a passkey or an authenticator app", () => 
 		const { browser } = await signInWithPasskey(device);
 
 		const { options } = await browser.api.session.identityPasskeyOptions();
-		await expect(
-			browser.api.session.confirmIdentity({ passkey: await other.device.get({ ...options, allowCredentials: [] }) }),
-		).rejects.toMatchObject({ code: "PASSKEY_INVALID" });
+		expect(
+			await rejection(
+				browser.api.session.confirmIdentity({ passkey: await other.device.get({ ...options, allowCredentials: [] }) }),
+			),
+		).toMatchObject({ code: "PASSKEY_INVALID" });
 		const { options: again } = await browser.api.session.identityPasskeyOptions();
-		await expect(
-			browser.api.session.confirmIdentity({ passkey: await device.get(again, { wrongKey: true }) }),
-		).rejects.toMatchObject({ code: "PASSKEY_INVALID" });
+		expect(
+			await rejection(browser.api.session.confirmIdentity({ passkey: await device.get(again, { wrongKey: true }) })),
+		).toMatchObject({ code: "PASSKEY_INVALID" });
 	});
 
 	test("a code from the authenticator app makes a fresh identity check; a wrong one counts towards the lockout", async () => {
@@ -349,7 +357,7 @@ describe("confirming who you are with a passkey or an authenticator app", () => 
 		const signedIn = await signInWithAuthenticator(install, account, secret);
 		await install.clock.advance(11 * MINUTE);
 
-		await expect(signedIn.api.session.confirmIdentity({ authenticatorCode: "000000" })).rejects.toMatchObject({
+		expect(await rejection(signedIn.api.session.confirmIdentity({ authenticatorCode: "000000" }))).toMatchObject({
 			code: "TWO_FACTOR_CODE_INVALID",
 			status: 401,
 		});
@@ -370,7 +378,7 @@ describe("removing a passkey", () => {
 		expect((await install.lastEmailTo(account.email)).subject).toBe("A passkey was removed from your account");
 		expect((await phone.api.session.current()).person).toBeNull();
 		expect(await browser.api.me.twoFactor.get()).toMatchObject({ passkeys: [], backupCodes: { left: 0 } });
-		await expect(signInWithPasskey(device)).rejects.toMatchObject({ code: "PASSKEY_INVALID" });
+		expect(await rejection(signInWithPasskey(device))).toMatchObject({ code: "PASSKEY_INVALID" });
 	});
 
 	test("only the person's own passkeys", async () => {
@@ -379,7 +387,7 @@ describe("removing a passkey", () => {
 		const { browser: otherBrowser } = await signInWithPasskey(other.device);
 		const [theirs] = (await otherBrowser.api.me.twoFactor.get()).passkeys;
 
-		await expect(browser.api.me.twoFactor.removePasskey({ passkeyId: theirs?.id ?? "" })).rejects.toMatchObject({
+		expect(await rejection(browser.api.me.twoFactor.removePasskey({ passkeyId: theirs?.id ?? "" }))).toMatchObject({
 			code: "TWO_FACTOR_NOT_FOUND",
 		});
 	});

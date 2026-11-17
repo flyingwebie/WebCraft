@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { answer, openCodeMode } from "../harness/code-mode.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage, expectSiteHeaders } from "../harness/site-safety.ts";
 
 let install: TestInstall;
@@ -76,7 +77,7 @@ test("destinations follow the picked Draft Entry, nested repeated Placements and
 	});
 	await api.templates.saveSearchTemplateMarkup({ siteId, markup: "<h1>Search</h1>" });
 	expect((await api.builder.destinations({ siteId, target: { kind: "searchTemplate" } })).pages[0]?.path).toBe("/");
-	await expect(api.builder.destinations({ siteId, target: entryTarget, entryId: home.id })).rejects.toMatchObject({
+	expect(await rejection(api.builder.destinations({ siteId, target: entryTarget, entryId: home.id }))).toMatchObject({
 		code: "ENTRY_NOT_FOUND",
 	});
 });
@@ -113,7 +114,7 @@ test("a destination needs a Site address as well as a rendered page", async () =
 		if (!pageType) throw new Error("Page Post Type missing");
 		const { entry } = await api.entries.create({ siteId: site.id, postTypeId: pageType.id, title: "Welcome" });
 		await api.pages.setHomePage({ siteId: site.id, pageId: entry.id });
-		await expect(api.editMode.open({ siteId: site.id, path: "/" })).rejects.toMatchObject({
+		expect(await rejection(api.editMode.open({ siteId: site.id, path: "/" }))).toMatchObject({
 			code: "EDIT_MODE_UNAVAILABLE",
 		});
 		expect(await api.builder.destinations({ siteId: site.id, target: { kind: "siteTemplate" } })).toMatchObject({

@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -189,7 +190,7 @@ describe("choosing the home page and the 404 page", () => {
 			() => editor.api.pages.setHomePage({ siteId: site.siteId, pageId: null }),
 			() => editor.api.pages.setNotFoundPage({ siteId: site.siteId, pageId: welcome }),
 		]) {
-			await expect(change()).rejects.toMatchObject({ code: "FORBIDDEN" });
+			expect(await rejection(change())).toMatchObject({ code: "FORBIDDEN" });
 		}
 	});
 
@@ -205,11 +206,11 @@ describe("choosing the home page and the 404 page", () => {
 		const post = await editor.api.entries.create({ siteId: site.siteId, postTypeId: postType.id, title: "Hello" });
 
 		for (const pageId of [post.entry.id, elsewhere]) {
-			await expect(staff.api.pages.setHomePage({ siteId: site.siteId, pageId })).rejects.toMatchObject({
+			expect(await rejection(staff.api.pages.setHomePage({ siteId: site.siteId, pageId }))).toMatchObject({
 				code: "PAGE_NOT_FOUND",
 				status: 404,
 			});
-			await expect(staff.api.pages.setNotFoundPage({ siteId: site.siteId, pageId })).rejects.toMatchObject({
+			expect(await rejection(staff.api.pages.setNotFoundPage({ siteId: site.siteId, pageId }))).toMatchObject({
 				code: "PAGE_NOT_FOUND",
 			});
 		}

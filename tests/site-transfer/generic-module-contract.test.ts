@@ -4,6 +4,7 @@ import extraBlocks from "../../modules/extra-blocks/src/index.ts";
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall } from "../harness/index.ts";
 import type { ComponentBlock } from "../harness/module-contracts.ts";
+import { rejection } from "../harness/settled.ts";
 import { exportedArchive, importArchive } from "../harness/site-transfer.ts";
 
 for (const nested of [false, true]) {
@@ -92,17 +93,21 @@ for (const nested of [false, true]) {
 			const remapped = nested ? JSON.parse(value).items[0].asset : value.slice("media:".length);
 			expect(remapped).not.toBe(media.id);
 			const mixed = { ...block, props: props(remapped, remapped) };
-			await expect(
-				receiver.api.entries.create({
-					siteId: copiedSite,
-					postTypeId: copiedType,
-					title: "Mixed",
-					fields: { body: [mixed] },
-				}),
-			).rejects.toMatchObject({ code: "ENTRY_INVALID" });
-			await expect(
-				receiver.api.entries.saveDraft({ siteId: copiedSite, entryId: entry.id, fields: { body: [mixed] } }),
-			).rejects.toMatchObject({ code: "ENTRY_INVALID" });
+			expect(
+				await rejection(
+					receiver.api.entries.create({
+						siteId: copiedSite,
+						postTypeId: copiedType,
+						title: "Mixed",
+						fields: { body: [mixed] },
+					}),
+				),
+			).toMatchObject({ code: "ENTRY_INVALID" });
+			expect(
+				await rejection(
+					receiver.api.entries.saveDraft({ siteId: copiedSite, entryId: entry.id, fields: { body: [mixed] } }),
+				),
+			).toMatchObject({ code: "ENTRY_INVALID" });
 			expect(
 				(await receiver.api.entries.bodyComponents({ siteId: copiedSite, postTypeId: copiedType })).components,
 			).toEqual([]);

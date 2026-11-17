@@ -7,6 +7,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { openBuildingArea, shellConfigIn } from "../harness/building-area.ts";
 import { buildingAreaApi } from "../harness/building-area-api.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -64,13 +65,13 @@ describe("Post Types from the Site's address", () => {
 		const { postType } = await staff.api.postTypes.create({ siteId, name: "Events", urlPattern: "/events/{slug}" });
 		const area = buildingAreaApi(install, await openBuildingArea(install, editor, siteId));
 
-		await expect(
-			area.api.postTypes.create({ siteId, name: "Leaked", urlPattern: "/leaked/{slug}" }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(area.api.postTypes.update({ siteId, postTypeId: postType.id, name: "Renamed" })).rejects.toMatchObject(
-			{ code: "FORBIDDEN" },
-		);
-		await expect(area.api.postTypes.delete({ siteId, postTypeId: postType.id })).rejects.toMatchObject({
+		expect(
+			await rejection(area.api.postTypes.create({ siteId, name: "Leaked", urlPattern: "/leaked/{slug}" })),
+		).toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(area.api.postTypes.update({ siteId, postTypeId: postType.id, name: "Renamed" })),
+		).toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(area.api.postTypes.delete({ siteId, postTypeId: postType.id }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 		expect((await staff.api.postTypes.get({ siteId, postTypeId: postType.id })).postType.name).toBe("Events");

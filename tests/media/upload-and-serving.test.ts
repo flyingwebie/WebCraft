@@ -6,6 +6,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { canMakeHeic, heicPhoto, imageInfo, pdf, photo, pixel, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -208,11 +209,11 @@ describe("other files", () => {
 
 	test("anything that isn't what it claims to be is refused (SVGs go to the worker: tests/media/svg.test.ts)", async () => {
 		const page = "<!doctype html><html><body><script>steal()</script></body></html>";
-		await expect(
-			editor.api.media.upload({ siteId, file: upload(page, "photo.jpg", "image/jpeg") }),
-		).rejects.toMatchObject({ code: "MEDIA_TYPE_REFUSED", data: { reason: "unknown" } });
+		expect(
+			await rejection(editor.api.media.upload({ siteId, file: upload(page, "photo.jpg", "image/jpeg") })),
+		).toMatchObject({ code: "MEDIA_TYPE_REFUSED", data: { reason: "unknown" } });
 
-		await expect(editor.api.media.upload({ siteId, file: upload("", "empty.pdf") })).rejects.toMatchObject({
+		expect(await rejection(editor.api.media.upload({ siteId, file: upload("", "empty.pdf") }))).toMatchObject({
 			code: "MEDIA_TYPE_REFUSED",
 			data: { reason: "unknown" },
 		});
@@ -221,7 +222,7 @@ describe("other files", () => {
 	test("a file over the size limit is refused", async () => {
 		const huge = new Uint8Array(50 * 1024 * 1024 + 1);
 		huge.set(pdf());
-		await expect(editor.api.media.upload({ siteId, file: upload(huge, "huge.pdf") })).rejects.toMatchObject({
+		expect(await rejection(editor.api.media.upload({ siteId, file: upload(huge, "huge.pdf") }))).toMatchObject({
 			code: "MEDIA_TOO_LARGE",
 			status: 413,
 			data: { maxBytes: 50 * 1024 * 1024 },

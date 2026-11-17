@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const KEY = "sk-usage-test-key-0123456789abcdef";
 /** $1,000 per million tokens, so 1,000 tokens cost $1 and the numbers stay readable. */
@@ -107,7 +108,7 @@ describe("what calls cost", () => {
 
 		const { usage } = await ours.owner.browser.api.aiKeys.get({ workspaceId: ours.workspaceId });
 		expect(usage.sites).toEqual([]);
-		await expect(ours.owner.browser.api.aiKeys.get({ workspaceId: theirs.workspaceId })).rejects.toMatchObject({
+		expect(await rejection(ours.owner.browser.api.aiKeys.get({ workspaceId: theirs.workspaceId }))).toMatchObject({
 			code: "WORKSPACE_NOT_FOUND",
 		});
 	});
@@ -147,7 +148,7 @@ describe("a shared key's monthly cap", () => {
 		await suggest(place);
 		expect((await get()).usage.shared).toMatchObject({ spent: 12, percent: 120, stopped: true });
 		const requests = install.ai.requests.length;
-		await expect(suggest(place)).rejects.toMatchObject({
+		expect(await rejection(suggest(place))).toMatchObject({
 			code: "AI_CAP_REACHED",
 			data: { key: "shared", resumesAt: "2026-12-01T00:00:00.000Z" },
 		});
@@ -168,7 +169,7 @@ describe("a shared key's monthly cap", () => {
 		const place = await sharedPlace(5);
 		describeUsing(6000);
 		await suggest(place);
-		await expect(suggest(place)).rejects.toMatchObject({ code: "AI_CAP_REACHED" });
+		expect(await rejection(suggest(place))).toMatchObject({ code: "AI_CAP_REACHED" });
 
 		await install.clock.set(new Date("2026-12-01T00:05:00Z"));
 		await suggest(place);
@@ -191,7 +192,7 @@ describe("a shared key's monthly cap", () => {
 		while (install.ai.requests.length === before) await Bun.sleep(5);
 
 		// The first call's reservation already fills the cap: the second never reaches the provider.
-		await expect(suggest(place)).rejects.toMatchObject({ code: "AI_CAP_REACHED" });
+		expect(await rejection(suggest(place))).toMatchObject({ code: "AI_CAP_REACHED" });
 		expect(install.ai.requests.length).toBe(before + 1);
 		release();
 		await first;
@@ -213,7 +214,7 @@ describe("a shared key's monthly cap", () => {
 		});
 		describeUsing(3000);
 		await suggest(place);
-		await expect(suggest(place)).rejects.toMatchObject({ code: "AI_CAP_REACHED", data: { key: "own" } });
+		expect(await rejection(suggest(place))).toMatchObject({ code: "AI_CAP_REACHED", data: { key: "own" } });
 		await place.owner.browser.api.aiKeys.setOwnCap({ workspaceId: place.workspaceId, monthlyCap: null });
 		await suggest(place);
 	});

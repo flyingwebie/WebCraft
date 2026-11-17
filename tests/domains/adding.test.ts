@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, TEST_INSTALL_ADDRESSES, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let admin: TestBrowser;
@@ -106,7 +107,7 @@ describe("domains Staff can't add", () => {
 			[second, "UNIQUE-bakery.example"],
 			[first, "unique-bakery.example"],
 		] as const) {
-			await expect(admin.api.domains.add({ siteId, name })).rejects.toMatchObject({
+			expect(await rejection(admin.api.domains.add({ siteId, name }))).toMatchObject({
 				code: "DOMAIN_TAKEN",
 				status: 409,
 				data: { name: "unique-bakery.example" },
@@ -119,9 +120,9 @@ describe("domains Staff can't add", () => {
 		const second = (await install.createSite(workspaceId)).id;
 		await admin.api.domains.add({ siteId: first, name: "www.shared-bakery.example" });
 
-		await expect(
-			admin.api.domains.add({ siteId: second, name: "shared-bakery.example", withPartner: true }),
-		).rejects.toMatchObject({ code: "DOMAIN_TAKEN", data: { name: "www.shared-bakery.example" } });
+		expect(
+			await rejection(admin.api.domains.add({ siteId: second, name: "shared-bakery.example", withPartner: true })),
+		).toMatchObject({ code: "DOMAIN_TAKEN", data: { name: "www.shared-bakery.example" } });
 		expect((await admin.api.domains.list({ siteId: second })).domains).toEqual([]);
 	});
 
@@ -130,10 +131,12 @@ describe("domains Staff can't add", () => {
 		await admin.api.languages.add({ siteId, code: "fr", domain: "bakery-lang.example" });
 		await admin.api.domains.add({ siteId, name: "bakery-main.example" });
 
-		await expect(admin.api.domains.add({ siteId, name: "bakery-lang.example" })).rejects.toMatchObject({
+		expect(await rejection(admin.api.domains.add({ siteId, name: "bakery-lang.example" }))).toMatchObject({
 			code: "DOMAIN_TAKEN",
 		});
-		await expect(admin.api.languages.add({ siteId, code: "de", domain: "bakery-main.example" })).rejects.toMatchObject({
+		expect(
+			await rejection(admin.api.languages.add({ siteId, code: "de", domain: "bakery-main.example" })),
+		).toMatchObject({
 			code: "LANGUAGE_TAKEN",
 			data: { field: "domain" },
 		});
@@ -143,13 +146,13 @@ describe("domains Staff can't add", () => {
 		const { id: siteId } = await install.createSite(workspaceId);
 
 		for (const name of ["not a domain", "https://bakery.example/", "bakery", "203.0.113.7", "*.bakery.example", ""]) {
-			await expect(admin.api.domains.add({ siteId, name })).rejects.toMatchObject({
+			expect(await rejection(admin.api.domains.add({ siteId, name }))).toMatchObject({
 				code: "DOMAIN_INVALID",
 				data: { reason: "format" },
 			});
 		}
 		for (const name of [install.adminHost, "sites.test", "bakery.sites.test", "deeper.bakery.sites.test"]) {
-			await expect(admin.api.domains.add({ siteId, name })).rejects.toMatchObject({
+			expect(await rejection(admin.api.domains.add({ siteId, name }))).toMatchObject({
 				code: "DOMAIN_INVALID",
 				data: { reason: "install" },
 			});
@@ -167,7 +170,7 @@ describe("who sees and changes domains", () => {
 			const member = (await install.createMember({ workspaceId, role })).browser;
 			const { domains } = await member.api.domains.list({ siteId });
 			expect(domains.map(({ name }) => name)).toEqual(["members-bakery.example"]);
-			await expect(member.api.domains.add({ siteId, name: `${role}-bakery.example` })).rejects.toMatchObject({
+			expect(await rejection(member.api.domains.add({ siteId, name: `${role}-bakery.example` }))).toMatchObject({
 				code: "FORBIDDEN",
 			});
 		}

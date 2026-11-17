@@ -196,7 +196,7 @@ describe("accepting an invite", () => {
 		await page.locator("form button[type=submit]").click();
 		await page.waitForURL((url) => url.pathname === "/");
 		await page.getByRole("heading", { level: 1, name: "Overview" }).waitFor();
-		await expect(page.getByText("Staff", { exact: false }).first().isVisible()).resolves.toBe(true);
+		expect(await page.getByText("Staff", { exact: false }).first().isVisible()).toBe(true);
 	});
 });
 
@@ -214,9 +214,9 @@ describe("accepting a Member invite", () => {
 		// Under the card, the Sites the Membership reaches.
 		await page.getByText("You will reach this Site: Acme Bakery.").waitFor();
 		await page.locator("#invite-password").fill("too short");
-		await expect(page.locator("#invite-password-rules").textContent()).resolves.toContain("not met yet");
+		expect(await page.locator("#invite-password-rules").textContent()).toContain("not met yet");
 		await page.locator("#invite-password").fill("a long enough password");
-		await expect(page.locator("#invite-password-rules").textContent()).resolves.not.toContain("not met yet");
+		expect(await page.locator("#invite-password-rules").textContent()).not.toContain("not met yet");
 		await expectAccessibleScreen(page, "Accept a Member invite, the password rule met");
 		await page.locator("#invite-name").fill("Niamh Walsh");
 		await page.locator("#invite-password").fill("a long enough password");
@@ -225,7 +225,7 @@ describe("accepting a Member invite", () => {
 		await page.waitForURL((url) => url.pathname === `/workspaces/${workspaceId}`);
 		await page.getByRole("heading", { level: 1, name: "Sites" }).waitFor();
 		// Authors don't manage Members: the sidebar leaves the Members screen out.
-		await expect(page.getByRole("link", { name: "Members" }).count()).resolves.toBe(0);
+		expect(await page.getByRole("link", { name: "Members" }).count()).toBe(0);
 	});
 
 	test("a person with an account signs in on the invite page and joins; a wrong password shows accessibly", async () => {

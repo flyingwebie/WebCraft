@@ -4,6 +4,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -112,8 +113,10 @@ describe("a Site's own Site template", () => {
 		expect(read.template).toMatchObject({ id: saved.template.id, kind: "site", status: "changed" });
 		expect(read.markup).toEqual({ draft: saved.markup.replace("seven", "eight"), published: saved.markup });
 		expect((await staff.api.templates.getSiteTemplate({ siteId })).template?.published).toEqual(saved.template.draft);
-		await expect(editor.api.templates.getSiteTemplateMarkup({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(editor.api.templates.saveSiteTemplateMarkup({ siteId, markup })).rejects.toMatchObject({
+		expect(await rejection(editor.api.templates.getSiteTemplateMarkup({ siteId }))).toMatchObject({
+			code: "FORBIDDEN",
+		});
+		expect(await rejection(editor.api.templates.saveSiteTemplateMarkup({ siteId, markup }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});
@@ -237,20 +240,22 @@ describe("Entry templates", () => {
 			["<main>{{ title }}</main>", "An Entry template renders inside the page's <main>"],
 			["<article>{{@outlet}}</article>", "{{@outlet}} belongs to the Site template"],
 		] as const) {
-			await expect(
-				staff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId: postType.id, markup }),
-			).rejects.toMatchObject({
+			expect(
+				await rejection(staff.api.templates.saveEntryTemplateMarkup({ siteId, postTypeId: postType.id, markup })),
+			).toMatchObject({
 				code: "TEMPLATE_MARKUP_INVALID",
 				data: { problems: [{ message: expect.stringContaining(says) }] },
 			});
 		}
-		await expect(
-			staff.api.templates.saveEntryTemplate({
-				siteId,
-				postTypeId: postType.id,
-				tree: { version: 1, nodes: [{ type: "outlet" }] },
-			}),
-		).rejects.toMatchObject({ code: "TEMPLATE_INVALID", data: { problems: [{ at: "nodes[0]" }] } });
+		expect(
+			await rejection(
+				staff.api.templates.saveEntryTemplate({
+					siteId,
+					postTypeId: postType.id,
+					tree: { version: 1, nodes: [{ type: "outlet" }] },
+				}),
+			),
+		).toMatchObject({ code: "TEMPLATE_INVALID", data: { problems: [{ at: "nodes[0]" }] } });
 	});
 });
 
@@ -277,7 +282,7 @@ describe("the Site template's values", () => {
 			"<main>{{@outlet}}</main><p>{{ title }}</p>",
 			"<main>{{@outlet}}</main><p>{{ site.phone }}</p>",
 		]) {
-			await expect(staff.api.templates.saveSiteTemplateMarkup({ siteId, markup })).rejects.toMatchObject({
+			expect(await rejection(staff.api.templates.saveSiteTemplateMarkup({ siteId, markup }))).toMatchObject({
 				code: "TEMPLATE_MARKUP_INVALID",
 			});
 		}
@@ -292,7 +297,7 @@ describe("the Site template's values", () => {
 		});
 		await staff.api.globals.setFields({ siteId, fields: [] });
 
-		await expect(staff.api.templates.publish({ siteId, templateId: saved.template.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.templates.publish({ siteId, templateId: saved.template.id }))).toMatchObject({
 			code: "TEMPLATE_INVALID",
 		});
 	});

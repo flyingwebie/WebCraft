@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { moduleApi } from "../harness/modules.ts";
+import { rejection } from "../harness/settled.ts";
 import { sampleBoard } from "./sample/board.ts";
 import { sample } from "./sample/index.ts";
 
@@ -55,11 +56,11 @@ describe("Site-level Modules", () => {
 		const { module } = await staff.api.modules.setOnSite({ siteId: site.id, moduleId: "sample", on: false });
 
 		expect(module.on).toBe(false);
-		await expect(notes(staff).list({ siteId: site.id })).rejects.toMatchObject({
+		expect(await rejection(notes(staff).list({ siteId: site.id }))).toMatchObject({
 			code: "MODULE_NOT_FOUND",
 			status: 404,
 		});
-		await expect(notes(staff).list({ siteId: otherSiteId })).resolves.toBeDefined();
+		expect(await notes(staff).list({ siteId: otherSiteId })).toBeDefined();
 
 		await staff.api.modules.setOnSite({ siteId: site.id, moduleId: "sample", on: true });
 		const { notes: kept } = await notes(staff).list({ siteId: site.id });
@@ -74,8 +75,10 @@ describe("Site-level Modules", () => {
 	test("are switched by Staff, not by Members", async () => {
 		const owner = await install.createMember({ workspaceId, role: "owner" });
 
-		await expect(owner.browser.api.modules.siteList({ siteId })).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(owner.browser.api.modules.setOnSite({ siteId, moduleId: "sample", on: false })).rejects.toMatchObject({
+		expect(await rejection(owner.browser.api.modules.siteList({ siteId }))).toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(owner.browser.api.modules.setOnSite({ siteId, moduleId: "sample", on: false })),
+		).toMatchObject({
 			code: "FORBIDDEN",
 		});
 	});
@@ -91,10 +94,10 @@ describe("Site-level Modules", () => {
 				status: "waiting",
 				on: true,
 			});
-			await expect(notes(admin).list({ siteId: site.id })).rejects.toMatchObject({ code: "MODULE_NOT_FOUND" });
-			await expect(
-				admin.api.modules.setOnSite({ siteId: site.id, moduleId: "sample", on: true }),
-			).rejects.toMatchObject({ code: "MODULE_NOT_APPROVED", status: 409 });
+			expect(await rejection(notes(admin).list({ siteId: site.id }))).toMatchObject({ code: "MODULE_NOT_FOUND" });
+			expect(
+				await rejection(admin.api.modules.setOnSite({ siteId: site.id, moduleId: "sample", on: true })),
+			).toMatchObject({ code: "MODULE_NOT_APPROVED", status: 409 });
 			await admin.api.modules.setOnSite({ siteId: site.id, moduleId: "sample", on: false });
 		} finally {
 			await waiting.close();
@@ -102,10 +105,10 @@ describe("Site-level Modules", () => {
 	});
 
 	test("aren't switched on Workspaces, nor Workspace-level ones on Sites", async () => {
-		await expect(staff.api.modules.setOnWorkspace({ workspaceId, moduleId: "sample", on: true })).rejects.toMatchObject(
-			{ code: "MODULE_NOT_FOUND" },
-		);
-		await expect(staff.api.modules.setOnSite({ siteId, moduleId: "sample-board", on: true })).rejects.toMatchObject({
+		expect(
+			await rejection(staff.api.modules.setOnWorkspace({ workspaceId, moduleId: "sample", on: true })),
+		).toMatchObject({ code: "MODULE_NOT_FOUND" });
+		expect(await rejection(staff.api.modules.setOnSite({ siteId, moduleId: "sample-board", on: true }))).toMatchObject({
 			code: "MODULE_NOT_FOUND",
 		});
 	});
@@ -119,7 +122,9 @@ describe("Workspace-level Modules", () => {
 		expect((await admin.api.modules.workspaceList({ workspaceId: workspace.id })).modules).toEqual([
 			expect.objectContaining({ id: "sample-board", status: "approved", on: false, onByDefault: false }),
 		]);
-		await expect(pins(admin).list({ workspaceId: workspace.id })).rejects.toMatchObject({ code: "MODULE_NOT_FOUND" });
+		expect(await rejection(pins(admin).list({ workspaceId: workspace.id }))).toMatchObject({
+			code: "MODULE_NOT_FOUND",
+		});
 
 		await admin.api.modules.setOnWorkspace({ workspaceId: workspace.id, moduleId: "sample-board", on: true });
 		await pins(admin).add({ workspaceId: workspace.id, text: "Launch on Monday" });
@@ -127,7 +132,7 @@ describe("Workspace-level Modules", () => {
 		expect((await pins(admin).list({ workspaceId: workspace.id })).pins.map((pin) => pin.text)).toEqual([
 			"Launch on Monday",
 		]);
-		await expect(pins(admin).list({ workspaceId })).rejects.toMatchObject({ code: "MODULE_NOT_FOUND" });
+		expect(await rejection(pins(admin).list({ workspaceId }))).toMatchObject({ code: "MODULE_NOT_FOUND" });
 	});
 });
 
@@ -199,9 +204,11 @@ describe("removing a Module's data", () => {
 		if (asked.removed) throw new Error("Nothing should be removed before the confirmation.");
 		await notes(staff).add({ siteId: site.id, body: "After" });
 
-		await expect(
-			staff.api.modules.removeSiteData({ siteId: site.id, moduleId: "sample", confirmation: asked.confirmation.id }),
-		).rejects.toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "changed" } });
+		expect(
+			await rejection(
+				staff.api.modules.removeSiteData({ siteId: site.id, moduleId: "sample", confirmation: asked.confirmation.id }),
+			),
+		).toMatchObject({ code: "CONFIRMATION_INVALID", data: { problem: "changed" } });
 	});
 
 	test("of a Workspace-level Module removes it from that Workspace only", async () => {

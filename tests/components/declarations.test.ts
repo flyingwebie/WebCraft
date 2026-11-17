@@ -5,6 +5,7 @@ import { openDraft } from "../harness/co-editing.ts";
 import { pdf, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
 import { answerOf, connectMcp } from "../harness/mcp.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 
@@ -147,18 +148,20 @@ test("invalid declarations refuse the whole save with their source line", async 
 		],
 		['{{@props}}\nheading: text\n{{/props}}\n<div style="color: red">{{ props.missing }}</div>', 4],
 	] as const) {
-		await expect(staff.api.components.saveMarkup({ ...target, markup })).rejects.toMatchObject({
+		expect(await rejection(staff.api.components.saveMarkup({ ...target, markup }))).toMatchObject({
 			code: "TEMPLATE_MARKUP_INVALID",
 			data: { problems: expect.arrayContaining([expect.objectContaining({ line })]) },
 		});
 		expect((await staff.api.components.getMarkup(target)).version).toBe(before.version);
 	}
-	await expect(
-		staff.api.templates.saveSiteTemplateMarkup({
-			siteId: target.siteId,
-			markup: "{{@props}}\nx: text\n{{/props}}\n<main>{{@outlet}}</main>",
-		}),
-	).rejects.toMatchObject({
+	expect(
+		await rejection(
+			staff.api.templates.saveSiteTemplateMarkup({
+				siteId: target.siteId,
+				markup: "{{@props}}\nx: text\n{{/props}}\n<main>{{@outlet}}</main>",
+			}),
+		),
+	).toMatchObject({
 		code: "TEMPLATE_MARKUP_INVALID",
 		data: { problems: [expect.objectContaining({ line: 1 })] },
 	});

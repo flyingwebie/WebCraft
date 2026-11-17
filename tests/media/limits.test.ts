@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 
 import { pdf, upload } from "../harness/images.ts";
 import { API_PATH, createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 const KB = 1024;
 const MB = 1024 * KB;
@@ -35,7 +36,9 @@ describe("the largest file", () => {
 		expect(await admin.api.install.media.get()).toEqual({ maxFileBytes: 50 * MB });
 
 		expect(await admin.api.install.media.update({ maxFileBytes: 2 * MB })).toEqual({ maxFileBytes: 2 * MB });
-		await expect(admin.api.media.upload({ siteId, file: upload(pdfOf(2 * MB + 1), "big.pdf") })).rejects.toMatchObject({
+		expect(
+			await rejection(admin.api.media.upload({ siteId, file: upload(pdfOf(2 * MB + 1), "big.pdf") })),
+		).toMatchObject({
 			code: "MEDIA_TOO_LARGE",
 			status: 413,
 			data: { maxBytes: 2 * MB },
@@ -57,13 +60,13 @@ describe("the largest file", () => {
 	test("only the Superadmin changes it, between 1 MB and 1 GB", async () => {
 		const workspaceId = (await install.createWorkspace()).id;
 		const { browser: staff } = await install.createStaff({ workspaces: [workspaceId] });
-		await expect(staff.api.install.media.update({ maxFileBytes: 10 * MB })).rejects.toMatchObject({
+		expect(await rejection(staff.api.install.media.update({ maxFileBytes: 10 * MB }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
-		await expect(admin.api.install.media.update({ maxFileBytes: MB - 1 })).rejects.toMatchObject({
+		expect(await rejection(admin.api.install.media.update({ maxFileBytes: MB - 1 }))).toMatchObject({
 			code: "BAD_REQUEST",
 		});
-		await expect(admin.api.install.media.update({ maxFileBytes: 1024 * MB + 1 })).rejects.toMatchObject({
+		expect(await rejection(admin.api.install.media.update({ maxFileBytes: 1024 * MB + 1 }))).toMatchObject({
 			code: "BAD_REQUEST",
 		});
 	});
@@ -128,7 +131,7 @@ describe("a Workspace's storage quota", () => {
 			warning: false,
 			full: false,
 		});
-		await expect(owner.api.workspaces.setQuota({ workspaceId, quotaBytes: 5 * MB })).rejects.toMatchObject({
+		expect(await rejection(owner.api.workspaces.setQuota({ workspaceId, quotaBytes: 5 * MB }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 
@@ -143,7 +146,7 @@ describe("a Workspace's storage quota", () => {
 		});
 
 		expect(await staff.api.workspaces.setQuota({ workspaceId, quotaBytes: null })).toMatchObject({ quotaBytes: null });
-		await expect(staff.api.workspaces.setQuota({ workspaceId, quotaBytes: MB - 1 })).rejects.toMatchObject({
+		expect(await rejection(staff.api.workspaces.setQuota({ workspaceId, quotaBytes: MB - 1 }))).toMatchObject({
 			code: "BAD_REQUEST",
 		});
 	});
@@ -205,9 +208,9 @@ describe("a Workspace's storage quota", () => {
 			.sort();
 		expect(quotaEmails).toEqual(["owner.quota@client.example", "staff.quota@agency.example"]);
 
-		await expect(
-			editor.browser.api.media.upload({ siteId, file: upload(pdfOf(200 * KB, "four"), "four.pdf") }),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(editor.browser.api.media.upload({ siteId, file: upload(pdfOf(200 * KB, "four"), "four.pdf") })),
+		).toMatchObject({
 			code: "MEDIA_QUOTA_FULL",
 			status: 413,
 			data: { usedBytes: 900 * KB, quotaBytes: MB },

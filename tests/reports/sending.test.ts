@@ -10,6 +10,7 @@ import {
 	type TestBrowser,
 	type TestInstall,
 } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { attachedReport, mailTo, reportedSite, runUntil, SITE_SERVER, views } from "./support.ts";
 
 let install: TestInstall;
@@ -147,23 +148,27 @@ describe("a test, Owners and the history", () => {
 			recipients: ["owner@bakery.example", "Manager@Bakery.example", "manager@bakery.example"],
 		});
 		expect(changed.report.recipients).toEqual(["owner@bakery.example", "manager@bakery.example"]);
-		await expect(
-			owner.api.reports.setRecipients({
-				siteId: site.siteId,
-				reportId: report?.id as string,
-				recipients: ["not an address"],
-			}),
-		).rejects.toMatchObject({ code: "REPORT_INVALID", data: { field: "recipients" } });
-		await expect(
-			owner.api.reports.update({ siteId: site.siteId, reportId: report?.id as string, schedule: "monthly" }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-		await expect(
-			owner.api.reports.sendTest({ siteId: site.siteId, reportId: report?.id as string }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(
+				owner.api.reports.setRecipients({
+					siteId: site.siteId,
+					reportId: report?.id as string,
+					recipients: ["not an address"],
+				}),
+			),
+		).toMatchObject({ code: "REPORT_INVALID", data: { field: "recipients" } });
+		expect(
+			await rejection(
+				owner.api.reports.update({ siteId: site.siteId, reportId: report?.id as string, schedule: "monthly" }),
+			),
+		).toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(owner.api.reports.sendTest({ siteId: site.siteId, reportId: report?.id as string })),
+		).toMatchObject({ code: "FORBIDDEN" });
 		expect(
 			(await owner.api.reports.history({ siteId: site.siteId, reportId: report?.id as string })).sends,
 		).toHaveLength(1);
-		await expect(editor.api.reports.list({ siteId: site.siteId, dashboardId })).rejects.toMatchObject({
+		expect(await rejection(editor.api.reports.list({ siteId: site.siteId, dashboardId }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 
@@ -209,9 +214,9 @@ describe("making the PDF", () => {
 		});
 		const [failed] = (await staff.api.reports.history({ siteId: site.siteId, reportId: report.id })).sends;
 		expect(failed).toMatchObject({ status: "failed", problem: "Its PDF couldn't be made (timeout).", pdf: null });
-		await expect(
-			staff.api.reports.sends.pdf({ siteId: site.siteId, sendId: failed?.id as string }),
-		).rejects.toMatchObject({ code: "REPORT_SEND_REFUSED", data: { reason: "noPdf" } });
+		expect(
+			await rejection(staff.api.reports.sends.pdf({ siteId: site.siteId, sendId: failed?.id as string })),
+		).toMatchObject({ code: "REPORT_SEND_REFUSED", data: { reason: "noPdf" } });
 
 		install.pdf.work();
 		await staff.api.reports.sends.resend({ siteId: site.siteId, sendId: failed?.id as string });
@@ -266,7 +271,7 @@ describe("a monthly Report of a Workspace Dashboard", () => {
 		const partial = (
 			await install.createMember({ workspaceId, role: "owner", sites: [(reported[0] as { siteId: string }).siteId] })
 		).browser;
-		await expect(partial.api.reports.list({ workspaceId, dashboardId: dashboard.id })).rejects.toMatchObject({
+		expect(await rejection(partial.api.reports.list({ workspaceId, dashboardId: dashboard.id }))).toMatchObject({
 			code: "FORBIDDEN",
 		});
 

@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { component, type ModuleDefinition } from "@webcraft/module-sdk";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 import { sampleBoard } from "./sample/board.ts";
 import { sample } from "./sample/index.ts";
@@ -92,13 +93,15 @@ describe("a Module's Component", () => {
 		expect((await staff.api.components.get({ siteId, componentId: "sample:NoteCard" })).usage.pages).toBe(1);
 
 		const { postType } = await staff.api.postTypes.create({ siteId, name: "Refused", urlPattern: "/refused/{slug}" });
-		await expect(
-			staff.api.templates.saveEntryTemplateMarkup({
-				siteId,
-				postTypeId: postType.id,
-				markup: '<NoteCard tone="calm" />\n<NoteCard body="Hi" tone="shouty" />',
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.templates.saveEntryTemplateMarkup({
+					siteId,
+					postTypeId: postType.id,
+					markup: '<NoteCard tone="calm" />\n<NoteCard body="Hi" tone="shouty" />',
+				}),
+			),
+		).toMatchObject({
 			code: "TEMPLATE_MARKUP_INVALID",
 			data: {
 				problems: [
@@ -107,23 +110,25 @@ describe("a Module's Component", () => {
 				],
 			},
 		});
-		await expect(
-			staff.api.templates.saveEntryTemplate({
-				siteId,
-				postTypeId: postType.id,
-				tree: {
-					version: 1,
-					nodes: [
-						{
-							type: "component",
-							id: "missing-body",
-							component: "sample:NoteCard",
-							props: [{ name: "tone", value: [{ type: "text", text: "calm" }] }],
-						},
-					],
-				},
-			}),
-		).rejects.toMatchObject({ code: "TEMPLATE_INVALID" });
+		expect(
+			await rejection(
+				staff.api.templates.saveEntryTemplate({
+					siteId,
+					postTypeId: postType.id,
+					tree: {
+						version: 1,
+						nodes: [
+							{
+								type: "component",
+								id: "missing-body",
+								component: "sample:NoteCard",
+								props: [{ name: "tone", value: [{ type: "text", text: "calm" }] }],
+							},
+						],
+					},
+				}),
+			),
+		).toMatchObject({ code: "TEMPLATE_INVALID" });
 	});
 
 	test("can be placed only on Sites where the Module runs, and shows nothing where it was switched off", async () => {
@@ -140,18 +145,22 @@ describe("a Module's Component", () => {
 		const { markup } = await staff.api.templates.getEntryTemplateMarkup({ siteId: other.id, postTypeId });
 		expect(markup?.published).toMatch(/^<p data-wc-id="\w+">Hello<\/p><NoteCard body="Placed" data-wc-id="\w+" \/>$/);
 		const { postType } = await staff.api.postTypes.create({ siteId: other.id, name: "Off", urlPattern: "/off/{slug}" });
-		await expect(
-			staff.api.templates.saveEntryTemplateMarkup({
-				siteId: other.id,
-				postTypeId: postType.id,
-				markup: '<NoteCard body="x" />',
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.templates.saveEntryTemplateMarkup({
+					siteId: other.id,
+					postTypeId: postType.id,
+					markup: '<NoteCard body="x" />',
+				}),
+			),
+		).toMatchObject({
 			code: "TEMPLATE_MARKUP_INVALID",
 			data: { problems: [{ message: "NoteCard comes from the Module sample, which isn't on for this Site." }] },
 		});
 		expect((await staff.api.components.list({ siteId: other.id })).components).toEqual([]);
-		await expect(staff.api.components.get({ siteId: other.id, componentId: "sample:NoteCard" })).rejects.toMatchObject({
+		expect(
+			await rejection(staff.api.components.get({ siteId: other.id, componentId: "sample:NoteCard" })),
+		).toMatchObject({
 			code: "COMPONENT_NOT_FOUND",
 		});
 
@@ -162,24 +171,24 @@ describe("a Module's Component", () => {
 	test("changes with its Module, never on a Site", async () => {
 		const componentId = "sample:NoteCard";
 
-		await expect(staff.api.components.saveMarkup({ siteId, componentId, markup: "<p>Mine</p>" })).rejects.toMatchObject(
-			{
-				code: "COMPONENT_FROM_MODULE",
-			},
-		);
-		await expect(staff.api.components.publish({ siteId, componentId })).rejects.toMatchObject({
+		expect(
+			await rejection(staff.api.components.saveMarkup({ siteId, componentId, markup: "<p>Mine</p>" })),
+		).toMatchObject({
 			code: "COMPONENT_FROM_MODULE",
 		});
-		await expect(staff.api.components.rename({ siteId, componentId, name: "Mine" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.components.publish({ siteId, componentId }))).toMatchObject({
 			code: "COMPONENT_FROM_MODULE",
 		});
-		await expect(staff.api.components.delete({ siteId, componentId })).rejects.toMatchObject({
+		expect(await rejection(staff.api.components.rename({ siteId, componentId, name: "Mine" }))).toMatchObject({
+			code: "COMPONENT_FROM_MODULE",
+		});
+		expect(await rejection(staff.api.components.delete({ siteId, componentId }))).toMatchObject({
 			code: "COMPONENT_FROM_MODULE",
 		});
 	});
 
 	test("keeps its name: a Site's own Component can't take it", async () => {
-		await expect(staff.api.components.create({ siteId, name: "NoteCard" })).rejects.toMatchObject({
+		expect(await rejection(staff.api.components.create({ siteId, name: "NoteCard" }))).toMatchObject({
 			code: "COMPONENT_NAME_TAKEN",
 			data: { name: "NoteCard", by: { kind: "module", moduleId: "sample" } },
 		});

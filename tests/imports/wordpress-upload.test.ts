@@ -8,6 +8,7 @@ import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import {
 	approveModules,
 	OLD_MILL,
@@ -121,15 +122,17 @@ describe("uploading an export file", () => {
 
 		// A part past where the file got to is refused, saying where to go on.
 		const third = bytes.slice(2 * file.partBytes, 3 * file.partBytes);
-		await expect(
-			staff.api.imports.uploadPart({
-				siteId,
-				fileId: file.id,
-				offset: 2 * file.partBytes,
-				sha256: createHash("sha256").update(third).digest("hex"),
-				part: new File([third], "part"),
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.imports.uploadPart({
+					siteId,
+					fileId: file.id,
+					offset: 2 * file.partBytes,
+					sha256: createHash("sha256").update(third).digest("hex"),
+					part: new File([third], "part"),
+				}),
+			),
+		).toMatchObject({
 			code: "IMPORT_UPLOAD_REFUSED",
 			data: { reason: "offset", receivedBytes: file.partBytes },
 		});
@@ -159,25 +162,27 @@ describe("uploading an export file", () => {
 			size: bytes.length,
 			partBytes: 4 * 1024,
 		});
-		await expect(
-			staff.api.imports.uploadPart({
-				siteId,
-				fileId: file.id,
-				offset: 0,
-				sha256: "0".repeat(64),
-				part: new File([bytes.slice(0, file.partBytes)], "part"),
-			}),
-		).rejects.toMatchObject({ code: "IMPORT_UPLOAD_REFUSED", data: { reason: "hash" } });
-		await expect(
-			staff.api.imports.finishUpload({ siteId, fileId: file.id, sha256: "0".repeat(64) }),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.imports.uploadPart({
+					siteId,
+					fileId: file.id,
+					offset: 0,
+					sha256: "0".repeat(64),
+					part: new File([bytes.slice(0, file.partBytes)], "part"),
+				}),
+			),
+		).toMatchObject({ code: "IMPORT_UPLOAD_REFUSED", data: { reason: "hash" } });
+		expect(
+			await rejection(staff.api.imports.finishUpload({ siteId, fileId: file.id, sha256: "0".repeat(64) })),
+		).toMatchObject({
 			code: "IMPORT_UPLOAD_REFUSED",
 			data: { reason: "size" },
 		});
 		await sendParts(staff.api, siteId, file, bytes);
-		await expect(
-			staff.api.imports.finishUpload({ siteId, fileId: file.id, sha256: "1".repeat(64) }),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(staff.api.imports.finishUpload({ siteId, fileId: file.id, sha256: "1".repeat(64) })),
+		).toMatchObject({
 			code: "IMPORT_UPLOAD_REFUSED",
 			data: { reason: "hash" },
 		});
@@ -191,9 +196,11 @@ describe("uploading an export file", () => {
 			size: 1024 ** 3,
 		});
 		expect(file.partBytes).toBe(8 * 1024 * 1024);
-		await expect(
-			staff.api.imports.startUpload({ siteId, source: WORDPRESS, fileName: "huge.xml", size: 1024 ** 3 + 1 }),
-		).rejects.toMatchObject({ code: "IMPORT_UPLOAD_REFUSED", status: 413, data: { reason: "size" } });
+		expect(
+			await rejection(
+				staff.api.imports.startUpload({ siteId, source: WORDPRESS, fileName: "huge.xml", size: 1024 ** 3 + 1 }),
+			),
+		).toMatchObject({ code: "IMPORT_UPLOAD_REFUSED", status: 413, data: { reason: "size" } });
 	});
 
 	test("keeps the file privately, never in the Media library, and deletes it after a day unused", async () => {
@@ -204,7 +211,7 @@ describe("uploading an export file", () => {
 
 		await install.clock.advance(25 * 60 * 60_000);
 		expect((await install.drainJobs()).failed).toEqual([]);
-		await expect(staff.api.imports.file({ siteId, fileId: uploaded.id })).rejects.toMatchObject({
+		expect(await rejection(staff.api.imports.file({ siteId, fileId: uploaded.id }))).toMatchObject({
 			code: "IMPORT_FILE_NOT_FOUND",
 		});
 		expect(existsSync(folder) ? readdirSync(folder) : []).toEqual([]);
@@ -298,17 +305,19 @@ describe("who uploads", () => {
 	test("Owners and Editors import CSV files only: the WordPress import is Staff's (it makes Post Types)", async () => {
 		const owner = (await install.createMember({ workspaceId, role: "owner" })).browser;
 		expect((await owner.api.imports.sources({ siteId })).sources).toEqual([]);
-		await expect(
-			owner.api.imports.startUpload({ siteId, source: WORDPRESS, fileName: "x.xml", size: 10 }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(owner.api.imports.startUpload({ siteId, source: WORDPRESS, fileName: "x.xml", size: 10 })),
+		).toMatchObject({ code: "FORBIDDEN" });
 	});
 
 	test("nobody uploads for the source on a Site where its Module is off", async () => {
 		const otherSite = (await install.createSite(workspaceId)).id;
 		await staff.api.modules.setOnSite({ siteId: otherSite, moduleId: "wordpress-import", on: false });
 		expect((await staff.api.imports.sources({ siteId: otherSite })).sources).toEqual([]);
-		await expect(
-			staff.api.imports.startUpload({ siteId: otherSite, source: WORDPRESS, fileName: "x.xml", size: 10 }),
-		).rejects.toMatchObject({ code: "IMPORT_SOURCE_NOT_FOUND" });
+		expect(
+			await rejection(
+				staff.api.imports.startUpload({ siteId: otherSite, source: WORDPRESS, fileName: "x.xml", size: 10 }),
+			),
+		).toMatchObject({ code: "IMPORT_SOURCE_NOT_FOUND" });
 	});
 });

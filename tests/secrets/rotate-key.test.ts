@@ -9,6 +9,7 @@ import { parseMasterKey, type SecretRef } from "@webcraft/core";
 import pg from "pg";
 
 import { createTestInstall, type TestInstall } from "../harness/index.ts";
+import { thrown } from "../harness/settled.ts";
 
 const CLI = new URL("../../apps/cli/src/main.ts", import.meta.url).pathname;
 
@@ -91,7 +92,7 @@ test("re-encrypts every secret under a new key version, which web and worker the
 	await expectSecretsReadable();
 	expect(await Promise.all(SECRETS.map(([ref]) => install.secrets.describe(ref)))).toEqual(before);
 
-	await expect(install.restart({ masterKey: OLD_KEY })).rejects.toThrow(
+	expect(await thrown(install.restart({ masterKey: OLD_KEY }))).toThrow(
 		"WEBCRAFT_SECRET_KEY is the Install's old Master key (version 1)",
 	);
 });
@@ -121,7 +122,7 @@ test("refuses an old key that isn't the Install's current Master key, changing n
 	expect(stderr).toContain("Nothing was changed.");
 	await install.restart({ masterKey: OLD_KEY });
 	await expectSecretsReadable();
-	await expect(install.restart({ masterKey: NEW_KEY })).rejects.toThrow("is not this Install's Master key");
+	expect(await thrown(install.restart({ masterKey: NEW_KEY }))).toThrow("is not this Install's Master key");
 });
 
 test("asks for the key being replaced when it isn't given, and refuses it twice over", async () => {
@@ -192,7 +193,7 @@ test("rotates again from the second key to a third", async () => {
 	expect(second.stdout).toContain("Re-encrypted 3 secrets under Master key version 3.");
 	await install.restart({ masterKey: THIRD_KEY });
 	await expectSecretsReadable();
-	await expect(install.restart({ masterKey: NEW_KEY })).rejects.toThrow("old Master key (version 2)");
+	expect(await thrown(install.restart({ masterKey: NEW_KEY }))).toThrow("old Master key (version 2)");
 });
 
 test("when one secret can't be decrypted, rotates none of them", async () => {
@@ -215,17 +216,17 @@ test("when one secret can't be decrypted, rotates none of them", async () => {
 	for (const [ref, value] of [INSTALL_SMTP, SHOP_CDN]) {
 		await install.secrets.useWith(ref, (seen) => expect(seen).toBe(value));
 	}
-	await expect(install.restart({ masterKey: NEW_KEY })).rejects.toThrow("is not this Install's Master key");
+	expect(await thrown(install.restart({ masterKey: NEW_KEY }))).toThrow("is not this Install's Master key");
 });
 
 test("web and worker still running with the old key can no longer use or write secrets", async () => {
 	expect((await rotateKey({ WEBCRAFT_SECRET_KEY: NEW_KEY, WEBCRAFT_OLD_SECRET_KEY: OLD_KEY })).code).toBe(0);
 	const [ref, value] = INSTALL_SMTP;
 
-	await expect(install.secrets.useWith(ref, () => "used")).rejects.toThrow(
+	expect(await thrown(install.secrets.useWith(ref, () => "used"))).toThrow(
 		"The secret \"smtp.password\" of the Install is encrypted under Master key version 2, which is not this process's Master key. Restart web and worker with the Install's current Master key.",
 	);
-	await expect(install.secrets.set(ref, "written-under-the-retired-key-000")).rejects.toThrow(
+	expect(await thrown(install.secrets.set(ref, "written-under-the-retired-key-000"))).toThrow(
 		"This process's Master key is the Install's old Master key (version 1)",
 	);
 
@@ -244,7 +245,7 @@ test("an Install that has no secrets yet takes the new key as its first key vers
 
 		expect(code).toBe(0);
 		expect(stdout).toContain("Re-encrypted 0 secrets under Master key version 1.");
-		await expect(fresh.restart({ masterKey: OLD_KEY })).rejects.toThrow("is not this Install's Master key");
+		expect(await thrown(fresh.restart({ masterKey: OLD_KEY }))).toThrow("is not this Install's Master key");
 		await fresh.restart({ masterKey: NEW_KEY });
 	} finally {
 		await fresh.close();
@@ -305,7 +306,7 @@ describe("when the old key is lost", () => {
 		expect(code).toBe(0);
 		expect(stdout).toContain("Deleted 3 secrets. The Install now uses Master key version 2.");
 		expect(stdout).toContain('  "ai.key" of Workspace acme\n');
-		await expect(install.restart({ masterKey: OLD_KEY })).rejects.toThrow("old Master key (version 1)");
+		expect(await thrown(install.restart({ masterKey: OLD_KEY }))).toThrow("old Master key (version 1)");
 		await install.restart({ masterKey: NEW_KEY });
 		for (const [ref] of SECRETS) {
 			expect(await install.secrets.describe(ref)).toEqual({ set: false });

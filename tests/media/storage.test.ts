@@ -6,6 +6,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { pdf, photo, upload } from "../harness/images.ts";
 import { createFakeS3, createTestInstall, type FakeS3, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { goLive } from "../harness/staging.ts";
 
 let install: TestInstall;
@@ -66,10 +67,10 @@ describe("storage", () => {
 	});
 
 	test("a bucket WebCraft can't write to is refused, and nothing changes", async () => {
-		await expect(
-			admin.api.install.storage.update(s3Settings({ secretAccessKey: "the-wrong-secret-key" })),
-		).rejects.toMatchObject({ code: "STORAGE_UNREACHABLE", status: 400 });
-		await expect(admin.api.install.storage.update(s3Settings({ bucket: "missing-bucket" }))).rejects.toMatchObject({
+		expect(
+			await rejection(admin.api.install.storage.update(s3Settings({ secretAccessKey: "the-wrong-secret-key" }))),
+		).toMatchObject({ code: "STORAGE_UNREACHABLE", status: 400 });
+		expect(await rejection(admin.api.install.storage.update(s3Settings({ bucket: "missing-bucket" })))).toMatchObject({
 			code: "STORAGE_UNREACHABLE",
 		});
 		expect(await admin.api.install.storage.get()).toMatchObject({ kind: "disk", s3: null });
@@ -164,13 +165,13 @@ describe("storage", () => {
 
 	test("only the Superadmin sees or changes where Media is stored", async () => {
 		const { browser: staff } = await install.createStaff({ workspaces: "all" });
-		await expect(staff.api.install.storage.get()).rejects.toMatchObject({ code: "FORBIDDEN", status: 403 });
-		await expect(staff.api.install.storage.update({ kind: "disk" })).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(await rejection(staff.api.install.storage.get())).toMatchObject({ code: "FORBIDDEN", status: 403 });
+		expect(await rejection(staff.api.install.storage.update({ kind: "disk" }))).toMatchObject({ code: "FORBIDDEN" });
 	});
 
 	test("an S3 endpoint must be an http or https address", async () => {
-		await expect(
-			admin.api.install.storage.update(s3Settings({ endpoint: "ftp://files.example" })),
-		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(
+			await rejection(admin.api.install.storage.update(s3Settings({ endpoint: "ftp://files.example" }))),
+		).toMatchObject({ code: "BAD_REQUEST" });
 	});
 });

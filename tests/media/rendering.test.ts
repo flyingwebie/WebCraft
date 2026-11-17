@@ -5,6 +5,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { pdf, photo, upload } from "../harness/images.ts";
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 import { expectSafePage } from "../harness/site-safety.ts";
 import { goLive } from "../harness/staging.ts";
 import { element, text, tree, value } from "../harness/trees.ts";
@@ -220,9 +221,9 @@ describe("media Field values", () => {
 			.media;
 
 		for (const photo of [elsewhere.id, crypto.randomUUID(), "not-an-id", `media:${hero.id}`]) {
-			await expect(
-				editor.api.entries.create({ siteId, postTypeId, title: `Bad ${photo}`, fields: { photo } }),
-			).rejects.toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at: "fields.photo" }] } });
+			expect(
+				await rejection(editor.api.entries.create({ siteId, postTypeId, title: `Bad ${photo}`, fields: { photo } })),
+			).toMatchObject({ code: "ENTRY_INVALID", data: { problems: [{ at: "fields.photo" }] } });
 		}
 	});
 

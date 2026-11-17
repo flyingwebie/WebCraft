@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { FieldInput } from "@webcraft/core";
 
 import { createTestInstall, type TestBrowser, type TestInstall } from "../harness/index.ts";
+import { rejection } from "../harness/settled.ts";
 
 let install: TestInstall;
 let staff: TestBrowser;
@@ -167,9 +168,9 @@ describe("changing them", () => {
 	test("Members can't change them", async () => {
 		const postType = await recipes();
 
-		await expect(
-			owner.api.postTypes.update({ siteId, postTypeId: postType.id, searchable: false }),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(
+			await rejection(owner.api.postTypes.update({ siteId, postTypeId: postType.id, searchable: false })),
+		).toMatchObject({ code: "FORBIDDEN" });
 	});
 
 	test("a change is recorded in the Audit log with what changed", async () => {
@@ -213,7 +214,7 @@ describe("refused Searched fields", () => {
 		],
 	] as const) {
 		test(`${what} is refused where it is`, async () => {
-			await expect(recipes({ searchedFields })).rejects.toMatchObject({
+			expect(await rejection(recipes({ searchedFields }))).toMatchObject({
 				code: "POST_TYPE_INVALID",
 				data: { problems: [{ at, rule }] },
 			});
@@ -221,7 +222,7 @@ describe("refused Searched fields", () => {
 	}
 
 	test("a weight other than A, B, C or D is refused", async () => {
-		await expect(recipes({ searchedFields: [{ field: "title", weight: "E" }] })).rejects.toMatchObject({
+		expect(await rejection(recipes({ searchedFields: [{ field: "title", weight: "E" }] }))).toMatchObject({
 			code: "BAD_REQUEST",
 		});
 	});
@@ -229,14 +230,16 @@ describe("refused Searched fields", () => {
 	test("an update naming a Field the same update removes is refused", async () => {
 		const postType = await recipes();
 
-		await expect(
-			staff.api.postTypes.update({
-				siteId,
-				postTypeId: postType.id,
-				fields: [{ key: "summary", label: "Summary", type: "text" }],
-				searchedFields: [{ field: "body", weight: "B" }],
-			}),
-		).rejects.toMatchObject({
+		expect(
+			await rejection(
+				staff.api.postTypes.update({
+					siteId,
+					postTypeId: postType.id,
+					fields: [{ key: "summary", label: "Summary", type: "text" }],
+					searchedFields: [{ field: "body", weight: "B" }],
+				}),
+			),
+		).toMatchObject({
 			code: "POST_TYPE_INVALID",
 			data: { problems: [{ at: "searchedFields[0].field", rule: "searchedFieldUnknown" }] },
 		});

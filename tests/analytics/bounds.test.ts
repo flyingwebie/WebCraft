@@ -145,7 +145,7 @@ test("an hour keeps its 100 biggest pages and a day its 500, the rest counted to
 	expect(daily).toHaveLength(501);
 	expect(daily.at(-1)).toMatchObject({ value: "(other)", pageviews: 53 });
 	expect(daily.reduce((sum, row) => sum + row.pageviews, 0)).toBe(562);
-}, 120_000);
+});
 
 test("custom events and sources are bounded the same way", async () => {
 	const site = await newSite();
@@ -175,4 +175,4 @@ test("custom events and sources are bounded the same way", async () => {
 	expect(sources).toHaveLength(101);
 	expect(sources.at(-1)).toMatchObject({ value: "(other)", pageviews: 6 });
 	expect(sources.reduce((sum, row) => sum + row.pageviews, 0)).toBe(106);
-}, 120_000);
+});
