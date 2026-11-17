@@ -17,4 +17,4 @@ Assertions:
 - Await a promise, then assert on its value: `expect(await rejection(promise)).toMatchObject(…)`, `expect(await thrown(promise)).toThrow(…)`, `expect(await promise).toEqual(…)` (`tests/harness/settled.ts`). Never `expect(promise)` with `.rejects` or `.resolves`: Bun stalls there (`docs/development.md`, "Testing").
 - Never add `--retry`, raise a timeout or skip a test to make it pass. A test that needs one of those has a bug: find it.
 
-Before pushing, run the files you touched the way CI does: `bun test --parallel --no-isolate <files>`.
+Before pushing, run the files you touched the way CI does: `bun test --parallel --no-isolate <files>`. The pre-push hook checks format, lint and types on its own; never skip it with `--no-verify`.

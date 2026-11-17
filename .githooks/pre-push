@@ -1,0 +1,29 @@
+#!/bin/sh
+# Before a push: the format check and lint on the files this branch changed since it left main, and
+# the typecheck of every project (whole-repo, since a change in one package can break another, and
+# it takes about 3 seconds). `bun install` turns these hooks on (`prepare` in package.json).
+# Budget: 9 seconds. Skip once with `git push --no-verify`.
+set -eu
+root="$(git rev-parse --show-toplevel)"
+cd "$root"
+started=$(date +%s)
+
+base="$(git merge-base HEAD origin/main 2>/dev/null || git rev-parse HEAD~1)"
+changed="$(git diff --name-only --diff-filter=ACMR "$base" HEAD)"
+formatted="$(printf '%s\n' "$changed" | grep -E '\.(ts|tsx|js|mjs|json|jsonc|css|ya?ml)$' || true)"
+linted="$(printf '%s\n' "$changed" | grep -E '\.(ts|tsx|js|mjs)$' || true)"
+
+if [ -n "$formatted" ]; then
+	# shellcheck disable=SC2086 # one argument per file
+	node_modules/.bin/oxfmt --check --no-error-on-unmatched-pattern $formatted
+fi
+if [ -n "$linted" ]; then
+	# shellcheck disable=SC2086
+	node_modules/.bin/oxlint $linted
+fi
+bun scripts/typecheck.ts > /dev/null 2>&1 || bun scripts/typecheck.ts
+
+took=$(($(date +%s) - started))
+if [ "$took" -gt 9 ]; then
+	echo "pre-push: the checks took ${took}s, over their 9-second budget. Something got slower: see AGENTS.md." >&2
+fi
