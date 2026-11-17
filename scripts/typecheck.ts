@@ -11,7 +11,9 @@ const all = [
 	".",
 	...workspaces.packages.flatMap((pattern) =>
 		pattern.endsWith("/*")
-			? [...new Bun.Glob(`${pattern}/tsconfig.json`).scanSync({ cwd: root })].map((file) => file.slice(0, -"/tsconfig.json".length))
+			? [...new Bun.Glob(`${pattern}/tsconfig.json`).scanSync({ cwd: root })].map((file) =>
+					file.slice(0, -"/tsconfig.json".length),
+				)
 			: existsSync(join(root, pattern, "tsconfig.json"))
 				? [pattern]
 				: [],
