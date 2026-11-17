@@ -19,42 +19,58 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Every job has a hard limit too, a few times its budget, so a hung job ends.
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           filter: blob:none
           fetch-depth: 0
       - uses: ./.github/actions/setup
-      - run: bun run lint
+      - uses: ./.github/actions/within
+        with:
+          run: bun run lint
+          seconds: 5
 
   typecheck:
     name: Typecheck
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           filter: blob:none
           fetch-depth: 0
       - uses: ./.github/actions/setup
-      - run: bun run typecheck
+      # Target 5 s: bun check on 4 cores takes 14 s; on 8 the budget drops to the target.
+      - uses: ./.github/actions/within
+        with:
+          run: bun run typecheck
+          seconds: 20
+          target: 5
 
   build:
     name: Build
     runs-on: ubuntu-latest
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           filter: blob:none
           fetch-depth: 0
       - uses: ./.github/actions/setup
-      - run: bun run build
+      - uses: ./.github/actions/within
+        with:
+          run: bun run build
+          seconds: 30
 
   licences:
     name: Licences
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -62,7 +78,10 @@ jobs:
           fetch-depth: 0
       - uses: ./.github/actions/setup
       # Blocks dependencies whose licence isn't compatible with AGPL-3.0-or-later (ADR 0012).
-      - run: bun run check:licences
+      - uses: ./.github/actions/within
+        with:
+          run: bun run check:licences
+          seconds: 10
 
   test:
     # The suite in parts balanced by how long each file took (tests/timings.json), each part on its own
@@ -70,6 +89,7 @@ jobs:
     # keeps one process across them (--no-isolate): each file cleans up after itself (AGENTS.md).
     name: Tests (${{ matrix.shard }}/10)
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     strategy:
       fail-fast: false
       matrix:
@@ -100,10 +120,12 @@ jobs:
       - name: Wait for Postgres
         run: until docker exec postgres pg_isready --username postgres --host localhost --quiet; do sleep 0.2; done
       # No --retry: a test that passes only on a second try has a bug, and a retry would hide it.
+      # Target 60 s a part: on 4 cores a part takes up to 186 s; on 8 the budget drops to the target.
       - name: bun test
         env:
           SHARD: ${{ matrix.shard }}
         run: |
+          started=$(date +%s)
           files=""
           if [ -f "$RUNNER_TEMP/selected" ] && [ "$(cat "$RUNNER_TEMP/selected")" != all ]; then
             files="$(cat "$RUNNER_TEMP/selected")"
@@ -112,6 +134,12 @@ jobs:
           # shellcheck disable=SC2086 # one argument per selected file
           bun test --timeout 30000 --parallel="$(nproc)" --no-isolate \
             --timings=tests/timings.json --update-timings --shard="$SHARD/10" $files
+          took=$(($(date +%s) - started))
+          echo "Took ${took}s of its 210s budget (target 60s)."
+          if [ "$took" -gt 210 ]; then
+            echo "::error::This part took ${took}s, over its 210-second budget. Find what got slower: docs/development.md, \"CI budgets\"."
+            exit 1
+          fi
       # This part's measured durations, to refresh tests/timings.json from (docs/development.md, "Testing").
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -123,6 +151,7 @@ jobs:
   deploy:
     name: Deploy files (Compose smoke test)
     runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -138,6 +167,7 @@ jobs:
   denylist:
     name: Reference-material denylist
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

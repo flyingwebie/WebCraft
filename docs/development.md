@@ -2115,6 +2115,22 @@ Without a list the check is skipped locally with a warning and fails in CI. With
 
 On a pull request the tests run only the files its changes can reach (`scripts/select-tests.ts`): Bun's bundler traces each test file's imports through the workspace packages, and a changed file selects the tests that import it. Anything it can't trace runs every test: a changed file no test imports (a migration, a JSON document, the lockfile, a workflow, admin UI code), any file a test names in its code (a file it reads or a script it starts), and tests that start processes run whenever code changes. Only Markdown and agent notes no test names are left out. The merge queue and `main` always run every test, so nothing a selection misses reaches `main`. Most code is reached through `@webcraft/core`'s single entry point, so a change there still selects nearly every test; a change to tests or to a narrow package selects few.
 
+### CI budgets
+
+Each check has a budget, and a job fails when its check takes longer (`.github/actions/within`, and the test step's own check), so CI can't get slower without someone noticing. Each job also has a hard `timeout-minutes` a few times its budget, so a hung job ends.
+
+| | Target | Enforced now | Measured (4-core hosted runners) |
+| --- | --- | --- | --- |
+| Waiting for a runner | 10 s | `bun scripts/ci-audit.ts` | 1–2 s |
+| Setup (Bun, `node_modules`) | 30 s | 30 s | about 15 s |
+| Lint | 5 s | 5 s | 4–5 s |
+| Typecheck | 5 s | 20 s | 14 s |
+| Build | | 30 s | 11–13 s |
+| Licences | | 10 s | under 1 s |
+| Tests, one part of ten | 60 s | 210 s | 96–186 s |
+
+Typecheck and the tests need more cores than GitHub's standard runners have to meet their targets; their budgets drop to the target with the move to 8-core runners. When a budget fails, find what got slower (`bun scripts/ci-audit.ts 50 CI` splits every job into waiting, setup and running, at p50 and p95); never raise the budget to make it pass.
+
 `.github/workflows/browser.yml` runs the browser checks, **Accessibility (browser) (1/4 to 4/4)**, every night on `main` and when someone starts it by hand (Actions › Browser checks › Run workflow, on any branch), not on pull requests: GitHub's standard runners are slow enough that timing-sensitive checks fail there for no fault of the change. Each part builds the admin, installs Playwright's Chromium, Firefox and WebKit (the framed page's checks run in all three; the browsers are cached under the tests' Playwright version) and runs a quarter of the `*.browser.ts` files (`--shard=<n>/4 --retry=2`). A check that edits shared data must start from its own, so that a retry can pass. The runner is Linux: a check that reads a shortcut's text sees `Ctrl+C`, not `⌘C`, so read names as a screen reader does (the keys beside a menu item are hidden from it). Before merging a change to the admin or Edit mode, run them on your own computer: `bun run build && bun run test:browser`.
 
 `.github/workflows/cli.yml` compiles `webcraft` for the five platforms (`bun run build:cli -- --npm`) on pull requests that touch it and on pushes to `main`, runs the Linux and macOS binaries, and only on a release tag `v1.2.3` (matching `package.json`) attaches the binaries and `SHA256SUMS` to the GitHub release and publishes the npm packages (`@webcraft/cli` and `@webcraft/cli-<os>-<cpu>`, with provenance) with the `NPM_TOKEN` secret.
